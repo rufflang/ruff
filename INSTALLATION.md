@@ -2,23 +2,23 @@
 
 📚 Return to [README](../README.md) for full language overview.
 
-> Looking for how to get RUFF installed on your system? You’re in the right place.
+> Looking for how to get Ruff installed on your system? You’re in the right place.
 
-You can install the RUFF programming language on **macOS**, **Linux**, or **Windows** using Homebrew, Scoop, or direct binary download.
+You can install the Ruff programming language on **macOS**, **Linux**, or **Windows** using Homebrew, Scoop, or direct binary download.
 
 ---
 
 ## 🥜 Homebrew (macOS / Linux)
 
 ```bash
-brew tap rufflang/tap
-brew install ruff
+brew tap Rufflang/tap
+brew install Ruff
 ```
 
 Verify:
 
 ```bash
-ruff --version
+Ruff --version
 ```
 
 ---
@@ -26,30 +26,30 @@ ruff --version
 ## 💪 Scoop (Windows)
 
 ```powershell
-scoop bucket add ruff https://github.com/rufflang/scoop-bucket
-scoop install ruff
+scoop bucket add Ruff https://github.com/Rufflang/scoop-bucket
+scoop install Ruff
 ```
 
 Verify:
 
 ```powershell
-ruff --version
+Ruff --version
 ```
 
 ---
 
 ## 📄 Manual Download
 
-Go to the [Releases](https://github.com/rufflang/ruff/releases) page and download the appropriate zip:
+Go to the [Releases](https://github.com/Rufflang/Ruff/releases) page and download the appropriate zip:
 
-* `ruff-vX.Y.Z-linux-x64.zip`
-* `ruff-vX.Y.Z-macos-universal.zip`
-* `ruff-vX.Y.Z-win64.zip`
+* `Ruff-vX.Y.Z-linux-x64.zip`
+* `Ruff-vX.Y.Z-macos-universal.zip`
+* `Ruff-vX.Y.Z-win64.zip`
 
 Then unzip and move the binary into your `PATH`:
 
 ```bash
-mv ruff /usr/local/bin/ruff
+mv Ruff /usr/local/bin/Ruff
 ```
 
 ---
@@ -63,21 +63,21 @@ To quickly return here, see the [Install Guide](docs/install.md) from the main R
 ## 🚀 Running
 
 ```bash
-ruff run yourfile.ruff
+Ruff run yourfile.Ruff
 ```
 
 To run tests:
 
 ```bash
-ruff test
+Ruff test
 ```
 
 To update expected test output:
 
 ```bash
-ruff test --update
+Ruff test --update
 ```
 
 ---
 
-You're ready to RUFF.
+You're ready to Ruff.

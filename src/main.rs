@@ -12,7 +12,7 @@ use std::path::PathBuf;
 #[derive(ClapParser)]
 #[command(
     name = "ruff",
-    about = "RUFF: A modern programming language",
+    about = "Ruff: A modern programming language",
     version = env!("CARGO_PKG_VERSION"),
     long_about = None
 )]
@@ -24,13 +24,13 @@ struct Cli {
 #[derive(Subcommand)]
 #[command(arg_required_else_help = true)]
 enum Commands {
-    /// Run a RUFF script file
+    /// Run a Ruff script file
     Run {
         /// Path to the .ruff file
         file: PathBuf,
     },
 
-    /// Launch interactive RUFF REPL
+    /// Launch interactive Ruff REPL
     Repl,
 
     /// Run all test scripts in the tests/ directory
@@ -55,7 +55,7 @@ fn main() {
         }
 
         Commands::Repl => {
-            println!("RUFF REPL v0.1.0 (coming soon)\nType 'exit' to quit.");
+            println!("Ruff REPL v0.1.0 (coming soon)\nType 'exit' to quit.");
             // Optional: REPL can be added here
         }
 

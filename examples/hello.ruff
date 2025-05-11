@@ -1,5 +1,5 @@
 func greet() {
-    print("Hello from RUFF!")
+    print("Ruff Ruff!")
 }
 
 greet()

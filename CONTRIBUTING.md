@@ -1,6 +1,6 @@
-# Contributing to RUFF
+# Contributing to Ruff
 
-Thanks for your interest in contributing to RUFF — a new, fast, expressive programming language built from scratch in Rust.
+Thanks for your interest in contributing to Ruff — a new, fast, expressive programming language built from scratch in Rust.
 
 ## 👤 Who Can Contribute?
 
@@ -11,7 +11,7 @@ Anyone! Beginners, advanced Rust devs, compiler nerds, language design tinkerers
 * Fix bugs
 * Add language features (see `README.md` roadmap)
 * Improve the CLI or REPL
-* Write `.ruff` example scripts
+* Write `.Ruff` example scripts
 * Refactor the interpreter or parser
 * Enhance testing/CI support
 
@@ -21,8 +21,8 @@ Anyone! Beginners, advanced Rust devs, compiler nerds, language design tinkerers
 2. Clone it:
 
 ```bash
-git clone https://github.com/yourname/ruff.git
-cd ruff
+git clone https://github.com/yourname/Ruff.git
+cd Ruff
 ```
 3. Build & test:
 
@@ -46,4 +46,4 @@ cargo run -- test --update
 
 Open an issue or join discussions in the repo!
 
-RUFF is early and evolving fast — your input helps shape it.
+Ruff is early and evolving fast — your input helps shape it.

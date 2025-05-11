@@ -1,6 +1,8 @@
-# 🐾 RUFF Language
+# 🐾 Ruff Programming Language
 
-**RUFF** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
+**Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
+
+> This repo is under active development. Consider everything experimental until v0.1.0 is released.
 
 ---
 
@@ -16,12 +18,6 @@ Install Rust and run:
 
 ```bash
 cargo run -- run examples/your_script.ruff
-```
-
-To enter REPL (coming soon):
-
-```bash
-cargo run -- repl
 ```
 
 ---
@@ -98,10 +94,4 @@ cargo run -- test --update
 
 ## 👨‍💼 Contributing
 
-Pull requests welcome. Fork the repo, make your edits, and run:
-
-```bash
-cargo run -- test --update
-```
-
-Thanks for helping shape RUFF!
+View the [CONTRIBUTING](CONTRIBUTING.md)
