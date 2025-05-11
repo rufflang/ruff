@@ -1,0 +1,13 @@
+[package]
+name = "ruff"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <you@example.com>"]
+description = "RUFF — A lean, expressive programming language"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/rufflang/ruff"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+once_cell = "1.21.3"
