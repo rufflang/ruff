@@ -1,0 +1,78 @@
+# === RUST ===
+/target
+**/*.rs.bk
+**/*.rs.bak
+**/*.swp
+**/*.swo
+**/*.tmp
+**/*.old
+**/*.log
+
+# Rust toolchain and test snapshots
+rust-toolchain.toml
+/tests/*.out
+
+# Cargo specific
+/.cargo/
+/Cargo.lock
+/.rustfmt.toml
+
+# === TEST SNAPSHOTS ===
+*.snap
+/tests/__snapshots__/
+/tests/*.out
+
+# === BUILD SYSTEMS ===
+/build/
+/dist/
+/out/
+/bin/
+/debug/
+/release/
+/ruff
+
+# === EDITORS ===
+# VS Code
+.vscode/
+.code-workspace
+
+# JetBrains IDEs (CLion, RustRover, IntelliJ)
+.idea/
+*.iml
+
+# Sublime
+*.sublime-workspace
+*.sublime-project
+
+# === SYSTEM ===
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+*.bak
+*.tmp
+*.log
+*.swp
+
+# === OTHER ===
+*.log
+*.lock
+*.pid
+*.patch
+*.orig
+*.rej
+*.bak
+*.old
+*.zip
+*.gz
+*.tar
+*.7z
+
+# === BY PRODUCTS ===
+*.dSYM/
+*.rlib
+*.so
+*.dll
+*.exe
+*.obj
+*.pdb
