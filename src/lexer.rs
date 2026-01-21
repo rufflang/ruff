@@ -1,3 +1,16 @@
+// File: src/lexer.rs
+//
+// Lexical analyzer (tokenizer) for the Ruff programming language.
+// Converts source code text into a stream of tokens for parsing.
+//
+// Supports:
+// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except
+// - Identifiers and numbers
+// - String literals with escape sequences
+// - Operators: +, -, *, /, =, ==, <, >, <=, >=, :=, ::
+// - Punctuation: ( ) { } , ; :
+// - Comments starting with #
+
 #[derive(Debug, Clone, PartialEq)] // Added PartialEq here
 pub enum TokenKind {
     Identifier(String),
@@ -12,10 +25,23 @@ pub enum TokenKind {
 #[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
+    #[allow(dead_code)]
     pub line: usize,
+    #[allow(dead_code)]
     pub column: usize,
 }
 
+/// Tokenizes Ruff source code into a vector of tokens.
+///
+/// Processes the input character by character, recognizing keywords, identifiers,
+/// numbers, strings, operators, and punctuation. Comments starting with # are
+/// skipped until end of line.
+///
+/// # Arguments
+/// * `source` - The Ruff source code as a string
+///
+/// # Returns
+/// A vector of Token structs representing the tokenized source code
 pub fn tokenize(source: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut chars = source.chars().peekable();
@@ -106,7 +132,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 let kind = match ident.as_str() {
                     "let" | "mut" | "const" | "func" | "return" | "enum" |
                     "match" | "case" | "default" | "if" | "else" | "loop" |
-                    "while" | "for" | "in" | "try" | "except" | "throw" => {
+                    "while" | "for" | "in" | "try" | "except" => {
                         TokenKind::Keyword(ident)
                     }
                     _ => TokenKind::Identifier(ident),
@@ -148,11 +174,38 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             '=' | '+' | '-' | '*' | '/' | '<' | '>' => {
                 let op = chars.next().unwrap();
                 col += 1;
-                tokens.push(Token {
-                    kind: TokenKind::Operator(op.to_string()),
-                    line,
-                    column: col,
-                });
+                // Check for == >= <=
+                if op == '=' && chars.peek() == Some(&'=') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("==".into()),
+                        line,
+                        column: col,
+                    });
+                } else if op == '>' && chars.peek() == Some(&'=') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator(">=".into()),
+                        line,
+                        column: col,
+                    });
+                } else if op == '<' && chars.peek() == Some(&'=') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("<=".into()),
+                        line,
+                        column: col,
+                    });
+                } else {
+                    tokens.push(Token {
+                        kind: TokenKind::Operator(op.to_string()),
+                        line,
+                        column: col,
+                    });
+                }
             }
             '(' | ')' | '{' | '}' | ',' | ';' => {
                 tokens.push(Token {

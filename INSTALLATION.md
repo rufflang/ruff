@@ -1,83 +1,310 @@
-# 🧩 Installation
+# 🧩 Installation Guide
 
-📚 Return to [README](../README.md) for full language overview.
+📚 Return to [README](README.md) for full language overview.
 
-> Looking for how to get Ruff installed on your system? You’re in the right place.
+> Looking for how to get Ruff installed on your system? You're in the right place.
 
-You can install the Ruff programming language on **macOS**, **Linux**, or **Windows** using Homebrew, Scoop, or direct binary download.
-
----
-
-## 🥜 Homebrew (macOS / Linux)
-
-```bash
-brew tap Rufflang/tap
-brew install Ruff
-```
-
-Verify:
-
-```bash
-Ruff --version
-```
+Ruff is a programming language built with Rust. Currently, you install it by building from source using Cargo. Pre-built binaries and package managers are planned for future releases.
 
 ---
 
-## 💪 Scoop (Windows)
+## 📋 Prerequisites
 
+Ruff requires **Rust 1.70+** to build from source.
+
+### Install Rust
+
+**macOS / Linux:**
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+**Windows:**  
+Download and run the installer from [rustup.rs](https://rustup.rs/)
+
+Verify Rust installation:
+```bash
+rustc --version
+cargo --version
+```
+
+---
+
+## 🔨 Build from Source (Current Method)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/rufflang/ruff.git
+cd ruff
+```
+
+### 2. Build the Project
+
+**Development build** (faster compilation, slower runtime):
+```bash
+cargo build
+```
+
+**Release build** (optimized, recommended for daily use):
+```bash
+cargo build --release
+```
+
+### 3. Run Ruff
+
+**Without installing** (from project directory):
+```bash
+# Development build
+cargo run -- run examples/hello.ruff
+
+# Release build
+./target/release/ruff run examples/hello.ruff
+```
+
+### 4. Install System-Wide (Optional)
+
+**macOS / Linux:**
+```bash
+cargo install --path .
+# Or manually copy the binary
+sudo cp target/release/ruff /usr/local/bin/
+```
+
+**Windows (PowerShell as Administrator):**
 ```powershell
-scoop bucket add Ruff https://github.com/Rufflang/scoop-bucket
-scoop install Ruff
+cargo install --path .
+# Or manually copy the binary to a directory in your PATH
 ```
 
-Verify:
+Verify installation:
+```bash
+ruff --version
+```
 
+---
+
+## 🎯 Platform-Specific Notes
+
+### macOS
+
+**Supported versions**: macOS 10.15 (Catalina) or later  
+**Architectures**: Intel (x86_64) and Apple Silicon (ARM64)
+
+If you encounter permissions issues:
+```bash
+sudo chown -R $(whoami) /usr/local/bin
+```
+
+### Linux
+
+**Tested distributions**: Ubuntu 20.04+, Debian 11+, Fedora 35+, Arch Linux
+
+**Dependencies**: None required beyond Rust toolchain
+
+If you need to install to a user directory:
+```bash
+mkdir -p ~/.local/bin
+cp target/release/ruff ~/.local/bin/
+# Add to PATH in ~/.bashrc or ~/.zshrc:
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Windows
+
+**Supported versions**: Windows 10 or later  
+**Architectures**: x64
+
+**Common issues**:
+- If you get "VCRUNTIME140.dll missing" errors, install the [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+- Ensure your PATH includes the directory where `ruff.exe` is located
+
+---
+
+## 🚀 Quick Start
+
+Once installed, you can run Ruff programs:
+
+```bash
+# Run a script
+ruff run examples/hello.ruff
+
+# Run tests
+ruff test
+
+# Update test snapshots
+ruff test --update
+```
+
+---
+
+## 📦 Future Installation Methods
+
+The following installation methods are planned for future releases:
+
+### Homebrew (macOS / Linux)
+```bash
+# Coming soon
+brew tap rufflang/tap
+brew install ruff
+```
+
+### Scoop (Windows)
 ```powershell
-Ruff --version
+# Coming soon
+scoop bucket add ruff https://github.com/rufflang/scoop-bucket
+scoop install ruff
+```
+
+### Pre-built Binaries
+Download from [Releases](https://github.com/rufflang/ruff/releases):
+- `ruff-v0.1.0-linux-x64.tar.gz`
+- `ruff-v0.1.0-macos-universal.tar.gz`
+- `ruff-v0.1.0-windows-x64.zip`
+
+### Package Managers
+- **apt** (Ubuntu/Debian): Planned
+- **dnf** (Fedora): Planned
+- **pacman** (Arch): Planned
+- **winget** (Windows): Planned
+
+---
+
+## 🆘 Troubleshooting
+
+### Build Failures
+
+**"linker \`cc\` not found"** (Linux)
+```bash
+# Ubuntu/Debian
+sudo apt install build-essential
+
+# Fedora
+sudo dnf install gcc
+
+# Arch
+sudo pacman -S base-devel
+```
+
+**"failed to run custom build command"**
+- Ensure you have the latest Rust version: `rustup update`
+- Clean and rebuild: `cargo clean && cargo build --release`
+
+### Runtime Issues
+
+**"command not found: ruff"**
+- Verify the binary is in your PATH
+- Try running with full path: `/usr/local/bin/ruff` or `./target/release/ruff`
+
+**Slow compilation**
+- Use `cargo build` for development (faster compile, slower runtime)
+- Use `cargo build --release` only when you need performance
+
+### Getting Help
+
+If you encounter issues:
+1. Check [GitHub Issues](https://github.com/rufflang/ruff/issues)
+2. Read the [Contributing Guide](CONTRIBUTING.md)
+3. Open a new issue with:
+   - Your OS and version
+   - Rust version (`rustc --version`)
+   - Full error message
+   - Steps to reproduce
+
+---
+
+## 🔄 Updating Ruff
+
+### Built from Source
+```bash
+cd ruff
+git pull
+cargo build --release
+# If installed system-wide:
+sudo cp target/release/ruff /usr/local/bin/
+```
+
+### Via Package Manager (Future)
+```bash
+# Homebrew
+brew upgrade ruff
+
+# Scoop
+scoop update ruff
 ```
 
 ---
 
-## 📄 Manual Download
+## 🗑️ Uninstalling
 
-Go to the [Releases](https://github.com/Rufflang/Ruff/releases) page and download the appropriate zip:
-
-* `Ruff-vX.Y.Z-linux-x64.zip`
-* `Ruff-vX.Y.Z-macos-universal.zip`
-* `Ruff-vX.Y.Z-win64.zip`
-
-Then unzip and move the binary into your `PATH`:
-
+### Cargo Install
 ```bash
-mv Ruff /usr/local/bin/Ruff
+cargo uninstall ruff
+```
+
+### Manual Installation
+```bash
+# macOS/Linux
+sudo rm /usr/local/bin/ruff
+
+# Windows - Delete ruff.exe from your installation directory
 ```
 
 ---
 
-## 🧠 From the README
+## ✅ Verification
 
-To quickly return here, see the [Install Guide](docs/install.md) from the main README.
+After installation, verify everything works:
+
+```bash
+# Check version
+ruff --version
+
+# Run a test script
+echo 'print("Hello, Ruff!")' > test.ruff
+ruff run test.ruff
+
+# Run test suite
+cd /path/to/ruff/repo
+ruff test
+```
+
+Expected output:
+```
+Hello, Ruff!
+```
 
 ---
 
-## 🚀 Running
+## 📝 Development Setup
+
+For contributors and developers:
 
 ```bash
-Ruff run yourfile.Ruff
+# Clone and setup
+git clone https://github.com/rufflang/ruff.git
+cd ruff
+
+# Install dev dependencies
+rustup component add rustfmt clippy
+
+# Run tests
+cargo test
+
+# Format code
+cargo fmt
+
+# Lint code
+cargo clippy
+
+# Build documentation
+cargo doc --open
 ```
 
-To run tests:
-
-```bash
-Ruff test
-```
-
-To update expected test output:
-
-```bash
-Ruff test --update
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines.
 
 ---
 
-You're ready to Ruff.
+**You're ready to start coding in Ruff! 🐾**
+
+*For examples and language features, see the [README](README.md) and [examples/](examples/) directory.*
