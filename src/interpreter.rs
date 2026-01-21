@@ -1,11 +1,27 @@
-// File: src/interpreter.rs (UPDATED)
+// File: src/interpreter.rs
+//
+// Tree-walking interpreter for the Ruff programming language.
+// Executes Ruff programs by traversing the Abstract Syntax Tree (AST).
+//
+// The interpreter maintains an environment (symbol table) for variables and
+// functions, evaluates expressions to produce values, and executes statements
+// to perform actions. It supports:
+// - Variable binding and mutation
+// - Function calls with lexical scoping
+// - Enum variants and pattern matching
+// - Error handling with try/except/throw
+// - Control flow (if/else, loops, match)
+// - Binary operations on numbers and strings
+//
+// Values in Ruff can be numbers, strings, tagged enum variants, functions,
+// or error values for exception handling.
 
 use crate::ast::{Expr, Stmt};
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use once_cell::sync::Lazy;
 
+/// Runtime values in the Ruff interpreter
 #[derive(Clone)]
 pub enum Value {
     Tagged { tag: String, fields: HashMap<String, Value> },
@@ -14,14 +30,17 @@ pub enum Value {
     Function(Vec<String>, Vec<Stmt>),
     Return(Box<Value>),
     Error(String),
+    #[allow(dead_code)]
     Enum(String),
 }
 
+/// Environment holds variable and function bindings
 #[derive(Default)]
 pub struct Environment {
     pub vars: HashMap<String, Value>,
 }
 
+/// Main interpreter that executes Ruff programs
 pub struct Interpreter {
     pub env: Environment,
     pub return_value: Option<Value>,
@@ -29,6 +48,7 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
+    /// Creates a new interpreter with an empty environment
     pub fn new() -> Self {
         Interpreter {
             env: Environment::default(),
@@ -37,10 +57,12 @@ impl Interpreter {
         }
     }
 
+    /// Sets the output sink for print statements (used for testing)
     pub fn set_output(&mut self, output: Arc<Mutex<Vec<u8>>>) {
         self.output = Some(output);
     }
 
+    /// Evaluates a list of statements sequentially, stopping on return/error
     pub fn eval_stmts(&mut self, stmts: &[Stmt]) {
         for stmt in stmts {
             self.eval_stmt(stmt);
@@ -50,6 +72,7 @@ impl Interpreter {
         }
     }
 
+    /// Helper to write output to either the output buffer or stdout
     fn write_output(&self, msg: &str) {
         if let Some(out) = &self.output {
             let mut buffer = out.lock().unwrap();
@@ -59,6 +82,7 @@ impl Interpreter {
         }
     }
 
+    /// Evaluates a single statement
     fn eval_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::If { condition, then_branch, else_branch } => {
@@ -76,14 +100,26 @@ impl Interpreter {
             }
             Stmt::Let { name, value, mutable: _ } => {
                 let val = self.eval_expr(&value);
+                // If expression evaluation resulted in an error, propagate it
+                if matches!(val, Value::Error(_)) {
+                    self.return_value = Some(val.clone());
+                }
                 self.env.vars.insert(name.clone(), val);
             }
             Stmt::Const { name, value } => {
                 let val = self.eval_expr(&value);
+                // If expression evaluation resulted in an error, propagate it
+                if matches!(val, Value::Error(_)) {
+                    self.return_value = Some(val.clone());
+                }
                 self.env.vars.insert(name.clone(), val);
             }
             Stmt::Assign { name, value } => {
                 let val = self.eval_expr(&value);
+                // If expression evaluation resulted in an error, propagate it
+                if matches!(val, Value::Error(_)) {
+                    self.return_value = Some(val.clone());
+                }
                 if self.env.vars.contains_key(name.as_str()) {
                     self.env.vars.insert(name.clone(), val);
                 }
@@ -286,6 +322,7 @@ impl Interpreter {
         }
     }
 
+    /// Evaluates an expression to produce a value
     fn eval_expr(&self, expr: &Expr) -> Value {
         match expr {
             Expr::Number(n) => Value::Number(*n),
@@ -300,9 +337,18 @@ impl Interpreter {
                         "-" => Value::Number(a - b),
                         "*" => Value::Number(a * b),
                         "/" => Value::Number(a / b),
+                        "==" => Value::Number(if (a - b).abs() < f64::EPSILON { 1.0 } else { 0.0 }),
+                        ">" => Value::Number(if a > b { 1.0 } else { 0.0 }),
+                        "<" => Value::Number(if a < b { 1.0 } else { 0.0 }),
+                        ">=" => Value::Number(if a >= b { 1.0 } else { 0.0 }),
+                        "<=" => Value::Number(if a <= b { 1.0 } else { 0.0 }),
                         _ => Value::Number(0.0),
                     },
-                    (Value::Str(a), Value::Str(b)) if op == "+" => Value::Str(a + &b),
+                    (Value::Str(a), Value::Str(b)) => match op.as_str() {
+                        "+" => Value::Str(a + &b),
+                        "==" => Value::Number(if a == b { 1.0 } else { 0.0 }),
+                        _ => Value::Number(0.0),
+                    },
                     _ => Value::Number(0.0),
                 }
             }
@@ -324,6 +370,8 @@ impl Interpreter {
                     inner.eval_stmts(&body);
                     if let Some(Value::Return(val)) = inner.return_value {
                         *val
+                    } else if let Some(Value::Error(msg)) = inner.return_value {
+                        Value::Error(msg) // Propagate error instead of returning 0
                     } else {
                         Value::Number(0.0)
                     }
@@ -340,6 +388,8 @@ impl Interpreter {
             }
         }
     }
+    
+    /// Converts a runtime value to a string for display
     fn stringify_value(value: &Value) -> String {
         match value {
             Value::Str(s) => s.clone(),

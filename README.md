@@ -2,13 +2,56 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> This repo is under active development. Consider everything experimental until v0.1.0 is released.
+> **Status**: Core functionality complete and tested. Ready for semi-production use with basic programs.
+
+---
+
+## 🎯 Project Status
+
+### ✅ Implemented Features
+
+* **Variables & Constants**
+  - `let` and `mut` for mutable variables
+  - `const` for constants
+  - Shorthand assignment with `:=` (e.g., `x := 5`)
+
+* **Functions**
+  - Function definitions with `func` keyword
+  - Parameter passing
+  - Return values
+  - Lexical scoping
+
+* **Control Flow**
+  - `if`/`else` statements
+  - Pattern matching with `match`/`case`
+  - `loop` and `for` loops
+  - `try`/`except`/`throw` error handling
+
+* **Data Types**
+  - Numbers (f64)
+  - Strings with escape sequences
+  - Enums with tagged variants
+  - Functions as first-class values
+
+* **Operators**
+  - Arithmetic: `+`, `-`, `*`, `/`
+  - Comparison: `==`, `>`, `<`, `>=`, `<=`
+  - String concatenation with `+`
+
+* **Built-in Functions**
+  - `print()` for output
+  - `throw()` for error handling
+
+* **Testing Framework**
+  - Built-in test runner
+  - Snapshot testing with `.out` files
+  - Test result reporting
 
 ---
 
 ## 🧩 Installation
 
-See [Install Guide](docs/install.md) for platform setup instructions.
+See [Install Guide](INSTALLATION.md) for platform setup instructions.
 
 ---
 

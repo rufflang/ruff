@@ -1,4 +1,18 @@
 // File: src/parser.rs
+//
+// Recursive descent parser for the Ruff programming language.
+// Transforms a sequence of tokens into an Abstract Syntax Tree (AST).
+//
+// The parser implements a traditional recursive descent parsing strategy with
+// operator precedence for expressions. It supports:
+// - Variable declarations (let, mut, const, shorthand :=)
+// - Function definitions
+// - Enum definitions
+// - Control flow (if/else, match, loop, for, try/except)
+// - Expression parsing with proper operator precedence
+//
+// The parser uses a single-token lookahead and advances through the token stream
+// as it builds the AST.
 
 use crate::ast::{Expr, Stmt};
 use crate::lexer::{Token, TokenKind};
@@ -7,16 +21,19 @@ use std::path::Path;
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 
+/// Parser maintains position in token stream and provides methods to parse statements and expressions
 pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
 }
 
 impl Parser {
+    /// Creates a new parser from a vector of tokens
     pub fn new(tokens: Vec<Token>) -> Self {
         Parser { tokens, pos: 0 }
     }
 
+    /// Peek at the current token without consuming it
     fn peek(&self) -> &TokenKind {
         self.tokens
             .get(self.pos)
@@ -24,12 +41,14 @@ impl Parser {
             .unwrap_or(&TokenKind::Eof)
     }
 
+    /// Consume and return the current token, then advance to the next
     fn advance(&mut self) -> &TokenKind {
         let tok = self.tokens.get(self.pos).map(|t| &t.kind).unwrap_or(&TokenKind::Eof);
         self.pos += 1;
         tok
     }
 
+    /// Parse the entire token stream into a vector of statements
     pub fn parse(&mut self) -> Vec<Stmt> {
         let mut stmts = Vec::new();
         while !matches!(self.peek(), TokenKind::Eof) {
@@ -57,10 +76,19 @@ impl Parser {
                 };
                 Some(Stmt::Return(expr))
             }
+            TokenKind::Keyword(k) if k == "if" => self.parse_if(),
             TokenKind::Keyword(k) if k == "try" => self.parse_try_except(),
             TokenKind::Keyword(k) if k == "match" => self.parse_match(),
             TokenKind::Keyword(k) if k == "loop" => self.parse_loop(),
             TokenKind::Keyword(k) if k == "for" => self.parse_for(),
+            TokenKind::Identifier(_) => {
+                // Check for variable assignment (name := expr)
+                if self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Operator(":=".into())) {
+                    self.parse_let()
+                } else {
+                    self.parse_expr().map(Stmt::ExprStmt)
+                }
+            }
             _ => self.parse_expr().map(Stmt::ExprStmt),
         }
     }
@@ -87,7 +115,19 @@ impl Parser {
     }
 
     fn parse_let(&mut self) -> Option<Stmt> {
-        let is_mut = matches!(self.advance(), TokenKind::Keyword(k) if k == "mut");
+        // Handle 'mut', 'let', or bare identifier with :=
+        let is_mut = match self.peek() {
+            TokenKind::Keyword(k) if k == "mut" => {
+                self.advance();
+                true
+            }
+            TokenKind::Keyword(k) if k == "let" => {
+                self.advance();
+                false
+            }
+            _ => false, // Plain identifier (e.g., val := ...)
+        };
+        
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
@@ -154,21 +194,49 @@ impl Parser {
             match self.peek() {
                 TokenKind::Keyword(k) if k == "case" => {
                     self.advance(); // case
+                    
+                    // Parse pattern which might be Base::Variant or Base::Variant(var)
                     let pat = match self.advance() {
                         TokenKind::Identifier(s) => s.clone(),
                         _ => return None,
                     };
-                    let pat_str = if matches!(self.peek(), TokenKind::Punctuation('(')) {
-                        self.advance(); // (
-                        let var = match self.advance() {
+                    
+                    // Check for :: operator (enum variant)
+                    let pat_str = if matches!(self.peek(), TokenKind::Operator(op) if op == "::") {
+                        self.advance(); // ::
+                        let variant = match self.advance() {
                             TokenKind::Identifier(v) => v.clone(),
                             _ => return None,
                         };
-                        self.advance(); // )
-                        format!("{}({})", pat, var)
+                        let full_tag = format!("{}::{}", pat, variant);
+                        
+                        // Check for parameter binding like Result::Ok(msg)
+                        if matches!(self.peek(), TokenKind::Punctuation('(')) {
+                            self.advance(); // (
+                            let var = match self.advance() {
+                                TokenKind::Identifier(v) => v.clone(),
+                                _ => return None,
+                            };
+                            self.advance(); // )
+                            format!("{}({})", full_tag, var)
+                        } else {
+                            full_tag
+                        }
                     } else {
-                        pat
+                        // Plain identifier pattern
+                        if matches!(self.peek(), TokenKind::Punctuation('(')) {
+                            self.advance(); // (
+                            let var = match self.advance() {
+                                TokenKind::Identifier(v) => v.clone(),
+                                _ => return None,
+                            };
+                            self.advance(); // )
+                            format!("{}({})", pat, var)
+                        } else {
+                            pat
+                        }
                     };
+                    
                     self.advance(); // :
                     self.advance(); // {
                     let mut body = Vec::new();
@@ -277,7 +345,42 @@ impl Parser {
         Some(Stmt::TryExcept { try_block, except_var, except_block })
     }
 
+    fn parse_if(&mut self) -> Option<Stmt> {
+        self.advance(); // if
+        let condition = self.parse_expr()?;
+        self.advance(); // {
+        let mut then_branch = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                then_branch.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        
+        let else_branch = if matches!(self.peek(), TokenKind::Keyword(k) if k == "else") {
+            self.advance(); // else
+            self.advance(); // {
+            let mut else_stmts = Vec::new();
+            while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+                if let Some(stmt) = self.parse_stmt() {
+                    else_stmts.push(stmt);
+                } else {
+                    break;
+                }
+            }
+            self.advance(); // }
+            Some(else_stmts)
+        } else {
+            None
+        };
+        
+        Some(Stmt::If { condition, then_branch, else_branch })
+    }
+
     fn parse_expr(&mut self) -> Option<Expr> {
+        // Check for enum tag (e.g., Result::Ok(...))
         if let TokenKind::Identifier(a) = self.peek() {
             if self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Operator("::".into())) {
                 let base = a.clone();
@@ -306,7 +409,115 @@ impl Parser {
             }
         }
 
-        self.parse_primary()
+        // Check for built-in functions like print(...) or throw(...)
+        if let TokenKind::Identifier(name) = self.peek() {
+            let name_clone = name.clone();
+            if matches!(name_clone.as_str(), "print" | "throw") {
+                if self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Punctuation('(')) {
+                    self.advance(); // name
+                    self.advance(); // (
+                    let mut args = Vec::new();
+                    while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                        if let Some(arg) = self.parse_expr() {
+                            args.push(arg);
+                        }
+                        if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                    self.advance(); // )
+                    return Some(Expr::Tag(name_clone, args));
+                }
+            }
+        }
+
+        self.parse_comparison()
+    }
+
+    fn parse_comparison(&mut self) -> Option<Expr> {
+        let mut left = self.parse_additive()?;
+        
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "==" | ">" | "<" | ">=" | "<=")) {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_additive()?;
+            left = Expr::BinaryOp {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            };
+        }
+        
+        Some(left)
+    }
+
+    fn parse_additive(&mut self) -> Option<Expr> {
+        let mut left = self.parse_multiplicative()?;
+        
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "+" | "-")) {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_multiplicative()?;
+            left = Expr::BinaryOp {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            };
+        }
+        
+        Some(left)
+    }
+
+    fn parse_multiplicative(&mut self) -> Option<Expr> {
+        let mut left = self.parse_call()?;
+        
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "*" | "/")) {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_call()?;
+            left = Expr::BinaryOp {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            };
+        }
+        
+        Some(left)
+    }
+
+    fn parse_call(&mut self) -> Option<Expr> {
+        let mut expr = self.parse_primary()?;
+        
+        // Handle function calls
+        while matches!(self.peek(), TokenKind::Punctuation('(')) {
+            self.advance(); // (
+            let mut args = Vec::new();
+            while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                if let Some(arg) = self.parse_expr() {
+                    args.push(arg);
+                }
+                if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            self.advance(); // )
+            expr = Expr::Call {
+                function: Box::new(expr),
+                args,
+            };
+        }
+        
+        Some(expr)
     }
 
     fn parse_primary(&mut self) -> Option<Expr> {
