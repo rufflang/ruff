@@ -1,9 +1,0 @@
-x := 5
-
-func change_x() {
-    x := 10
-}
-
-print(x)
-change_x()
-print(x)

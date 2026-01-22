@@ -1,8 +1,0 @@
-sum := 0
-for n in [1, 2, 3] {
-    print(sum)
-    sum := sum + n
-    print(sum)
-}
-print("Final: ")
-print(sum)
