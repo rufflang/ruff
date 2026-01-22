@@ -99,31 +99,13 @@ impl Parser {
                     if matches!(self.peek(), TokenKind::Operator(op) if op == ":=") {
                         self.advance(); // consume :=
                         
-                        // Determine if this is a let (new variable) or assign (update)
-                        match &expr {
-                            Expr::Identifier(name) => {
-                                // Check if variable exists - if not, it's a let without 'let' keyword
-                                let value = self.parse_expr()?;
-                                Some(Stmt::Let {
-                                    name: name.clone(),
-                                    value,
-                                    mutable: true,
-                                    type_annotation: None,
-                                })
-                            }
-                            Expr::IndexAccess { .. } | Expr::FieldAccess { .. } => {
-                                // This is an assignment to an existing element
-                                let value = self.parse_expr()?;
-                                Some(Stmt::Assign {
-                                    target: expr,
-                                    value,
-                                })
-                            }
-                            _ => {
-                                // Invalid assignment target
-                                None
-                            }
-                        }
+                        // Parse := as assignment (create or update)
+                        // The interpreter will decide whether to create new or update existing
+                        let value = self.parse_expr()?;
+                        Some(Stmt::Assign {
+                            target: expr,
+                            value,
+                        })
                     } else {
                         // Not an assignment, restore position and parse as expression statement
                         self.pos = saved_pos;

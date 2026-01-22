@@ -72,88 +72,86 @@ impl std::fmt::Debug for Value {
 	}
 }
 
-/// Environment holds variable and function bindings with lexical scoping
+/// Environment holds variable and function bindings with lexical scoping using a scope stack
+#[derive(Clone)]
 pub struct Environment {
-    vars: HashMap<String, Value>,
-    parent: Option<Box<Environment>>,
+    scopes: Vec<HashMap<String, Value>>,
 }
 
 impl Environment {
-    /// Creates a new empty environment with no parent
+    /// Creates a new empty environment with a single global scope
     pub fn new() -> Self {
         Environment {
-            vars: HashMap::new(),
-            parent: None,
+            scopes: vec![HashMap::new()],
         }
     }
 
-    /// Creates a new child environment with this environment as parent
-    pub fn extend(&self) -> Self {
-        Environment {
-            vars: HashMap::new(),
-            parent: Some(Box::new(self.clone())),
+    /// Push a new scope onto the stack
+    pub fn push_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    /// Pop the current scope from the stack
+    pub fn pop_scope(&mut self) {
+        if self.scopes.len() > 1 {
+            self.scopes.pop();
         }
     }
 
-    /// Gets a variable, searching up the scope chain
+    /// Gets a variable, searching from current scope up to global
     pub fn get(&self, name: &str) -> Option<Value> {
-        self.vars.get(name).cloned().or_else(|| {
-            self.parent.as_ref().and_then(|p| p.get(name))
-        })
+        // Search from innermost (most recent) to outermost (global) scope
+        for scope in self.scopes.iter().rev() {
+            if let Some(val) = scope.get(name) {
+                return Some(val.clone());
+            }
+        }
+        None
     }
 
     /// Sets a variable in the current scope
     pub fn define(&mut self, name: String, value: Value) {
-        self.vars.insert(name, value);
+        if let Some(current_scope) = self.scopes.last_mut() {
+            current_scope.insert(name, value);
+        }
     }
 
     /// Updates a variable, searching up the scope chain
     /// If found in any scope, updates it there
     /// If not found anywhere, creates in current scope
     pub fn set(&mut self, name: String, value: Value) {
-        if self.vars.contains_key(&name) {
-            // Variable exists in current scope - update it
-            self.vars.insert(name, value);
-        } else if let Some(ref mut parent) = self.parent {
-            // Check if it exists in parent scope
-            if parent.has(&name) {
-                // It exists somewhere up the chain - update it there
-                parent.set(name, value);
-            } else {
-                // Doesn't exist anywhere - create in current scope
-                self.vars.insert(name, value);
+        // Search from innermost to outermost scope
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.contains_key(&name) {
+                scope.insert(name, value);
+                return;
             }
-        } else {
-            // No parent and not in current scope - create in current scope
-            self.vars.insert(name, value);
+        }
+        // Not found in any scope - create in current scope
+        if let Some(current_scope) = self.scopes.last_mut() {
+            current_scope.insert(name, value);
         }
     }
 
-    /// Checks if a variable exists in this scope or any parent scope
-    fn has(&self, name: &str) -> bool {
-        self.vars.contains_key(name) || 
-        self.parent.as_ref().map(|p| p.has(name)).unwrap_or(false)
-    }
-
-    /// Gets a mutable reference to a variable in the current scope only
-    /// Used for direct mutation of collections
-    pub fn get_mut(&mut self, name: &str) -> Option<&mut Value> {
-        self.vars.get_mut(name)
+    /// Mutate a value in place with a closure
+    pub fn mutate<F>(&mut self, name: &str, f: F) -> bool 
+    where
+        F: FnOnce(&mut Value),
+    {
+        // Search from innermost to outermost scope
+        for scope in self.scopes.iter_mut().rev() {
+            if let Some(val) = scope.get_mut(name) {
+                f(val);
+                return true;
+            }
+        }
+        false
     }
 }
 
 impl Default for Environment {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Clone for Environment {
-    fn clone(&self) -> Self {
-        Environment {
-            vars: self.vars.clone(),
-            parent: self.parent.clone(),
-        }
     }
 }
 
@@ -508,13 +506,13 @@ impl Interpreter {
             }
             Stmt::Block(stmts) => {
                 // Create new scope for block
-                let parent_env = self.env.clone();
-                self.env = self.env.extend();
+                // Push new scope
+                self.env.push_scope();
                 
                 self.eval_stmts(&stmts);
                 
                 // Restore parent environment
-                self.env = parent_env;
+                self.env.pop_scope();
             }
             Stmt::Let { name, value, mutable: _, type_annotation: _ } => {
                 let val = self.eval_expr(&value);
@@ -552,13 +550,15 @@ impl Interpreter {
                         // Get the container (array or dict) from the object expression
                         // For now, only support direct identifiers as the object
                         if let Expr::Identifier(container_name) = object.as_ref() {
-                            if let Some(container) = self.env.get_mut(container_name.as_str()) {
+                            let val_clone = val.clone();
+                            let idx_clone = index_val.clone();
+                            self.env.mutate(container_name.as_str(), |container| {
                                 match container {
                                     Value::Array(ref mut arr) => {
-                                        if let Value::Number(idx) = index_val {
+                                        if let Value::Number(idx) = idx_clone {
                                             let i = idx as usize;
                                             if i < arr.len() {
-                                                arr[i] = val;
+                                                arr[i] = val_clone.clone();
                                             } else {
                                                 eprintln!("Array index out of bounds: {}", i);
                                             }
@@ -567,14 +567,14 @@ impl Interpreter {
                                         }
                                     }
                                     Value::Dict(ref mut dict) => {
-                                        let key = Self::stringify_value(&index_val);
-                                        dict.insert(key, val);
+                                        let key = Self::stringify_value(&idx_clone);
+                                        dict.insert(key, val_clone.clone());
                                     }
                                     _ => {
                                         eprintln!("Cannot index non-collection type");
                                     }
                                 }
-                            }
+                            });
                         } else {
                             eprintln!("Complex index assignment not yet supported");
                         }
@@ -587,27 +587,33 @@ impl Interpreter {
                         match object.as_ref() {
                             Expr::Identifier(name) => {
                                 // Direct field assignment: obj.field := value
-                                if let Some(obj_val) = self.env.vars.get_mut(name.as_str()) {
+                                let field_clone = field.clone();
+                                let val_clone = val.clone();
+                                self.env.mutate(name.as_str(), |obj_val| {
                                     if let Value::Struct { name: _, fields } = obj_val {
-                                        fields.insert(field.clone(), val);
+                                        fields.insert(field_clone, val_clone);
                                     } else {
                                         eprintln!("Cannot access field on non-struct type");
                                     }
-                                }
+                                });
                             }
                             Expr::IndexAccess { object: index_obj, index } => {
                                 // Array/dict element field assignment: arr[0].field := value
                                 let index_val = self.eval_expr(index);
                                 
                                 if let Expr::Identifier(container_name) = index_obj.as_ref() {
-                                    if let Some(container) = self.env.vars.get_mut(container_name.as_str()) {
+                                    let field_clone = field.clone();
+                                    let val_clone = val.clone();
+                                    let idx_clone = index_val.clone();
+                                    
+                                    self.env.mutate(container_name.as_str(), |container| {
                                         match container {
                                             Value::Array(ref mut arr) => {
-                                                if let Value::Number(idx) = index_val {
+                                                if let Value::Number(idx) = idx_clone {
                                                     let i = idx as usize;
                                                     if i < arr.len() {
                                                         if let Value::Struct { name: _, fields } = &mut arr[i] {
-                                                            fields.insert(field.clone(), val);
+                                                            fields.insert(field_clone, val_clone);
                                                         } else {
                                                             eprintln!("Array element is not a struct");
                                                         }
@@ -617,9 +623,9 @@ impl Interpreter {
                                                 }
                                             }
                                             Value::Dict(ref mut dict) => {
-                                                let key = Self::stringify_value(&index_val);
+                                                let key = Self::stringify_value(&idx_clone);
                                                 if let Some(Value::Struct { name: _, fields }) = dict.get_mut(&key) {
-                                                    fields.insert(field.clone(), val);
+                                                    fields.insert(field_clone, val_clone);
                                                 } else {
                                                     eprintln!("Dict value is not a struct");
                                                 }
@@ -628,7 +634,7 @@ impl Interpreter {
                                                 eprintln!("Cannot index non-collection type");
                                             }
                                         }
-                                    }
+                                    });
                                 }
                             }
                             _ => {
@@ -668,7 +674,7 @@ impl Interpreter {
                         match self.module_loader.get_all_exports(module) {
                             Ok(exports) => {
                                 for (name, value) in exports {
-                                    self.env.vars.insert(name, value);
+                                    self.env.define(name, value);
                                 }
                             }
                             Err(_) => {
@@ -682,7 +688,7 @@ impl Interpreter {
                         for symbol_name in symbol_list {
                             match self.module_loader.get_symbol(module, symbol_name) {
                                 Ok(value) => {
-                                    self.env.vars.insert(symbol_name.clone(), value);
+                                    self.env.define(symbol_name.clone(), value);
                                 }
                                 Err(_) => {
                                     // Symbol not found - silently continue for now
@@ -730,8 +736,8 @@ impl Interpreter {
                         let param_var = param_var.trim_matches(&['(', ')'][..]);
                         if tag == enum_tag.trim() {
                             // Create new scope for pattern match body
-                            let parent_env = self.env.clone();
-                            self.env = self.env.extend();
+                            // Push new scope
+                            self.env.push_scope();
                             
                             for i in 0.. {
                                 let key = format!("${}", i);
@@ -750,7 +756,7 @@ impl Interpreter {
                             self.eval_stmts(body);
                             
                             // Restore parent environment
-                            self.env = parent_env;
+                            self.env.pop_scope();
                             return;
                         }
                     } else if pattern.as_str() == tag {
@@ -783,14 +789,14 @@ impl Interpreter {
                         // Numeric range: for i in 5 { ... } iterates 0..5
                         for i in 0..*n as i64 {
                             // Create new scope for loop iteration
-                            let parent_env = self.env.clone();
-                            self.env = self.env.extend();
+                            // Push new scope
+                            self.env.push_scope();
                             self.env.define(var.clone(), Value::Number(i as f64));
                             
                             self.eval_stmts(&body);
                             
                             // Restore parent environment
-                            self.env = parent_env;
+                            self.env.pop_scope();
                             
                             if self.return_value.is_some() {
                                 break;
@@ -802,14 +808,14 @@ impl Interpreter {
                         let arr_clone = arr.clone();
                         for item in arr_clone {
                             // Create new scope for loop iteration
-                            let parent_env = self.env.clone();
-                            self.env = self.env.extend();
+                            // Push new scope
+                            self.env.push_scope();
                             self.env.define(var.clone(), item);
                             
                             self.eval_stmts(&body);
                             
                             // Restore parent environment
-                            self.env = parent_env;
+                            self.env.pop_scope();
                             
                             if self.return_value.is_some() {
                                 break;
@@ -822,14 +828,14 @@ impl Interpreter {
                         let keys: Vec<String> = dict.keys().cloned().collect();
                         for key in keys {
                             // Create new scope for loop iteration
-                            let parent_env = self.env.clone();
-                            self.env = self.env.extend();
+                            // Push new scope
+                            self.env.push_scope();
                             self.env.define(var.clone(), Value::Str(key));
                             
                             self.eval_stmts(&body);
                             
                             // Restore parent environment
-                            self.env = parent_env;
+                            self.env.pop_scope();
                             
                             if self.return_value.is_some() {
                                 break;
@@ -841,14 +847,14 @@ impl Interpreter {
                         let chars: Vec<char> = s.chars().collect();
                         for ch in chars {
                             // Create new scope for loop iteration
-                            let parent_env = self.env.clone();
-                            self.env = self.env.extend();
+                            // Push new scope
+                            self.env.push_scope();
                             self.env.define(var.clone(), Value::Str(ch.to_string()));
                             
                             self.eval_stmts(&body);
                             
                             // Restore parent environment
-                            self.env = parent_env;
+                            self.env.pop_scope();
                             
                             if self.return_value.is_some() {
                                 break;
@@ -866,15 +872,16 @@ impl Interpreter {
             }
             Stmt::TryExcept { try_block, except_var, except_block } => {
                 // Save current environment and create child scope for try block
-                let parent_env = self.env.clone();
-                self.env = self.env.extend();
+                // Push new scope
+                self.env.push_scope();
                 
                 self.eval_stmts(&try_block);
                 
                 // Check if an error occurred
                 if let Some(Value::Error(msg)) = self.return_value.clone() {
-                    // Restore parent and create new scope for except block
-                    self.env = parent_env.extend();
+                    // Pop try scope and create new scope for except block
+                    self.env.pop_scope();
+                    self.env.push_scope();
                     self.env.define(except_var.clone(), Value::Str(msg));
                     
                     // Clear error and execute except block
@@ -883,7 +890,7 @@ impl Interpreter {
                 }
                 
                 // Restore parent environment
-                self.env = parent_env;
+                self.env.pop_scope();
             }
             Stmt::ExprStmt(expr) => {
                 match expr {
@@ -918,8 +925,8 @@ impl Interpreter {
                         let func_val = self.eval_expr(&function);
                         if let Value::Function(params, body) = func_val {
                             // Create new scope for function call
-                            let parent_env = self.env.clone();
-                            self.env = self.env.extend();
+                            // Push new scope
+                            self.env.push_scope();
                             
                             for (i, param) in params.iter().enumerate() {
                                 if let Some(arg) = args.get(i) {
@@ -931,7 +938,7 @@ impl Interpreter {
                             self.eval_stmts(&body);
                             
                             // Restore parent environment
-                            self.env = parent_env;
+                            self.env.pop_scope();
                         }
                     }
 
@@ -1006,8 +1013,8 @@ impl Interpreter {
                         if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name) {
                             if let Some(Value::Function(params, body)) = methods.get(field) {
                                 // Create new scope for method call
-                                let parent_env = self.env.clone();
-                                self.env = self.env.extend();
+                                // Push new scope
+                                self.env.push_scope();
                                 
                                 // Bind struct fields into method environment
                                 for (field_name, field_value) in fields {
@@ -1026,15 +1033,19 @@ impl Interpreter {
                                 self.eval_stmts(&body);
                                 
                                 let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                                    self.return_value = None; // Clear return value
                                     *val
                                 } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                                    // Propagate error - don't clear
                                     Value::Error(msg)
                                 } else {
+                                    // No explicit return - clear any lingering state
+                                    self.return_value = None;
                                     Value::Number(0.0)
                                 };
                                 
                                 // Restore parent environment
-                                self.env = parent_env;
+                                self.env.pop_scope();
                                 
                                 return result;
                             }
@@ -1051,8 +1062,8 @@ impl Interpreter {
                     }
                     Value::Function(params, body) => {
                         // Create new scope for function call
-                        let parent_env = self.env.clone();
-                        self.env = self.env.extend();
+                        // Push new scope
+                        self.env.push_scope();
                         
                         for (i, param) in params.iter().enumerate() {
                             if let Some(arg) = args.get(i) {
@@ -1064,15 +1075,20 @@ impl Interpreter {
                         self.eval_stmts(&body);
                         
                         let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                            self.return_value = None; // Clear return value
                             *val
                         } else if let Some(Value::Error(msg)) = self.return_value.clone() {
-                            Value::Error(msg) // Propagate error instead of returning 0
+                            // Propagate error - don't clear
+                            Value::Error(msg)
                         } else {
+                            // No explicit return - function returns 0
+                            // Clear any lingering return_value that isn't Return or Error
+                            self.return_value = None;
                             Value::Number(0.0)
                         };
                         
                         // Restore parent environment
-                        self.env = parent_env;
+                        self.env.pop_scope();
                         
                         result
                     }
@@ -1220,7 +1236,7 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Struct { fields, .. }) = interp.env.vars.get("p") {
+        if let Some(Value::Struct { fields, .. }) = interp.env.get("p") {
             if let Some(Value::Number(age)) = fields.get("age") {
                 assert_eq!(*age, 26.0);
             } else {
@@ -1249,7 +1265,7 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Array(todos)) = interp.env.vars.get("todos") {
+        if let Some(Value::Array(todos)) = interp.env.get("todos") {
             if let Some(Value::Struct { fields, .. }) = todos.get(0) {
                 if let Some(Value::Str(done)) = fields.get("done") {
                     assert_eq!(done, "true");
@@ -1278,10 +1294,10 @@ mod tests {
         
         // Due to scoping, x remains 0 but we test that the if block executes
         // This is a known limitation documented in the README
-        if let Some(Value::Number(x)) = interp.env.vars.get("x") {
+        if let Some(Value::Number(x)) = interp.env.get("x") {
             // With current scoping, x stays 0 (variable shadowing issue)
             // But the code runs without errors, proving 'true' is handled
-            assert!(*x == 0.0 || *x == 1.0); // Accept either due to scoping
+            assert!(x == 0.0 || x == 1.0); // Accept either due to scoping
         }
     }
 
@@ -1297,7 +1313,7 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Str(executed)) = interp.env.vars.get("executed") {
+        if let Some(Value::Str(executed)) = interp.env.get("executed") {
             assert_eq!(executed, "false");
         }
     }
@@ -1311,7 +1327,7 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Array(arr)) = interp.env.vars.get("arr") {
+        if let Some(Value::Array(arr)) = interp.env.get("arr") {
             if let Some(Value::Number(n)) = arr.get(1) {
                 assert_eq!(*n, 20.0);
             } else {
@@ -1331,7 +1347,7 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Dict(dict)) = interp.env.vars.get("person") {
+        if let Some(Value::Dict(dict)) = interp.env.get("person") {
             if let Some(Value::Number(age)) = dict.get("age") {
                 assert_eq!(*age, 31.0);
             } else {
@@ -1350,7 +1366,7 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Str(result)) = interp.env.vars.get("result") {
+        if let Some(Value::Str(result)) = interp.env.get("result") {
             assert_eq!(result, "Hello World");
         } else {
             panic!("Expected concatenated string");
@@ -1382,8 +1398,8 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Number(x)) = interp.env.vars.get("x") {
-            assert_eq!(*x, 20.0);
+        if let Some(Value::Number(x)) = interp.env.get("x") {
+            assert_eq!(x, 20.0);
         } else {
             panic!("Expected x to be 20");
         }
@@ -1402,7 +1418,7 @@ mod tests {
         
         let interp = run_code(code);
         
-        if let Some(Value::Struct { fields, .. }) = interp.env.vars.get("rect") {
+        if let Some(Value::Struct { fields, .. }) = interp.env.get("rect") {
             if let Some(Value::Number(width)) = fields.get("width") {
                 assert_eq!(*width, 5.0);
             } else {
@@ -1410,6 +1426,296 @@ mod tests {
             }
         } else {
             panic!("Expected rect struct");
+        }
+    }
+
+    // Lexical scoping tests
+
+    #[test]
+    fn test_nested_block_scopes() {
+        // Functions create scopes - test variable updates across function boundaries
+        let code = r#"
+            x := 10
+            func update_x() {
+                x := 30
+            }
+            update_x()
+        "#;
+        
+        let interp = run_code(code);
+        
+        // x should be updated to 30
+        if let Some(Value::Number(x)) = interp.env.get("x") {
+            assert_eq!(x, 30.0);
+        } else {
+            panic!("Expected x to be 30");
+        }
+    }
+
+    #[test]
+    fn test_for_loop_scoping() {
+        // The classic broken example from ROADMAP should now work
+        let code = r#"
+            sum := 0
+            for n in [1, 2, 3] {
+                sum := sum + n
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // sum should be 6, not 0
+        if let Some(Value::Number(sum)) = interp.env.get("sum") {
+            assert_eq!(sum, 6.0);
+        } else {
+            panic!("Expected sum to be 6");
+        }
+    }
+
+    #[test]
+    fn test_for_loop_variable_isolation() {
+        // Loop variable should not leak to outer scope
+        let code = r#"
+            for i in 5 {
+                x := i * 2
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // i and x should not exist in outer scope
+        assert!(interp.env.get("i").is_none(), "i should not leak from loop");
+        assert!(interp.env.get("x").is_none(), "x should not leak from loop");
+    }
+
+    #[test]
+    fn test_variable_shadowing_in_block() {
+        // A variable declared in inner scope (function) shadows for reading but not writing
+        // When you do 'let x := 20' inside a function, it creates a NEW local x
+        // When you then do 'inner := x', it reads the local x (20) and updates outer inner
+        let code = r#"
+            x := 10
+            result := 0
+            func test_func() {
+                let x := 20
+                result := x
+            }
+            test_func()
+        "#;
+        
+        let interp = run_code(code);
+        
+        // result should be 20 (captured the shadowed local x)
+        if let Some(Value::Number(result)) = interp.env.get("result") {
+            assert_eq!(result, 20.0, "result should be 20 from shadowed local x");
+        } else {
+            panic!("Expected result to exist");
+        }
+        
+        // x should still be 10 (outer x unchanged)
+        if let Some(Value::Number(x)) = interp.env.get("x") {
+            assert_eq!(x, 10.0, "outer x should remain 10");
+        } else {
+            panic!("Expected x to exist");
+        }
+    }
+
+    #[test]
+    fn test_function_local_scope() {
+        // Variables in function should have their own scope
+        let code = r#"
+            x := 100
+            
+            func modify_local() {
+                let x := 50
+                y := x * 2
+            }
+            
+            modify_local()
+        "#;
+        
+        let interp = run_code(code);
+        
+        // x in outer scope should still be 100
+        if let Some(Value::Number(x)) = interp.env.get("x") {
+            assert_eq!(x, 100.0);
+        } else {
+            panic!("Expected x to be 100");
+        }
+        
+        // y should not leak from function
+        assert!(interp.env.get("y").is_none(), "y should not leak from function");
+    }
+
+    #[test]
+    fn test_function_modifies_outer_variable() {
+        // Function can access and modify outer scope variables
+        let code = r#"
+            counter := 0
+            
+            func increment() {
+                counter := counter + 1
+            }
+            
+            increment()
+            increment()
+            increment()
+        "#;
+        
+        let interp = run_code(code);
+        
+        // counter should be 3
+        if let Some(Value::Number(counter)) = interp.env.get("counter") {
+            assert_eq!(counter, 3.0);
+        } else {
+            panic!("Expected counter to be 3");
+        }
+    }
+
+    #[test]
+    fn test_nested_for_loops_scoping() {
+        // Nested loops should each have their own scope
+        let code = r#"
+            result := 0
+            for i in 3 {
+                for j in 2 {
+                    result := result + 1
+                }
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // result should be 6 (3 * 2)
+        if let Some(Value::Number(result)) = interp.env.get("result") {
+            assert_eq!(result, 6.0);
+        } else {
+            panic!("Expected result to be 6");
+        }
+    }
+
+    #[test]
+    fn test_scope_chain_lookup() {
+        // Variables should be found walking up the scope chain (nested functions)
+        let code = r#"
+            a := 1
+            result := 0
+            func outer() {
+                b := 2
+                func inner() {
+                    c := 3
+                    result := a + b + c
+                }
+                inner()
+            }
+            outer()
+        "#;
+        
+        let interp = run_code(code);
+        
+        // result should be 6 (1 + 2 + 3)
+        if let Some(Value::Number(result)) = interp.env.get("result") {
+            assert_eq!(result, 6.0);
+        } else {
+            panic!("Expected result to be 6");
+        }
+    }
+
+    #[test]
+    fn test_try_except_scoping() {
+        // try/except should have proper scope isolation
+        let code = r#"
+            x := 10
+            try {
+                y := 20
+                x := x + y
+            } except err {
+                // err only exists in except block
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // x should be 30
+        if let Some(Value::Number(x)) = interp.env.get("x") {
+            assert_eq!(x, 30.0);
+        } else {
+            panic!("Expected x to be 30");
+        }
+        
+        // y should not leak
+        assert!(interp.env.get("y").is_none(), "y should not leak from try block");
+    }
+
+    #[test]
+    fn test_accumulator_pattern() {
+        // Common pattern: accumulating values in a loop
+        let code = r#"
+            numbers := [10, 20, 30, 40]
+            total := 0
+            for num in numbers {
+                total := total + num
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // total should be 100
+        if let Some(Value::Number(total)) = interp.env.get("total") {
+            assert_eq!(total, 100.0);
+        } else {
+            panic!("Expected total to be 100");
+        }
+    }
+
+    #[test]
+    fn test_multiple_assignments_in_for_loop() {
+        // Multiple variables should all update correctly in loop
+        let code = r#"
+            count := 0
+            sum := 0
+            for i in 5 {
+                count := count + 1
+                sum := sum + i
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // count should be 5
+        if let Some(Value::Number(count)) = interp.env.get("count") {
+            assert_eq!(count, 5.0);
+        } else {
+            panic!("Expected count to be 5");
+        }
+        
+        // sum should be 0+1+2+3+4 = 10
+        if let Some(Value::Number(sum)) = interp.env.get("sum") {
+            assert_eq!(sum, 10.0);
+        } else {
+            panic!("Expected sum to be 10");
+        }
+    }
+
+    #[test]
+    fn test_environment_set_across_scopes() {
+        let mut env = Environment::new();
+        env.define("x".to_string(), Value::Number(5.0));
+        
+        // Push a new scope
+        env.push_scope();
+        
+        // Set x from within the child scope
+        env.set("x".to_string(), Value::Number(10.0));
+        
+        // Pop the scope
+        env.pop_scope();
+        
+        // x should still be 10 in the global scope
+        if let Some(Value::Number(x)) = env.get("x") {
+            assert_eq!(x, 10.0, "x should be updated to 10 in global scope");
+        } else {
+            panic!("x should exist");
         }
     }
 }

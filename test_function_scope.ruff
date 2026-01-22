@@ -1,0 +1,9 @@
+counter := 0
+
+func increment() {
+    counter := counter + 1
+}
+
+increment()
+increment()
+print(counter)

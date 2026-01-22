@@ -1,0 +1,11 @@
+x := 10
+inner := 0
+outer := 0
+func shadow_x() {
+    let x := 20
+    inner := x  // Updates outer 'inner' with local shadowed x (20)
+}
+shadow_x()
+outer := x  // Uses outer x (10)
+print("inner:", inner)
+print("outer:", outer)
