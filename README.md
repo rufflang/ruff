@@ -86,6 +86,7 @@
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
+  - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
   - **Error handling**: `throw()`
 
 * **Operators**
