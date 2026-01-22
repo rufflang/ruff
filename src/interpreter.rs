@@ -72,10 +72,89 @@ impl std::fmt::Debug for Value {
 	}
 }
 
-/// Environment holds variable and function bindings
-#[derive(Default)]
+/// Environment holds variable and function bindings with lexical scoping
 pub struct Environment {
-    pub vars: HashMap<String, Value>,
+    vars: HashMap<String, Value>,
+    parent: Option<Box<Environment>>,
+}
+
+impl Environment {
+    /// Creates a new empty environment with no parent
+    pub fn new() -> Self {
+        Environment {
+            vars: HashMap::new(),
+            parent: None,
+        }
+    }
+
+    /// Creates a new child environment with this environment as parent
+    pub fn extend(&self) -> Self {
+        Environment {
+            vars: HashMap::new(),
+            parent: Some(Box::new(self.clone())),
+        }
+    }
+
+    /// Gets a variable, searching up the scope chain
+    pub fn get(&self, name: &str) -> Option<Value> {
+        self.vars.get(name).cloned().or_else(|| {
+            self.parent.as_ref().and_then(|p| p.get(name))
+        })
+    }
+
+    /// Sets a variable in the current scope
+    pub fn define(&mut self, name: String, value: Value) {
+        self.vars.insert(name, value);
+    }
+
+    /// Updates a variable, searching up the scope chain
+    /// If found in any scope, updates it there
+    /// If not found anywhere, creates in current scope
+    pub fn set(&mut self, name: String, value: Value) {
+        if self.vars.contains_key(&name) {
+            // Variable exists in current scope - update it
+            self.vars.insert(name, value);
+        } else if let Some(ref mut parent) = self.parent {
+            // Check if it exists in parent scope
+            if parent.has(&name) {
+                // It exists somewhere up the chain - update it there
+                parent.set(name, value);
+            } else {
+                // Doesn't exist anywhere - create in current scope
+                self.vars.insert(name, value);
+            }
+        } else {
+            // No parent and not in current scope - create in current scope
+            self.vars.insert(name, value);
+        }
+    }
+
+    /// Checks if a variable exists in this scope or any parent scope
+    fn has(&self, name: &str) -> bool {
+        self.vars.contains_key(name) || 
+        self.parent.as_ref().map(|p| p.has(name)).unwrap_or(false)
+    }
+
+    /// Gets a mutable reference to a variable in the current scope only
+    /// Used for direct mutation of collections
+    pub fn get_mut(&mut self, name: &str) -> Option<&mut Value> {
+        self.vars.get_mut(name)
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Clone for Environment {
+    fn clone(&self) -> Self {
+        Environment {
+            vars: self.vars.clone(),
+            parent: self.parent.clone(),
+        }
+    }
 }
 
 /// Main interpreter that executes Ruff programs
@@ -109,44 +188,44 @@ impl Interpreter {
 	/// Registers all built-in functions and constants
 	fn register_builtins(&mut self) {
 		// Math constants
-		self.env.vars.insert("PI".to_string(), Value::Number(std::f64::consts::PI));
-		self.env.vars.insert("E".to_string(), Value::Number(std::f64::consts::E));
+		self.env.define("PI".to_string(), Value::Number(std::f64::consts::PI));
+		self.env.define("E".to_string(), Value::Number(std::f64::consts::E));
 		
 		// Math functions
-		self.env.vars.insert("abs".to_string(), Value::NativeFunction("abs".to_string()));
-		self.env.vars.insert("sqrt".to_string(), Value::NativeFunction("sqrt".to_string()));
-		self.env.vars.insert("pow".to_string(), Value::NativeFunction("pow".to_string()));
-		self.env.vars.insert("floor".to_string(), Value::NativeFunction("floor".to_string()));
-		self.env.vars.insert("ceil".to_string(), Value::NativeFunction("ceil".to_string()));
-		self.env.vars.insert("round".to_string(), Value::NativeFunction("round".to_string()));
-		self.env.vars.insert("min".to_string(), Value::NativeFunction("min".to_string()));
-		self.env.vars.insert("max".to_string(), Value::NativeFunction("max".to_string()));
-		self.env.vars.insert("sin".to_string(), Value::NativeFunction("sin".to_string()));
-		self.env.vars.insert("cos".to_string(), Value::NativeFunction("cos".to_string()));
-		self.env.vars.insert("tan".to_string(), Value::NativeFunction("tan".to_string()));
+		self.env.define("abs".to_string(), Value::NativeFunction("abs".to_string()));
+		self.env.define("sqrt".to_string(), Value::NativeFunction("sqrt".to_string()));
+		self.env.define("pow".to_string(), Value::NativeFunction("pow".to_string()));
+		self.env.define("floor".to_string(), Value::NativeFunction("floor".to_string()));
+		self.env.define("ceil".to_string(), Value::NativeFunction("ceil".to_string()));
+		self.env.define("round".to_string(), Value::NativeFunction("round".to_string()));
+		self.env.define("min".to_string(), Value::NativeFunction("min".to_string()));
+		self.env.define("max".to_string(), Value::NativeFunction("max".to_string()));
+		self.env.define("sin".to_string(), Value::NativeFunction("sin".to_string()));
+		self.env.define("cos".to_string(), Value::NativeFunction("cos".to_string()));
+		self.env.define("tan".to_string(), Value::NativeFunction("tan".to_string()));
 		
 		// String functions
-		self.env.vars.insert("len".to_string(), Value::NativeFunction("len".to_string()));
-		self.env.vars.insert("substring".to_string(), Value::NativeFunction("substring".to_string()));
-		self.env.vars.insert("to_upper".to_string(), Value::NativeFunction("to_upper".to_string()));
-		self.env.vars.insert("to_lower".to_string(), Value::NativeFunction("to_lower".to_string()));
-		self.env.vars.insert("trim".to_string(), Value::NativeFunction("trim".to_string()));
-		self.env.vars.insert("contains".to_string(), Value::NativeFunction("contains".to_string()));
-		self.env.vars.insert("replace_str".to_string(), Value::NativeFunction("replace_str".to_string()));
-		self.env.vars.insert("split".to_string(), Value::NativeFunction("split".to_string()));
-		self.env.vars.insert("join".to_string(), Value::NativeFunction("join".to_string()));
+		self.env.define("len".to_string(), Value::NativeFunction("len".to_string()));
+		self.env.define("substring".to_string(), Value::NativeFunction("substring".to_string()));
+		self.env.define("to_upper".to_string(), Value::NativeFunction("to_upper".to_string()));
+		self.env.define("to_lower".to_string(), Value::NativeFunction("to_lower".to_string()));
+		self.env.define("trim".to_string(), Value::NativeFunction("trim".to_string()));
+		self.env.define("contains".to_string(), Value::NativeFunction("contains".to_string()));
+		self.env.define("replace_str".to_string(), Value::NativeFunction("replace_str".to_string()));
+		self.env.define("split".to_string(), Value::NativeFunction("split".to_string()));
+		self.env.define("join".to_string(), Value::NativeFunction("join".to_string()));
 		
 		// Array functions
-		self.env.vars.insert("push".to_string(), Value::NativeFunction("push".to_string()));
-		self.env.vars.insert("pop".to_string(), Value::NativeFunction("pop".to_string()));
-		self.env.vars.insert("slice".to_string(), Value::NativeFunction("slice".to_string()));
-		self.env.vars.insert("concat".to_string(), Value::NativeFunction("concat".to_string()));
+		self.env.define("push".to_string(), Value::NativeFunction("push".to_string()));
+		self.env.define("pop".to_string(), Value::NativeFunction("pop".to_string()));
+		self.env.define("slice".to_string(), Value::NativeFunction("slice".to_string()));
+		self.env.define("concat".to_string(), Value::NativeFunction("concat".to_string()));
 		
 		// Dict functions
-		self.env.vars.insert("keys".to_string(), Value::NativeFunction("keys".to_string()));
-		self.env.vars.insert("values".to_string(), Value::NativeFunction("values".to_string()));
-		self.env.vars.insert("has_key".to_string(), Value::NativeFunction("has_key".to_string()));
-		self.env.vars.insert("remove".to_string(), Value::NativeFunction("remove".to_string()));
+		self.env.define("keys".to_string(), Value::NativeFunction("keys".to_string()));
+		self.env.define("values".to_string(), Value::NativeFunction("values".to_string()));
+		self.env.define("has_key".to_string(), Value::NativeFunction("has_key".to_string()));
+		self.env.define("remove".to_string(), Value::NativeFunction("remove".to_string()));
 	}
 	
 	/// Sets the source file and content for error reporting
@@ -177,7 +256,7 @@ impl Interpreter {
     }
     
     /// Calls a native built-in function
-    fn call_native_function(&self, name: &str, args: &[Expr]) -> Value {
+    fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
         // Evaluate all arguments
         let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
         
@@ -428,7 +507,14 @@ impl Interpreter {
                 }
             }
             Stmt::Block(stmts) => {
+                // Create new scope for block
+                let parent_env = self.env.clone();
+                self.env = self.env.extend();
+                
                 self.eval_stmts(&stmts);
+                
+                // Restore parent environment
+                self.env = parent_env;
             }
             Stmt::Let { name, value, mutable: _, type_annotation: _ } => {
                 let val = self.eval_expr(&value);
@@ -436,7 +522,7 @@ impl Interpreter {
                 if matches!(val, Value::Error(_)) {
                     self.return_value = Some(val.clone());
                 }
-                self.env.vars.insert(name.clone(), val);
+                self.env.define(name.clone(), val);
             }
             Stmt::Const { name, value, type_annotation: _ } => {
                 let val = self.eval_expr(&value);
@@ -444,7 +530,7 @@ impl Interpreter {
                 if matches!(val, Value::Error(_)) {
                     self.return_value = Some(val.clone());
                 }
-                self.env.vars.insert(name.clone(), val);
+                self.env.define(name.clone(), val);
             }
             Stmt::Assign { target, value } => {
                 let val = self.eval_expr(&value);
@@ -456,8 +542,8 @@ impl Interpreter {
                 
                 match target {
                     Expr::Identifier(name) => {
-                        // Simple variable assignment - always insert/update the variable
-                        self.env.vars.insert(name.clone(), val);
+                        // Simple variable assignment - use set to update in correct scope
+                        self.env.set(name.clone(), val);
                     }
                     Expr::IndexAccess { object, index } => {
                         // Array or dict element assignment
@@ -466,7 +552,7 @@ impl Interpreter {
                         // Get the container (array or dict) from the object expression
                         // For now, only support direct identifiers as the object
                         if let Expr::Identifier(container_name) = object.as_ref() {
-                            if let Some(container) = self.env.vars.get_mut(container_name.as_str()) {
+                            if let Some(container) = self.env.get_mut(container_name.as_str()) {
                                 match container {
                                     Value::Array(ref mut arr) => {
                                         if let Value::Number(idx) = index_val {
@@ -557,7 +643,7 @@ impl Interpreter {
             }
             Stmt::FuncDef { name, params, param_types: _, return_type: _, body } => {
                 let func = Value::Function(params.clone(), body.clone());
-                self.env.vars.insert(name.clone(), func);
+                self.env.define(name.clone(), func);
             }
             Stmt::EnumDef { name, variants } => {
                 for variant in variants {
@@ -570,7 +656,7 @@ impl Interpreter {
                             vec![Expr::Identifier("$0".to_string())],
                         )))],
                     );
-                    self.env.vars.insert(tag.clone(), func);
+                    self.env.define(tag.clone(), func);
                 }
             }
             Stmt::Import { module, symbols } => {
@@ -643,7 +729,10 @@ impl Interpreter {
                         let (enum_tag, param_var) = pattern.split_at(open_paren);
                         let param_var = param_var.trim_matches(&['(', ')'][..]);
                         if tag == enum_tag.trim() {
-                            let mut scoped = self.env.vars.clone();
+                            // Create new scope for pattern match body
+                            let parent_env = self.env.clone();
+                            self.env = self.env.extend();
+                            
                             for i in 0.. {
                                 let key = format!("${}", i);
                                 if let Some(val) = fields.get(&key) {
@@ -652,14 +741,16 @@ impl Interpreter {
                                     } else {
                                         format!("{}_{}", param_var, i)
                                     };
-                                    scoped.insert(param_name, val.clone());
+                                    self.env.define(param_name, val.clone());
                                 } else {
                                     break;
                                 }
                             }
-                            let old_env = std::mem::replace(&mut self.env, Environment { vars: scoped });
+                            
                             self.eval_stmts(body);
-                            self.env = old_env;
+                            
+                            // Restore parent environment
+                            self.env = parent_env;
                             return;
                         }
                     } else if pattern.as_str() == tag {
@@ -691,39 +782,36 @@ impl Interpreter {
                     Value::Number(n) => {
                         // Numeric range: for i in 5 { ... } iterates 0..5
                         for i in 0..*n as i64 {
-                            let mut local_env = self.env.vars.clone();
-                            local_env.insert(var.clone(), Value::Number(i as f64));
-                            let mut inner = Interpreter {
-                                env: Environment { vars: local_env },
-                                return_value: None,
-                                output: self.output.clone(),
-                                source_file: self.source_file.clone(),
-                                source_lines: self.source_lines.clone(),
-                                module_loader: ModuleLoader::new(),
-                            };
-                            inner.eval_stmts(&body);
-                            if let Some(rv) = inner.return_value {
-                                self.return_value = Some(rv);
+                            // Create new scope for loop iteration
+                            let parent_env = self.env.clone();
+                            self.env = self.env.extend();
+                            self.env.define(var.clone(), Value::Number(i as f64));
+                            
+                            self.eval_stmts(&body);
+                            
+                            // Restore parent environment
+                            self.env = parent_env;
+                            
+                            if self.return_value.is_some() {
                                 break;
                             }
                         }
                     }
                     Value::Array(arr) => {
                         // Array iteration: for item in [1, 2, 3] { ... }
-                        for item in arr {
-                            let mut local_env = self.env.vars.clone();
-                            local_env.insert(var.clone(), item.clone());
-                            let mut inner = Interpreter {
-                                env: Environment { vars: local_env },
-                                return_value: None,
-                                output: self.output.clone(),
-                                source_file: self.source_file.clone(),
-                                source_lines: self.source_lines.clone(),
-                                module_loader: ModuleLoader::new(),
-                            };
-                            inner.eval_stmts(&body);
-                            if let Some(rv) = inner.return_value {
-                                self.return_value = Some(rv);
+                        let arr_clone = arr.clone();
+                        for item in arr_clone {
+                            // Create new scope for loop iteration
+                            let parent_env = self.env.clone();
+                            self.env = self.env.extend();
+                            self.env.define(var.clone(), item);
+                            
+                            self.eval_stmts(&body);
+                            
+                            // Restore parent environment
+                            self.env = parent_env;
+                            
+                            if self.return_value.is_some() {
                                 break;
                             }
                         }
@@ -731,40 +819,38 @@ impl Interpreter {
                     Value::Dict(dict) => {
                         // Dictionary iteration: for key in {"a": 1, "b": 2} { ... }
                         // Iterate over keys
-                        for key in dict.keys() {
-                            let mut local_env = self.env.vars.clone();
-                            local_env.insert(var.clone(), Value::Str(key.clone()));
-                            let mut inner = Interpreter {
-                                env: Environment { vars: local_env },
-                                return_value: None,
-                                output: self.output.clone(),
-                                source_file: self.source_file.clone(),
-                                source_lines: self.source_lines.clone(),
-                                module_loader: ModuleLoader::new(),
-                            };
-                            inner.eval_stmts(&body);
-                            if let Some(rv) = inner.return_value {
-                                self.return_value = Some(rv);
+                        let keys: Vec<String> = dict.keys().cloned().collect();
+                        for key in keys {
+                            // Create new scope for loop iteration
+                            let parent_env = self.env.clone();
+                            self.env = self.env.extend();
+                            self.env.define(var.clone(), Value::Str(key));
+                            
+                            self.eval_stmts(&body);
+                            
+                            // Restore parent environment
+                            self.env = parent_env;
+                            
+                            if self.return_value.is_some() {
                                 break;
                             }
                         }
                     }
                     Value::Str(s) => {
                         // String iteration: for char in "hello" { ... }
-                        for ch in s.chars() {
-                            let mut local_env = self.env.vars.clone();
-                            local_env.insert(var.clone(), Value::Str(ch.to_string()));
-                            let mut inner = Interpreter {
-                                env: Environment { vars: local_env },
-                                return_value: None,
-                                output: self.output.clone(),
-                                source_file: self.source_file.clone(),
-                                source_lines: self.source_lines.clone(),
-                                module_loader: ModuleLoader::new(),
-                            };
-                            inner.eval_stmts(&body);
-                            if let Some(rv) = inner.return_value {
-                                self.return_value = Some(rv);
+                        let chars: Vec<char> = s.chars().collect();
+                        for ch in chars {
+                            // Create new scope for loop iteration
+                            let parent_env = self.env.clone();
+                            self.env = self.env.extend();
+                            self.env.define(var.clone(), Value::Str(ch.to_string()));
+                            
+                            self.eval_stmts(&body);
+                            
+                            // Restore parent environment
+                            self.env = parent_env;
+                            
+                            if self.return_value.is_some() {
                                 break;
                             }
                         }
@@ -779,32 +865,25 @@ impl Interpreter {
                 self.return_value = Some(Value::Return(Box::new(value)));
             }
             Stmt::TryExcept { try_block, except_var, except_block } => {
-                let backup_env = self.env.vars.clone();
-                let mut inner = Interpreter {
-                    env: Environment { vars: backup_env.clone() },
-                    return_value: None,
-                    output: self.output.clone(),
-                    source_file: self.source_file.clone(),
-                    source_lines: self.source_lines.clone(),
-                    module_loader: ModuleLoader::new(),
-                };
-                inner.eval_stmts(&try_block);
-                if let Some(Value::Error(msg)) = inner.return_value {
-                    let mut except_env = backup_env;
-                    except_env.insert(except_var.clone(), Value::Str(msg));
-                    let mut handler = Interpreter {
-                        env: Environment { vars: except_env },
-                        return_value: None,
-                        output: self.output.clone(),
-                        source_file: self.source_file.clone(),
-                        source_lines: self.source_lines.clone(),
-                        module_loader: ModuleLoader::new(),
-                    };
-                    handler.eval_stmts(&except_block);
-                    self.return_value = handler.return_value;
-                } else {
-                    self.return_value = inner.return_value;
+                // Save current environment and create child scope for try block
+                let parent_env = self.env.clone();
+                self.env = self.env.extend();
+                
+                self.eval_stmts(&try_block);
+                
+                // Check if an error occurred
+                if let Some(Value::Error(msg)) = self.return_value.clone() {
+                    // Restore parent and create new scope for except block
+                    self.env = parent_env.extend();
+                    self.env.define(except_var.clone(), Value::Str(msg));
+                    
+                    // Clear error and execute except block
+                    self.return_value = None;
+                    self.eval_stmts(&except_block);
                 }
+                
+                // Restore parent environment
+                self.env = parent_env;
             }
             Stmt::ExprStmt(expr) => {
                 match expr {
@@ -838,27 +917,21 @@ impl Interpreter {
                     Expr::Call { function, args } => {
                         let func_val = self.eval_expr(&function);
                         if let Value::Function(params, body) = func_val {
-                            let mut local_env = self.env.vars.clone();
+                            // Create new scope for function call
+                            let parent_env = self.env.clone();
+                            self.env = self.env.extend();
+                            
                             for (i, param) in params.iter().enumerate() {
                                 if let Some(arg) = args.get(i) {
                                     let val = self.eval_expr(arg);
-                                    local_env.insert(param.clone(), val);
+                                    self.env.define(param.clone(), val);
                                 }
                             }
-                            let mut inner = Interpreter {
-                                env: Environment { vars: local_env },
-                                return_value: None,
-                                output: self.output.clone(),
-                                source_file: self.source_file.clone(),
-                                source_lines: self.source_lines.clone(),
-                                module_loader: ModuleLoader::new(),
-                            };
-                            inner.eval_stmts(&body);
-                            if let Some(Value::Return(val)) = inner.return_value {
-                                self.return_value = Some(*val);
-                            } else if let Some(Value::Error(msg)) = inner.return_value {
-                                self.return_value = Some(Value::Error(msg));
-                            }
+                            
+                            self.eval_stmts(&body);
+                            
+                            // Restore parent environment
+                            self.env = parent_env;
                         }
                     }
 
@@ -889,17 +962,17 @@ impl Interpreter {
                     field_names,
                     methods: method_map,
                 };
-                self.env.vars.insert(name.clone(), struct_def);
+                self.env.define(name.clone(), struct_def);
             }
         }
     }
 
     /// Evaluates an expression to produce a value
-    fn eval_expr(&self, expr: &Expr) -> Value {
+    fn eval_expr(&mut self, expr: &Expr) -> Value {
         match expr {
             Expr::Number(n) => Value::Number(*n),
             Expr::String(s) => Value::Str(s.clone()),
-            Expr::Identifier(name) => self.env.vars.get(name).cloned().unwrap_or(Value::Str(name.clone())),
+            Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
             Expr::BinaryOp { left, op, right } => {
                 let l = self.eval_expr(&left);
                 let r = self.eval_expr(&right);
@@ -930,41 +1003,40 @@ impl Interpreter {
                     let obj_val = self.eval_expr(object);
                     if let Value::Struct { name, fields } = &obj_val {
                         // Look up the struct definition to find the method
-                        if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.vars.get(name) {
+                        if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name) {
                             if let Some(Value::Function(params, body)) = methods.get(field) {
-                                // Call the method with struct fields bound in environment
-                                let mut local_env = self.env.vars.clone();
+                                // Create new scope for method call
+                                let parent_env = self.env.clone();
+                                self.env = self.env.extend();
                                 
                                 // Bind struct fields into method environment
                                 for (field_name, field_value) in fields {
-                                    local_env.insert(field_name.clone(), field_value.clone());
+                                    self.env.define(field_name.clone(), field_value.clone());
                                 }
                                 
                                 // Bind method parameters
                                 for (i, param) in params.iter().enumerate() {
                                     if let Some(arg) = args.get(i) {
                                         let val = self.eval_expr(arg);
-                                        local_env.insert(param.clone(), val);
+                                        self.env.define(param.clone(), val);
                                     }
                                 }
                                 
                                 // Execute method body
-                                let mut inner = Interpreter {
-                                    env: Environment { vars: local_env },
-                                    return_value: None,
-                                    output: self.output.clone(),
-                                    source_file: self.source_file.clone(),
-                                    source_lines: self.source_lines.clone(),
-                                    module_loader: ModuleLoader::new(),
-                                };
-                                inner.eval_stmts(&body);
-                                return if let Some(Value::Return(val)) = inner.return_value {
+                                self.eval_stmts(&body);
+                                
+                                let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                                     *val
-                                } else if let Some(Value::Error(msg)) = inner.return_value {
+                                } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                                     Value::Error(msg)
                                 } else {
                                     Value::Number(0.0)
                                 };
+                                
+                                // Restore parent environment
+                                self.env = parent_env;
+                                
+                                return result;
                             }
                         }
                     }
@@ -978,29 +1050,31 @@ impl Interpreter {
                         self.call_native_function(&name, args)
                     }
                     Value::Function(params, body) => {
-                        let mut local_env = self.env.vars.clone();
+                        // Create new scope for function call
+                        let parent_env = self.env.clone();
+                        self.env = self.env.extend();
+                        
                         for (i, param) in params.iter().enumerate() {
                             if let Some(arg) = args.get(i) {
                                 let val = self.eval_expr(arg);
-                                local_env.insert(param.clone(), val);
+                                self.env.define(param.clone(), val);
                             }
                         }
-                        let mut inner = Interpreter {
-                            env: Environment { vars: local_env },
-                            return_value: None,
-                            output: self.output.clone(),
-                            source_file: self.source_file.clone(),
-                            source_lines: self.source_lines.clone(),
-                            module_loader: ModuleLoader::new(),
-                        };
-                        inner.eval_stmts(&body);
-                        if let Some(Value::Return(val)) = inner.return_value {
+                        
+                        self.eval_stmts(&body);
+                        
+                        let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                             *val
-                        } else if let Some(Value::Error(msg)) = inner.return_value {
+                        } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                             Value::Error(msg) // Propagate error instead of returning 0
                         } else {
                             Value::Number(0.0)
-                        }
+                        };
+                        
+                        // Restore parent environment
+                        self.env = parent_env;
+                        
+                        result
                     }
                     _ => Value::Number(0.0),
                 }
