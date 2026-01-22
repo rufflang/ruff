@@ -84,7 +84,8 @@
   - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
-  - **I/O**: `print()`
+  - **I/O**: `print()`, `input()`
+  - **Type Conversion**: `parse_int()`, `parse_float()`
   - **Error handling**: `throw()`
 
 * **Operators**

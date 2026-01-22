@@ -9,6 +9,43 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## ✅ Recently Completed (v0.3.0 In Progress)
 
+### User Input Function
+
+**Status**: ✅ **COMPLETED** (January 2026)  
+**Actual Effort**: 1 day  
+**Priority**: High - Enables interactive programs
+
+**What Was Implemented**:  
+Added `input()` function for reading user input from stdin, plus helper functions for type conversion.
+
+**Functions Added**:
+```ruff
+name := input("Enter your name: ")
+print("Hello, " + name)
+
+age_str := input("Enter your age: ")
+try {
+    age := parse_int(age_str)
+    print("Next year you'll be " + (age + 1))
+} except err {
+    print("Error: " + err)
+}
+
+price_str := input("Enter price: ")
+price := parse_float(price_str)
+```
+
+**Implementation Details**:
+- `input(prompt)`: Reads line from stdin, prints prompt without newline
+- `parse_int(str)`: Converts string to integer (returns Error on parse failure)
+- `parse_float(str)`: Converts string to float (returns Error on parse failure)
+- All functions integrate with try/except error handling
+- 5 comprehensive unit tests covering valid input, invalid input, and arithmetic usage
+- 3 example programs: greeting, calculator, guessing game
+- Examples demonstrate error handling patterns with try/except
+
+---
+
 ### Lexical Scoping and Block Scope
 
 **Status**: ✅ **COMPLETED** (January 2026)  
@@ -49,34 +86,7 @@ print(sum)  # 6 - works!
 
 ## 🔥 High Priority (v0.3.0)
 
-### 1. User Input Function
-
-**Status**: Planned for v0.3.0  
-**Estimated Effort**: Small (1-2 days)  
-**Priority**: High - Enables interactive programs
-
-**Description**:  
-Add `input()` function to read user input from stdin.
-
-**Syntax**:
-```ruff
-name := input("Enter your name: ")
-print("Hello, " + name)
-
-age := input("Enter your age: ")
-age_num := parse_int(age)  # Will need parse_int helper
-```
-
-**Implementation Steps**:
-1. Add native `input(prompt)` function
-2. Reads line from stdin
-3. Returns string value
-4. Add `parse_int()` and `parse_float()` helpers
-5. Add examples demonstrating interactive programs
-
----
-
-### 3. File I/O Functions
+### 1. File I/O Functions
 
 **Status**: Planned for v0.3.0  
 **Estimated Effort**: Medium (3-4 days)  
