@@ -104,45 +104,40 @@ Commit after each of these milestones:
 
 ### Commit Message Format
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+Use emoji-prefixed commit messages:
 
-```
-<type>: <description>
-
-[optional body]
+```bash
+git commit -m ":package: NEW: <description>"
+git commit -m ":ok_hand: IMPROVE: <description>"
+git commit -m ":bug: BUG: <description>"
+git commit -m ":book: DOC: <description>"
 ```
 
 **Types:**
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `test:` - Adding tests
-- `docs:` - Documentation only
-- `refactor:` - Code restructuring
-- `perf:` - Performance improvement
-- `chore:` - Maintenance tasks
+- `:package: NEW:` - New feature
+- `:bug: BUG:` - Bug fix
+- `:ok_hand: IMPROVE:` - Improvements, tests, refactoring
+- `:book: DOC:` - Documentation only
 
 **Examples:**
 
 ```bash
 # Feature commits
-git commit -m "feat: add lexical scoping support"
-git commit -m "feat: implement user input() function"
+git commit -m ":package: NEW: add lexical scoping support"
+git commit -m ":package: NEW: implement user input() function"
 
 # Bug fix commits
-git commit -m "fix: field assignment now works with nested access"
-git commit -m "fix: boolean conditions properly evaluate truthy values"
+git commit -m ":bug: BUG: field assignment now works with nested access"
+git commit -m ":bug: BUG: boolean conditions properly evaluate truthy values"
 
-# Test commits
-git commit -m "test: add integration tests for field assignment"
-git commit -m "test: add scoping tests for nested blocks"
+# Test/improvement commits
+git commit -m ":ok_hand: IMPROVE: add integration tests for field assignment"
+git commit -m ":ok_hand: IMPROVE: add scoping tests for nested blocks"
+git commit -m ":ok_hand: IMPROVE: eliminate compiler warnings"
 
 # Documentation commits
-git commit -m "docs: update CHANGELOG for v0.2.0"
-git commit -m "docs: update ROADMAP to remove completed features"
-
-# Chore commits
-git commit -m "chore: eliminate compiler warnings"
-git commit -m "chore: prepare v0.2.0 release"
+git commit -m ":book: DOC: update CHANGELOG for v0.2.0"
+git commit -m ":book: DOC: update ROADMAP to remove completed features"
 ```
 
 ---
@@ -173,9 +168,9 @@ Git workflow:
 - Commit after updating docs
 
 Each commit should be atomic and have clear message like:
-- "feat: implement lexical scoping with environment stack"
-- "test: add integration tests for nested scopes"
-- "docs: document lexical scoping in CHANGELOG"
+- ":package: NEW: implement lexical scoping with environment stack"
+- ":ok_hand: IMPROVE: add integration tests for nested scopes"
+- ":book: DOC: document lexical scoping in CHANGELOG"
 
 Zero warnings required. All tests must pass.
 ```
