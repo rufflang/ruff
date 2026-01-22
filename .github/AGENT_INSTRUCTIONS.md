@@ -46,6 +46,7 @@ git commit -m ":book: DOC: <description>"
 - `:ok_hand: IMPROVE:` - Improvements, updates, refactoring
 - `:bug: BUG:` - Bug fixes
 - `:book: DOC:` - Documentation changes
+- `:rocket: RELEASE:` - Version releases
 
 **Good Commit Messages:**
 ```bash
@@ -55,6 +56,7 @@ git commit -m ":book: DOC: <description>"
 :book: DOC: update CHANGELOG with v0.2.0 features
 :ok_hand: IMPROVE: eliminate all compiler warnings
 :ok_hand: IMPROVE: extract field mutation logic into helper function
+:rocket: RELEASE: v0.2.0
 ```
 
 **Bad Commit Messages:**

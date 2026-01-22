@@ -118,6 +118,7 @@ git commit -m ":book: DOC: <description>"
 - `:bug: BUG:` - Bug fix
 - `:ok_hand: IMPROVE:` - Improvements, tests, refactoring
 - `:book: DOC:` - Documentation only
+- `:rocket: RELEASE:` - Version releases
 
 **Examples:**
 
@@ -138,6 +139,10 @@ git commit -m ":ok_hand: IMPROVE: eliminate compiler warnings"
 # Documentation commits
 git commit -m ":book: DOC: update CHANGELOG for v0.2.0"
 git commit -m ":book: DOC: update ROADMAP to remove completed features"
+
+# Release commits
+git commit -m ":rocket: RELEASE: v0.2.0"
+git commit -m ":rocket: RELEASE: v0.3.0"
 ```
 
 ---
