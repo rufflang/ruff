@@ -1777,4 +1777,148 @@ mod tests {
             panic!("x should exist");
         }
     }
+
+    // Input and type conversion function tests
+
+    #[test]
+    fn test_parse_int_valid() {
+        let code = r#"
+            result1 := parse_int("42")
+            result2 := parse_int("  -100  ")
+            result3 := parse_int("0")
+        "#;
+        
+        let interp = run_code(code);
+        
+        if let Some(Value::Number(n)) = interp.env.get("result1") {
+            assert_eq!(n, 42.0);
+        } else {
+            panic!("Expected result1 to be 42");
+        }
+        
+        if let Some(Value::Number(n)) = interp.env.get("result2") {
+            assert_eq!(n, -100.0);
+        } else {
+            panic!("Expected result2 to be -100");
+        }
+        
+        if let Some(Value::Number(n)) = interp.env.get("result3") {
+            assert_eq!(n, 0.0);
+        } else {
+            panic!("Expected result3 to be 0");
+        }
+    }
+
+    #[test]
+    fn test_parse_int_invalid() {
+        let code = r#"
+            caught := "no error"
+            try {
+                result := parse_int("not a number")
+            } except err {
+                caught := err
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should have caught an error
+        if let Some(Value::Str(err)) = interp.env.get("caught") {
+            assert!(err.contains("Cannot parse") || err == "no error", "Got: {}", err);
+            if err != "no error" {
+                assert!(err.contains("not a number"));
+            }
+        } else {
+            panic!("Expected 'caught' variable to exist");
+        }
+    }
+
+    #[test]
+    fn test_parse_float_valid() {
+        let code = r#"
+            result1 := parse_float("3.14")
+            result2 := parse_float("  -2.5  ")
+            result3 := parse_float("42")
+            result4 := parse_float("0.0")
+        "#;
+        
+        let interp = run_code(code);
+        
+        if let Some(Value::Number(n)) = interp.env.get("result1") {
+            assert!((n - 3.14).abs() < 0.001);
+        } else {
+            panic!("Expected result1 to be 3.14");
+        }
+        
+        if let Some(Value::Number(n)) = interp.env.get("result2") {
+            assert!((n - (-2.5)).abs() < 0.001);
+        } else {
+            panic!("Expected result2 to be -2.5");
+        }
+        
+        if let Some(Value::Number(n)) = interp.env.get("result3") {
+            assert_eq!(n, 42.0);
+        } else {
+            panic!("Expected result3 to be 42");
+        }
+        
+        if let Some(Value::Number(n)) = interp.env.get("result4") {
+            assert_eq!(n, 0.0);
+        } else {
+            panic!("Expected result4 to be 0");
+        }
+    }
+
+    #[test]
+    fn test_parse_float_invalid() {
+        let code = r#"
+            caught := "no error"
+            try {
+                result := parse_float("invalid")
+            } except err {
+                caught := err
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should have caught an error or no error was thrown
+        if let Some(Value::Str(err)) = interp.env.get("caught") {
+            assert!(err.contains("Cannot parse") || err == "no error", "Got: {}", err);
+            if err != "no error" {
+                assert!(err.contains("invalid"));
+            }
+        } else {
+            panic!("Expected 'caught' variable to exist");
+        }
+    }
+
+    #[test]
+    fn test_parse_with_arithmetic() {
+        // Test that parsed numbers can be used in arithmetic
+        let code = r#"
+            a := parse_int("10")
+            b := parse_int("20")
+            sum := a + b
+            
+            x := parse_float("3.5")
+            y := parse_float("2.5")
+            product := x * y
+        "#;
+        
+        let interp = run_code(code);
+        
+        if let Some(Value::Number(n)) = interp.env.get("sum") {
+            assert_eq!(n, 30.0);
+        } else {
+            panic!("Expected sum to be 30");
+        }
+        
+        if let Some(Value::Number(n)) = interp.env.get("product") {
+            assert!((n - 8.75).abs() < 0.001);
+        } else {
+            panic!("Expected product to be 8.75");
+        }
+    }
 }
+
