@@ -1,48 +1,55 @@
 # Ruff Language - Development Roadmap
 
-This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features in v0.1.0 and v0.2.0, see [CHANGELOG.md](CHANGELOG.md).
+This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features in v0.1.0, v0.2.0, and v0.3.0 (in progress), see [CHANGELOG.md](CHANGELOG.md).
 
 > **Current Version**: v0.2.0 (January 2026)  
 > **Next Planned Release**: v0.3.0
 
 ---
 
-## 🔥 High Priority (v0.3.0)
+## ✅ Recently Completed (v0.3.0 In Progress)
 
-### 1. Lexical Scoping and Block Scope
+### Lexical Scoping and Block Scope
 
-**Status**: Planned for v0.3.0  
-**Estimated Effort**: Medium (4-5 days)  
-**Priority**: Critical - Fixes major known limitation
+**Status**: ✅ **COMPLETED** (January 2026)  
+**Actual Effort**: 1 day  
+**Priority**: Critical - Fixed major limitation
 
-**Description**:  
-Implement proper lexical scoping so variables in nested blocks work correctly. Currently Ruff uses a single global environment causing variable shadowing issues.
+**What Was Fixed**:  
+Implemented proper lexical scoping with environment stack. Variables now correctly update across scope boundaries.
 
-**Current Problem**:
+**Before (Broken)**:
 ```ruff
 sum := 0
 for n in [1, 2, 3] {
-    sum := sum + n  # Creates NEW variable instead of updating outer sum
+    sum := sum + n  # Created NEW local variable (wrong!)
 }
 print(sum)  # Still 0 - broken!
 ```
 
-**Planned Solution**:
-- Environment stack with parent scopes
-- Variable lookup walks up scope chain
-- Assignment updates in correct scope
-- Block statements create new scopes
+**After (Working)**:
+```ruff
+sum := 0
+for n in [1, 2, 3] {
+    sum := sum + n  # Updates outer sum (correct!)
+}
+print(sum)  # 6 - works!
+```
 
-**Implementation Steps**:
-1. Replace single HashMap with scope stack
-2. Implement parent scope lookup for variable resolution
-3. Push/pop scopes for blocks, functions, loops
-4. Update assignment to find and update correct scope
-5. Add comprehensive tests for scoping
+**Implementation Details**:
+- Environment now uses Vec<HashMap> scope stack instead of single HashMap
+- Variable lookup walks up scope chain from innermost to outermost
+- `:=` operator updates existing variables or creates new ones
+- `let x :=` always creates new variable (shadowing)
+- For-loops, functions, and try/except create new scopes
+- Comprehensive test suite with 12 scoping tests
+- Example file: `examples/scoping.ruff`
 
 ---
 
-### 2. User Input Function
+## 🔥 High Priority (v0.3.0)
+
+### 1. User Input Function
 
 **Status**: Planned for v0.3.0  
 **Estimated Effort**: Small (1-2 days)  

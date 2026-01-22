@@ -2,26 +2,37 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.2.0 - Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
+> **Status**: v0.3.0 (in development) - Now with proper lexical scoping! Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
 
 ---
 
 ## 🎯 Project Status
 
-### ✅ Implemented Features (v0.2.0)
+### ✅ Implemented Features (v0.3.0)
 
 * **Variables & Constants**
   - `let` and `mut` for mutable variables
   - `const` for constants
   - Shorthand assignment with `:=` (e.g., `x := 5`)
   - Optional type annotations: `x: int := 5`
+  - **NEW**: `:=` now properly updates existing variables across scopes
+
+* **Lexical Scoping** (v0.3.0) ✨
+  - Proper scope chain with environment stack
+  - Variables update correctly across scope boundaries
+  - Accumulator pattern works: `sum := sum + n` in loops
+  - Function local variables properly isolated
+  - Nested functions can read and modify outer variables
+  - For-loop variables don't leak to outer scope
+  - Variable shadowing with `let` keyword
 
 * **Functions**
   - Function definitions with `func` keyword
   - Parameter passing with optional type annotations
   - Return values with optional return type annotations
-  - Lexical scoping
+  - Lexical scoping with access to outer variables
   - Functions as first-class values
+  - Nested function definitions
 
 * **Control Flow**
   - `if`/`else` statements

@@ -5,6 +5,54 @@ All notable changes to the Ruff programming language will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Lexical Scoping**: Implemented proper lexical scoping with environment stack
+  - Variables now correctly update across scope boundaries
+  - Accumulator pattern works: `sum := sum + n` in loops
+  - Function local variables properly isolated
+  - Nested functions can read and modify outer variables
+  - For-loop variables don't leak to outer scope
+  - `let` keyword creates shadowed variables in current scope
+- **Scope Management**: Environment now uses Vec<HashMap> scope stack
+  - `push_scope()`/`pop_scope()` for nested contexts
+  - Variable lookup walks up scope chain (innermost to outermost)
+  - Assignment updates in correct scope or creates in current
+- **Comprehensive Tests**: 12 new integration tests for scoping
+  - Nested function scopes
+  - For-loop variable isolation
+  - Variable shadowing with `let`
+  - Function modifying outer variables
+  - Scope chain lookup
+  - Try/except scoping
+  - Accumulator patterns
+  - Multiple assignments in loops
+- **Example File**: `examples/scoping.ruff` demonstrates all scoping features
+  - Accumulator pattern (sum in loop)
+  - Function counters
+  - Variable shadowing
+  - Nested functions
+  - Loop variable isolation
+  - Factorial-like patterns
+
+### Fixed
+- **Assignment Operator**: Fixed `:=` to update existing variables instead of always creating new
+  - Changed parser to emit `Stmt::Assign` instead of `Stmt::Let` for `:=`
+  - `Stmt::Assign` uses `Environment::set()` which updates existing or creates new
+  - `let x :=` still creates new variable (shadowing)
+  - Fixes critical bug where `sum := sum + n` created new local variable
+- **Function Call Cleanup**: Fixed `return_value` not being cleared after function calls
+  - Functions now properly clear return state after execution
+  - Prevents early termination of parent statement evaluation
+  - Allows multiple statements after function calls to execute
+
+### Changed
+- **Environment Architecture**: Replaced single HashMap with Vec<HashMap> scope stack
+  - Stack index 0 is global scope
+  - Higher indices are nested scopes (functions, loops, try/except)
+  - All statement handlers updated to use push_scope/pop_scope
+
 ## [0.2.0] - 2026-01-22
 
 ### Added
