@@ -78,13 +78,19 @@ Requirements:
 ```
 Read .github/AGENT_INSTRUCTIONS.md and follow all rules.
 
-Prepare for v[X.Y.Z] release:
+Prepare for [X.Y.Z] release:
 
 1. Review CHANGELOG.md - ensure all changes documented
 2. Update ROADMAP.md - mark completed items, update progress table
 3. Update README.md - reflect new capabilities
 4. Run full test suite and verify zero warnings
-5. Create release commit: "chore: prepare v[X.Y.Z] release"
+5. Update Cargo.toml version to X.Y.Z
+6. Commit: ":rocket: RELEASE: X.Y.Z"
+7. Create git tag: git tag -a X.Y.Z -m "Release X.Y.Z"
+8. Push: git push origin main && git push origin X.Y.Z
+9. Create GitHub release with CHANGELOG content
+
+Note: Tag format is X.Y.Z (e.g., 0.2.0) NOT vX.Y.Z
 ```
 
 ---
@@ -141,8 +147,8 @@ git commit -m ":book: DOC: update CHANGELOG for v0.2.0"
 git commit -m ":book: DOC: update ROADMAP to remove completed features"
 
 # Release commits
-git commit -m ":rocket: RELEASE: v0.2.0"
-git commit -m ":rocket: RELEASE: v0.3.0"
+git commit -m ":rocket: RELEASE: 0.2.0"
+git commit -m ":rocket: RELEASE: 0.3.0"
 ```
 
 ---
