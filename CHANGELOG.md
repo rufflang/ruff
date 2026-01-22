@@ -8,12 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **File I/O Functions**: Complete filesystem operations support
+  - `read_file(path)`: Reads entire file as string
+  - `write_file(path, content)`: Writes/overwrites file content
+  - `append_file(path, content)`: Appends content to existing file
+  - `file_exists(path)`: Checks if file or directory exists
+  - `read_lines(path)`: Reads file and returns array of lines
+  - `list_dir(path)`: Lists all files in directory
+  - `create_dir(path)`: Creates directory with parents (like mkdir -p)
+  - All functions return `Value::Error` on failure, caught by try/except
+  - 6 comprehensive unit tests for all file operations
+  - Fixed `Expr::Tag` evaluation to check for native/user functions before treating as enum constructors
+  - Example programs: `file_logger.ruff`, `config_manager.ruff`, `directory_tools.ruff`, `backup_tool.ruff`, `note_taking_app.ruff`
 - **User Input Functions**: Added interactive I/O capabilities
   - `input(prompt)`: Reads a line from stdin, displays prompt without newline
   - `parse_int(str)`: Converts string to integer (returns Error on failure)
   - `parse_float(str)`: Converts string to float (returns Error on failure)
   - All functions integrate with try/except error handling
-  - Example programs: `interactive_greeting.ruff`, `guessing_game.ruff`, `interactive_calculator.ruff`
+  - Example programs: `interactive_greeting.ruff`, `guessing_game.ruff`, `interactive_calculator.ruff`, `quiz_game.ruff`
 - **Lexical Scoping**: Implemented proper lexical scoping with environment stack
   - Variables now correctly update across scope boundaries
   - Accumulator pattern works: `sum := sum + n` in loops

@@ -9,6 +9,50 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## ✅ Recently Completed (v0.3.0 In Progress)
 
+### File I/O Functions
+
+**Status**: ✅ **COMPLETED** (January 2026)  
+**Actual Effort**: 1 day  
+**Priority**: High - Essential for practical programs
+
+**What Was Implemented**:  
+Complete filesystem operations for reading, writing, and managing files and directories.
+
+**Functions Added**:
+```ruff
+# File operations
+content := read_file("data.txt")
+write_file("output.txt", "Hello World\n")
+append_file("log.txt", "New entry\n")
+
+# File information
+exists := file_exists("config.yaml")  # Returns "true" or "false"
+lines := read_lines("data.txt")       # Returns array of strings
+
+# Directory operations
+files := list_dir("./src")            # Returns array of filenames
+create_dir("./output/logs")           # Creates directory tree
+
+# Error handling
+try {
+    content := read_file("/path/to/file.txt")
+    print(content)
+} except err {
+    print("Error: " + err)
+}
+```
+
+**Implementation Details**:
+- All file operations use Rust's `std::fs` module
+- Error handling returns `Value::Error` with descriptive messages
+- `create_dir` uses `create_dir_all` for recursive directory creation
+- `read_lines` handles different line ending formats
+- `list_dir` returns just filenames, not full paths
+- 6 comprehensive unit tests cover all operations
+- Real-world examples: note-taking app, backup tool, config manager
+
+---
+
 ### User Input Function
 
 **Status**: ✅ **COMPLETED** (January 2026)  
