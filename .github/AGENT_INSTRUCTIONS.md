@@ -138,6 +138,39 @@ Each commit should be:
 - **Descriptive** - Clear what changed and why
 - **Focused** - One purpose per commit
 
+### Creating Releases
+
+When releasing a new version:
+
+```bash
+# 1. Update version in Cargo.toml (e.g., 0.1.0 -> 0.2.0)
+
+# 2. Run tests to verify
+cargo test
+
+# 3. Commit the version bump
+git add Cargo.toml
+git commit -m ":rocket: RELEASE: 0.2.0"
+git push origin main
+
+# 4. Create annotated tag (NO 'v' prefix - just numbers)
+git tag -a 0.2.0 -m "Release 0.2.0 - Brief description
+
+See CHANGELOG.md for full details."
+
+# 5. Push the tag
+git push origin 0.2.0
+
+# 6. Create GitHub release
+# Go to: https://github.com/rufflang/ruff/releases/new
+# - Select tag: 0.2.0
+# - Release title: "Ruff 0.2.0 - Brief Title"
+# - Description: Copy content from CHANGELOG.md for that version
+# - Click "Publish release"
+```
+
+**Important:** Tag format is `0.2.0` NOT `v0.2.0` (no "v" prefix)
+
 ---
 
 ## 📋 Mandatory Workflow for Every Task
