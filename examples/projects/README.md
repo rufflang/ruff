@@ -64,9 +64,9 @@ All projects use real-world patterns and demonstrate:
 
 ## Notes
 
-**These are demonstrations, not applications:** The scripts run once to show language features. They use hardcoded data and don't accept user input. User input functions like `input()` are planned for future versions.
+**These are demonstrations, not applications:** The scripts run once to show language features. They use hardcoded data and don't accept user input. User input functions like `input()` are planned for future versions of Ruff.
 
-These projects use only the standard Ruff features available in v0.2.0. They demonstrate practical programming patterns that work reliably with the current implementation.
+These projects use only the standard Ruff features available in v0.2.0+. They demonstrate practical programming patterns that work reliably with the current implementation.
 
 ## Tips for Your Own Projects
 
