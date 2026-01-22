@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **User Input Functions**: Added interactive I/O capabilities
+  - `input(prompt)`: Reads a line from stdin, displays prompt without newline
+  - `parse_int(str)`: Converts string to integer (returns Error on failure)
+  - `parse_float(str)`: Converts string to float (returns Error on failure)
+  - All functions integrate with try/except error handling
+  - Example programs: `interactive_greeting.ruff`, `guessing_game.ruff`, `interactive_calculator.ruff`
 - **Lexical Scoping**: Implemented proper lexical scoping with environment stack
   - Variables now correctly update across scope boundaries
   - Accumulator pattern works: `sum := sum + n` in loops
