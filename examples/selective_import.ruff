@@ -1,0 +1,11 @@
+// Selective import example - import specific symbols
+from math_module import add, PI;
+
+// Now only 'add' and 'PI' are available
+let sum = add(10, 20);
+print("10 + 20 =", sum);
+
+print("PI =", PI);
+
+// This would fail if uncommented (multiply not imported):
+// let product = multiply(2, 3);

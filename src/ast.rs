@@ -7,6 +7,43 @@
 // Expressions (Expr) represent values and computations, while Statements (Stmt)
 // represent actions and control flow.
 
+use crate::errors::SourceLocation;
+
+/// Type annotations for variables and functions
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+pub enum TypeAnnotation {
+    Int,
+    Float,
+    String,
+    Bool,
+    Function {
+        params: Vec<TypeAnnotation>,
+        return_type: Box<TypeAnnotation>,
+    },
+    Enum(String),
+    Union(Vec<TypeAnnotation>),
+    Any, // For gradual typing - no type checking
+}
+
+impl TypeAnnotation {
+    /// Returns true if this type matches another type (allowing Any to match anything)
+    pub fn matches(&self, other: &TypeAnnotation) -> bool {
+        match (self, other) {
+            (TypeAnnotation::Any, _) | (_, TypeAnnotation::Any) => true,
+            (TypeAnnotation::Int, TypeAnnotation::Int) => true,
+            (TypeAnnotation::Float, TypeAnnotation::Float) => true,
+            (TypeAnnotation::String, TypeAnnotation::String) => true,
+            (TypeAnnotation::Bool, TypeAnnotation::Bool) => true,
+            (TypeAnnotation::Enum(a), TypeAnnotation::Enum(b)) => a == b,
+            (TypeAnnotation::Union(types), other) | (other, TypeAnnotation::Union(types)) => {
+                types.iter().any(|t| t.matches(other))
+            }
+            _ => false,
+        }
+    }
+}
+
 /// Represents an expression in Ruff - something that evaluates to a value
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -25,6 +62,29 @@ pub enum Expr {
         args: Vec<Expr>,
     },
     Tag(String, Vec<Expr>), // for enum variant constructors like Result::Ok(...)
+    StructInstance {
+        name: String,
+        fields: Vec<(String, Expr)>,
+    },
+    FieldAccess {
+        object: Box<Expr>,
+        field: String,
+    },
+    ArrayLiteral(Vec<Expr>),
+    DictLiteral(Vec<(Expr, Expr)>), // key-value pairs
+    IndexAccess {
+        object: Box<Expr>,
+        index: Box<Expr>,
+    },
+}
+
+impl Expr {
+    /// Returns a source location for this expression if available.
+    /// Currently returns unknown location - will be enhanced when parser tracks locations.
+    #[allow(dead_code)]
+    pub fn location(&self) -> SourceLocation {
+        SourceLocation::unknown()
+    }
 }
 
 /// Represents a statement in Ruff - an action or declaration
@@ -35,19 +95,23 @@ pub enum Stmt {
         value: Expr,
         #[allow(dead_code)]
         mutable: bool,
+        type_annotation: Option<TypeAnnotation>,
     },
     Const {
         name: String,
         value: Expr,
+        type_annotation: Option<TypeAnnotation>,
     },
     #[allow(dead_code)]
     Assign {
-        name: String,
+        target: Expr,  // Can be Identifier or IndexAccess
         value: Expr,
     },
     FuncDef {
         name: String,
         params: Vec<String>,
+        param_types: Vec<Option<TypeAnnotation>>,
+        return_type: Option<TypeAnnotation>,
         body: Vec<Stmt>,
     },
     EnumDef {
@@ -83,4 +147,27 @@ pub enum Stmt {
     },
     #[allow(dead_code)]
     Block(Vec<Stmt>),
+    /// Import statement: import module or from module import symbol1, symbol2
+    Import {
+        module: String,
+        symbols: Option<Vec<String>>, // None means import whole module, Some means specific symbols
+    },
+    /// Export statement: marks a statement as exported from a module
+    Export {
+        stmt: Box<Stmt>,
+    },
+    StructDef {
+        name: String,
+        fields: Vec<(String, Option<TypeAnnotation>)>,
+        methods: Vec<Stmt>, // FuncDef statements
+    },
+}
+
+impl Stmt {
+    /// Returns a source location for this statement if available.
+    /// Currently returns unknown location - will be enhanced when parser tracks locations.
+    #[allow(dead_code)]
+    pub fn location(&self) -> SourceLocation {
+        SourceLocation::unknown()
+    }
 }

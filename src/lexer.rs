@@ -4,10 +4,10 @@
 // Converts source code text into a stream of tokens for parsing.
 //
 // Supports:
-// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except
+// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except, int, float, string, bool, import, export, from
 // - Identifiers and numbers
 // - String literals with escape sequences
-// - Operators: +, -, *, /, =, ==, <, >, <=, >=, :=, ::
+// - Operators: +, -, *, /, =, ==, <, >, <=, >=, ->, :=, ::
 // - Punctuation: ( ) { } , ; :
 // - Comments starting with #
 
@@ -132,7 +132,9 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 let kind = match ident.as_str() {
                     "let" | "mut" | "const" | "func" | "return" | "enum" |
                     "match" | "case" | "default" | "if" | "else" | "loop" |
-                    "while" | "for" | "in" | "try" | "except" => {
+                    "while" | "for" | "in" | "try" | "except" |
+                    "int" | "float" | "string" | "bool" |
+                    "import" | "export" | "from" | "struct" | "impl" | "self" => {
                         TokenKind::Keyword(ident)
                     }
                     _ => TokenKind::Identifier(ident),
@@ -174,7 +176,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             '=' | '+' | '-' | '*' | '/' | '<' | '>' => {
                 let op = chars.next().unwrap();
                 col += 1;
-                // Check for == >= <=
+                // Check for == >= <= ->
                 if op == '=' && chars.peek() == Some(&'=') {
                     chars.next();
                     col += 1;
@@ -199,6 +201,14 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         line,
                         column: col,
                     });
+                } else if op == '-' && chars.peek() == Some(&'>') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("->".into()),
+                        line,
+                        column: col,
+                    });
                 } else {
                     tokens.push(Token {
                         kind: TokenKind::Operator(op.to_string()),
@@ -207,7 +217,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     });
                 }
             }
-            '(' | ')' | '{' | '}' | ',' | ';' => {
+            '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' | '.' => {
                 tokens.push(Token {
                     kind: TokenKind::Punctuation(c),
                     line,

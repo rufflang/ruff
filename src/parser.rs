@@ -52,6 +52,12 @@ impl Parser {
     pub fn parse(&mut self) -> Vec<Stmt> {
         let mut stmts = Vec::new();
         while !matches!(self.peek(), TokenKind::Eof) {
+            // Skip semicolons between statements
+            if matches!(self.peek(), TokenKind::Punctuation(';')) {
+                self.advance();
+                continue;
+            }
+            
             if let Some(stmt) = self.parse_stmt() {
                 stmts.push(stmt);
             } else {
@@ -67,6 +73,9 @@ impl Parser {
             TokenKind::Keyword(k) if k == "const" => self.parse_const(),
             TokenKind::Keyword(k) if k == "func" => self.parse_func(),
             TokenKind::Keyword(k) if k == "enum" => self.parse_enum(),
+            TokenKind::Keyword(k) if k == "struct" => self.parse_struct(),
+            TokenKind::Keyword(k) if k == "import" || k == "from" => self.parse_import(),
+            TokenKind::Keyword(k) if k == "export" => self.parse_export(),
             TokenKind::Keyword(k) if k == "return" => {
                 self.advance();
                 let expr = if !matches!(self.peek(), TokenKind::Punctuation(';')) {
@@ -82,11 +91,46 @@ impl Parser {
             TokenKind::Keyword(k) if k == "loop" => self.parse_loop(),
             TokenKind::Keyword(k) if k == "for" => self.parse_for(),
             TokenKind::Identifier(_) => {
-                // Check for variable assignment (name := expr)
-                if self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Operator(":=".into())) {
-                    self.parse_let()
+                // Check for variable assignment (name := expr or expr[...] := expr)
+                // We need to look ahead and parse an expression to see if it's followed by :=
+                let saved_pos = self.pos;
+                if let Some(expr) = self.parse_expr() {
+                    // Check if next token is :=
+                    if matches!(self.peek(), TokenKind::Operator(op) if op == ":=") {
+                        self.advance(); // consume :=
+                        
+                        // Determine if this is a let (new variable) or assign (update)
+                        match &expr {
+                            Expr::Identifier(name) => {
+                                // Check if variable exists - if not, it's a let without 'let' keyword
+                                let value = self.parse_expr()?;
+                                Some(Stmt::Let {
+                                    name: name.clone(),
+                                    value,
+                                    mutable: true,
+                                    type_annotation: None,
+                                })
+                            }
+                            Expr::IndexAccess { .. } | Expr::FieldAccess { .. } => {
+                                // This is an assignment to an existing element
+                                let value = self.parse_expr()?;
+                                Some(Stmt::Assign {
+                                    target: expr,
+                                    value,
+                                })
+                            }
+                            _ => {
+                                // Invalid assignment target
+                                None
+                            }
+                        }
+                    } else {
+                        // Not an assignment, restore position and parse as expression statement
+                        self.pos = saved_pos;
+                        self.parse_expr().map(Stmt::ExprStmt)
+                    }
                 } else {
-                    self.parse_expr().map(Stmt::ExprStmt)
+                    None
                 }
             }
             _ => self.parse_expr().map(Stmt::ExprStmt),
@@ -114,6 +158,46 @@ impl Parser {
         Some(Stmt::EnumDef { name, variants })
     }
 
+    fn parse_struct(&mut self) -> Option<Stmt> {
+        self.advance(); // struct
+        let name = match self.advance() {
+            TokenKind::Identifier(n) => n.clone(),
+            _ => return None,
+        };
+        
+        self.advance(); // {
+        let mut fields = Vec::new();
+        let mut methods = Vec::new();
+        
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) && !matches!(self.peek(), TokenKind::Eof) {
+            // Check if this is a method definition
+            if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
+                if let Some(method) = self.parse_func() {
+                    methods.push(method);
+                }
+            } else if let TokenKind::Identifier(field_name) = self.peek() {
+                // Parse field: name: type
+                let field_name = field_name.clone();
+                self.advance();
+                
+                let field_type = self.parse_type_annotation();
+                fields.push((field_name, field_type));
+                
+                // Consume optional comma
+                if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                    self.advance();
+                }
+                // If no comma, continue to next field or closing brace
+            } else {
+                // Unknown token, skip it to avoid infinite loop
+                self.advance();
+            }
+        }
+        
+        self.advance(); // }
+        Some(Stmt::StructDef { name, fields, methods })
+    }
+
     fn parse_let(&mut self) -> Option<Stmt> {
         // Handle 'mut', 'let', or bare identifier with :=
         let is_mut = match self.peek() {
@@ -132,12 +216,17 @@ impl Parser {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
         };
+        
+        // Parse optional type annotation (: type)
+        let type_annotation = self.parse_type_annotation();
+        
         self.advance(); // :=
         let value = self.parse_expr()?;
         Some(Stmt::Let {
             name,
             value,
             mutable: is_mut,
+            type_annotation,
         })
     }
 
@@ -147,9 +236,13 @@ impl Parser {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
         };
+        
+        // Parse optional type annotation (: type)
+        let type_annotation = self.parse_type_annotation();
+        
         self.advance(); // :=
         let value = self.parse_expr()?;
-        Some(Stmt::Const { name, value })
+        Some(Stmt::Const { name, value, type_annotation })
     }
 
     fn parse_func(&mut self) -> Option<Stmt> {
@@ -160,9 +253,16 @@ impl Parser {
         };
         self.advance(); // (
         let mut params = Vec::new();
+        let mut param_types = Vec::new();
+        
         while let TokenKind::Identifier(p) = self.peek() {
             params.push(p.clone());
             self.advance();
+            
+            // Parse optional type annotation for parameter
+            let param_type = self.parse_type_annotation();
+            param_types.push(param_type);
+            
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
                 self.advance();
             } else {
@@ -170,6 +270,33 @@ impl Parser {
             }
         }
         self.advance(); // )
+        
+        // Parse optional return type annotation (-> type)
+        let return_type = if matches!(self.peek(), TokenKind::Operator(op) if op == "->") {
+            self.advance(); // ->
+            match self.peek() {
+                TokenKind::Keyword(k) if k == "int" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::Int)
+                }
+                TokenKind::Keyword(k) if k == "float" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::Float)
+                }
+                TokenKind::Keyword(k) if k == "string" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::String)
+                }
+                TokenKind::Keyword(k) if k == "bool" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::Bool)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+        
         self.advance(); // {
         let mut body = Vec::new();
         while !matches!(self.peek(), TokenKind::Punctuation('}')) {
@@ -180,7 +307,13 @@ impl Parser {
             }
         }
         self.advance(); // }
-        Some(Stmt::FuncDef { name, params, body })
+        Some(Stmt::FuncDef { 
+            name, 
+            param_types,
+            return_type,
+            params, 
+            body 
+        })
     }
 
     fn parse_match(&mut self) -> Option<Stmt> {
@@ -301,7 +434,9 @@ impl Parser {
             _ => return None,
         };
         self.advance(); // in
-        let iterable = self.parse_expr()?;
+        // Use parse_primary to get just the identifier without postfix operations
+        // This prevents "for i in arr { }" from being parsed as struct instantiation
+        let iterable = self.parse_primary()?;
         self.advance(); // {
         let mut body = Vec::new();
         while !matches!(self.peek(), TokenKind::Punctuation('}')) {
@@ -343,6 +478,71 @@ impl Parser {
         }
         self.advance(); // }
         Some(Stmt::TryExcept { try_block, except_var, except_block })
+    }
+
+    fn parse_import(&mut self) -> Option<Stmt> {
+        // Two forms:
+        // 1. import module
+        // 2. from module import symbol1, symbol2
+        
+        let is_from = matches!(self.peek(), TokenKind::Keyword(k) if k == "from");
+        self.advance(); // import or from
+        
+        if is_from {
+            // from module import ...
+            let module = match self.advance() {
+                TokenKind::Identifier(m) => m.clone(),
+                _ => return None,
+            };
+            
+            // expect 'import' keyword
+            if !matches!(self.peek(), TokenKind::Keyword(k) if k == "import") {
+                return None;
+            }
+            self.advance(); // import
+            
+            // Parse symbol list
+            let mut symbols = Vec::new();
+            loop {
+                match self.advance() {
+                    TokenKind::Identifier(s) => symbols.push(s.clone()),
+                    _ => return None,
+                }
+                
+                if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                    self.advance(); // ,
+                } else {
+                    break;
+                }
+            }
+            
+            Some(Stmt::Import {
+                module,
+                symbols: Some(symbols),
+            })
+        } else {
+            // import module
+            let module = match self.advance() {
+                TokenKind::Identifier(m) => m.clone(),
+                _ => return None,
+            };
+            
+            Some(Stmt::Import {
+                module,
+                symbols: None,
+            })
+        }
+    }
+
+    fn parse_export(&mut self) -> Option<Stmt> {
+        self.advance(); // export
+        
+        // Parse the statement to be exported
+        let stmt = self.parse_stmt()?;
+        
+        Some(Stmt::Export {
+            stmt: Box::new(stmt),
+        })
     }
 
     fn parse_if(&mut self) -> Option<Stmt> {
@@ -496,36 +696,232 @@ impl Parser {
     fn parse_call(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
         
-        // Handle function calls
-        while matches!(self.peek(), TokenKind::Punctuation('(')) {
-            self.advance(); // (
-            let mut args = Vec::new();
-            while !matches!(self.peek(), TokenKind::Punctuation(')')) {
-                if let Some(arg) = self.parse_expr() {
-                    args.push(arg);
+        loop {
+            match self.peek() {
+                // Handle function calls
+                TokenKind::Punctuation('(') => {
+                    self.advance(); // (
+                    let mut args = Vec::new();
+                    while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                        if let Some(arg) = self.parse_expr() {
+                            args.push(arg);
+                        }
+                        if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                    self.advance(); // )
+                    expr = Expr::Call {
+                        function: Box::new(expr),
+                        args,
+                    };
                 }
-                if matches!(self.peek(), TokenKind::Punctuation(',')) {
-                    self.advance();
-                } else {
+                // Handle field access
+                TokenKind::Punctuation('.') => {
+                    self.advance(); // .
+                    if let TokenKind::Identifier(field) = self.peek() {
+                        let field_name = field.clone();
+                        self.advance();
+                        expr = Expr::FieldAccess {
+                            object: Box::new(expr),
+                            field: field_name,
+                        };
+                    } else {
+                        break;
+                    }
+                }
+                // Handle index access: arr[index]
+                TokenKind::Punctuation('[') => {
+                    self.advance(); // [
+                    if let Some(index) = self.parse_expr() {
+                        if matches!(self.peek(), TokenKind::Punctuation(']')) {
+                            self.advance(); // ]
+                            expr = Expr::IndexAccess {
+                                object: Box::new(expr),
+                                index: Box::new(index),
+                            };
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                // Handle struct instantiation: Struct { field1: val1, field2: val2 }
+                TokenKind::Punctuation('{') if matches!(expr, Expr::Identifier(_)) => {
+                    // Only treat as struct instantiation if we have an identifier followed by {
+                    // This distinguishes from block statements
+                    if let Expr::Identifier(name) = expr {
+                        self.advance(); // {
+                        let mut fields = Vec::new();
+                        
+                        loop {
+                            if matches!(self.peek(), TokenKind::Punctuation('}')) {
+                                break;
+                            }
+                            
+                            if let TokenKind::Identifier(field_name) = self.peek() {
+                                let field_name = field_name.clone();
+                                self.advance(); // consume field name
+                                
+                                // Expect colon
+                                if !matches!(self.peek(), TokenKind::Punctuation(':')) {
+                                    break; // Invalid syntax
+                                }
+                                self.advance(); // consume :
+                                
+                                // Parse field value - use parse_primary to avoid recursion
+                                // This means field values can only be literals or identifiers for now
+                                // TODO: Support full expressions in struct literals
+                                if let Some(value) = self.parse_primary() {
+                                    fields.push((field_name, value));
+                                }
+                                
+                                // Check for comma or end
+                                if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                                    self.advance();
+                                } else if matches!(self.peek(), TokenKind::Punctuation('}')) {
+                                    break;
+                                } else {
+                                    // Unexpected token, try to recover
+                                    break;
+                                }
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        self.advance(); // consume }
+                        expr = Expr::StructInstance { name, fields };
+                    }
                     break;
                 }
+                _ => break,
             }
-            self.advance(); // )
-            expr = Expr::Call {
-                function: Box::new(expr),
-                args,
-            };
         }
         
         Some(expr)
     }
 
     fn parse_primary(&mut self) -> Option<Expr> {
-        match self.advance() {
-            TokenKind::Identifier(name) => Some(Expr::Identifier(name.clone())),
-            TokenKind::Number(n) => Some(Expr::Number(*n)),
-            TokenKind::String(s) => Some(Expr::String(s.clone())),
-            _ => None,
+        match self.peek() {
+            TokenKind::Punctuation('[') => self.parse_array_literal(),
+            TokenKind::Punctuation('{') => self.parse_dict_literal(),
+            _ => {
+                // For other tokens, advance and match
+                match self.advance() {
+                    TokenKind::Identifier(name) => Some(Expr::Identifier(name.clone())),
+                    TokenKind::Number(n) => Some(Expr::Number(*n)),
+                    TokenKind::String(s) => Some(Expr::String(s.clone())),
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    fn parse_array_literal(&mut self) -> Option<Expr> {
+        self.advance(); // consume [
+        let mut elements = Vec::new();
+        
+        while !matches!(self.peek(), TokenKind::Punctuation(']')) && !matches!(self.peek(), TokenKind::Eof) {
+            // Use parse_comparison to avoid infinite recursion through parse_call
+            if let Some(elem) = self.parse_comparison() {
+                elements.push(elem);
+            }
+            
+            if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                self.advance();
+            } else if !matches!(self.peek(), TokenKind::Punctuation(']')) {
+                break; // Unexpected token
+            }
+        }
+        
+        if matches!(self.peek(), TokenKind::Punctuation(']')) {
+            self.advance(); // consume ]
+        }
+        
+        Some(Expr::ArrayLiteral(elements))
+    }
+
+    fn parse_dict_literal(&mut self) -> Option<Expr> {
+        self.advance(); // consume {
+        let mut pairs = Vec::new();
+        
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) && !matches!(self.peek(), TokenKind::Eof) {
+            // Parse key - use parse_comparison to avoid recursion
+            let key = self.parse_comparison()?;
+            
+            // Expect colon
+            if !matches!(self.peek(), TokenKind::Punctuation(':')) {
+                break;
+            }
+            self.advance(); // consume :
+            
+            // Parse value - use parse_comparison to avoid recursion
+            let value = self.parse_comparison()?;
+            pairs.push((key, value));
+            
+            if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                self.advance();
+            } else if !matches!(self.peek(), TokenKind::Punctuation('}')) {
+                break;
+            }
+        }
+        
+        if matches!(self.peek(), TokenKind::Punctuation('}')) {
+            self.advance(); // consume }
+        }
+        
+        Some(Expr::DictLiteral(pairs))
+    }
+
+    /// Parse a type annotation (: type_name)
+    /// Returns Some(TypeAnnotation) if a type annotation is present, None otherwise
+    fn parse_type_annotation(&mut self) -> Option<crate::ast::TypeAnnotation> {
+        use crate::ast::TypeAnnotation;
+        
+        // Check if there's a colon for type annotation
+        // But NOT if it's := (assignment operator)
+        if !matches!(self.peek(), TokenKind::Punctuation(':')) {
+            return None;
+        }
+        
+        // Peek ahead - if next token is '=', this is ':=' not a type annotation
+        let saved_pos = self.pos;
+        self.advance(); // tentatively consume :
+        
+        // Check if this is actually part of ':='
+        if matches!(self.peek(), TokenKind::Operator(op) if op == "=") {
+            // This was part of ':=', backtrack
+            self.pos = saved_pos;
+            return None;
+        }
+        
+        // Parse the type keyword
+        match self.peek() {
+            TokenKind::Keyword(k) if k == "int" => {
+                self.advance();
+                Some(TypeAnnotation::Int)
+            }
+            TokenKind::Keyword(k) if k == "float" => {
+                self.advance();
+                Some(TypeAnnotation::Float)
+            }
+            TokenKind::Keyword(k) if k == "string" => {
+                self.advance();
+                Some(TypeAnnotation::String)
+            }
+            TokenKind::Keyword(k) if k == "bool" => {
+                self.advance();
+                Some(TypeAnnotation::Bool)
+            }
+            _ => {
+                // Invalid type, backtrack
+                self.pos = saved_pos;
+                None
+            }
         }
     }
 
@@ -551,6 +947,7 @@ impl Parser {
                 let mut parser = crate::parser::Parser::new(tokens);
                 let ast = parser.parse();
                 let mut interp = crate::interpreter::Interpreter::new();
+                interp.set_source(path.to_string_lossy().to_string(), &content);
 
                 let start = Instant::now();
 

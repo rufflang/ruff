@@ -1,0 +1,11 @@
+// Basic import example - import entire module
+import math_module;
+
+// Use functions from the imported module
+let result = add(5, 3);
+print("5 + 3 =", result);
+
+let product = multiply(4, 7);
+print("4 * 7 =", product);
+
+print("PI =", PI);
