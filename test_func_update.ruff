@@ -1,0 +1,7 @@
+x := 10
+func update_x() {
+    x := 30
+}
+print("Before:", x)
+update_x()
+print("After:", x)
