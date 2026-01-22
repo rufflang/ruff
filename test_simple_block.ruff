@@ -1,5 +1,0 @@
-print("Before block")
-{
-    print("Inside block")
-}
-print("After block")
