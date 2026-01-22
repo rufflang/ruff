@@ -1,274 +1,438 @@
 # Ruff Language - Development Roadmap
 
-This roadmap outlines planned features and improvements for the Ruff programming language. Features are organized by priority and include detailed implementation notes.
+This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features in v0.1.0 and v0.2.0, see [CHANGELOG.md](CHANGELOG.md).
+
+> **Current Version**: v0.2.0 (January 2026)  
+> **Next Planned Release**: v0.3.0
 
 ---
 
-## 🔥 High Priority Features
+## 🔥 High Priority (v0.3.0)
 
-### 1. Better Error Messages with Line/Column Numbers
+### 1. Lexical Scoping and Block Scope
 
-**Status**: ✅ Completed (v0.1.0)  
-**Estimated Effort**: Small (2-3 days)  
-**Blocking**: None
+**Status**: Planned for v0.3.0  
+**Estimated Effort**: Medium (4-5 days)  
+**Priority**: Critical - Fixes major known limitation
 
 **Description**:  
-Error reporting infrastructure with colored output and source location tracking. The interpreter now tracks source files and line numbers, providing context when errors occur.
+Implement proper lexical scoping so variables in nested blocks work correctly. Currently Ruff uses a single global environment causing variable shadowing issues.
 
-**Implemented Features**:
-- ✅ Source location tracking in Token struct (line/column)
-- ✅ SourceLocation type with file, line, and column info
-- ✅ RuffError type with structured error kinds
-- ✅ Colored error output using the `colored` crate
-- ✅ Interpreter tracks source file and content for error reporting
-- ✅ Foundation for future parser and runtime error improvements
-
-**Example Usage**:
+**Current Problem**:
 ```ruff
-func check(val) {
-    if val == 0 {
-        throw("Cannot process zero")
+sum := 0
+for n in [1, 2, 3] {
+    sum := sum + n  # Creates NEW variable instead of updating outer sum
+}
+print(sum)  # Still 0 - broken!
+```
+
+**Planned Solution**:
+- Environment stack with parent scopes
+- Variable lookup walks up scope chain
+- Assignment updates in correct scope
+- Block statements create new scopes
+
+**Implementation Steps**:
+1. Replace single HashMap with scope stack
+2. Implement parent scope lookup for variable resolution
+3. Push/pop scopes for blocks, functions, loops
+4. Update assignment to find and update correct scope
+5. Add comprehensive tests for scoping
+
+---
+
+### 2. User Input Function
+
+**Status**: Planned for v0.3.0  
+**Estimated Effort**: Small (1-2 days)  
+**Priority**: High - Enables interactive programs
+
+**Description**:  
+Add `input()` function to read user input from stdin.
+
+**Syntax**:
+```ruff
+name := input("Enter your name: ")
+print("Hello, " + name)
+
+age := input("Enter your age: ")
+age_num := parse_int(age)  # Will need parse_int helper
+```
+
+**Implementation Steps**:
+1. Add native `input(prompt)` function
+2. Reads line from stdin
+3. Returns string value
+4. Add `parse_int()` and `parse_float()` helpers
+5. Add examples demonstrating interactive programs
+
+---
+
+### 3. File I/O Functions
+
+**Status**: Planned for v0.3.0  
+**Estimated Effort**: Medium (3-4 days)  
+**Priority**: High - Essential for practical programs
+
+**Description**:  
+Built-in functions for reading and writing files.
+
+**Planned Functions**:
+```ruff
+# Reading files
+content := read_file("data.txt")  # Returns entire file as string
+lines := read_lines("data.txt")   # Returns array of lines
+exists := file_exists("data.txt") # Returns true/false
+
+# Writing files
+write_file("output.txt", "Hello World")     # Write string to file
+append_file("log.txt", "New entry\n")      # Append to file
+
+# Directory operations
+files := list_dir("./src")        # List files in directory
+create_dir("./output")            # Create directory
+```
+
+**Implementation Steps**:
+1. Add native functions using Rust std::fs
+2. Handle errors gracefully (file not found, permission denied)
+3. Support relative and absolute paths
+4. Add comprehensive examples
+5. Document security considerations
+
+---
+
+### 4. Boolean as First-Class Type
+
+**Status**: Planned for v0.3.0  
+**Estimated Effort**: Medium (3-4 days)  
+**Priority**: Medium - Improves type system
+
+**Description**:  
+Make booleans a proper type instead of string identifiers.
+
+**Current Problem**:
+- `true` and `false` are identifiers that evaluate to `Value::Str("true")`
+- Special handling needed in if conditions
+- Type system doesn't recognize bool as distinct type
+
+**Planned Changes**:
+- Add `Value::Bool(bool)` variant
+- Parser recognizes `true`/`false` as bool literals
+- Type system has `TypeAnnotation::Bool`
+- Remove special string handling for "true"/"false"
+
+**Benefits**:
+- Cleaner implementation
+- Proper type checking for booleans
+- Better performance (no string comparisons)
+- More intuitive semantics
+
+---
+
+## 🎯 Medium Priority (v0.3.x - v0.4.0)
+
+### 5. Loop Control (break, continue, while)
+
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 days)
+
+**Description**:  
+Add break, continue statements and while loops for better loop control.
+
+**Syntax**:
+```ruff
+# While loops
+x := 0
+while x < 10 {
+    print(x)
+    x := x + 1
+}
+
+# Break statement
+for i in 100 {
+    if i > 10 {
+        break
     }
-    return val * 2
+    print(i)
 }
 
-try {
-    result := check(0)
-} except err {
-    print("Error:", err)
-}
-```
-
-**Future Enhancements**:
-- Attach line numbers to all AST nodes
-- Improve parser errors to use RuffError with locations
-- Add "help" hints and suggestions to error messages
-- Add error recovery in parser
-- Show multiple errors at once instead of stopping at first error
-
----
-
-### 2. Type Annotations and Type Checking
-
-**Status**: ✅ Completed (v0.1.0)  
-**Estimated Effort**: Large (1-2 weeks)  
-**Blocking**: Better error messages (recommended)
-
-**Description**:  
-Optional static type annotations and type checking to catch errors before runtime. Types are optional (gradual typing) to maintain simplicity and backward compatibility.
-
-**Implemented Features**:
-- ✅ Primitive types: `int`, `float`, `string`, `bool`
-- ✅ Type annotations for variables (`let x: int := 5`)
-- ✅ Type annotations for constants (`const PI: float := 3.14`)
-- ✅ Function parameter types (`func add(a: int, b: int)`)
-- ✅ Function return types (`func add(...) -> int`)
-- ✅ Type inference from literals and expressions
-- ✅ Type checking for assignments and function calls
-- ✅ Type checking for binary operations
-- ✅ Gradual typing - mix typed and untyped code
-- ✅ Symbol table for tracking variable and function types
-- ✅ Helpful type mismatch error messages
-
-**Syntax Examples**:
-```ruff
-# Variable annotations
-x: int := 5
-name: string := "Alice"
-
-# Function signatures
-func add(a: int, b: int) -> int {
-    return a + b
-}
-
-# Type inference
-result := add(1, 2)  # Inferred as int
-
-# Optional types work with existing code
-func greet(name) {  # No type annotation required
-    print("Hello", name)
+# Continue statement
+for i in 10 {
+    if i % 2 == 0 {
+        continue
+    }
+    print(i)  # Only odd numbers
 }
 ```
 
-**Future Enhancements**:
-- Generic types: `Array<T>`, `Option<T>`
-- Union types: `int | string`
-- Type aliases: `type UserId = int`
-- Enum variant types for pattern matching
-- Null/Option type safety
-- Structural typing for interfaces
-- Type narrowing in control flow
-- Better type inference across function boundaries
+---
+
+### 6. String Interpolation
+
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 days)
+
+**Description**:  
+Embed expressions directly in strings with `${}` syntax.
+
+**Syntax**:
+```ruff
+name := "World"
+x := 42
+
+message := "Hello, ${name}!"  # "Hello, World!"
+result := "The answer is ${x * 2}"  # "The answer is 84"
+```
 
 ---
 
-### 3. Module System and Imports
+### 7. Enhanced String Functions
 
-**Status**: ✅ Completed (v0.1.0)  
-**Estimated Effort**: Medium (1 week)  
-**Blocking**: None
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 days)
+
+**Planned Functions**:
+```ruff
+starts_with("hello world", "hello")  # true
+ends_with("test.ruff", ".ruff")      # true
+index_of("hello", "ll")              # 2
+repeat("ha", 3)                      # "hahaha"
+split("a,b,c", ",")                  # ["a", "b", "c"]
+join(["a", "b", "c"], ",")           # "a,b,c"
+```
+
+---
+
+### 8. Array Higher-Order Functions
+
+**Status**: Planned  
+**Estimated Effort**: Medium (3-4 days)
 
 **Description**:  
-Enable code organization across multiple files with imports and exports.
+Functional programming operations on arrays.
 
-**Implemented Features**:
-- ✅ Import entire modules: `import module_name`
-- ✅ Selective imports: `from module_name import symbol1, symbol2`
-- ✅ Export declarations: `export fn function_name() { }`
-- ✅ Module loading with caching
-- ✅ Circular import detection
-- ✅ Module search paths (current directory, ./modules)
-
-**Syntax Examples**:
+**Planned Functions**:
 ```ruff
-# File: math.ruff
-export func square(x) {
+# Map - transform each element
+squared := map([1, 2, 3], func(x) { return x * x })  # [1, 4, 9]
+
+# Filter - select elements
+evens := filter([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # [2, 4]
+
+# Reduce - accumulate
+sum := reduce([1, 2, 3], 0, func(acc, x) { return acc + x })  # 6
+
+# Find - first matching element
+first_even := find([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # 2
+```
+
+---
+
+### 9. Multi-Line and Doc Comments
+
+**Status**: Planned  
+**Estimated Effort**: Small (1-2 days)
+
+**Syntax**:
+```ruff
+# Single-line comment (already supported)
+
+/*
+ * Multi-line comment
+ * Spans multiple lines
+ */
+
+/// Documentation comment for functions
+/// @param x The input value
+/// @return The squared value
+func square(x) {
     return x * x
 }
-
-export const PI := 3.14159
-
-func helper() {  # Not exported, private
-    return 42
-}
-
-# File: main.ruff
-import math_module
-
-result := add(5, 3)
-print("5 + 3 =", result)
-print("PI:", PI)
-
-# Or import specific items
-from math_module import add, PI
-result := add(10, 20)
 ```
 
-**Future Enhancements**:
-- Full module execution to populate exports
-- Namespace support for qualified access: `math.square(5)`
-- Package management system
-- Module versioning and dependency resolution
-- Better error messages for missing modules/symbols
-- Re-export support: `export from other_module`
-- Module aliases: `import math as m`
-- Private exports (export only to specific modules)
-
 ---
-### 4. Standard Library (Built-in Functions)
 
-**Status**: ✅ Completed (v0.2.0) - Comprehensive built-ins for math, strings, arrays, and dicts  
-**Estimated Effort**: Medium (1 week)  
-**Blocking**: Module system
+### 10. JSON Support
 
-**Description**:  
-Provide essential functionality through built-in native functions implemented in Rust for performance.
+**Status**: Planned  
+**Estimated Effort**: Medium (3-4 days)
 
-**Implemented Built-ins**:
+**Planned Functions**:
+```ruff
+# Parse JSON string to Ruff value
+data := parse_json('{"name": "Alice", "age": 30}')
+print(data["name"])  # Alice
 
-**Math Functions** - Available globally
-- `abs(x)` - Absolute value
-- `sqrt(x)` - Square root
-- `pow(base, exp)` - Power function
-- `floor(x)`, `ceil(x)`, `round(x)` - Rounding functions
-- `min(a, b)`, `max(a, b)` - Min/max values
-- `sin(x)`, `cos(x)`, `tan(x)` - Trigonometric functions
-- Constants: `PI`, `E`
-
-**String Functions** - Available globally
-- `len(s)` - String, array, or dict length
-- `to_upper(s)`, `to_lower(s)` - Case conversion
-- `trim(s)` - Remove whitespace
-- `substring(s, start, end)` - Extract substring
-- `contains(s, substr)` - Check if substring exists
-- `replace_str(s, old, new)` - Replace substring
-
-**Array Functions** (v0.2.0) - Available globally
-- `push(arr, item)` - Add element to end of array, returns new array
-- `pop(arr)` - Remove last element, returns `[new_array, popped_value]`
-- `slice(arr, start, end)` - Extract subarray from start (inclusive) to end (exclusive)
-- `concat(arr1, arr2)` - Combine two arrays into new array
-- `len(arr)` - Get number of elements in array
-
-**Dict Functions** (v0.2.0) - Available globally
-- `keys(dict)` - Get array of all keys
-- `values(dict)` - Get array of all values
-- `has_key(dict, key)` - Check if key exists (returns 1/0)
-- `remove(dict, key)` - Remove key, returns `[new_dict, removed_value]`
-- `len(dict)` - Get number of key-value pairs
-
-**Testing**:
-- ✅ All functions tested in examples/builtins.ruff
-- ✅ Functions work with arrays, dicts, and strings
-- ✅ Proper return values and error handling
-
-**Future Enhancements**:
-- Fix type checking for numeric literals in function calls
-- Add array manipulation: map, filter, reduce
-- Add file I/O: read_file, write_file, file_exists, read_lines
-- Add more string functions: starts_with, ends_with, index_of, repeat
-- Add JSON parsing and serialization
-- Add HTTP client functions
-- Add date/time functions
-- Create stdlib/ directory with .ruff wrappers for discoverability
-- Add system functions: env vars, command execution
+# Convert Ruff value to JSON string
+person := {"name": "Bob", "score": 95}
+json_str := to_json(person)  # '{"name":"Bob","score":95}'
+```
 
 ---
 
-## 🎯 Medium Priority Features
+## 🚀 Long Term (v0.5.0+)
 
-### 5. Structs and Methods
+### 11. REPL (Interactive Shell)
 
-**Status**: ✅ Completed (v0.2.0) - Full struct support with instantiation, field access, and method calls  
-**Estimated Effort**: Medium (1 week)  
-**Blocking**: Type system (recommended)
+**Status**: Planned  
+**Estimated Effort**: Medium (3-4 days)
 
-**Description**:  
-User-defined data structures with named fields and methods.
-
-**Implemented Features**:
-- ✅ `struct`, `impl`, and `self` keywords added to lexer
-- ✅ `.` operator for field access
-- ✅ StructDef and StructInstance AST nodes
-- ✅ Field and method parsing in struct definitions
-- ✅ Struct instantiation syntax: `Point { x: 3.0, y: 4.0 }`
-- ✅ Field access syntax: `point.x`
-- ✅ **Method calls**: `rect.area()`, `point.distance()` (v0.2.0)
-- ✅ Methods can access struct fields directly without explicit `self`
-- ✅ Type checking for struct definitions and methods
-- ✅ Runtime struct values and struct definitions
-- ✅ Example files: struct_basic.ruff, struct_methods.ruff, structs_comprehensive.ruff
-
-**Implementation Details** (v0.2.0):
-- Special handling in `Expr::Call` for method calls via `FieldAccess`
-- Struct fields automatically bound into method execution environment
-- Methods work seamlessly with field access: `width * height` directly in method body
-
-**Known Limitations**:
-- Methods don't have explicit `self` parameter (fields accessed directly by name)
-- No constructor functions or static methods yet
-- Struct types not fully integrated into generic type system
-
-**Future Enhancements**:
-- Add explicit `self` parameter for more complex method patterns
-- Add `self` parameter to methods with proper binding
-- Constructor functions or static methods
-- Struct inheritance or composition patterns
+**Features**:
+- Interactive Read-Eval-Print Loop
+- Multi-line input support
+- Command history (up/down arrows)
+- Tab completion
+- Special commands (`:help`, `:clear`, `:quit`)
 
 ---
 
-### 6. Arrays and Dictionaries
+### 12. Advanced Type System Features
 
-**Status**: Partially Complete  
-**Estimated Effort**: Medium (4-5 days)  
-**Blocking**: None
+**Status**: Research Phase  
+**Estimated Effort**: Large (2-3 weeks)
 
-**Description**:  
-Built-in collection types for storing multiple values.
+**Planned Features**:
+- Generic types: `Array<T>`, `Option<T>`, `Result<T, E>`
+- Union types: `int | string | null`
+- Type aliases: `type UserId = int`
+- Optional chaining: `user?.profile?.email`
+- Null safety with `Option<T>`
 
-**Implemented Features**:
-- ✅ Array literal syntax: `[1, 2, 3]`
-- ✅ Dictionary literal syntax: `{"key": value}`
+---
+
+### 13. LSP (Language Server Protocol)
+
+**Status**: Planned  
+**Estimated Effort**: Large (2-3 weeks)
+
+**Features**:
+- Syntax highlighting
+- Autocomplete
+- Go to definition
+- Find references
+- Hover information
+- Real-time error checking
+- VS Code extension
+
+---
+
+### 14. Package Manager
+
+**Status**: Planned  
+**Estimated Effort**: Large (2-3 weeks)
+
+**Features**:
+- `ruff.toml` project configuration
+- Dependency management
+- Package registry
+- Semantic versioning
+- CLI commands: `ruff init`, `ruff add`, `ruff install`
+
+---
+
+### 15. Compilation Targets
+
+**Status**: Research Phase  
+**Estimated Effort**: Very Large (1-2 months)
+
+**Options**:
+1. **Bytecode Interpreter** - Compile AST to bytecode for faster execution
+2. **WebAssembly** - Compile to WASM for browser/embedded use
+3. **Native Code** - AOT compilation to native executables
+4. **JIT Compilation** - Just-in-time compilation for hot paths
+
+---
+
+## 📋 Implementation Guidelines
+
+### For Each New Feature:
+
+1. **Plan** - Write specification with examples
+2. **Test** - Create test cases before implementation
+3. **Implement** - Update lexer, parser, AST, interpreter as needed
+4. **Validate** - Ensure all tests pass, zero warnings
+5. **Document** - Add examples and update README
+6. **Release** - Update CHANGELOG with feature
+
+### Code Quality Standards:
+
+- ✅ Zero compiler warnings
+- ✅ All tests must pass
+- ✅ Document public APIs
+- ✅ Add examples for new features
+- ✅ Follow existing code style
+- ✅ Update CHANGELOG and README
+
+---
+
+## 📊 Progress Tracking
+
+| Feature | Priority | Target Version | Status |
+|---------|----------|----------------|--------|
+| Lexical Scoping | Critical | v0.3.0 | Planned |
+| User Input | High | v0.3.0 | Planned |
+| File I/O | High | v0.3.0 | Planned |
+| Boolean Type | Medium | v0.3.0 | Planned |
+| Loop Control | Medium | v0.3.x | Planned |
+| String Interpolation | Medium | v0.3.x | Planned |
+| Enhanced Strings | Medium | v0.4.0 | Planned |
+| Array Higher-Order Fns | Medium | v0.4.0 | Planned |
+| Multi-line Comments | Low | v0.4.0 | Planned |
+| JSON Support | Medium | v0.4.0 | Planned |
+| REPL | Long Term | v0.5.0 | Planned |
+| Advanced Types | Long Term | v0.6.0 | Research |
+| LSP | Long Term | v0.6.0 | Planned |
+| Package Manager | Long Term | v0.7.0 | Planned |
+| Compilation | Long Term | v0.8.0+ | Research |
+
+---
+
+## 🎯 Version Milestones
+
+**v0.3.0 - "Practical"** (Target: Q1 2026)
+- Lexical scoping fix
+- User input
+- File I/O
+- Boolean type improvements
+
+**v0.4.0 - "Expressive"** (Target: Q2 2026)
+- String interpolation
+- Array higher-order functions
+- JSON support
+- Enhanced string functions
+
+**v0.5.0 - "Interactive"** (Target: Q3 2026)
+- REPL implementation
+- Improved error messages
+- Better debugging tools
+
+**v0.6.0 - "Professional"** (Target: Q4 2026)
+- LSP support
+- Advanced type system
+- Comprehensive standard library
+
+**v0.7.0 - "Ecosystem"** (2027)
+- Package manager
+- Community packages
+- Documentation generator
+
+---
+
+## 🤝 Contributing
+
+Want to help implement these features? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Priority features for community contributions:
+- Enhanced string functions
+- Array higher-order functions
+- Multi-line comments
+- JSON support
+
+---
+
+*Last Updated: January 22, 2026*
 ### 6. Arrays and Dictionaries (Hash Maps)
 
 **Status**: ✅ Completed (v0.2.0) - Full collection support with element assignment, iteration, and built-in methods  
