@@ -224,6 +224,13 @@ impl Interpreter {
 		self.env.define("values".to_string(), Value::NativeFunction("values".to_string()));
 		self.env.define("has_key".to_string(), Value::NativeFunction("has_key".to_string()));
 		self.env.define("remove".to_string(), Value::NativeFunction("remove".to_string()));
+		
+		// I/O functions
+		self.env.define("input".to_string(), Value::NativeFunction("input".to_string()));
+		
+		// Type conversion functions
+		self.env.define("parse_int".to_string(), Value::NativeFunction("parse_int".to_string()));
+		self.env.define("parse_float".to_string(), Value::NativeFunction("parse_float".to_string()));
 	}
 	
 	/// Sets the source file and content for error reporting
@@ -449,6 +456,58 @@ impl Interpreter {
                     Value::Array(vec![Value::Dict(dict), removed])
                 } else {
                     Value::Array(vec![])
+                }
+            }
+            
+            // I/O functions
+            "input" => {
+                // input(prompt) - reads a line from stdin and returns it as a string
+                use std::io::{self, Write};
+                
+                let prompt = if let Some(Value::Str(s)) = arg_values.get(0) {
+                    s.clone()
+                } else {
+                    String::new()
+                };
+                
+                // Print prompt without newline
+                print!("{}", prompt);
+                let _ = io::stdout().flush();
+                
+                // Read line from stdin
+                let mut input = String::new();
+                match io::stdin().read_line(&mut input) {
+                    Ok(_) => {
+                        // Trim the trailing newline
+                        let trimmed = input.trim_end().to_string();
+                        Value::Str(trimmed)
+                    }
+                    Err(_) => Value::Str(String::new())
+                }
+            }
+            
+            // Type conversion functions
+            "parse_int" => {
+                // parse_int(str) - converts string to integer (as f64), returns error on failure
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    match s.trim().parse::<i64>() {
+                        Ok(n) => Value::Number(n as f64),
+                        Err(_) => Value::Error(format!("Cannot parse '{}' as integer", s))
+                    }
+                } else {
+                    Value::Error("parse_int requires a string argument".to_string())
+                }
+            }
+            
+            "parse_float" => {
+                // parse_float(str) - converts string to float, returns error on failure
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    match s.trim().parse::<f64>() {
+                        Ok(n) => Value::Number(n),
+                        Err(_) => Value::Error(format!("Cannot parse '{}' as float", s))
+                    }
+                } else {
+                    Value::Error("parse_float requires a string argument".to_string())
                 }
             }
             
