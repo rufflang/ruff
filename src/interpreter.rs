@@ -231,6 +231,15 @@ impl Interpreter {
 		// Type conversion functions
 		self.env.define("parse_int".to_string(), Value::NativeFunction("parse_int".to_string()));
 		self.env.define("parse_float".to_string(), Value::NativeFunction("parse_float".to_string()));
+		
+		// File I/O functions
+		self.env.define("read_file".to_string(), Value::NativeFunction("read_file".to_string()));
+		self.env.define("write_file".to_string(), Value::NativeFunction("write_file".to_string()));
+		self.env.define("append_file".to_string(), Value::NativeFunction("append_file".to_string()));
+		self.env.define("file_exists".to_string(), Value::NativeFunction("file_exists".to_string()));
+		self.env.define("read_lines".to_string(), Value::NativeFunction("read_lines".to_string()));
+		self.env.define("list_dir".to_string(), Value::NativeFunction("list_dir".to_string()));
+		self.env.define("create_dir".to_string(), Value::NativeFunction("create_dir".to_string()));
 	}
 	
 	/// Sets the source file and content for error reporting
@@ -508,6 +517,126 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("parse_float requires a string argument".to_string())
+                }
+            }
+            
+            // File I/O functions
+            "read_file" => {
+                // read_file(path) - reads entire file as string
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match std::fs::read_to_string(path) {
+                        Ok(content) => Value::Str(content),
+                        Err(e) => Value::Error(format!("Cannot read file '{}': {}", path, e))
+                    }
+                } else {
+                    Value::Error("read_file requires a string path argument".to_string())
+                }
+            }
+            
+            "write_file" => {
+                // write_file(path, content) - writes string to file (overwrites)
+                if arg_values.len() < 2 {
+                    return Value::Error("write_file requires two arguments: path and content".to_string());
+                }
+                if let (Some(Value::Str(path)), Some(Value::Str(content))) = 
+                    (arg_values.get(0), arg_values.get(1)) {
+                    match std::fs::write(path, content) {
+                        Ok(_) => Value::Str("true".to_string()),
+                        Err(e) => Value::Error(format!("Cannot write file '{}': {}", path, e))
+                    }
+                } else {
+                    Value::Error("write_file requires string arguments".to_string())
+                }
+            }
+            
+            "append_file" => {
+                // append_file(path, content) - appends string to file
+                use std::fs::OpenOptions;
+                use std::io::Write;
+                
+                if arg_values.len() < 2 {
+                    return Value::Error("append_file requires two arguments: path and content".to_string());
+                }
+                if let (Some(Value::Str(path)), Some(Value::Str(content))) = 
+                    (arg_values.get(0), arg_values.get(1)) {
+                    match OpenOptions::new().create(true).append(true).open(path) {
+                        Ok(mut file) => {
+                            match file.write_all(content.as_bytes()) {
+                                Ok(_) => Value::Str("true".to_string()),
+                                Err(e) => Value::Error(format!("Cannot append to file '{}': {}", path, e))
+                            }
+                        }
+                        Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e))
+                    }
+                } else {
+                    Value::Error("append_file requires string arguments".to_string())
+                }
+            }
+            
+            "file_exists" => {
+                // file_exists(path) - checks if file exists
+                use std::path::Path;
+                
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    if Path::new(path).exists() {
+                        Value::Str("true".to_string())
+                    } else {
+                        Value::Str("false".to_string())
+                    }
+                } else {
+                    Value::Error("file_exists requires a string path argument".to_string())
+                }
+            }
+            
+            "read_lines" => {
+                // read_lines(path) - reads file and returns array of lines
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match std::fs::read_to_string(path) {
+                        Ok(content) => {
+                            let lines: Vec<Value> = content
+                                .lines()
+                                .map(|line| Value::Str(line.to_string()))
+                                .collect();
+                            Value::Array(lines)
+                        }
+                        Err(e) => Value::Error(format!("Cannot read file '{}': {}", path, e))
+                    }
+                } else {
+                    Value::Error("read_lines requires a string path argument".to_string())
+                }
+            }
+            
+            "list_dir" => {
+                // list_dir(path) - lists files in directory
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match std::fs::read_dir(path) {
+                        Ok(entries) => {
+                            let mut files = Vec::new();
+                            for entry in entries {
+                                if let Ok(entry) = entry {
+                                    if let Some(name) = entry.file_name().to_str() {
+                                        files.push(Value::Str(name.to_string()));
+                                    }
+                                }
+                            }
+                            Value::Array(files)
+                        }
+                        Err(e) => Value::Error(format!("Cannot list directory '{}': {}", path, e))
+                    }
+                } else {
+                    Value::Error("list_dir requires a string path argument".to_string())
+                }
+            }
+            
+            "create_dir" => {
+                // create_dir(path) - creates directory (including parents)
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match std::fs::create_dir_all(path) {
+                        Ok(_) => Value::Str("true".to_string()),
+                        Err(e) => Value::Error(format!("Cannot create directory '{}': {}", path, e))
+                    }
+                } else {
+                    Value::Error("create_dir requires a string path argument".to_string())
                 }
             }
             
@@ -1155,6 +1284,45 @@ impl Interpreter {
                 }
             }
             Expr::Tag(name, args) => {
+                // First check if this is a native or user function
+                if let Some(func_val) = self.env.get(name) {
+                    match func_val {
+                        Value::NativeFunction(_) => {
+                            // Call native function
+                            return self.call_native_function(name, args);
+                        }
+                        Value::Function(params, body) => {
+                            // Call user function
+                            self.env.push_scope();
+                            
+                            for (i, param) in params.iter().enumerate() {
+                                if let Some(arg) = args.get(i) {
+                                    let val = self.eval_expr(arg);
+                                    self.env.define(param.clone(), val);
+                                }
+                            }
+                            
+                            self.eval_stmts(&body);
+                            
+                            let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                                self.return_value = None;
+                                *val
+                            } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                                Value::Error(msg)
+                            } else {
+                                self.return_value = None;
+                                Value::Number(0.0)
+                            };
+                            
+                            self.env.pop_scope();
+                            
+                            return result;
+                        }
+                        _ => {}
+                    }
+                }
+                
+                // Otherwise, treat as enum constructor
                 let mut fields = HashMap::new();
                 for (i, arg) in args.iter().enumerate() {
                     fields.insert(format!("${}", i), self.eval_expr(&arg));
@@ -1920,5 +2088,200 @@ mod tests {
             panic!("Expected product to be 8.75");
         }
     }
+    
+    #[test]
+    fn test_file_write_and_read() {
+        use std::fs;
+        let test_file = "/tmp/ruff_test_write_read.txt";
+        
+        // Clean up before test
+        let _ = fs::remove_file(test_file);
+        
+        let code = format!(r#"
+            result := write_file("{}", "Hello, Ruff!")
+            content := read_file("{}")
+        "#, test_file, test_file);
+        
+        let interp = run_code(&code);
+        
+        // Check write result
+        if let Some(Value::Str(s)) = interp.env.get("result") {
+            assert_eq!(s, "true");
+        } else {
+            panic!("Expected write result to be 'true'");
+        }
+        
+        // Check read content
+        if let Some(Value::Str(s)) = interp.env.get("content") {
+            assert_eq!(s, "Hello, Ruff!");
+        } else {
+            panic!("Expected content to be 'Hello, Ruff!'");
+        }
+        
+        // Clean up after test
+        let _ = fs::remove_file(test_file);
+    }
+    
+    #[test]
+    fn test_file_append() {
+        use std::fs;
+        let test_file = "/tmp/ruff_test_append.txt";
+        
+        // Clean up before test
+        let _ = fs::remove_file(test_file);
+        
+        let code = format!(r#"
+            r1 := write_file("{}", "Line 1\n")
+            r2 := append_file("{}", "Line 2\n")
+            r3 := append_file("{}", "Line 3\n")
+            content := read_file("{}")
+        "#, test_file, test_file, test_file, test_file);
+        
+        let interp = run_code(&code);
+        
+        if let Some(Value::Str(s)) = interp.env.get("content") {
+            assert_eq!(s, "Line 1\nLine 2\nLine 3\n");
+        } else {
+            panic!("Expected content with three lines");
+        }
+        
+        // Clean up after test
+        let _ = fs::remove_file(test_file);
+    }
+    
+    #[test]
+    fn test_file_exists() {
+        use std::fs;
+        let test_file = "/tmp/ruff_test_exists.txt";
+        
+        // Create test file
+        fs::write(test_file, "test").unwrap();
+        
+        let code = format!(r#"
+            exists1 := file_exists("{}")
+            exists2 := file_exists("/tmp/file_that_does_not_exist_ruff.txt")
+        "#, test_file);
+        
+        let interp = run_code(&code);
+        
+        if let Some(Value::Str(s)) = interp.env.get("exists1") {
+            assert_eq!(s, "true");
+        } else {
+            panic!("Expected exists1 to be 'true'");
+        }
+        
+        if let Some(Value::Str(s)) = interp.env.get("exists2") {
+            assert_eq!(s, "false");
+        } else {
+            panic!("Expected exists2 to be 'false'");
+        }
+        
+        // Clean up after test
+        let _ = fs::remove_file(test_file);
+    }
+    
+    #[test]
+    fn test_read_lines() {
+        use std::fs;
+        let test_file = "/tmp/ruff_test_read_lines.txt";
+        
+        // Create test file with multiple lines
+        fs::write(test_file, "Line 1\nLine 2\nLine 3").unwrap();
+        
+        let code = format!(r#"
+            lines := read_lines("{}")
+            count := len(lines)
+            first := lines[0]
+            last := lines[2]
+        "#, test_file);
+        
+        let interp = run_code(&code);
+        
+        if let Some(Value::Number(n)) = interp.env.get("count") {
+            assert_eq!(n, 3.0);
+        } else {
+            panic!("Expected count to be 3");
+        }
+        
+        if let Some(Value::Str(s)) = interp.env.get("first") {
+            assert_eq!(s, "Line 1");
+        } else {
+            panic!("Expected first line to be 'Line 1'");
+        }
+        
+        if let Some(Value::Str(s)) = interp.env.get("last") {
+            assert_eq!(s, "Line 3");
+        } else {
+            panic!("Expected last line to be 'Line 3'");
+        }
+        
+        // Clean up after test
+        let _ = fs::remove_file(test_file);
+    }
+    
+    #[test]
+    fn test_create_dir_and_list() {
+        use std::fs;
+        let test_dir = "/tmp/ruff_test_dir";
+        let test_file1 = format!("{}/file1.txt", test_dir);
+        let test_file2 = format!("{}/file2.txt", test_dir);
+        
+        // Clean up before test
+        let _ = fs::remove_dir_all(test_dir);
+        
+        let code = format!(r#"
+            result := create_dir("{}")
+            w1 := write_file("{}", "content1")
+            w2 := write_file("{}", "content2")
+            files := list_dir("{}")
+            count := len(files)
+        "#, test_dir, test_file1, test_file2, test_dir);
+        
+        let interp = run_code(&code);
+        
+        if let Some(Value::Str(s)) = interp.env.get("result") {
+            assert_eq!(s, "true");
+        } else {
+            panic!("Expected create_dir result to be 'true'");
+        }
+        
+        if let Some(Value::Number(n)) = interp.env.get("count") {
+            assert_eq!(n, 2.0);
+        } else {
+            panic!("Expected 2 files in directory");
+        }
+        
+        if let Some(Value::Array(files)) = interp.env.get("files") {
+            let file_names: Vec<String> = files.iter()
+                .filter_map(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                .collect();
+            assert!(file_names.contains(&"file1.txt".to_string()));
+            assert!(file_names.contains(&"file2.txt".to_string()));
+        } else {
+            panic!("Expected files array");
+        }
+        
+        // Clean up after test
+        let _ = fs::remove_dir_all(test_dir);
+    }
+    
+    #[test]
+    fn test_file_not_found_error() {
+        let code = r#"
+            caught := "no error"
+            try {
+                content := read_file("/tmp/file_that_definitely_does_not_exist_ruff.txt")
+            } except err {
+                caught := err
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        if let Some(Value::Str(s)) = interp.env.get("caught") {
+            assert!(s.contains("Cannot read file") || s == "no error");
+        } else {
+            panic!("Expected 'caught' variable to exist");
+        }
+    }
 }
-
