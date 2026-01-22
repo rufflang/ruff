@@ -32,31 +32,29 @@ Create a commit after completing each of:
 
 ### Commit Message Standards
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+Use emoji-prefixed commit messages for clear visual categorization:
 
-```
-<type>: <short description>
-
-[optional detailed body]
+```bash
+git commit -m ":package: NEW: <description>"
+git commit -m ":ok_hand: IMPROVE: <description>"
+git commit -m ":bug: BUG: <description>"
+git commit -m ":book: DOC: <description>"
 ```
 
 **Commit Types:**
-- `feat:` - New feature implementation
-- `fix:` - Bug fix
-- `test:` - Adding or modifying tests
-- `docs:` - Documentation changes only
-- `refactor:` - Code restructuring without behavior change
-- `perf:` - Performance improvements
-- `chore:` - Maintenance tasks (deps, config, warnings)
+- `:package: NEW:` - New feature implementation
+- `:ok_hand: IMPROVE:` - Improvements, updates, refactoring
+- `:bug: BUG:` - Bug fixes
+- `:book: DOC:` - Documentation changes
 
 **Good Commit Messages:**
 ```bash
-feat: implement lexical scoping with environment stack
-fix: field assignment now works with array[0].field syntax
-test: add 10 integration tests for boolean conditions
-docs: update CHANGELOG with v0.2.0 features
-chore: eliminate all compiler warnings
-refactor: extract field mutation logic into helper function
+:package: NEW: implement lexical scoping with environment stack
+:bug: BUG: field assignment now works with array[0].field syntax
+:ok_hand: IMPROVE: add 10 integration tests for boolean conditions
+:book: DOC: update CHANGELOG with v0.2.0 features
+:ok_hand: IMPROVE: eliminate all compiler warnings
+:ok_hand: IMPROVE: extract field mutation logic into helper function
 ```
 
 **Bad Commit Messages:**
@@ -67,11 +65,11 @@ update code
 improvements
 
 # Too broad (should be multiple commits)
-feat: add scoping, input function, and file I/O
+:package: NEW: add scoping, input function, and file I/O
 
-# Wrong type
-feat: fix bug  # Should be "fix:"
-docs: implement feature  # Should be "feat:"
+# Wrong emoji
+:package: NEW: fix bug  # Should be ":bug: BUG:"
+:book: DOC: implement feature  # Should be ":package: NEW:"
 ```
 
 ### Git Commands to Use
@@ -100,25 +98,25 @@ Implementing "Lexical Scoping" feature:
 # Step 1: Implement core logic
 # ... edit src/interpreter.rs ...
 git add src/interpreter.rs
-git commit -m "feat: implement environment stack for lexical scoping"
+git commit -m ":package: NEW: implement environment stack for lexical scoping"
 git push origin main
 
 # Step 2: Add tests
 # ... add tests in src/interpreter.rs ...
 git add src/interpreter.rs
-git commit -m "test: add 10 integration tests for nested scopes"
+git commit -m ":ok_hand: IMPROVE: add 10 integration tests for nested scopes"
 git push origin main
 
 # Step 3: Update documentation
 # ... edit CHANGELOG.md, ROADMAP.md ...
 git add CHANGELOG.md ROADMAP.md
-git commit -m "docs: document lexical scoping in CHANGELOG and ROADMAP"
+git commit -m ":book: DOC: document lexical scoping in CHANGELOG and ROADMAP"
 git push origin main
 
 # Step 4: Update README if needed
 # ... edit README.md ...
 git add README.md
-git commit -m "docs: add lexical scoping to README features"
+git commit -m ":book: DOC: add lexical scoping to README features"
 git push origin main
 ```
 
@@ -208,7 +206,7 @@ Each commit should be:
 4. **Commit after tests pass**:
    ```bash
    git add .
-   git commit -m "test: add integration tests for [feature]"
+   git commit -m ":ok_hand: IMPROVE: add integration tests for [feature]"
    git push origin main
    ```
 
@@ -284,7 +282,7 @@ Each commit should be:
 **After updating documentation:**
 ```bash
 git add CHANGELOG.md ROADMAP.md README.md
-git commit -m "docs: update documentation for [feature/fix]"
+git commit -m ":book: DOC: update documentation for [feature/fix]"
 git push origin main
 ```
 
