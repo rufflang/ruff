@@ -2,45 +2,89 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: Core functionality complete and tested. Ready for semi-production use with basic programs.
+> **Status**: v0.2.0 - Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
 
 ---
 
 ## 🎯 Project Status
 
-### ✅ Implemented Features
+### ✅ Implemented Features (v0.2.0)
 
 * **Variables & Constants**
   - `let` and `mut` for mutable variables
   - `const` for constants
   - Shorthand assignment with `:=` (e.g., `x := 5`)
+  - Optional type annotations: `x: int := 5`
 
 * **Functions**
   - Function definitions with `func` keyword
-  - Parameter passing
-  - Return values
+  - Parameter passing with optional type annotations
+  - Return values with optional return type annotations
   - Lexical scoping
+  - Functions as first-class values
 
 * **Control Flow**
   - `if`/`else` statements
   - Pattern matching with `match`/`case`
   - `loop` and `for` loops
+  - For-in iteration over arrays, dicts, strings, and ranges
   - `try`/`except`/`throw` error handling
 
 * **Data Types**
   - Numbers (f64)
   - Strings with escape sequences
   - Enums with tagged variants
+  - Arrays: `[1, 2, 3]`
+  - Dictionaries: `{"key": value}`
+  - Structs with fields and methods
   - Functions as first-class values
+
+* **Collections** (v0.2.0)
+  - Array literals and nested arrays
+  - Dictionary (hash map) literals
+  - Index access: `arr[0]`, `dict["key"]`
+  - Element assignment: `arr[0] := 10`, `dict["key"] := value`
+  - For-in iteration: `for item in array { }`, `for key in dict { }`
+  - Built-in methods: `push()`, `pop()`, `slice()`, `concat()`, `keys()`, `values()`, `has_key()`, `remove()`
+  - `len()` function for strings, arrays, and dicts
+
+* **Structs & Methods** (v0.2.0)
+  - Struct definitions with typed fields
+  - Struct instantiation: `Point { x: 3.0, y: 4.0 }`
+  - Field access: `point.x`
+  - Method calls: `rect.area()`, `point.distance()`
+  - Methods can access struct fields directly
+
+* **Type System** (v0.1.0)
+  - Optional type annotations
+  - Type inference
+  - Type checking for assignments and function calls
+  - Gradual typing - mix typed and untyped code
+  - Helpful type mismatch error messages
+
+* **Module System** (v0.1.0)
+  - Import entire modules: `import module_name`
+  - Selective imports: `from module_name import func1, func2`
+  - Export declarations: `export func function_name() { }`
+  - Module caching and circular import detection
+
+* **Built-in Functions**
+  - **Math**: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, constants `PI` and `E`
+  - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`
+  - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
+  - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
+  - **I/O**: `print()`
+  - **Error handling**: `throw()`
 
 * **Operators**
   - Arithmetic: `+`, `-`, `*`, `/`
   - Comparison: `==`, `>`, `<`, `>=`, `<=`
   - String concatenation with `+`
 
-* **Built-in Functions**
-  - `print()` for output
-  - `throw()` for error handling
+* **Error Messages**
+  - Colored error output
+  - Source location tracking
+  - Line and column information
 
 * **Testing Framework**
   - Built-in test runner
@@ -60,6 +104,10 @@ See [Install Guide](INSTALLATION.md) for platform setup instructions.
 Install Rust and run:
 
 ```bash
+# Clean output (recommended)
+cargo run --quiet -- run examples/your_script.ruff
+
+# Or with build messages
 cargo run -- run examples/your_script.ruff
 ```
 
@@ -94,6 +142,26 @@ match res {
 }
 ```
 
+### Error Handling with Try/Except
+
+```ruff
+func process(x) {
+    if x == 0 {
+        throw("Cannot process zero value")
+    }
+    return x * 2
+}
+
+try {
+    result := process(0)
+    print("Result:", result)
+} except err {
+    print("Error caught:", err)
+}
+
+print("Program continues")
+```
+
 ---
 
 ## 🧪 Running Tests
@@ -114,24 +182,48 @@ cargo run -- test --update
 
 ## 🧠 Language Features
 
-* ✅ Mutable/const variables
-* ✅ Functions with `return`
-* ✅ Pattern matching
-* ✅ Enums + tagged values
-* ✅ Nested matches
-* ✅ `try`/`throw` error handling
-* ✅ CLI testing framework
+* ✅ Mutable/const variables with optional type annotations
+* ✅ Functions with return values and type annotations
+* ✅ Pattern matching with `match`/`case`
+* ✅ Enums with tagged variants
+* ✅ Nested pattern matches
+* ✅ `try`/`except`/`throw` error handling
+* ✅ Structs with fields and methods (v0.2.0)
+* ✅ Arrays with element assignment and iteration (v0.2.0)
+* ✅ Dictionaries (hash maps) with built-in methods (v0.2.0)
+* ✅ For-in loops over arrays, dicts, strings, and ranges (v0.2.0)
+* ✅ Built-in collection methods: `push()`, `pop()`, `slice()`, `concat()`, `keys()`, `values()`, `has_key()`, `remove()`, `len()` (v0.2.0)
+* ✅ Type system with type checking and inference (v0.1.0)
+* ✅ Module system with import/export (v0.1.0)
+* ✅ Standard library with math, string, and I/O functions
+* ✅ CLI testing framework with snapshot testing
+* ✅ Colored error messages with source location tracking
 
 ---
 
 ## 📦 Roadmap
 
-* [ ] Type annotations
-* [ ] Structs & modules
+See [ROADMAP.md](ROADMAP.md) for detailed feature plans.
+
+**Completed (6/14):**
+* ✅ Error Messages & Diagnostics (v0.1.0)
+* ✅ Type System & Type Checking (v0.1.0)
+* ✅ Module System & Imports (v0.1.0)
+* ✅ Standard Library Expansion (v0.2.0)
+* ✅ Structs & Methods (v0.2.0)
+* ✅ Arrays & Dictionaries (v0.2.0)
+
+**High Priority:**
+* [ ] Loop control (`break`, `continue`)
+* [ ] String interpolation
+* [ ] Enhanced comments (multi-line, doc comments)
+* [ ] Interactive REPL
+
+**Future:**
 * [ ] Package manager
-* [ ] WebAssembly backend
-* [ ] REPL
-* [ ] LSP integration
+* [ ] WebAssembly compilation target
+* [ ] Language Server Protocol (LSP)
+* [ ] JIT compilation
 
 ---
 

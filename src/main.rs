@@ -8,6 +8,10 @@ mod lexer;
 mod parser;
 mod ast;
 mod interpreter;
+mod errors;
+mod type_checker;
+mod module;
+mod builtins;
 
 use clap::{Parser as ClapParser, Subcommand};
 use std::fs;
@@ -51,10 +55,23 @@ fn main() {
     match cli.command {
         Commands::Run { file } => {
             let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let filename = file.to_string_lossy().to_string();
             let tokens = lexer::tokenize(&code);
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
+            
+            // Type checking phase (optional - won't stop execution even if errors found)
+            let mut type_checker = type_checker::TypeChecker::new();
+            if let Err(errors) = type_checker.check(&stmts) {
+                eprintln!("Type checking warnings:");
+                for error in &errors {
+                    eprintln!("  {}", error);
+                }
+                eprintln!();
+            }
+            
             let mut interpreter = interpreter::Interpreter::new();
+            interpreter.set_source(filename, &code);
             interpreter.eval_stmts(&stmts);
         }
 

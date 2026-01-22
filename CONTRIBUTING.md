@@ -197,6 +197,30 @@ pub fn eval_expr(&mut self, expr: &Expr) -> Value {
 }
 ```
 
+### Error Handling Best Practices
+
+Ruff has a structured error system in `src/errors.rs`. When adding features that can fail:
+
+```rust
+use crate::errors::{RuffError, ErrorKind, SourceLocation};
+
+// Create structured errors
+let error = RuffError::undefined_variable(
+    var_name.clone(),
+    SourceLocation::new(line, column)
+);
+
+// Report errors with context
+self.report_error(error);
+```
+
+**Guidelines**:
+- Use `RuffError` for structured errors with location info
+- Provide clear, actionable error messages
+- Include source location when available
+- Add source line context for better debugging
+- Use appropriate ErrorKind for different error types
+
 ---
 
 ## 🔀 Git Workflow

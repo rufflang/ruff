@@ -1,0 +1,22 @@
+// Test file to verify import/export parsing
+// This tests that the parser correctly handles module syntax
+
+// Test full import
+import mymodule;
+
+// Test selective import
+from utils import helper, formatter;
+
+// Test export statements
+export fn public_function(x) {
+    return x * 2;
+}
+
+export let PUBLIC_CONSTANT = 42;
+
+// Non-exported items
+let private_var = "secret";
+
+fn private_function() {
+    return private_var;
+}

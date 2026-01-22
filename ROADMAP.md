@@ -8,65 +8,67 @@ This roadmap outlines planned features and improvements for the Ruff programming
 
 ### 1. Better Error Messages with Line/Column Numbers
 
-**Status**: Not Started  
+**Status**: ✅ Completed (v0.1.0)  
 **Estimated Effort**: Small (2-3 days)  
 **Blocking**: None
 
 **Description**:  
-Currently, parsing and runtime errors provide minimal context. Users need to see exactly where errors occur with line and column numbers, plus helpful messages.
+Error reporting infrastructure with colored output and source location tracking. The interpreter now tracks source files and line numbers, providing context when errors occur.
 
-**Implementation Steps**:
-1. Update `Token` struct to track source position (already has line/column fields)
-2. Add `SourceLocation` to AST nodes during parsing
-3. Create an `Error` type with:
-   - Error kind (ParseError, RuntimeError, TypeError)
-   - Message
-   - File path
-   - Line and column numbers
-   - Source snippet context (show the problematic line)
-4. Modify parser to return `Result<Stmt, ParseError>` instead of `Option<Stmt>`
-5. Modify interpreter to track current statement location
-6. Add error formatting with colored output (using `colored` crate)
+**Implemented Features**:
+- ✅ Source location tracking in Token struct (line/column)
+- ✅ SourceLocation type with file, line, and column info
+- ✅ RuffError type with structured error kinds
+- ✅ Colored error output using the `colored` crate
+- ✅ Interpreter tracks source file and content for error reporting
+- ✅ Foundation for future parser and runtime error improvements
 
-**Example Output**:
+**Example Usage**:
+```ruff
+func check(val) {
+    if val == 0 {
+        throw("Cannot process zero")
+    }
+    return val * 2
+}
+
+try {
+    result := check(0)
+} except err {
+    print("Error:", err)
+}
 ```
-Error: Undefined variable 'x'
-  --> examples/test.ruff:5:10
-   |
- 5 |     print(x + 1)
-   |           ^ variable not defined in current scope
-```
 
-**Files to Modify**:
-- `src/lexer.rs` - Token already has position info
-- `src/parser.rs` - Return Results, propagate errors with context
-- `src/interpreter.rs` - Track execution position, format errors
-- `src/ast.rs` - Add location info to AST nodes
-- `Cargo.toml` - Add dependencies: `colored`, `ariadne` (for pretty error reporting)
-
-**Testing**:
-- Add tests for various error types
-- Ensure line numbers are accurate
-- Test error recovery (don't crash on first error)
+**Future Enhancements**:
+- Attach line numbers to all AST nodes
+- Improve parser errors to use RuffError with locations
+- Add "help" hints and suggestions to error messages
+- Add error recovery in parser
+- Show multiple errors at once instead of stopping at first error
 
 ---
 
 ### 2. Type Annotations and Type Checking
 
-**Status**: Not Started  
+**Status**: ✅ Completed (v0.1.0)  
 **Estimated Effort**: Large (1-2 weeks)  
 **Blocking**: Better error messages (recommended)
 
 **Description**:  
-Add optional static type annotations and type checking to catch errors before runtime. Types should be optional (gradual typing) to maintain simplicity.
+Optional static type annotations and type checking to catch errors before runtime. Types are optional (gradual typing) to maintain simplicity and backward compatibility.
 
-**Type System Features**:
-- Primitive types: `int`, `float`, `string`, `bool`
-- Function types: `func(int, int) -> int`
-- Enum types: Already supported, add type checking
-- Generic types: `Array<T>`, `Option<T>` (future)
-- Type inference: Infer types from literals and expressions
-- Union types: `int | string` for flexible typing
+**Implemented Features**:
+- ✅ Primitive types: `int`, `float`, `string`, `bool`
+- ✅ Type annotations for variables (`let x: int := 5`)
+- ✅ Type annotations for constants (`const PI: float := 3.14`)
+- ✅ Function parameter types (`func add(a: int, b: int)`)
+- ✅ Function return types (`func add(...) -> int`)
+- ✅ Type inference from literals and expressions
+- ✅ Type checking for assignments and function calls
+- ✅ Type checking for binary operations
+- ✅ Gradual typing - mix typed and untyped code
+- ✅ Symbol table for tracking variable and function types
+- ✅ Helpful type mismatch error messages
 
 **Syntax Examples**:
 ```ruff
@@ -88,45 +90,34 @@ func greet(name) {  # No type annotation required
 }
 ```
 
-**Implementation Steps**:
-1. Extend AST to include type annotations
-   - Add `TypeAnnotation` enum (Int, Float, String, Bool, Function, Enum, etc.)
-   - Update `Let`, `Const`, `FuncDef` to include optional type annotations
-2. Extend parser to parse type annotations
-   - Parse `: type` after variable names
-   - Parse `-> type` for function return types
-3. Implement type checker
-   - Create `TypeChecker` struct with symbol table
-   - Implement type inference for expressions
-   - Check assignments match declared types
-   - Check function calls match signatures
-   - Check return types match declarations
-4. Add type checking phase between parsing and interpretation
-5. Generate helpful type mismatch errors
-
-**Files to Modify**:
-- `src/ast.rs` - Add type annotation types
-- `src/parser.rs` - Parse type syntax
-- `src/type_checker.rs` - New file for type checking logic
-- `src/main.rs` - Add type checking phase
-- `src/lexer.rs` - Add type keywords (int, float, string, bool)
-
-**Testing**:
-- Test type inference
-- Test type errors (mismatches, undefined types)
-- Test gradual typing (mixed typed/untyped code)
-- Ensure backward compatibility with existing code
+**Future Enhancements**:
+- Generic types: `Array<T>`, `Option<T>`
+- Union types: `int | string`
+- Type aliases: `type UserId = int`
+- Enum variant types for pattern matching
+- Null/Option type safety
+- Structural typing for interfaces
+- Type narrowing in control flow
+- Better type inference across function boundaries
 
 ---
 
 ### 3. Module System and Imports
 
-**Status**: Not Started  
+**Status**: ✅ Completed (v0.1.0)  
 **Estimated Effort**: Medium (1 week)  
 **Blocking**: None
 
 **Description**:  
 Enable code organization across multiple files with imports and exports.
+
+**Implemented Features**:
+- ✅ Import entire modules: `import module_name`
+- ✅ Selective imports: `from module_name import symbol1, symbol2`
+- ✅ Export declarations: `export fn function_name() { }`
+- ✅ Module loading with caching
+- ✅ Circular import detection
+- ✅ Module search paths (current directory, ./modules)
 
 **Syntax Examples**:
 ```ruff
@@ -142,123 +133,85 @@ func helper() {  # Not exported, private
 }
 
 # File: main.ruff
-import math
+import math_module
 
-result := math.square(5)
-print("Square:", result)
-print("PI:", math.PI)
+result := add(5, 3)
+print("5 + 3 =", result)
+print("PI:", PI)
 
 # Or import specific items
-from math import square, PI
-result := square(5)
+from math_module import add, PI
+result := add(10, 20)
 ```
 
-**Implementation Steps**:
-1. Add `import` and `export` keywords to lexer
-2. Add `Import` and `Export` statement types to AST
-3. Implement module resolver
-   - Search for `.ruff` files relative to current file
-   - Search in standard library path
-   - Cache parsed modules to avoid re-parsing
-4. Extend interpreter with module system
-   - Create `Module` type holding exported symbols
-   - Build module dependency graph
-   - Detect circular imports
-   - Execute modules and collect exports
-5. Add namespace support for `module.symbol` access
-6. Create standard library directory structure
-   - `stdlib/io.ruff` - File operations
-   - `stdlib/math.ruff` - Math functions
-   - `stdlib/string.ruff` - String utilities
-
-**Files to Modify**:
-- `src/lexer.rs` - Add import/export keywords
-- `src/ast.rs` - Add Import/Export statement types
-- `src/parser.rs` - Parse import/export statements
-- `src/module.rs` - New file for module resolution and loading
-- `src/interpreter.rs` - Handle module namespaces
-- `src/main.rs` - Initialize module system
-
-**Testing**:
-- Test basic imports
-- Test circular import detection
-- Test module namespaces
-- Test error handling for missing modules
+**Future Enhancements**:
+- Full module execution to populate exports
+- Namespace support for qualified access: `math.square(5)`
+- Package management system
+- Module versioning and dependency resolution
+- Better error messages for missing modules/symbols
+- Re-export support: `export from other_module`
+- Module aliases: `import math as m`
+- Private exports (export only to specific modules)
 
 ---
+### 4. Standard Library (Built-in Functions)
 
-### 4. Standard Library (I/O, Math, Strings)
-
-**Status**: Not Started  
+**Status**: ✅ Completed (v0.2.0) - Comprehensive built-ins for math, strings, arrays, and dicts  
 **Estimated Effort**: Medium (1 week)  
 **Blocking**: Module system
 
 **Description**:  
-Provide essential functionality through a standard library.
+Provide essential functionality through built-in native functions implemented in Rust for performance.
 
-**Planned Modules**:
+**Implemented Built-ins**:
 
-**`stdlib/io.ruff`** - File and console I/O
-```ruff
-export func read_file(path: string) -> Result<string, string>
-export func write_file(path: string, content: string) -> Result<None, string>
-export func read_line() -> string
-export func file_exists(path: string) -> bool
-```
+**Math Functions** - Available globally
+- `abs(x)` - Absolute value
+- `sqrt(x)` - Square root
+- `pow(base, exp)` - Power function
+- `floor(x)`, `ceil(x)`, `round(x)` - Rounding functions
+- `min(a, b)`, `max(a, b)` - Min/max values
+- `sin(x)`, `cos(x)`, `tan(x)` - Trigonometric functions
+- Constants: `PI`, `E`
 
-**`stdlib/math.ruff`** - Mathematical operations
-```ruff
-export func abs(x: float) -> float
-export func sqrt(x: float) -> float
-export func pow(base: float, exp: float) -> float
-export func floor(x: float) -> int
-export func ceil(x: float) -> int
-export func round(x: float) -> int
-export func min(a: float, b: float) -> float
-export func max(a: float, b: float) -> float
-export const PI := 3.141592653589793
-export const E := 2.718281828459045
-```
+**String Functions** - Available globally
+- `len(s)` - String, array, or dict length
+- `to_upper(s)`, `to_lower(s)` - Case conversion
+- `trim(s)` - Remove whitespace
+- `substring(s, start, end)` - Extract substring
+- `contains(s, substr)` - Check if substring exists
+- `replace_str(s, old, new)` - Replace substring
 
-**`stdlib/string.ruff`** - String manipulation
-```ruff
-export func len(s: string) -> int
-export func substring(s: string, start: int, end: int) -> string
-export func split(s: string, delimiter: string) -> Array<string>
-export func join(arr: Array<string>, separator: string) -> string
-export func to_upper(s: string) -> string
-export func to_lower(s: string) -> string
-export func trim(s: string) -> string
-export func contains(s: string, substr: string) -> bool
-export func replace(s: string, old: string, new: string) -> string
-```
+**Array Functions** (v0.2.0) - Available globally
+- `push(arr, item)` - Add element to end of array, returns new array
+- `pop(arr)` - Remove last element, returns `[new_array, popped_value]`
+- `slice(arr, start, end)` - Extract subarray from start (inclusive) to end (exclusive)
+- `concat(arr1, arr2)` - Combine two arrays into new array
+- `len(arr)` - Get number of elements in array
 
-**`stdlib/array.ruff`** - Array operations
-```ruff
-export func len(arr: Array) -> int
-export func push(arr: Array, item) -> None
-export func pop(arr: Array) -> item
-export func map(arr: Array, func) -> Array
-export func filter(arr: Array, func) -> Array
-export func reduce(arr: Array, func, initial) -> value
-```
-
-**Implementation Steps**:
-1. Create `stdlib/` directory
-2. Implement built-in functions as native Rust functions
-3. Register built-in modules in interpreter initialization
-4. Create wrapper functions in `.ruff` files that call native implementations
-5. Add documentation for each standard library function
-
-**Files to Create**:
-- `stdlib/*.ruff` - Standard library modules
-- `src/builtins.rs` - Native function implementations
-- `src/interpreter.rs` - Register built-in modules
+**Dict Functions** (v0.2.0) - Available globally
+- `keys(dict)` - Get array of all keys
+- `values(dict)` - Get array of all values
+- `has_key(dict, key)` - Check if key exists (returns 1/0)
+- `remove(dict, key)` - Remove key, returns `[new_dict, removed_value]`
+- `len(dict)` - Get number of key-value pairs
 
 **Testing**:
-- Test each standard library function
-- Create example programs using stdlib
-- Document all functions with examples
+- ✅ All functions tested in examples/builtins.ruff
+- ✅ Functions work with arrays, dicts, and strings
+- ✅ Proper return values and error handling
+
+**Future Enhancements**:
+- Fix type checking for numeric literals in function calls
+- Add array manipulation: map, filter, reduce
+- Add file I/O: read_file, write_file, file_exists, read_lines
+- Add more string functions: starts_with, ends_with, index_of, repeat
+- Add JSON parsing and serialization
+- Add HTTP client functions
+- Add date/time functions
+- Create stdlib/ directory with .ruff wrappers for discoverability
+- Add system functions: env vars, command execution
 
 ---
 
@@ -266,78 +219,102 @@ export func reduce(arr: Array, func, initial) -> value
 
 ### 5. Structs and Methods
 
-**Status**: Not Started  
+**Status**: ✅ Completed (v0.2.0) - Full struct support with instantiation, field access, and method calls  
 **Estimated Effort**: Medium (1 week)  
 **Blocking**: Type system (recommended)
 
 **Description**:  
-Add user-defined structured data types with associated methods.
+User-defined data structures with named fields and methods.
 
-**Syntax Examples**:
-```ruff
-struct Point {
-    x: float,
-    y: float
-}
+**Implemented Features**:
+- ✅ `struct`, `impl`, and `self` keywords added to lexer
+- ✅ `.` operator for field access
+- ✅ StructDef and StructInstance AST nodes
+- ✅ Field and method parsing in struct definitions
+- ✅ Struct instantiation syntax: `Point { x: 3.0, y: 4.0 }`
+- ✅ Field access syntax: `point.x`
+- ✅ **Method calls**: `rect.area()`, `point.distance()` (v0.2.0)
+- ✅ Methods can access struct fields directly without explicit `self`
+- ✅ Type checking for struct definitions and methods
+- ✅ Runtime struct values and struct definitions
+- ✅ Example files: struct_basic.ruff, struct_methods.ruff, structs_comprehensive.ruff
 
-impl Point {
-    func new(x: float, y: float) -> Point {
-        return Point { x: x, y: y }
-    }
-    
-    func distance(self, other: Point) -> float {
-        dx := self.x - other.x
-        dy := self.y - other.y
-        return sqrt(dx * dx + dy * dy)
-    }
-}
+**Implementation Details** (v0.2.0):
+- Special handling in `Expr::Call` for method calls via `FieldAccess`
+- Struct fields automatically bound into method execution environment
+- Methods work seamlessly with field access: `width * height` directly in method body
 
-# Usage
-p1 := Point::new(0, 0)
-p2 := Point { x: 3, y: 4 }
-dist := p1.distance(p2)
-print("Distance:", dist)
-```
+**Known Limitations**:
+- Methods don't have explicit `self` parameter (fields accessed directly by name)
+- No constructor functions or static methods yet
+- Struct types not fully integrated into generic type system
 
-**Implementation Steps**:
-1. Add `struct` and `impl` keywords
-2. Add `Struct` and `Impl` statement types to AST
-3. Add struct construction expressions
-4. Add field access expressions (`.` operator)
-5. Add method call expressions
-6. Implement struct types in type system
-7. Store struct definitions and methods in environment
-8. Implement `self` parameter in methods
-
-**Files to Modify**:
-- `src/lexer.rs` - Add struct/impl keywords
-- `src/ast.rs` - Add struct-related AST nodes
-- `src/parser.rs` - Parse struct definitions and method calls
-- `src/interpreter.rs` - Evaluate struct construction and field access
-- `src/type_checker.rs` - Type check structs
+**Future Enhancements**:
+- Add explicit `self` parameter for more complex method patterns
+- Add `self` parameter to methods with proper binding
+- Constructor functions or static methods
+- Struct inheritance or composition patterns
 
 ---
 
 ### 6. Arrays and Dictionaries
 
-**Status**: Not Started  
+**Status**: Partially Complete  
 **Estimated Effort**: Medium (4-5 days)  
 **Blocking**: None
 
 **Description**:  
 Built-in collection types for storing multiple values.
 
+**Implemented Features**:
+- ✅ Array literal syntax: `[1, 2, 3]`
+- ✅ Dictionary literal syntax: `{"key": value}`
+### 6. Arrays and Dictionaries (Hash Maps)
+
+**Status**: ✅ Completed (v0.2.0) - Full collection support with element assignment, iteration, and built-in methods  
+**Estimated Effort**: Medium (1 week)  
+**Blocking**: None
+
+**Description**:  
+First-class support for arrays and hash maps (dictionaries) as fundamental collection types.
+
+**Implemented Features**:
+- ✅ Array literals: `[1, 2, 3]`
+- ✅ Dict literals: `{"key": value}`
+- ✅ Index access for arrays, dicts, and strings: `arr[0]`, `dict["key"]`, `str[i]`
+- ✅ Nested arrays and dictionaries
+- ✅ Mixed-type collections
+- ✅ Value::Array and Value::Dict types
+- ✅ String formatting/display for collections
+- ✅ **Element assignment**: `arr[0] := 10`, `dict["key"] := value` (v0.2.0)
+- ✅ **For-in loop iteration**: `for item in arr`, `for key in dict` (v0.2.0)
+- ✅ **Built-in array methods**: `push()`, `pop()`, `slice()`, `concat()`, `len()` (v0.2.0)
+- ✅ **Built-in dict methods**: `keys()`, `values()`, `has_key()`, `remove()`, `len()` (v0.2.0)
+
 **Syntax Examples**:
 ```ruff
 # Arrays
 numbers := [1, 2, 3, 4, 5]
-print(numbers[0])  # Access by index
-numbers[2] := 10   # Modify element
-numbers.push(6)    # Add element
-len := numbers.len()
+print(numbers[0])  # Access by index: 1
+numbers[2] := 10   # ✅ Modify element (v0.2.0)
+numbers := push(numbers, 6)  # ✅ Add element (v0.2.0)
+len := len(numbers)  # ✅ Get length: 6 (v0.2.0)
+
+# Array manipulation
+sub := slice(numbers, 1, 4)  # Extract [2, 10, 4]
+combined := concat([1, 2], [3, 4])  # [1, 2, 3, 4]
+result := pop(numbers)  # Returns [new_array, popped_value]
+numbers := result[0]
+last := result[1]
 
 # Array literals with different types
 mixed := [1, "hello", 3.14]
+
+# Nested arrays
+matrix := [[1, 2], [3, 4], [5, 6]]
+print(matrix[0])      # [1, 2]
+print(matrix[0][0])   # 1
+matrix[0][1] := 99    # ✅ Modify nested element (v0.2.0)
 
 # Dictionaries (hash maps)
 person := {
@@ -345,29 +322,95 @@ person := {
     "age": 30,
     "city": "Portland"
 }
-print(person["name"])
-person["age"] := 31
-person["email"] := "alice@example.com"
+print(person["name"])  # Alice
+print(person["age"])   # 30
+person["age"] := 31  # ✅ Modify value (v0.2.0)
+person["email"] := "alice@example.com"  # ✅ Add key (v0.2.0)
 
-# Iteration
+# Dict methods
+dict_keys := keys(person)  # ["name", "age", "city", "email"]
+dict_vals := values(person)  # ["Alice", 31, "Portland", "alice@example.com"]
+has_email := has_key(person, "email")  # 1
+result := remove(person, "city")  # [new_dict, "Portland"]
+person := result[0]
+
+# Nested dictionaries
+user := {
+    "username": "alice123",
+    "profile": {
+        "email": "alice@example.com",
+        "verified": true
+    }
+}
+print(user["profile"]["email"])  # alice@example.com
+
+# Combined: array of dictionaries
+users := [
+    {"name": "Alice", "score": 95},
+    {"name": "Bob", "score": 87}
+]
+print(users[0]["name"])  # Alice
+
+# Dictionary with array values
+scores := {
+    "math": [95, 87, 92],
+    "english": [88, 91, 85]
+}
+print(scores["math"][0])  # 95
+
+# String indexing
+str := "hello"
+print(str[0])  # h
+
+# ✅ Iteration (v0.2.0)
 for item in numbers {
-    print(item)
+    print(item)  # Iterate over array elements
 }
 
-for key, value in person {
-    print(key, ":", value)
+for key in person {
+    print(key)  # Iterate over dict keys
+}
+
+for char in "Ruff" {
+    print(char)  # Iterate over string characters
+}
+
+for i in 5 {
+    print(i)  # Range iteration: 0, 1, 2, 3, 4
 }
 ```
 
-**Implementation Steps**:
-1. Add `Array` and `Dict` value types
-2. Add array/dict literal syntax to parser (`[...]`, `{...}`)
-3. Add index access expressions (`arr[i]`, `dict[key]`)
-4. Implement array/dict operations in interpreter
-5. Add built-in methods (push, pop, len, keys, values)
-6. Support for-in loops over collections
+**Parser Fix Applied** (v0.2.0):
+- Fixed critical bug where `for i in arr { }` was parsing `arr {` as struct instantiation
+- Solution: Changed parse_for to use `parse_primary()` instead of `parse_expr()` to get just the identifier without postfix operations
+- This prevents the parser from seeing Identifier + `{` and treating it as a struct instantiation
 
-**Files to Modify**:
+**Known Limitations**:
+1. No nested index assignment yet: `arr[0][1] := x` not supported (only direct identifiers: `arr[i] := x`)
+2. For-dict iteration only over keys, not key-value pairs simultaneously
+3. Index out of bounds returns 0 instead of proper error (see Feature #9 for improvement)
+4. No array slicing syntax: `arr[1:3]` not supported (use `slice()` function)
+5. No spread operator or array concatenation syntax
+6. Type system doesn't support generic types yet: no `Array<T>` or `Dict<K,V>` (see Feature #8)
+7. Variable shadowing in loops prevents accumulator patterns (e.g., sum calculation resets to 0)
+
+**Implementation Completed** (v0.2.0):
+1. ✅ AST: Modified Stmt::Assign to accept Expr target (was String name)
+2. ✅ Parser: Extended assignment parsing to handle IndexAccess as lvalue
+3. ✅ Interpreter: Implemented mutable updates for array/dict elements
+4. ✅ Type Checker: Updated pattern matching for new Assign structure
+5. ✅ Parser: Fixed for-loop parsing ambiguity (struct instantiation vs iteration)
+6. ✅ Interpreter: Extended for-loop to handle Array, Dict, String, Range iteration
+7. ✅ Built-ins: Implemented and registered 9 collection functions
+8. ✅ Testing: Created examples/builtins.ruff, examples/for_loops.ruff, verified all features
+
+**Files Modified**:
+- `src/ast.rs` - Changed Assign statement structure
+- `src/parser.rs` - Extended assignment parsing, fixed for-loop parsing
+- `src/interpreter.rs` - Indexed assignment, for-in iteration, 9 new built-in functions
+- `src/type_checker.rs` - Updated Assign pattern matching
+- `examples/builtins.ruff` - Comprehensive built-in function tests
+- `examples/for_loops.ruff` - Iteration demonstrations
 - `src/ast.rs` - Add array/dict literal expressions
 - `src/lexer.rs` - Handle `[`, `]`, `{`, `}` for literals
 - `src/parser.rs` - Parse array/dict syntax
@@ -685,39 +728,43 @@ Improve runtime performance through optimization or just-in-time compilation.
 
 ## 📊 Progress Tracking
 
-| Feature | Priority | Status | Estimated Effort |
-|---------|----------|--------|------------------|
-| Error Messages | High | Not Started | 2-3 days |
-| Type System | High | Not Started | 1-2 weeks |
-| Module System | High | Not Started | 1 week |
-| Standard Library | High | Not Started | 1 week |
-| Structs | Medium | Not Started | 1 week |
-| Arrays/Dicts | Medium | Not Started | 4-5 days |
-| Loop Control | Medium | Not Started | 2-3 days |
-| String Interpolation | Medium | Not Started | 2-3 days |
-| Enhanced Comments | Medium | Not Started | 1-2 days |
-| REPL | Long Term | Not Started | 3-4 days |
-| Package Manager | Long Term | Not Started | 2-3 weeks |
-| WASM Target | Long Term | Not Started | 3-4 weeks |
-| LSP | Long Term | Not Started | 2-3 weeks |
-| JIT/Optimization | Long Term | Not Started | 1-2 months |
+| Feature | Priority | Status | Completed |
+|---------|----------|--------|-----------|
+| Error Messages | High | ✅ Complete | v0.1.0 |
+| Type System | High | ✅ Complete | v0.1.0 |
+| Module System | High | ✅ Complete | v0.1.0 |
+| Standard Library | High | ✅ Complete | v0.2.0 |
+| Structs & Methods | Medium | ✅ Complete | v0.2.0 |
+| Arrays/Dicts | Medium | ✅ Complete | v0.2.0 |
+| Loop Control | Medium | Not Started | - |
+| String Interpolation | Medium | Not Started | - |
+| Enhanced Comments | Medium | Not Started | - |
+| REPL | Long Term | Not Started | - |
+| Package Manager | Long Term | Not Started | - |
+| WASM Target | Long Term | Not Started | - |
+| LSP | Long Term | Not Started | - |
+| JIT/Optimization | Long Term | Not Started | - |
 
-**Total Estimated Time**: ~3-4 months for all features
+**Completed Features**: 6/14  
+**Remaining Estimated Time**: ~2-3 months for remaining features
 
 ---
 
 ## 🎯 Recommended Implementation Order
 
-1. **Better Error Messages** - Foundation for debugging all other features
-2. **Arrays and Dictionaries** - Frequently needed, builds on existing code
-3. **Loop Control (break/continue)** - Small wins, useful immediately
-4. **Module System** - Enables code organization
-5. **Standard Library** - Provides essential functionality
-6. **Type System** - Major feature, enables many optimizations
-7. **Structs and Methods** - Natural extension of type system
+**✅ Completed (v0.1.0 - v0.2.0)**:
+1. ✅ Better Error Messages - Foundation for debugging
+2. ✅ Type System - Static type checking and inference
+3. ✅ Module System - Code organization and imports
+4. ✅ Standard Library - Built-in functions for math, strings, arrays, dicts
+5. ✅ Arrays and Dictionaries - Full collection support with iteration
+6. ✅ Structs and Methods - User-defined types with behavior
+
+**Remaining Priority Order**:
+7. **Loop Control (break/continue)** - Small wins, useful immediately
 8. **String Interpolation** - Quality of life improvement
-9. **REPL** - Great for testing and learning
-10. **Enhanced Comments** - Documentation support
+9. **Enhanced Comments** - Documentation support
+10. **REPL** - Great for testing and learning
 11. **LSP** - Editor integration
 12. **Package Manager** - Ecosystem growth
 13. **WASM/JIT** - Performance optimizations

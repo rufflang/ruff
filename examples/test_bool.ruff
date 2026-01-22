@@ -1,0 +1,14 @@
+# Test boolean values
+
+struct Item {
+	done: bool
+}
+
+item := Item { done: false }
+print("done field:", item.done)
+
+if item.done {
+	print("Item is done")
+} else {
+	print("Item is not done")
+}
