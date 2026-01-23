@@ -149,6 +149,7 @@ cargo run --quiet -- run examples/projects/url_shortener.ruff
 curl -X POST http://localhost:3000/shorten -d '{"url": "https://github.com/rufflang/ruff"}'
 curl http://localhost:3000/list
 curl http://localhost:3000/stats -d '{"code": "abc123"}'
+curl http://localhost:3000/health
 ```
 
 ---
