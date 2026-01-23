@@ -11,13 +11,13 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 1. Array Higher-Order Functions
 
-**Status**: Planned  
-**Estimated Effort**: Medium (3-4 days)
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 22, 2026
 
 **Description**:  
 Functional programming operations on arrays.
 
-**Planned Functions**:
+**Implemented Functions**:
 ```ruff
 # Map - transform each element
 squared := map([1, 2, 3], func(x) { return x * x })  # [1, 4, 9]
@@ -224,8 +224,8 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 | Boolean Type | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
 | Loop Control | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
 | String Interpolation | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
-| Enhanced Strings | Medium | v0.4.0 | Planned |
-| Array Higher-Order Fns | Medium | v0.4.0 | Planned |
+| Array Higher-Order Fns | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
+| Enhanced Strings | Medium | v0.4.0 | ✅ Complete (see CHANGELOG) |
 | Multi-line Comments | Low | v0.4.0 | Planned |
 | JSON Support | Medium | v0.4.0 | Planned |
 | HTTP/Networking | High | v0.5.0 | Planned |
