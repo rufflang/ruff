@@ -45,10 +45,83 @@ A demonstration script showcasing:
 cargo run --quiet -- run examples/projects/contact_manager.ruff
 ```
 
+### 3. Data Analyzer (`data_analyzer.ruff`) ✨ NEW
+A demonstration script showcasing:
+- **Array higher-order functions**: `map()`, `filter()`, `reduce()`, `find()`
+- **Anonymous functions**: `func(x) { return x * 2 }`
+- **Functional programming**: Data transformation and aggregation
+- **Statistics**: Calculate sum, average, min, max
+- **Advanced filtering**: Multi-step data processing
+
+**What it does:**
+- Analyzes dataset with validation
+- Filters valid data points
+- Calculates comprehensive statistics
+- Performs category-based analysis
+- Demonstrates function chaining
+- Computes performance scores
+
+*Note: Perfect example of functional programming in Ruff!*
+
+**Run it:**
+```bash
+cargo run --quiet -- run examples/projects/data_analyzer.ruff
+```
+
+### 4. Log Parser (`log_parser.ruff`) ✨ NEW
+A demonstration script showcasing:
+- **File I/O**: `read_file()`, `write_file()`, `read_lines()`
+- **String functions**: `split()`, `join()`, `contains()`, `substring()`
+- **Data extraction**: Parse structured log entries
+- **Pattern matching**: Find specific log patterns
+- **Report generation**: Create summary reports
+
+**What it does:**
+- Creates sample log file
+- Parses log entries into structured data
+- Filters by log level (ERROR, WARNING, INFO)
+- Searches for specific patterns
+- Extracts email addresses
+- Generates summary report file
+
+*Note: Demonstrates real-world text processing and file operations.*
+
+**Run it:**
+```bash
+cargo run --quiet -- run examples/projects/log_parser.ruff
+```
+
+### 5. Inventory System (`inventory_system.ruff`) ✨ NEW
+A demonstration script showcasing:
+- **Complex structs**: Product data with multiple fields
+- **Enum patterns**: Product status tracking
+- **Advanced filtering**: Multi-condition product searches
+- **Calculations**: Inventory valuation and analytics
+- **Business logic**: Stock management rules
+
+**What it does:**
+- Manages product inventory with 8 sample products
+- Tracks stock levels with status indicators
+- Filters by category and stock level
+- Identifies low stock and out of stock items
+- Calculates total inventory value
+- Finds most/least expensive products
+- Simulates restocking operations
+
+*Note: Great example of a business application structure.*
+
+**Run it:**
+```bash
+cargo run --quiet -- run examples/projects/inventory_system.ruff
+```
+
 ## Learning Path
 
 1. **Start with Todo Manager** - Simplest introduction to structs and arrays
 2. **Try Contact Manager** - Learn dictionary operations and string functions
+3. **Explore Data Analyzer** - Master functional programming with higher-order functions
+4. **Study Log Parser** - Learn file I/O and text processing techniques
+5. **Examine Inventory System** - See complex business logic and calculations
 
 ## What These Projects Demonstrate
 
@@ -57,10 +130,15 @@ All projects use real-world patterns and demonstrate:
 - ✅ Collection manipulation (arrays and dicts)
 - ✅ Function organization and modularity
 - ✅ Control flow (loops, conditionals)
-- ✅ String operations (`contains`, `to_lower`, etc.)
+- ✅ String operations (`contains`, `split`, `join`, `substring`, etc.)
 - ✅ Error handling with try/except
 - ✅ Dictionary operations (`keys`, `has_key`)
 - ✅ Array iteration
+- ✅ **NEW:** Array higher-order functions (`map`, `filter`, `reduce`, `find`)
+- ✅ **NEW:** Anonymous function expressions
+- ✅ **NEW:** File I/O operations
+- ✅ **NEW:** Complex data processing and analysis
+- ✅ **NEW:** Text parsing and pattern matching
 
 ## Notes
 
