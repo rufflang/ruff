@@ -75,6 +75,7 @@
   - Strings with escape sequences
   - **NEW**: String interpolation with `${}` (v0.3.0): `"Hello, ${name}!"`
   - Booleans: `true`, `false` (v0.3.0)
+  - **NEW**: Null values: `null` (v0.6.0) - for optional chaining and default values
   - Enums with tagged variants
   - Arrays: `[1, 2, 3]`
   - Dictionaries: `{"key": value}`
@@ -172,6 +173,19 @@
   - Arithmetic: `+`, `-`, `*`, `/`, `%` (modulo - v0.3.0)
   - Comparison: `==`, `!=` (v0.3.0), `>`, `<`, `>=`, `<=` (return `true`/`false` - v0.3.0)
   - String concatenation with `+`
+  - **Method Chaining** (v0.6.0):
+    - **Null coalescing** `??`: Return left value if not null, otherwise right value
+      ```ruff
+      username := user?.name ?? "Anonymous"
+      ```
+    - **Optional chaining** `?.`: Safely access fields, returns null if left side is null
+      ```ruff
+      email := user?.profile?.email  # Returns null if any part is null
+      ```
+    - **Pipe operator** `|>`: Pass value as first argument to function
+      ```ruff
+      result := 5 |> double |> add_ten |> square  # Functional data pipelines
+      ```
   - **Operator Overloading** (v0.4.0+): Structs can define custom operator behavior
     - Binary operators: `op_add`, `op_sub`, `op_mul`, `op_div`, `op_mod`, `op_eq`, `op_ne`, `op_gt`, `op_lt`, `op_ge`, `op_le`
     - Unary operators: `op_neg` (unary minus `-`), `op_not` (logical not `!`)
