@@ -120,35 +120,49 @@ cargo run --quiet -- run examples/projects/inventory_system.ruff
 ## 🌐 HTTP-Based Projects (v0.5.0) ✨
 
 ### 6. URL Shortener Service (`url_shortener.ruff`)
-A complete HTTP API for creating and resolving shortened URLs.
+A complete HTTP API for creating and resolving shortened URLs with SQLite storage.
 
 **Features:**
 - **HTTP Server**: Multi-route API on port 3000
 - **POST /shorten**: Create short URLs with unique codes
-- **GET /redirect**: Get redirect information for short codes
-- **GET /stats**: View click statistics
-- **GET /list**: List all shortened URLs
+- **GET /:code**: Redirect to original URL (HTTP 302)
+- **POST /stats**: View click statistics (requires code in body)
+- **GET /count**: Get total URL count (no data exposed)
+- **GET /health**: Health check with storage info
 - **Validation**: URL format checking
-- **Storage**: In-memory URL and statistics storage
+- **Storage**: SQLite database (urls.db) for secure persistent storage
 - **Random code generation**: 6-character alphanumeric codes
 
 **What it demonstrates:**
 - HTTP server creation and routing
+- Dynamic route parameters (/:code)
 - POST/GET request handling
 - JSON request/response parsing
-- In-memory data storage with dictionaries
+- SQLite database operations
 - URL validation logic
 - Statistics tracking
 - RESTful API design
+- HTTP 302 redirects
 
 **Run it:**
 ```bash
 cargo run --quiet -- run examples/projects/url_shortener.ruff
 
 # In another terminal, test the API:
-curl -X POST http://localhost:3000/shorten -H "Content-Type: application/json" -d '{"url": "https://github.com/rufflang/ruff"}'
-curl http://localhost:3000/list
-curl http://localhost:3000/stats -H "Content-Type: application/json" -d '{"code": "abc123"}'
+
+# Create a short URL
+curl -X POST http://localhost:3000/shorten -d '{"url": "https://github.com/rufflang/ruff"}'
+
+# Visit the short URL (redirects to original)
+curl -L http://localhost:3000/CODE_FROM_ABOVE
+
+# Get statistics for a code (POST with code in body)
+curl -X POST http://localhost:3000/stats -d '{"code": "CODE_FROM_ABOVE"}'
+
+# Get total URL count
+curl http://localhost:3000/count
+
+# Health check
 curl http://localhost:3000/health
 ```
 
