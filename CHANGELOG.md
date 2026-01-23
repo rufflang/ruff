@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Critical: Function cleanup hang bug**: Fixed stack overflow that occurred when functions containing loops were cleaned up during program shutdown. Functions can now safely contain loops, nested control structures, and complex logic without hanging.
+  - Introduced `LeakyFunctionBody` wrapper type using `ManuallyDrop` to prevent deep recursion during Rust's automatic drop
+  - Function bodies are intentionally leaked at program shutdown (OS reclaims all memory anyway)
+  - Updated `url_shortener.ruff` example to use proper random code generation with loops
+  - Added comprehensive tests in `tests/test_function_drop_fix.ruff`
+
 ## [0.5.0] - 2026-01-23
 
 ### Added
