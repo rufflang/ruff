@@ -9,7 +9,9 @@
 // - String literals with escape sequences
 // - Operators: +, -, *, /, =, ==, <, >, <=, >=, ->, :=, ::
 // - Punctuation: ( ) { } , ; :
-// - Comments starting with #
+// - Single-line comments starting with #
+// - Multi-line comments /* ... */
+// - Doc comments starting with ///
 
 #[derive(Debug, Clone, PartialEq)] // Added PartialEq here
 pub enum TokenKind {
@@ -69,6 +71,10 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 col = 1;
             }
             '#' => {
+                chars.next(); // consume #
+                col += 1;
+                
+                // Regular single-line comment
                 while let Some(&ch) = chars.peek() {
                     chars.next();
                     if ch == '\n' {
@@ -76,6 +82,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         col = 1;
                         break;
                     }
+                    col += 1;
                 }
             }
             '"' => {
@@ -233,7 +240,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     tokens.push(Token { kind: TokenKind::Punctuation(':'), line, column: col });
                 }
             }
-            '=' | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '!' => {
+            '=' | '+' | '-' | '*' | '<' | '>' | '!' => {
                 let op = chars.next().unwrap();
                 col += 1;
                 // Check for == >= <= -> !=
@@ -284,6 +291,89 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         column: col,
                     });
                 }
+            }
+            '/' => {
+                chars.next(); // consume /
+                col += 1;
+                
+                // Check for multi-line comment /* */
+                if chars.peek() == Some(&'*') {
+                    chars.next(); // consume *
+                    col += 1;
+                    
+                    // Multi-line comment - scan until */
+                    let mut found_end = false;
+                    while let Some(&ch) = chars.peek() {
+                        chars.next();
+                        if ch == '\n' {
+                            line += 1;
+                            col = 1;
+                        } else {
+                            col += 1;
+                        }
+                        
+                        if ch == '*' && chars.peek() == Some(&'/') {
+                            chars.next(); // consume /
+                            col += 1;
+                            found_end = true;
+                            break;
+                        }
+                    }
+                    
+                    // If we didn't find closing */, that's a syntax error but we'll continue
+                    // The parser/interpreter can handle this gracefully
+                    if !found_end {
+                        // Unterminated multi-line comment
+                        // Continue processing but note this could be an error
+                    }
+                } else if chars.peek() == Some(&'/') {
+                    chars.next(); // consume second /
+                    col += 1;
+                    
+                    // Check for doc comment (///)
+                    if chars.peek() == Some(&'/') {
+                        chars.next(); // consume third /
+                        col += 1;
+                        
+                        // Doc comment - consume until end of line
+                        while let Some(&ch) = chars.peek() {
+                            chars.next();
+                            if ch == '\n' {
+                                line += 1;
+                                col = 1;
+                                break;
+                            }
+                            col += 1;
+                        }
+                    } else {
+                        // Regular // comment (not standard Ruff, but let's support it)
+                        while let Some(&ch) = chars.peek() {
+                            chars.next();
+                            if ch == '\n' {
+                                line += 1;
+                                col = 1;
+                                break;
+                            }
+                            col += 1;
+                        }
+                    }
+                } else {
+                    // Regular division operator
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("/".into()),
+                        line,
+                        column: col,
+                    });
+                }
+            }
+            '%' => {
+                chars.next();
+                col += 1;
+                tokens.push(Token {
+                    kind: TokenKind::Operator("%".into()),
+                    line,
+                    column: col,
+                });
             }
             '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' | '.' => {
                 tokens.push(Token { kind: TokenKind::Punctuation(c), line, column: col });
