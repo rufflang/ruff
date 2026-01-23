@@ -9,7 +9,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## 🌟 Planned Features (v0.5.0)
 
-### 1. HTTP Server & Networking
+### HTTP Server & Networking
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -55,7 +55,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 3. REPL (Interactive Shell)
+### REPL (Interactive Shell)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -69,7 +69,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 4. Concurrency & Async
+### Concurrency & Async
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
@@ -129,7 +129,7 @@ for i in range(10) {
 
 ---
 
-### 6. Advanced Collections
+### Advanced Collections
 
 **Status**: Planned  
 **Estimated Effort**: Medium (2 weeks)
@@ -179,7 +179,7 @@ highest := pq.pop()  # Returns "high priority"
 
 ---
 
-### 7. Method Chaining & Fluent APIs
+### Method Chaining & Fluent APIs
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -214,7 +214,7 @@ value := user?.name ?? "Anonymous"  # Use "Anonymous" if name is null
 
 ---
 
-### 8. Closures & Capturing
+### Closures & Capturing
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -267,7 +267,7 @@ for i in range(5) {
 
 ## 🎓 Professional Features (v0.6.0+)
 
-### 9. Advanced Type System Features
+### Advanced Type System Features
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -281,7 +281,7 @@ for i in range(5) {
 
 ---
 
-### 10. LSP (Language Server Protocol)
+### LSP (Language Server Protocol)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -297,7 +297,7 @@ for i in range(5) {
 
 ---
 
-### 11. Macros & Metaprogramming
+### Macros & Metaprogramming
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -350,7 +350,7 @@ page := html! {
 
 ---
 
-### 12. Database Support
+### Database Support
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -415,7 +415,7 @@ user.save()
 
 ---
 
-### 13. Serialization Formats
+### Serialization Formats
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -462,7 +462,7 @@ func User.deserialize(data) {
 
 ---
 
-### 14. Testing Enhancements
+### Testing Enhancements
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -515,7 +515,7 @@ ruff test --coverage
 
 ## 🏗️ Infrastructure (v0.7.0+)
 
-### 15. Package Manager
+### Package Manager
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -529,7 +529,7 @@ ruff test --coverage
 
 ---
 
-### 16. Memory Management
+### Memory Management
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -565,7 +565,7 @@ ruff run --detect-leaks program.ruff
 
 ---
 
-### 17. Foreign Function Interface (FFI)
+### Foreign Function Interface (FFI)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -599,7 +599,7 @@ extern func qsort(arr: array, size: int, compare: func) from "libc.so"
 
 ---
 
-### 18. Graphics & GUI
+### Graphics & GUI
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -663,7 +663,7 @@ app.run()
 
 ---
 
-### 19. Compilation Targets
+### Compilation Targets
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
@@ -695,76 +695,6 @@ app.run()
 - ✅ Add examples for new features
 - ✅ Follow existing code style
 - ✅ Update CHANGELOG and README
-
----
-
-## 📊 Progress Tracking
-
-| Feature | Priority | Target Version | Status |
-|---------|----------|----------------|--------|
-| JSON Support | High | v0.3.0 | Planned |
-| Standard Library | Medium | v0.4.0 | ✅ Complete (see CHANGELOG) |
-| Regular Expressions | Medium | v0.4.0 | ✅ Complete (see CHANGELOG) |
-| Error Handling | Medium | v0.4.0 | ✅ Complete (see CHANGELOG) |
-| Operator Overloading | Medium | v0.4.0 | Planned |
-| HTTP/Networking | High | v0.5.0 | Planned |
-| REPL | Medium | v0.5.0 | Planned |
-| Concurrency/Async | High | v0.5.0 | Planned |
-| Advanced Collections | Medium | v0.5.0 | Planned |
-| Method Chaining | Medium | v0.5.0 | Planned |
-| Closures | Medium | v0.5.0 | Planned |
-| Advanced Types | Long Term | v0.6.0 | Research |
-| LSP | Long Term | v0.6.0 | Planned |
-| Macros | Long Term | v0.6.0 | Research |
-| Database Support | Long Term | v0.6.0 | Planned |
-| Serialization | Long Term | v0.6.0 | Planned |
-| Testing Enhancements | Long Term | v0.6.0 | Planned |
-| Package Manager | Long Term | v0.7.0 | Planned |
-| Memory Management | Long Term | v0.7.0 | Research |
-| FFI | Long Term | v0.7.0 | Research |
-| Graphics/GUI | Long Term | v0.7.0+ | Research |
-| Compilation Targets | Long Term | v0.8.0+ | Research |
-
----
-
-## 🎯 Version Milestones
-
-**v0.3.0 - "Functional"** (Current - Q1 2026)
-- JSON support
-- Enhanced comment types
-
-**v0.4.0 - "Practical"** (Target: Q2 2026)
-- Standard library enhancements (random, date/time, system, paths)
-- Regular expressions
-- Improved error handling with stack traces
-- Operator overloading for structs
-
-**v0.5.0 - "Concurrent"** (Target: Q3 2026)
-- HTTP server & networking support
-- Concurrency & async operations
-- REPL implementation
-- Advanced collections (Set, Queue, Stack, etc.)
-- Method chaining and pipe operators
-- Closures with proper variable capturing
-
-**v0.6.0 - "Professional"** (Target: Q4 2026)
-- LSP support with VS Code extension
-- Advanced type system (generics, union types, null safety)
-- Macros and metaprogramming
-- Database support (SQLite, PostgreSQL)
-- Multiple serialization formats (TOML, YAML, CSV, XML)
-- Testing enhancements (benchmarks, property tests, mocking)
-
-**v0.7.0 - "Ecosystem"** (Target: Q1 2027)
-- Package manager with dependency management
-- Memory management improvements
-- Foreign Function Interface (FFI)
-- Graphics and GUI capabilities
-
-**v0.8.0 - "Performance"** (Target: Q2 2027)
-- Compilation targets (bytecode, WASM, native, JIT)
-- Performance optimizations
-- Production hardening
 
 ---
 
