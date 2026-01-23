@@ -2,7 +2,7 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.5.0  
+> **Current Version**: v0.5.1 (HTTP headers support added)  
 > **Next Planned Release**: v0.6.0
 
 ---
