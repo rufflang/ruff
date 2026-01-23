@@ -397,6 +397,91 @@ pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
 
 /// Array functions
 
+/// HTTP Client Functions
+
+/// Make an HTTP GET request
+/// Returns a dictionary with status, body, and headers
+pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
+    match reqwest::blocking::get(url) {
+        Ok(response) => {
+            let status = response.status().as_u16() as f64;
+            let body = response.text().unwrap_or_default();
+            
+            let mut result = HashMap::new();
+            result.insert("status".to_string(), Value::Number(status));
+            result.insert("body".to_string(), Value::Str(body));
+            
+            Ok(result)
+        }
+        Err(e) => Err(format!("HTTP GET failed: {}", e))
+    }
+}
+
+/// Make an HTTP POST request with JSON body
+/// body_json should be a stringified JSON
+pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
+    let client = reqwest::blocking::Client::new();
+    
+    match client.post(url)
+        .header("Content-Type", "application/json")
+        .body(body_json.to_string())
+        .send() {
+        Ok(response) => {
+            let status = response.status().as_u16() as f64;
+            let body = response.text().unwrap_or_default();
+            
+            let mut result = HashMap::new();
+            result.insert("status".to_string(), Value::Number(status));
+            result.insert("body".to_string(), Value::Str(body));
+            
+            Ok(result)
+        }
+        Err(e) => Err(format!("HTTP POST failed: {}", e))
+    }
+}
+
+/// Make an HTTP PUT request with JSON body
+pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
+    let client = reqwest::blocking::Client::new();
+    
+    match client.put(url)
+        .header("Content-Type", "application/json")
+        .body(body_json.to_string())
+        .send() {
+        Ok(response) => {
+            let status = response.status().as_u16() as f64;
+            let body = response.text().unwrap_or_default();
+            
+            let mut result = HashMap::new();
+            result.insert("status".to_string(), Value::Number(status));
+            result.insert("body".to_string(), Value::Str(body));
+            
+            Ok(result)
+        }
+        Err(e) => Err(format!("HTTP PUT failed: {}", e))
+    }
+}
+
+/// Make an HTTP DELETE request
+pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
+    let client = reqwest::blocking::Client::new();
+    
+    match client.delete(url)
+        .send() {
+        Ok(response) => {
+            let status = response.status().as_u16() as f64;
+            let body = response.text().unwrap_or_default();
+            
+            let mut result = HashMap::new();
+            result.insert("status".to_string(), Value::Number(status));
+            result.insert("body".to_string(), Value::Str(body));
+            
+            Ok(result)
+        }
+        Err(e) => Err(format!("HTTP DELETE failed: {}", e))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
