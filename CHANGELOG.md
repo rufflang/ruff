@@ -8,11 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **SQLite Database Support**: Built-in SQLite database functions for persistent data storage
+  - `db_connect(path)` - Connect to a SQLite database file (creates if not exists)
+  - `db_execute(db, sql, params)` - Execute INSERT, UPDATE, DELETE, CREATE statements
+  - `db_query(db, sql, params)` - Execute SELECT queries, returns array of dicts
+  - `db_close(db)` - Close database connection
+  - Parameters use `?` placeholders: `db_execute(db, "INSERT INTO t (a, b) VALUES (?, ?)", [val1, val2])`
+  - Query results are arrays of dicts with column names as keys
+  - Thread-safe with `Arc<Mutex<Connection>>` wrapper
+
+- **HTTP redirect_response()**: New function for creating HTTP 302 redirect responses
+  - `redirect_response(url)` - Returns HTTP response with Location header
+  - Used for URL shorteners and OAuth flows
+
 - **Dynamic route path parameters**: HTTP server routes now support parameterized paths like `/:code`
   - New `match_route_pattern()` function extracts path parameters from URLs
   - Request object now includes a `params` dict with extracted path values
   - Example: `server.route("GET", "/:code", func(request) { code := request.params["code"] })`
   - Exact routes take priority over parameterized routes (e.g., `/health` matches before `/:code`)
+
+### Changed
+- **URL Shortener example**: Updated to use SQLite database for secure URL storage
+  - URLs no longer exposed via public `/list` JSON endpoint
+  - Stats endpoint now requires POST with code in body
+  - New `/count` endpoint shows total URLs without exposing data
+  - Database file: `urls.db` in working directory
 
 ### Fixed
 - **Critical: Logical AND (&&) and OR (||) operators not working**: The `&&` and `||` operators were completely broken - they always returned `false` regardless of operands.

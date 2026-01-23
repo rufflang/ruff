@@ -470,66 +470,107 @@ page := html! {
 
 ### Database Support
 
-**Status**: Planned  
-**Estimated Effort**: Large (2-3 weeks)
+**Status**: ✅ SQLite Complete (v0.5.1) | PostgreSQL/MySQL Planned (v0.7.0)  
+**Estimated Effort**: SQLite ✅ Done | Production Databases: Large (3-4 weeks)
 
 **Description**:  
-Built-in database connectivity starting with SQLite.
+Built-in database connectivity for persistent data storage. SQLite support is complete for local/embedded applications. PostgreSQL and MySQL support planned for production-scale applications.
 
-**Planned Functions**:
+#### ✅ Completed: SQLite (v0.5.1)
+
 ```ruff
-# Connect to database
-db := db_connect("sqlite:///data/app.db")
+# Connect to SQLite database
+db := db_connect("app.db")
 
-# Execute queries
-db.exec("""
-    CREATE TABLE users (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE
-    )
-""")
+# Create tables
+db_execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)", [])
 
-# Query with results
-users := db.query("SELECT * FROM users WHERE age > ?", [18])
+# Insert with parameterized queries (prevents SQL injection)
+db_execute(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Alice", "alice@example.com"])
+
+# Query data - returns array of dicts
+users := db_query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
 for user in users {
-    print(user["name"])
+    print(user["name"] + " - " + user["email"])
 }
 
-# Prepared statements
-stmt := db.prepare("INSERT INTO users (name, email) VALUES (?, ?)")
-stmt.exec(["Alice", "alice@example.com"])
-stmt.exec(["Bob", "bob@example.com"])
-
-# Transactions
-db.begin()
-try {
-    db.exec("INSERT INTO users ...")
-    db.exec("UPDATE accounts ...")
-    db.commit()
-} except err {
-    db.rollback()
-    throw err
-}
-
-# ORM-style interface
-struct User {
-    id: int
-    name: string
-    email: string
-}
-
-users := User.find_all()
-user := User.find(123)
-user.name := "Updated Name"
-user.save()
+# Close connection
+db_close(db)
 ```
 
-**Supported Databases**:
-- SQLite (built-in)
-- PostgreSQL (extension)
-- MySQL (extension)
-- MongoDB (extension)
+#### 🎯 Planned: Production Databases (v0.7.0)
+
+For large-scale applications (restaurants, blogs, forums, e-commerce, etc.), support for production databases is essential:
+
+**Unified Database Interface**:
+```ruff
+# PostgreSQL connection
+db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
+
+# MySQL connection  
+db := db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")
+
+# SQLite connection (existing)
+db := db_connect("sqlite", "app.db")
+
+# Same API works for all databases
+db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
+users := db_query(db, "SELECT * FROM users", [])
+```
+
+**Connection Pooling** (for high-traffic applications):
+```ruff
+# Create connection pool
+pool := db_pool("postgres", "host=localhost dbname=myapp", {
+    "min_connections": 5,
+    "max_connections": 20
+})
+
+# Get connection from pool
+db := pool.acquire()
+users := db_query(db, "SELECT * FROM users", [])
+pool.release(db)
+
+# Or use with auto-release
+pool.with(func(db) {
+    db_execute(db, "INSERT INTO orders ...", [])
+})
+```
+
+**Transactions**:
+```ruff
+db_begin(db)
+try {
+    db_execute(db, "INSERT INTO orders ...", [order_data])
+    db_execute(db, "UPDATE inventory ...", [inventory_data])
+    db_commit(db)
+} except err {
+    db_rollback(db)
+    throw err
+}
+```
+
+**Migrations** (for schema versioning):
+```ruff
+# Run pending migrations
+db_migrate(db, "migrations/")
+
+# Migration files: 001_create_users.sql, 002_add_email.sql, etc.
+```
+
+**Target Use Cases**:
+- 🍽️ Restaurant menu management systems
+- 📝 Blog platforms with user accounts
+- 💬 Forums and community sites
+- 🛒 E-commerce applications
+- 📊 Analytics dashboards
+- 🏢 Business management tools
+
+**Supported Databases** (Planned):
+- ✅ SQLite (built-in, complete)
+- 🎯 PostgreSQL (v0.7.0)
+- 🎯 MySQL/MariaDB (v0.7.0)
+- 🔮 MongoDB (future consideration)
 
 ---
 

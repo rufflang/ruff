@@ -148,7 +148,8 @@
   - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()` - Timestamp and date operations
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
-  - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()` - HTTP client and server
+  - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()` - HTTP client and server
+  - **Database** (v0.5.1): `db_connect()`, `db_execute()`, `db_query()`, `db_close()` - SQLite database operations
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
@@ -422,6 +423,43 @@ server.listen()
 ```
 
 See [examples/http_server_simple.ruff](examples/http_server_simple.ruff), [examples/http_rest_api.ruff](examples/http_rest_api.ruff), [examples/http_client.ruff](examples/http_client.ruff), and [examples/http_webhook.ruff](examples/http_webhook.ruff) for complete examples.
+
+### SQLite Database (v0.5.1) ✨
+
+Ruff includes built-in SQLite database support for persistent data storage:
+
+```ruff
+# Connect to database (creates file if not exists)
+db := db_connect("myapp.db")
+
+# Create table
+db_execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)", [])
+
+# Insert data with parameterized queries (prevents SQL injection)
+db_execute(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Alice", "alice@example.com"])
+db_execute(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Bob", "bob@example.com"])
+
+# Query data - returns array of dicts
+results := db_query(db, "SELECT * FROM users", [])
+for user in results {
+    print("User: " + user["name"] + " - " + user["email"])
+}
+
+# Query with parameters
+user := db_query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
+if len(user) > 0 {
+    print("Found: " + user[0]["email"])
+}
+
+# Update and delete
+db_execute(db, "UPDATE users SET email = ? WHERE name = ?", ["alice@newmail.com", "Alice"])
+db_execute(db, "DELETE FROM users WHERE name = ?", ["Bob"])
+
+# Close connection
+db_close(db)
+```
+
+See [examples/projects/url_shortener.ruff](examples/projects/url_shortener.ruff) for a complete example using SQLite with an HTTP server.
 
 ### String Interpolation (v0.3.0) ✨
 
