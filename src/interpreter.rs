@@ -21,7 +21,7 @@ use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 /// Control flow signals for loop statements
@@ -553,30 +553,28 @@ impl Interpreter {
         println!("Press Ctrl+C to stop");
         
         // Main server loop
-        for request in server.incoming_requests() {
+        for mut request in server.incoming_requests() {
             let method = request.method().to_string();
             let url_path = request.url().to_string();
             
+            // Read body first (before any response handling)
+            let body_content = {
+                let mut reader = request.as_reader();
+                let mut buffer = Vec::new();
+                std::io::Read::read_to_end(&mut reader, &mut buffer).ok();
+                String::from_utf8_lossy(&buffer).to_string()
+            };
+            
             // Find matching route
-            let mut matched = false;
+            let mut response_to_send: Option<Response<std::io::Cursor<Vec<u8>>>> = None;
+            
             for (route_method, route_path, handler) in &routes {
                 if method == *route_method && url_path == *route_path {
-                    matched = true;
-                    
                     // Create request object
                     let mut req_fields = HashMap::new();
                     req_fields.insert("method".to_string(), Value::Str(method.clone()));
                     req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
-                    
-                    // Read body if present
-                    let body_content = if let Some(mut reader) = request.as_reader() {
-                        let mut buffer = Vec::new();
-                        std::io::Read::read_to_end(&mut reader, &mut buffer).ok();
-                        String::from_utf8_lossy(&buffer).to_string()
-                    } else {
-                        String::new()
-                    };
-                    req_fields.insert("body".to_string(), Value::Str(body_content));
+                    req_fields.insert("body".to_string(), Value::Str(body_content.clone()));
                     
                     let req_obj = Value::Struct {
                         name: "Request".to_string(),
@@ -609,7 +607,7 @@ impl Interpreter {
                         
                         self.env.pop_scope();
                         
-                        // Send response
+                        // Build response
                         if let Value::HttpResponse { status, body, headers } = result {
                             let mut response = Response::from_string(body);
                             response = response.with_status_code(status);
@@ -620,17 +618,20 @@ impl Interpreter {
                                 }
                             }
                             
-                            let _ = request.respond(response);
+                            response_to_send = Some(response);
                         } else {
                             // Handler didn't return HttpResponse
-                            let _ = request.respond(Response::from_string("Internal Server Error").with_status_code(500));
+                            response_to_send = Some(Response::from_string("Internal Server Error").with_status_code(500));
                         }
                     }
                     break;
                 }
             }
             
-            if !matched {
+            // Send response
+            if let Some(response) = response_to_send {
+                let _ = request.respond(response);
+            } else {
                 // 404 Not Found
                 let _ = request.respond(Response::from_string("Not Found").with_status_code(404));
             }
@@ -638,7 +639,6 @@ impl Interpreter {
         
         Value::Number(0.0)
     }
-
     /// Calls a native built-in function
     fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
         // Evaluate all arguments
@@ -1517,7 +1517,7 @@ impl Interpreter {
                     (arg_values.get(0), arg_values.get(1))
                 {
                     // Convert data to JSON string
-                    let json_body = Self::value_to_json(data);
+                    let json_body = builtins::to_json(data).unwrap_or_else(|_| "{}".to_string());
                     let mut headers = HashMap::new();
                     headers.insert("Content-Type".to_string(), "application/json".to_string());
                     
