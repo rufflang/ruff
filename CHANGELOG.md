@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **String Interpolation**: Embed expressions directly in strings with `${}` syntax
+  - Interpolate variables: `"Hello, ${name}!"` produces `"Hello, World!"`
+  - Interpolate numbers: `"The answer is ${x}"` produces `"The answer is 42"`
+  - Interpolate expressions: `"Result: ${x * 2}"` produces `"Result: 84"`
+  - Interpolate function calls: `"Double of ${n} is ${double(n)}"`
+  - Interpolate comparisons: `"Valid: ${x > 5}"` produces `"Valid: true"`
+  - Multiple interpolations: `"Name: ${first} ${last}, Age: ${age}"`
+  - Struct field access: `"Hello, ${person.name}!"`
+  - Parenthesized expressions: `"Result: ${(a + b) * c}"`
+  - Lexer tokenizes interpolated strings as `InterpolatedString` with text and expression parts
+  - Parser converts expression strings to AST nodes for evaluation
+  - Interpreter evaluates embedded expressions and converts to strings
+  - Type checker validates embedded expressions and infers String type
+  - 15 comprehensive integration tests covering all interpolation patterns
+  - Example program: `examples/string_interpolation.ruff`
+  - Syntax:
+    ```ruff
+    name := "Alice"
+    age := 30
+    message := "Hello, ${name}! You are ${age} years old."
+    print(message)  # "Hello, Alice! You are 30 years old."
+    
+    # With expressions
+    x := 10
+    y := 5
+    result := "Sum: ${x + y}, Product: ${x * y}"
+    print(result)  # "Sum: 15, Product: 50"
+    ```
+- **Parenthesized Expression Grouping**: Parser now supports `(expr)` for grouping expressions
+  - Enables precedence control: `(a + b) * c` evaluates addition first
+  - Works in all expression contexts including string interpolation
+  - Properly handles nested parentheses
 - **Loop Control Statements**: Full support for `while` loops, `break`, and `continue`
   - `while condition { ... }`: Execute loop while condition is truthy
   - `break`: Exit current loop immediately
