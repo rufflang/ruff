@@ -148,6 +148,7 @@
   - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()` - Timestamp and date operations
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
+  - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()` - HTTP client and server
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
@@ -352,6 +353,75 @@ try {
     print("Call stack:", err.stack)
 }
 ```
+
+### HTTP Server & Client (v0.5.0) ✨
+
+Build HTTP servers and make HTTP requests with ease:
+
+**HTTP Client**:
+```ruff
+# Make HTTP GET request
+result := http_get("https://api.example.com/users")
+if result.is_ok {
+    data := result.value
+    print("Status:", data["status"])
+    print("Body:", data["body"])
+}
+
+# POST request with JSON body
+user_data := {"name": "Alice", "email": "alice@example.com"}
+result := http_post("https://api.example.com/users", user_data)
+
+# PUT and DELETE requests
+http_put("https://api.example.com/users/1", {"name": "Bob"})
+http_delete("https://api.example.com/users/1")
+```
+
+**HTTP Server**:
+```ruff
+# Create HTTP server on port 8080
+server := http_server(8080)
+
+# Register GET route
+server.route("GET", "/hello", func(request) {
+    return http_response(200, "Hello, World!")
+})
+
+# Register POST route with JSON response
+server.route("POST", "/api/data", func(request) {
+    data := {"received": request.body, "method": request.method}
+    return json_response(200, data)
+})
+
+# Start server (blocks and handles requests)
+print("Server listening on http://localhost:8080")
+server.listen()
+```
+
+**REST API Example**:
+```ruff
+# In-memory data store
+todos := []
+
+server := http_server(8080)
+
+# GET all todos
+server.route("GET", "/todos", func(request) {
+    return json_response(200, todos)
+})
+
+# POST new todo
+server.route("POST", "/todos", func(request) {
+    todo := parse_json(request.body)
+    push(todos, todo)
+    return json_response(201, todo)
+})
+
+print("REST API running on http://localhost:8080")
+server.listen()
+```
+
+See [examples/http_server_simple.ruff](examples/http_server_simple.ruff), [examples/http_rest_api.ruff](examples/http_rest_api.ruff), [examples/http_client.ruff](examples/http_client.ruff), and [examples/http_webhook.ruff](examples/http_webhook.ruff) for complete examples.
 
 ### String Interpolation (v0.3.0) ✨
 

@@ -31,53 +31,40 @@ ruff repl
 
 ---
 
-## 🌟 Planned Features (v0.6.0)
-
 ### HTTP Server & Networking
 
-**Status**: Planned  
-**Estimated Effort**: Large (2-3 weeks)
+**Status**: ✅ Completed (v0.5.0)  
+**Implementation Date**: January 23, 2026
 
-**Description**:  
-Add HTTP server capabilities and networking functions to enable web APIs and services.
+**Features**:
+- ✅ HTTP Client Functions (`http_get`, `http_post`, `http_put`, `http_delete`)
+- ✅ HTTP Server Creation (`http_server(port)`)
+- ✅ Route registration (`server.route(method, path, handler)`)
+- ✅ Server listening (`server.listen()`)
+- ✅ Request/Response objects (`http_response`, `json_response`)
+- ✅ JSON request/response handling
+- ✅ Method and path-based routing
+- ✅ Comprehensive examples (simple server, REST API, client, webhooks)
 
-**Planned Functions**:
-```ruff
-# Create HTTP server
-server := http_server(8080)
+**Usage**:
+```bash
+# Run HTTP server example
+cargo run --quiet -- run examples/http_server_simple.ruff
 
-# Define routes
-server.route("GET", "/", func(req) {
-    return http_response(200, "Hello, World!")
-})
+# Run REST API example
+cargo run --quiet -- run examples/http_rest_api.ruff
 
-server.route("GET", "/todos", func(req) {
-    todos := load_todos()
-    return json_response(200, todos)
-})
-
-server.route("POST", "/todos", func(req) {
-    body := parse_json(req.body)
-    save_todo(body)
-    return json_response(201, {"success": true})
-})
-
-# Start listening
-server.listen()
-
-# HTTP client functions
-response := http_get("https://api.example.com/data")
-result := http_post("https://api.example.com/submit", {"key": "value"})
+# Run client examples
+cargo run --quiet -- run examples/http_client.ruff
 ```
 
-**Use Cases**:
-- REST APIs
-- Webhooks
-- Microservices
-- Web applications
-- API integrations
+**Dependencies**:
+- `reqwest`: HTTP client library
+- `tiny_http`: Lightweight HTTP server
 
 ---
+
+## 🌟 Planned Features (v0.6.0)
 
 ### Concurrency & Async
 
