@@ -17,94 +17,18 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## v0.6.0 - Core Language Improvements
 
-### 1. Closures & Variable Capturing (P1)
+### Completed Features ✅
 
-**Status**: ✅ Completed (2026-01-23)  
-**Estimated Effort**: Medium (1 week)
-
-**Description**:  
-Proper closure support with variable capturing from outer scopes.
-
-**Implementation Notes**:
-- Uses `Rc<RefCell<Environment>>` for shared mutable captured environment
-- Functions capture their definition environment at creation time
-- Counter patterns work correctly with persistent state
-- Simple closures (adders, counters) fully functional
-- Complex multi-variable scenarios may need additional testing
-
-**Completed Examples**:
-```ruff
-# Counter closure
-func make_counter() {
-    let count := 0
-    return func() {
-        count := count + 1
-        return count
-    }
-}
-
-counter1 := make_counter()
-print(counter1())  # 1
-print(counter1())  # 2
-print(counter1())  # 3
-
-counter2 := make_counter()
-print(counter2())  # 1 (independent state)
-
-# Simple closures
-func make_adder(x) {
-    return func(y) {
-        return x + y
-    }
-}
-
-add5 := make_adder(5)
-print(add5(3))   # 8
-print(add5(10))  # 15
-```
+For detailed information about implemented features, see [CHANGELOG.md](CHANGELOG.md):
+- **Closures & Variable Capturing** (P1) - Completed 2026-01-23
+- **Method Chaining & Fluent APIs** (P1) - Completed 2026-01-23  
+- **Binary File Support & HTTP Downloads** (P1) - Completed 2026-01-23
 
 ---
 
-### 2. Method Chaining & Fluent APIs (P1)
+### Remaining Features for v0.6.0
 
-**Status**: ✅ Completed (2026-01-23)  
-**Estimated Effort**: Medium (1 week)
-
-**Description**:  
-Enhanced syntax for chainable operations and null-safe access.
-
-**Implemented Features**:
-```ruff
-# Null coalescing - provide default values for null
-username := user?.name ?? "Anonymous"
-timeout := config?.timeout ?? 5000
-
-# Optional chaining - safely access nested properties
-user := get_user(123)
-email := user?.profile?.email  # Returns null if any part is null
-
-# Pipe operator for data transformation
-result := data
-    |> double
-    |> add_ten
-    |> square
-
-# Chainable string operations
-greeting := "hello" |> to_upper |> exclaim  # "HELLO!"
-```
-
-**Implementation Notes**:
-- Null coalescing (`??`) has low precedence, evaluated after `||`
-- Optional chaining (`?.`) is handled in postfix operations like `.`
-- Pipe operator (`|>`) has lowest precedence, passes left value as first arg to right function
-- Added `null` keyword and `Value::Null` type
-- Works with user functions, closures, and native functions
-- Examples: `examples/method_chaining.ruff`
-- Tests: `tests/test_method_chaining.ruff`
-
----
-
-### 3. Advanced Collections (P2)
+### 1. Advanced Collections (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (2 weeks)
@@ -142,53 +66,7 @@ top := stack.pop()  # 2
 
 ---
 
-### 4. Binary File Support & HTTP Downloads (P1)
-
-**Status**: ✅ Completed (2026-01-23)  
-**Estimated Effort**: Medium (1 week)
-
-**Description**:  
-Support for downloading and working with binary files (images, PDFs, archives, etc.) via HTTP client and file I/O.
-
-**Implemented Features**:
-```ruff
-# Binary HTTP downloads
-image_data := http_get_binary("https://example.com/photo.jpg")
-write_binary_file("photo.jpg", image_data)
-
-# Read binary files
-image_bytes := read_binary_file("photo.jpg")
-file_size := len(image_bytes)
-
-# Base64 encoding/decoding (for API transfers)
-base64_str := encode_base64(image_bytes)  # Also accepts strings
-decoded := decode_base64(base64_str)
-```
-
-**Implementation Notes**:
-- Added `Value::Bytes` type for native binary data handling
-- `read_binary_file(path)` - Read entire file as bytes
-- `write_binary_file(path, bytes)` - Write bytes to file
-- `http_get_binary(url)` - Download binary files via HTTP
-- `encode_base64(bytes_or_string)` - Encode to base64 string
-- `decode_base64(string)` - Decode base64 to bytes
-- `len()` function supports binary data for byte count
-
-**Examples**:
-- See `examples/binary_file_demo.ruff` for practical usage
-- See `examples/http_download.ruff` for HTTP download patterns
-- Comprehensive tests in `tests/test_binary_files.ruff`
-
-**Use Cases**:
-- Download AI-generated images from DALL-E, Stable Diffusion
-- Fetch PDFs, zip files, archives
-- Handle file uploads/downloads in HTTP servers
-- Work with media files (images, audio, video metadata)
-- Embed binary data in JSON via base64
-
----
-
-### 5. Image Processing (P2)
+### 2. Image Processing (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -255,7 +133,7 @@ for path in images {
 
 ---
 
-### 6. HTTP Authentication & Streaming (P1)
+### 3. HTTP Authentication & Streaming (P1)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -305,7 +183,7 @@ server.route("GET", "/events", func(request) {
 
 ---
 
-### 7. Serialization Formats (P2)
+### 4. Serialization Formats (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -330,7 +208,7 @@ csv_str := to_csv(rows)
 
 ---
 
-### 8. Concurrency & Async/Await (P1) 🚀
+### 5. Concurrency & Async/Await (P1) 🚀
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
