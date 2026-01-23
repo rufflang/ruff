@@ -370,6 +370,43 @@ impl TypeChecker {
                 return_type: Some(TypeAnnotation::Bool),
             },
         );
+
+        // Regular expression functions
+        self.functions.insert(
+            "regex_match".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "regex_find_all".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: None, // Returns array of strings
+            },
+        );
+
+        self.functions.insert(
+            "regex_replace".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::String),
+                ],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "regex_split".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: None, // Returns array of strings
+            },
+        );
     }
 
     /// Type check a list of statements
