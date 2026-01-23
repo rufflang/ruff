@@ -1,14 +1,100 @@
 # Test boolean values
+# Demonstrates boolean type as first-class value in Ruff
 
-struct Item {
-	done: bool
+# Boolean literals
+print("=== Boolean Literals ===")
+t := true
+f := false
+print("t =", t)
+print("f =", f)
+
+# Boolean comparisons
+print("\n=== Comparisons Return Booleans ===")
+equal := 5 == 5
+not_equal := 5 == 6
+greater := 10 > 5
+less := 3 < 8
+print("5 == 5:", equal)
+print("5 == 6:", not_equal)
+print("10 > 5:", greater)
+print("3 < 8:", less)
+
+# Booleans in conditions
+print("\n=== Booleans in If Conditions ===")
+is_active := true
+if is_active {
+    print("System is active")
 }
 
-item := Item { done: false }
-print("done field:", item.done)
+is_valid := 10 > 5
+if is_valid {
+    print("Validation passed")
+}
+
+# Boolean comparisons with strings
+print("\n=== String Comparisons ===")
+name1 := "Alice"
+name2 := "Bob"
+same_name := name1 == name2
+print("Alice == Bob:", same_name)
+
+# Booleans in structs
+print("\n=== Booleans in Structs ===")
+struct Item {
+    title: string,
+    done: bool
+}
+
+item := Item { title: "Learn Ruff", done: false }
+print("Item:", item.title, "- Done:", item.done)
 
 if item.done {
-	print("Item is done")
+    print("Item is completed!")
 } else {
-	print("Item is not done")
+    print("Item is still pending")
 }
+
+# Update boolean field
+item.done := true
+print("After update - Done:", item.done)
+
+if item.done {
+    print("Item is now completed!")
+}
+
+# Booleans in arrays
+print("\n=== Booleans in Arrays ===")
+flags := [true, false, true, 10 > 5]
+print("Flags array:", flags)
+
+# File operations return booleans
+print("\n=== File Operations Return Booleans ===")
+result := write_file("/tmp/ruff_bool_test.txt", "Boolean test")
+print("Write succeeded:", result)
+
+exists := file_exists("/tmp/ruff_bool_test.txt")
+print("File exists:", exists)
+
+not_exists := file_exists("/tmp/file_does_not_exist.txt")
+print("Non-existent file exists:", not_exists)
+
+# Complex conditions
+print("\n=== Complex Boolean Logic ===")
+x := 15
+in_range := x > 10
+also_valid := x < 20
+
+if in_range {
+    if also_valid {
+        print("x is in range [10, 20]")
+    }
+}
+
+# Boolean equality
+print("\n=== Boolean Equality ===")
+tt := true == true
+ff := false == false
+tf := true == false
+print("true == true:", tt)
+print("false == false:", ff)
+print("true == false:", tf)
