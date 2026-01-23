@@ -1,338 +1,23 @@
 # Ruff Language - Development Roadmap
 
-This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features, see [CHANGELOG.md](CHANGELOG.md).
+This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.5.0  
+> **Current Version**: v0.5.1  
 > **Next Planned Release**: v0.6.0
 
 ---
 
-## ✅ Completed Features (v0.5.0)
+## Priority Levels
 
-### REPL (Interactive Shell)
-
-**Status**: ✅ Completed (v0.5.0)  
-**Implementation Date**: January 23, 2026
-
-**Features**:
-- ✅ Interactive Read-Eval-Print Loop
-- ✅ Multi-line input support with automatic detection
-- ✅ Command history (up/down arrows) via rustyline
-- ✅ Line editing with cursor movement
-- ✅ Special commands (`:help`, `:clear`, `:quit`, `:vars`, `:reset`)
-- ✅ Pretty-printed colored output
-- ✅ Persistent state across inputs
-- ✅ Error handling without crashes
-
-**Usage**:
-```bash
-ruff repl
-```
+- **P1 (High)**: Core language features needed for real-world applications
+- **P2 (Medium)**: Quality-of-life improvements and developer experience
+- **P3 (Low)**: Nice-to-have features for advanced use cases
 
 ---
 
-### HTTP Server & Networking
+## v0.6.0 - Core Language Improvements
 
-**Status**: ✅ Completed (v0.5.0)  
-**Implementation Date**: January 23, 2026
-
-**Features**:
-- ✅ HTTP Client Functions (`http_get`, `http_post`, `http_put`, `http_delete`)
-- ✅ HTTP Server Creation (`http_server(port)`)
-- ✅ Route registration (`server.route(method, path, handler)`)
-- ✅ Server listening (`server.listen()`)
-- ✅ Request/Response objects (`http_response`, `json_response`)
-- ✅ JSON request/response handling
-- ✅ Method and path-based routing
-- ✅ Comprehensive examples (simple server, REST API, client, webhooks)
-
-**Usage**:
-```bash
-# Run HTTP server example
-cargo run --quiet -- run examples/http_server_simple.ruff
-
-# Run REST API example
-cargo run --quiet -- run examples/http_rest_api.ruff
-
-# Run client examples
-cargo run --quiet -- run examples/http_client.ruff
-```
-
-**Dependencies**:
-- `reqwest`: HTTP client library
-- `tiny_http`: Lightweight HTTP server
-
----
-
-## 🐛 Recently Fixed Critical Bugs
-
-### Dynamic Route Path Parameters
-
-**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
-**Resolution Date**: January 23, 2026  
-**Fix**: Add support for parameterized routes like `/:code`
-
-**Original Issue**:  
-HTTP routes only supported exact path matching. URLs like `http://localhost:3000/abc123` couldn't be handled because there was no way to define dynamic path segments.
-
-**Solution**:  
-1. Added `match_route_pattern()` function to extract path parameters
-2. Routes with `:param` syntax now match and extract values
-3. Request object includes `params` dict with extracted values
-4. Exact routes take priority over parameterized routes
-
-**Impact**:  
-URL shortener can now redirect short URLs properly using `GET /:code` route.
-
----
-
-### URL Shortener /list Endpoint Hanging
-
-**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
-**Resolution Date**: January 23, 2026  
-**Fix**: Use direct dict iteration instead of `keys()` function
-
-**Original Issue**:  
-The `/list` endpoint in url_shortener.ruff caused the server to hang during startup because `for code in keys(urls)` inside a route handler closure would hang.
-
-**Root Cause**:  
-The `keys()` function result, when used in a `for` loop, doesn't iterate properly. The error message "Cannot iterate over non-iterable type" appears but the closure definition hangs before reaching the server listen.
-
-**Workaround**:  
-Use `for code in urls` instead - direct dict iteration works correctly and iterates over keys.
-
-**Impact**:  
-URL shortener `/list` endpoint now works and returns all stored URLs with statistics.
-
----
-
-### Logical AND (&&) and OR (||) Operators Not Working
-
-**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
-**Resolution Date**: January 23, 2026  
-**Fix**: Complete lexer, parser, and interpreter support for logical operators
-
-**Original Issue**:  
-Logical operators `&&` and `||` were completely non-functional. Expressions like `false || true` incorrectly returned `false` instead of `true`. This affected all code paths using logical operators, including URL validation in HTTP server examples.
-
-**Root Cause**:  
-Multi-character operators `&&` and `||` were never properly implemented:
-1. **Lexer**: Not tokenizing `|` and `&` characters at all
-2. **Parser**: Missing `parse_or()` and `parse_and()` functions in precedence chain
-3. **Interpreter**: Missing `&&`, `||`, `!=` cases in Bool/Bool match arm
-
-**Solution**:  
-1. Added character tokenization for `|` → `"||"` and `&` → `"&&"` in lexer
-2. Added `parse_or()` and `parse_and()` functions with proper precedence
-3. Added operator handling in interpreter's `(Value::Bool(a), Value::Bool(b))` match
-
-**Impact**:  
-All logical operations now work correctly, enabling complex boolean expressions and URL validation in HTTP server examples.
-
----
-
-### HTTP Functions Type Checking Warnings
-
-**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
-**Resolution Date**: January 23, 2026  
-**Fix**: Register HTTP functions in type checker
-
-**Original Issue**:  
-HTTP functions (`http_server`, `http_get`, `http_post`, `http_put`, `http_delete`, `http_response`, `json_response`) were implemented in the interpreter but not registered in the type checker, causing "Undefined function" warnings when running HTTP examples.
-
-**Solution**:  
-Added all HTTP function signatures to `type_checker.rs` in the `register_builtins()` method.
-
-**Changes**:
-- Added HTTP client functions: `http_get`, `http_post`, `http_put`, `http_delete`
-- Added HTTP server functions: `http_server`, `http_response`, `json_response`
-- Added test file `tests/test_http_type_checking.ruff`
-
-**Impact**:  
-HTTP examples now run without type checking warnings, providing a cleaner user experience.
-
----
-
-### Function Cleanup Hang Bug
-
-**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
-**Resolution Date**: January 23, 2026  
-**Fix**: LeakyFunctionBody wrapper with ManuallyDrop
-
-**Original Issue**:  
-Functions containing `for` loops caused the interpreter to hang **during program cleanup/shutdown**, not during execution. The hang occurred when Rust's Drop implementation tried to clean up deeply nested AST structures.
-
-**Root Cause**:  
-When storing function bodies with loops, the AST structure `Vec<Stmt>` contains deeply nested loops (`For { body: Vec<Stmt> }`). During program shutdown, Rust's automatic drop implementation recurses deeply through these nested vectors, causing stack overflow.
-
-**Solution**:  
-Introduced `LeakyFunctionBody` wrapper type that uses `ManuallyDrop<Arc<Vec<Stmt>>>` to prevent recursive drop of deeply nested AST structures. The Arc containing function bodies is intentionally leaked during drop, which is acceptable since it only occurs at program shutdown when the OS reclaims all memory anyway.
-
-**Changes**:
-- Added `LeakyFunctionBody` wrapper type in `src/interpreter.rs`
-- Updated `Value::Function` to use `LeakyFunctionBody` instead of `Arc<Vec<Stmt>>`
-- Updated all function creation sites to use `LeakyFunctionBody::new()`
-- Updated all function body access sites to use `.get()` method
-- Removed workarounds from examples (e.g., `url_shortener.ruff` now uses proper loops)
-
-**Impact**:  
-Functions can now safely contain loops, nested control structures, and complex logic without hanging during program cleanup. Makes Ruff practical for real-world applications.
-
-**Tests**:
-- `tests/test_function_drop_fix.ruff` - Comprehensive test suite
-- `tests/test_func_loop_correct.ruff` - Simple function with loop test
-- `tests/test_loop_correct.ruff` - Basic loop test
-
----
-
-## 🌟 Planned Features (v0.6.0)
-
-### Concurrency & Async
-
-**Status**: Planned  
-**Estimated Effort**: Large (3-4 weeks)
-
-**Description**:  
-Lightweight concurrency with goroutine-style threads and channels.
-
-**Planned Features**:
-```ruff
-# Spawn lightweight threads
-spawn {
-    print("Running in background")
-    heavy_computation()
-}
-
-# Channels for communication
-chan := channel()
-
-spawn {
-    result := fetch_data()
-    chan.send(result)
-}
-
-data := chan.receive()  # Block until data received
-print(data)
-
-# Async/await syntax
-async func fetch_user(id: int) {
-    response := await http_get("/api/users/" + id)
-    return parse_json(response.body)
-}
-
-user := await fetch_user(123)
-print(user.name)
-
-# Mutex for shared state
-mut := mutex()
-counter := 0
-
-func increment() {
-    mut.lock()
-    counter := counter + 1
-    mut.unlock()
-}
-
-# Spawn multiple workers
-for i in range(10) {
-    spawn { increment() }
-}
-```
-
-**Use Cases**:
-- Parallel processing
-- Web servers handling multiple requests
-- Background tasks
-- Non-blocking I/O
-
----
-
-### Advanced Collections
-
-**Status**: Planned  
-**Estimated Effort**: Medium (2 weeks)
-
-**Description**:  
-Additional data structures beyond arrays and dictionaries.
-
-**Planned Types**:
-```ruff
-# Sets - unique values
-set := Set{1, 2, 3, 3, 2}  # {1, 2, 3}
-set.add(4)
-set.has(2)  # true
-set.remove(1)
-
-# Set operations
-a := Set{1, 2, 3}
-b := Set{2, 3, 4}
-union := a.union(b)         # {1, 2, 3, 4}
-intersect := a.intersect(b) # {2, 3}
-diff := a.difference(b)     # {1}
-
-# Queue - FIFO
-queue := Queue{}
-queue.enqueue("first")
-queue.enqueue("second")
-item := queue.dequeue()  # "first"
-
-# Stack - LIFO
-stack := Stack{}
-stack.push(1)
-stack.push(2)
-top := stack.pop()  # 2
-
-# Linked List
-list := LinkedList{}
-list.append(10)
-list.prepend(5)
-list.insert(1, 7)  # Insert at index 1
-
-# Priority Queue
-pq := PriorityQueue{}
-pq.insert(5, "low priority")
-pq.insert(10, "high priority")
-highest := pq.pop()  # Returns "high priority"
-```
-
----
-
-### Method Chaining & Fluent APIs
-
-**Status**: Planned  
-**Estimated Effort**: Medium (1 week)
-
-**Description**:  
-Enhanced syntax for chainable operations and optional access.
-
-**Planned Features**:
-```ruff
-# Optional chaining - safely access nested properties
-user := get_user(123)
-email := user?.profile?.email  # Returns null if any part is null
-
-# Pipe operator for data transformation
-result := data
-    |> filter(func(x) { return x > 10 })
-    |> map(func(x) { return x * 2 })
-    |> reduce(0, func(acc, x) { return acc + x })
-
-# Builder pattern support
-query := QueryBuilder()
-    .select(["name", "email"])
-    .from("users")
-    .where("age", ">", 18)
-    .order_by("name")
-    .limit(10)
-    .build()
-
-# Null coalescing
-value := user?.name ?? "Anonymous"  # Use "Anonymous" if name is null
-```
-
----
-
-### Closures & Capturing
+### 1. Closures & Variable Capturing (P1)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -369,138 +54,110 @@ triple := func(x) { return multiply(3, x) }
 
 print(double(5))  # 10
 print(triple(5))  # 15
-
-# Event handlers with closures
-buttons := []
-for i in range(5) {
-    button := create_button()
-    button.on_click(func() {
-        print("Button ${i} clicked")  # Captures current i
-    })
-    buttons.push(button)
-}
 ```
 
 ---
 
-## 🎓 Professional Features (v0.6.0+)
-
-### Advanced Type System Features
-
-**Status**: Research Phase  
-**Estimated Effort**: Large (2-3 weeks)
-
-**Planned Features**:
-- Generic types: `Array<T>`, `Option<T>`, `Result<T, E>`
-- Union types: `int | string | null`
-- Type aliases: `type UserId = int`
-- Optional chaining: `user?.profile?.email`
-- Null safety with `Option<T>`
-
----
-
-### LSP (Language Server Protocol)
+### 2. Method Chaining & Fluent APIs (P1)
 
 **Status**: Planned  
-**Estimated Effort**: Large (2-3 weeks)
+**Estimated Effort**: Medium (1 week)
 
-**Features**:
-- Syntax highlighting
-- Autocomplete
-- Go to definition
-- Find references
-- Hover information
-- Real-time error checking
-- VS Code extension
+**Description**:  
+Enhanced syntax for chainable operations and null-safe access.
+
+**Planned Features**:
+```ruff
+# Optional chaining - safely access nested properties
+user := get_user(123)
+email := user?.profile?.email  # Returns null if any part is null
+
+# Pipe operator for data transformation
+result := data
+    |> filter(func(x) { return x > 10 })
+    |> map(func(x) { return x * 2 })
+    |> reduce(0, func(acc, x) { return acc + x })
+
+# Null coalescing
+value := user?.name ?? "Anonymous"  # Use "Anonymous" if name is null
+```
 
 ---
 
-### Macros & Metaprogramming
+### 3. Advanced Collections (P2)
 
-**Status**: Research Phase  
+**Status**: Planned  
+**Estimated Effort**: Medium (2 weeks)
+
+**Description**:  
+Additional data structures beyond arrays and dictionaries.
+
+**Planned Types**:
+```ruff
+# Sets - unique values
+set := Set{1, 2, 3, 3, 2}  # {1, 2, 3}
+set.add(4)
+set.has(2)  # true
+set.remove(1)
+
+# Set operations
+a := Set{1, 2, 3}
+b := Set{2, 3, 4}
+union := a.union(b)         # {1, 2, 3, 4}
+intersect := a.intersect(b) # {2, 3}
+diff := a.difference(b)     # {1}
+
+# Queue - FIFO
+queue := Queue{}
+queue.enqueue("first")
+queue.enqueue("second")
+item := queue.dequeue()  # "first"
+
+# Stack - LIFO
+stack := Stack{}
+stack.push(1)
+stack.push(2)
+top := stack.pop()  # 2
+```
+
+---
+
+### 4. Serialization Formats (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (1-2 weeks)
+
+**Description**:  
+Support for multiple data serialization formats beyond JSON.
+
+**Planned Formats**:
+```ruff
+# TOML
+config := parse_toml(read_file("config.toml"))
+toml_str := to_toml(config)
+
+# YAML
+data := parse_yaml(read_file("data.yaml"))
+yaml_str := to_yaml(data)
+
+# CSV
+rows := parse_csv(read_file("data.csv"))
+csv_str := to_csv(rows)
+```
+
+---
+
+## v0.7.0 - Production Database Support
+
+### 5. PostgreSQL & MySQL (P1)
+
+**Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
 
 **Description**:  
-Compile-time code generation and transformation.
+Production database support for large-scale applications (restaurants, blogs, forums, e-commerce, etc.).
 
 **Planned Features**:
-```ruff
-# Macro definitions
-macro debug_print(expr) {
-    print("${expr} = ${eval(expr)}")
-}
-
-# Usage
-x := 42
-debug_print!(x + 10)  # Output: "x + 10 = 52"
-
-# Template expansion
-macro create_getter_setter(field) {
-    func get_${field}(self) {
-        return self.${field}
-    }
-    
-    func set_${field}(self, value) {
-        self.${field} := value
-    }
-}
-
-struct User {
-    name: string
-    email: string
-}
-
-create_getter_setter!(name)
-create_getter_setter!(email)
-
-# Domain-specific language support
-macro html(content) {
-    # Compile HTML-like syntax to function calls
-}
-
-page := html! {
-    <div class="container">
-        <h1>Welcome</h1>
-        <p>Hello, World!</p>
-    </div>
-}
-```
-
----
-
-### Database Support
-
-**Status**: ✅ SQLite Complete (v0.5.1) | PostgreSQL/MySQL Planned (v0.7.0)  
-**Estimated Effort**: SQLite ✅ Done | Production Databases: Large (3-4 weeks)
-
-**Description**:  
-Built-in database connectivity for persistent data storage. SQLite support is complete for local/embedded applications. PostgreSQL and MySQL support planned for production-scale applications.
-
-#### ✅ Completed: SQLite (v0.5.1)
-
-```ruff
-# Connect to SQLite database
-db := db_connect("app.db")
-
-# Create tables
-db_execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)", [])
-
-# Insert with parameterized queries (prevents SQL injection)
-db_execute(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Alice", "alice@example.com"])
-
-# Query data - returns array of dicts
-users := db_query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
-for user in users {
-    print(user["name"] + " - " + user["email"])
-}
-
-# Close connection
-db_close(db)
-```
-
-#### 🎯 Planned: Production Databases (v0.7.0)
-
-For large-scale applications (restaurants, blogs, forums, e-commerce, etc.), support for production databases is essential:
 
 **Unified Database Interface**:
 ```ruff
@@ -530,11 +187,6 @@ pool := db_pool("postgres", "host=localhost dbname=myapp", {
 db := pool.acquire()
 users := db_query(db, "SELECT * FROM users", [])
 pool.release(db)
-
-# Or use with auto-release
-pool.with(func(db) {
-    db_execute(db, "INSERT INTO orders ...", [])
-})
 ```
 
 **Transactions**:
@@ -550,14 +202,6 @@ try {
 }
 ```
 
-**Migrations** (for schema versioning):
-```ruff
-# Run pending migrations
-db_migrate(db, "migrations/")
-
-# Migration files: 001_create_users.sql, 002_add_email.sql, etc.
-```
-
 **Target Use Cases**:
 - 🍽️ Restaurant menu management systems
 - 📝 Blog platforms with user accounts
@@ -566,62 +210,72 @@ db_migrate(db, "migrations/")
 - 📊 Analytics dashboards
 - 🏢 Business management tools
 
-**Supported Databases** (Planned):
-- ✅ SQLite (built-in, complete)
-- 🎯 PostgreSQL (v0.7.0)
-- 🎯 MySQL/MariaDB (v0.7.0)
-- 🔮 MongoDB (future consideration)
-
 ---
 
-### Serialization Formats
+### 6. Concurrency & Async (P1)
 
 **Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
+**Estimated Effort**: Large (3-4 weeks)
 
 **Description**:  
-Support for multiple data serialization formats beyond JSON.
+Lightweight concurrency with goroutine-style threads and channels.
 
-**Planned Formats**:
+**Planned Features**:
 ```ruff
-# TOML
-config := parse_toml(read_file("config.toml"))
-toml_str := to_toml(config)
-
-# YAML
-data := parse_yaml(read_file("data.yaml"))
-yaml_str := to_yaml(data)
-
-# CSV
-rows := parse_csv(read_file("data.csv"))
-csv_str := to_csv(rows)
-
-# XML
-doc := parse_xml(read_file("data.xml"))
-xml_str := to_xml(doc)
-
-# MessagePack (binary)
-bytes := to_msgpack(data)
-data := from_msgpack(bytes)
-
-# Custom serialization
-struct User {
-    name: string
-    email: string
+# Spawn lightweight threads
+spawn {
+    print("Running in background")
+    heavy_computation()
 }
 
-func User.serialize(self) {
-    return {"n": self.name, "e": self.email}
+# Channels for communication
+chan := channel()
+
+spawn {
+    result := fetch_data()
+    chan.send(result)
 }
 
-func User.deserialize(data) {
-    return User { name: data["n"], email: data["e"] }
+data := chan.receive()  # Block until data received
+print(data)
+
+# Async/await syntax
+async func fetch_user(id: int) {
+    response := await http_get("/api/users/" + id)
+    return parse_json(response.body)
 }
+
+user := await fetch_user(123)
+print(user.name)
 ```
+
+**Use Cases**:
+- Parallel processing
+- Web servers handling multiple requests
+- Background tasks
+- Non-blocking I/O
 
 ---
 
-### Testing Enhancements
+## v0.8.0 - Developer Experience
+
+### 7. LSP (Language Server Protocol) (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Large (2-3 weeks)
+
+**Features**:
+- Syntax highlighting
+- Autocomplete
+- Go to definition
+- Find references
+- Hover information
+- Real-time error checking
+- VS Code extension
+
+---
+
+### 8. Testing Enhancements (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -640,17 +294,6 @@ benchmark "Array operations" {
     test "map" {
         result := map(arr, func(x) { return x * 2 })
     }
-    
-    test "filter" {
-        result := filter(arr, func(x) { return x % 2 == 0 })
-    }
-}
-
-# Property-based testing
-property "Addition is commutative" {
-    forall a: int, b: int {
-        assert(a + b == b + a)
-    }
 }
 
 # Mocking
@@ -662,7 +305,6 @@ test "User service" {
     service := UserService { api: mock_api }
     user := service.fetch_user(123)
     assert(user.name == "Test User")
-    assert(mock_api.get_user.called_with(123))
 }
 
 # Code coverage
@@ -672,9 +314,7 @@ ruff test --coverage
 
 ---
 
-## 🏗️ Infrastructure (v0.7.0+)
-
-### Package Manager
+### 9. Package Manager (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -688,43 +328,44 @@ ruff test --coverage
 
 ---
 
-### Memory Management
+## v0.9.0+ - Advanced Features
+
+### 10. Advanced Type System (P2)
 
 **Status**: Research Phase  
-**Estimated Effort**: Very Large (2-3 months)
-
-**Description**:  
-Automatic memory management with garbage collection or reference counting.
+**Estimated Effort**: Large (2-3 weeks)
 
 **Planned Features**:
-- Automatic garbage collection
-- Reference counting for immediate cleanup
-- Cycle detection
-- Memory profiling tools
-- Leak detection and warnings
-- Manual memory hints: `free()`, `retain()`, `release()`
+- Generic types: `Array<T>`, `Option<T>`, `Result<T, E>`
+- Union types: `int | string | null`
+- Type aliases: `type UserId = int`
+- Null safety with `Option<T>`
 
+---
+
+### 11. Macros & Metaprogramming (P3)
+
+**Status**: Research Phase  
+**Estimated Effort**: Large (3-4 weeks)
+
+**Description**:  
+Compile-time code generation and transformation.
+
+**Planned Features**:
 ```ruff
-# Automatic cleanup
-func process_large_file() {
-    data := read_file("huge.txt")  # Allocates memory
-    result := process(data)
-    return result
-}  # data is automatically freed here
+# Macro definitions
+macro debug_print(expr) {
+    print("${expr} = ${eval(expr)}")
+}
 
-# Memory profiling
-mem_before := memory_used()
-process_data()
-mem_after := memory_used()
-print("Memory used: ${mem_after - mem_before} bytes")
-
-# Leak detection
-ruff run --detect-leaks program.ruff
+# Usage
+x := 42
+debug_print!(x + 10)  # Output: "x + 10 = 52"
 ```
 
 ---
 
-### Foreign Function Interface (FFI)
+### 12. Foreign Function Interface (FFI) (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -742,23 +383,28 @@ extern func cos(x: float) -> float from "libm.so"
 
 # Call external function
 result := cos(3.14)
-
-# Rust integration
-extern struct RustString from "librust_helper.so"
-extern func rust_process_string(s: RustString) -> RustString
-
-# System calls
-extern func getpid() -> int from "libc.so"
-pid := getpid()
-print("Process ID: ${pid}")
-
-# Callback functions
-extern func qsort(arr: array, size: int, compare: func) from "libc.so"
 ```
 
 ---
 
-### Graphics & GUI
+### 13. Memory Management (P3)
+
+**Status**: Research Phase  
+**Estimated Effort**: Very Large (2-3 months)
+
+**Description**:  
+Automatic memory management with garbage collection or reference counting.
+
+**Planned Features**:
+- Automatic garbage collection
+- Reference counting for immediate cleanup
+- Cycle detection
+- Memory profiling tools
+- Leak detection and warnings
+
+---
+
+### 14. Graphics & GUI (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -766,11 +412,8 @@ extern func qsort(arr: array, size: int, compare: func) from "libc.so"
 **Description**:  
 Graphics and GUI capabilities for visual applications.
 
-**Planned Features**:
-
 **Terminal UI**:
 ```ruff
-# Terminal-based interfaces
 import tui
 
 app := tui.App()
@@ -781,48 +424,24 @@ button := tui.Button {
     on_click: func() { print("Clicked!") }
 }
 
-input := tui.TextInput { placeholder: "Enter name" }
-
 window.add(button, 10, 5)
-window.add(input, 10, 8)
 app.run()
 ```
 
 **2D Graphics**:
 ```ruff
-# Simple 2D graphics primitives
 import graphics
 
 canvas := graphics.Canvas(800, 600)
 canvas.set_color(255, 0, 0)  # Red
 canvas.draw_rect(100, 100, 200, 150)
 canvas.draw_circle(400, 300, 50)
-canvas.draw_line(0, 0, 800, 600)
 canvas.save("output.png")
-```
-
-**GUI Framework**:
-```ruff
-# Desktop application
-import gui
-
-app := gui.Application()
-window := app.create_window("My App", 640, 480)
-
-button := gui.Button("Click Me")
-button.on_click(func() {
-    gui.alert("Button clicked!")
-})
-
-layout := gui.VBox()
-layout.add(button)
-window.set_layout(layout)
-app.run()
 ```
 
 ---
 
-### Compilation Targets
+### 15. Compilation Targets (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
@@ -861,24 +480,20 @@ app.run()
 
 Want to help implement these features? Check out [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-**Good First Issues** (Small effort, high impact):
-- Multi-line comments
-- Random number generation
-- Date/time formatting
-- Path operations
-
-**Medium Complexity** (Great learning opportunities):
-- JSON support
-- Regular expressions
-- Operator overloading
+**Good First Issues** (v0.6.0):
+- Serialization formats (TOML, YAML, CSV)
 - Advanced collections (Set, Queue, Stack)
 
-**Advanced Projects** (For experienced contributors):
-- REPL implementation
+**Medium Complexity** (v0.7.0):
+- PostgreSQL/MySQL support
+- Testing enhancements
+- Package manager foundations
+
+**Advanced Projects** (v0.8.0+):
 - Concurrency & async
 - LSP support
-- Database integration
+- Advanced type system
 
 ---
 
-*Last Updated: January 22, 2026*
+*Last Updated: January 23, 2026*
