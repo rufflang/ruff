@@ -420,6 +420,18 @@ impl TypeChecker {
 
             Expr::String(_) => Some(TypeAnnotation::String),
 
+            Expr::InterpolatedString(parts) => {
+                // Type check all embedded expressions
+                use crate::ast::InterpolatedStringPart;
+                for part in parts {
+                    if let InterpolatedStringPart::Expr(expr) = part {
+                        self.infer_expr(expr);
+                    }
+                }
+                // Interpolated strings always produce strings
+                Some(TypeAnnotation::String)
+            }
+
             Expr::Bool(_) => Some(TypeAnnotation::Bool),
 
             Expr::Identifier(name) => {

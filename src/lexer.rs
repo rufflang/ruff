@@ -16,11 +16,19 @@ pub enum TokenKind {
     Identifier(String),
     Number(f64),
     String(String),
+    InterpolatedString(Vec<InterpolatedPart>), // String with ${} expressions
     Bool(bool),
     Operator(String),
     Punctuation(char),
     Keyword(String),
     Eof,
+}
+
+/// Represents parts of an interpolated string
+#[derive(Debug, Clone, PartialEq)]
+pub enum InterpolatedPart {
+    Text(String),       // Regular text
+    Expression(String), // Expression inside ${}
 }
 
 #[derive(Debug, Clone)]
@@ -71,29 +79,95 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 }
             }
             '"' => {
-                chars.next(); // skip quote
-                let mut s = String::new();
+                chars.next(); // skip opening quote
+                let mut parts = Vec::new();
+                let mut current_text = String::new();
+                let mut has_interpolation = false;
+
                 while let Some(&ch) = chars.peek() {
-                    chars.next();
                     if ch == '"' {
+                        chars.next();
                         break;
                     }
+
                     if ch == '\\' {
+                        chars.next();
                         if let Some(&esc) = chars.peek() {
                             chars.next();
                             match esc {
-                                'n' => s.push('\n'),
-                                't' => s.push('\t'),
-                                '\\' => s.push('\\'),
-                                '"' => s.push('"'),
-                                _ => s.push(esc),
+                                'n' => current_text.push('\n'),
+                                't' => current_text.push('\t'),
+                                '\\' => current_text.push('\\'),
+                                '"' => current_text.push('"'),
+                                _ => current_text.push(esc),
                             }
                         }
+                    } else if ch == '$' {
+                        chars.next();
+                        if chars.peek() == Some(&'{') {
+                            // Found interpolation start
+                            has_interpolation = true;
+                            chars.next(); // skip {
+
+                            // Save current text as a part
+                            if !current_text.is_empty() {
+                                parts.push(InterpolatedPart::Text(current_text.clone()));
+                                current_text.clear();
+                            }
+
+                            // Collect expression until }
+                            let mut expr = String::new();
+                            let mut brace_depth = 1;
+                            while let Some(&ch) = chars.peek() {
+                                chars.next();
+                                if ch == '{' {
+                                    brace_depth += 1;
+                                    expr.push(ch);
+                                } else if ch == '}' {
+                                    brace_depth -= 1;
+                                    if brace_depth == 0 {
+                                        break;
+                                    }
+                                    expr.push(ch);
+                                } else {
+                                    expr.push(ch);
+                                }
+                            }
+
+                            parts.push(InterpolatedPart::Expression(expr));
+                        } else {
+                            // Just a $ without {, treat as normal text
+                            current_text.push('$');
+                        }
                     } else {
-                        s.push(ch);
+                        chars.next();
+                        current_text.push(ch);
                     }
                 }
-                tokens.push(Token { kind: TokenKind::String(s), line, column: col });
+
+                // Add remaining text
+                if !current_text.is_empty() {
+                    parts.push(InterpolatedPart::Text(current_text));
+                }
+
+                // Create appropriate token
+                if has_interpolation {
+                    tokens.push(Token {
+                        kind: TokenKind::InterpolatedString(parts),
+                        line,
+                        column: col,
+                    });
+                } else {
+                    // No interpolation, use regular string
+                    let text = if parts.is_empty() {
+                        String::new()
+                    } else if let InterpolatedPart::Text(s) = &parts[0] {
+                        s.clone()
+                    } else {
+                        String::new()
+                    };
+                    tokens.push(Token { kind: TokenKind::String(text), line, column: col });
+                }
                 col += 1;
             }
             '0'..='9' => {

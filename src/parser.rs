@@ -802,6 +802,16 @@ impl Parser {
         match self.peek() {
             TokenKind::Punctuation('[') => self.parse_array_literal(),
             TokenKind::Punctuation('{') => self.parse_dict_literal(),
+            TokenKind::InterpolatedString(_) => {
+                // Handle interpolated strings - extract parts first to avoid borrow issues
+                let parts = if let TokenKind::InterpolatedString(p) = self.peek() {
+                    p.clone()
+                } else {
+                    Vec::new()
+                };
+                self.advance(); // consume the token
+                self.parse_interpolated_string(parts)
+            }
             _ => {
                 // For other tokens, advance and match
                 match self.advance() {
@@ -873,6 +883,37 @@ impl Parser {
         }
 
         Some(Expr::DictLiteral(pairs))
+    }
+
+    fn parse_interpolated_string(
+        &mut self,
+        parts: Vec<crate::lexer::InterpolatedPart>,
+    ) -> Option<Expr> {
+        use crate::ast::InterpolatedStringPart;
+        use crate::lexer::InterpolatedPart as LexerPart;
+
+        let mut ast_parts = Vec::new();
+
+        for part in parts {
+            match part {
+                LexerPart::Text(text) => {
+                    ast_parts.push(InterpolatedStringPart::Text(text));
+                }
+                LexerPart::Expression(expr_str) => {
+                    // Parse the expression string
+                    let tokens = crate::lexer::tokenize(&expr_str);
+                    let mut parser = Parser::new(tokens);
+                    if let Some(expr) = parser.parse_expr() {
+                        ast_parts.push(InterpolatedStringPart::Expr(Box::new(expr)));
+                    } else {
+                        // Failed to parse expression, treat as empty string
+                        ast_parts.push(InterpolatedStringPart::Text(String::new()));
+                    }
+                }
+            }
+        }
+
+        Some(Expr::InterpolatedString(ast_parts))
     }
 
     /// Parse a type annotation (: type_name)
