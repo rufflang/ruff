@@ -8,22 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Operator Overloading (Partial)**: Infrastructure for custom operator behavior on structs
-  - Added operator method naming convention: `op_add`, `op_sub`, `op_mul`, `op_div`, `op_mod` for arithmetic operators
-  - Added comparison operator methods: `op_eq`, `op_ne`, `op_lt`, `op_gt`, `op_le`, `op_ge`
-  - Interpreter checks for operator methods on struct instances before using default behavior
-  - **Note**: Full functionality awaits resolution of struct method parameter handling
-  - Example (intended usage):
+- **Operator Overloading**: Full support for custom operator behavior on structs via `op_` methods
+  - **Arithmetic operators**: `op_add` (+), `op_sub` (-), `op_mul` (*), `op_div` (/), `op_mod` (%)
+  - **Comparison operators**: `op_eq` (==), `op_ne` (!=), `op_lt` (<), `op_gt` (>), `op_lte` (<=), `op_gte` (>=)
+  - Operator methods are called automatically when using operators on struct instances
+  - Methods receive the right-hand operand as a parameter and can return any type
+  - Example:
     ```ruff
     struct Vector {
         x: float,
         y: float,
+        
         func op_add(other) {
             return Vector { x: x + other.x, y: y + other.y };
         }
+        
+        func op_mul(scalar) {
+            return Vector { x: x * scalar, y: y * scalar };
+        }
     }
-    v3 := v1 + v2;  # Will call op_add when method parameters work
+    
+    v1 := Vector { x: 1.0, y: 2.0 };
+    v2 := Vector { x: 3.0, y: 4.0 };
+    v3 := v1 + v2;  # Calls v1.op_add(v2), result: Vector { x: 4.0, y: 6.0 }
+    v4 := v1 * 2.0;  # Calls v1.op_mul(2.0), result: Vector { x: 2.0, y: 4.0 }
     ```
+  - See `examples/operator_overloading.ruff` for complete examples with Vector and Money types
+
+### Fixed
+- **Parser**: Fixed parser not skipping semicolons in function/method bodies
+  - Previously, function bodies would stop parsing after the first statement when using semicolons
+  - This bug prevented multi-statement methods and functions from working correctly
+  - Now semicolons are properly skipped, allowing multiple statements in function bodies
+  
+- **Interpreter**: Fixed ExprStmt not routing Call expressions through eval_expr properly
+  - Method calls as statements (e.g., `obj.method();`) now work correctly
+  - Void methods (methods without return statements) now execute properly
+  - This fix was critical for operator overloading and general struct method usage
+
+- **Parser**: Fixed struct field values to support full expressions instead of just literals
+  - Struct instantiation now supports computed field values: `Vec2 { x: a + b, y: c * 2.0 }`
+  - Previously only literals and identifiers were allowed in struct field values
+  - This enables operator overloading methods to create and return new struct instances
+
+### Changed
+- **Operator Method Naming**: Using `op_` prefix instead of Python-style `__` dunder names
+  - More explicit and easier to read: `op_add` vs `__add__`
+  - Consistent with Ruff's naming conventions for special methods
+  - Clear indication that these are operator overload methods
 
 - **Enhanced Error Handling**: Comprehensive error handling improvements for better debugging and error management
   
