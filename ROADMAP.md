@@ -31,7 +31,60 @@ See [CHANGELOG.md](CHANGELOG.md#unreleased) for full details.
 
 ## 🌟 Medium Priority (v0.5.0)
 
-### 1. HTTP Server & Networking
+### 1. Unary Operator Overloading
+
+**Status**: Planned  
+**Estimated Effort**: Small (1-2 days)
+
+**Description**:  
+Extend operator overloading to support unary operators (prefix operators that work on a single operand).
+
+**Planned Syntax**:
+```ruff
+struct Vector {
+    x: float,
+    y: float,
+    
+    # Unary negation: -v
+    func op_neg(self) {
+        return Vector { x: -self.x, y: -self.y };
+    }
+}
+
+struct Flag {
+    enabled: bool,
+    
+    # Logical not: !flag
+    func op_not(self) {
+        return Flag { enabled: !self.enabled };
+    }
+}
+
+# Usage
+v1 := Vector { x: 3.0, y: 4.0 };
+v2 := -v1;  # Calls v1.op_neg(), result: Vector { x: -3.0, y: -4.0 }
+
+flag := Flag { enabled: true };
+negated := !flag;  # Calls flag.op_not(), result: Flag { enabled: false }
+```
+
+**Operators to Support**:
+- `op_neg` for unary minus (`-value`)
+- `op_not` for logical not (`!value`)
+
+**Benefits**:
+- Complete operator overloading support
+- Natural syntax for mathematical types (vectors, matrices, complex numbers)
+- Boolean flag types with custom negation logic
+
+**Implementation Notes**:
+- Constants and mapping function already defined in `ast.rs`
+- Need to add unary expression evaluation in interpreter
+- Parser already handles unary operators in expressions
+
+---
+
+### 2. HTTP Server & Networking
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -77,7 +130,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 4. REPL (Interactive Shell)
+### 3. REPL (Interactive Shell)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -91,7 +144,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 5. Concurrency & Async
+### 4. Concurrency & Async
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
