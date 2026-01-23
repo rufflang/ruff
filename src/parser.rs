@@ -734,7 +734,27 @@ impl Parser {
                 // Handle struct instantiation: Struct { field1: val1, field2: val2 }
                 TokenKind::Punctuation('{') if matches!(expr, Expr::Identifier(_)) => {
                     // Only treat as struct instantiation if we have an identifier followed by {
-                    // This distinguishes from block statements
+                    // AND there's actually struct field syntax inside (field: value)
+                    // Check if next token looks like a field (identifier followed by colon or closing brace)
+                    let next_token = self.tokens.get(self.pos + 1);
+                    let is_struct = match next_token.map(|t| &t.kind) {
+                        Some(TokenKind::Identifier(_)) => {
+                            // Check if there's a colon after the identifier
+                            self.tokens.get(self.pos + 2).map(|t| &t.kind) == Some(&TokenKind::Punctuation(':'))
+                        }
+                        Some(TokenKind::Punctuation('}')) => {
+                            // Empty braces {} - treat as empty struct
+                            true
+                        }
+                        _ => false
+                    };
+                    
+                    if !is_struct {
+                        // Not a struct instantiation, stop parsing here
+                        break;
+                    }
+                    
+                    // This is a struct instantiation
                     if let Expr::Identifier(name) = expr {
                         self.advance(); // {
                         let mut fields = Vec::new();

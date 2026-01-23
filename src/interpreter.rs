@@ -2293,4 +2293,214 @@ mod tests {
             panic!("Expected 'caught' variable to exist");
         }
     }
+
+    #[test]
+    fn test_bool_literals() {
+        // Test that true and false are proper boolean values
+        let code = r#"
+            t := true
+            f := false
+        "#;
+        
+        let interp = run_code(code);
+        
+        if let Some(Value::Bool(b)) = interp.env.get("t") {
+            assert!(b);
+        } else {
+            panic!("Expected t to be true");
+        }
+        
+        if let Some(Value::Bool(b)) = interp.env.get("f") {
+            assert!(!b);
+        } else {
+            panic!("Expected f to be false");
+        }
+    }
+
+    #[test]
+    fn test_bool_comparisons() {
+        // Test that comparison operators return booleans
+        let code = r#"
+            eq := 5 == 5
+            neq := 5 == 6
+            gt := 10 > 5
+            lt := 3 < 8
+            gte := 5 >= 5
+            lte := 4 <= 4
+            str_eq := "hello" == "hello"
+            str_neq := "hello" == "world"
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("eq"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("neq"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("gt"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("lt"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("gte"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("lte"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("str_eq"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("str_neq"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_bool_in_if_conditions() {
+        // Test that boolean values work directly in if conditions
+        let code = r#"
+            result1 := "not set"
+            result2 := "not set"
+            
+            if true {
+                result1 := "true branch"
+            }
+            
+            if false {
+                result2 := "false branch"
+            } else {
+                result2 := "else branch"
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("result1"), Some(Value::Str(s)) if s == "true branch"));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Str(s)) if s == "else branch"));
+    }
+
+    #[test]
+    fn test_bool_comparison_results_in_if() {
+        // Test that comparison results work in if statements
+        let code = r#"
+            result := "not set"
+            x := 10
+            
+            if x > 5 {
+                result := "x is greater than 5"
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x is greater than 5"));
+    }
+
+    #[test]
+    fn test_bool_equality() {
+        // Test boolean equality comparisons
+        let code = r#"
+            tt := true == true
+            ff := false == false
+            tf := true == false
+            ft := false == true
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("tt"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("ff"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("tf"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("ft"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_bool_print() {
+        // Test that booleans can be printed (basic syntax check)
+        let code = r#"
+            t := true
+            f := false
+            comp := 5 > 3
+            print(t)
+            print(f)
+            print(comp)
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Just verify the variables exist and are booleans
+        assert!(matches!(interp.env.get("t"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("f"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("comp"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_bool_in_variables() {
+        // Test storing and using boolean values in variables  
+        let code = r#"
+            is_active := true
+            result := "not set"
+            
+            if is_active {
+                result := "is active"
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Verify boolean variable works in if condition
+        assert!(matches!(interp.env.get("is_active"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(ref s)) if s == "is active"), 
+            "Expected result to be 'is active', got {:?}", interp.env.get("result"));
+    }
+
+    #[test]
+    fn test_bool_from_file_operations() {
+        // Test that file operations return proper booleans
+        use std::fs;
+        let test_file = "/tmp/ruff_bool_test.txt";
+        fs::write(test_file, "test").unwrap();
+        
+        let code = format!(r#"
+            exists := file_exists("{}")
+            not_exists := file_exists("/tmp/file_that_does_not_exist.txt")
+        "#, test_file);
+        
+        let interp = run_code(&code);
+        
+        assert!(matches!(interp.env.get("exists"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("not_exists"), Some(Value::Bool(false))));
+        
+        let _ = fs::remove_file(test_file);
+    }
+
+    #[test]
+    fn test_bool_struct_fields() {
+        // Test boolean fields in structs
+        let code = r#"
+            struct Status {
+                active: bool,
+                verified: bool
+            }
+            
+            status := Status { active: true, verified: false }
+        "#;
+        
+        let interp = run_code(code);
+        
+        if let Some(Value::Struct { fields, .. }) = interp.env.get("status") {
+            assert!(matches!(fields.get("active"), Some(Value::Bool(true))));
+            assert!(matches!(fields.get("verified"), Some(Value::Bool(false))));
+        } else {
+            panic!("Expected status struct");
+        }
+    }
+
+    #[test]
+    fn test_bool_array_elements() {
+        // Test boolean values in arrays
+        let code = r#"
+            flags := [true, false, true, 5 > 3]
+        "#;
+        
+        let interp = run_code(code);
+        
+        if let Some(Value::Array(arr)) = interp.env.get("flags") {
+            assert_eq!(arr.len(), 4);
+            assert!(matches!(arr.get(0), Some(Value::Bool(true))));
+            assert!(matches!(arr.get(1), Some(Value::Bool(false))));
+            assert!(matches!(arr.get(2), Some(Value::Bool(true))));
+            assert!(matches!(arr.get(3), Some(Value::Bool(true))));
+        } else {
+            panic!("Expected flags array");
+        }
+    }
 }
