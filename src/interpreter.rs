@@ -2364,10 +2364,14 @@ impl Interpreter {
                     (Value::Str(a), Value::Str(b)) => match op.as_str() {
                         "+" => Value::Str(a + &b),
                         "==" => Value::Bool(a == b),
+                        "!=" => Value::Bool(a != b),
                         _ => Value::Number(0.0),
                     },
                     (Value::Bool(a), Value::Bool(b)) => match op.as_str() {
                         "==" => Value::Bool(a == b),
+                        "!=" => Value::Bool(a != b),
+                        "&&" => Value::Bool(a && b),
+                        "||" => Value::Bool(a || b),
                         _ => Value::Number(0.0),
                     },
                     _ => Value::Number(0.0),

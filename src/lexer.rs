@@ -375,6 +375,46 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     column: col,
                 });
             }
+            '|' => {
+                chars.next();
+                col += 1;
+                if chars.peek() == Some(&'|') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("||".into()),
+                        line,
+                        column: col,
+                    });
+                } else {
+                    // Single | is not a valid operator in Ruff yet
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("|".into()),
+                        line,
+                        column: col,
+                    });
+                }
+            }
+            '&' => {
+                chars.next();
+                col += 1;
+                if chars.peek() == Some(&'&') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("&&".into()),
+                        line,
+                        column: col,
+                    });
+                } else {
+                    // Single & is not a valid operator in Ruff yet
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("&".into()),
+                        line,
+                        column: col,
+                    });
+                }
+            }
             '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' | '.' => {
                 tokens.push(Token { kind: TokenKind::Punctuation(c), line, column: col });
                 chars.next();
