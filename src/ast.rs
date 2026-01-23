@@ -56,6 +56,12 @@ pub enum Expr {
     String(String),
     InterpolatedString(Vec<InterpolatedStringPart>), // String with expressions
     Bool(bool),
+    Function {
+        params: Vec<String>,
+        param_types: Vec<Option<TypeAnnotation>>,
+        return_type: Option<TypeAnnotation>,
+        body: Vec<Stmt>,
+    },
     #[allow(dead_code)]
     BinaryOp {
         left: Box<Expr>,

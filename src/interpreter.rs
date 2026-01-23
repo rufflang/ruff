@@ -1568,6 +1568,10 @@ impl Interpreter {
                 Value::Str(result)
             }
             Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
+            Expr::Function { params, param_types: _, return_type: _, body } => {
+                // Anonymous function expression - return as a value
+                Value::Function(params.clone(), body.clone())
+            }
             Expr::BinaryOp { left, op, right } => {
                 let l = self.eval_expr(&left);
                 let r = self.eval_expr(&right);

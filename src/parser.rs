@@ -292,6 +292,68 @@ impl Parser {
         Some(Stmt::FuncDef { name, param_types, return_type, params, body })
     }
 
+    /// Parse a function expression (anonymous function)
+    fn parse_func_expr(&mut self) -> Option<Expr> {
+        self.advance(); // func
+        self.advance(); // (
+        let mut params = Vec::new();
+        let mut param_types = Vec::new();
+
+        while let TokenKind::Identifier(p) = self.peek() {
+            params.push(p.clone());
+            self.advance();
+
+            // Parse optional type annotation for parameter
+            let param_type = self.parse_type_annotation();
+            param_types.push(param_type);
+
+            if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.advance(); // )
+
+        // Parse optional return type annotation (-> type)
+        let return_type = if matches!(self.peek(), TokenKind::Operator(op) if op == "->") {
+            self.advance(); // ->
+            match self.peek() {
+                TokenKind::Keyword(k) if k == "int" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::Int)
+                }
+                TokenKind::Keyword(k) if k == "float" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::Float)
+                }
+                TokenKind::Keyword(k) if k == "string" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::String)
+                }
+                TokenKind::Keyword(k) if k == "bool" => {
+                    self.advance();
+                    Some(crate::ast::TypeAnnotation::Bool)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+
+        self.advance(); // {
+        let mut body = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                body.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        Some(Expr::Function { params, param_types, return_type, body })
+    }
+
     fn parse_match(&mut self) -> Option<Stmt> {
         self.advance(); // match
         let value = self.parse_expr()?;
@@ -802,6 +864,7 @@ impl Parser {
         match self.peek() {
             TokenKind::Punctuation('[') => self.parse_array_literal(),
             TokenKind::Punctuation('{') => self.parse_dict_literal(),
+            TokenKind::Keyword(k) if k == "func" => self.parse_func_expr(),
             TokenKind::Punctuation('(') => {
                 // Handle parenthesized expressions for grouping
                 self.advance(); // consume (
