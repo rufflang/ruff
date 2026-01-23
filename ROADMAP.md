@@ -2,8 +2,8 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.5.1 (HTTP headers support added)  
-> **Next Planned Release**: v0.6.0 (Closures, method chaining, and binary file support completed)
+> **Current Version**: v0.6.0 (HTTP Authentication & Streaming completed)  
+> **Next Planned Release**: v0.7.0 (Production database support and advanced features)
 
 ---
 
@@ -15,18 +15,18 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## v0.6.0 - Core Language Improvements
+## v0.6.0 - Core Language Improvements ✅ COMPLETED
 
-### Completed Features ✅
+All features for v0.6.0 have been completed! See [CHANGELOG.md](CHANGELOG.md) for full details:
 
-For detailed information about implemented features, see [CHANGELOG.md](CHANGELOG.md):
 - **Closures & Variable Capturing** (P1) - Completed 2026-01-23
 - **Method Chaining & Fluent APIs** (P1) - Completed 2026-01-23  
 - **Binary File Support & HTTP Downloads** (P1) - Completed 2026-01-23
+- **HTTP Authentication & Streaming** (P1) - Completed 2026-01-23
 
 ---
 
-### Remaining Features for v0.6.0
+## v0.7.0 - Advanced Features & Production Support
 
 ### 1. Advanced Collections (P2)
 
@@ -133,57 +133,7 @@ for path in images {
 
 ---
 
-### 3. HTTP Authentication & Streaming (P1)
-
-**Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
-
-**Description**:  
-Advanced HTTP features for API integrations - OAuth, JWT, and streaming responses.
-
-**Planned Features**:
-```ruff
-# OAuth 2.0 helper
-oauth := OAuth2Client({
-    "client_id": env("CLIENT_ID"),
-    "client_secret": env("CLIENT_SECRET"),
-    "auth_url": "https://provider.com/oauth/authorize",
-    "token_url": "https://provider.com/oauth/token"
-})
-
-access_token := oauth.get_token()
-response := http_get(url, {"Authorization": "Bearer " + access_token})
-
-# JWT encoding/decoding
-jwt_payload := {"user_id": 123, "exp": now() + 3600}
-token := jwt_encode(jwt_payload, secret_key)
-decoded := jwt_decode(token, secret_key)
-
-# HTTP streaming for large responses
-stream := http_get_stream("https://api.example.com/large-file")
-while stream.has_data() {
-    chunk := stream.read(8192)
-    process_chunk(chunk)
-}
-stream.close()
-
-# Server-Sent Events (SSE) for real-time updates
-server.route("GET", "/events", func(request) {
-    stream := sse_response()
-    stream.send({"event": "message", "data": "Hello"})
-    return stream
-})
-```
-
-**Use Cases**:
-- **AI APIs**: Authenticate with OpenAI, Anthropic, DeepSeek
-- **Streaming**: Handle large AI responses without memory issues
-- **Real-time**: Live updates for chat applications
-- **Security**: JWT tokens for stateless authentication
-
----
-
-### 4. Serialization Formats (P2)
+### 3. Serialization Formats (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -208,7 +158,7 @@ csv_str := to_csv(rows)
 
 ---
 
-### 5. Concurrency & Async/Await (P1) 🚀
+### 4. Concurrency & Async/Await (P1) 🚀
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)

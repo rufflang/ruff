@@ -2,7 +2,7 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.5.0 - Interactive REPL with multi-line support and command history! Full-featured interactive shell for experimentation and learning. Built with comprehensive features including structs, methods, collections, type checking, and modules.
+> **Status**: v0.6.0 - HTTP Authentication & Streaming! JWT tokens, OAuth2 flows, and efficient large file downloads. Built with comprehensive features including structs, methods, collections, type checking, modules, and closures.
 
 **Quick Links**: [Installation](#-installation) • [Getting Started](#-getting-started) • [REPL](#-interactive-repl-v050-) • [Examples](#-writing-ruff-scripts) • [Features](#-project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -10,7 +10,7 @@
 
 ## Project Status
 
-### Implemented Features (v0.5.0)
+### Implemented Features (v0.6.0)
 
 * **Interactive REPL** (v0.5.0)
   - Full-featured Read-Eval-Print Loop
@@ -163,6 +163,9 @@
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
   - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()`, `set_header()` (v0.5.1), `set_headers()` (v0.5.1) - HTTP client and server with full header control
+  - **HTTP Authentication** (v0.6.0): `jwt_encode()`, `jwt_decode()` - JWT token encoding/decoding for API authentication
+  - **OAuth2** (v0.6.0): `oauth2_auth_url()`, `oauth2_get_token()` - OAuth2 flow helpers for third-party authentication
+  - **HTTP Streaming** (v0.6.0): `http_get_stream()` - Memory-efficient downloads for large files
   - **Binary Files** (v0.6.0): `http_get_binary()`, `read_binary_file()`, `write_binary_file()`, `encode_base64()`, `decode_base64()` - Download and work with binary data (images, PDFs, archives)
   - **Database** (v0.5.1): `db_connect()`, `db_execute()`, `db_query()`, `db_close()` - SQLite database operations
   - **I/O**: `print()`, `input()`
