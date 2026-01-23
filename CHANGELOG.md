@@ -8,6 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Binary File Support & HTTP Downloads** (v0.6.0):
+  - **Binary File I/O Functions**:
+    - `read_binary_file(path)` - Read entire file as binary data (bytes)
+    - `write_binary_file(path, bytes)` - Write binary data to file
+    - Support for working with images, PDFs, archives, and other binary formats
+  - **Binary HTTP Downloads**:
+    - `http_get_binary(url)` - Download binary files via HTTP
+    - Perfect for fetching images, PDFs, media files from APIs
+  - **Base64 Encoding/Decoding**:
+    - `encode_base64(bytes_or_string)` - Encode binary data or strings to base64 string
+    - `decode_base64(base64_string)` - Decode base64 string to binary data
+    - Essential for API integrations that require base64-encoded data
+  - **New Value Type**:
+    - `Value::Bytes` - Native binary data type for efficient byte array handling
+    - `len()` function now supports binary data to get byte count
+  - **Use Cases**:
+    - Download AI-generated images from DALL-E, Stable Diffusion APIs
+    - Fetch and store PDFs, documents, archives
+    - Handle file uploads/downloads in web applications
+    - Embed binary data in JSON payloads via base64
+    - Process media files (images, audio, video)
+    - Create backup and data migration tools
+  - **Examples**:
+    ```ruff
+    # Download an image from a URL
+    image_data := http_get_binary("https://example.com/photo.jpg")
+    write_binary_file("photo.jpg", image_data)
+    
+    # Read binary file and convert to base64 for API
+    file_bytes := read_binary_file("document.pdf")
+    base64_str := encode_base64(file_bytes)
+    
+    # Decode base64 from API response
+    received_base64 := api_response["file_data"]
+    binary_data := decode_base64(received_base64)
+    write_binary_file("downloaded.bin", binary_data)
+    ```
+  - See `examples/binary_file_demo.ruff` for comprehensive demonstrations
+  - See `examples/http_download.ruff` for HTTP download patterns
+  - Full test coverage in `tests/test_binary_files.ruff`
+
 - **Method Chaining & Fluent APIs** (v0.6.0):
   - **Null Coalescing Operator (`??`)**: Returns left value if not null, otherwise returns right value
     ```ruff
