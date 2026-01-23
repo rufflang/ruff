@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+---
+
+## [0.3.0] - 2026-01-23
+
+### Added
 - **JSON Support**: Native JSON parsing and serialization functions
   - New built-in function `parse_json(json_string)` - parses JSON strings into Ruff values
   - New built-in function `to_json(value)` - converts Ruff values to JSON strings
@@ -399,3 +405,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dicts: keys, values, has_key, remove
 - Command-line interface with run and test commands
 - Comprehensive documentation and examples
+
+---
+
+[Unreleased]: https://github.com/rufflang/ruff/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rufflang/ruff/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/rufflang/ruff/releases/tag/v0.2.0

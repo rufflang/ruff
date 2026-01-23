@@ -2,8 +2,8 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.3.0-dev (January 2026)  
-> **Next Planned Release**: v0.3.0
+> **Current Version**: v0.3.0 (January 23, 2026)  
+> **Next Planned Release**: v0.4.0
 
 ---
 
