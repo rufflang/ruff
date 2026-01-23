@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Dynamic route path parameters**: HTTP server routes now support parameterized paths like `/:code`
+  - New `match_route_pattern()` function extracts path parameters from URLs
+  - Request object now includes a `params` dict with extracted path values
+  - Example: `server.route("GET", "/:code", func(request) { code := request.params["code"] })`
+  - Exact routes take priority over parameterized routes (e.g., `/health` matches before `/:code`)
+
 ### Fixed
 - **Critical: Logical AND (&&) and OR (||) operators not working**: The `&&` and `||` operators were completely broken - they always returned `false` regardless of operands.
   - **Lexer**: Added tokenization for `|` and `&` characters to produce `||` and `&&` tokens
@@ -15,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Also added `!=` operator support for Bool and String comparisons
   - This fixes URL validation in `url_shortener.ruff` which uses `starts_with(url, "http://") || starts_with(url, "https://")`
   - Example: `true || false` now correctly returns `true` (previously returned `false`)
+
+- **URL shortener /list endpoint**: Changed from `for code in keys(urls)` to `for code in urls`
+  - The `keys()` function inside closures causes hangs
+  - Direct dict iteration works correctly and iterates over keys
 
 - **Critical: Function cleanup hang bug**: Fixed stack overflow that occurred when functions containing loops were cleaned up during program shutdown. Functions can now safely contain loops, nested control structures, and complex logic without hanging.
   - Introduced `LeakyFunctionBody` wrapper type using `ManuallyDrop` to prevent deep recursion during Rust's automatic drop

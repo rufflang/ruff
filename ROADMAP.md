@@ -66,6 +66,46 @@ cargo run --quiet -- run examples/http_client.ruff
 
 ## 🐛 Recently Fixed Critical Bugs
 
+### Dynamic Route Path Parameters
+
+**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
+**Resolution Date**: January 23, 2026  
+**Fix**: Add support for parameterized routes like `/:code`
+
+**Original Issue**:  
+HTTP routes only supported exact path matching. URLs like `http://localhost:3000/abc123` couldn't be handled because there was no way to define dynamic path segments.
+
+**Solution**:  
+1. Added `match_route_pattern()` function to extract path parameters
+2. Routes with `:param` syntax now match and extract values
+3. Request object includes `params` dict with extracted values
+4. Exact routes take priority over parameterized routes
+
+**Impact**:  
+URL shortener can now redirect short URLs properly using `GET /:code` route.
+
+---
+
+### URL Shortener /list Endpoint Hanging
+
+**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
+**Resolution Date**: January 23, 2026  
+**Fix**: Use direct dict iteration instead of `keys()` function
+
+**Original Issue**:  
+The `/list` endpoint in url_shortener.ruff caused the server to hang during startup because `for code in keys(urls)` inside a route handler closure would hang.
+
+**Root Cause**:  
+The `keys()` function result, when used in a `for` loop, doesn't iterate properly. The error message "Cannot iterate over non-iterable type" appears but the closure definition hangs before reaching the server listen.
+
+**Workaround**:  
+Use `for code in urls` instead - direct dict iteration works correctly and iterates over keys.
+
+**Impact**:  
+URL shortener `/list` endpoint now works and returns all stored URLs with statistics.
+
+---
+
 ### Logical AND (&&) and OR (||) Operators Not Working
 
 **Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
