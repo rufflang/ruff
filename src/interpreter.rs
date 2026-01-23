@@ -45,7 +45,13 @@ pub enum Value {
     Function(Vec<String>, Vec<Stmt>),
     NativeFunction(String), // Name of the native function
     Return(Box<Value>),
-    Error(String),
+    Error(String), // Legacy simple error for backward compatibility
+    ErrorObject {
+        message: String,
+        stack: Vec<String>,
+        line: Option<usize>,
+        cause: Option<Box<Value>>, // For error chaining
+    },
     #[allow(dead_code)]
     Enum(String),
     Struct {
@@ -75,6 +81,14 @@ impl std::fmt::Debug for Value {
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
             Value::Return(v) => write!(f, "Return({:?})", v),
             Value::Error(e) => write!(f, "Error({})", e),
+            Value::ErrorObject { message, stack, line, cause } => {
+                f.debug_struct("ErrorObject")
+                    .field("message", message)
+                    .field("stack", stack)
+                    .field("line", line)
+                    .field("cause", &cause.as_ref().map(|_| "..."))
+                    .finish()
+            }
             Value::Enum(e) => write!(f, "Enum({})", e),
             Value::Struct { name, fields } => {
                 f.debug_struct("Struct").field("name", name).field("fields", fields).finish()
@@ -181,6 +195,7 @@ pub struct Interpreter {
     pub source_file: Option<String>,
     pub source_lines: Vec<String>,
     pub module_loader: ModuleLoader,
+    call_stack: Vec<String>, // Track function calls for stack traces
 }
 
 impl Interpreter {
@@ -194,6 +209,7 @@ impl Interpreter {
             source_file: None,
             source_lines: Vec::new(),
             module_loader: ModuleLoader::new(),
+            call_stack: Vec::new(),
         };
 
         // Register built-in functions and constants
@@ -340,6 +356,10 @@ impl Interpreter {
     fn call_user_function(&mut self, func: &Value, args: &[Value]) -> Value {
         match func {
             Value::Function(params, body) => {
+                // Push function name to call stack
+                let func_name = format!("<function with {} params>", params.len());
+                self.call_stack.push(func_name);
+                
                 // Create new scope for function call
                 self.env.push_scope();
 
@@ -360,6 +380,9 @@ impl Interpreter {
                 } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                     // Propagate error - don't clear
                     Value::Error(msg)
+                } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                    // Propagate error object - don't clear
+                    self.return_value.clone().unwrap()
                 } else {
                     // No explicit return - function returns 0
                     self.return_value = None;
@@ -368,6 +391,9 @@ impl Interpreter {
 
                 // Restore parent environment
                 self.env.pop_scope();
+                
+                // Pop from call stack
+                self.call_stack.pop();
 
                 result
             }
@@ -1694,12 +1720,52 @@ impl Interpreter {
 
                 self.eval_stmts(&try_block);
 
-                // Check if an error occurred
-                if let Some(Value::Error(msg)) = self.return_value.clone() {
+                // Check if an error occurred (support both old Error and new ErrorObject)
+                let error_occurred = matches!(
+                    self.return_value,
+                    Some(Value::Error(_)) | Some(Value::ErrorObject { .. })
+                );
+
+                if error_occurred {
+                    let error_value = self.return_value.clone().unwrap();
+                    
                     // Pop try scope and create new scope for except block
                     self.env.pop_scope();
                     self.env.push_scope();
-                    self.env.define(except_var.clone(), Value::Str(msg));
+                    
+                    // Create error object with properties accessible via field access
+                    match error_value {
+                        Value::Error(msg) => {
+                            // Legacy simple error - convert to struct-like object
+                            let mut fields = HashMap::new();
+                            fields.insert("message".to_string(), Value::Str(msg));
+                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                            fields.insert("line".to_string(), Value::Number(0.0));
+                            
+                            self.env.define(except_var.clone(), Value::Struct {
+                                name: "Error".to_string(),
+                                fields,
+                            });
+                        }
+                        Value::ErrorObject { message, stack, line, cause } => {
+                            // New error object with full info
+                            let mut fields = HashMap::new();
+                            fields.insert("message".to_string(), Value::Str(message));
+                            fields.insert("stack".to_string(), Value::Array(
+                                stack.iter().map(|s| Value::Str(s.clone())).collect()
+                            ));
+                            fields.insert("line".to_string(), Value::Number(line.unwrap_or(0) as f64));
+                            if let Some(cause_val) = cause {
+                                fields.insert("cause".to_string(), *cause_val);
+                            }
+                            
+                            self.env.define(except_var.clone(), Value::Struct {
+                                name: "Error".to_string(),
+                                fields,
+                            });
+                        }
+                        _ => unreachable!(),
+                    }
 
                     // Clear error and execute except block
                     self.return_value = None;
@@ -1726,9 +1792,46 @@ impl Interpreter {
                     // built-in throw
                     Expr::Tag(name, args) if name == "throw" => {
                         if let Some(arg) = args.get(0) {
-                            match self.eval_expr(arg) {
-                                Value::Str(s) => self.return_value = Some(Value::Error(s)),
-                                _ => self.return_value = Some(Value::Error("error".into())),
+                            let val = self.eval_expr(arg);
+                            match val {
+                                Value::Str(s) => {
+                                    // Simple string error - create ErrorObject
+                                    self.return_value = Some(Value::ErrorObject {
+                                        message: s,
+                                        stack: self.call_stack.clone(),
+                                        line: None,
+                                        cause: None,
+                                    });
+                                }
+                                Value::Struct { name, fields } => {
+                                    // Custom error struct - wrap it in ErrorObject
+                                    let message = if let Some(Value::Str(msg)) = fields.get("message") {
+                                        msg.clone()
+                                    } else {
+                                        format!("{} error", name)
+                                    };
+                                    
+                                    let cause = fields.get("cause").cloned();
+                                    
+                                    self.return_value = Some(Value::ErrorObject {
+                                        message,
+                                        stack: self.call_stack.clone(),
+                                        line: None,
+                                        cause: cause.map(Box::new),
+                                    });
+                                }
+                                Value::ErrorObject { .. } => {
+                                    // Already an error object, propagate it
+                                    self.return_value = Some(val);
+                                }
+                                _ => {
+                                    self.return_value = Some(Value::ErrorObject {
+                                        message: "error".to_string(),
+                                        stack: self.call_stack.clone(),
+                                        line: None,
+                                        cause: None,
+                                    });
+                                }
                             }
                         }
                     }
@@ -1913,6 +2016,9 @@ impl Interpreter {
                         self.call_native_function(&name, args)
                     }
                     Value::Function(params, body) => {
+                        // Push to call stack
+                        self.call_stack.push("<anonymous function>".to_string());
+                        
                         // Create new scope for function call
                         // Push new scope
                         self.env.push_scope();
@@ -1932,6 +2038,9 @@ impl Interpreter {
                         } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                             // Propagate error - don't clear
                             Value::Error(msg)
+                        } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                            // Propagate error object - don't clear
+                            self.return_value.clone().unwrap()
                         } else {
                             // No explicit return - function returns 0
                             // Clear any lingering return_value that isn't Return or Error
@@ -1941,6 +2050,9 @@ impl Interpreter {
 
                         // Restore parent environment
                         self.env.pop_scope();
+                        
+                        // Pop from call stack
+                        self.call_stack.pop();
 
                         result
                     }
@@ -1956,6 +2068,9 @@ impl Interpreter {
                             return self.call_native_function(name, args);
                         }
                         Value::Function(params, body) => {
+                            // Push function name to call stack
+                            self.call_stack.push(name.clone());
+                            
                             // Call user function
                             self.env.push_scope();
 
@@ -1974,12 +2089,17 @@ impl Interpreter {
                                 *val
                             } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                                 Value::Error(msg)
+                            } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                                self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
                                 Value::Number(0.0)
                             };
 
                             self.env.pop_scope();
+                            
+                            // Pop from call stack
+                            self.call_stack.pop();
 
                             return result;
                         }
@@ -2090,6 +2210,7 @@ impl Interpreter {
             }
             Value::Return(inner) => Interpreter::stringify_value(inner),
             Value::Error(msg) => format!("Error: {}", msg),
+            Value::ErrorObject { message, .. } => format!("Error: {}", message),
             Value::NativeFunction(name) => format!("<native function: {}>", name),
             _ => "<unknown>".into(),
         }
@@ -2646,7 +2767,7 @@ mod tests {
             try {
                 result := parse_int("not a number")
             } except err {
-                caught := err
+                caught := err.message
             }
         "#;
 
@@ -2706,7 +2827,7 @@ mod tests {
             try {
                 result := parse_float("invalid")
             } except err {
-                caught := err
+                caught := err.message
             }
         "#;
 
@@ -2950,7 +3071,7 @@ mod tests {
             try {
                 content := read_file("/tmp/file_that_definitely_does_not_exist_ruff.txt")
             } except err {
-                caught := err
+                caught := err.message
             }
         "#;
 
@@ -3869,5 +3990,186 @@ mod tests {
         let interp = run_code(code);
 
         assert!(matches!(interp.env.get("result"), Some(Value::Number(n)) if n == 1.0));
+    }
+
+    #[test]
+    fn test_error_properties_message() {
+        let code = r#"
+            result := ""
+            try {
+                throw("Test error message")
+            } except err {
+                result := err.message
+            }
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Test error message"));
+    }
+
+    #[test]
+    fn test_error_properties_stack() {
+        let code = r#"
+            stack_len := 0
+            try {
+                throw("Error")
+            } except err {
+                stack_len := len(err.stack)
+            }
+        "#;
+
+        let interp = run_code(code);
+        // Stack should be an array (even if empty)
+        assert!(matches!(interp.env.get("stack_len"), Some(Value::Number(n)) if n >= 0.0));
+    }
+
+    #[test]
+    fn test_error_properties_line() {
+        let code = r#"
+            result := 0
+            try {
+                throw("Error")
+            } except err {
+                result := err.line
+            }
+        "#;
+
+        let interp = run_code(code);
+        // Line number should be accessible (0 if not set)
+        assert!(matches!(interp.env.get("result"), Some(Value::Number(n)) if n >= 0.0));
+    }
+
+    #[test]
+    fn test_custom_error_struct() {
+        let code = r#"
+            struct ValidationError {
+                field: string,
+                message: string
+            }
+            
+            caught_error := ""
+            try {
+                error := ValidationError {
+                    field: "email",
+                    message: "Email is required"
+                }
+                throw(error)
+            } except err {
+                caught_error := err.message
+            }
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(
+            interp.env.get("caught_error"),
+            Some(Value::Str(s)) if s.contains("ValidationError") || s.contains("Email")
+        ));
+    }
+
+    #[test]
+    fn test_error_chaining() {
+        let code = r#"
+            struct DatabaseError {
+                message: string,
+                cause: string
+            }
+            
+            caught := ""
+            try {
+                error := DatabaseError {
+                    message: "Failed to connect",
+                    cause: "Connection timeout"
+                }
+                throw(error)
+            } except err {
+                caught := err.message
+            }
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(
+            interp.env.get("caught"),
+            Some(Value::Str(s)) if s.contains("Failed") || s.contains("DatabaseError")
+        ));
+    }
+
+    #[test]
+    fn test_error_in_function_with_stack_trace() {
+        let code = r#"
+            func inner() {
+                throw("Inner error")
+            }
+            
+            func outer() {
+                inner()
+            }
+            
+            result := ""
+            try {
+                outer()
+            } except err {
+                result := err.message
+            }
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Inner error"));
+    }
+
+    #[test]
+    fn test_nested_try_except() {
+        let code = r#"
+            result := ""
+            try {
+                try {
+                    throw("Inner error")
+                } except inner_err {
+                    result := "caught inner: " + inner_err.message
+                }
+            } except outer_err {
+                result := "caught outer"
+            }
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(
+            interp.env.get("result"),
+            Some(Value::Str(s)) if s.contains("caught inner") && s.contains("Inner error")
+        ));
+    }
+
+    #[test]
+    fn test_error_without_catch_propagates() {
+        let code = r#"
+            func risky() {
+                throw("Unhandled error")
+            }
+            
+            risky()
+        "#;
+
+        let interp = run_code(code);
+        // Error should be stored in return_value
+        assert!(matches!(
+            interp.return_value,
+            Some(Value::Error(_)) | Some(Value::ErrorObject { .. })
+        ));
+    }
+
+    #[test]
+    fn test_error_recovery_continues_execution() {
+        let code = r#"
+            x := 0
+            try {
+                throw("Error occurred")
+            } except err {
+                x := 1
+            }
+            x := x + 1
+        "#;
+
+        let interp = run_code(code);
+        // After catching error, execution should continue
+        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 2.0));
     }
 }
