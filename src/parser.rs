@@ -237,9 +237,19 @@ impl Parser {
         let mut params = Vec::new();
         let mut param_types = Vec::new();
 
-        while let TokenKind::Identifier(p) = self.peek() {
-            params.push(p.clone());
-            self.advance();
+        // Parse parameters - handle both identifiers and 'self' keyword
+        loop {
+            match self.peek() {
+                TokenKind::Identifier(p) => {
+                    params.push(p.clone());
+                    self.advance();
+                }
+                TokenKind::Keyword(k) if k == "self" => {
+                    params.push("self".to_string());
+                    self.advance();
+                }
+                _ => break, // No more parameters
+            }
 
             // Parse optional type annotation for parameter
             let param_type = self.parse_type_annotation();
@@ -870,6 +880,11 @@ impl Parser {
             TokenKind::Punctuation('[') => self.parse_array_literal(),
             TokenKind::Punctuation('{') => self.parse_dict_literal(),
             TokenKind::Keyword(k) if k == "func" => self.parse_func_expr(),
+            TokenKind::Keyword(k) if k == "self" => {
+                // Treat 'self' as an identifier in expression context
+                self.advance();
+                Some(Expr::Identifier("self".to_string()))
+            }
             TokenKind::Punctuation('(') => {
                 // Handle parenthesized expressions for grouping
                 self.advance(); // consume (

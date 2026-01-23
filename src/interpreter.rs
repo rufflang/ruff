@@ -418,14 +418,27 @@ impl Interpreter {
                     // Create new scope for operator method call
                     self.env.push_scope();
 
-                    // Bind struct fields into method environment
-                    for (field_name, field_value) in fields {
-                        self.env.define(field_name.clone(), field_value.clone());
-                    }
+                    // Check if method has 'self' as first parameter
+                    let has_self_param = params.first().map(|p| p == "self").unwrap_or(false);
+                    
+                    if has_self_param {
+                        // Bind self to the struct instance
+                        self.env.define("self".to_string(), struct_val.clone());
+                        
+                        // Bind the other operand as the second parameter (after self)
+                        if let Some(param_name) = params.get(1) {
+                            self.env.define(param_name.clone(), other.clone());
+                        }
+                    } else {
+                        // Backward compatibility: bind fields directly into scope
+                        for (field_name, field_value) in fields {
+                            self.env.define(field_name.clone(), field_value.clone());
+                        }
 
-                    // Bind the other operand as the first parameter
-                    if let Some(param_name) = params.get(0) {
-                        self.env.define(param_name.clone(), other.clone());
+                        // Bind the other operand as the first parameter
+                        if let Some(param_name) = params.get(0) {
+                            self.env.define(param_name.clone(), other.clone());
+                        }
                     }
 
                     // Execute method body
@@ -2004,16 +2017,32 @@ impl Interpreter {
                                 // Push new scope
                                 self.env.push_scope();
 
-                                // Bind struct fields into method environment
-                                for (field_name, field_value) in fields {
-                                    self.env.define(field_name.clone(), field_value.clone());
-                                }
-
-                                // Bind method parameters
-                                for (i, param) in params.iter().enumerate() {
-                                    if let Some(arg) = args.get(i) {
-                                        let val = self.eval_expr(arg);
-                                        self.env.define(param.clone(), val);
+                                // Check if method has 'self' as first parameter
+                                let has_self_param = params.first().map(|p| p == "self").unwrap_or(false);
+                                
+                                if has_self_param {
+                                    // Bind self to the struct instance
+                                    self.env.define("self".to_string(), obj_val.clone());
+                                    
+                                    // Bind remaining method parameters (skip first 'self' param)
+                                    for (i, param) in params.iter().skip(1).enumerate() {
+                                        if let Some(arg) = args.get(i) {
+                                            let val = self.eval_expr(arg);
+                                            self.env.define(param.clone(), val);
+                                        }
+                                    }
+                                } else {
+                                    // Backward compatibility: bind fields directly into scope
+                                    for (field_name, field_value) in fields {
+                                        self.env.define(field_name.clone(), field_value.clone());
+                                    }
+                                    
+                                    // Bind method parameters
+                                    for (i, param) in params.iter().enumerate() {
+                                        if let Some(arg) = args.get(i) {
+                                            let val = self.eval_expr(arg);
+                                            self.env.define(param.clone(), val);
+                                        }
                                     }
                                 }
 
