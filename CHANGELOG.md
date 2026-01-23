@@ -8,6 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Unary Operator Overloading**: Structs can now overload unary operators for custom behavior
+  - **`op_neg`** for unary minus (`-value`) - enables vector negation, complex number negation, etc.
+  - **`op_not`** for logical not (`!value`) - enables custom boolean logic, flag toggling, etc.
+  - Works with nested unary operators: `--value`, `!!flag`, etc.
+  - Combines seamlessly with binary operators: `-a + b`, `!flag && condition`, etc.
+  - Falls back to default behavior for built-in types (Number, Bool)
+  - Example:
+    ```ruff
+    struct Vector {
+        x: float,
+        y: float,
+        
+        fn op_neg(self) {
+            return Vector { x: -self.x, y: -self.y };
+        }
+    }
+    
+    let v = Vector { x: 3.0, y: 4.0 };
+    let neg_v = -v;  // Returns Vector { x: -3.0, y: -4.0 }
+    ```
+  - Boolean toggle example:
+    ```ruff
+    struct Flag {
+        value: bool,
+        
+        fn op_not(self) {
+            return Flag { value: !self.value };
+        }
+    }
+    
+    let f = Flag { value: true };
+    let toggled = !f;  // Returns Flag { value: false }
+    ```
+
 - **Explicit `self` Parameter for Struct Methods**: Methods can now use explicit `self` parameter for clearer code and method composition
   - Add `self` as the first parameter to access the struct instance within methods
   - Enables calling other methods: `self.method_name()` works within method bodies
