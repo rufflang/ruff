@@ -225,7 +225,57 @@ for path in images {
 
 ---
 
-### 6. Serialization Formats (P2)
+### 6. HTTP Authentication & Streaming (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (1-2 weeks)
+
+**Description**:  
+Advanced HTTP features for API integrations - OAuth, JWT, and streaming responses.
+
+**Planned Features**:
+```ruff
+# OAuth 2.0 helper
+oauth := OAuth2Client({
+    "client_id": env("CLIENT_ID"),
+    "client_secret": env("CLIENT_SECRET"),
+    "auth_url": "https://provider.com/oauth/authorize",
+    "token_url": "https://provider.com/oauth/token"
+})
+
+access_token := oauth.get_token()
+response := http_get(url, {"Authorization": "Bearer " + access_token})
+
+# JWT encoding/decoding
+jwt_payload := {"user_id": 123, "exp": now() + 3600}
+token := jwt_encode(jwt_payload, secret_key)
+decoded := jwt_decode(token, secret_key)
+
+# HTTP streaming for large responses
+stream := http_get_stream("https://api.example.com/large-file")
+while stream.has_data() {
+    chunk := stream.read(8192)
+    process_chunk(chunk)
+}
+stream.close()
+
+# Server-Sent Events (SSE) for real-time updates
+server.route("GET", "/events", func(request) {
+    stream := sse_response()
+    stream.send({"event": "message", "data": "Hello"})
+    return stream
+})
+```
+
+**Use Cases**:
+- **AI APIs**: Authenticate with OpenAI, Anthropic, DeepSeek
+- **Streaming**: Handle large AI responses without memory issues
+- **Real-time**: Live updates for chat applications
+- **Security**: JWT tokens for stateless authentication
+
+---
+
+### 7. Serialization Formats (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -250,13 +300,15 @@ csv_str := to_csv(rows)
 
 ---
 
-### 7. Concurrency & Async/Await (P1)
+### 8. Concurrency & Async/Await (P1) 🚀
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
 
 **Description**:  
 Lightweight concurrency for parallel API calls, background tasks, and non-blocking I/O operations.
+
+**⚠️ CRITICAL FOR AI TOOLS**: This feature is essential for production-ready AI applications. Without it, multi-model comparisons are 3x slower and batch generation is impractical.
 
 **Planned Features**:
 ```ruff
@@ -312,11 +364,18 @@ try {
 **Why P1 for v0.6.0**:
 This is CRITICAL for AI tool development - without it, multi-model comparison takes 3x longer, batch generation is slow, and the tools are not production-ready.
 
+**Implementation Priority**:
+1. Basic async/await syntax
+2. Parallel HTTP requests (for AI APIs)
+3. Background tasks (spawn)
+4. Channels (for thread communication)
+5. Timeout handling
+
 ---
 
 ## v0.7.0 - Production Database Support
 
-### 8. PostgreSQL & MySQL (P1)
+### 9. PostgreSQL & MySQL (P1)
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
@@ -381,7 +440,7 @@ try {
 
 ## v0.8.0 - Developer Experience
 
-### 9. LSP (Language Server Protocol) (P1)
+### 10. LSP (Language Server Protocol) (P1)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -397,7 +456,7 @@ try {
 
 ---
 
-### 10. Testing Enhancements (P2)
+### 11. Testing Enhancements (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -436,7 +495,7 @@ ruff test --coverage
 
 ---
 
-### 11. Package Manager (P2)
+### 12. Package Manager (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -452,7 +511,7 @@ ruff test --coverage
 
 ## v0.9.0+ - Advanced Features
 
-### 12. Advanced Type System (P2)
+### 13. Advanced Type System (P2)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -465,7 +524,7 @@ ruff test --coverage
 
 ---
 
-### 13. Macros & Metaprogramming (P3)
+### 14. Macros & Metaprogramming (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -487,7 +546,7 @@ debug_print!(x + 10)  # Output: "x + 10 = 52"
 
 ---
 
-### 14. Foreign Function Interface (FFI) (P3)
+### 15. Foreign Function Interface (FFI) (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -509,7 +568,7 @@ result := cos(3.14)
 
 ---
 
-### 15. Memory Management (P3)
+### 16. Memory Management (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -526,7 +585,7 @@ Automatic memory management with garbage collection or reference counting.
 
 ---
 
-### 16. Graphics & GUI (P3)
+### 17. Graphics & GUI (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -563,7 +622,7 @@ canvas.save("output.png")
 
 ---
 
-### 17. Compilation Targets (P3)
+### 18. Compilation Targets (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
