@@ -63,6 +63,27 @@
   - Built-in methods: `push()`, `pop()`, `slice()`, `concat()`, `keys()`, `values()`, `has_key()`, `remove()`
   - `len()` function for strings, arrays, and dicts
 
+* **Array Higher-Order Functions** (v0.3.0) ✨
+  - Functional programming operations for data transformation
+  - `map(array, func)`: Transform each element
+    ```ruff
+    squared := map([1, 2, 3], func(x) { return x * x })  # [1, 4, 9]
+    ```
+  - `filter(array, func)`: Select elements matching condition
+    ```ruff
+    evens := filter([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # [2, 4]
+    ```
+  - `reduce(array, initial, func)`: Accumulate into single value
+    ```ruff
+    sum := reduce([1, 2, 3, 4], 0, func(acc, x) { return acc + x })  # 10
+    ```
+  - `find(array, func)`: Get first matching element
+    ```ruff
+    found := find([10, 20, 30], func(x) { return x > 15 })  # 20
+    ```
+  - Chainable for complex data processing
+  - Anonymous function expressions: `func(x) { return x * 2 }`
+
 * **Structs & Methods** (v0.2.0)
   - Struct definitions with typed fields
   - Struct instantiation: `Point { x: 3.0, y: 4.0 }`
@@ -87,6 +108,7 @@
   - **Math**: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, constants `PI` and `E`
   - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`, `starts_with()`, `ends_with()`, `index_of()`, `repeat()`, `split()`, `join()`
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
+  - **Array Higher-Order**: `map()`, `filter()`, `reduce()`, `find()` (v0.3.0)
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
