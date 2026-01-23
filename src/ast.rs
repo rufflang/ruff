@@ -9,6 +9,56 @@
 
 use crate::errors::SourceLocation;
 
+/// Special method names for operator overloading
+/// These methods can be defined on structs to customize operator behavior
+pub mod operator_methods {
+    // Arithmetic operators
+    pub const ADD: &str = "__add__";
+    pub const SUB: &str = "__sub__";
+    pub const MUL: &str = "__mul__";
+    pub const DIV: &str = "__div__";
+    pub const MOD: &str = "__mod__";
+    
+    // Comparison operators
+    pub const EQ: &str = "__eq__";
+    pub const NE: &str = "__ne__";
+    pub const LT: &str = "__lt__";
+    pub const GT: &str = "__gt__";
+    pub const LE: &str = "__le__";
+    pub const GE: &str = "__ge__";
+    
+    // Unary operators
+    pub const NEG: &str = "__neg__";
+    pub const NOT: &str = "__not__";
+    
+    /// Maps binary operators to their corresponding method names
+    pub fn binary_op_method(op: &str) -> Option<&'static str> {
+        match op {
+            "+" => Some(ADD),
+            "-" => Some(SUB),
+            "*" => Some(MUL),
+            "/" => Some(DIV),
+            "%" => Some(MOD),
+            "==" => Some(EQ),
+            "!=" => Some(NE),
+            "<" => Some(LT),
+            ">" => Some(GT),
+            "<=" => Some(LE),
+            ">=" => Some(GE),
+            _ => None,
+        }
+    }
+    
+    /// Maps unary operators to their corresponding method names
+    pub fn unary_op_method(op: &str) -> Option<&'static str> {
+        match op {
+            "-" => Some(NEG),
+            "!" => Some(NOT),
+            _ => None,
+        }
+    }
+}
+
 /// Represents parts of an interpolated string in the AST
 #[derive(Debug, Clone)]
 pub enum InterpolatedStringPart {
