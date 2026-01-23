@@ -104,6 +104,34 @@ pub fn replace(s: &str, old: &str, new: &str) -> String {
     s.replace(old, new)
 }
 
+pub fn starts_with(s: &str, prefix: &str) -> bool {
+    s.starts_with(prefix)
+}
+
+pub fn ends_with(s: &str, suffix: &str) -> bool {
+    s.ends_with(suffix)
+}
+
+pub fn index_of(s: &str, substr: &str) -> f64 {
+    match s.find(substr) {
+        Some(idx) => idx as f64,
+        None => -1.0,
+    }
+}
+
+pub fn repeat(s: &str, count: f64) -> String {
+    let count = count as usize;
+    s.repeat(count)
+}
+
+pub fn split(s: &str, delimiter: &str) -> Vec<String> {
+    s.split(delimiter).map(|s| s.to_string()).collect()
+}
+
+pub fn join(arr: &[String], separator: &str) -> String {
+    arr.join(separator)
+}
+
 /// Array functions
 
 #[cfg(test)]
@@ -131,5 +159,16 @@ mod tests {
         assert!(contains("hello world", "world"));
         assert!(!contains("hello", "xyz"));
         assert_eq!(replace("hello world", "world", "rust"), "hello rust");
+        
+        // New string functions
+        assert!(starts_with("hello world", "hello"));
+        assert!(!starts_with("hello world", "world"));
+        assert!(ends_with("test.ruff", ".ruff"));
+        assert!(!ends_with("test.ruff", ".py"));
+        assert_eq!(index_of("hello", "ll"), 2.0);
+        assert_eq!(index_of("hello", "xyz"), -1.0);
+        assert_eq!(repeat("ha", 3.0), "hahaha");
+        assert_eq!(split("a,b,c", ","), vec!["a", "b", "c"]);
+        assert_eq!(join(&vec!["a".to_string(), "b".to_string(), "c".to_string()], ","), "a,b,c");
     }
 }

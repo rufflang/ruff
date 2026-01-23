@@ -232,6 +232,10 @@ impl Interpreter {
             .define("replace_str".to_string(), Value::NativeFunction("replace_str".to_string()));
         self.env.define("split".to_string(), Value::NativeFunction("split".to_string()));
         self.env.define("join".to_string(), Value::NativeFunction("join".to_string()));
+        self.env.define("starts_with".to_string(), Value::NativeFunction("starts_with".to_string()));
+        self.env.define("ends_with".to_string(), Value::NativeFunction("ends_with".to_string()));
+        self.env.define("index_of".to_string(), Value::NativeFunction("index_of".to_string()));
+        self.env.define("repeat".to_string(), Value::NativeFunction("repeat".to_string()));
 
         // Array functions
         self.env.define("push".to_string(), Value::NativeFunction("push".to_string()));
@@ -394,6 +398,84 @@ impl Interpreter {
                     (arg_values.get(0), arg_values.get(1), arg_values.get(2))
                 {
                     Value::Str(builtins::replace(s, old, new))
+                } else {
+                    Value::Str(String::new())
+                }
+            }
+
+            // String function: starts_with(str, prefix) - returns bool
+            "starts_with" => {
+                if let (Some(Value::Str(s)), Some(Value::Str(prefix))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Bool(builtins::starts_with(s, prefix))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            // String function: ends_with(str, suffix) - returns bool
+            "ends_with" => {
+                if let (Some(Value::Str(s)), Some(Value::Str(suffix))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Bool(builtins::ends_with(s, suffix))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            // String function: index_of(str, substr) - returns number (index or -1)
+            "index_of" => {
+                if let (Some(Value::Str(s)), Some(Value::Str(substr))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Number(builtins::index_of(s, substr))
+                } else {
+                    Value::Number(-1.0)
+                }
+            }
+
+            // String function: repeat(str, count) - returns string
+            "repeat" => {
+                if let (Some(Value::Str(s)), Some(Value::Number(count))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Str(builtins::repeat(s, *count))
+                } else {
+                    Value::Str(String::new())
+                }
+            }
+
+            // String function: split(str, delimiter) - returns array of strings
+            "split" => {
+                if let (Some(Value::Str(s)), Some(Value::Str(delimiter))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let parts = builtins::split(s, delimiter);
+                    let values: Vec<Value> = parts.into_iter().map(Value::Str).collect();
+                    Value::Array(values)
+                } else {
+                    Value::Array(vec![])
+                }
+            }
+
+            // String function: join(array, separator) - returns string
+            "join" => {
+                if let (Some(Value::Array(arr)), Some(Value::Str(separator))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    // Convert array elements to strings
+                    let strings: Vec<String> = arr
+                        .iter()
+                        .map(|v| match v {
+                            Value::Str(s) => s.clone(),
+                            Value::Number(n) => n.to_string(),
+                            Value::Bool(b) => b.to_string(),
+                            _ => format!("{:?}", v),
+                        })
+                        .collect();
+                    Value::Str(builtins::join(&strings, separator))
                 } else {
                     Value::Str(String::new())
                 }
