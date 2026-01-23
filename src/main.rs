@@ -11,6 +11,7 @@ mod interpreter;
 mod lexer;
 mod module;
 mod parser;
+mod repl;
 mod type_checker;
 
 use clap::{Parser as ClapParser, Subcommand};
@@ -76,8 +77,18 @@ fn main() {
         }
 
         Commands::Repl => {
-            println!("Ruff REPL v0.1.0 (coming soon)\nType 'exit' to quit.");
-            // Optional: REPL can be added here
+            match repl::Repl::new() {
+                Ok(mut repl) => {
+                    if let Err(e) = repl.run() {
+                        eprintln!("REPL error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to start REPL: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
 
         Commands::Test { update } => {
