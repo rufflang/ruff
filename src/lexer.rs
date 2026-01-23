@@ -133,7 +133,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 let kind = match ident.as_str() {
                     "let" | "mut" | "const" | "func" | "return" | "enum" |
                     "match" | "case" | "default" | "if" | "else" | "loop" |
-                    "while" | "for" | "in" | "try" | "except" |
+                    "while" | "for" | "in" | "break" | "continue" | "try" | "except" |
                     "int" | "float" | "string" | "bool" |
                     "import" | "export" | "from" | "struct" | "impl" | "self" => {
                         TokenKind::Keyword(ident)
