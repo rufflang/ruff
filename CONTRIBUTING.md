@@ -6,7 +6,7 @@ We welcome contributions from everyone: beginners, experienced Rust developers, 
 
 ---
 
-## 📚 Before You Start
+## Before You Start
 
 1. Read the [README](README.md) for language overview and features
 2. Check the [ROADMAP](ROADMAP.md) for planned features and priorities
@@ -15,42 +15,42 @@ We welcome contributions from everyone: beginners, experienced Rust developers, 
 
 ---
 
-## ✨ Ways to Contribute
+## Ways to Contribute
 
-### 🐛 Bug Fixes
+### Bug Fixes
 - Fix parsing errors or interpreter crashes
 - Improve error messages
 - Resolve edge cases in pattern matching or error handling
 
-### 🚀 Language Features
+### Language Features
 - Implement features from [ROADMAP](ROADMAP.md)
 - Enhance existing features (loops, functions, enums)
 - Add new operators or control flow constructs
 
-### 📝 Documentation
+### Documentation
 - Improve code comments and documentation
 - Write tutorials or guides
 - Create example `.ruff` programs demonstrating language features
 
-### 🧪 Testing
+### Testing
 - Add test cases for edge cases
 - Improve test coverage
 - Create integration tests
 
-### 🛠️ Tooling
+### Tooling
 - Enhance CLI functionality
 - Build REPL features
 - Improve error reporting
 - Add language server features (future)
 
-### 🎨 Examples & Demos
+### Examples & Demos
 - Create example programs showcasing Ruff features
 - Write practical demos (file I/O, data processing, etc.)
 - Document best practices
 
 ---
 
-## 💻 Development Setup
+## Development Setup
 
 ### 1. Fork and Clone
 
@@ -101,7 +101,7 @@ cargo build --release
 
 ---
 
-## 🧪 Testing Guidelines
+## Testing Guidelines
 
 ### Running Tests
 
@@ -140,7 +140,7 @@ Use descriptive names that indicate what's being tested:
 
 ---
 
-## 📋 Code Style Guidelines
+## Code Style Guidelines
 
 ### Rust Code Style
 
@@ -223,7 +223,7 @@ self.report_error(error);
 
 ---
 
-## 🔀 Git Workflow
+## Git Workflow
 
 ### Branch Naming
 
@@ -268,7 +268,7 @@ git commit -m "WIP"
 
 ---
 
-## 🎯 Feature Development Checklist
+## Feature Development Checklist
 
 When adding a new feature:
 
@@ -285,7 +285,7 @@ When adding a new feature:
 
 ---
 
-## 🐛 Bug Report Guidelines
+## Bug Report Guidelines
 
 When filing a bug report, include:
 
@@ -302,7 +302,7 @@ When filing a bug report, include:
 
 ---
 
-## 💡 Feature Request Guidelines
+## Feature Request Guidelines
 
 When proposing a new feature:
 
@@ -317,7 +317,7 @@ When proposing a new feature:
 
 ---
 
-## 🚦 Development Priorities
+## Development Priorities
 
 Current focus areas (in order):
 
@@ -331,7 +331,7 @@ See [ROADMAP](ROADMAP.md) for detailed feature list and implementation order.
 
 ---
 
-## ❓ Questions or Need Help?
+## Questions or Need Help?
 
 - **GitHub Issues**: [Open an issue](https://github.com/rufflang/ruff/issues)
 - **Discussions**: Use GitHub Discussions for questions
@@ -339,13 +339,13 @@ See [ROADMAP](ROADMAP.md) for detailed feature list and implementation order.
 
 ---
 
-## 📜 Code of Conduct
+## Code of Conduct
 
 Be respectful, inclusive, and constructive. We're building this together.
 
 ---
 
-## 🙏 Recognition
+## Recognition
 
 All contributors will be recognized in release notes and the project README. Thank you for helping make Ruff better!
 
