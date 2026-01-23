@@ -50,6 +50,7 @@ pub enum Expr {
     Identifier(String),
     Number(f64),
     String(String),
+    Bool(bool),
     #[allow(dead_code)]
     BinaryOp {
         left: Box<Expr>,

@@ -30,6 +30,7 @@ pub enum Value {
 	Tagged { tag: String, fields: HashMap<String, Value> },
 	Number(f64),
 	Str(String),
+	Bool(bool),
 	Function(Vec<String>, Vec<Stmt>),
 	NativeFunction(String), // Name of the native function
 	Return(Box<Value>),
@@ -52,6 +53,7 @@ impl std::fmt::Debug for Value {
 				.finish(),
 			Value::Number(n) => write!(f, "Number({})", n),
 			Value::Str(s) => write!(f, "Str({:?})", s),
+			Value::Bool(b) => write!(f, "Bool({})", b),
 			Value::Function(params, _) => write!(f, "Function({:?}, ...)", params),
 			Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
 			Value::Return(v) => write!(f, "Return({:?})", v),
@@ -541,7 +543,7 @@ impl Interpreter {
                 if let (Some(Value::Str(path)), Some(Value::Str(content))) = 
                     (arg_values.get(0), arg_values.get(1)) {
                     match std::fs::write(path, content) {
-                        Ok(_) => Value::Str("true".to_string()),
+                        Ok(_) => Value::Bool(true),
                         Err(e) => Value::Error(format!("Cannot write file '{}': {}", path, e))
                     }
                 } else {
@@ -562,7 +564,7 @@ impl Interpreter {
                     match OpenOptions::new().create(true).append(true).open(path) {
                         Ok(mut file) => {
                             match file.write_all(content.as_bytes()) {
-                                Ok(_) => Value::Str("true".to_string()),
+                                Ok(_) => Value::Bool(true),
                                 Err(e) => Value::Error(format!("Cannot append to file '{}': {}", path, e))
                             }
                         }
@@ -579,9 +581,9 @@ impl Interpreter {
                 
                 if let Some(Value::Str(path)) = arg_values.get(0) {
                     if Path::new(path).exists() {
-                        Value::Str("true".to_string())
+                        Value::Bool(true)
                     } else {
-                        Value::Str("false".to_string())
+                        Value::Bool(false)
                     }
                 } else {
                     Value::Error("file_exists requires a string path argument".to_string())
@@ -632,7 +634,7 @@ impl Interpreter {
                 // create_dir(path) - creates directory (including parents)
                 if let Some(Value::Str(path)) = arg_values.get(0) {
                     match std::fs::create_dir_all(path) {
-                        Ok(_) => Value::Str("true".to_string()),
+                        Ok(_) => Value::Bool(true),
                         Err(e) => Value::Error(format!("Cannot create directory '{}': {}", path, e))
                     }
                 } else {
@@ -670,9 +672,10 @@ impl Interpreter {
             Stmt::If { condition, then_branch, else_branch } => {
                 let cond_val = self.eval_expr(condition);
                 let is_truthy = match cond_val {
+                    Value::Bool(b) => b,
                     Value::Number(n) => n != 0.0,
                     Value::Str(s) => {
-                        // Handle string representations of booleans
+                        // Handle string representations of booleans for backward compatibility
                         if s == "true" {
                             true
                         } else if s == "false" {
@@ -1167,6 +1170,7 @@ impl Interpreter {
         match expr {
             Expr::Number(n) => Value::Number(*n),
             Expr::String(s) => Value::Str(s.clone()),
+            Expr::Bool(b) => Value::Bool(*b),
             Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
             Expr::BinaryOp { left, op, right } => {
                 let l = self.eval_expr(&left);
@@ -1177,16 +1181,20 @@ impl Interpreter {
                         "-" => Value::Number(a - b),
                         "*" => Value::Number(a * b),
                         "/" => Value::Number(a / b),
-                        "==" => Value::Number(if (a - b).abs() < f64::EPSILON { 1.0 } else { 0.0 }),
-                        ">" => Value::Number(if a > b { 1.0 } else { 0.0 }),
-                        "<" => Value::Number(if a < b { 1.0 } else { 0.0 }),
-                        ">=" => Value::Number(if a >= b { 1.0 } else { 0.0 }),
-                        "<=" => Value::Number(if a <= b { 1.0 } else { 0.0 }),
+                        "==" => Value::Bool(a == b),
+                        ">" => Value::Bool(a > b),
+                        "<" => Value::Bool(a < b),
+                        ">=" => Value::Bool(a >= b),
+                        "<=" => Value::Bool(a <= b),
                         _ => Value::Number(0.0),
                     },
                     (Value::Str(a), Value::Str(b)) => match op.as_str() {
                         "+" => Value::Str(a + &b),
-                        "==" => Value::Number(if a == b { 1.0 } else { 0.0 }),
+                        "==" => Value::Bool(a == b),
+                        _ => Value::Number(0.0),
+                    },
+                    (Value::Bool(a), Value::Bool(b)) => match op.as_str() {
+                        "==" => Value::Bool(a == b),
                         _ => Value::Number(0.0),
                     },
                     _ => Value::Number(0.0),
@@ -1398,6 +1406,7 @@ impl Interpreter {
         match value {
             Value::Str(s) => s.clone(),
             Value::Number(n) => n.to_string(),
+            Value::Bool(b) => b.to_string(),
             Value::Tagged { tag, fields } => {
                 if fields.is_empty() {
                     tag.clone()
@@ -1494,10 +1503,10 @@ mod tests {
         
         if let Some(Value::Array(todos)) = interp.env.get("todos") {
             if let Some(Value::Struct { fields, .. }) = todos.get(0) {
-                if let Some(Value::Str(done)) = fields.get("done") {
-                    assert_eq!(done, "true");
+                if let Some(Value::Bool(done)) = fields.get("done") {
+                    assert!(*done);
                 } else {
-                    panic!("Expected done field to be 'true'");
+                    panic!("Expected done field to be true");
                 }
             } else {
                 panic!("Expected first element to be a struct");
@@ -2105,10 +2114,10 @@ mod tests {
         let interp = run_code(&code);
         
         // Check write result
-        if let Some(Value::Str(s)) = interp.env.get("result") {
-            assert_eq!(s, "true");
+        if let Some(Value::Bool(b)) = interp.env.get("result") {
+            assert!(b);
         } else {
-            panic!("Expected write result to be 'true'");
+            panic!("Expected write result to be true");
         }
         
         // Check read content
@@ -2164,16 +2173,16 @@ mod tests {
         
         let interp = run_code(&code);
         
-        if let Some(Value::Str(s)) = interp.env.get("exists1") {
-            assert_eq!(s, "true");
+        if let Some(Value::Bool(b)) = interp.env.get("exists1") {
+            assert!(b);
         } else {
-            panic!("Expected exists1 to be 'true'");
+            panic!("Expected exists1 to be true");
         }
         
-        if let Some(Value::Str(s)) = interp.env.get("exists2") {
-            assert_eq!(s, "false");
+        if let Some(Value::Bool(b)) = interp.env.get("exists2") {
+            assert!(!b);
         } else {
-            panic!("Expected exists2 to be 'false'");
+            panic!("Expected exists2 to be false");
         }
         
         // Clean up after test
@@ -2239,10 +2248,10 @@ mod tests {
         
         let interp = run_code(&code);
         
-        if let Some(Value::Str(s)) = interp.env.get("result") {
-            assert_eq!(s, "true");
+        if let Some(Value::Bool(b)) = interp.env.get("result") {
+            assert!(b);
         } else {
-            panic!("Expected create_dir result to be 'true'");
+            panic!("Expected create_dir result to be true");
         }
         
         if let Some(Value::Number(n)) = interp.env.get("count") {

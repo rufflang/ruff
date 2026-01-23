@@ -797,6 +797,7 @@ impl Parser {
                     TokenKind::Identifier(name) => Some(Expr::Identifier(name.clone())),
                     TokenKind::Number(n) => Some(Expr::Number(*n)),
                     TokenKind::String(s) => Some(Expr::String(s.clone())),
+                    TokenKind::Bool(b) => Some(Expr::Bool(*b)),
                     _ => None,
                 }
             }
