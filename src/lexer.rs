@@ -207,7 +207,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     "let" | "mut" | "const" | "func" | "return" | "enum" | "match" | "case"
                     | "default" | "if" | "else" | "loop" | "while" | "for" | "in" | "break"
                     | "continue" | "try" | "except" | "int" | "float" | "string" | "bool"
-                    | "import" | "export" | "from" | "struct" | "impl" | "self" => {
+                    | "import" | "export" | "from" | "struct" | "impl" | "self" | "null" => {
                         TokenKind::Keyword(ident)
                     }
                     "true" => TokenKind::Bool(true),
@@ -287,6 +287,35 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 } else {
                     tokens.push(Token {
                         kind: TokenKind::Operator(op.to_string()),
+                        line,
+                        column: col,
+                    });
+                }
+            }
+            '?' => {
+                chars.next();
+                col += 1;
+                // Check for ?? (null coalescing) or ?. (optional chaining)
+                if chars.peek() == Some(&'?') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("??".into()),
+                        line,
+                        column: col,
+                    });
+                } else if chars.peek() == Some(&'.') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("?.".into()),
+                        line,
+                        column: col,
+                    });
+                } else {
+                    // Single ? might be used for ternary later, for now treat as unknown
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("?".into()),
                         line,
                         column: col,
                     });
@@ -375,6 +404,14 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     col += 1;
                     tokens.push(Token {
                         kind: TokenKind::Operator("||".into()),
+                        line,
+                        column: col,
+                    });
+                } else if chars.peek() == Some(&'>') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("|>".into()),
                         line,
                         column: col,
                     });
