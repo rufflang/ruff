@@ -2,13 +2,13 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.3.0 (in development) - Now with proper lexical scoping! Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
+> **Status**: v0.4.0 (in development) - Standard library enhancements with random, date/time, system operations, and path utilities! Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
 
 ---
 
 ## 🎯 Project Status
 
-### ✅ Implemented Features (v0.3.0)
+### ✅ Implemented Features (v0.4.0)
 
 * **Variables & Constants**
   - `let` and `mut` for mutable variables
@@ -106,11 +106,15 @@
 
 * **Built-in Functions**
   - **Math**: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, constants `PI` and `E`
+  - **Random** (v0.4.0): `random()`, `random_int(min, max)`, `random_choice(array)` - Random number generation
   - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`, `starts_with()`, `ends_with()`, `index_of()`, `repeat()`, `split()`, `join()`
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
   - **Array Higher-Order**: `map()`, `filter()`, `reduce()`, `find()` (v0.3.0)
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
   - **JSON**: `parse_json()`, `to_json()` - Parse and serialize JSON data (v0.3.0)
+  - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()` - Timestamp and date operations
+  - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
+  - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`

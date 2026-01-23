@@ -11,6 +11,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-01-23
+
+### Added
+- **Standard Library Enhancements**: Expanded built-in functions for common programming tasks
+  
+  **Math & Random Functions**:
+  - `random()` - Generate random float between 0.0 and 1.0
+    - Example: `r := random()` returns `0.7234891`
+    - Uses Rust's rand crate for cryptographically secure randomness
+  - `random_int(min, max)` - Generate random integer in range (inclusive)
+    - Example: `dice := random_int(1, 6)` returns random number 1-6
+    - Example: `temp := random_int(-10, 35)` for temperature simulation
+    - Both endpoints are inclusive
+  - `random_choice(array)` - Select random element from array
+    - Example: `color := random_choice(["red", "blue", "green"])` picks random color
+    - Example: `card := random_choice(deck)` for card game
+    - Returns 0 if array is empty
+  
+  **Date/Time Functions**:
+  - `now()` - Get current Unix timestamp (seconds since epoch)
+    - Example: `timestamp := now()` returns `1737610854`
+    - Returns float for precision
+  - `format_date(timestamp, format_string)` - Format timestamp as readable date
+    - Example: `format_date(now(), "YYYY-MM-DD")` returns `"2026-01-23"`
+    - Example: `format_date(now(), "YYYY-MM-DD HH:mm:ss")` returns `"2026-01-23 14:30:45"`
+    - Supports patterns: YYYY (year), MM (month), DD (day), HH (hour), mm (minute), ss (second)
+    - Custom formats: `"DD/MM/YYYY"`, `"MM-DD-YYYY HH:mm"`, etc.
+  - `parse_date(date_string, format)` - Parse date string to Unix timestamp
+    - Example: `ts := parse_date("2026-01-23", "YYYY-MM-DD")` converts to timestamp
+    - Example: `birthday := parse_date("1990-05-15", "YYYY-MM-DD")` for age calculations
+    - Returns 0.0 for invalid dates
+    - Enables date arithmetic: `days_diff := (date2 - date1) / (24 * 60 * 60)`
+  
+  **System Operations**:
+  - `env(var_name)` - Get environment variable value
+    - Example: `home := env("HOME")` returns `"/Users/username"`
+    - Example: `path := env("PATH")` gets system PATH
+    - Returns empty string if variable not set
+  - `args()` - Get command-line arguments as array
+    - Example: `cli_args := args()` returns `["arg1", "arg2", "arg3"]`
+    - Program name is excluded (only actual arguments)
+    - Returns empty array if no arguments
+  - `exit(code)` - Exit program with status code
+    - Example: `exit(0)` for successful exit
+    - Example: `exit(1)` for error exit
+    - Standard Unix exit codes: 0 = success, non-zero = error
+  - `sleep(milliseconds)` - Pause execution for specified time
+    - Example: `sleep(1000)` sleeps for 1 second
+    - Example: `sleep(100)` sleeps for 100ms
+    - Useful for rate limiting, animations, polling
+  - `execute(command)` - Execute shell command and return output
+    - Example: `output := execute("ls -la")` runs shell command
+    - Example: `date := execute("date")` gets system date
+    - Cross-platform: uses cmd.exe on Windows, sh on Unix
+    - Returns command output as string
+    - Use with caution - potential security implications
+  
+  **Path Operations**:
+  - `join_path(parts...)` - Join path components with correct separator
+    - Example: `path := join_path("/home", "user", "file.txt")` returns `"/home/user/file.txt"`
+    - Example: `config := join_path(home, ".config", "app", "settings.json")`
+    - Handles platform-specific separators automatically
+    - Variadic - accepts any number of string arguments
+  - `dirname(path)` - Extract directory from path
+    - Example: `dirname("/home/user/file.txt")` returns `"/home/user"`
+    - Example: `dirname("src/main.rs")` returns `"src"`
+    - Returns "/" for root paths
+  - `basename(path)` - Extract filename from path
+    - Example: `basename("/home/user/file.txt")` returns `"file.txt"`
+    - Example: `basename("README.md")` returns `"README.md"`
+    - Works with both absolute and relative paths
+  - `path_exists(path)` - Check if file or directory exists
+    - Example: `exists := path_exists("config.json")` returns boolean
+    - Example: `if path_exists(log_file) { ... }` for conditional logic
+    - Works for both files and directories
+
+  **Implementation Details**:
+  - Dependencies added: `rand = "0.8"`, `chrono = "0.4"`
+  - All functions integrated into interpreter and type checker
+  - Comprehensive error handling with descriptive messages
+  - Cross-platform compatibility (Windows, macOS, Linux)
+  
+  **Examples & Tests**:
+  - `examples/random_generator.ruff` - Random number generation, password generator, lottery numbers
+  - `examples/datetime_utility.ruff` - Date formatting, parsing, calculations, age calculator
+  - `examples/path_utilities.ruff` - Path building, component extraction, existence checking
+  - `examples/system_info.ruff` - Environment variables, command execution, timing
+  - `tests/test_stdlib_random.ruff` - 60+ test cases for random functions
+  - `tests/test_stdlib_datetime.ruff` - 50+ test cases for date/time functions
+  - `tests/test_stdlib_paths.ruff` - 40+ test cases for path operations
+  - `tests/test_stdlib_system.ruff` - 30+ test cases for system operations
+
+---
+
 ## [0.3.0] - 2026-01-23
 
 ### Added
