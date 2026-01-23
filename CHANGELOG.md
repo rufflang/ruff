@@ -8,57 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **SQLite Database Support**: Built-in SQLite database functions for persistent data storage
-  - `db_connect(path)` - Connect to a SQLite database file (creates if not exists)
-  - `db_execute(db, sql, params)` - Execute INSERT, UPDATE, DELETE, CREATE statements
-  - `db_query(db, sql, params)` - Execute SELECT queries, returns array of dicts
-  - `db_close(db)` - Close database connection
-  - Parameters use `?` placeholders: `db_execute(db, "INSERT INTO t (a, b) VALUES (?, ?)", [val1, val2])`
-  - Query results are arrays of dicts with column names as keys
-  - Thread-safe with `Arc<Mutex<Connection>>` wrapper
-
-- **HTTP redirect_response()**: New function for creating HTTP 302 redirect responses
-  - `redirect_response(url)` - Returns HTTP response with Location header
-  - Used for URL shorteners and OAuth flows
-
-- **Dynamic route path parameters**: HTTP server routes now support parameterized paths like `/:code`
-  - New `match_route_pattern()` function extracts path parameters from URLs
-  - Request object now includes a `params` dict with extracted path values
-  - Example: `server.route("GET", "/:code", func(request) { code := request.params["code"] })`
-  - Exact routes take priority over parameterized routes (e.g., `/health` matches before `/:code`)
-
 ### Changed
-- **URL Shortener example**: Updated to use SQLite database for secure URL storage
-  - URLs no longer exposed via public `/list` JSON endpoint
-  - Stats endpoint now requires POST with code in body
-  - New `/count` endpoint shows total URLs without exposing data
-  - Database file: `urls.db` in working directory
-
-### Fixed
-- **Critical: Logical AND (&&) and OR (||) operators not working**: The `&&` and `||` operators were completely broken - they always returned `false` regardless of operands.
-  - **Lexer**: Added tokenization for `|` and `&` characters to produce `||` and `&&` tokens
-  - **Parser**: Added `parse_or()` and `parse_and()` functions with proper operator precedence (`||` lowest, then `&&`, then comparisons)
-  - **Interpreter**: Added `&&` and `||` cases to the Bool/Bool match arm
-  - Also added `!=` operator support for Bool and String comparisons
-  - This fixes URL validation in `url_shortener.ruff` which uses `starts_with(url, "http://") || starts_with(url, "https://")`
-  - Example: `true || false` now correctly returns `true` (previously returned `false`)
-
-- **URL shortener /list endpoint**: Changed from `for code in keys(urls)` to `for code in urls`
-  - The `keys()` function inside closures causes hangs
-  - Direct dict iteration works correctly and iterates over keys
-
-- **Critical: Function cleanup hang bug**: Fixed stack overflow that occurred when functions containing loops were cleaned up during program shutdown. Functions can now safely contain loops, nested control structures, and complex logic without hanging.
-  - Introduced `LeakyFunctionBody` wrapper type using `ManuallyDrop` to prevent deep recursion during Rust's automatic drop
-  - Function bodies are intentionally leaked at program shutdown (OS reclaims all memory anyway)
-  - Updated `url_shortener.ruff` example to use proper random code generation with loops
-  - Added comprehensive tests in `tests/test_function_drop_fix.ruff`
-
-- **HTTP functions type checking warnings**: Fixed "Undefined function" warnings for HTTP functions in the type checker.
-  - Registered all HTTP client functions: `http_get`, `http_post`, `http_put`, `http_delete`
-  - Registered all HTTP server functions: `http_server`, `http_response`, `json_response`
-  - HTTP examples now run without type checking warnings
-  - Added test file `tests/test_http_type_checking.ruff`
-
 ## [0.5.0] - 2026-01-23
 
 ### Added
@@ -102,6 +52,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     
     server.listen();  // Start serving requests
     ```
+
+- **SQLite Database Support**: Built-in SQLite database functions for persistent data storage
+  - `db_connect(path)` - Connect to a SQLite database file (creates if not exists)
+  - `db_execute(db, sql, params)` - Execute INSERT, UPDATE, DELETE, CREATE statements
+  - `db_query(db, sql, params)` - Execute SELECT queries, returns array of dicts
+  - `db_close(db)` - Close database connection
+  - Parameters use `?` placeholders: `db_execute(db, "INSERT INTO t (a, b) VALUES (?, ?)", [val1, val2])`
+  - Query results are arrays of dicts with column names as keys
+  - Thread-safe with `Arc<Mutex<Connection>>` wrapper
+
+- **HTTP redirect_response()**: New function for creating HTTP 302 redirect responses
+  - `redirect_response(url)` - Returns HTTP response with Location header
+  - Used for URL shorteners and OAuth flows
+
+- **Dynamic route path parameters**: HTTP server routes now support parameterized paths like `/:code`
+  - New `match_route_pattern()` function extracts path parameters from URLs
+  - Request object now includes a `params` dict with extracted path values
+  - Example: `server.route("GET", "/:code", func(request) { code := request.params["code"] })`
+  - Exact routes take priority over parameterized routes (e.g., `/health` matches before `/:code`)
 
 - **Interactive REPL (Read-Eval-Print Loop)**: Full-featured interactive shell for Ruff
   - **Launch with `ruff repl`** - Start interactive mode for quick experimentation and learning
@@ -147,6 +116,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Goodbye!
     ```
   - See `tests/test_repl_*.txt` for comprehensive examples
+
+### Changed
+- **URL Shortener example**: Updated to use SQLite database for secure URL storage
+  - URLs no longer exposed via public `/list` JSON endpoint
+  - Stats endpoint now requires POST with code in body
+  - New `/count` endpoint shows total URLs without exposing data
+  - Database file: `urls.db` in working directory
+
+### Fixed
+- **Critical: Logical AND (&&) and OR (||) operators not working**: The `&&` and `||` operators were completely broken - they always returned `false` regardless of operands.
+  - **Lexer**: Added tokenization for `|` and `&` characters to produce `||` and `&&` tokens
+  - **Parser**: Added `parse_or()` and `parse_and()` functions with proper operator precedence (`||` lowest, then `&&`, then comparisons)
+  - **Interpreter**: Added `&&` and `||` cases to the Bool/Bool match arm
+  - Also added `!=` operator support for Bool and String comparisons
+  - This fixes URL validation in `url_shortener.ruff` which uses `starts_with(url, "http://") || starts_with(url, "https://")`
+  - Example: `true || false` now correctly returns `true` (previously returned `false`)
+
+- **URL shortener /list endpoint**: Changed from `for code in keys(urls)` to `for code in urls`
+  - The `keys()` function inside closures causes hangs
+  - Direct dict iteration works correctly and iterates over keys
+
+- **Critical: Function cleanup hang bug**: Fixed stack overflow that occurred when functions containing loops were cleaned up during program shutdown. Functions can now safely contain loops, nested control structures, and complex logic without hanging.
+  - Introduced `LeakyFunctionBody` wrapper type using `ManuallyDrop` to prevent deep recursion during Rust's automatic drop
+  - Function bodies are intentionally leaked at program shutdown (OS reclaims all memory anyway)
+  - Updated `url_shortener.ruff` example to use proper random code generation with loops
+  - Added comprehensive tests in `tests/test_function_drop_fix.ruff`
+
+- **HTTP functions type checking warnings**: Fixed "Undefined function" warnings for HTTP functions in the type checker.
+  - Registered all HTTP client functions: `http_get`, `http_post`, `http_put`, `http_delete`
+  - Registered all HTTP server functions: `http_server`, `http_response`, `json_response`
+  - HTTP examples now run without type checking warnings
+  - Added test file `tests/test_http_type_checking.ruff`
+
 
 ## [0.4.0] - 2026-01-23
 

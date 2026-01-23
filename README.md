@@ -2,17 +2,17 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.5.0 - Interactive REPL with multi-line support and command history! Full-featured interactive shell for experimentation and learning. Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
+> **Status**: v0.5.0 - Interactive REPL with multi-line support and command history! Full-featured interactive shell for experimentation and learning. Built with comprehensive features including structs, methods, collections, type checking, and modules.
 
 **Quick Links**: [Installation](#-installation) • [Getting Started](#-getting-started) • [REPL](#-interactive-repl-v050-) • [Examples](#-writing-ruff-scripts) • [Features](#-project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
 ---
 
-## 🎯 Project Status
+## Project Status
 
-### ✅ Implemented Features (v0.5.0)
+### Implemented Features (v0.5.0)
 
-* **Interactive REPL** (v0.5.0) ✨
+* **Interactive REPL** (v0.5.0)
   - Full-featured Read-Eval-Print Loop
   - Multi-line input with automatic detection
   - Command history with up/down arrow navigation
@@ -30,7 +30,7 @@
   - Optional type annotations: `x: int := 5`
   - **NEW**: `:=` now properly updates existing variables across scopes
 
-* **Lexical Scoping** (v0.3.0) ✨
+* **Lexical Scoping** (v0.3.0)
   - Proper scope chain with environment stack
   - Variables update correctly across scope boundaries
   - Accumulator pattern works: `sum := sum + n` in loops
@@ -77,7 +77,7 @@
   - Built-in methods: `push()`, `pop()`, `slice()`, `concat()`, `keys()`, `values()`, `has_key()`, `remove()`
   - `len()` function for strings, arrays, and dicts
 
-* **Array Higher-Order Functions** (v0.3.0) ✨
+* **Array Higher-Order Functions** (v0.3.0)
   - Functional programming operations for data transformation
   - `map(array, func)`: Transform each element
     ```ruff
@@ -175,13 +175,13 @@
 
 ---
 
-## 🧩 Installation
+## Installation
 
 See [Install Guide](INSTALLATION.md) for platform setup instructions.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 Install Rust and run:
 
@@ -195,7 +195,7 @@ cargo run -- run examples/your_script.ruff
 
 ---
 
-## � Interactive REPL (v0.5.0) ✨
+## � Interactive REPL (v0.5.0)
 
 Launch the interactive shell for experimentation and learning:
 
@@ -217,7 +217,7 @@ The REPL provides a powerful interactive environment:
 
 ```
 ╔══════════════════════════════════════════════════════╗
-║          Ruff REPL v0.5.0 - Interactive Shell       ║
+║          Ruff REPL v0.5.0 - Interactive Shell        ║
 ╚══════════════════════════════════════════════════════╝
 
   Welcome! Use :help for commands or :quit
@@ -257,7 +257,7 @@ Goodbye!
 
 ---
 
-## �📄 Writing `.ruff` Scripts
+## Writing `.ruff` Scripts
 
 Example:
 
@@ -286,7 +286,7 @@ match res {
 }
 ```
 
-### Enhanced Error Handling (v0.4.0) ✨
+### Enhanced Error Handling (v0.4.0)
 
 Comprehensive error handling with error properties, custom error types, and stack traces:
 
@@ -355,7 +355,7 @@ try {
 }
 ```
 
-### HTTP Server & Client (v0.5.0) ✨
+### HTTP Server & Client (v0.5.0)
 
 Build HTTP servers and make HTTP requests with ease:
 
@@ -424,7 +424,7 @@ server.listen()
 
 See [examples/http_server_simple.ruff](examples/http_server_simple.ruff), [examples/http_rest_api.ruff](examples/http_rest_api.ruff), [examples/http_client.ruff](examples/http_client.ruff), and [examples/http_webhook.ruff](examples/http_webhook.ruff) for complete examples.
 
-### SQLite Database (v0.5.1) ✨
+### SQLite Database (v0.5.0) ✨
 
 Ruff includes built-in SQLite database support for persistent data storage:
 
@@ -461,7 +461,7 @@ db_close(db)
 
 See [examples/projects/url_shortener.ruff](examples/projects/url_shortener.ruff) for a complete example using SQLite with an HTTP server.
 
-### String Interpolation (v0.3.0) ✨
+### String Interpolation (v0.3.0)
 
 ```ruff
 name := "Alice"
@@ -485,7 +485,7 @@ calculation := "Result: (${a} + ${b}) * ${c} = ${(a + b) * c}"
 print(calculation)  # Result: (2 + 3) * 4 = 20
 ```
 
-### Comments (v0.3.0) ✨
+### Comments (v0.3.0)
 
 Ruff supports three types of comments:
 
@@ -521,7 +521,7 @@ See [examples/comments.ruff](examples/comments.ruff) for comprehensive examples.
 
 ---
 
-## 🧪 Running Tests
+## Running Tests
 
 Place test files in the `tests/` directory. Each `.ruff` file can have a matching `.out` file for expected output:
 
@@ -537,7 +537,7 @@ cargo run -- test --update
 
 ---
 
-## 🧠 Language Features
+## Language Features
 
 * ✅ Mutable/const variables with optional type annotations
 * ✅ Functions with return values and type annotations
@@ -563,35 +563,12 @@ cargo run -- test --update
 
 ---
 
-## 📦 Roadmap
+## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for detailed feature plans.
 
-**Completed (9/15):**
-* ✅ Error Messages & Diagnostics (v0.1.0)
-* ✅ Type System & Type Checking (v0.1.0)
-* ✅ Module System & Imports (v0.1.0)
-* ✅ Standard Library Expansion (v0.2.0)
-* ✅ Structs & Methods (v0.2.0)
-* ✅ Arrays & Dictionaries (v0.2.0)
-* ✅ Boolean Type (v0.3.0)
-* ✅ Loop Control (`break`, `continue`) (v0.3.0)
-* ✅ String Interpolation (v0.3.0)
-* ✅ Multi-Line & Doc Comments (v0.3.0)
-
-**High Priority (v0.3.0):**
-* [ ] Array Higher-Order Functions (`map`, `filter`, `reduce`)
-* [ ] JSON Support (parse/stringify)
-
-**Future:**
-* [ ] Interactive REPL
-* [ ] Package manager
-* [ ] WebAssembly compilation target
-* [ ] Language Server Protocol (LSP)
-* [ ] JIT compilation
-
 ---
 
-## 👨‍💼 Contributing
+## Contributing
 
-View the [CONTRIBUTING](CONTRIBUTING.md)
+View the [CONTRIBUTING](CONTRIBUTING.md) document.

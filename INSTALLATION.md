@@ -1,6 +1,6 @@
-# 🧩 Installation Guide
+# Installation Guide
 
-📚 Return to [README](README.md) for full language overview.
+Return to [README](README.md) for full language overview.
 
 > Looking for how to get Ruff installed on your system? You're in the right place.
 
@@ -8,7 +8,7 @@ Ruff is a programming language built with Rust. Currently, you install it by bui
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 Ruff requires **Rust 1.70+** to build from source.
 
@@ -30,7 +30,7 @@ cargo --version
 
 ---
 
-## 🔨 Build from Source (Current Method)
+## Build from Source (Current Method)
 
 ### 1. Clone the Repository
 
@@ -84,7 +84,7 @@ ruff --version
 
 ---
 
-## 🎯 Platform-Specific Notes
+## Platform-Specific Notes
 
 ### macOS
 
@@ -121,7 +121,7 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 Once installed, you can run Ruff programs:
 
@@ -138,7 +138,7 @@ ruff test --update
 
 ---
 
-## 📦 Future Installation Methods
+## Future Installation Methods
 
 The following installation methods are planned for future releases:
 
@@ -170,7 +170,7 @@ Download from [Releases](https://github.com/rufflang/ruff/releases):
 
 ---
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
 ### Build Failures
 
@@ -213,7 +213,7 @@ If you encounter issues:
 
 ---
 
-## 🔄 Updating Ruff
+## Updating Ruff
 
 ### Built from Source
 ```bash
@@ -252,7 +252,7 @@ sudo rm /usr/local/bin/ruff
 
 ---
 
-## ✅ Verification
+## Verification
 
 After installation, verify everything works:
 
@@ -276,7 +276,7 @@ Hello, Ruff!
 
 ---
 
-## 📝 Development Setup
+## Development Setup
 
 For contributors and developers:
 
