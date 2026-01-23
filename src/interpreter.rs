@@ -401,6 +401,54 @@ impl Interpreter {
         }
     }
 
+    /// Attempts to call an operator method on a struct value
+    /// Returns Some(result) if the struct has the operator method, None otherwise
+    fn try_call_operator_method(
+        &mut self,
+        struct_val: &Value,
+        method_name: &str,
+        other: &Value,
+    ) -> Option<Value> {
+        if let Value::Struct { name, fields } = struct_val {
+            // Look up the struct definition to find the operator method
+            if let Some(Value::StructDef { name: _, field_names: _, methods }) =
+                self.env.get(name)
+            {
+                if let Some(Value::Function(params, body)) = methods.get(method_name) {
+                    // Create new scope for operator method call
+                    self.env.push_scope();
+
+                    // Bind struct fields into method environment
+                    for (field_name, field_value) in fields {
+                        self.env.define(field_name.clone(), field_value.clone());
+                    }
+
+                    // Bind the other operand as the first parameter
+                    if let Some(param_name) = params.get(0) {
+                        self.env.define(param_name.clone(), other.clone());
+                    }
+
+                    // Execute method body
+                    self.eval_stmts(&body);
+
+                    let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                        self.return_value = None;
+                        *val
+                    } else {
+                        self.return_value = None;
+                        Value::Number(0.0)
+                    };
+
+                    // Restore parent environment
+                    self.env.pop_scope();
+
+                    return Some(result);
+                }
+            }
+        }
+        None
+    }
+
     /// Calls a native built-in function
     fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
         // Evaluate all arguments
@@ -1928,6 +1976,15 @@ impl Interpreter {
             Expr::BinaryOp { left, op, right } => {
                 let l = self.eval_expr(&left);
                 let r = self.eval_expr(&right);
+                
+                // Check if left operand is a struct with an operator method
+                if let Some(method_name) = crate::ast::operator_methods::binary_op_method(op) {
+                    if let Some(result) = self.try_call_operator_method(&l, method_name, &r) {
+                        return result;
+                    }
+                }
+                
+                // Default behavior for built-in types
                 match (l, r) {
                     (Value::Number(a), Value::Number(b)) => match op.as_str() {
                         "+" => Value::Number(a + b),
