@@ -115,13 +115,133 @@ A demonstration script showcasing:
 cargo run --quiet -- run examples/projects/inventory_system.ruff
 ```
 
+---
+
+## 🌐 HTTP-Based Projects (v0.5.0) ✨
+
+### 6. URL Shortener Service (`url_shortener.ruff`)
+A complete HTTP API for creating and resolving shortened URLs.
+
+**Features:**
+- **HTTP Server**: Multi-route API on port 3000
+- **POST /shorten**: Create short URLs with unique codes
+- **GET /redirect**: Get redirect information for short codes
+- **GET /stats**: View click statistics
+- **GET /list**: List all shortened URLs
+- **Validation**: URL format checking
+- **Storage**: In-memory URL and statistics storage
+- **Random code generation**: 6-character alphanumeric codes
+
+**What it demonstrates:**
+- HTTP server creation and routing
+- POST/GET request handling
+- JSON request/response parsing
+- In-memory data storage with dictionaries
+- URL validation logic
+- Statistics tracking
+- RESTful API design
+
+**Run it:**
+```bash
+cargo run --quiet -- run examples/projects/url_shortener.ruff
+
+# In another terminal, test the API:
+curl -X POST http://localhost:3000/shorten -d '{"url": "https://github.com/rufflang/ruff"}'
+curl http://localhost:3000/list
+curl http://localhost:3000/stats -d '{"code": "abc123"}'
+```
+
+---
+
+### 7. Weather Dashboard API (`weather_dashboard.ruff`)
+Aggregates weather data with caching and comparison features.
+
+**Features:**
+- **HTTP Server**: Weather API on port 4000
+- **GET /weather**: Current weather for a city
+- **GET /forecast**: 5-day weather forecast
+- **POST /compare**: Compare weather across multiple cities
+- **GET /cache**: View cached data
+- **POST /cache/clear**: Clear cache
+- **Caching**: 5-minute cache duration with freshness checking
+- **Mock data**: Simulates external weather API calls
+
+**What it demonstrates:**
+- HTTP client integration patterns
+- Data caching with timestamps
+- Data aggregation from multiple sources
+- Array filtering and transformations
+- Finding max/min values in datasets
+- Cache management
+- API rate limiting concepts
+
+**Run it:**
+```bash
+cargo run --quiet -- run examples/projects/weather_dashboard.ruff
+
+# In another terminal, test the API:
+curl http://localhost:4000/weather -d '{"city": "London"}'
+curl http://localhost:4000/forecast -d '{"city": "Paris"}'
+curl -X POST http://localhost:4000/compare -d '{"cities": ["London", "Paris", "Tokyo"]}'
+curl http://localhost:4000/cache
+```
+
+---
+
+### 8. Simple Blog API (`blog_api.ruff`)
+A RESTful API for managing blog posts and comments.
+
+**Features:**
+- **HTTP Server**: Blog API on port 5000
+- **POST /posts**: Create new blog post
+- **GET /posts**: List all posts (with author filtering)
+- **GET /post**: Get specific post with comments
+- **PUT /posts**: Update existing post
+- **DELETE /posts**: Delete post and associated comments
+- **POST /comments**: Add comment to post
+- **GET /stats**: Get API statistics
+- **Validation**: Title, content, and author validation
+- **Nested resources**: Comments belong to posts
+
+**What it demonstrates:**
+- Full CRUD operations (Create, Read, Update, Delete)
+- RESTful API design
+- Input validation with error messages
+- Nested resource management
+- Array filtering and searching
+- Data relationships (posts → comments)
+- Auto-incrementing IDs
+- Timestamp tracking
+
+**Run it:**
+```bash
+cargo run --quiet -- run examples/projects/blog_api.ruff
+
+# In another terminal, test the API:
+curl -X POST http://localhost:5000/posts -d '{"title": "Hello World", "content": "My first post!", "author": "Alice"}'
+curl http://localhost:5000/posts
+curl http://localhost:5000/post -d '{"id": 1}'
+curl -X POST http://localhost:5000/comments -d '{"post_id": 1, "author": "Bob", "content": "Great post!"}'
+curl http://localhost:5000/stats
+```
+
+---
+
 ## Learning Path
 
+**Basic Projects:**
 1. **Start with Todo Manager** - Simplest introduction to structs and arrays
 2. **Try Contact Manager** - Learn dictionary operations and string functions
 3. **Explore Data Analyzer** - Master functional programming with higher-order functions
+
+**Intermediate Projects:**
 4. **Study Log Parser** - Learn file I/O and text processing techniques
 5. **Examine Inventory System** - See complex business logic and calculations
+
+**HTTP/API Projects (v0.5.0):**
+6. **URL Shortener** - Learn HTTP basics, routing, and JSON handling
+7. **Weather Dashboard** - Explore data aggregation, caching, and external APIs
+8. **Blog API** - Master RESTful design, CRUD operations, and data relationships
 
 ## What These Projects Demonstrate
 
@@ -134,17 +254,26 @@ All projects use real-world patterns and demonstrate:
 - ✅ Error handling with try/except
 - ✅ Dictionary operations (`keys`, `has_key`)
 - ✅ Array iteration
-- ✅ **NEW:** Array higher-order functions (`map`, `filter`, `reduce`, `find`)
-- ✅ **NEW:** Anonymous function expressions
-- ✅ **NEW:** File I/O operations
-- ✅ **NEW:** Complex data processing and analysis
-- ✅ **NEW:** Text parsing and pattern matching
+- ✅ Array higher-order functions (`map`, `filter`, `reduce`, `find`)
+- ✅ Anonymous function expressions
+- ✅ File I/O operations
+- ✅ Complex data processing and analysis
+- ✅ Text parsing and pattern matching
+- ✅ **NEW (v0.5.0):** HTTP server creation and routing
+- ✅ **NEW (v0.5.0):** RESTful API design
+- ✅ **NEW (v0.5.0):** JSON request/response handling
+- ✅ **NEW (v0.5.0):** HTTP client usage patterns
+- ✅ **NEW (v0.5.0):** Data caching strategies
+- ✅ **NEW (v0.5.0):** Input validation
+- ✅ **NEW (v0.5.0):** Multi-route applications
 
 ## Notes
 
-**These are demonstrations, not applications:** The scripts run once to show language features. They use hardcoded data and don't accept user input. User input functions like `input()` are planned for future versions of Ruff.
+**HTTP Projects are Live Servers:** The HTTP-based projects (6-8) create actual web servers that stay running until you press Ctrl+C. Test them using `curl` commands from another terminal window.
 
-These projects use only the standard Ruff features available in v0.2.0+. They demonstrate practical programming patterns that work reliably with the current implementation.
+**Other Projects are Demonstrations:** The non-HTTP scripts (1-5) run once to show language features. They use hardcoded data and don't accept user input. User input functions like `input()` are available but these demos don't use them yet.
+
+These projects use only the standard Ruff features available in v0.5.0+. They demonstrate practical programming patterns that work reliably with the current implementation.
 
 ## Tips for Your Own Projects
 
