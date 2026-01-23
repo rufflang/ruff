@@ -475,7 +475,7 @@ impl TypeChecker {
         self.functions.insert(
             "redirect_response".to_string(),
             FunctionSignature {
-                param_types: vec![Some(TypeAnnotation::String)], // URL to redirect to
+                param_types: vec![Some(TypeAnnotation::String), None], // URL to redirect to, optional headers dict
                 return_type: None, // Returns HttpResponse object
             },
         );
@@ -930,14 +930,18 @@ impl TypeChecker {
                     let sig = self.functions.get(func_name).cloned();
 
                     if let Some(sig) = sig {
-                        // Check argument count
-                        if args.len() != sig.param_types.len() {
+                        // Check argument count - allow fewer args than params if trailing params are optional (None)
+                        let min_required = sig.param_types.iter().take_while(|p| p.is_some()).count();
+                        let max_allowed = sig.param_types.len();
+                        
+                        if args.len() < min_required || args.len() > max_allowed {
                             self.errors.push(RuffError::new(
                                 ErrorKind::TypeError,
                                 format!(
-                                    "Function '{}' expects {} arguments but got {}",
+                                    "Function '{}' expects {}-{} arguments but got {}",
                                     func_name,
-                                    sig.param_types.len(),
+                                    min_required,
+                                    max_allowed,
                                     args.len()
                                 ),
                                 SourceLocation::unknown(),
