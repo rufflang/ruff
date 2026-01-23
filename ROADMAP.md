@@ -149,9 +149,55 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
+### 7. HTTP Server & Networking
+
+**Status**: Planned  
+**Estimated Effort**: Large (2-3 weeks)
+
+**Description**:  
+Add HTTP server capabilities and networking functions to enable web APIs and services.
+
+**Planned Functions**:
+```ruff
+# Create HTTP server
+server := http_server(8080)
+
+# Define routes
+server.route("GET", "/", func(req) {
+    return http_response(200, "Hello, World!")
+})
+
+server.route("GET", "/todos", func(req) {
+    todos := load_todos()
+    return json_response(200, todos)
+})
+
+server.route("POST", "/todos", func(req) {
+    body := parse_json(req.body)
+    save_todo(body)
+    return json_response(201, {"success": true})
+})
+
+# Start listening
+server.listen()
+
+# HTTP client functions
+response := http_get("https://api.example.com/data")
+result := http_post("https://api.example.com/submit", {"key": "value"})
+```
+
+**Use Cases**:
+- REST APIs
+- Webhooks
+- Microservices
+- Web applications
+- API integrations
+
+---
+
 ## 🚀 Long Term (v0.5.0+)
 
-### 7. REPL (Interactive Shell)
+### 8. REPL (Interactive Shell)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -165,7 +211,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 8. Advanced Type System Features
+### 9. Advanced Type System Features
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -179,7 +225,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 9. LSP (Language Server Protocol)
+### 10. LSP (Language Server Protocol)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -195,7 +241,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 10. Package Manager
+### 11. Package Manager
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -209,7 +255,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 11. Compilation Targets
+### 12. Compilation Targets
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
@@ -255,6 +301,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 | Array Higher-Order Fns | Medium | v0.4.0 | Planned |
 | Multi-line Comments | Low | v0.4.0 | Planned |
 | JSON Support | Medium | v0.4.0 | Planned |
+| HTTP/Networking | High | v0.5.0 | Planned |
 | REPL | Long Term | v0.5.0 | Planned |
 | Advanced Types | Long Term | v0.6.0 | Research |
 | LSP | Long Term | v0.6.0 | Planned |
@@ -276,6 +323,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 - Enhanced string functions
 
 **v0.5.0 - "Interactive"** (Target: Q3 2026)
+- HTTP server & networking support
 - REPL implementation
 - Improved error messages
 - Better debugging tools
