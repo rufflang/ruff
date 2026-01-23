@@ -64,6 +64,59 @@ cargo run --quiet -- run examples/http_client.ruff
 
 ---
 
+## 🚨 Critical Bugs & Issues
+
+### Type Checker Infinite Loop Bug
+
+**Status**: 🐛 **CRITICAL BUG - Blocks Feature Development**  
+**Priority**: **URGENT - Must Fix Before v0.6.0**  
+**Discovered**: January 23, 2026
+
+**Issue Description**:  
+The type checker enters an infinite loop when processing function definitions that contain:
+- A `for` loop
+- Function calls inside that loop
+
+This causes the interpreter to hang indefinitely during the type checking phase, before any code execution begins.
+
+**Reproduction**:
+```ruff
+# This function definition causes infinite hang
+func generate_code() {
+    code := ""
+    for i in range(6) {
+        idx := random_int(0.0, 35.0)  # Any function call here triggers bug
+        code := code + substring(chars, idx, idx + 1)
+    }
+    return code
+}
+
+# Script hangs during type checking - never reaches execution
+print("This never prints")
+```
+
+**Impact**:
+- Blocks implementation of HTTP sample projects (url_shortener, weather_dashboard, blog_api)
+- Any moderately complex function with loops becomes unusable
+- Makes Ruff impractical for real-world applications
+
+**Workaround**:
+Avoid function calls inside loops within function definitions. Move loop logic to top-level code or use simpler implementations.
+
+**Root Cause**:
+Type checker (`src/type_checker.rs`) likely has infinite recursion or loop when analyzing:
+1. Function parameter types in loop context
+2. Variable reassignment inside loops (`:=` operator)
+3. Nested function call type inference
+
+**Fix Required**:
+- Debug type checker loop analysis
+- Add cycle detection for type inference
+- Add timeout mechanism as safety
+- Add comprehensive test suite for loop + function call combinations
+
+---
+
 ## 🌟 Planned Features (v0.6.0)
 
 ### Concurrency & Async

@@ -101,7 +101,7 @@ print("=" * 50)
 server := http_server(4000)
 
 # Get current weather for a city
-server.route("GET", "/weather", func(request) {
+server := server.route("GET", "/weather", func(request) {
     try {
         # Parse city from request body
         data := parse_json(request.body)
@@ -134,7 +134,7 @@ server.route("GET", "/weather", func(request) {
 })
 
 # Get forecast (mock implementation)
-server.route("GET", "/forecast", func(request) {
+server := server.route("GET", "/forecast", func(request) {
     try {
         data := parse_json(request.body)
         
@@ -172,7 +172,7 @@ server.route("GET", "/forecast", func(request) {
 })
 
 # Compare weather between multiple cities
-server.route("POST", "/compare", func(request) {
+server := server.route("POST", "/compare", func(request) {
     try {
         data := parse_json(request.body)
         
@@ -226,7 +226,7 @@ server.route("POST", "/compare", func(request) {
 })
 
 # View cache contents
-server.route("GET", "/cache", func(request) {
+server := server.route("GET", "/cache", func(request) {
     cached_cities := []
     
     for city in weather_cache {
@@ -248,7 +248,7 @@ server.route("GET", "/cache", func(request) {
 })
 
 # Clear cache
-server.route("POST", "/cache/clear", func(request) {
+server := server.route("POST", "/cache/clear", func(request) {
     count := len(keys(weather_cache))
     weather_cache := {}
     
@@ -261,7 +261,7 @@ server.route("POST", "/cache/clear", func(request) {
 })
 
 # API documentation
-server.route("GET", "/", func(request) {
+server := server.route("GET", "/", func(request) {
     return json_response(200, {
         "service": "Weather Dashboard API",
         "version": "1.0",
