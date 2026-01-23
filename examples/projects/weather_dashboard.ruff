@@ -30,12 +30,17 @@ func generate_mock_weather(city) {
     idx := len(city) % len(temps)
     cond_idx := len(city) % len(conditions)
     
+    min_humidity := 40 * 1.0
+    max_humidity := 80 * 1.0
+    min_wind := 5 * 1.0
+    max_wind := 25 * 1.0
+    
     return {
         "city": city,
         "temperature": temps[idx],
         "condition": conditions[cond_idx],
-        "humidity": random_int(40, 80),
-        "wind_speed": random_int(5, 25),
+        "humidity": random_int(min_humidity, max_humidity),
+        "wind_speed": random_int(min_wind, max_wind),
         "timestamp": now()
     }
 }
@@ -143,10 +148,13 @@ server.route("GET", "/forecast", func(request) {
         forecast := []
         
         # Generate 5-day forecast
+        min_temp_delta := -5 * 1.0
+        max_temp_delta := 5 * 1.0
+        
         for i in range(5) {
             day_data := generate_mock_weather(city)
             day_data["day"] := i + 1
-            day_data["temperature"] := day_data["temperature"] + random_int(-5, 5)
+            day_data["temperature"] := day_data["temperature"] + random_int(min_temp_delta, max_temp_delta)
             push(forecast, day_data)
         }
         

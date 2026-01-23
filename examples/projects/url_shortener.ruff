@@ -24,9 +24,12 @@ stats := {}
 func generate_code() {
     chars := "abcdefghijklmnopqrstuvwxyz0123456789"
     code := ""
+    char_count := len(chars)
+    max_idx := (char_count - 1) * 1.0
+    min_idx := 0 * 1.0
     
     for i in range(6) {
-        idx := random_int(0, len(chars) - 1)
+        idx := random_int(min_idx, max_idx)
         code := code + substring(chars, idx, idx + 1)
     }
     
