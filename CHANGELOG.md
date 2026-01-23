@@ -8,6 +8,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Enhanced String Functions**: Six new string manipulation functions for common string operations
+  - `starts_with(str, prefix)`: Check if string starts with prefix, returns boolean
+    - Example: `starts_with("hello world", "hello")` returns `true`
+    - Example: `starts_with("test.ruff", "hello")` returns `false`
+  - `ends_with(str, suffix)`: Check if string ends with suffix, returns boolean
+    - Example: `ends_with("test.ruff", ".ruff")` returns `true`
+    - Example: `ends_with("photo.png", ".jpg")` returns `false`
+  - `index_of(str, substr)`: Find first occurrence of substring, returns index or -1
+    - Example: `index_of("hello world", "world")` returns `6.0`
+    - Example: `index_of("hello", "xyz")` returns `-1.0`
+    - Returns position of first match for repeated substrings
+  - `repeat(str, count)`: Repeat string count times, returns concatenated string
+    - Example: `repeat("ha", 3)` returns `"hahaha"`
+    - Example: `repeat("*", 10)` returns `"**********"`
+  - `split(str, delimiter)`: Split string by delimiter, returns array of strings
+    - Example: `split("a,b,c", ",")` returns `["a", "b", "c"]`
+    - Example: `split("one two three", " ")` returns `["one", "two", "three"]`
+    - Works with multi-character delimiters: `split("hello::world", "::")`
+  - `join(array, separator)`: Join array elements with separator, returns string
+    - Example: `join(["a", "b", "c"], ",")` returns `"a,b,c"`
+    - Example: `join([1, 2, 3], "-")` returns `"1-2-3"`
+    - Converts non-string elements (numbers, booleans) to strings automatically
+  - All functions implemented in Rust for performance
+  - Type checker support for all functions with proper type signatures
+  - 14 comprehensive integration tests covering all functions and edge cases
+  - Example program: `examples/string_functions.ruff` with practical use cases
+  - Syntax:
+    ```ruff
+    # Check file extensions
+    is_ruff := ends_with("script.ruff", ".ruff")  # true
+    
+    # Process CSV data
+    fields := split("Alice,30,Engineer", ",")
+    name := fields[0]  # "Alice"
+    
+    # Build strings from arrays
+    words := ["Ruff", "is", "awesome"]
+    sentence := join(words, " ")  # "Ruff is awesome"
+    
+    # Search in strings
+    pos := index_of("hello world", "world")  # 6
+    
+    # Generate patterns
+    border := repeat("=", 20)  # "===================="
+    
+    # URL validation
+    is_secure := starts_with(url, "https://")
+    ```
 - **String Interpolation**: Embed expressions directly in strings with `${}` syntax
   - Interpolate variables: `"Hello, ${name}!"` produces `"Hello, World!"`
   - Interpolate numbers: `"The answer is ${x}"` produces `"The answer is 42"`

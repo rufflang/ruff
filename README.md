@@ -85,7 +85,7 @@
 
 * **Built-in Functions**
   - **Math**: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, constants `PI` and `E`
-  - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`
+  - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`, `starts_with()`, `ends_with()`, `index_of()`, `repeat()`, `split()`, `join()`
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
   - **I/O**: `print()`, `input()`
