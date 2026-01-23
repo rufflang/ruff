@@ -2,15 +2,26 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.4.0 - Standard library enhancements with random, date/time, system operations, and path utilities! Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
+> **Status**: v0.5.0 - Interactive REPL with multi-line support and command history! Full-featured interactive shell for experimentation and learning. Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
 
-**Quick Links**: [Installation](#-installation) • [Getting Started](#-getting-started) • [Examples](#-writing-ruff-scripts) • [Features](#-project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
+**Quick Links**: [Installation](#-installation) • [Getting Started](#-getting-started) • [REPL](#-interactive-repl-v050-) • [Examples](#-writing-ruff-scripts) • [Features](#-project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
 ---
 
 ## 🎯 Project Status
 
-### ✅ Implemented Features (v0.4.0)
+### ✅ Implemented Features (v0.5.0)
+
+* **Interactive REPL** (v0.5.0) ✨
+  - Full-featured Read-Eval-Print Loop
+  - Multi-line input with automatic detection
+  - Command history with up/down arrow navigation
+  - Line editing with cursor movement
+  - Special commands: `:help`, `:quit`, `:clear`, `:vars`, `:reset`
+  - Pretty-printed colored output
+  - Persistent state across inputs
+  - Error handling without crashes
+  - Launch with: `ruff repl`
 
 * **Variables & Constants**
   - `let` and `mut` for mutable variables
@@ -182,7 +193,69 @@ cargo run -- run examples/your_script.ruff
 
 ---
 
-## 📄 Writing `.ruff` Scripts
+## � Interactive REPL (v0.5.0) ✨
+
+Launch the interactive shell for experimentation and learning:
+
+```bash
+cargo run --quiet -- repl
+```
+
+The REPL provides a powerful interactive environment:
+
+**Features**:
+- ✅ **Multi-line input** - Automatically detects incomplete statements
+- ✅ **Command history** - Navigate with up/down arrows
+- ✅ **Line editing** - Full cursor movement and editing support
+- ✅ **Persistent state** - Variables and functions stay defined
+- ✅ **Pretty output** - Colored, formatted value display
+- ✅ **Special commands** - `:help`, `:quit`, `:clear`, `:vars`, `:reset`
+
+**Example Session**:
+
+```
+╔══════════════════════════════════════════════════════╗
+║          Ruff REPL v0.5.0 - Interactive Shell       ║
+╚══════════════════════════════════════════════════════╝
+
+  Welcome! Use :help for commands or :quit
+  Tip: Multi-line input: End with unclosed braces
+
+ruff> let x := 42
+ruff> x * 2
+=> 84
+
+ruff> func factorial(n) {
+....>     if n <= 1 {
+....>         return 1
+....>     }
+....>     return n * factorial(n - 1)
+....> }
+
+ruff> factorial(5)
+=> 120
+
+ruff> let names := ["Alice", "Bob", "Charlie"]
+ruff> names
+=> ["Alice", "Bob", "Charlie"]
+
+ruff> :help
+# Shows available commands
+
+ruff> :quit
+Goodbye!
+```
+
+**Tips**:
+- Type `:help` to see all available commands
+- Press Ctrl+C to interrupt current input
+- Press Ctrl+D or type `:quit` to exit
+- Leave braces unclosed for multi-line input
+- Any expression automatically prints its result
+
+---
+
+## �📄 Writing `.ruff` Scripts
 
 Example:
 

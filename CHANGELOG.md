@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-01-23
+
+### Added
+- **Interactive REPL (Read-Eval-Print Loop)**: Full-featured interactive shell for Ruff
+  - **Launch with `ruff repl`** - Start interactive mode for quick experimentation and learning
+  - **Multi-line input support** - Automatically detects incomplete statements (unclosed braces, brackets, parentheses)
+    - Type opening brace `{` and continue on next line with `....>` prompt
+    - Close brace `}` to execute the complete statement
+    - Works for functions, loops, conditionals, and any multi-line construct
+  - **Command history** - Navigate previous commands with up/down arrow keys
+  - **Line editing** - Full readline support with cursor movement and editing
+  - **Special commands**:
+    - `:help` or `:h` - Display help information
+    - `:quit` or `:q` - Exit the REPL (or use Ctrl+D)
+    - `:clear` or `:c` - Clear the screen
+    - `:vars` or `:v` - Show defined variables
+    - `:reset` or `:r` - Reset environment to clean state
+    - `Ctrl+C` - Interrupt current input
+  - **Persistent state** - Variables and functions remain defined across inputs
+  - **Pretty-printed output** - Colored, formatted display of values
+    - Numbers: `=> 42`
+    - Strings: `=> "Hello, World"`
+    - Booleans: `=> true`
+    - Arrays: `=> [1, 2, 3, 4]`
+    - Dictionaries: `=> {"name": "Alice", "age": 30}`
+    - Functions: `=> <function(x, y)>`
+    - Structs: `=> Point { x: 3, y: 4 }`
+  - **Expression evaluation** - Any expression automatically prints its result
+  - **Error handling** - Errors display clearly without crashing the REPL
+  - Example session:
+    ```
+    ruff> let x := 42
+    ruff> x + 10
+    => 52
+    ruff> func greet(name) {
+    ....>     print("Hello, " + name)
+    ....> }
+    ruff> greet("World")
+    Hello, World
+    => 0
+    ruff> let nums := [1, 2, 3, 4, 5]
+    ruff> nums
+    => [1, 2, 3, 4, 5]
+    ruff> :quit
+    Goodbye!
+    ```
+  - See `tests/test_repl_*.txt` for comprehensive examples
+
 ## [0.4.0] - 2026-01-23
 
 ### Added
