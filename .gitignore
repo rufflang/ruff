@@ -82,3 +82,8 @@ Icon?
 
 # === WORKSPACE ===
 /tmp/
+
+# === DATABASES ===
+*.db
+*.sqlite
+*.sqlite3
