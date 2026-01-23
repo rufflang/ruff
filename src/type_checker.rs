@@ -147,6 +147,55 @@ impl TypeChecker {
                 return_type: Some(TypeAnnotation::String),
             },
         );
+
+        // New string functions
+        self.functions.insert(
+            "starts_with".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "ends_with".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "index_of".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
+            "repeat".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::Float)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "split".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: None, // Returns array, but we don't have array type annotation yet
+            },
+        );
+
+        self.functions.insert(
+            "join".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String)], // First param is array
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
     }
 
     /// Type check a list of statements
