@@ -7,38 +7,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## 📦 High Priority (v0.4.0) - COMPLETED
-
-### 1. Operator Overloading ✅
-
-**Status**: **COMPLETED**  
-**Completed**: January 2026
-
-See [CHANGELOG.md](CHANGELOG.md#040---2026-01-23) for full details.
-
-**Summary**: Structs can define custom behavior for operators using `op_` methods. Supports arithmetic (+, -, *, /, %) and comparison (==, !=, <, >, <=, >=) operators.
-
-### 2. Struct Method Self Parameter ✅
-
-**Status**: **COMPLETED**  
-**Completed**: January 2026
-
-See [CHANGELOG.md](CHANGELOG.md#unreleased) for full details.
-
-**Summary**: Methods can now use explicit `self` parameter for method composition and builder patterns. Fully backward compatible with existing code.
-
-### 3. Unary Operator Overloading ✅
-
-**Status**: **COMPLETED**  
-**Completed**: January 2026
-
-See [CHANGELOG.md](CHANGELOG.md#unreleased) for full details.
-
-**Summary**: Structs can now overload unary operators (`-` and `!`) for custom behavior. Supports vector negation, complex number operations, boolean flag toggling, and more.
-
----
-
-## 🌟 Medium Priority (v0.5.0)
+## 🌟 Planned Features (v0.5.0)
 
 ### 1. HTTP Server & Networking
 
