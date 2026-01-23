@@ -8,6 +8,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Array Higher-Order Functions**: Functional programming operations on arrays for data transformation and processing
+  - `map(array, func)`: Transform each element by applying a function, returns new array
+    - Example: `map([1, 2, 3], func(x) { return x * x })` returns `[1, 4, 9]`
+    - Example: `map(["hello", "world"], func(w) { return to_upper(w) })` returns `[HELLO, WORLD]`
+    - Function receives each element as parameter, return value becomes new element
+    - Original array is unchanged (immutable operation)
+  - `filter(array, func)`: Select elements where function returns truthy value, returns new array
+    - Example: `filter([1, 2, 3, 4], func(x) { return x % 2 == 0 })` returns `[2, 4]`
+    - Example: `filter(["Alice", "Bob", "Charlie"], func(n) { return len(n) < 6 })` returns `[Alice, Bob]`
+    - Function returns boolean or truthy value to determine inclusion
+    - Returns empty array if no elements match
+  - `reduce(array, initial, func)`: Accumulate array elements into single value
+    - Example: `reduce([1, 2, 3, 4, 5], 0, func(acc, x) { return acc + x })` returns `15`
+    - Example: `reduce([2, 3, 4], 1, func(acc, x) { return acc * x })` returns `24`
+    - Example: `reduce(["R", "u", "f", "f"], "", func(acc, l) { return acc + l })` returns `Ruff`
+    - Function receives accumulator and current element, returns new accumulator value
+    - Initial value sets starting accumulator and return type
+  - `find(array, func)`: Return first element where function returns truthy value
+    - Example: `find([10, 20, 30, 40], func(x) { return x > 25 })` returns `30`
+    - Example: `find(["apple", "banana", "cherry"], func(f) { return starts_with(f, "c") })` returns `cherry`
+    - Returns `0` if no element matches (null equivalent)
+    - Stops searching after first match for efficiency
+  - Supports chaining: `reduce(map(filter(arr, f1), f2), init, f3)` for complex transformations
+  - Anonymous function expressions: `func(x) { return x * 2 }` can be used inline
+  - All functions work with mixed-type arrays (numbers, strings, booleans)
+  - Type checker support with function signatures
+  - 20 comprehensive integration tests covering all functions and edge cases
+  - Example program: `examples/array_higher_order.ruff` with practical use cases including:
+    - Data transformation (temperature conversion, string manipulation)
+    - Filtering and validation (even numbers, positive values, string length)
+    - Aggregation (sum, product, average, max/min)
+    - Search operations (first match, existence checks)
+    - Real-world scenarios (student scores, price calculations, data processing)
+  - Syntax:
+    ```ruff
+    # Transform data
+    squared := map([1, 2, 3, 4, 5], func(x) { return x * x })
+    
+    # Filter data
+    evens := filter([1, 2, 3, 4, 5, 6], func(n) { return n % 2 == 0 })
+    
+    # Aggregate data
+    sum := reduce([1, 2, 3, 4, 5], 0, func(acc, x) { return acc + x })
+    
+    # Find data
+    first_large := find([10, 20, 30, 40], func(x) { return x > 25 })
+    
+    # Chain operations
+    result := reduce(
+        map(
+            filter(data, func(x) { return x > 0 }),
+            func(x) { return x * 2 }
+        ),
+        0,
+        func(acc, x) { return acc + x }
+    )
+    ```
+- **Anonymous Function Expressions**: Support for inline function definitions in expression contexts
+  - Syntax: `func(param1, param2) { body }` can be used as an expression
+  - Compatible with all higher-order functions (map, filter, reduce, find)
+  - Supports lexical scoping with access to outer variables
+  - Optional type annotations: `func(x: int) -> int { return x * 2 }`
+  - Functions are first-class values that can be stored, passed, and returned
 - **Enhanced String Functions**: Six new string manipulation functions for common string operations
   - `starts_with(str, prefix)`: Check if string starts with prefix, returns boolean
     - Example: `starts_with("hello world", "hello")` returns `true`
