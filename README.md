@@ -163,6 +163,7 @@
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
   - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()`, `set_header()` (v0.5.1), `set_headers()` (v0.5.1) - HTTP client and server with full header control
+  - **Binary Files** (v0.6.0): `http_get_binary()`, `read_binary_file()`, `write_binary_file()`, `encode_base64()`, `decode_base64()` - Download and work with binary data (images, PDFs, archives)
   - **Database** (v0.5.1): `db_connect()`, `db_execute()`, `db_query()`, `db_close()` - SQLite database operations
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
@@ -447,6 +448,36 @@ server.route("POST", "/todos", func(request) {
 
 print("REST API running on http://localhost:8080")
 server.listen()
+```
+
+### Binary File Operations (v0.6.0)
+
+Download and work with binary files like images, PDFs, and archives:
+
+```ruff
+# Download binary file from URL
+image_data := http_get_binary("https://example.com/photo.jpg")
+write_binary_file("photo.jpg", image_data)
+print("Downloaded:", len(image_data), "bytes")
+
+# Read binary file
+file_bytes := read_binary_file("document.pdf")
+
+# Base64 encoding for API transfers
+base64_str := encode_base64(file_bytes)  # Also accepts strings
+decoded := decode_base64(base64_str)
+
+# Example: Download AI-generated image
+# After calling image generation API...
+generated_url := api_response["image_url"]
+image := http_get_binary(generated_url)
+write_binary_file("ai_generated.png", image)
+
+# Embed in JSON
+json_payload := {
+    "image": encode_base64(image),
+    "format": "png"
+}
 ```
 
 **HTTP Headers** (v0.5.1):
