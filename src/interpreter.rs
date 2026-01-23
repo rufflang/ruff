@@ -322,6 +322,12 @@ impl Interpreter {
         self.env.define("regex_find_all".to_string(), Value::NativeFunction("regex_find_all".to_string()));
         self.env.define("regex_replace".to_string(), Value::NativeFunction("regex_replace".to_string()));
         self.env.define("regex_split".to_string(), Value::NativeFunction("regex_split".to_string()));
+
+        // HTTP client functions
+        self.env.define("http_get".to_string(), Value::NativeFunction("http_get".to_string()));
+        self.env.define("http_post".to_string(), Value::NativeFunction("http_post".to_string()));
+        self.env.define("http_put".to_string(), Value::NativeFunction("http_put".to_string()));
+        self.env.define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -1302,6 +1308,58 @@ impl Interpreter {
                     Value::Array(values)
                 } else {
                     Value::Error("regex_split requires two string arguments (text, pattern)".to_string())
+                }
+            }
+
+            "http_get" => {
+                // http_get(url) - make GET request
+                if let Some(Value::Str(url)) = arg_values.get(0) {
+                    match builtins::http_get(url) {
+                        Ok(result_map) => Value::Dict(result_map),
+                        Err(e) => Value::Error(e)
+                    }
+                } else {
+                    Value::Error("http_get requires a URL string".to_string())
+                }
+            }
+
+            "http_post" => {
+                // http_post(url, body_json) - make POST request with JSON body
+                if let (Some(Value::Str(url)), Some(Value::Str(body))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    match builtins::http_post(url, body) {
+                        Ok(result_map) => Value::Dict(result_map),
+                        Err(e) => Value::Error(e)
+                    }
+                } else {
+                    Value::Error("http_post requires URL and JSON body strings".to_string())
+                }
+            }
+
+            "http_put" => {
+                // http_put(url, body_json) - make PUT request with JSON body
+                if let (Some(Value::Str(url)), Some(Value::Str(body))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    match builtins::http_put(url, body) {
+                        Ok(result_map) => Value::Dict(result_map),
+                        Err(e) => Value::Error(e)
+                    }
+                } else {
+                    Value::Error("http_put requires URL and JSON body strings".to_string())
+                }
+            }
+
+            "http_delete" => {
+                // http_delete(url) - make DELETE request
+                if let Some(Value::Str(url)) = arg_values.get(0) {
+                    match builtins::http_delete(url) {
+                        Ok(result_map) => Value::Dict(result_map),
+                        Err(e) => Value::Error(e)
+                    }
+                } else {
+                    Value::Error("http_delete requires a URL string".to_string())
                 }
             }
 
