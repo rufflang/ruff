@@ -76,3 +76,6 @@ Icon?
 *.exe
 *.obj
 *.pdb
+
+# === GITHUB ===
+.github/
