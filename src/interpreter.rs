@@ -69,6 +69,7 @@ pub enum Value {
     Str(String),
     Bool(bool),
     Null, // Null value for optional chaining and null coalescing
+    Bytes(Vec<u8>), // Binary data for files, HTTP downloads, etc.
     Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
     NativeFunction(String), // Name of the native function
     Return(Box<Value>),
@@ -118,6 +119,7 @@ impl std::fmt::Debug for Value {
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::Null => write!(f, "Null"),
+            Value::Bytes(bytes) => write!(f, "Bytes({} bytes)", bytes.len()),
             Value::Function(params, body, captured_env) => {
                 let env_info = if captured_env.is_some() { " +closure" } else { "" };
                 write!(f, "Function({:?}, {} stmts{})", params, body.get().len(), env_info)
@@ -342,6 +344,10 @@ impl Interpreter {
         self.env.define("read_lines".to_string(), Value::NativeFunction("read_lines".to_string()));
         self.env.define("list_dir".to_string(), Value::NativeFunction("list_dir".to_string()));
         self.env.define("create_dir".to_string(), Value::NativeFunction("create_dir".to_string()));
+        
+        // Binary file I/O functions
+        self.env.define("read_binary_file".to_string(), Value::NativeFunction("read_binary_file".to_string()));
+        self.env.define("write_binary_file".to_string(), Value::NativeFunction("write_binary_file".to_string()));
 
         // JSON functions
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
@@ -876,6 +882,7 @@ impl Interpreter {
                 Some(Value::Str(s)) => Value::Number(builtins::str_len(s)),
                 Some(Value::Array(arr)) => Value::Number(arr.len() as f64),
                 Some(Value::Dict(dict)) => Value::Number(dict.len() as f64),
+                Some(Value::Bytes(bytes)) => Value::Number(bytes.len() as f64),
                 _ => Value::Number(0.0),
             },
 
@@ -1324,6 +1331,37 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("write_file requires string arguments".to_string())
+                }
+            }
+
+            "read_binary_file" => {
+                // read_binary_file(path) - reads entire file as byte array
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match std::fs::read(path) {
+                        Ok(bytes) => Value::Bytes(bytes),
+                        Err(e) => Value::Error(format!("Cannot read binary file '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("read_binary_file requires a string path argument".to_string())
+                }
+            }
+
+            "write_binary_file" => {
+                // write_binary_file(path, bytes) - writes byte array to file (overwrites)
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "write_binary_file requires two arguments: path and bytes".to_string(),
+                    );
+                }
+                if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    match std::fs::write(path, bytes) {
+                        Ok(_) => Value::Bool(true),
+                        Err(e) => Value::Error(format!("Cannot write binary file '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("write_binary_file requires path (string) and bytes arguments".to_string())
                 }
             }
 
