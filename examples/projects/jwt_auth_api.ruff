@@ -1,0 +1,184 @@
+/*
+ * JWT Authentication API
+ * 
+ * Demonstrates JWT-based authentication for secure API access.
+ * Shows: User login, token generation, protected endpoints
+ * 
+ * NEW v0.6.0 Features:
+ * - jwt_encode() - Create JWT tokens
+ * - jwt_decode() - Validate JWT tokens
+ * - Token expiration handling
+ * 
+ * Run: cargo run --quiet -- run examples/projects/jwt_auth_api.ruff
+ * 
+ * Test:
+ *   # Login to get token
+ *   curl -X POST http://localhost:8080/login \
+ *     -d '{"username":"admin","password":"password123"}'
+ * 
+ *   # Access protected endpoint
+ *   curl http://localhost:8080/protected \
+ *     -H "Authorization: Bearer YOUR_TOKEN"
+ */
+
+print("=== JWT Authentication API (v0.6.0) ===\n")
+
+# Configuration
+JWT_SECRET := "my-secret-key-change-in-production"
+TOKEN_EXPIRY := 3600  # 1 hour
+
+# Mock user database
+let users := [
+    {"username": "admin", "password": "password123", "id": 1, "email": "admin@example.com"},
+    {"username": "user", "password": "pass456", "id": 2, "email": "user@example.com"}
+]
+
+# Find user by username
+func find_user(username) {
+    for i := 0; i < len(users); i := i + 1 {
+        if users[i]["username"] == username {
+            return users[i]
+        }
+    }
+    return null
+}
+
+# Extract token from Authorization header
+func get_token(request) {
+    if !has_key(request, "headers") {
+        return null
+    }
+    
+    # Try both capitalization styles
+    auth := null
+    if has_key(request.headers, "authorization") {
+        auth := request.headers.authorization
+    }
+    if has_key(request.headers, "Authorization") {
+        auth := request.headers.Authorization
+    }
+    
+    if auth == null {
+        return null
+    }
+    
+    # Extract "Bearer TOKEN"
+    parts := split(auth, " ")
+    if len(parts) == 2 && parts[0] == "Bearer" {
+        return parts[1]
+    }
+    
+    return null
+}
+
+# POST /login - Generate JWT token
+server := http_server(8080)
+
+server := server.route("POST", "/login", func(req) {
+    try {
+        data := parse_json(req.body)
+        
+        if !has_key(data, "username") || !has_key(data, "password") {
+            return json_response(400, {"error": "Username and password required"})
+        }
+        
+        # Find user
+        user := find_user(data.username)
+        if user == null {
+            return json_response(401, {"error": "Invalid credentials"})
+        }
+        
+        # Check password
+        if user.password != data.password {
+            return json_response(401, {"error": "Invalid credentials"})
+        }
+        
+        # Create JWT token
+        payload := {
+            "user_id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "exp": now() + TOKEN_EXPIRY
+        }
+        
+        token := jwt_encode(payload, JWT_SECRET)
+        
+        print("✓ Login successful: " + user.username)
+        
+        return json_response(200, {
+            "message": "Login successful",
+            "token": token,
+            "expires_in": TOKEN_EXPIRY
+        })
+        
+    } except err {
+        return json_response(500, {"error": "Login failed: " + err.message})
+    }
+})
+
+# GET /protected - Protected endpoint requiring valid JWT
+server := server.route("GET", "/protected", func(req) {
+    token := get_token(req)
+    
+    if token == null {
+        return json_response(401, {"error": "No token provided"})
+    }
+    
+    try {
+        # Decode and validate token
+        payload := jwt_decode(token, JWT_SECRET)
+        
+        # Check expiration
+        if has_key(payload, "exp") {
+            if payload.exp < now() {
+                return json_response(401, {"error": "Token expired"})
+            }
+        }
+        
+        print("✓ Protected access: " + payload.username)
+        
+        return json_response(200, {
+            "message": "Access granted",
+            "user": {
+                "id": payload.user_id,
+                "username": payload.username,
+                "email": payload.email
+            }
+        })
+        
+    } except err {
+        return json_response(401, {"error": "Invalid token"})
+    }
+})
+
+# GET / - API info
+server := server.route("GET", "/", func(req) {
+    return json_response(200, {
+        "name": "JWT Authentication API",
+        "version": "1.0.0",
+        "endpoints": [
+            "POST /login - Get JWT token",
+            "GET /protected - Access protected resource"
+        ],
+        "demo_users": [
+            {"username": "admin", "password": "password123"},
+            {"username": "user", "password": "pass456"}
+        ]
+    })
+})
+
+print("JWT Authentication API")
+print("=====================")
+print("Port: 8080")
+print("Token expiry: " + to_string(TOKEN_EXPIRY) + " seconds\n")
+print("Demo users:")
+print("  - admin / password123")
+print("  - user / pass456\n")
+print("Endpoints:")
+print("  GET  /          - API info")
+print("  POST /login     - Login and get JWT token")
+print("  GET  /protected - Protected endpoint (requires JWT)\n")
+print("Server running at http://localhost:8080")
+print("Press Ctrl+C to stop\n")
+
+server.listen()

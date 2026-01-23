@@ -1,0 +1,219 @@
+/*
+ * Streaming File Downloader
+ * 
+ * Memory-efficient file downloader using HTTP streaming.
+ * Shows: Large file downloads, binary file handling, progress tracking
+ * 
+ * NEW v0.6.0 Features:
+ * - http_get_stream() - Memory-efficient streaming downloads
+ * - write_binary_file() - Save binary data
+ * - Binary file operations
+ * 
+ * Run: cargo run --quiet -- run examples/projects/streaming_downloader.ruff
+ * 
+ * Use cases:
+ * - Download large files without memory overflow
+ * - Download images, PDFs, videos
+ * - Batch download operations
+ * - Progress tracking for downloads
+ */
+
+print("=== Streaming File Downloader (v0.6.0) ===\n")
+
+# Configuration
+OUTPUT_DIR := "downloads"
+RETRY_LIMIT := 3
+
+# Create output directory
+if !path_exists(OUTPUT_DIR) {
+    create_dir(OUTPUT_DIR)
+    print("Created directory: " + OUTPUT_DIR)
+}
+
+# Format bytes to human-readable
+func format_bytes(bytes) {
+    if bytes < 1024 {
+        return to_string(bytes) + " B"
+    } else if bytes < 1048576 {
+        kb := bytes / 1024
+        return to_string(round(kb * 100) / 100) + " KB"
+    } else {
+        mb := bytes / 1048576
+        return to_string(round(mb * 100) / 100) + " MB"
+    }
+}
+
+# Extract filename from URL
+func get_filename(url) {
+    parts := split(url, "/")
+    filename := parts[len(parts) - 1]
+    
+    # Remove query parameters
+    if contains(filename, "?") {
+        filename := substring(filename, 0, index_of(filename, "?"))
+    }
+    
+    # Default if no extension
+    if !contains(filename, ".") {
+        filename := filename + ".bin"
+    }
+    
+    return filename
+}
+
+# Download file with streaming
+func download_file(url, output_path) {
+    try {
+        print("  Downloading...")
+        
+        # Use streaming for memory efficiency
+        let data := http_get_stream(url)
+        let size := len(data)
+        
+        # Write binary file
+        write_binary_file(output_path, data)
+        
+        print("  ✓ Saved: " + format_bytes(size))
+        
+        return {"success": true, "size": size}
+        
+    } except err {
+        print("  ✗ Failed: " + err.message)
+        return {"success": false, "error": err.message}
+    }
+}
+
+# Download with retry logic
+func download_with_retry(url, output_path) {
+    let attempt := 1
+    
+    while attempt <= RETRY_LIMIT {
+        if attempt > 1 {
+            print("  Retry attempt " + to_string(attempt) + "...")
+            sleep(1000 * attempt)  # Exponential backoff
+        }
+        
+        result := download_file(url, output_path)
+        
+        if result.success {
+            return result
+        }
+        
+        attempt := attempt + 1
+    }
+    
+    return {"success": false, "error": "Max retries exceeded"}
+}
+
+# Download list of URLs
+func batch_download(urls) {
+    let total := len(urls)
+    let success_count := 0
+    let failed_count := 0
+    let total_bytes := 0
+    let start_time := now()
+    
+    print("\n=== Batch Download Started ===")
+    print("Total files: " + to_string(total))
+    print("")
+    
+    for i := 0; i < total; i := i + 1 {
+        url := urls[i]
+        filename := get_filename(url)
+        output_path := OUTPUT_DIR + "/" + filename
+        
+        print("[" + to_string(i + 1) + "/" + to_string(total) + "] " + filename)
+        print("  URL: " + url)
+        
+        # Skip if already exists
+        if file_exists(output_path) {
+            print("  ⊘ Already exists")
+            success_count := success_count + 1
+        } else {
+            result := download_with_retry(url, output_path)
+            
+            if result.success {
+                success_count := success_count + 1
+                total_bytes := total_bytes + result.size
+            } else {
+                failed_count := failed_count + 1
+            }
+        }
+        
+        print("")
+    }
+    
+    # Summary
+    let duration := now() - start_time
+    
+    print("=== Download Complete ===")
+    print("Success: " + to_string(success_count))
+    print("Failed: " + to_string(failed_count))
+    print("Total downloaded: " + format_bytes(total_bytes))
+    print("Duration: " + to_string(duration) + " seconds")
+    
+    if duration > 0 {
+        speed := total_bytes / duration / 1048576
+        print("Average speed: " + to_string(round(speed * 100) / 100) + " MB/s")
+    }
+}
+
+# Demo URLs (using httpbin test endpoints)
+let demo_urls := [
+    "https://httpbin.org/image/jpeg",
+    "https://httpbin.org/image/png",
+    "https://httpbin.org/image/webp"
+]
+
+print("Streaming File Downloader")
+print("=========================")
+print("Output directory: " + OUTPUT_DIR)
+print("Retry limit: " + to_string(RETRY_LIMIT))
+print("")
+
+# Example 1: Download single file
+print("Example 1: Single File Download")
+print("--------------------------------")
+let single_url := demo_urls[0]
+let single_filename := get_filename(single_url)
+let single_path := OUTPUT_DIR + "/" + single_filename
+
+print("URL: " + single_url)
+print("Output: " + single_path)
+download_file(single_url, single_path)
+
+# Example 2: Batch download with retry
+print("\nExample 2: Batch Download")
+print("-------------------------")
+batch_download(demo_urls)
+
+# Example 3: Verify downloads
+print("\nExample 3: Verify Downloaded Files")
+print("-----------------------------------")
+if path_exists(OUTPUT_DIR) {
+    let files := list_dir(OUTPUT_DIR)
+    
+    print("Files in " + OUTPUT_DIR + ":")
+    
+    for i := 0; i < len(files); i := i + 1 {
+        file := files[i]
+        filepath := OUTPUT_DIR + "/" + file
+        
+        if file_exists(filepath) {
+            # Read file size
+            data := read_binary_file(filepath)
+            size := len(data)
+            
+            print("  - " + file + " (" + format_bytes(size) + ")")
+        }
+    }
+}
+
+print("\n=== All Examples Complete ===")
+print("\nProduction tips:")
+print("  - Use http_get_stream() for large files (saves memory)")
+print("  - Implement progress callbacks for UI updates")
+print("  - Add checksums for integrity verification")
+print("  - Use parallel downloads for better performance")
+print("  - Handle rate limiting and throttling")
+print("  - Add resume capability for partial downloads")
