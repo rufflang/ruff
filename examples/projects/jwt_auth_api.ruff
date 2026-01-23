@@ -149,7 +149,8 @@ server := server.route("GET", "/protected", func(req) {
         })
         
     } except err {
-        return json_response(401, {"error": "Invalid token"})
+        print("ERROR in protected route: " + to_json(err))
+        return json_response(401, {"error": "Invalid token", "details": to_json(err)})
     }
 })
 
