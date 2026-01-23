@@ -413,6 +413,64 @@ impl TypeChecker {
                 return_type: None, // Returns array of strings
             },
         );
+
+        // HTTP client functions
+        self.functions.insert(
+            "http_get".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns Result<dict, string>
+            },
+        );
+
+        self.functions.insert(
+            "http_post".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: None, // Returns Result<dict, string>
+            },
+        );
+
+        self.functions.insert(
+            "http_put".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: None, // Returns Result<dict, string>
+            },
+        );
+
+        self.functions.insert(
+            "http_delete".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns Result<dict, string>
+            },
+        );
+
+        // HTTP server functions
+        self.functions.insert(
+            "http_server".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Int)],
+                return_type: None, // Returns HttpServer object
+            },
+        );
+
+        self.functions.insert(
+            "http_response".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Int), Some(TypeAnnotation::String)],
+                return_type: None, // Returns HttpResponse object
+            },
+        );
+
+        self.functions.insert(
+            "json_response".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Int), None], // Status code and any data
+                return_type: None, // Returns HttpResponse object
+            },
+        );
     }
 
     /// Type check a list of statements
