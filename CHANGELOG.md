@@ -10,6 +10,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.0] - 2026-01-23
 
 ### Added
+- **HTTP Server & Networking**: Full-featured HTTP client and server capabilities
+  - **HTTP Client Functions**:
+    - `http_get(url)` - Send GET requests and receive responses
+    - `http_post(url, body)` - Send POST requests with JSON body
+    - `http_put(url, body)` - Send PUT requests with JSON body
+    - `http_delete(url)` - Send DELETE requests
+    - Returns `Result<dict, string>` with status code and response body
+  - **HTTP Server Creation**:
+    - `http_server(port)` - Create HTTP server on specified port
+    - `server.route(method, path, handler)` - Register route handlers
+    - `server.listen()` - Start server and handle incoming requests
+  - **Request/Response Objects**:
+    - `http_response(status, body)` - Create HTTP response with status code and text body
+    - `json_response(status, data)` - Create HTTP response with JSON body
+    - Request object includes: `method`, `path`, `body` fields
+  - **Features**:
+    - Method-based routing (GET, POST, PUT, DELETE, etc.)
+    - Path-based routing with exact matching
+    - JSON request/response handling
+    - Automatic request body parsing
+    - Error handling with proper status codes
+  - **Example applications**:
+    - `examples/http_server_simple.ruff` - Basic hello world server
+    - `examples/http_rest_api.ruff` - Full REST API with in-memory data
+    - `examples/http_client.ruff` - HTTP client usage examples
+    - `examples/http_webhook.ruff` - Webhook receiver implementation
+  - Example:
+    ```ruff
+    let server = http_server(8080);
+    
+    server.route("GET", "/hello", func(request) {
+        return http_response(200, "Hello, World!");
+    });
+    
+    server.route("POST", "/data", func(request) {
+        return json_response(200, {"received": request.body});
+    });
+    
+    server.listen();  // Start serving requests
+    ```
+
 - **Interactive REPL (Read-Eval-Print Loop)**: Full-featured interactive shell for Ruff
   - **Launch with `ruff repl`** - Start interactive mode for quick experimentation and learning
   - **Multi-line input support** - Automatically detects incomplete statements (unclosed braces, brackets, parentheses)
