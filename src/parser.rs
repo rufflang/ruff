@@ -699,7 +699,37 @@ impl Parser {
             }
         }
 
-        self.parse_comparison()
+        self.parse_or()
+    }
+
+    fn parse_or(&mut self) -> Option<Expr> {
+        let mut left = self.parse_and()?;
+
+        while matches!(self.peek(), TokenKind::Operator(op) if op == "||") {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_and()?;
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
+        }
+
+        Some(left)
+    }
+
+    fn parse_and(&mut self) -> Option<Expr> {
+        let mut left = self.parse_comparison()?;
+
+        while matches!(self.peek(), TokenKind::Operator(op) if op == "&&") {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_comparison()?;
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
+        }
+
+        Some(left)
     }
 
     fn parse_comparison(&mut self) -> Option<Expr> {
