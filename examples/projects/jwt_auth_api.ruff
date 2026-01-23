@@ -53,7 +53,7 @@ server := server.route("GET", "/", func(req) {
 # POST /login - Login and generate JWT token
 server := server.route("POST", "/login", func(req) {
     try {
-        data := parse_json(req.body)
+        data := parse_json(req["body"])
         
         # Validate input
         if !has_key(data, "username") || !has_key(data, "password") {
@@ -106,20 +106,17 @@ server := server.route("GET", "/protected", func(req) {
             return json_response(401, {"error": "No Authorization header"})
         }
         
-        auth_header := null
-        if has_key(req["headers"], "authorization") {
-            auth_header := req["headers"]["authorization"]
-        }
-        if has_key(req["headers"], "Authorization") {
-            auth_header := req["headers"]["Authorization"]
+        # Get Authorization header (curl sends it capitalized)
+        headers := req["headers"]
+        
+        if !has_key(headers, "Authorization") {
+            return json_response(401, {"error": "No Authorization header provided"})
         }
         
-        if auth_header == null {
-            return json_response(401, {"error": "No token provided"})
-        }
+        token_header := headers["Authorization"]
         
         # Extract token from "Bearer TOKEN" format
-        parts := split(auth_header, " ")
+        parts := split(token_header, " ")
         if len(parts) != 2 || parts[0] != "Bearer" {
             return json_response(401, {"error": "Invalid Authorization format. Use: Bearer TOKEN"})
         }
@@ -149,8 +146,7 @@ server := server.route("GET", "/protected", func(req) {
         })
         
     } except err {
-        print("ERROR in protected route: " + to_json(err))
-        return json_response(401, {"error": "Invalid token", "details": to_json(err)})
+        return json_response(401, {"error": "Invalid token"})
     }
 })
 

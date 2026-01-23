@@ -772,7 +772,7 @@ impl Interpreter {
                     params_dict.insert(key.clone(), Value::Str(value.clone()));
                 }
 
-                // Create request object
+                // Create request object as a Dict (not Struct) so has_key() and bracket access work
                 let mut req_fields = HashMap::new();
                 req_fields.insert("method".to_string(), Value::Str(method.clone()));
                 req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
@@ -788,7 +788,7 @@ impl Interpreter {
                 }
                 req_fields.insert("headers".to_string(), Value::Dict(headers_dict));
 
-                let req_obj = Value::Struct { name: "Request".to_string(), fields: req_fields };
+                let req_obj = Value::Dict(req_fields);
 
                 // Call handler function
                 if let Value::Function(params, body, _captured_env) = handler {
