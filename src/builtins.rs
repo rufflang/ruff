@@ -5,6 +5,7 @@
 // core functionality for math, strings, arrays, I/O operations, and JSON.
 
 use crate::interpreter::Value;
+use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, TimeZone, Utc};
 use rand::Rng;
 use regex::Regex;
@@ -482,6 +483,18 @@ pub fn http_get_binary(url: &str) -> Result<Vec<u8>, String> {
         }
         Err(e) => Err(format!("HTTP GET request failed: {}", e)),
     }
+}
+
+/// Encode bytes to base64 string
+pub fn encode_base64(bytes: &[u8]) -> String {
+    general_purpose::STANDARD.encode(bytes)
+}
+
+/// Decode base64 string to bytes
+pub fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
+    general_purpose::STANDARD
+        .decode(s)
+        .map_err(|e| format!("Base64 decode error: {}", e))
 }
 
 #[cfg(test)]

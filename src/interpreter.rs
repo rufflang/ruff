@@ -353,6 +353,10 @@ impl Interpreter {
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
         self.env.define("to_json".to_string(), Value::NativeFunction("to_json".to_string()));
 
+        // Base64 encoding/decoding functions
+        self.env.define("encode_base64".to_string(), Value::NativeFunction("encode_base64".to_string()));
+        self.env.define("decode_base64".to_string(), Value::NativeFunction("decode_base64".to_string()));
+
         // Random functions
         self.env.define("random".to_string(), Value::NativeFunction("random".to_string()));
         self.env.define("random_int".to_string(), Value::NativeFunction("random_int".to_string()));
@@ -1482,6 +1486,28 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("to_json requires a value argument".to_string())
+                }
+            }
+
+            // Base64 functions
+            "encode_base64" => {
+                // encode_base64(bytes) - encodes bytes to base64 string
+                if let Some(Value::Bytes(bytes)) = arg_values.get(0) {
+                    Value::Str(builtins::encode_base64(bytes))
+                } else {
+                    Value::Error("encode_base64 requires a bytes argument".to_string())
+                }
+            }
+
+            "decode_base64" => {
+                // decode_base64(string) - decodes base64 string to bytes
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    match builtins::decode_base64(s) {
+                        Ok(bytes) => Value::Bytes(bytes),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("decode_base64 requires a string argument".to_string())
                 }
             }
 
