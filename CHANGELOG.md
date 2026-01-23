@@ -8,6 +8,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Enhanced Error Handling**: Comprehensive error handling improvements for better debugging and error management
+  
+  **Error Properties**: Access detailed error information in except blocks
+  - `err.message` - Get the error message as a string
+    - Example: `try { throw("Failed") } except err { print(err.message) }` outputs `"Failed"`
+  - `err.stack` - Access the call stack trace as an array
+    - Example: Stack trace array shows function call chain leading to error
+    - Each stack frame shows the function name
+    - Useful for debugging nested function calls
+  - `err.line` - Get the line number where error occurred (when available)
+    - Example: `print(err.line)` shows line number
+    - Returns 0 if line information not available
+  
+  **Custom Error Types**: Define custom error structs for domain-specific errors
+  - Throw struct instances as errors
+    - Example:
+      ```ruff
+      struct ValidationError {
+          field: string,
+          message: string
+      }
+      
+      error := ValidationError {
+          field: "email",
+          message: "Email is required"
+      }
+      throw(error)
+      ```
+  - Error properties automatically available in except block
+  - Enables type-specific error handling patterns
+  
+  **Error Chaining**: Create nested error contexts with cause information
+  - Add `cause` field to error structs to preserve original error
+    - Example:
+      ```ruff
+      try {
+          risky_operation()
+      } except original_err {
+          error := DatabaseError {
+              message: "Failed to process data",
+              cause: original_err.message
+          }
+          throw(error)
+      }
+      ```
+  - Maintains full error context through multiple layers
+  - Essential for debugging complex error scenarios
+  
+  **Stack Traces**: Automatic call stack tracking in errors
+  - Function call chain captured when error thrown
+  - Access via `err.stack` array in except blocks
+  - Each array element contains function name
+  - Enables detailed debugging of error origins
+  
+  **Examples**:
+  - `examples/error_handling_enhanced.ruff` - Complete demonstration of all error handling features
+  - `examples/test_errors_simple.ruff` - Quick test of error properties
+  
+  **Use Cases**:
+  - Input validation with detailed error messages
+  - API error handling with status codes
+  - File operation error recovery
+  - Database connection error management
+  - Multi-layer error context preservation
 
 ---
 
