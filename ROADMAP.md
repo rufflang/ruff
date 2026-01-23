@@ -38,13 +38,10 @@ json_str := to_json(person)  # {"name":"Bob","score":95}
 
 ### 2. Standard Library Enhancements
 
-**Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
+**Status**: ✅ Completed (January 23, 2026)  
+**Implementation**: Added random, date/time, system operations, and path functions
 
-**Description**:  
-Expand built-in functions for common programming tasks.
-
-**Planned Additions**:
+**Implemented Functions**:
 
 **Math & Random**:
 ```ruff
