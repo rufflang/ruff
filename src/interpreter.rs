@@ -462,6 +462,56 @@ impl Interpreter {
         None
     }
 
+    /// Attempts to call a unary operator method on a struct value
+    /// Returns Some(result) if the struct has the operator method, None otherwise
+    fn try_call_unary_operator_method(
+        &mut self,
+        struct_val: &Value,
+        method_name: &str,
+    ) -> Option<Value> {
+        if let Value::Struct { name, fields } = struct_val {
+            // Look up the struct definition to find the operator method
+            if let Some(Value::StructDef { name: _, field_names: _, methods }) =
+                self.env.get(name)
+            {
+                if let Some(Value::Function(params, body)) = methods.get(method_name) {
+                    // Create new scope for operator method call
+                    self.env.push_scope();
+
+                    // Check if method has 'self' as first (and only) parameter
+                    let has_self_param = params.first().map(|p| p == "self").unwrap_or(false);
+                    
+                    if has_self_param {
+                        // Bind self to the struct instance
+                        self.env.define("self".to_string(), struct_val.clone());
+                    } else {
+                        // Backward compatibility: bind fields directly into scope
+                        for (field_name, field_value) in fields {
+                            self.env.define(field_name.clone(), field_value.clone());
+                        }
+                    }
+
+                    // Execute method body
+                    self.eval_stmts(&body);
+
+                    let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                        self.return_value = None;
+                        *val
+                    } else {
+                        self.return_value = None;
+                        Value::Number(0.0)
+                    };
+
+                    // Restore parent environment
+                    self.env.pop_scope();
+
+                    return Some(result);
+                }
+            }
+        }
+        None
+    }
+
     /// Calls a native built-in function
     fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
         // Evaluate all arguments
@@ -1963,6 +2013,23 @@ impl Interpreter {
             Expr::Function { params, param_types: _, return_type: _, body } => {
                 // Anonymous function expression - return as a value
                 Value::Function(params.clone(), body.clone())
+            }
+            Expr::UnaryOp { op, operand } => {
+                let val = self.eval_expr(operand);
+                
+                // Check if the operand is a struct with an unary operator method
+                if let Some(method_name) = crate::ast::operator_methods::unary_op_method(op) {
+                    if let Some(result) = self.try_call_unary_operator_method(&val, method_name) {
+                        return result;
+                    }
+                }
+                
+                // Default behavior for built-in types
+                match (op.as_str(), val) {
+                    ("-", Value::Number(n)) => Value::Number(-n),
+                    ("!", Value::Bool(b)) => Value::Bool(!b),
+                    _ => Value::Number(0.0), // Default for unsupported operations
+                }
             }
             Expr::BinaryOp { left, op, right } => {
                 let l = self.eval_expr(&left);
