@@ -471,6 +471,14 @@ impl TypeChecker {
                 return_type: None, // Returns HttpResponse object
             },
         );
+
+        self.functions.insert(
+            "redirect_response".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // URL to redirect to
+                return_type: None, // Returns HttpResponse object
+            },
+        );
     }
 
     /// Type check a list of statements

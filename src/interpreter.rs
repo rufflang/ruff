@@ -371,6 +371,7 @@ impl Interpreter {
         self.env.define("http_server".to_string(), Value::NativeFunction("http_server".to_string()));
         self.env.define("http_response".to_string(), Value::NativeFunction("http_response".to_string()));
         self.env.define("json_response".to_string(), Value::NativeFunction("json_response".to_string()));
+        self.env.define("redirect_response".to_string(), Value::NativeFunction("redirect_response".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -1608,6 +1609,22 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("json_response requires status code and data".to_string())
+                }
+            }
+
+            "redirect_response" => {
+                // redirect_response(url) - create HTTP 302 redirect response
+                if let Some(Value::Str(url)) = arg_values.get(0) {
+                    let mut headers = HashMap::new();
+                    headers.insert("Location".to_string(), url.clone());
+                    
+                    Value::HttpResponse {
+                        status: 302,
+                        body: format!("Redirecting to {}", url),
+                        headers,
+                    }
+                } else {
+                    Value::Error("redirect_response requires a URL string".to_string())
                 }
             }
 

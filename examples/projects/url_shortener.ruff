@@ -91,12 +91,8 @@ server := server.route("GET", "/:code", func(request) {
     
     original_url := urls[code]
     
-    # Return redirect information (browsers will need to handle this)
-    return json_response(200, {
-        "redirect_to": original_url,
-        "code": code,
-        "clicks": stats[code]["clicks"]
-    })
+    # Return actual HTTP redirect (302)
+    return redirect_response(original_url)
 })
 
 # Get URL statistics
