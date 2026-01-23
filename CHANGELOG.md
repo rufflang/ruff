@@ -5,7 +5,7 @@ All notable changes to the Ruff programming language will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-01-23
 
 ### Added
 - **Operator Overloading**: Full support for custom operator behavior on structs via `op_` methods
@@ -35,29 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ```
   - See `examples/operator_overloading.ruff` for complete examples with Vector and Money types
 
-### Fixed
-- **Parser**: Fixed parser not skipping semicolons in function/method bodies
-  - Previously, function bodies would stop parsing after the first statement when using semicolons
-  - This bug prevented multi-statement methods and functions from working correctly
-  - Now semicolons are properly skipped, allowing multiple statements in function bodies
-  
-- **Interpreter**: Fixed ExprStmt not routing Call expressions through eval_expr properly
-  - Method calls as statements (e.g., `obj.method();`) now work correctly
-  - Void methods (methods without return statements) now execute properly
-  - This fix was critical for operator overloading and general struct method usage
-
-- **Parser**: Fixed struct field values to support full expressions instead of just literals
-  - Struct instantiation now supports computed field values: `Vec2 { x: a + b, y: c * 2.0 }`
-  - Previously only literals and identifiers were allowed in struct field values
-  - This enables operator overloading methods to create and return new struct instances
-
-### Changed
-- **Operator Method Naming**: Using `op_` prefix instead of Python-style `__` dunder names
-  - More explicit and easier to read: `op_add` vs `__add__`
-  - Consistent with Ruff's naming conventions for special methods
-  - Clear indication that these are operator overload methods
-
-- **Enhanced Error Handling**: Comprehensive error handling improvements for better debugging and error management
+- **Standard Library Enhancements**: Expanded built-in functions for common programming tasks
   
   **Error Properties**: Access detailed error information in except blocks
   - `err.message` - Get the error message as a string
@@ -273,6 +251,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Input sanitization and validation
   - Text normalization and cleanup
   - CSV and structured data parsing
+
+### Fixed
+- **Parser**: Fixed parser not skipping semicolons in function/method bodies
+  - Previously, function bodies would stop parsing after the first statement when using semicolons
+  - This bug prevented multi-statement methods and functions from working correctly
+  - Now semicolons are properly skipped, allowing multiple statements in function bodies
+  
+- **Interpreter**: Fixed ExprStmt not routing Call expressions through eval_expr properly
+  - Method calls as statements (e.g., `obj.method();`) now work correctly
+  - Void methods (methods without return statements) now execute properly
+  - This fix was critical for operator overloading and general struct method usage
+
+- **Parser**: Fixed struct field values to support full expressions instead of just literals
+  - Struct instantiation now supports computed field values: `Vec2 { x: a + b, y: c * 2.0 }`
+  - Previously only literals and identifiers were allowed in struct field values
+  - This enables operator overloading methods to create and return new struct instances
+
+### Changed
+- **Operator Method Naming**: Using `op_` prefix instead of Python-style `__` dunder names
+  - More explicit and easier to read: `op_add` vs `__add__`
+  - Consistent with Ruff's naming conventions for special methods
+  - Clear indication that these are operator overload methods
 
 ---
 
