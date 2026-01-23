@@ -146,9 +146,9 @@ A complete HTTP API for creating and resolving shortened URLs.
 cargo run --quiet -- run examples/projects/url_shortener.ruff
 
 # In another terminal, test the API:
-curl -X POST http://localhost:3000/shorten -d '{"url": "https://github.com/rufflang/ruff"}'
+curl -X POST http://localhost:3000/shorten -H "Content-Type: application/json" -d '{"url": "https://github.com/rufflang/ruff"}'
 curl http://localhost:3000/list
-curl http://localhost:3000/stats -d '{"code": "abc123"}'
+curl http://localhost:3000/stats -H "Content-Type: application/json" -d '{"code": "abc123"}'
 curl http://localhost:3000/health
 ```
 
@@ -181,9 +181,9 @@ Aggregates weather data with caching and comparison features.
 cargo run --quiet -- run examples/projects/weather_dashboard.ruff
 
 # In another terminal, test the API:
-curl http://localhost:4000/weather -d '{"city": "London"}'
-curl http://localhost:4000/forecast -d '{"city": "Paris"}'
-curl -X POST http://localhost:4000/compare -d '{"cities": ["London", "Paris", "Tokyo"]}'
+curl http://localhost:4000/weather -H "Content-Type: application/json" -d '{"city": "London"}'
+curl http://localhost:4000/forecast -H "Content-Type: application/json" -d '{"city": "Paris"}'
+curl -X POST http://localhost:4000/compare -H "Content-Type: application/json" -d '{"cities": ["London", "Paris", "Tokyo"]}'
 curl http://localhost:4000/cache
 ```
 
@@ -219,10 +219,10 @@ A RESTful API for managing blog posts and comments.
 cargo run --quiet -- run examples/projects/blog_api.ruff
 
 # In another terminal, test the API:
-curl -X POST http://localhost:5000/posts -d '{"title": "Hello World", "content": "My first post!", "author": "Alice"}'
+curl -X POST http://localhost:5000/posts -H "Content-Type: application/json" -d '{"title": "Hello World", "content": "My first post!", "author": "Alice"}'
 curl http://localhost:5000/posts
-curl http://localhost:5000/post -d '{"id": 1}'
-curl -X POST http://localhost:5000/comments -d '{"post_id": 1, "author": "Bob", "content": "Great post!"}'
+curl http://localhost:5000/post -H "Content-Type: application/json" -d '{"id": 1}'
+curl -X POST http://localhost:5000/comments -H "Content-Type: application/json" -d '{"post_id": 1, "author": "Bob", "content": "Great post!"}'
 curl http://localhost:5000/stats
 ```
 
