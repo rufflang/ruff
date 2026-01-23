@@ -94,13 +94,10 @@ exists := path_exists("/home/user/file.txt")  # true/false
 
 ### 3. Regular Expressions
 
-**Status**: Planned  
-**Estimated Effort**: Medium (4-5 days)
+**Status**: ✅ Completed (January 23, 2026)  
+**Implementation**: Added regex_match(), regex_find_all(), regex_replace(), regex_split()
 
-**Description**:  
-Pattern matching and text processing with regular expressions.
-
-**Planned Functions**:
+**Implemented Functions**:
 ```ruff
 # Pattern matching
 email := "user@example.com"

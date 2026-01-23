@@ -108,6 +108,7 @@
   - **Math**: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, constants `PI` and `E`
   - **Random** (v0.4.0): `random()`, `random_int(min, max)`, `random_choice(array)` - Random number generation
   - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`, `starts_with()`, `ends_with()`, `index_of()`, `repeat()`, `split()`, `join()`
+  - **Regex** (v0.4.0): `regex_match()`, `regex_find_all()`, `regex_replace()`, `regex_split()` - Pattern matching and text processing
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
   - **Array Higher-Order**: `map()`, `filter()`, `reduce()`, `find()` (v0.3.0)
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
