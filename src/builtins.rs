@@ -7,8 +7,10 @@
 use crate::interpreter::Value;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, TimeZone, Utc};
+use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm};
 use rand::Rng;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -495,6 +497,161 @@ pub fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
     general_purpose::STANDARD
         .decode(s)
         .map_err(|e| format!("Base64 decode error: {}", e))
+}
+
+/// JWT Authentication Functions
+
+/// JWT Claims structure for encoding/decoding
+#[derive(Debug, Serialize, Deserialize)]
+struct Claims {
+    #[serde(flatten)]
+    data: HashMap<String, serde_json::Value>,
+}
+
+/// Encode a JWT token from a dictionary payload and secret key
+/// jwt_encode(payload_dict, secret_key) -> token string
+pub fn jwt_encode(payload: &HashMap<String, Value>, secret: &str) -> Result<String, String> {
+    // Convert Ruff dictionary to JSON claims
+    let mut claims_data = HashMap::new();
+    for (key, value) in payload {
+        let json_value = ruff_value_to_json(value)
+            .map_err(|e| format!("Failed to convert payload to JSON: {}", e))?;
+        claims_data.insert(key.clone(), json_value);
+    }
+
+    let claims = Claims { data: claims_data };
+
+    // Encode JWT with HS256 algorithm
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .map_err(|e| format!("JWT encoding error: {}", e))
+}
+
+/// Decode a JWT token and return the payload as a dictionary
+/// jwt_decode(token, secret_key) -> payload dictionary
+pub fn jwt_decode(token: &str, secret: &str) -> Result<HashMap<String, Value>, String> {
+    // Decode JWT
+    let token_data = decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(secret.as_bytes()),
+        &Validation::new(Algorithm::HS256),
+    )
+    .map_err(|e| format!("JWT decoding error: {}", e))?;
+
+    // Convert claims back to Ruff dictionary
+    let mut result = HashMap::new();
+    for (key, json_value) in token_data.claims.data {
+        result.insert(key, json_to_ruff_value(json_value));
+    }
+
+    Ok(result)
+}
+
+/// OAuth2 Helper Functions
+
+/// Create an OAuth2 authorization URL
+/// oauth2_auth_url(client_id, redirect_uri, auth_url, scope) -> authorization URL
+pub fn oauth2_auth_url(
+    client_id: &str,
+    redirect_uri: &str,
+    auth_url: &str,
+    scope: &str,
+) -> String {
+    // Generate a simple state parameter for CSRF protection
+    let state = format!("{:x}", rand::random::<u64>());
+    
+    format!(
+        "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
+        auth_url,
+        urlencoding::encode(client_id),
+        urlencoding::encode(redirect_uri),
+        urlencoding::encode(scope),
+        state
+    )
+}
+
+/// Exchange OAuth2 authorization code for access token
+/// oauth2_get_token(code, client_id, client_secret, token_url, redirect_uri) -> token info dict
+pub fn oauth2_get_token(
+    code: &str,
+    client_id: &str,
+    client_secret: &str,
+    token_url: &str,
+    redirect_uri: &str,
+) -> Result<HashMap<String, Value>, String> {
+    let client = reqwest::blocking::Client::new();
+    
+    let params = [
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("client_id", client_id),
+        ("client_secret", client_secret),
+        ("redirect_uri", redirect_uri),
+    ];
+
+    match client
+        .post(token_url)
+        .form(&params)
+        .send()
+    {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            if !response.status().is_success() {
+                let error_body = response.text().unwrap_or_default();
+                return Err(format!("OAuth2 token request failed with status {}: {}", status, error_body));
+            }
+
+            let body = response.text().unwrap_or_default();
+            
+            // Parse the JSON response
+            match serde_json::from_str::<serde_json::Value>(&body) {
+                Ok(json) => {
+                    let mut result = HashMap::new();
+                    if let Some(obj) = json.as_object() {
+                        for (key, val) in obj {
+                            result.insert(key.clone(), json_to_ruff_value(val.clone()));
+                        }
+                    }
+                    Ok(result)
+                }
+                Err(e) => Err(format!("Failed to parse OAuth2 token response: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("OAuth2 token request failed: {}", e)),
+    }
+}
+
+/// HTTP Streaming Functions
+
+/// Stream data structure to hold ongoing stream state
+#[allow(dead_code)] // Infrastructure for future streaming enhancements
+pub struct HttpStream {
+    pub url: String,
+    pub chunk_size: usize,
+    pub position: usize,
+    pub data: Vec<u8>,
+}
+
+/// Start an HTTP GET stream
+/// http_get_stream(url) -> stream handle (as dictionary with internal state)
+pub fn http_get_stream(url: &str) -> Result<Vec<u8>, String> {
+    // For now, we'll fetch the entire response but allow chunked reading
+    // In a real implementation, this would use async streaming
+    match reqwest::blocking::get(url) {
+        Ok(response) => {
+            if !response.status().is_success() {
+                return Err(format!("HTTP GET stream failed with status: {}", response.status()));
+            }
+            match response.bytes() {
+                Ok(bytes) => Ok(bytes.to_vec()),
+                Err(e) => Err(format!("Failed to read stream bytes: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("HTTP GET stream request failed: {}", e)),
+    }
 }
 
 #[cfg(test)]
