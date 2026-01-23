@@ -8,6 +8,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Loop Control Statements**: Full support for `while` loops, `break`, and `continue`
+  - `while condition { ... }`: Execute loop while condition is truthy
+  - `break`: Exit current loop immediately
+  - `continue`: Skip to next iteration of current loop
+  - Works in both `for` and `while` loops
+  - Properly handles nested loops (break/continue only affect innermost loop)
+  - Control flow tracking with `ControlFlow` enum in interpreter
+  - 14 comprehensive integration tests covering: basic while loops, break in for/while, continue in for/while, nested loops, edge cases
+  - Example programs: `loop_control_simple.ruff`, `while_loops_simple.ruff`
+  - Syntax:
+    ```ruff
+    # While loop
+    x := 0
+    while x < 10 {
+        print(x)
+        x := x + 1
+    }
+    
+    # Break statement
+    for i in 100 {
+        if i > 10 {
+            break
+        }
+        print(i)
+    }
+    
+    # Continue statement
+    for i in 10 {
+        if i % 2 == 0 {
+            continue
+        }
+        print(i)  # Only odd numbers
+    }
+    ```
+- **Modulo Operator**: Added `%` operator for modulo arithmetic
+  - Works on numeric values: `5 % 2` returns `1.0`
+  - Same precedence as `*` and `/`
+  - Lexer tokenizes `%` as operator
+  - Parser handles in multiplicative expressions
+- **Not-Equal Operator**: Added `!=` comparison operator
+  - Works on all comparable types
+  - Returns boolean value: `5 != 3` returns `true`
+  - Lexer tokenizes `!=` as two-character operator
 - **Boolean Type as First-Class Value**: Booleans are now proper runtime values
   - Added `Value::Bool(bool)` variant to replace string-based "true"/"false"
   - Added `Expr::Bool(bool)` to AST for boolean literals
