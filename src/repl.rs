@@ -345,7 +345,7 @@ impl Repl {
                 }
                 println!("{}", "}".bright_white());
             }
-            Value::Function(params, _) => {
+            Value::Function(params, _, _) => {
                 println!(
                     "{} {}",
                     "=>".bright_blue(),
@@ -383,7 +383,7 @@ impl Repl {
             Value::Bool(b) => b.to_string(),
             Value::Array(_) => "[...]".to_string(),
             Value::Dict(_) => "{...}".to_string(),
-            Value::Function(params, _) => format!("<fn({})>", params.join(", ")),
+            Value::Function(params, _, _) => format!("<fn({})>", params.join(", ")),
             Value::Struct { name, .. } => format!("<{}>", name),
             _ => format!("{:?}", value),
         }

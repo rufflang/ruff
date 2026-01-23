@@ -21,9 +21,11 @@ use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use rusqlite::Connection;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
 use std::mem::ManuallyDrop;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
@@ -66,7 +68,7 @@ pub enum Value {
     Number(f64),
     Str(String),
     Bool(bool),
-    Function(Vec<String>, LeakyFunctionBody),
+    Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
     NativeFunction(String), // Name of the native function
     Return(Box<Value>),
     Error(String), // Legacy simple error for backward compatibility
@@ -114,8 +116,9 @@ impl std::fmt::Debug for Value {
             Value::Number(n) => write!(f, "Number({})", n),
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
-            Value::Function(params, body) => {
-                write!(f, "Function({:?}, {} stmts)", params, body.get().len())
+            Value::Function(params, body, captured_env) => {
+                let env_info = if captured_env.is_some() { " +closure" } else { "" };
+                write!(f, "Function({:?}, {} stmts{})", params, body.get().len(), env_info)
             }
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
             Value::Return(v) => write!(f, "Return({:?})", v),
@@ -448,47 +451,98 @@ impl Interpreter {
     /// Used by higher-order functions like map, filter, reduce
     fn call_user_function(&mut self, func: &Value, args: &[Value]) -> Value {
         match func {
-            Value::Function(params, body) => {
+            Value::Function(params, body, captured_env) => {
                 // Push function name to call stack
                 let func_name = format!("<function with {} params>", params.len());
                 self.call_stack.push(func_name);
 
-                // Create new scope for function call
-                self.env.push_scope();
+                // If this is a closure with captured environment, use it
+                // Otherwise just create a new scope on top of current
+                if let Some(closure_env_ref) = captured_env {
+                    // Save current environment
+                    let saved_env = self.env.clone();
+                    
+                    // Use the captured environment (which is shared via Rc<RefCell<>>)
+                    self.env = closure_env_ref.borrow().clone();
+                    self.env.push_scope();
 
-                // Bind parameters to arguments
-                for (i, param) in params.iter().enumerate() {
-                    if let Some(arg) = args.get(i) {
-                        self.env.define(param.clone(), arg.clone());
+                    // Bind parameters to arguments
+                    for (i, param) in params.iter().enumerate() {
+                        if let Some(arg) = args.get(i) {
+                            self.env.define(param.clone(), arg.clone());
+                        }
                     }
-                }
 
-                // Execute function body
-                self.eval_stmts(body.get());
+                    // Execute function body
+                    self.eval_stmts(body.get());
 
-                // Get return value
-                let result = if let Some(Value::Return(val)) = self.return_value.clone() {
-                    self.return_value = None; // Clear return value
-                    *val
-                } else if let Some(Value::Error(msg)) = self.return_value.clone() {
-                    // Propagate error - don't clear
-                    Value::Error(msg)
-                } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
-                    // Propagate error object - don't clear
-                    self.return_value.clone().unwrap()
+                    // Get return value
+                    let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                        self.return_value = None; // Clear return value
+                        *val
+                    } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                        // Propagate error - don't clear
+                        Value::Error(msg)
+                    } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                        // Propagate error object - don't clear
+                        self.return_value.clone().unwrap()
+                    } else {
+                        // No explicit return - function returns 0
+                        self.return_value = None;
+                        Value::Number(0.0)
+                    };
+
+                    // Pop the parameter scope
+                    self.env.pop_scope();
+                    
+                    // Update the captured environment with the modified state
+                    *closure_env_ref.borrow_mut() = self.env.clone();
+                    
+                    // Restore the saved environment
+                    self.env = saved_env;
+
+                    // Pop from call stack
+                    self.call_stack.pop();
+
+                    result
                 } else {
-                    // No explicit return - function returns 0
-                    self.return_value = None;
-                    Value::Number(0.0)
-                };
+                    // Non-closure: just create new scope on current environment
+                    self.env.push_scope();
 
-                // Restore parent environment
-                self.env.pop_scope();
+                    // Bind parameters to arguments
+                    for (i, param) in params.iter().enumerate() {
+                        if let Some(arg) = args.get(i) {
+                            self.env.define(param.clone(), arg.clone());
+                        }
+                    }
 
-                // Pop from call stack
-                self.call_stack.pop();
+                    // Execute function body
+                    self.eval_stmts(body.get());
 
-                result
+                    // Get return value
+                    let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                        self.return_value = None; // Clear return value
+                        *val
+                    } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                        // Propagate error - don't clear
+                        Value::Error(msg)
+                    } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                        // Propagate error object - don't clear
+                        self.return_value.clone().unwrap()
+                    } else {
+                        // No explicit return - function returns 0
+                        self.return_value = None;
+                        Value::Number(0.0)
+                    };
+
+                    // Restore parent environment
+                    self.env.pop_scope();
+
+                    // Pop from call stack
+                    self.call_stack.pop();
+
+                    result
+                }
             }
             _ => Value::Number(0.0),
         }
@@ -506,7 +560,7 @@ impl Interpreter {
             // Look up the struct definition to find the operator method
             if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name)
             {
-                if let Some(Value::Function(params, body)) = methods.get(method_name) {
+                if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name) {
                     // Create new scope for operator method call
                     self.env.push_scope();
 
@@ -565,7 +619,7 @@ impl Interpreter {
             // Look up the struct definition to find the operator method
             if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name)
             {
-                if let Some(Value::Function(params, body)) = methods.get(method_name) {
+                if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name) {
                     // Create new scope for operator method call
                     self.env.push_scope();
 
@@ -713,7 +767,7 @@ impl Interpreter {
                 let req_obj = Value::Struct { name: "Request".to_string(), fields: req_fields };
 
                 // Call handler function
-                if let Value::Function(params, body) = handler {
+                if let Value::Function(params, body, _captured_env) = handler {
                     self.env.push_scope();
 
                     // Bind request parameter
@@ -1023,7 +1077,7 @@ impl Interpreter {
                 }
 
                 let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
-                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
                     _ => return Value::Error("map expects an array and a function".to_string()),
@@ -1048,7 +1102,7 @@ impl Interpreter {
                 }
 
                 let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
-                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
                     _ => return Value::Error("filter expects an array and a function".to_string()),
@@ -1089,7 +1143,7 @@ impl Interpreter {
                         (
                             Some(Value::Array(arr)),
                             Some(init),
-                            Some(func @ Value::Function(_, _)),
+                            Some(func @ Value::Function(_, _, _)),
                         ) => (arr.clone(), init.clone(), func.clone()),
                         _ => {
                             return Value::Error(
@@ -1117,7 +1171,7 @@ impl Interpreter {
                 }
 
                 let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
-                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
                     _ => return Value::Error("find expects an array and a function".to_string()),
@@ -2200,7 +2254,12 @@ impl Interpreter {
                 }
             }
             Stmt::FuncDef { name, params, param_types: _, return_type: _, body } => {
-                let func = Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()));
+                // Capture current environment for closure support
+                let func = Value::Function(
+                    params.clone(),
+                    LeakyFunctionBody::new(body.clone()),
+                    Some(Rc::new(RefCell::new(self.env.clone()))),
+                );
                 self.env.define(name.clone(), func);
             }
             Stmt::EnumDef { name, variants } => {
@@ -2213,6 +2272,7 @@ impl Interpreter {
                             tag.clone(),
                             vec![Expr::Identifier("$0".to_string())],
                         )))]),
+                        None, // Enum constructors don't need closure
                     );
                     self.env.define(tag.clone(), func);
                 }
@@ -2257,23 +2317,12 @@ impl Interpreter {
             Stmt::Match { value, cases, default } => {
                 let val = self.eval_expr(&value);
 
+                let empty_map = HashMap::new();
                 let (tag, fields): (String, &HashMap<String, Value>) = match &val {
                     Value::Tagged { tag, fields } => (tag.clone(), fields),
-                    Value::Enum(e) => {
-                        static EMPTY: once_cell::sync::Lazy<HashMap<String, Value>> =
-                            once_cell::sync::Lazy::new(HashMap::new);
-                        (e.clone(), &EMPTY)
-                    }
-                    Value::Str(s) => {
-                        static EMPTY: once_cell::sync::Lazy<HashMap<String, Value>> =
-                            once_cell::sync::Lazy::new(HashMap::new);
-                        (s.clone(), &EMPTY)
-                    }
-                    Value::Number(n) => {
-                        static EMPTY: once_cell::sync::Lazy<HashMap<String, Value>> =
-                            once_cell::sync::Lazy::new(HashMap::new);
-                        (n.to_string(), &EMPTY)
-                    }
+                    Value::Enum(e) => (e.clone(), &empty_map),
+                    Value::Str(s) => (s.clone(), &empty_map),
+                    Value::Number(n) => (n.to_string(), &empty_map),
                     _ => {
                         if let Some(default_body) = default {
                             self.eval_stmts(&default_body);
@@ -2670,8 +2719,11 @@ impl Interpreter {
                         body,
                     } = method_stmt
                     {
-                        let func =
-                            Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()));
+                        let func = Value::Function(
+                            params.clone(),
+                            LeakyFunctionBody::new(body.clone()),
+                            Some(Rc::new(RefCell::new(self.env.clone()))),
+                        );
                         method_map.insert(method_name.clone(), func);
                     }
                 }
@@ -2708,8 +2760,12 @@ impl Interpreter {
             }
             Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
             Expr::Function { params, param_types: _, return_type: _, body } => {
-                // Anonymous function expression - return as a value
-                Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()))
+                // Anonymous function expression - return as a value with captured environment
+                Value::Function(
+                    params.clone(),
+                    LeakyFunctionBody::new(body.clone()),
+                    Some(Rc::new(RefCell::new(self.env.clone()))),
+                )
             }
             Expr::UnaryOp { op, operand } => {
                 let val = self.eval_expr(operand);
@@ -2789,7 +2845,7 @@ impl Interpreter {
                                     if let (
                                         Value::Str(method),
                                         Value::Str(path),
-                                        Value::Function(_, _),
+                                        Value::Function(_, _, _),
                                     ) = (&method_val, &path_val, &handler_val)
                                     {
                                         let mut new_routes = routes.clone();
@@ -2821,7 +2877,7 @@ impl Interpreter {
                         if let Some(Value::StructDef { name: _, field_names: _, methods }) =
                             self.env.get(name)
                         {
-                            if let Some(Value::Function(params, body)) = methods.get(field) {
+                            if let Some(Value::Function(params, body, _captured_env)) = methods.get(field) {
                                 // Create new scope for method call
                                 // Push new scope
                                 self.env.push_scope();
@@ -2888,46 +2944,77 @@ impl Interpreter {
                         // Handle native function calls
                         self.call_native_function(&name, args)
                     }
-                    Value::Function(params, body) => {
+                    Value::Function(params, body, captured_env) => {
                         // Push to call stack
                         self.call_stack.push("<anonymous function>".to_string());
 
-                        // Create new scope for function call
-                        // Push new scope
-                        self.env.push_scope();
+                        // Handle closure with captured environment
+                        if let Some(closure_env_ref) = captured_env {
+                            // Save current environment
+                            let saved_env = self.env.clone();
+                            
+                            // Use the captured environment
+                            self.env = closure_env_ref.borrow().clone();
+                            self.env.push_scope();
 
-                        for (i, param) in params.iter().enumerate() {
-                            if let Some(arg) = args.get(i) {
-                                let val = self.eval_expr(arg);
-                                self.env.define(param.clone(), val);
+                            for (i, param) in params.iter().enumerate() {
+                                if let Some(arg) = args.get(i) {
+                                    let val = self.eval_expr(arg);
+                                    self.env.define(param.clone(), val);
+                                }
                             }
-                        }
 
-                        self.eval_stmts(body.get());
+                            self.eval_stmts(body.get());
 
-                        let result = if let Some(Value::Return(val)) = self.return_value.clone() {
-                            self.return_value = None; // Clear return value
-                            *val
-                        } else if let Some(Value::Error(msg)) = self.return_value.clone() {
-                            // Propagate error - don't clear
-                            Value::Error(msg)
-                        } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
-                            // Propagate error object - don't clear
-                            self.return_value.clone().unwrap()
+                            let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                                self.return_value = None;
+                                *val
+                            } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                                Value::Error(msg)
+                            } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                                self.return_value.clone().unwrap()
+                            } else {
+                                self.return_value = None;
+                                Value::Number(0.0)
+                            };
+
+                            self.env.pop_scope();
+                            // Update the captured environment
+                            *closure_env_ref.borrow_mut() = self.env.clone();
+                            self.env = saved_env;
+                            self.call_stack.pop();
+
+                            result
                         } else {
-                            // No explicit return - function returns 0
-                            // Clear any lingering return_value that isn't Return or Error
-                            self.return_value = None;
-                            Value::Number(0.0)
-                        };
+                            // Non-closure: just create new scope
+                            self.env.push_scope();
 
-                        // Restore parent environment
-                        self.env.pop_scope();
+                            for (i, param) in params.iter().enumerate() {
+                                if let Some(arg) = args.get(i) {
+                                    let val = self.eval_expr(arg);
+                                    self.env.define(param.clone(), val);
+                                }
+                            }
 
-                        // Pop from call stack
-                        self.call_stack.pop();
+                            self.eval_stmts(body.get());
 
-                        result
+                            let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                                self.return_value = None;
+                                *val
+                            } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                                Value::Error(msg)
+                            } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                                self.return_value.clone().unwrap()
+                            } else {
+                                self.return_value = None;
+                                Value::Number(0.0)
+                            };
+
+                            self.env.pop_scope();
+                            self.call_stack.pop();
+
+                            result
+                        }
                     }
                     _ => Value::Number(0.0),
                 }
@@ -2940,43 +3027,83 @@ impl Interpreter {
                             // Call native function
                             return self.call_native_function(name, args);
                         }
-                        Value::Function(params, body) => {
+                        Value::Function(params, body, captured_env) => {
                             // Push function name to call stack
                             self.call_stack.push(name.clone());
 
-                            // Call user function
-                            self.env.push_scope();
+                            // Handle closure with captured environment
+                            if let Some(closure_env_ref) = captured_env {
+                                // Save current environment
+                                let saved_env = self.env.clone();
+                                
+                                // Use the captured environment
+                                self.env = closure_env_ref.borrow().clone();
+                                self.env.push_scope();
 
-                            for (i, param) in params.iter().enumerate() {
-                                if let Some(arg) = args.get(i) {
-                                    let val = self.eval_expr(arg);
-                                    self.env.define(param.clone(), val);
+                                for (i, param) in params.iter().enumerate() {
+                                    if let Some(arg) = args.get(i) {
+                                        let val = self.eval_expr(arg);
+                                        self.env.define(param.clone(), val);
+                                    }
                                 }
-                            }
 
-                            self.eval_stmts(body.get());
+                                self.eval_stmts(body.get());
 
-                            let result = if let Some(Value::Return(val)) = self.return_value.clone()
-                            {
-                                self.return_value = None;
-                                *val
-                            } else if let Some(Value::Error(msg)) = self.return_value.clone() {
-                                Value::Error(msg)
-                            } else if let Some(Value::ErrorObject { .. }) =
-                                self.return_value.clone()
-                            {
-                                self.return_value.clone().unwrap()
+                                let result = if let Some(Value::Return(val)) = self.return_value.clone()
+                                {
+                                    self.return_value = None;
+                                    *val
+                                } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                                    Value::Error(msg)
+                                } else if let Some(Value::ErrorObject { .. }) =
+                                    self.return_value.clone()
+                                {
+                                    self.return_value.clone().unwrap()
+                                } else {
+                                    self.return_value = None;
+                                    Value::Number(0.0)
+                                };
+
+                                self.env.pop_scope();
+                                // Update the captured environment
+                                *closure_env_ref.borrow_mut() = self.env.clone();
+                                self.env = saved_env;
+                                self.call_stack.pop();
+
+                                return result;
                             } else {
-                                self.return_value = None;
-                                Value::Number(0.0)
-                            };
+                                // Non-closure: just create new scope
+                                self.env.push_scope();
 
-                            self.env.pop_scope();
+                                for (i, param) in params.iter().enumerate() {
+                                    if let Some(arg) = args.get(i) {
+                                        let val = self.eval_expr(arg);
+                                        self.env.define(param.clone(), val);
+                                    }
+                                }
 
-                            // Pop from call stack
-                            self.call_stack.pop();
+                                self.eval_stmts(body.get());
 
-                            return result;
+                                let result = if let Some(Value::Return(val)) = self.return_value.clone()
+                                {
+                                    self.return_value = None;
+                                    *val
+                                } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                                    Value::Error(msg)
+                                } else if let Some(Value::ErrorObject { .. }) =
+                                    self.return_value.clone()
+                                {
+                                    self.return_value.clone().unwrap()
+                                } else {
+                                    self.return_value = None;
+                                    Value::Number(0.0)
+                                };
+
+                                self.env.pop_scope();
+                                self.call_stack.pop();
+
+                                return result;
+                            }
                         }
                         _ => {}
                     }
