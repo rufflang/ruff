@@ -9,24 +9,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## 🔥 High Priority (v0.3.0)
 
-### 1. Enhanced String Functions
-
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 days)
-
-**Planned Functions**:
-```ruff
-starts_with("hello world", "hello")  # true
-ends_with("test.ruff", ".ruff")      # true
-index_of("hello", "ll")              # 2
-repeat("ha", 3)                      # "hahaha"
-split("a,b,c", ",")                  # ["a", "b", "c"]
-join(["a", "b", "c"], ",")           # "a,b,c"
-```
-
----
-
-### 2. Array Higher-Order Functions
+### 1. Array Higher-Order Functions
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -51,7 +34,7 @@ first_even := find([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # 2
 
 ---
 
-### 3. Multi-Line and Doc Comments
+### 2. Multi-Line and Doc Comments
 
 **Status**: Planned  
 **Estimated Effort**: Small (1-2 days)
@@ -75,7 +58,7 @@ func square(x) {
 
 ---
 
-### 4. JSON Support
+### 3. JSON Support
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -93,7 +76,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 5. HTTP Server & Networking
+### 4. HTTP Server & Networking
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -141,7 +124,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ## 🚀 Long Term (v0.5.0+)
 
-### 8. REPL (Interactive Shell)
+### 5. REPL (Interactive Shell)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -155,7 +138,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 9. Advanced Type System Features
+### 6. Advanced Type System Features
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -169,7 +152,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 10. LSP (Language Server Protocol)
+### 7. LSP (Language Server Protocol)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -185,7 +168,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 11. Package Manager
+### 8. Package Manager
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
