@@ -21,7 +21,7 @@ use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 
 /// Control flow signals for loop statements
@@ -65,6 +65,15 @@ pub enum Value {
     },
     Array(Vec<Value>),
     Dict(HashMap<String, Value>),
+    HttpServer {
+        port: u16,
+        routes: Vec<(String, String, Value)>, // (method, path, handler_function)
+    },
+    HttpResponse {
+        status: u16,
+        body: String,
+        headers: HashMap<String, String>,
+    },
 }
 
 // Manual Debug impl since NativeFunction doesn't need detailed output
@@ -101,6 +110,12 @@ impl std::fmt::Debug for Value {
                 .finish(),
             Value::Array(elements) => write!(f, "Array[{}]", elements.len()),
             Value::Dict(map) => write!(f, "Dict{{{} keys}}", map.len()),
+            Value::HttpServer { port, routes } => {
+                write!(f, "HttpServer(port={}, {} routes)", port, routes.len())
+            }
+            Value::HttpResponse { status, body, .. } => {
+                write!(f, "HttpResponse(status={}, body_len={})", status, body.len())
+            }
         }
     }
 }
@@ -328,6 +343,11 @@ impl Interpreter {
         self.env.define("http_post".to_string(), Value::NativeFunction("http_post".to_string()));
         self.env.define("http_put".to_string(), Value::NativeFunction("http_put".to_string()));
         self.env.define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
+        
+        // HTTP server functions
+        self.env.define("http_server".to_string(), Value::NativeFunction("http_server".to_string()));
+        self.env.define("http_response".to_string(), Value::NativeFunction("http_response".to_string()));
+        self.env.define("json_response".to_string(), Value::NativeFunction("json_response".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -516,6 +536,107 @@ impl Interpreter {
             }
         }
         None
+    }
+
+    /// Starts an HTTP server with registered routes
+    fn start_http_server(&mut self, port: u16, routes: Vec<(String, String, Value)>) -> Value {
+        use tiny_http::{Server, Response};
+        
+        println!("Starting HTTP server on port {}...", port);
+        
+        let server = match Server::http(format!("0.0.0.0:{}", port)) {
+            Ok(s) => s,
+            Err(e) => return Value::Error(format!("Failed to start server: {}", e)),
+        };
+        
+        println!("Server listening on http://localhost:{}", port);
+        println!("Press Ctrl+C to stop");
+        
+        // Main server loop
+        for request in server.incoming_requests() {
+            let method = request.method().to_string();
+            let url_path = request.url().to_string();
+            
+            // Find matching route
+            let mut matched = false;
+            for (route_method, route_path, handler) in &routes {
+                if method == *route_method && url_path == *route_path {
+                    matched = true;
+                    
+                    // Create request object
+                    let mut req_fields = HashMap::new();
+                    req_fields.insert("method".to_string(), Value::Str(method.clone()));
+                    req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
+                    
+                    // Read body if present
+                    let body_content = if let Some(mut reader) = request.as_reader() {
+                        let mut buffer = Vec::new();
+                        std::io::Read::read_to_end(&mut reader, &mut buffer).ok();
+                        String::from_utf8_lossy(&buffer).to_string()
+                    } else {
+                        String::new()
+                    };
+                    req_fields.insert("body".to_string(), Value::Str(body_content));
+                    
+                    let req_obj = Value::Struct {
+                        name: "Request".to_string(),
+                        fields: req_fields,
+                    };
+                    
+                    // Call handler function
+                    if let Value::Function(params, body) = handler {
+                        self.env.push_scope();
+                        
+                        // Bind request parameter
+                        if let Some(param) = params.get(0) {
+                            self.env.define(param.clone(), req_obj);
+                        }
+                        
+                        self.eval_stmts(body);
+                        
+                        // Get result
+                        let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                            self.return_value = None;
+                            *val
+                        } else {
+                            self.return_value = None;
+                            Value::HttpResponse {
+                                status: 200,
+                                body: "OK".to_string(),
+                                headers: HashMap::new(),
+                            }
+                        };
+                        
+                        self.env.pop_scope();
+                        
+                        // Send response
+                        if let Value::HttpResponse { status, body, headers } = result {
+                            let mut response = Response::from_string(body);
+                            response = response.with_status_code(status);
+                            
+                            for (key, value) in headers {
+                                if let Ok(header) = tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes()) {
+                                    response = response.with_header(header);
+                                }
+                            }
+                            
+                            let _ = request.respond(response);
+                        } else {
+                            // Handler didn't return HttpResponse
+                            let _ = request.respond(Response::from_string("Internal Server Error").with_status_code(500));
+                        }
+                    }
+                    break;
+                }
+            }
+            
+            if !matched {
+                // 404 Not Found
+                let _ = request.respond(Response::from_string("Not Found").with_status_code(404));
+            }
+        }
+        
+        Value::Number(0.0)
     }
 
     /// Calls a native built-in function
@@ -1363,6 +1484,53 @@ impl Interpreter {
                 }
             }
 
+            "http_server" => {
+                // http_server(port) - create HTTP server
+                if let Some(Value::Number(port)) = arg_values.get(0) {
+                    Value::HttpServer {
+                        port: *port as u16,
+                        routes: Vec::new(),
+                    }
+                } else {
+                    Value::Error("http_server requires a port number".to_string())
+                }
+            }
+
+            "http_response" => {
+                // http_response(status, body) - create HTTP response
+                if let (Some(Value::Number(status)), Some(Value::Str(body))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::HttpResponse {
+                        status: *status as u16,
+                        body: body.clone(),
+                        headers: HashMap::new(),
+                    }
+                } else {
+                    Value::Error("http_response requires status code and body string".to_string())
+                }
+            }
+
+            "json_response" => {
+                // json_response(status, data) - create JSON HTTP response
+                if let (Some(Value::Number(status)), Some(data)) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    // Convert data to JSON string
+                    let json_body = Self::value_to_json(data);
+                    let mut headers = HashMap::new();
+                    headers.insert("Content-Type".to_string(), "application/json".to_string());
+                    
+                    Value::HttpResponse {
+                        status: *status as u16,
+                        body: json_body,
+                        headers,
+                    }
+                } else {
+                    Value::Error("json_response requires status code and data".to_string())
+                }
+            }
+
             _ => Value::Number(0.0),
         }
     }
@@ -2186,6 +2354,37 @@ impl Interpreter {
                 // Special handling for method calls: obj.method(args)
                 if let Expr::FieldAccess { object, field } = function.as_ref() {
                     let obj_val = self.eval_expr(object);
+                    
+                    // Handle HttpServer methods
+                    if let Value::HttpServer { port, routes } = &obj_val {
+                        match field.as_str() {
+                            "route" => {
+                                // server.route(method, path, handler)
+                                if args.len() >= 3 {
+                                    let method_val = self.eval_expr(&args[0]);
+                                    let path_val = self.eval_expr(&args[1]);
+                                    let handler_val = self.eval_expr(&args[2]);
+                                    
+                                    if let (Value::Str(method), Value::Str(path), Value::Function(_, _)) = 
+                                        (&method_val, &path_val, &handler_val) {
+                                        let mut new_routes = routes.clone();
+                                        new_routes.push((method.clone(), path.clone(), handler_val));
+                                        return Value::HttpServer {
+                                            port: *port,
+                                            routes: new_routes,
+                                        };
+                                    }
+                                }
+                                return Value::Error("route() requires (method, path, handler_function)".to_string());
+                            }
+                            "listen" => {
+                                // server.listen() - start the HTTP server
+                                return self.start_http_server(*port, routes.clone());
+                            }
+                            _ => {}
+                        }
+                    }
+                    
                     if let Value::Struct { name, fields } = &obj_val {
                         // Look up the struct definition to find the method
                         if let Some(Value::StructDef { name: _, field_names: _, methods }) =
