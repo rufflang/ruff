@@ -103,6 +103,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `tests/test_stdlib_paths.ruff` - 40+ test cases for path operations
   - `tests/test_stdlib_system.ruff` - 30+ test cases for system operations
 
+- **Regular Expressions**: Pattern matching and text processing with regex support
+  
+  **Regex Functions**:
+  - `regex_match(text, pattern)` - Check if text matches regex pattern
+    - Example: `regex_match("user@example.com", "^[a-zA-Z0-9._%+-]+@")` checks email format
+    - Example: `regex_match("555-1234", "^\\d{3}-\\d{4}$")` validates phone numbers
+    - Returns boolean true/false for match result
+    - Use cases: input validation, format checking, data verification
+  
+  - `regex_find_all(text, pattern)` - Find all matches of pattern in text
+    - Example: `regex_find_all("Call 555-1234 or 555-5678", "\\d{3}-\\d{4}")` returns `["555-1234", "555-5678"]`
+    - Example: `regex_find_all("Extract #tags from #text", "#\\w+")` returns `["#tags", "#text"]`
+    - Returns array of matched strings
+    - Use cases: data extraction, parsing, finding patterns
+  
+  - `regex_replace(text, pattern, replacement)` - Replace pattern matches
+    - Example: `regex_replace("Call 555-1234", "\\d{3}-\\d{4}", "XXX-XXXX")` returns `"Call XXX-XXXX"`
+    - Example: `regex_replace("too  many   spaces", " +", " ")` normalizes whitespace
+    - Replaces all occurrences of pattern
+    - Use cases: data sanitization, redaction, text normalization
+  
+  - `regex_split(text, pattern)` - Split text by regex pattern
+    - Example: `regex_split("one123two456three", "\\d+")` returns `["one", "two", "three"]`
+    - Example: `regex_split("word1   word2\tword3", "\\s+")` splits by any whitespace
+    - Returns array of text segments between matches
+    - Use cases: tokenization, parsing structured data, CSV processing
+  
+  **Pattern Features**:
+  - Full Rust regex syntax support
+  - Character classes: `\\d` (digit), `\\w` (word), `\\s` (space)
+  - Quantifiers: `+` (one or more), `*` (zero or more), `?` (optional), `{n,m}` (range)
+  - Anchors: `^` (start), `$` (end), `\\b` (word boundary)
+  - Groups: `(...)` for capturing, `(?:...)` for non-capturing
+  - Alternation: `|` for OR patterns
+  - Escape special chars: `\\.`, `\\(`, `\\)`, etc.
+  
+  **Implementation Details**:
+  - Uses Rust's regex crate (v1.x) for performance and reliability
+  - Compiled regex patterns cached internally
+  - Invalid patterns return safe defaults (false/empty for matches, original text for replace)
+  - Full Unicode support
+  - Case-sensitive by default
+  
+  **Examples & Tests**:
+  - `examples/validator.ruff` - Email, phone, and URL validation with contact extraction
+  - `examples/log_parser_regex.ruff` - Log file parsing, filtering, and data extraction
+  - `tests/test_regex.ruff` - 60+ comprehensive test cases covering all functions
+  - `tests/test_regex_simple.ruff` - Basic functionality tests
+  
+  **Common Use Cases**:
+  - Email and phone number validation
+  - URL parsing and extraction
+  - Log file analysis and filtering
+  - Data extraction from unstructured text
+  - Input sanitization and validation
+  - Text normalization and cleanup
+  - CSV and structured data parsing
+
 ---
 
 ## [0.3.0] - 2026-01-23
