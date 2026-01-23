@@ -9,6 +9,13 @@
 
 use crate::errors::SourceLocation;
 
+/// Represents parts of an interpolated string in the AST
+#[derive(Debug, Clone)]
+pub enum InterpolatedStringPart {
+    Text(String),    // Plain text
+    Expr(Box<Expr>), // Expression to evaluate
+}
+
 /// Type annotations for variables and functions
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
@@ -47,6 +54,7 @@ pub enum Expr {
     Identifier(String),
     Number(f64),
     String(String),
+    InterpolatedString(Vec<InterpolatedStringPart>), // String with expressions
     Bool(bool),
     #[allow(dead_code)]
     BinaryOp {

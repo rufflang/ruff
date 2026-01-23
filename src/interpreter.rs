@@ -1309,6 +1309,22 @@ impl Interpreter {
             Expr::Number(n) => Value::Number(*n),
             Expr::String(s) => Value::Str(s.clone()),
             Expr::Bool(b) => Value::Bool(*b),
+            Expr::InterpolatedString(parts) => {
+                use crate::ast::InterpolatedStringPart;
+                let mut result = String::new();
+                for part in parts {
+                    match part {
+                        InterpolatedStringPart::Text(text) => {
+                            result.push_str(text);
+                        }
+                        InterpolatedStringPart::Expr(expr) => {
+                            let val = self.eval_expr(expr);
+                            result.push_str(&Self::stringify_value(&val));
+                        }
+                    }
+                }
+                Value::Str(result)
+            }
             Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
             Expr::BinaryOp { left, op, right } => {
                 let l = self.eval_expr(&left);
