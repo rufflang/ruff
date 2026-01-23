@@ -1,6 +1,0 @@
-# Simple test of map
-numbers := [1, 2, 3]
-squared := map(numbers, func(x) {
-    return x * x
-})
-print(squared)
