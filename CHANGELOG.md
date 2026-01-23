@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `url_shortener.ruff` example to use proper random code generation with loops
   - Added comprehensive tests in `tests/test_function_drop_fix.ruff`
 
+- **HTTP functions type checking warnings**: Fixed "Undefined function" warnings for HTTP functions in the type checker.
+  - Registered all HTTP client functions: `http_get`, `http_post`, `http_put`, `http_delete`
+  - Registered all HTTP server functions: `http_server`, `http_response`, `json_response`
+  - HTTP examples now run without type checking warnings
+  - Added test file `tests/test_http_type_checking.ruff`
+
 ## [0.5.0] - 2026-01-23
 
 ### Added
