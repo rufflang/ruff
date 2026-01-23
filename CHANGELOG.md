@@ -8,6 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Multi-Line Comments**: Support for block comments spanning multiple lines
+  - Syntax: `/* comment */` for single or multi-line comments
+  - Example: `/* This is a comment */`
+  - Example multi-line:
+    ```ruff
+    /*
+     * This comment spans
+     * multiple lines
+     */
+    ```
+  - Useful for longer explanations, commenting out code blocks, license headers
+  - Comments do not nest - first `*/` closes the comment
+  - Can be placed inline: `x := 10 /* inline comment */ + 5`
+  - Properly tracks line numbers for multi-line comments in error reporting
+  - Lexer handles `/*` and `*/` patterns correctly
+- **Doc Comments**: Documentation comments for code documentation
+  - Syntax: `///` at start of line for documentation comments
+  - Example:
+    ```ruff
+    /// Calculates the factorial of a number
+    /// @param n The number to calculate factorial for
+    /// @return The factorial of n
+    func factorial(n) {
+        if n <= 1 { return 1 }
+        return n * factorial(n - 1)
+    }
+    ```
+  - Typically used to document functions, structs, and modules
+  - Supports common documentation tags: `@param`, `@return`, `@example`
+  - Can be used for inline documentation of struct fields
+  - Future versions may extract these for automatic documentation generation
+- **Enhanced Comment Support**: All comment types work together seamlessly
+  - Single-line comments: `# comment`
+  - Multi-line comments: `/* comment */`
+  - Doc comments: `/// comment`
+  - Comments can be mixed in the same file
+  - All comment types properly ignored by lexer during tokenization
+  - Comprehensive test coverage: 4 test files covering all comment scenarios
+  - Example file: `examples/comments.ruff` demonstrating all comment types and best practices
+  - Examples include practical use cases, style guidelines, and documentation patterns
 - **Array Higher-Order Functions**: Functional programming operations on arrays for data transformation and processing
   - `map(array, func)`: Transform each element by applying a function, returns new array
     - Example: `map([1, 2, 3], func(x) { return x * x })` returns `[1, 4, 9]`

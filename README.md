@@ -225,6 +225,40 @@ calculation := "Result: (${a} + ${b}) * ${c} = ${(a + b) * c}"
 print(calculation)  # Result: (2 + 3) * 4 = 20
 ```
 
+### Comments (v0.3.0) ✨
+
+Ruff supports three types of comments:
+
+```ruff
+# Single-line comment
+# These continue to end of line
+
+/*
+ * Multi-line comments
+ * Span multiple lines
+ * Useful for longer explanations
+ */
+
+/// Doc comments for documentation
+/// @param x The input value
+/// @return The result
+func square(x) {
+    return x * x  /* inline comment */
+}
+
+# All comment types work together
+/*
+ * Block comment explaining the algorithm
+ */
+/// Documentation for the function
+func calculate(n) {
+    # Implementation details
+    return n * 2
+}
+```
+
+See [examples/comments.ruff](examples/comments.ruff) for comprehensive examples.
+
 ---
 
 ## 🧪 Running Tests
@@ -262,6 +296,7 @@ cargo run -- test --update
 * ✅ Boolean type as first-class value (v0.3.0)
 * ✅ Loop control with `while`, `break`, and `continue` (v0.3.0)
 * ✅ Lexical scoping with proper environment stack (v0.3.0)
+* ✅ Multi-line and doc comments (v0.3.0)
 * ✅ Standard library with math, string, and I/O functions
 * ✅ CLI testing framework with snapshot testing
 * ✅ Colored error messages with source location tracking
@@ -272,7 +307,7 @@ cargo run -- test --update
 
 See [ROADMAP.md](ROADMAP.md) for detailed feature plans.
 
-**Completed (7/14):**
+**Completed (9/15):**
 * ✅ Error Messages & Diagnostics (v0.1.0)
 * ✅ Type System & Type Checking (v0.1.0)
 * ✅ Module System & Imports (v0.1.0)
@@ -280,14 +315,16 @@ See [ROADMAP.md](ROADMAP.md) for detailed feature plans.
 * ✅ Structs & Methods (v0.2.0)
 * ✅ Arrays & Dictionaries (v0.2.0)
 * ✅ Boolean Type (v0.3.0)
+* ✅ Loop Control (`break`, `continue`) (v0.3.0)
+* ✅ String Interpolation (v0.3.0)
+* ✅ Multi-Line & Doc Comments (v0.3.0)
 
-**High Priority:**
-* [ ] Loop control (`break`, `continue`)
-* [ ] String interpolation
-* [ ] Enhanced comments (multi-line, doc comments)
-* [ ] Interactive REPL
+**High Priority (v0.3.0):**
+* [ ] Array Higher-Order Functions (`map`, `filter`, `reduce`)
+* [ ] JSON Support (parse/stringify)
 
 **Future:**
+* [ ] Interactive REPL
 * [ ] Package manager
 * [ ] WebAssembly compilation target
 * [ ] Language Server Protocol (LSP)

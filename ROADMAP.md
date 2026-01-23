@@ -36,10 +36,13 @@ first_even := find([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # 2
 
 ### 2. Multi-Line and Doc Comments
 
-**Status**: Planned  
-**Estimated Effort**: Small (1-2 days)
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 22, 2026
 
-**Syntax**:
+**Description**:  
+Support for multi-line block comments and documentation comments.
+
+**Implemented Syntax**:
 ```ruff
 # Single-line comment (already supported)
 
@@ -55,6 +58,14 @@ func square(x) {
     return x * x
 }
 ```
+
+**Features**:
+- Multi-line comments with `/* ... */` syntax
+- Doc comments with `///` syntax
+- All comment types can be mixed in the same file
+- Comments properly handled in lexer
+- Comprehensive test coverage
+- Example file demonstrating all comment types
 
 ---
 
