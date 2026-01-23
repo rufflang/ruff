@@ -9,27 +9,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## 🔥 High Priority (v0.3.0)
 
-### 1. String Interpolation
-
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 days)
-**Priority**: High - Improves string handling
-
-**Description**:  
-Embed expressions directly in strings with `${}` syntax.
-
-**Syntax**:
-```ruff
-name := "World"
-x := 42
-
-message := "Hello, ${name}!"  # "Hello, World!"
-result := "The answer is ${x * 2}"  # "The answer is 84"
-```
-
----
-
-### 2. Enhanced String Functions
+### 1. Enhanced String Functions
 
 **Status**: Planned  
 **Estimated Effort**: Small (2-3 days)
@@ -46,7 +26,7 @@ join(["a", "b", "c"], ",")           # "a,b,c"
 
 ---
 
-### 3. Array Higher-Order Functions
+### 2. Array Higher-Order Functions
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -71,7 +51,7 @@ first_even := find([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # 2
 
 ---
 
-### 4. Multi-Line and Doc Comments
+### 3. Multi-Line and Doc Comments
 
 **Status**: Planned  
 **Estimated Effort**: Small (1-2 days)
@@ -95,7 +75,7 @@ func square(x) {
 
 ---
 
-### 5. JSON Support
+### 4. JSON Support
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -113,7 +93,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 6. HTTP Server & Networking
+### 5. HTTP Server & Networking
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -260,7 +240,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 |---------|----------|----------------|--------|
 | Boolean Type | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
 | Loop Control | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
-| String Interpolation | High | v0.3.0 | Planned |
+| String Interpolation | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
 | Enhanced Strings | Medium | v0.4.0 | Planned |
 | Array Higher-Order Fns | Medium | v0.4.0 | Planned |
 | Multi-line Comments | Low | v0.4.0 | Planned |
