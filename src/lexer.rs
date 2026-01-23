@@ -176,15 +176,23 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     });
                 }
             }
-            '=' | '+' | '-' | '*' | '/' | '<' | '>' => {
+            '=' | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '!' => {
                 let op = chars.next().unwrap();
                 col += 1;
-                // Check for == >= <= ->
+                // Check for == >= <= -> !=
                 if op == '=' && chars.peek() == Some(&'=') {
                     chars.next();
                     col += 1;
                     tokens.push(Token {
                         kind: TokenKind::Operator("==".into()),
+                        line,
+                        column: col,
+                    });
+                } else if op == '!' && chars.peek() == Some(&'=') {
+                    chars.next();
+                    col += 1;
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("!=".into()),
                         line,
                         column: col,
                     });
