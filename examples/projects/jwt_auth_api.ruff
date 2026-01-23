@@ -71,15 +71,15 @@ server := server.route("POST", "/login", func(req) {
         user := users[username]
         
         # Verify password
-        if user.password != password {
+        if user["password"] != password {
             return json_response(401, {"error": "Invalid credentials"})
         }
         
         # Create JWT token with user info and expiration
         payload := {
-            "user_id": user.id,
+            "user_id": user["id"],
             "username": username,
-            "email": user.email,
+            "email": user["email"],
             "exp": now() + TOKEN_EXPIRY
         }
         
@@ -131,19 +131,19 @@ server := server.route("GET", "/protected", func(req) {
         
         # Check expiration
         if has_key(payload, "exp") {
-            if payload.exp < now() {
+            if payload["exp"] < now() {
                 return json_response(401, {"error": "Token expired"})
             }
         }
         
-        print("✓ Protected access: " + payload.username)
+        print("✓ Protected access: " + payload["username"])
         
         return json_response(200, {
             "message": "Access granted",
             "user": {
-                "id": payload.user_id,
-                "username": payload.username,
-                "email": payload.email
+                "id": payload["user_id"],
+                "username": payload["username"],
+                "email": payload["email"]
             },
             "authenticated_at": now()
         })
