@@ -1,0 +1,67 @@
+# Method Chaining & Fluent APIs Example
+# Demonstrates null coalescing (??), optional chaining (?.),  and pipe operator (|>)
+
+print("=== Null Coalescing Example ===")
+# Use ?? to provide default values for null values
+let username := null ?? "Guest"
+print("Welcome, " + username)  # Welcome, Guest
+
+print("")
+print("=== Optional Chaining Example ===")
+# Safely access properties that might be null
+struct User {
+    name,
+    email
+}
+
+let user := User { name: "Alice", email: "alice@example.com" }
+let email := user?.email
+print(email ?? "No email")  # alice@example.com
+
+let null_user := null
+let null_email := null_user?.email
+print(null_email ?? "No email")  # No email
+
+print("")
+print("=== Pipe Operator Example ===")
+# Transform data through a pipeline of functions
+
+func double(x) { return x * 2 }
+func add_five(x) { return x + 5 }
+func square(x) { return x * x }
+
+# Pass value through multiple transformations
+let result := 3 |> double |> add_five |> square
+print(result)  # 121 (3*2=6, 6+5=11, 11*11=121)
+
+# Works with strings too
+func exclaim(s) { return s + "!" }
+
+let greeting := "hello" |> to_upper |> exclaim
+print(greeting)  # HELLO!
+
+print("")
+print("=== Combined Example ===")
+# Process data with safe access and defaults
+
+let data := {"name": "Bob", "count": 5}
+let name := data?.name ?? "Unknown"
+print(name)  # Bob
+
+let missing := null?.value ?? "default"
+print(missing)  # default
+
+# Use pipe to chain operations
+func process(x) {
+    return x * 2
+}
+
+func validate(x) {
+    return x ?? 0
+}
+
+let val1 := 10 |> process
+print(val1)  # 20
+
+let val2 := null ?? 5 |> process
+print(val2)  # 10
