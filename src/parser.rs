@@ -699,7 +699,37 @@ impl Parser {
             }
         }
 
-        self.parse_or()
+        self.parse_pipe()
+    }
+
+    fn parse_pipe(&mut self) -> Option<Expr> {
+        let mut left = self.parse_null_coalescing()?;
+
+        while matches!(self.peek(), TokenKind::Operator(op) if op == "|>") {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_null_coalescing()?;
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
+        }
+
+        Some(left)
+    }
+
+    fn parse_null_coalescing(&mut self) -> Option<Expr> {
+        let mut left = self.parse_or()?;
+
+        while matches!(self.peek(), TokenKind::Operator(op) if op == "??") {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_or()?;
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
+        }
+
+        Some(left)
     }
 
     fn parse_or(&mut self) -> Option<Expr> {
@@ -827,6 +857,23 @@ impl Parser {
                         break;
                     }
                 }
+                // Handle optional chaining: obj?.field
+                TokenKind::Operator(op) if op == "?." => {
+                    self.advance(); // ?.
+                    if let TokenKind::Identifier(field) = self.peek() {
+                        let field_name = field.clone();
+                        self.advance();
+                        // Optional chaining returns null if object is null, otherwise accesses field
+                        // We'll represent this as a BinaryOp with special handling in the interpreter
+                        expr = Expr::BinaryOp {
+                            left: Box::new(expr),
+                            op: "?.".to_string(),
+                            right: Box::new(Expr::String(field_name)),
+                        };
+                    } else {
+                        break;
+                    }
+                }
                 // Handle index access: arr[index]
                 TokenKind::Punctuation('[') => {
                     self.advance(); // [
@@ -925,6 +972,10 @@ impl Parser {
             TokenKind::Punctuation('[') => self.parse_array_literal(),
             TokenKind::Punctuation('{') => self.parse_dict_literal(),
             TokenKind::Keyword(k) if k == "func" => self.parse_func_expr(),
+            TokenKind::Keyword(k) if k == "null" => {
+                self.advance();
+                Some(Expr::Identifier("null".to_string()))
+            }
             TokenKind::Keyword(k) if k == "self" => {
                 // Treat 'self' as an identifier in expression context
                 self.advance();

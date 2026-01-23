@@ -188,7 +188,7 @@ pub fn to_json(value: &Value) -> Result<String, String> {
 /// Convert serde_json::Value to Ruff Value
 fn json_to_ruff_value(json: serde_json::Value) -> Value {
     match json {
-        serde_json::Value::Null => Value::Number(0.0), // null -> 0 (Ruff convention)
+        serde_json::Value::Null => Value::Null, // null -> Null
         serde_json::Value::Bool(b) => Value::Bool(b),
         serde_json::Value::Number(n) => {
             if let Some(f) = n.as_f64() {
@@ -215,6 +215,7 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
 /// Convert Ruff Value to serde_json::Value
 fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
     match value {
+        Value::Null => Ok(serde_json::Value::Null),
         Value::Number(n) => {
             // Check if it's 0 and might represent null, but we'll always use number
             // Users can explicitly use 0 if they want null in their JSON

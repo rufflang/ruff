@@ -68,6 +68,7 @@ pub enum Value {
     Number(f64),
     Str(String),
     Bool(bool),
+    Null, // Null value for optional chaining and null coalescing
     Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
     NativeFunction(String), // Name of the native function
     Return(Box<Value>),
@@ -116,6 +117,7 @@ impl std::fmt::Debug for Value {
             Value::Number(n) => write!(f, "Number({})", n),
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
+            Value::Null => write!(f, "Null"),
             Value::Function(params, body, captured_env) => {
                 let env_info = if captured_env.is_some() { " +closure" } else { "" };
                 write!(f, "Function({:?}, {} stmts{})", params, body.get().len(), env_info)
@@ -2758,7 +2760,13 @@ impl Interpreter {
                 }
                 Value::Str(result)
             }
-            Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
+            Expr::Identifier(name) => {
+                if name == "null" {
+                    Value::Null
+                } else {
+                    self.env.get(name).unwrap_or(Value::Str(name.clone()))
+                }
+            }
             Expr::Function { params, param_types: _, return_type: _, body } => {
                 // Anonymous function expression - return as a value with captured environment
                 Value::Function(
@@ -2785,6 +2793,97 @@ impl Interpreter {
                 }
             }
             Expr::BinaryOp { left, op, right } => {
+                // Handle special operators that need custom evaluation
+                match op.as_str() {
+                    // Null coalescing: return left if not null, otherwise right
+                    "??" => {
+                        let l = self.eval_expr(&left);
+                        if matches!(l, Value::Null) {
+                            return self.eval_expr(&right);
+                        }
+                        return l;
+                    }
+                    // Optional chaining: return null if left is null, otherwise access field
+                    "?." => {
+                        let l = self.eval_expr(&left);
+                        if matches!(l, Value::Null) {
+                            return Value::Null;
+                        }
+                        // Right side is a String containing the field name
+                        if let Expr::String(field_name) = right.as_ref() {
+                            // Handle different value types
+                            match l {
+                                Value::Struct { name: _, fields } => {
+                                    return fields.get(field_name).cloned().unwrap_or(Value::Null);
+                                }
+                                Value::Dict(map) => {
+                                    return map.get(field_name).cloned().unwrap_or(Value::Null);
+                                }
+                                _ => return Value::Null,
+                            }
+                        }
+                        return Value::Null;
+                    }
+                    // Pipe operator: pass left value as first argument to right function
+                    "|>" => {
+                        let value = self.eval_expr(&left);
+                        let func = self.eval_expr(&right);
+                        
+                        // Call the function with the value as the first argument
+                        if let Value::Function(params, body, captured_env) = func {
+                            // Push new scope
+                            self.env.push_scope();
+                            
+                            // Restore captured environment if this is a closure
+                            let restore_env = if let Some(ref closure_env) = captured_env {
+                                // Store current environment
+                                let current = self.env.clone();
+                                // Set interpreter's environment to the closure's captured environment
+                                self.env = closure_env.borrow().clone();
+                                Some(current)
+                            } else {
+                                None
+                            };
+                            
+                            // Bind the piped value as the first parameter
+                            if let Some(param) = params.first() {
+                                self.env.define(param.clone(), value);
+                            }
+                            
+                            // Execute function body
+                            self.eval_stmts(body.get());
+                            let mut result = Value::Number(0.0);
+                            if let Some(Value::Return(val)) = self.return_value.clone() {
+                                self.return_value = None;
+                                result = *val;
+                            }
+                            
+                            // Restore environment if we changed it
+                            if let Some(env) = restore_env {
+                                self.env = env;
+                            }
+                            
+                            // Pop scope
+                            self.env.pop_scope();
+                            
+                            return result;
+                        } else if let Value::NativeFunction(ref name) = func {
+                            // Handle built-in functions
+                            // Create a simple expression for the value and call the native function
+                            let arg_expr = match value {
+                                Value::Number(n) => Expr::Number(n),
+                                Value::Str(s) => Expr::String(s),
+                                Value::Bool(b) => Expr::Bool(b),
+                                _ => return Value::Error("Cannot pipe this value type to native function".to_string()),
+                            };
+                            return self.call_native_function(name, &[arg_expr]);
+                        }
+                        
+                        return Value::Error("Pipe operator requires a function on the right side".to_string());
+                    }
+                    _ => {}
+                }
+
                 let l = self.eval_expr(&left);
                 let r = self.eval_expr(&right);
 
@@ -3182,6 +3281,7 @@ impl Interpreter {
             Value::Str(s) => s.clone(),
             Value::Number(n) => n.to_string(),
             Value::Bool(b) => b.to_string(),
+            Value::Null => "null".to_string(),
             Value::Tagged { tag, fields } => {
                 if fields.is_empty() {
                     tag.clone()
