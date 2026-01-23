@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-23
+
 ### Added
 - **Unary Operator Overloading**: Structs can now overload unary operators for custom behavior
   - **`op_neg`** for unary minus (`-value`) - enables vector negation, complex number negation, etc.
@@ -87,9 +89,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Works seamlessly with operator overloading methods
   - See `examples/struct_self_methods.ruff` for comprehensive examples
 
-## [0.4.0] - 2026-01-23
-
-### Added
 - **Operator Overloading**: Full support for custom operator behavior on structs via `op_` methods
   - **Arithmetic operators**: `op_add` (+), `op_sub` (-), `op_mul` (*), `op_div` (/), `op_mod` (%)
   - **Comparison operators**: `op_eq` (==), `op_ne` (!=), `op_lt` (<), `op_gt` (>), `op_lte` (<=), `op_gte` (>=)
