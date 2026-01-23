@@ -64,7 +64,29 @@ cargo run --quiet -- run examples/http_client.ruff
 
 ---
 
-## � Recently Fixed Critical Bugs
+## 🐛 Recently Fixed Critical Bugs
+
+### HTTP Functions Type Checking Warnings
+
+**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
+**Resolution Date**: January 23, 2026  
+**Fix**: Register HTTP functions in type checker
+
+**Original Issue**:  
+HTTP functions (`http_server`, `http_get`, `http_post`, `http_put`, `http_delete`, `http_response`, `json_response`) were implemented in the interpreter but not registered in the type checker, causing "Undefined function" warnings when running HTTP examples.
+
+**Solution**:  
+Added all HTTP function signatures to `type_checker.rs` in the `register_builtins()` method.
+
+**Changes**:
+- Added HTTP client functions: `http_get`, `http_post`, `http_put`, `http_delete`
+- Added HTTP server functions: `http_server`, `http_response`, `json_response`
+- Added test file `tests/test_http_type_checking.ruff`
+
+**Impact**:  
+HTTP examples now run without type checking warnings, providing a cleaner user experience.
+
+---
 
 ### Function Cleanup Hang Bug
 
