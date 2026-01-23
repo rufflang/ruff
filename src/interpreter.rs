@@ -407,6 +407,17 @@ impl Interpreter {
             .define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
         self.env.define("http_get_binary".to_string(), Value::NativeFunction("http_get_binary".to_string()));
 
+        // JWT authentication functions
+        self.env.define("jwt_encode".to_string(), Value::NativeFunction("jwt_encode".to_string()));
+        self.env.define("jwt_decode".to_string(), Value::NativeFunction("jwt_decode".to_string()));
+
+        // OAuth2 helper functions
+        self.env.define("oauth2_auth_url".to_string(), Value::NativeFunction("oauth2_auth_url".to_string()));
+        self.env.define("oauth2_get_token".to_string(), Value::NativeFunction("oauth2_get_token".to_string()));
+
+        // HTTP streaming functions
+        self.env.define("http_get_stream".to_string(), Value::NativeFunction("http_get_stream".to_string()));
+
         // HTTP server functions
         self.env
             .define("http_server".to_string(), Value::NativeFunction("http_server".to_string()));
@@ -1778,6 +1789,86 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("http_get_binary requires a URL string".to_string())
+                }
+            }
+
+            "jwt_encode" => {
+                // jwt_encode(payload_dict, secret_key) - encode JWT token
+                if let (Some(Value::Dict(payload)), Some(Value::Str(secret))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    match builtins::jwt_encode(payload, secret) {
+                        Ok(token) => Value::Str(token),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("jwt_encode requires a dictionary payload and secret key string".to_string())
+                }
+            }
+
+            "jwt_decode" => {
+                // jwt_decode(token, secret_key) - decode JWT token
+                if let (Some(Value::Str(token)), Some(Value::Str(secret))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    match builtins::jwt_decode(token, secret) {
+                        Ok(payload) => Value::Dict(payload),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("jwt_decode requires a token string and secret key string".to_string())
+                }
+            }
+
+            "oauth2_auth_url" => {
+                // oauth2_auth_url(client_id, redirect_uri, auth_url, scope) - generate OAuth2 authorization URL
+                if let (
+                    Some(Value::Str(client_id)),
+                    Some(Value::Str(redirect_uri)),
+                    Some(Value::Str(auth_url)),
+                    Some(Value::Str(scope)),
+                ) = (arg_values.get(0), arg_values.get(1), arg_values.get(2), arg_values.get(3))
+                {
+                    Value::Str(builtins::oauth2_auth_url(client_id, redirect_uri, auth_url, scope))
+                } else {
+                    Value::Error("oauth2_auth_url requires client_id, redirect_uri, auth_url, and scope strings".to_string())
+                }
+            }
+
+            "oauth2_get_token" => {
+                // oauth2_get_token(code, client_id, client_secret, token_url, redirect_uri) - exchange code for token
+                if let (
+                    Some(Value::Str(code)),
+                    Some(Value::Str(client_id)),
+                    Some(Value::Str(client_secret)),
+                    Some(Value::Str(token_url)),
+                    Some(Value::Str(redirect_uri)),
+                ) = (
+                    arg_values.get(0),
+                    arg_values.get(1),
+                    arg_values.get(2),
+                    arg_values.get(3),
+                    arg_values.get(4),
+                )
+                {
+                    match builtins::oauth2_get_token(code, client_id, client_secret, token_url, redirect_uri) {
+                        Ok(token_data) => Value::Dict(token_data),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("oauth2_get_token requires code, client_id, client_secret, token_url, and redirect_uri strings".to_string())
+                }
+            }
+
+            "http_get_stream" => {
+                // http_get_stream(url) - make GET request and return binary data for streaming
+                if let Some(Value::Str(url)) = arg_values.get(0) {
+                    match builtins::http_get_stream(url) {
+                        Ok(bytes) => Value::Bytes(bytes),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("http_get_stream requires a URL string".to_string())
                 }
             }
 
