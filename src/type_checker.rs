@@ -479,6 +479,39 @@ impl TypeChecker {
                 return_type: None, // Returns HttpResponse object
             },
         );
+
+        // Database functions
+        self.functions.insert(
+            "db_connect".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // Database path
+                return_type: None, // Returns Database object
+            },
+        );
+
+        self.functions.insert(
+            "db_execute".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String), None], // db, sql, params (optional array)
+                return_type: None, // Returns number (rows affected) or Error
+            },
+        );
+
+        self.functions.insert(
+            "db_query".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String), None], // db, sql, params (optional array)
+                return_type: None, // Returns array of dicts
+            },
+        );
+
+        self.functions.insert(
+            "db_close".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Database connection
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
     }
 
     /// Type check a list of statements
