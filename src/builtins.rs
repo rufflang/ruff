@@ -533,11 +533,16 @@ pub fn jwt_encode(payload: &HashMap<String, Value>, secret: &str) -> Result<Stri
 /// Decode a JWT token and return the payload as a dictionary
 /// jwt_decode(token, secret_key) -> payload dictionary
 pub fn jwt_decode(token: &str, secret: &str) -> Result<HashMap<String, Value>, String> {
+    // Create validation without requiring expiry
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.required_spec_claims.clear(); // Don't require any specific claims
+    validation.validate_exp = false; // Don't validate expiration by default
+
     // Decode JWT
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::new(Algorithm::HS256),
+        &validation,
     )
     .map_err(|e| format!("JWT decoding error: {}", e))?;
 
