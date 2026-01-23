@@ -758,7 +758,7 @@ app.run()
 
 ---
 
-### 22. Compilation Targets
+### 19. Compilation Targets
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
