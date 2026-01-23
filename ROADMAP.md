@@ -9,49 +9,56 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## 📦 High Priority (v0.4.0)
 
-### 1. Operator Overloading
+### 1. Operator Overloading ✅
 
-**Status**: Planned  
-**Estimated Effort**: Medium (1 week)
+**Status**: **COMPLETED**  
+**Completed**: January 2026
 
 **Description**:  
-Allow structs to define custom behavior for operators.
+Structs can now define custom behavior for operators using `op_` methods.
 
-**Planned Syntax**:
+**Implemented Syntax**:
 ```ruff
 struct Vector {
-    x: float
-    y: float
-}
-
-# Define operator methods
-func Vector.__add__(self, other: Vector) {
-    return Vector { x: self.x + other.x, y: self.y + other.y }
-}
-
-func Vector.__mul__(self, scalar: float) {
-    return Vector { x: self.x * scalar, y: self.y * scalar }
-}
-
-func Vector.__eq__(self, other: Vector) {
-    return self.x == other.x && self.y == other.y
+    x: float,
+    y: float,
+    
+    func op_add(other) {
+        return Vector { x: x + other.x, y: y + other.y };
+    }
+    
+    func op_mul(scalar) {
+        return Vector { x: x * scalar, y: y * scalar };
+    }
+    
+    func op_eq(other) {
+        return x == other.x && y == other.y;
+    }
 }
 
 # Usage
-v1 := Vector { x: 1.0, y: 2.0 }
-v2 := Vector { x: 3.0, y: 4.0 }
-v3 := v1 + v2  # Vector { x: 4.0, y: 6.0 }
-v4 := v1 * 2.0  # Vector { x: 2.0, y: 4.0 }
+v1 := Vector { x: 1.0, y: 2.0 };
+v2 := Vector { x: 3.0, y: 4.0 };
+v3 := v1 + v2;  # Calls v1.op_add(v2) -> Vector { x: 4.0, y: 6.0 }
+v4 := v1 * 2.0;  # Calls v1.op_mul(2.0) -> Vector { x: 2.0, y: 4.0 }
 
-if v1 == v2 {
-    print("Vectors are equal")
+if (v1 == v2) {  # Calls v1.op_eq(v2)
+    print("Vectors are equal");
 }
 ```
 
 **Supported Operators**:
-- Arithmetic: `+`, `-`, `*`, `/`, `%`
-- Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
-- Unary: `-`, `!`
+- **Arithmetic**: `op_add` (+), `op_sub` (-), `op_mul` (*), `op_div` (/), `op_mod` (%)
+- **Comparison**: `op_eq` (==), `op_ne` (!=), `op_lt` (<), `op_gt` (>), `op_lte` (<=), `op_gte` (>=)
+- **Unary** (future): `op_neg` (-), `op_not` (!)
+
+**Key Design Decisions**:
+- Used `op_` prefix instead of Python-style `__` dunders for clarity
+- Methods defined inside struct body for clean organization
+- Methods receive right-hand operand as parameter
+- Works with any return type (enables fluent APIs)
+
+**Examples**: See `examples/operator_overloading.ruff` for complete Vector and Money type implementations
 
 ---
 
