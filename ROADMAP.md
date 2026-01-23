@@ -2,139 +2,36 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.4.0 (in development)  
-> **Next Planned Release**: v0.4.0
+> **Current Version**: v0.5.0 (in development)  
+> **Next Planned Release**: v0.5.0
 
 ---
 
-## 📦 High Priority (v0.4.0)
+## 📦 High Priority (v0.4.0) - COMPLETED
 
 ### 1. Operator Overloading ✅
 
 **Status**: **COMPLETED**  
 **Completed**: January 2026
 
-**Description**:  
-Structs can now define custom behavior for operators using `op_` methods.
+See [CHANGELOG.md](CHANGELOG.md#040---2026-01-23) for full details.
 
-**Implemented Syntax**:
-```ruff
-struct Vector {
-    x: float,
-    y: float,
-    
-    func op_add(other) {
-        return Vector { x: x + other.x, y: y + other.y };
-    }
-    
-    func op_mul(scalar) {
-        return Vector { x: x * scalar, y: y * scalar };
-    }
-    
-    func op_eq(other) {
-        return x == other.x && y == other.y;
-    }
-}
+**Summary**: Structs can define custom behavior for operators using `op_` methods. Supports arithmetic (+, -, *, /, %) and comparison (==, !=, <, >, <=, >=) operators.
 
-# Usage
-v1 := Vector { x: 1.0, y: 2.0 };
-v2 := Vector { x: 3.0, y: 4.0 };
-v3 := v1 + v2;  # Calls v1.op_add(v2) -> Vector { x: 4.0, y: 6.0 }
-v4 := v1 * 2.0;  # Calls v1.op_mul(2.0) -> Vector { x: 2.0, y: 4.0 }
+### 2. Struct Method Self Parameter ✅
 
-if (v1 == v2) {  # Calls v1.op_eq(v2)
-    print("Vectors are equal");
-}
-```
+**Status**: **COMPLETED**  
+**Completed**: January 2026
 
-**Supported Operators**:
-- **Arithmetic**: `op_add` (+), `op_sub` (-), `op_mul` (*), `op_div` (/), `op_mod` (%)
-- **Comparison**: `op_eq` (==), `op_ne` (!=), `op_lt` (<), `op_gt` (>), `op_lte` (<=), `op_gte` (>=)
-- **Unary** (future): `op_neg` (-), `op_not` (!)
+See [CHANGELOG.md](CHANGELOG.md#unreleased) for full details.
 
-**Key Design Decisions**:
-- Used `op_` prefix instead of Python-style `__` dunders for clarity
-- Methods defined inside struct body for clean organization
-- Methods receive right-hand operand as parameter
-- Works with any return type (enables fluent APIs)
-
-**Examples**: See `examples/operator_overloading.ruff` for complete Vector and Money type implementations
+**Summary**: Methods can now use explicit `self` parameter for method composition and builder patterns. Fully backward compatible with existing code.
 
 ---
 
 ## 🌟 Medium Priority (v0.5.0)
 
-### 2. Struct Method Improvements
-
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 days)
-
-**Description**:  
-Enhance struct methods to support calling other methods on the same instance and add explicit `self` parameter support.
-
-**Current Limitation**:
-```ruff
-struct Calculator {
-    base: float,
-    
-    func add(x) {
-        return base + x;
-    }
-    
-    func chain(x) {
-        # ❌ This doesn't work - 'add' is not found
-        temp := add(x);
-        return temp * 2.0;
-    }
-}
-```
-
-**Planned Enhancement**:
-```ruff
-struct Calculator {
-    base: float,
-    
-    func add(self, x) {
-        return self.base + x;
-    }
-    
-    func chain(self, x) {
-        # ✅ Call other methods on self
-        temp := self.add(x);
-        return temp * 2.0;
-    }
-    
-    func multiply(self, a, b) {
-        return a * b;
-    }
-}
-
-calc := Calculator { base: 10.0 };
-result := calc.chain(5.0);  # Returns 30.0
-```
-
-**Implementation Plan**:
-- Add explicit `self` parameter to method signatures (optional, maintains backward compatibility)
-- When `self` is present, enable `self.method_name()` calls within methods
-- Support `self.field` access (already works with implicit field access)
-- Methods without `self` parameter work as they do now (current behavior)
-- Type checker updates to recognize `self` as special parameter
-
-**Benefits**:
-- Enables method composition and code reuse within structs
-- Clearer code with explicit `self` reference
-- Supports builder patterns and fluent interfaces
-- Maintains backward compatibility with current method syntax
-
-**Use Cases**:
-- Builder patterns: `builder.set_x(10).set_y(20).build()`
-- Method composition: Complex methods calling simpler helper methods
-- State machines: Methods transitioning between states
-- Validation chains: `validator.check_email().check_password().validate()`
-
----
-
-### 3. HTTP Server & Networking
+### 1. HTTP Server & Networking
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)

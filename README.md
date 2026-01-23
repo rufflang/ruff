@@ -90,7 +90,25 @@
   - Struct instantiation: `Point { x: 3.0, y: 4.0 }`
   - Field access: `point.x`
   - Method calls: `rect.area()`, `point.distance()`
-  - Methods can access struct fields directly
+  - **Self parameter** (v0.5.0): Explicit `self` for method composition
+    ```ruff
+    struct Calculator {
+        base: float,
+        
+        func add(self, x) {
+            return self.base + x;
+        }
+        
+        func chain(self, x) {
+            return self.add(x) * 2.0;  # Call other methods
+        }
+    }
+    
+    calc := Calculator { base: 10.0 };
+    result := calc.chain(5.0);  # 30.0
+    ```
+  - Builder patterns and fluent interfaces
+  - Backward compatible - methods without `self` still work
 
 * **Type System** (v0.1.0)
   - Optional type annotations

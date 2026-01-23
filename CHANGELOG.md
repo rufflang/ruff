@@ -5,6 +5,54 @@ All notable changes to the Ruff programming language will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Explicit `self` Parameter for Struct Methods**: Methods can now use explicit `self` parameter for clearer code and method composition
+  - Add `self` as the first parameter to access the struct instance within methods
+  - Enables calling other methods: `self.method_name()` works within method bodies
+  - Supports builder patterns and fluent interfaces
+  - Fully backward compatible - methods without `self` still work (use implicit field access)
+  - Example:
+    ```ruff
+    struct Calculator {
+        base: float,
+        
+        func add(self, x) {
+            return self.base + x;
+        }
+        
+        func chain(self, x) {
+            temp := self.add(x);  # Call another method on self
+            return temp * 2.0;
+        }
+    }
+    
+    calc := Calculator { base: 10.0 };
+    result := calc.chain(5.0);  # Returns 30.0: (10 + 5) * 2
+    ```
+  - Builder pattern example:
+    ```ruff
+    struct Builder {
+        x: float,
+        y: float,
+        
+        func set_x(self, value) {
+            return Builder { x: value, y: self.y };
+        }
+        
+        func set_y(self, value) {
+            return Builder { x: self.x, y: value };
+        }
+    }
+    
+    result := Builder { x: 0.0, y: 0.0 }
+        .set_x(10.0)
+        .set_y(20.0);
+    ```
+  - Works seamlessly with operator overloading methods
+  - See `examples/struct_self_methods.ruff` for comprehensive examples
+
 ## [0.4.0] - 2026-01-23
 
 ### Added
