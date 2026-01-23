@@ -78,4 +78,4 @@ Icon?
 *.pdb
 
 # === GITHUB ===
-.github/
+.github/tmp/
