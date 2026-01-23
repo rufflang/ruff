@@ -5,6 +5,36 @@ All notable changes to the Ruff programming language will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **HTTP Headers Support**: Full control over HTTP response headers
+  - **Header Manipulation Functions**:
+    - `set_header(response, key, value)` - Add or update a single header on an HTTP response
+    - `set_headers(response, headers_dict)` - Set multiple headers at once from a dictionary
+  - **Automatic Headers**:
+    - `json_response()` now automatically includes `Content-Type: application/json` header
+  - **Enhanced Functions**:
+    - `redirect_response(url, headers_dict)` - Now accepts optional second parameter for custom headers
+  - **Request Headers**:
+    - HTTP server requests now include `request.headers` dictionary with all incoming headers
+    - Access headers like: `content_type := request.headers["Content-Type"]`
+  - **Use Cases**:
+    - CORS headers: `Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`
+    - Security headers: `X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`
+    - Caching: `Cache-Control`, `ETag`, `Last-Modified`
+    - Custom metadata: `X-Request-ID`, `X-API-Version`, `X-Rate-Limit`
+  - **Examples**:
+    ```ruff
+    response := http_response(200, "OK")
+    response := set_header(response, "X-API-Version", "1.0")
+    response := set_header(response, "Cache-Control", "max-age=3600")
+    ```
+  - See `examples/http_headers_demo.ruff` for complete examples
+  - Comprehensive test coverage in `tests/test_http_headers.ruff`
+
+---
+
 ## [0.5.0] - 2026-01-23
 
 ### Added
