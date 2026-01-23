@@ -9,9 +9,18 @@ stats := {}
 
 # Generate a random short code
 func generate_code() {
-    # Simple version without loop - just return a fixed format for now
-    # TODO: Implement proper random code generation when type checker bug is fixed
-    return "test123"
+    # Characters for random code generation
+    chars := "abcdefghijklmnopqrstuvwxyz0123456789"
+    code := ""
+    
+    # Generate 6-character code
+    for i in 6 {
+        idx := random_int(0, len(chars) - 1)
+        char := substring(chars, idx, idx + 1)
+        code := code + char
+    }
+    
+    return code
 }
 
 # Validate URL format

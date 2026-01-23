@@ -22,7 +22,30 @@ use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use std::collections::HashMap;
 use std::io::Write;
+use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
+
+/// Wrapper type for function bodies that prevents deep recursion during drop.
+/// 
+/// The issue: Function bodies are Vec<Stmt>, and Stmt contains nested Vec<Stmt>
+/// (in For, If, While, etc.). When Rust's automatic drop runs during program cleanup,
+/// it recurses deeply through these structures, causing stack overflow.
+/// 
+/// Solution: This wrapper uses ManuallyDrop to prevent automatic dropping of the Arc.
+/// The memory will be leaked, but since this only happens during program shutdown,
+/// the OS will reclaim all memory anyway.
+#[derive(Clone)]
+pub struct LeakyFunctionBody(ManuallyDrop<Arc<Vec<Stmt>>>);
+
+impl LeakyFunctionBody {
+    pub fn new(body: Vec<Stmt>) -> Self {
+        LeakyFunctionBody(ManuallyDrop::new(Arc::new(body)))
+    }
+    
+    pub fn get(&self) -> &Vec<Stmt> {
+        &self.0
+    }
+}
 
 /// Control flow signals for loop statements
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +65,7 @@ pub enum Value {
     Number(f64),
     Str(String),
     Bool(bool),
-    Function(Vec<String>, Arc<Vec<Stmt>>),
+    Function(Vec<String>, LeakyFunctionBody),
     NativeFunction(String), // Name of the native function
     Return(Box<Value>),
     Error(String), // Legacy simple error for backward compatibility
@@ -86,7 +109,7 @@ impl std::fmt::Debug for Value {
             Value::Number(n) => write!(f, "Number({})", n),
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
-            Value::Function(params, _) => write!(f, "Function({:?}, ...)", params),
+            Value::Function(params, body) => write!(f, "Function({:?}, {} stmts)", params, body.get().len()),
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
             Value::Return(v) => write!(f, "Return({:?})", v),
             Value::Error(e) => write!(f, "Error({})", e),
@@ -397,7 +420,7 @@ impl Interpreter {
                 }
 
                 // Execute function body
-                self.eval_stmts(body);
+                self.eval_stmts(body.get());
 
                 // Get return value
                 let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -468,7 +491,7 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.eval_stmts(&body);
+                    self.eval_stmts(body.get());
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -518,7 +541,7 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.eval_stmts(&body);
+                    self.eval_stmts(body.get());
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -590,7 +613,7 @@ impl Interpreter {
                             self.env.define(param.clone(), req_obj);
                         }
                         
-                        self.eval_stmts(body);
+                        self.eval_stmts(body.get());
                         
                         // Get result
                         let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -1789,7 +1812,7 @@ impl Interpreter {
                 }
             }
             Stmt::FuncDef { name, params, param_types: _, return_type: _, body } => {
-                let func = Value::Function(params.clone(), Arc::new(body.clone()));
+                let func = Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()));
                 self.env.define(name.clone(), func);
             }
             Stmt::EnumDef { name, variants } => {
@@ -1798,7 +1821,7 @@ impl Interpreter {
                     // Store constructor function in env
                     let func = Value::Function(
                         vec!["$0".to_string()],
-                        Arc::new(vec![Stmt::Return(Some(Expr::Tag(
+                        LeakyFunctionBody::new(vec![Stmt::Return(Some(Expr::Tag(
                             tag.clone(),
                             vec![Expr::Identifier("$0".to_string())],
                         )))]),
@@ -2254,7 +2277,7 @@ impl Interpreter {
                         body,
                     } = method_stmt
                     {
-                        let func = Value::Function(params.clone(), Arc::new(body.clone()));
+                        let func = Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()));
                         method_map.insert(method_name.clone(), func);
                     }
                 }
@@ -2292,7 +2315,7 @@ impl Interpreter {
             Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
             Expr::Function { params, param_types: _, return_type: _, body } => {
                 // Anonymous function expression - return as a value
-                Value::Function(params.clone(), Arc::new(body.clone()))
+                Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()))
             }
             Expr::UnaryOp { op, operand } => {
                 let val = self.eval_expr(operand);
@@ -2425,7 +2448,7 @@ impl Interpreter {
                                 }
 
                                 // Execute method body
-                                self.eval_stmts(&body);
+                                self.eval_stmts(body.get());
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
                                 {
@@ -2471,7 +2494,7 @@ impl Interpreter {
                             }
                         }
 
-                        self.eval_stmts(&body);
+                        self.eval_stmts(body.get());
 
                         let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                             self.return_value = None; // Clear return value
@@ -2522,7 +2545,7 @@ impl Interpreter {
                                 }
                             }
 
-                            self.eval_stmts(&body);
+                            self.eval_stmts(body.get());
 
                             let result = if let Some(Value::Return(val)) = self.return_value.clone()
                             {
