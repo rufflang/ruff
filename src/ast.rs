@@ -18,7 +18,7 @@ pub mod operator_methods {
     pub const MUL: &str = "op_mul";
     pub const DIV: &str = "op_div";
     pub const MOD: &str = "op_mod";
-    
+
     // Comparison operators
     pub const EQ: &str = "op_eq";
     pub const NE: &str = "op_ne";
@@ -26,11 +26,11 @@ pub mod operator_methods {
     pub const GT: &str = "op_gt";
     pub const LE: &str = "op_le";
     pub const GE: &str = "op_ge";
-    
+
     // Unary operators
     pub const NEG: &str = "op_neg";
     pub const NOT: &str = "op_not";
-    
+
     /// Maps binary operators to their corresponding method names
     pub fn binary_op_method(op: &str) -> Option<&'static str> {
         match op {
@@ -48,7 +48,7 @@ pub mod operator_methods {
             _ => None,
         }
     }
-    
+
     /// Maps unary operators to their corresponding method names
     pub fn unary_op_method(op: &str) -> Option<&'static str> {
         match op {

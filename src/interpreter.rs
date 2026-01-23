@@ -20,18 +20,18 @@ use crate::ast::{Expr, Stmt};
 use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
+use rusqlite::Connection;
 use std::collections::HashMap;
 use std::io::Write;
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
-use rusqlite::Connection;
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
-/// 
+///
 /// The issue: Function bodies are Vec<Stmt>, and Stmt contains nested Vec<Stmt>
 /// (in For, If, While, etc.). When Rust's automatic drop runs during program cleanup,
 /// it recurses deeply through these structures, causing stack overflow.
-/// 
+///
 /// Solution: This wrapper uses ManuallyDrop to prevent automatic dropping of the Arc.
 /// The memory will be leaked, but since this only happens during program shutdown,
 /// the OS will reclaim all memory anyway.
@@ -42,7 +42,7 @@ impl LeakyFunctionBody {
     pub fn new(body: Vec<Stmt>) -> Self {
         LeakyFunctionBody(ManuallyDrop::new(Arc::new(body)))
     }
-    
+
     pub fn get(&self) -> &Vec<Stmt> {
         &self.0
     }
@@ -114,18 +114,19 @@ impl std::fmt::Debug for Value {
             Value::Number(n) => write!(f, "Number({})", n),
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
-            Value::Function(params, body) => write!(f, "Function({:?}, {} stmts)", params, body.get().len()),
+            Value::Function(params, body) => {
+                write!(f, "Function({:?}, {} stmts)", params, body.get().len())
+            }
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
             Value::Return(v) => write!(f, "Return({:?})", v),
             Value::Error(e) => write!(f, "Error({})", e),
-            Value::ErrorObject { message, stack, line, cause } => {
-                f.debug_struct("ErrorObject")
-                    .field("message", message)
-                    .field("stack", stack)
-                    .field("line", line)
-                    .field("cause", &cause.as_ref().map(|_| "..."))
-                    .finish()
-            }
+            Value::ErrorObject { message, stack, line, cause } => f
+                .debug_struct("ErrorObject")
+                .field("message", message)
+                .field("stack", stack)
+                .field("line", line)
+                .field("cause", &cause.as_ref().map(|_| "..."))
+                .finish(),
             Value::Enum(e) => write!(f, "Enum({})", e),
             Value::Struct { name, fields } => {
                 f.debug_struct("Struct").field("name", name).field("fields", fields).finish()
@@ -294,7 +295,8 @@ impl Interpreter {
             .define("replace_str".to_string(), Value::NativeFunction("replace_str".to_string()));
         self.env.define("split".to_string(), Value::NativeFunction("split".to_string()));
         self.env.define("join".to_string(), Value::NativeFunction("join".to_string()));
-        self.env.define("starts_with".to_string(), Value::NativeFunction("starts_with".to_string()));
+        self.env
+            .define("starts_with".to_string(), Value::NativeFunction("starts_with".to_string()));
         self.env.define("ends_with".to_string(), Value::NativeFunction("ends_with".to_string()));
         self.env.define("index_of".to_string(), Value::NativeFunction("index_of".to_string()));
         self.env.define("repeat".to_string(), Value::NativeFunction("repeat".to_string()));
@@ -343,11 +345,15 @@ impl Interpreter {
         // Random functions
         self.env.define("random".to_string(), Value::NativeFunction("random".to_string()));
         self.env.define("random_int".to_string(), Value::NativeFunction("random_int".to_string()));
-        self.env.define("random_choice".to_string(), Value::NativeFunction("random_choice".to_string()));
+        self.env.define(
+            "random_choice".to_string(),
+            Value::NativeFunction("random_choice".to_string()),
+        );
 
         // Date/Time functions
         self.env.define("now".to_string(), Value::NativeFunction("now".to_string()));
-        self.env.define("format_date".to_string(), Value::NativeFunction("format_date".to_string()));
+        self.env
+            .define("format_date".to_string(), Value::NativeFunction("format_date".to_string()));
         self.env.define("parse_date".to_string(), Value::NativeFunction("parse_date".to_string()));
 
         // System operation functions
@@ -361,28 +367,49 @@ impl Interpreter {
         self.env.define("join_path".to_string(), Value::NativeFunction("join_path".to_string()));
         self.env.define("dirname".to_string(), Value::NativeFunction("dirname".to_string()));
         self.env.define("basename".to_string(), Value::NativeFunction("basename".to_string()));
-        self.env.define("path_exists".to_string(), Value::NativeFunction("path_exists".to_string()));
+        self.env
+            .define("path_exists".to_string(), Value::NativeFunction("path_exists".to_string()));
 
         // Regular expression functions
-        self.env.define("regex_match".to_string(), Value::NativeFunction("regex_match".to_string()));
-        self.env.define("regex_find_all".to_string(), Value::NativeFunction("regex_find_all".to_string()));
-        self.env.define("regex_replace".to_string(), Value::NativeFunction("regex_replace".to_string()));
-        self.env.define("regex_split".to_string(), Value::NativeFunction("regex_split".to_string()));
+        self.env
+            .define("regex_match".to_string(), Value::NativeFunction("regex_match".to_string()));
+        self.env.define(
+            "regex_find_all".to_string(),
+            Value::NativeFunction("regex_find_all".to_string()),
+        );
+        self.env.define(
+            "regex_replace".to_string(),
+            Value::NativeFunction("regex_replace".to_string()),
+        );
+        self.env
+            .define("regex_split".to_string(), Value::NativeFunction("regex_split".to_string()));
 
         // HTTP client functions
         self.env.define("http_get".to_string(), Value::NativeFunction("http_get".to_string()));
         self.env.define("http_post".to_string(), Value::NativeFunction("http_post".to_string()));
         self.env.define("http_put".to_string(), Value::NativeFunction("http_put".to_string()));
-        self.env.define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
-        
+        self.env
+            .define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
+
         // HTTP server functions
-        self.env.define("http_server".to_string(), Value::NativeFunction("http_server".to_string()));
-        self.env.define("http_response".to_string(), Value::NativeFunction("http_response".to_string()));
-        self.env.define("json_response".to_string(), Value::NativeFunction("json_response".to_string()));
-        self.env.define("redirect_response".to_string(), Value::NativeFunction("redirect_response".to_string()));
+        self.env
+            .define("http_server".to_string(), Value::NativeFunction("http_server".to_string()));
+        self.env.define(
+            "http_response".to_string(),
+            Value::NativeFunction("http_response".to_string()),
+        );
+        self.env.define(
+            "json_response".to_string(),
+            Value::NativeFunction("json_response".to_string()),
+        );
+        self.env.define(
+            "redirect_response".to_string(),
+            Value::NativeFunction("redirect_response".to_string()),
+        );
         self.env.define("set_header".to_string(), Value::NativeFunction("set_header".to_string()));
-        self.env.define("set_headers".to_string(), Value::NativeFunction("set_headers".to_string()));
-        
+        self.env
+            .define("set_headers".to_string(), Value::NativeFunction("set_headers".to_string()));
+
         // Database functions
         self.env.define("db_connect".to_string(), Value::NativeFunction("db_connect".to_string()));
         self.env.define("db_execute".to_string(), Value::NativeFunction("db_execute".to_string()));
@@ -425,7 +452,7 @@ impl Interpreter {
                 // Push function name to call stack
                 let func_name = format!("<function with {} params>", params.len());
                 self.call_stack.push(func_name);
-                
+
                 // Create new scope for function call
                 self.env.push_scope();
 
@@ -457,7 +484,7 @@ impl Interpreter {
 
                 // Restore parent environment
                 self.env.pop_scope();
-                
+
                 // Pop from call stack
                 self.call_stack.pop();
 
@@ -477,8 +504,7 @@ impl Interpreter {
     ) -> Option<Value> {
         if let Value::Struct { name, fields } = struct_val {
             // Look up the struct definition to find the operator method
-            if let Some(Value::StructDef { name: _, field_names: _, methods }) =
-                self.env.get(name)
+            if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name)
             {
                 if let Some(Value::Function(params, body)) = methods.get(method_name) {
                     // Create new scope for operator method call
@@ -486,11 +512,11 @@ impl Interpreter {
 
                     // Check if method has 'self' as first parameter
                     let has_self_param = params.first().map(|p| p == "self").unwrap_or(false);
-                    
+
                     if has_self_param {
                         // Bind self to the struct instance
                         self.env.define("self".to_string(), struct_val.clone());
-                        
+
                         // Bind the other operand as the second parameter (after self)
                         if let Some(param_name) = params.get(1) {
                             self.env.define(param_name.clone(), other.clone());
@@ -537,8 +563,7 @@ impl Interpreter {
     ) -> Option<Value> {
         if let Value::Struct { name, fields } = struct_val {
             // Look up the struct definition to find the operator method
-            if let Some(Value::StructDef { name: _, field_names: _, methods }) =
-                self.env.get(name)
+            if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name)
             {
                 if let Some(Value::Function(params, body)) = methods.get(method_name) {
                     // Create new scope for operator method call
@@ -546,7 +571,7 @@ impl Interpreter {
 
                     // Check if method has 'self' as first (and only) parameter
                     let has_self_param = params.first().map(|p| p == "self").unwrap_or(false);
-                    
+
                     if has_self_param {
                         // Bind self to the struct instance
                         self.env.define("self".to_string(), struct_val.clone());
@@ -583,14 +608,14 @@ impl Interpreter {
     fn match_route_pattern(pattern: &str, path: &str) -> Option<HashMap<String, String>> {
         let pattern_parts: Vec<&str> = pattern.split('/').collect();
         let path_parts: Vec<&str> = path.split('/').collect();
-        
+
         // Must have same number of segments
         if pattern_parts.len() != path_parts.len() {
             return None;
         }
-        
+
         let mut params = HashMap::new();
-        
+
         for (pattern_part, path_part) in pattern_parts.iter().zip(path_parts.iter()) {
             if pattern_part.starts_with(':') {
                 // This is a path parameter - extract it
@@ -601,29 +626,29 @@ impl Interpreter {
                 return None;
             }
         }
-        
+
         Some(params)
     }
 
     /// Starts an HTTP server with registered routes
     fn start_http_server(&mut self, port: u16, routes: Vec<(String, String, Value)>) -> Value {
-        use tiny_http::{Server, Response};
-        
+        use tiny_http::{Response, Server};
+
         println!("Starting HTTP server on port {}...", port);
-        
+
         let server = match Server::http(format!("0.0.0.0:{}", port)) {
             Ok(s) => s,
             Err(e) => return Value::Error(format!("Failed to start server: {}", e)),
         };
-        
+
         println!("Server listening on http://localhost:{}", port);
         println!("Press Ctrl+C to stop");
-        
+
         // Main server loop
         for mut request in server.incoming_requests() {
             let method = request.method().to_string();
             let url_path = request.url().to_string();
-            
+
             // Read body first (before any response handling)
             let body_content = {
                 let mut reader = request.as_reader();
@@ -631,12 +656,12 @@ impl Interpreter {
                 std::io::Read::read_to_end(&mut reader, &mut buffer).ok();
                 String::from_utf8_lossy(&buffer).to_string()
             };
-            
+
             // Find matching route (supports path parameters like /:code)
             // Exact matches take priority over parameterized routes
             let mut response_to_send: Option<Response<std::io::Cursor<Vec<u8>>>> = None;
             let mut matched_handler: Option<(&Value, HashMap<String, String>)> = None;
-            
+
             // First pass: look for exact matches
             for (route_method, route_path, handler) in &routes {
                 if method == *route_method && url_path == *route_path {
@@ -644,7 +669,7 @@ impl Interpreter {
                     break;
                 }
             }
-            
+
             // Second pass: if no exact match, try parameterized routes
             if matched_handler.is_none() {
                 for (route_method, route_path, handler) in &routes {
@@ -653,28 +678,29 @@ impl Interpreter {
                     }
                     // Only try parameterized matching for routes with ':'
                     if route_path.contains(':') {
-                        if let Some(path_params) = Self::match_route_pattern(route_path, &url_path) {
+                        if let Some(path_params) = Self::match_route_pattern(route_path, &url_path)
+                        {
                             matched_handler = Some((handler, path_params));
                             break;
                         }
                     }
                 }
             }
-            
+
             if let Some((handler, path_params)) = matched_handler {
                 // Create params dict for request object
                 let mut params_dict = HashMap::new();
                 for (key, value) in &path_params {
                     params_dict.insert(key.clone(), Value::Str(value.clone()));
                 }
-                
+
                 // Create request object
                 let mut req_fields = HashMap::new();
                 req_fields.insert("method".to_string(), Value::Str(method.clone()));
                 req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
                 req_fields.insert("body".to_string(), Value::Str(body_content.clone()));
                 req_fields.insert("params".to_string(), Value::Dict(params_dict));
-                
+
                 // Extract headers from request
                 let mut headers_dict = HashMap::new();
                 for header in request.headers() {
@@ -683,23 +709,20 @@ impl Interpreter {
                     headers_dict.insert(header_name, Value::Str(header_value));
                 }
                 req_fields.insert("headers".to_string(), Value::Dict(headers_dict));
-                
-                let req_obj = Value::Struct {
-                    name: "Request".to_string(),
-                    fields: req_fields,
-                };
-                
+
+                let req_obj = Value::Struct { name: "Request".to_string(), fields: req_fields };
+
                 // Call handler function
                 if let Value::Function(params, body) = handler {
                     self.env.push_scope();
-                    
+
                     // Bind request parameter
                     if let Some(param) = params.get(0) {
                         self.env.define(param.clone(), req_obj);
                     }
-                    
+
                     self.eval_stmts(body.get());
-                    
+
                     // Get result
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -712,28 +735,32 @@ impl Interpreter {
                             headers: HashMap::new(),
                         }
                     };
-                    
+
                     self.env.pop_scope();
-                    
+
                     // Build response
                     if let Value::HttpResponse { status, body, headers } = result {
                         let mut response = Response::from_string(body);
                         response = response.with_status_code(status);
-                        
+
                         for (key, value) in headers {
-                            if let Ok(header) = tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes()) {
+                            if let Ok(header) =
+                                tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes())
+                            {
                                 response = response.with_header(header);
                             }
                         }
-                        
+
                         response_to_send = Some(response);
                     } else {
                         // Handler didn't return HttpResponse
-                        response_to_send = Some(Response::from_string("Internal Server Error").with_status_code(500));
+                        response_to_send = Some(
+                            Response::from_string("Internal Server Error").with_status_code(500),
+                        );
                     }
                 }
             }
-            
+
             // Send response
             if let Some(response) = response_to_send {
                 let _ = request.respond(response);
@@ -742,7 +769,7 @@ impl Interpreter {
                 let _ = request.respond(Response::from_string("Not Found").with_status_code(404));
             }
         }
-        
+
         Value::Number(0.0)
     }
     /// Calls a native built-in function
@@ -990,9 +1017,11 @@ impl Interpreter {
                 // map(array, func) - transforms each element by applying func
                 // Returns new array with function applied to each element
                 if arg_values.len() < 2 {
-                    return Value::Error("map requires two arguments: array and function".to_string());
+                    return Value::Error(
+                        "map requires two arguments: array and function".to_string(),
+                    );
                 }
-                
+
                 let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
                         (arr.clone(), func.clone())
@@ -1013,9 +1042,11 @@ impl Interpreter {
                 // filter(array, func) - selects elements where func returns truthy value
                 // Returns new array with only elements where func(element) is truthy
                 if arg_values.len() < 2 {
-                    return Value::Error("filter requires two arguments: array and function".to_string());
+                    return Value::Error(
+                        "filter requires two arguments: array and function".to_string(),
+                    );
                 }
-                
+
                 let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
                         (arr.clone(), func.clone())
@@ -1027,7 +1058,7 @@ impl Interpreter {
                 for element in array {
                     // Call the function with the element as argument
                     let func_result = self.call_user_function(&func, &[element.clone()]);
-                    
+
                     // Check if result is truthy
                     let is_truthy = match func_result {
                         Value::Bool(b) => b,
@@ -1035,7 +1066,7 @@ impl Interpreter {
                         Value::Str(s) => !s.is_empty(),
                         _ => false,
                     };
-                    
+
                     if is_truthy {
                         result.push(element);
                     }
@@ -1047,15 +1078,26 @@ impl Interpreter {
                 // reduce(array, initial, func) - accumulates array into single value
                 // func(accumulator, element) is called for each element
                 if arg_values.len() < 3 {
-                    return Value::Error("reduce requires three arguments: array, initial value, and function".to_string());
+                    return Value::Error(
+                        "reduce requires three arguments: array, initial value, and function"
+                            .to_string(),
+                    );
                 }
-                
-                let (array, initial, func) = match (arg_values.get(0), arg_values.get(1), arg_values.get(2)) {
-                    (Some(Value::Array(arr)), Some(init), Some(func @ Value::Function(_, _))) => {
-                        (arr.clone(), init.clone(), func.clone())
-                    }
-                    _ => return Value::Error("reduce expects an array, an initial value, and a function".to_string()),
-                };
+
+                let (array, initial, func) =
+                    match (arg_values.get(0), arg_values.get(1), arg_values.get(2)) {
+                        (
+                            Some(Value::Array(arr)),
+                            Some(init),
+                            Some(func @ Value::Function(_, _)),
+                        ) => (arr.clone(), init.clone(), func.clone()),
+                        _ => {
+                            return Value::Error(
+                                "reduce expects an array, an initial value, and a function"
+                                    .to_string(),
+                            )
+                        }
+                    };
 
                 let mut accumulator = initial;
                 for element in array {
@@ -1069,9 +1111,11 @@ impl Interpreter {
                 // find(array, func) - returns first element where func returns truthy value
                 // Returns the element or Value::Number(0.0) if not found (null equivalent)
                 if arg_values.len() < 2 {
-                    return Value::Error("find requires two arguments: array and function".to_string());
+                    return Value::Error(
+                        "find requires two arguments: array and function".to_string(),
+                    );
                 }
-                
+
                 let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
                         (arr.clone(), func.clone())
@@ -1082,7 +1126,7 @@ impl Interpreter {
                 for element in array {
                     // Call the function with the element as argument
                     let func_result = self.call_user_function(&func, &[element.clone()]);
-                    
+
                     // Check if result is truthy
                     let is_truthy = match func_result {
                         Value::Bool(b) => b,
@@ -1090,7 +1134,7 @@ impl Interpreter {
                         Value::Str(s) => !s.is_empty(),
                         _ => false,
                     };
-                    
+
                     if is_truthy {
                         return element;
                     }
@@ -1359,7 +1403,9 @@ impl Interpreter {
                 {
                     Value::Number(builtins::random_int(*min, *max))
                 } else {
-                    Value::Error("random_int requires two number arguments: min and max".to_string())
+                    Value::Error(
+                        "random_int requires two number arguments: min and max".to_string(),
+                    )
                 }
             }
 
@@ -1385,7 +1431,9 @@ impl Interpreter {
                 {
                     Value::Str(builtins::format_date(*timestamp, format))
                 } else {
-                    Value::Error("format_date requires timestamp (number) and format (string)".to_string())
+                    Value::Error(
+                        "format_date requires timestamp (number) and format (string)".to_string(),
+                    )
                 }
             }
 
@@ -1448,13 +1496,14 @@ impl Interpreter {
             // Path operation functions
             "join_path" => {
                 // join_path(parts...) - joins path components
-                let parts: Vec<String> = arg_values.iter().filter_map(|v| {
-                    match v {
+                let parts: Vec<String> = arg_values
+                    .iter()
+                    .filter_map(|v| match v {
                         Value::Str(s) => Some(s.clone()),
                         _ => None,
-                    }
-                }).collect();
-                
+                    })
+                    .collect();
+
                 if parts.is_empty() {
                     Value::Error("join_path requires at least one string argument".to_string())
                 } else {
@@ -1497,7 +1546,9 @@ impl Interpreter {
                 {
                     Value::Bool(builtins::regex_match(text, pattern))
                 } else {
-                    Value::Error("regex_match requires two string arguments (text, pattern)".to_string())
+                    Value::Error(
+                        "regex_match requires two string arguments (text, pattern)".to_string(),
+                    )
                 }
             }
 
@@ -1510,14 +1561,19 @@ impl Interpreter {
                     let values: Vec<Value> = matches.into_iter().map(Value::Str).collect();
                     Value::Array(values)
                 } else {
-                    Value::Error("regex_find_all requires two string arguments (text, pattern)".to_string())
+                    Value::Error(
+                        "regex_find_all requires two string arguments (text, pattern)".to_string(),
+                    )
                 }
             }
 
             "regex_replace" => {
                 // regex_replace(text, pattern, replacement) - replaces pattern matches with replacement
-                if let (Some(Value::Str(text)), Some(Value::Str(pattern)), Some(Value::Str(replacement))) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                if let (
+                    Some(Value::Str(text)),
+                    Some(Value::Str(pattern)),
+                    Some(Value::Str(replacement)),
+                ) = (arg_values.get(0), arg_values.get(1), arg_values.get(2))
                 {
                     Value::Str(builtins::regex_replace(text, pattern, replacement))
                 } else {
@@ -1534,7 +1590,9 @@ impl Interpreter {
                     let values: Vec<Value> = parts.into_iter().map(Value::Str).collect();
                     Value::Array(values)
                 } else {
-                    Value::Error("regex_split requires two string arguments (text, pattern)".to_string())
+                    Value::Error(
+                        "regex_split requires two string arguments (text, pattern)".to_string(),
+                    )
                 }
             }
 
@@ -1543,7 +1601,7 @@ impl Interpreter {
                 if let Some(Value::Str(url)) = arg_values.get(0) {
                     match builtins::http_get(url) {
                         Ok(result_map) => Value::Dict(result_map),
-                        Err(e) => Value::Error(e)
+                        Err(e) => Value::Error(e),
                     }
                 } else {
                     Value::Error("http_get requires a URL string".to_string())
@@ -1557,7 +1615,7 @@ impl Interpreter {
                 {
                     match builtins::http_post(url, body) {
                         Ok(result_map) => Value::Dict(result_map),
-                        Err(e) => Value::Error(e)
+                        Err(e) => Value::Error(e),
                     }
                 } else {
                     Value::Error("http_post requires URL and JSON body strings".to_string())
@@ -1571,7 +1629,7 @@ impl Interpreter {
                 {
                     match builtins::http_put(url, body) {
                         Ok(result_map) => Value::Dict(result_map),
-                        Err(e) => Value::Error(e)
+                        Err(e) => Value::Error(e),
                     }
                 } else {
                     Value::Error("http_put requires URL and JSON body strings".to_string())
@@ -1583,7 +1641,7 @@ impl Interpreter {
                 if let Some(Value::Str(url)) = arg_values.get(0) {
                     match builtins::http_delete(url) {
                         Ok(result_map) => Value::Dict(result_map),
-                        Err(e) => Value::Error(e)
+                        Err(e) => Value::Error(e),
                     }
                 } else {
                     Value::Error("http_delete requires a URL string".to_string())
@@ -1593,10 +1651,7 @@ impl Interpreter {
             "http_server" => {
                 // http_server(port) - create HTTP server
                 if let Some(Value::Number(port)) = arg_values.get(0) {
-                    Value::HttpServer {
-                        port: *port as u16,
-                        routes: Vec::new(),
-                    }
+                    Value::HttpServer { port: *port as u16, routes: Vec::new() }
                 } else {
                     Value::Error("http_server requires a port number".to_string())
                 }
@@ -1616,10 +1671,14 @@ impl Interpreter {
                             headers: new_headers,
                         }
                     } else {
-                        Value::Error("set_header requires an HTTP response as first argument".to_string())
+                        Value::Error(
+                            "set_header requires an HTTP response as first argument".to_string(),
+                        )
                     }
                 } else {
-                    Value::Error("set_header requires response, header name, and header value".to_string())
+                    Value::Error(
+                        "set_header requires response, header name, and header value".to_string(),
+                    )
                 }
             }
 
@@ -1641,7 +1700,9 @@ impl Interpreter {
                             headers: new_headers,
                         }
                     } else {
-                        Value::Error("set_headers requires an HTTP response as first argument".to_string())
+                        Value::Error(
+                            "set_headers requires an HTTP response as first argument".to_string(),
+                        )
                     }
                 } else {
                     Value::Error("set_headers requires response and headers dictionary".to_string())
@@ -1672,12 +1733,8 @@ impl Interpreter {
                     let json_body = builtins::to_json(data).unwrap_or_else(|_| "{}".to_string());
                     let mut headers = HashMap::new();
                     headers.insert("Content-Type".to_string(), "application/json".to_string());
-                    
-                    Value::HttpResponse {
-                        status: *status as u16,
-                        body: json_body,
-                        headers,
-                    }
+
+                    Value::HttpResponse { status: *status as u16, body: json_body, headers }
                 } else {
                     Value::Error("json_response requires status code and data".to_string())
                 }
@@ -1688,7 +1745,7 @@ impl Interpreter {
                 if let Some(Value::Str(url)) = arg_values.get(0) {
                     let mut headers = HashMap::new();
                     headers.insert("Location".to_string(), url.clone());
-                    
+
                     // If second argument is provided, merge additional headers
                     if let Some(Value::Dict(extra_headers)) = arg_values.get(1) {
                         for (key, value) in extra_headers {
@@ -1697,7 +1754,7 @@ impl Interpreter {
                             }
                         }
                     }
-                    
+
                     Value::HttpResponse {
                         status: 302,
                         body: format!("Redirecting to {}", url),
@@ -1731,32 +1788,40 @@ impl Interpreter {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
                         let conn = connection.lock().unwrap();
-                        
+
                         // Convert params array to rusqlite params
                         let result = if let Some(Value::Array(param_arr)) = params {
-                            let param_values: Vec<Box<dyn rusqlite::ToSql>> = param_arr.iter().map(|v| {
-                                match v {
-                                    Value::Str(s) => Box::new(s.clone()) as Box<dyn rusqlite::ToSql>,
+                            let param_values: Vec<Box<dyn rusqlite::ToSql>> = param_arr
+                                .iter()
+                                .map(|v| match v {
+                                    Value::Str(s) => {
+                                        Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
+                                    }
                                     Value::Number(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
                                     Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
                                     _ => Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>,
-                                }
-                            }).collect();
-                            let params_refs: Vec<&dyn rusqlite::ToSql> = param_values.iter().map(|b| b.as_ref()).collect();
+                                })
+                                .collect();
+                            let params_refs: Vec<&dyn rusqlite::ToSql> =
+                                param_values.iter().map(|b| b.as_ref()).collect();
                             conn.execute(sql, params_refs.as_slice())
                         } else {
                             conn.execute(sql, [])
                         };
-                        
+
                         match result {
                             Ok(rows_affected) => Value::Number(rows_affected as f64),
                             Err(e) => Value::Error(format!("SQL execution error: {}", e)),
                         }
                     } else {
-                        Value::Error("db_execute requires SQL string as second argument".to_string())
+                        Value::Error(
+                            "db_execute requires SQL string as second argument".to_string(),
+                        )
                     }
                 } else {
-                    Value::Error("db_execute requires a database connection as first argument".to_string())
+                    Value::Error(
+                        "db_execute requires a database connection as first argument".to_string(),
+                    )
                 }
             }
 
@@ -1766,42 +1831,52 @@ impl Interpreter {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
                         let conn = connection.lock().unwrap();
-                        
+
                         // Build params vector
-                        let param_values: Vec<Box<dyn rusqlite::ToSql>> = if let Some(Value::Array(param_arr)) = params {
-                            param_arr.iter().map(|v| {
-                                match v {
-                                    Value::Str(s) => Box::new(s.clone()) as Box<dyn rusqlite::ToSql>,
-                                    Value::Number(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
-                                    Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
-                                    _ => Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>,
-                                }
-                            }).collect()
-                        } else {
-                            Vec::new()
-                        };
-                        let params_refs: Vec<&dyn rusqlite::ToSql> = param_values.iter().map(|b| b.as_ref()).collect();
-                        
+                        let param_values: Vec<Box<dyn rusqlite::ToSql>> =
+                            if let Some(Value::Array(param_arr)) = params {
+                                param_arr
+                                    .iter()
+                                    .map(|v| match v {
+                                        Value::Str(s) => {
+                                            Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
+                                        }
+                                        Value::Number(n) => {
+                                            Box::new(*n) as Box<dyn rusqlite::ToSql>
+                                        }
+                                        Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
+                                        _ => {
+                                            Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>
+                                        }
+                                    })
+                                    .collect()
+                            } else {
+                                Vec::new()
+                            };
+                        let params_refs: Vec<&dyn rusqlite::ToSql> =
+                            param_values.iter().map(|b| b.as_ref()).collect();
+
                         // Prepare statement
                         let mut stmt = match conn.prepare(sql) {
                             Ok(s) => s,
                             Err(e) => return Value::Error(format!("SQL prepare error: {}", e)),
                         };
-                        
-                        let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
-                        
+
+                        let column_names: Vec<String> =
+                            stmt.column_names().iter().map(|s| s.to_string()).collect();
+
                         // Execute query with or without params
                         let query_result = if params_refs.is_empty() {
                             stmt.query([])
                         } else {
                             stmt.query(params_refs.as_slice())
                         };
-                        
+
                         let mut rows = match query_result {
                             Ok(r) => r,
                             Err(e) => return Value::Error(format!("SQL query error: {}", e)),
                         };
-                        
+
                         // Collect results into Value array
                         let mut results: Vec<Value> = Vec::new();
                         loop {
@@ -1809,10 +1884,14 @@ impl Interpreter {
                                 Ok(Some(row)) => {
                                     let mut row_dict: HashMap<String, Value> = HashMap::new();
                                     for (i, col_name) in column_names.iter().enumerate() {
-                                        let value: rusqlite::Result<rusqlite::types::Value> = row.get(i);
+                                        let value: rusqlite::Result<rusqlite::types::Value> =
+                                            row.get(i);
                                         match value {
                                             Ok(rusqlite::types::Value::Integer(n)) => {
-                                                row_dict.insert(col_name.clone(), Value::Number(n as f64));
+                                                row_dict.insert(
+                                                    col_name.clone(),
+                                                    Value::Number(n as f64),
+                                                );
                                             }
                                             Ok(rusqlite::types::Value::Real(n)) => {
                                                 row_dict.insert(col_name.clone(), Value::Number(n));
@@ -1821,13 +1900,22 @@ impl Interpreter {
                                                 row_dict.insert(col_name.clone(), Value::Str(s));
                                             }
                                             Ok(rusqlite::types::Value::Null) => {
-                                                row_dict.insert(col_name.clone(), Value::Str("".to_string()));
+                                                row_dict.insert(
+                                                    col_name.clone(),
+                                                    Value::Str("".to_string()),
+                                                );
                                             }
                                             Ok(rusqlite::types::Value::Blob(_)) => {
-                                                row_dict.insert(col_name.clone(), Value::Str("[blob]".to_string()));
+                                                row_dict.insert(
+                                                    col_name.clone(),
+                                                    Value::Str("[blob]".to_string()),
+                                                );
                                             }
                                             Err(_) => {
-                                                row_dict.insert(col_name.clone(), Value::Str("".to_string()));
+                                                row_dict.insert(
+                                                    col_name.clone(),
+                                                    Value::Str("".to_string()),
+                                                );
                                             }
                                         }
                                     }
@@ -1837,13 +1925,15 @@ impl Interpreter {
                                 Err(e) => return Value::Error(format!("SQL row error: {}", e)),
                             }
                         }
-                        
+
                         Value::Array(results)
                     } else {
                         Value::Error("db_query requires SQL string as second argument".to_string())
                     }
                 } else {
-                    Value::Error("db_query requires a database connection as first argument".to_string())
+                    Value::Error(
+                        "db_query requires a database connection as first argument".to_string(),
+                    )
                 }
             }
 
@@ -1876,14 +1966,14 @@ impl Interpreter {
     /// Returns an error if execution fails
     pub fn eval_stmt_repl(&mut self, stmt: &Stmt) -> Result<(), RuffError> {
         self.eval_stmt(stmt);
-        
+
         // Check if an error occurred during evaluation
         if let Some(ref val) = self.return_value {
             match val {
                 Value::Error(msg) => {
                     let err = RuffError::runtime_error(
                         msg.clone(),
-                        crate::errors::SourceLocation::unknown()
+                        crate::errors::SourceLocation::unknown(),
                     );
                     self.return_value = None; // Clear error for next input
                     return Err(err);
@@ -1891,7 +1981,7 @@ impl Interpreter {
                 Value::ErrorObject { message, .. } => {
                     let err = RuffError::runtime_error(
                         message.clone(),
-                        crate::errors::SourceLocation::unknown()
+                        crate::errors::SourceLocation::unknown(),
                     );
                     self.return_value = None; // Clear error for next input
                     return Err(err);
@@ -1899,7 +1989,7 @@ impl Interpreter {
                 _ => {}
             }
         }
-        
+
         Ok(())
     }
 
@@ -1907,22 +1997,16 @@ impl Interpreter {
     /// Returns the evaluated value or an error
     pub fn eval_expr_repl(&mut self, expr: &Expr) -> Result<Value, RuffError> {
         let value = self.eval_expr(expr);
-        
+
         // Check if the value is an error
         match value {
             Value::Error(msg) => {
-                Err(RuffError::runtime_error(
-                    msg,
-                    crate::errors::SourceLocation::unknown()
-                ))
+                Err(RuffError::runtime_error(msg, crate::errors::SourceLocation::unknown()))
             }
             Value::ErrorObject { message, .. } => {
-                Err(RuffError::runtime_error(
-                    message,
-                    crate::errors::SourceLocation::unknown()
-                ))
+                Err(RuffError::runtime_error(message, crate::errors::SourceLocation::unknown()))
             }
-            _ => Ok(value)
+            _ => Ok(value),
         }
     }
 
@@ -2446,11 +2530,11 @@ impl Interpreter {
 
                 if error_occurred {
                     let error_value = self.return_value.clone().unwrap();
-                    
+
                     // Pop try scope and create new scope for except block
                     self.env.pop_scope();
                     self.env.push_scope();
-                    
+
                     // Create error object with properties accessible via field access
                     match error_value {
                         Value::Error(msg) => {
@@ -2459,28 +2543,32 @@ impl Interpreter {
                             fields.insert("message".to_string(), Value::Str(msg));
                             fields.insert("stack".to_string(), Value::Array(Vec::new()));
                             fields.insert("line".to_string(), Value::Number(0.0));
-                            
-                            self.env.define(except_var.clone(), Value::Struct {
-                                name: "Error".to_string(),
-                                fields,
-                            });
+
+                            self.env.define(
+                                except_var.clone(),
+                                Value::Struct { name: "Error".to_string(), fields },
+                            );
                         }
                         Value::ErrorObject { message, stack, line, cause } => {
                             // New error object with full info
                             let mut fields = HashMap::new();
                             fields.insert("message".to_string(), Value::Str(message));
-                            fields.insert("stack".to_string(), Value::Array(
-                                stack.iter().map(|s| Value::Str(s.clone())).collect()
-                            ));
-                            fields.insert("line".to_string(), Value::Number(line.unwrap_or(0) as f64));
+                            fields.insert(
+                                "stack".to_string(),
+                                Value::Array(stack.iter().map(|s| Value::Str(s.clone())).collect()),
+                            );
+                            fields.insert(
+                                "line".to_string(),
+                                Value::Number(line.unwrap_or(0) as f64),
+                            );
                             if let Some(cause_val) = cause {
                                 fields.insert("cause".to_string(), *cause_val);
                             }
-                            
-                            self.env.define(except_var.clone(), Value::Struct {
-                                name: "Error".to_string(),
-                                fields,
-                            });
+
+                            self.env.define(
+                                except_var.clone(),
+                                Value::Struct { name: "Error".to_string(), fields },
+                            );
                         }
                         _ => unreachable!(),
                     }
@@ -2523,14 +2611,15 @@ impl Interpreter {
                                 }
                                 Value::Struct { name, fields } => {
                                     // Custom error struct - wrap it in ErrorObject
-                                    let message = if let Some(Value::Str(msg)) = fields.get("message") {
-                                        msg.clone()
-                                    } else {
-                                        format!("{} error", name)
-                                    };
-                                    
+                                    let message =
+                                        if let Some(Value::Str(msg)) = fields.get("message") {
+                                            msg.clone()
+                                        } else {
+                                            format!("{} error", name)
+                                        };
+
                                     let cause = fields.get("cause").cloned();
-                                    
+
                                     self.return_value = Some(Value::ErrorObject {
                                         message,
                                         stack: self.call_stack.clone(),
@@ -2581,7 +2670,8 @@ impl Interpreter {
                         body,
                     } = method_stmt
                     {
-                        let func = Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()));
+                        let func =
+                            Value::Function(params.clone(), LeakyFunctionBody::new(body.clone()));
                         method_map.insert(method_name.clone(), func);
                     }
                 }
@@ -2623,14 +2713,14 @@ impl Interpreter {
             }
             Expr::UnaryOp { op, operand } => {
                 let val = self.eval_expr(operand);
-                
+
                 // Check if the operand is a struct with an unary operator method
                 if let Some(method_name) = crate::ast::operator_methods::unary_op_method(op) {
                     if let Some(result) = self.try_call_unary_operator_method(&val, method_name) {
                         return result;
                     }
                 }
-                
+
                 // Default behavior for built-in types
                 match (op.as_str(), val) {
                     ("-", Value::Number(n)) => Value::Number(-n),
@@ -2641,14 +2731,14 @@ impl Interpreter {
             Expr::BinaryOp { left, op, right } => {
                 let l = self.eval_expr(&left);
                 let r = self.eval_expr(&right);
-                
+
                 // Check if left operand is a struct with an operator method
                 if let Some(method_name) = crate::ast::operator_methods::binary_op_method(op) {
                     if let Some(result) = self.try_call_operator_method(&l, method_name, &r) {
                         return result;
                     }
                 }
-                
+
                 // Default behavior for built-in types
                 match (l, r) {
                     (Value::Number(a), Value::Number(b)) => match op.as_str() {
@@ -2685,7 +2775,7 @@ impl Interpreter {
                 // Special handling for method calls: obj.method(args)
                 if let Expr::FieldAccess { object, field } = function.as_ref() {
                     let obj_val = self.eval_expr(object);
-                    
+
                     // Handle HttpServer methods
                     if let Value::HttpServer { port, routes } = &obj_val {
                         match field.as_str() {
@@ -2695,18 +2785,28 @@ impl Interpreter {
                                     let method_val = self.eval_expr(&args[0]);
                                     let path_val = self.eval_expr(&args[1]);
                                     let handler_val = self.eval_expr(&args[2]);
-                                    
-                                    if let (Value::Str(method), Value::Str(path), Value::Function(_, _)) = 
-                                        (&method_val, &path_val, &handler_val) {
+
+                                    if let (
+                                        Value::Str(method),
+                                        Value::Str(path),
+                                        Value::Function(_, _),
+                                    ) = (&method_val, &path_val, &handler_val)
+                                    {
                                         let mut new_routes = routes.clone();
-                                        new_routes.push((method.clone(), path.clone(), handler_val));
+                                        new_routes.push((
+                                            method.clone(),
+                                            path.clone(),
+                                            handler_val,
+                                        ));
                                         return Value::HttpServer {
                                             port: *port,
                                             routes: new_routes,
                                         };
                                     }
                                 }
-                                return Value::Error("route() requires (method, path, handler_function)".to_string());
+                                return Value::Error(
+                                    "route() requires (method, path, handler_function)".to_string(),
+                                );
                             }
                             "listen" => {
                                 // server.listen() - start the HTTP server
@@ -2715,7 +2815,7 @@ impl Interpreter {
                             _ => {}
                         }
                     }
-                    
+
                     if let Value::Struct { name, fields } = &obj_val {
                         // Look up the struct definition to find the method
                         if let Some(Value::StructDef { name: _, field_names: _, methods }) =
@@ -2727,12 +2827,13 @@ impl Interpreter {
                                 self.env.push_scope();
 
                                 // Check if method has 'self' as first parameter
-                                let has_self_param = params.first().map(|p| p == "self").unwrap_or(false);
-                                
+                                let has_self_param =
+                                    params.first().map(|p| p == "self").unwrap_or(false);
+
                                 if has_self_param {
                                     // Bind self to the struct instance
                                     self.env.define("self".to_string(), obj_val.clone());
-                                    
+
                                     // Bind remaining method parameters (skip first 'self' param)
                                     for (i, param) in params.iter().skip(1).enumerate() {
                                         if let Some(arg) = args.get(i) {
@@ -2745,7 +2846,7 @@ impl Interpreter {
                                     for (field_name, field_value) in fields {
                                         self.env.define(field_name.clone(), field_value.clone());
                                     }
-                                    
+
                                     // Bind method parameters
                                     for (i, param) in params.iter().enumerate() {
                                         if let Some(arg) = args.get(i) {
@@ -2790,7 +2891,7 @@ impl Interpreter {
                     Value::Function(params, body) => {
                         // Push to call stack
                         self.call_stack.push("<anonymous function>".to_string());
-                        
+
                         // Create new scope for function call
                         // Push new scope
                         self.env.push_scope();
@@ -2822,7 +2923,7 @@ impl Interpreter {
 
                         // Restore parent environment
                         self.env.pop_scope();
-                        
+
                         // Pop from call stack
                         self.call_stack.pop();
 
@@ -2842,7 +2943,7 @@ impl Interpreter {
                         Value::Function(params, body) => {
                             // Push function name to call stack
                             self.call_stack.push(name.clone());
-                            
+
                             // Call user function
                             self.env.push_scope();
 
@@ -2861,7 +2962,9 @@ impl Interpreter {
                                 *val
                             } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                                 Value::Error(msg)
-                            } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                            } else if let Some(Value::ErrorObject { .. }) =
+                                self.return_value.clone()
+                            {
                                 self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
@@ -2869,7 +2972,7 @@ impl Interpreter {
                             };
 
                             self.env.pop_scope();
-                            
+
                             // Pop from call stack
                             self.call_stack.pop();
 
@@ -4341,9 +4444,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(
-            matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!")
-        );
+        assert!(matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!"));
     }
 
     #[test]
@@ -4398,9 +4499,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(
-            matches!(interp.env.get("status"), Some(Value::Str(s)) if s == "Valid: true")
-        );
+        assert!(matches!(interp.env.get("status"), Some(Value::Str(s)) if s == "Valid: true"));
     }
 
     #[test]
@@ -4413,9 +4512,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(
-            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x > y: true")
-        );
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x > y: true"));
     }
 
     #[test]
@@ -4429,9 +4526,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(
-            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Result: 20")
-        );
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Result: 20"));
     }
 
     #[test]
@@ -4516,9 +4611,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(
-            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Hello, Alice!")
-        );
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Hello, Alice!"));
     }
 
     #[test]
@@ -4533,9 +4626,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(
-            matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!")
-        );
+        assert!(matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!"));
     }
 
     #[test]
@@ -4552,9 +4643,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(
-            matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: Bob, Age: 25")
-        );
+        assert!(matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: Bob, Age: 25"));
     }
 
     #[test]
@@ -4776,7 +4865,9 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Test error message"));
+        assert!(
+            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Test error message")
+        );
     }
 
     #[test]

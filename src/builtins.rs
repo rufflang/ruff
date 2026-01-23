@@ -5,15 +5,15 @@
 // core functionality for math, strings, arrays, I/O operations, and JSON.
 
 use crate::interpreter::Value;
-use std::collections::HashMap;
+use chrono::{DateTime, TimeZone, Utc};
 use rand::Rng;
-use chrono::{DateTime, Utc, TimeZone};
+use regex::Regex;
+use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::thread;
 use std::time::Duration;
-use std::process::Command;
-use regex::Regex;
 
 /// Returns a HashMap of all built-in functions
 #[allow(dead_code)]
@@ -219,8 +219,7 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
             // Check if it's 0 and might represent null, but we'll always use number
             // Users can explicitly use 0 if they want null in their JSON
             Ok(serde_json::Value::Number(
-                serde_json::Number::from_f64(*n)
-                    .unwrap_or_else(|| serde_json::Number::from(0)),
+                serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0)),
             ))
         }
         Value::Str(s) => Ok(serde_json::Value::String(s.clone())),
@@ -254,7 +253,7 @@ pub fn now() -> f64 {
 /// Supports basic format: "YYYY-MM-DD HH:mm:ss"
 pub fn format_date(timestamp: f64, format_str: &str) -> String {
     let dt: DateTime<Utc> = Utc.timestamp_opt(timestamp as i64, 0).unwrap();
-    
+
     // Simple format string replacement
     let result = format_str
         .replace("YYYY", &dt.format("%Y").to_string())
@@ -263,7 +262,7 @@ pub fn format_date(timestamp: f64, format_str: &str) -> String {
         .replace("HH", &dt.format("%H").to_string())
         .replace("mm", &dt.format("%M").to_string())
         .replace("ss", &dt.format("%S").to_string());
-    
+
     result
 }
 
@@ -275,11 +274,11 @@ pub fn parse_date(date_str: &str, _format: &str) -> f64 {
     if parts.len() != 3 {
         return 0.0;
     }
-    
+
     let year = parts[0].parse::<i32>().unwrap_or(1970);
     let month = parts[1].parse::<u32>().unwrap_or(1);
     let day = parts[2].parse::<u32>().unwrap_or(1);
-    
+
     if let Some(dt) = Utc.with_ymd_and_hms(year, month, day, 0, 0, 0).single() {
         dt.timestamp() as f64
     } else {
@@ -307,20 +306,15 @@ pub fn sleep_ms(ms: f64) {
 /// Execute a shell command and return output
 pub fn execute_command(command: &str) -> String {
     if cfg!(target_os = "windows") {
-        match Command::new("cmd")
-            .args(["/C", command])
-            .output() {
-                Ok(output) => String::from_utf8_lossy(&output.stdout).to_string(),
-                Err(e) => format!("Error: {}", e),
-            }
+        match Command::new("cmd").args(["/C", command]).output() {
+            Ok(output) => String::from_utf8_lossy(&output.stdout).to_string(),
+            Err(e) => format!("Error: {}", e),
+        }
     } else {
-        match Command::new("sh")
-            .arg("-c")
-            .arg(command)
-            .output() {
-                Ok(output) => String::from_utf8_lossy(&output.stdout).to_string(),
-                Err(e) => format!("Error: {}", e),
-            }
+        match Command::new("sh").arg("-c").arg(command).output() {
+            Ok(output) => String::from_utf8_lossy(&output.stdout).to_string(),
+            Err(e) => format!("Error: {}", e),
+        }
     }
 }
 
@@ -335,17 +329,13 @@ pub fn join_path(parts: &[String]) -> String {
 /// Get directory name from path
 pub fn dirname(path_str: &str) -> String {
     let path = Path::new(path_str);
-    path.parent()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| String::from("/"))
+    path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| String::from("/"))
 }
 
 /// Get base filename from path
 pub fn basename(path_str: &str) -> String {
     let path = Path::new(path_str);
-    path.file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_default()
+    path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default()
 }
 
 /// Check if path exists
@@ -366,11 +356,7 @@ pub fn regex_match(text: &str, pattern: &str) -> bool {
 /// Find all matches of regex pattern in text
 pub fn regex_find_all(text: &str, pattern: &str) -> Vec<String> {
     match Regex::new(pattern) {
-        Ok(re) => {
-            re.find_iter(text)
-                .map(|m| m.as_str().to_string())
-                .collect()
-        }
+        Ok(re) => re.find_iter(text).map(|m| m.as_str().to_string()).collect(),
         Err(_) => vec![], // Invalid regex returns empty array
     }
 }
@@ -386,11 +372,7 @@ pub fn regex_replace(text: &str, pattern: &str, replacement: &str) -> String {
 /// Split string by regex pattern
 pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
     match Regex::new(pattern) {
-        Ok(re) => {
-            re.split(text)
-                .map(|s| s.to_string())
-                .collect()
-        }
+        Ok(re) => re.split(text).map(|s| s.to_string()).collect(),
         Err(_) => vec![text.to_string()], // Invalid regex returns original text as single element
     }
 }
@@ -406,14 +388,14 @@ pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
         Ok(response) => {
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
-            
+
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Number(status));
             result.insert("body".to_string(), Value::Str(body));
-            
+
             Ok(result)
         }
-        Err(e) => Err(format!("HTTP GET failed: {}", e))
+        Err(e) => Err(format!("HTTP GET failed: {}", e)),
     }
 }
 
@@ -421,64 +403,67 @@ pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
 /// body_json should be a stringified JSON
 pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
     let client = reqwest::blocking::Client::new();
-    
-    match client.post(url)
+
+    match client
+        .post(url)
         .header("Content-Type", "application/json")
         .body(body_json.to_string())
-        .send() {
+        .send()
+    {
         Ok(response) => {
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
-            
+
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Number(status));
             result.insert("body".to_string(), Value::Str(body));
-            
+
             Ok(result)
         }
-        Err(e) => Err(format!("HTTP POST failed: {}", e))
+        Err(e) => Err(format!("HTTP POST failed: {}", e)),
     }
 }
 
 /// Make an HTTP PUT request with JSON body
 pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
     let client = reqwest::blocking::Client::new();
-    
-    match client.put(url)
+
+    match client
+        .put(url)
         .header("Content-Type", "application/json")
         .body(body_json.to_string())
-        .send() {
+        .send()
+    {
         Ok(response) => {
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
-            
+
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Number(status));
             result.insert("body".to_string(), Value::Str(body));
-            
+
             Ok(result)
         }
-        Err(e) => Err(format!("HTTP PUT failed: {}", e))
+        Err(e) => Err(format!("HTTP PUT failed: {}", e)),
     }
 }
 
 /// Make an HTTP DELETE request
 pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
     let client = reqwest::blocking::Client::new();
-    
-    match client.delete(url)
-        .send() {
+
+    match client.delete(url).send() {
         Ok(response) => {
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
-            
+
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Number(status));
             result.insert("body".to_string(), Value::Str(body));
-            
+
             Ok(result)
         }
-        Err(e) => Err(format!("HTTP DELETE failed: {}", e))
+        Err(e) => Err(format!("HTTP DELETE failed: {}", e)),
     }
 }
 
@@ -507,7 +492,7 @@ mod tests {
         assert!(contains("hello world", "world"));
         assert!(!contains("hello", "xyz"));
         assert_eq!(replace("hello world", "world", "rust"), "hello rust");
-        
+
         // New string functions
         assert!(starts_with("hello world", "hello"));
         assert!(!starts_with("hello world", "world"));
