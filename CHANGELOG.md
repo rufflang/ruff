@@ -8,6 +8,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- **HTTP Authentication & Streaming** (v0.6.0):
+  - **JWT (JSON Web Token) Functions**:
+    - `jwt_encode(payload_dict, secret_key)` - Encode a JWT token from dictionary payload
+    - `jwt_decode(token, secret_key)` - Decode and verify JWT token, returns payload dictionary
+    - Support for custom claims (user_id, exp, roles, etc.)
+    - Automatic signature verification with HS256 algorithm
+    - No expiration validation by default (flexible for various use cases)
+  - **OAuth2 Helper Functions**:
+    - `oauth2_auth_url(client_id, redirect_uri, auth_url, scope)` - Generate OAuth2 authorization URL
+    - `oauth2_get_token(code, client_id, client_secret, token_url, redirect_uri)` - Exchange authorization code for access token
+    - Automatic state parameter generation for CSRF protection
+    - URL encoding of parameters for safe OAuth flows
+    - Support for GitHub, Google, and custom OAuth2 providers
+  - **HTTP Streaming**:
+    - `http_get_stream(url)` - Fetch large HTTP responses efficiently as binary data
+    - Memory-efficient downloads for large files
+    - Foundation for future chunked streaming enhancements
+  - **Use Cases**:
+    - Secure API authentication with JWT tokens
+    - Stateless session management
+    - Third-party OAuth integration (GitHub, Google, Discord, etc.)
+    - AI API authentication (OpenAI, Anthropic, DeepSeek)
+    - Large file downloads without memory overflow
+    - Multi-part file processing and streaming
+  - **Examples**:
+    ```ruff
+    # JWT Authentication
+    payload := {"user_id": 42, "role": "admin", "exp": now() + 3600}
+    secret := "my-secret-key"
+    token := jwt_encode(payload, secret)
+    decoded := jwt_decode(token, secret)
+    user_id := decoded["user_id"]
+    
+    # OAuth2 Flow
+    auth_url := oauth2_auth_url(
+        "client-123",
+        "https://myapp.com/callback",
+        "https://provider.com/oauth/authorize",
+        "user:read user:write"
+    )
+    # Redirect user to auth_url, then handle callback
+    token_data := oauth2_get_token(
+        auth_code,
+        "client-123",
+        "client-secret",
+        "https://provider.com/oauth/token",
+        "https://myapp.com/callback"
+    )
+    access_token := token_data["access_token"]
+    
+    # HTTP Streaming
+    large_file := http_get_stream("https://example.com/large-dataset.zip")
+    write_binary_file("dataset.zip", large_file)
+    ```
+  - See `examples/jwt_auth.ruff` for JWT authentication patterns
+  - See `examples/oauth_demo.ruff` for complete OAuth2 integration guide
+  - See `examples/http_streaming.ruff` for streaming download examples
+  - Full test coverage with 11 integration tests for JWT and OAuth2
+
 - **Binary File Support & HTTP Downloads** (v0.6.0):
   - **Binary File I/O Functions**:
     - `read_binary_file(path)` - Read entire file as binary data (bytes)
