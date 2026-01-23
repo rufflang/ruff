@@ -277,6 +277,29 @@ impl Interpreter {
         // JSON functions
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
         self.env.define("to_json".to_string(), Value::NativeFunction("to_json".to_string()));
+
+        // Random functions
+        self.env.define("random".to_string(), Value::NativeFunction("random".to_string()));
+        self.env.define("random_int".to_string(), Value::NativeFunction("random_int".to_string()));
+        self.env.define("random_choice".to_string(), Value::NativeFunction("random_choice".to_string()));
+
+        // Date/Time functions
+        self.env.define("now".to_string(), Value::NativeFunction("now".to_string()));
+        self.env.define("format_date".to_string(), Value::NativeFunction("format_date".to_string()));
+        self.env.define("parse_date".to_string(), Value::NativeFunction("parse_date".to_string()));
+
+        // System operation functions
+        self.env.define("env".to_string(), Value::NativeFunction("env".to_string()));
+        self.env.define("args".to_string(), Value::NativeFunction("args".to_string()));
+        self.env.define("exit".to_string(), Value::NativeFunction("exit".to_string()));
+        self.env.define("sleep".to_string(), Value::NativeFunction("sleep".to_string()));
+        self.env.define("execute".to_string(), Value::NativeFunction("execute".to_string()));
+
+        // Path operation functions
+        self.env.define("join_path".to_string(), Value::NativeFunction("join_path".to_string()));
+        self.env.define("dirname".to_string(), Value::NativeFunction("dirname".to_string()));
+        self.env.define("basename".to_string(), Value::NativeFunction("basename".to_string()));
+        self.env.define("path_exists".to_string(), Value::NativeFunction("path_exists".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -944,6 +967,149 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("to_json requires a value argument".to_string())
+                }
+            }
+
+            // Random functions
+            "random" => {
+                // random() - returns random float between 0.0 and 1.0
+                Value::Number(builtins::random())
+            }
+
+            "random_int" => {
+                // random_int(min, max) - returns random integer between min and max (inclusive)
+                if let (Some(Value::Number(min)), Some(Value::Number(max))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Number(builtins::random_int(*min, *max))
+                } else {
+                    Value::Error("random_int requires two number arguments: min and max".to_string())
+                }
+            }
+
+            "random_choice" => {
+                // random_choice(array) - returns random element from array
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    builtins::random_choice(arr)
+                } else {
+                    Value::Error("random_choice requires an array argument".to_string())
+                }
+            }
+
+            // Date/Time functions
+            "now" => {
+                // now() - returns current Unix timestamp
+                Value::Number(builtins::now())
+            }
+
+            "format_date" => {
+                // format_date(timestamp, format_string) - formats timestamp to string
+                if let (Some(Value::Number(timestamp)), Some(Value::Str(format))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Str(builtins::format_date(*timestamp, format))
+                } else {
+                    Value::Error("format_date requires timestamp (number) and format (string)".to_string())
+                }
+            }
+
+            "parse_date" => {
+                // parse_date(date_string, format) - parses date string to timestamp
+                if let (Some(Value::Str(date_str)), Some(Value::Str(format))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Number(builtins::parse_date(date_str, format))
+                } else {
+                    Value::Error("parse_date requires date string and format string".to_string())
+                }
+            }
+
+            // System operation functions
+            "env" => {
+                // env(var_name) - gets environment variable value
+                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                    Value::Str(builtins::get_env(var_name))
+                } else {
+                    Value::Error("env requires a string argument (variable name)".to_string())
+                }
+            }
+
+            "args" => {
+                // args() - returns command-line arguments as array
+                let args = builtins::get_args();
+                let values: Vec<Value> = args.into_iter().map(Value::Str).collect();
+                Value::Array(values)
+            }
+
+            "exit" => {
+                // exit(code) - exits program with given code
+                if let Some(Value::Number(code)) = arg_values.get(0) {
+                    std::process::exit(*code as i32);
+                } else {
+                    std::process::exit(0);
+                }
+            }
+
+            "sleep" => {
+                // sleep(milliseconds) - sleeps for given milliseconds
+                if let Some(Value::Number(ms)) = arg_values.get(0) {
+                    builtins::sleep_ms(*ms);
+                    Value::Number(0.0)
+                } else {
+                    Value::Error("sleep requires a number argument (milliseconds)".to_string())
+                }
+            }
+
+            "execute" => {
+                // execute(command) - executes shell command and returns output
+                if let Some(Value::Str(command)) = arg_values.get(0) {
+                    Value::Str(builtins::execute_command(command))
+                } else {
+                    Value::Error("execute requires a string argument (command)".to_string())
+                }
+            }
+
+            // Path operation functions
+            "join_path" => {
+                // join_path(parts...) - joins path components
+                let parts: Vec<String> = arg_values.iter().filter_map(|v| {
+                    match v {
+                        Value::Str(s) => Some(s.clone()),
+                        _ => None,
+                    }
+                }).collect();
+                
+                if parts.is_empty() {
+                    Value::Error("join_path requires at least one string argument".to_string())
+                } else {
+                    Value::Str(builtins::join_path(&parts))
+                }
+            }
+
+            "dirname" => {
+                // dirname(path) - returns directory name from path
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    Value::Str(builtins::dirname(path))
+                } else {
+                    Value::Error("dirname requires a string argument (path)".to_string())
+                }
+            }
+
+            "basename" => {
+                // basename(path) - returns base filename from path
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    Value::Str(builtins::basename(path))
+                } else {
+                    Value::Error("basename requires a string argument (path)".to_string())
+                }
+            }
+
+            "path_exists" => {
+                // path_exists(path) - checks if path exists
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    Value::Bool(builtins::path_exists(path))
+                } else {
+                    Value::Error("path_exists requires a string argument (path)".to_string())
                 }
             }
 
