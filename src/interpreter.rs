@@ -561,6 +561,33 @@ impl Interpreter {
         None
     }
 
+    /// Matches a route pattern against a URL path, extracting path parameters
+    /// Returns Some(HashMap) with extracted params if matched, None if no match
+    fn match_route_pattern(pattern: &str, path: &str) -> Option<HashMap<String, String>> {
+        let pattern_parts: Vec<&str> = pattern.split('/').collect();
+        let path_parts: Vec<&str> = path.split('/').collect();
+        
+        // Must have same number of segments
+        if pattern_parts.len() != path_parts.len() {
+            return None;
+        }
+        
+        let mut params = HashMap::new();
+        
+        for (pattern_part, path_part) in pattern_parts.iter().zip(path_parts.iter()) {
+            if pattern_part.starts_with(':') {
+                // This is a path parameter - extract it
+                let param_name = &pattern_part[1..]; // Remove leading ':'
+                params.insert(param_name.to_string(), path_part.to_string());
+            } else if *pattern_part != *path_part {
+                // Static segment doesn't match
+                return None;
+            }
+        }
+        
+        Some(params)
+    }
+
     /// Starts an HTTP server with registered routes
     fn start_http_server(&mut self, port: u16, routes: Vec<(String, String, Value)>) -> Value {
         use tiny_http::{Server, Response};
@@ -588,66 +615,96 @@ impl Interpreter {
                 String::from_utf8_lossy(&buffer).to_string()
             };
             
-            // Find matching route
+            // Find matching route (supports path parameters like /:code)
+            // Exact matches take priority over parameterized routes
             let mut response_to_send: Option<Response<std::io::Cursor<Vec<u8>>>> = None;
+            let mut matched_handler: Option<(&Value, HashMap<String, String>)> = None;
             
+            // First pass: look for exact matches
             for (route_method, route_path, handler) in &routes {
                 if method == *route_method && url_path == *route_path {
-                    // Create request object
-                    let mut req_fields = HashMap::new();
-                    req_fields.insert("method".to_string(), Value::Str(method.clone()));
-                    req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
-                    req_fields.insert("body".to_string(), Value::Str(body_content.clone()));
-                    
-                    let req_obj = Value::Struct {
-                        name: "Request".to_string(),
-                        fields: req_fields,
-                    };
-                    
-                    // Call handler function
-                    if let Value::Function(params, body) = handler {
-                        self.env.push_scope();
-                        
-                        // Bind request parameter
-                        if let Some(param) = params.get(0) {
-                            self.env.define(param.clone(), req_obj);
-                        }
-                        
-                        self.eval_stmts(body.get());
-                        
-                        // Get result
-                        let result = if let Some(Value::Return(val)) = self.return_value.clone() {
-                            self.return_value = None;
-                            *val
-                        } else {
-                            self.return_value = None;
-                            Value::HttpResponse {
-                                status: 200,
-                                body: "OK".to_string(),
-                                headers: HashMap::new(),
-                            }
-                        };
-                        
-                        self.env.pop_scope();
-                        
-                        // Build response
-                        if let Value::HttpResponse { status, body, headers } = result {
-                            let mut response = Response::from_string(body);
-                            response = response.with_status_code(status);
-                            
-                            for (key, value) in headers {
-                                if let Ok(header) = tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes()) {
-                                    response = response.with_header(header);
-                                }
-                            }
-                            
-                            response_to_send = Some(response);
-                        } else {
-                            // Handler didn't return HttpResponse
-                            response_to_send = Some(Response::from_string("Internal Server Error").with_status_code(500));
+                    matched_handler = Some((handler, HashMap::new()));
+                    break;
+                }
+            }
+            
+            // Second pass: if no exact match, try parameterized routes
+            if matched_handler.is_none() {
+                for (route_method, route_path, handler) in &routes {
+                    if method != *route_method {
+                        continue;
+                    }
+                    // Only try parameterized matching for routes with ':'
+                    if route_path.contains(':') {
+                        if let Some(path_params) = Self::match_route_pattern(route_path, &url_path) {
+                            matched_handler = Some((handler, path_params));
+                            break;
                         }
                     }
-                    break;
+                }
+            }
+            
+            if let Some((handler, path_params)) = matched_handler {
+                // Create params dict for request object
+                let mut params_dict = HashMap::new();
+                for (key, value) in &path_params {
+                    params_dict.insert(key.clone(), Value::Str(value.clone()));
+                }
+                
+                // Create request object
+                let mut req_fields = HashMap::new();
+                req_fields.insert("method".to_string(), Value::Str(method.clone()));
+                req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
+                req_fields.insert("body".to_string(), Value::Str(body_content.clone()));
+                req_fields.insert("params".to_string(), Value::Dict(params_dict));
+                
+                let req_obj = Value::Struct {
+                    name: "Request".to_string(),
+                    fields: req_fields,
+                };
+                
+                // Call handler function
+                if let Value::Function(params, body) = handler {
+                    self.env.push_scope();
+                    
+                    // Bind request parameter
+                    if let Some(param) = params.get(0) {
+                        self.env.define(param.clone(), req_obj);
+                    }
+                    
+                    self.eval_stmts(body.get());
+                    
+                    // Get result
+                    let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                        self.return_value = None;
+                        *val
+                    } else {
+                        self.return_value = None;
+                        Value::HttpResponse {
+                            status: 200,
+                            body: "OK".to_string(),
+                            headers: HashMap::new(),
+                        }
+                    };
+                    
+                    self.env.pop_scope();
+                    
+                    // Build response
+                    if let Value::HttpResponse { status, body, headers } = result {
+                        let mut response = Response::from_string(body);
+                        response = response.with_status_code(status);
+                        
+                        for (key, value) in headers {
+                            if let Ok(header) = tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes()) {
+                                response = response.with_header(header);
+                            }
+                        }
+                        
+                        response_to_send = Some(response);
+                    } else {
+                        // Handler didn't return HttpResponse
+                        response_to_send = Some(Response::from_string("Internal Server Error").with_status_code(500));
+                    }
                 }
             }
             

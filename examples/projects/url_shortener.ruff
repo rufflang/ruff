@@ -77,10 +77,26 @@ server := server.route("POST", "/shorten", func(request) {
     }
 })
 
-# Redirect to original URL
-server := server.route("GET", "/redirect", func(request) {
-    # TODO: Parse query string to get code
-    return json_response(200, {"message": "Redirect endpoint"})
+# Redirect to original URL (dynamic route with :code parameter)
+server := server.route("GET", "/:code", func(request) {
+    code := request.params["code"]
+    
+    if !has_key(urls, code) {
+        return json_response(404, {"error": "URL not found", "code": code})
+    }
+    
+    # Increment click count
+    current_clicks := stats[code]["clicks"]
+    stats[code] := {"clicks": current_clicks + 1}
+    
+    original_url := urls[code]
+    
+    # Return redirect information (browsers will need to handle this)
+    return json_response(200, {
+        "redirect_to": original_url,
+        "code": code,
+        "clicks": stats[code]["clicks"]
+    })
 })
 
 # Get URL statistics
@@ -107,7 +123,15 @@ server := server.route("GET", "/stats", func(request) {
 server := server.route("GET", "/list", func(request) {
     url_list := []
     
-    # TODO: Iterate over dict keys when supported
+    # Iterate directly over dict (iterates over keys)
+    for code in urls {
+        url_list := push(url_list, {
+            "code": code,
+            "short_url": "http://localhost:3000/" + code,
+            "original_url": urls[code],
+            "clicks": stats[code]["clicks"]
+        })
+    }
     
     return json_response(200, {
         "count": len(urls),
