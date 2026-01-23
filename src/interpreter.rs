@@ -1889,29 +1889,7 @@ impl Interpreter {
                         let _ = self.eval_expr(expr);
                     }
 
-                    // user-defined Function calls, if you ever use Expr::Call
-                    Expr::Call { function, args } => {
-                        let func_val = self.eval_expr(&function);
-                        if let Value::Function(params, body) = func_val {
-                            // Create new scope for function call
-                            // Push new scope
-                            self.env.push_scope();
-
-                            for (i, param) in params.iter().enumerate() {
-                                if let Some(arg) = args.get(i) {
-                                    let val = self.eval_expr(arg);
-                                    self.env.define(param.clone(), val);
-                                }
-                            }
-
-                            self.eval_stmts(&body);
-
-                            // Restore parent environment
-                            self.env.pop_scope();
-                        }
-                    }
-
-                    // everything else
+                    // everything else (including Call expressions)
                     _ => {
                         let _ = self.eval_expr(expr);
                     }
