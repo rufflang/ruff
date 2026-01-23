@@ -229,6 +229,23 @@ impl TypeChecker {
                 return_type: None,              // Returns element or 0
             },
         );
+
+        // JSON functions
+        self.functions.insert(
+            "parse_json".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns any type (dict, array, etc.)
+            },
+        );
+
+        self.functions.insert(
+            "to_json".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any value
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
     }
 
     /// Type check a list of statements
