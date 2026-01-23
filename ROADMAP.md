@@ -66,6 +66,31 @@ cargo run --quiet -- run examples/http_client.ruff
 
 ## 🐛 Recently Fixed Critical Bugs
 
+### Logical AND (&&) and OR (||) Operators Not Working
+
+**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
+**Resolution Date**: January 23, 2026  
+**Fix**: Complete lexer, parser, and interpreter support for logical operators
+
+**Original Issue**:  
+Logical operators `&&` and `||` were completely non-functional. Expressions like `false || true` incorrectly returned `false` instead of `true`. This affected all code paths using logical operators, including URL validation in HTTP server examples.
+
+**Root Cause**:  
+Multi-character operators `&&` and `||` were never properly implemented:
+1. **Lexer**: Not tokenizing `|` and `&` characters at all
+2. **Parser**: Missing `parse_or()` and `parse_and()` functions in precedence chain
+3. **Interpreter**: Missing `&&`, `||`, `!=` cases in Bool/Bool match arm
+
+**Solution**:  
+1. Added character tokenization for `|` → `"||"` and `&` → `"&&"` in lexer
+2. Added `parse_or()` and `parse_and()` functions with proper precedence
+3. Added operator handling in interpreter's `(Value::Bool(a), Value::Bool(b))` match
+
+**Impact**:  
+All logical operations now work correctly, enabling complex boolean expressions and URL validation in HTTP server examples.
+
+---
+
 ### HTTP Functions Type Checking Warnings
 
 **Status**: ✅ **RESOLVED - Fixed in v0.6.0**  

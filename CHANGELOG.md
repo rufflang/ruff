@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Critical: Logical AND (&&) and OR (||) operators not working**: The `&&` and `||` operators were completely broken - they always returned `false` regardless of operands.
+  - **Lexer**: Added tokenization for `|` and `&` characters to produce `||` and `&&` tokens
+  - **Parser**: Added `parse_or()` and `parse_and()` functions with proper operator precedence (`||` lowest, then `&&`, then comparisons)
+  - **Interpreter**: Added `&&` and `||` cases to the Bool/Bool match arm
+  - Also added `!=` operator support for Bool and String comparisons
+  - This fixes URL validation in `url_shortener.ruff` which uses `starts_with(url, "http://") || starts_with(url, "https://")`
+  - Example: `true || false` now correctly returns `true` (previously returned `false`)
+
 - **Critical: Function cleanup hang bug**: Fixed stack overflow that occurred when functions containing loops were cleaned up during program shutdown. Functions can now safely contain loops, nested control structures, and complex logic without hanging.
   - Introduced `LeakyFunctionBody` wrapper type using `ManuallyDrop` to prevent deep recursion during Rust's automatic drop
   - Function bodies are intentionally leaked at program shutdown (OS reclaims all memory anyway)
