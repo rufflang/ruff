@@ -24,6 +24,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
+use rusqlite::Connection;
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
 /// 
@@ -97,6 +98,10 @@ pub enum Value {
         body: String,
         headers: HashMap<String, String>,
     },
+    Database {
+        connection: Arc<Mutex<Connection>>,
+        path: String,
+    },
 }
 
 // Manual Debug impl since NativeFunction doesn't need detailed output
@@ -138,6 +143,9 @@ impl std::fmt::Debug for Value {
             }
             Value::HttpResponse { status, body, .. } => {
                 write!(f, "HttpResponse(status={}, body_len={})", status, body.len())
+            }
+            Value::Database { path, .. } => {
+                write!(f, "Database(path={})", path)
             }
         }
     }
@@ -372,6 +380,12 @@ impl Interpreter {
         self.env.define("http_response".to_string(), Value::NativeFunction("http_response".to_string()));
         self.env.define("json_response".to_string(), Value::NativeFunction("json_response".to_string()));
         self.env.define("redirect_response".to_string(), Value::NativeFunction("redirect_response".to_string()));
+        
+        // Database functions
+        self.env.define("db_connect".to_string(), Value::NativeFunction("db_connect".to_string()));
+        self.env.define("db_execute".to_string(), Value::NativeFunction("db_execute".to_string()));
+        self.env.define("db_query".to_string(), Value::NativeFunction("db_query".to_string()));
+        self.env.define("db_close".to_string(), Value::NativeFunction("db_close".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -1625,6 +1639,156 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("redirect_response requires a URL string".to_string())
+                }
+            }
+
+            // Database functions
+            "db_connect" => {
+                // db_connect(path) - connect to SQLite database
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match Connection::open(path) {
+                        Ok(conn) => Value::Database {
+                            connection: Arc::new(Mutex::new(conn)),
+                            path: path.clone(),
+                        },
+                        Err(e) => Value::Error(format!("Failed to connect to database: {}", e)),
+                    }
+                } else {
+                    Value::Error("db_connect requires a database path string".to_string())
+                }
+            }
+
+            "db_execute" => {
+                // db_execute(db, sql, params) - execute SQL (INSERT, UPDATE, DELETE, CREATE)
+                // params is an array of values to bind
+                if let Some(Value::Database { connection, .. }) = arg_values.get(0) {
+                    if let Some(Value::Str(sql)) = arg_values.get(1) {
+                        let params = arg_values.get(2);
+                        let conn = connection.lock().unwrap();
+                        
+                        // Convert params array to rusqlite params
+                        let result = if let Some(Value::Array(param_arr)) = params {
+                            let param_values: Vec<Box<dyn rusqlite::ToSql>> = param_arr.iter().map(|v| {
+                                match v {
+                                    Value::Str(s) => Box::new(s.clone()) as Box<dyn rusqlite::ToSql>,
+                                    Value::Number(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
+                                    Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
+                                    _ => Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>,
+                                }
+                            }).collect();
+                            let params_refs: Vec<&dyn rusqlite::ToSql> = param_values.iter().map(|b| b.as_ref()).collect();
+                            conn.execute(sql, params_refs.as_slice())
+                        } else {
+                            conn.execute(sql, [])
+                        };
+                        
+                        match result {
+                            Ok(rows_affected) => Value::Number(rows_affected as f64),
+                            Err(e) => Value::Error(format!("SQL execution error: {}", e)),
+                        }
+                    } else {
+                        Value::Error("db_execute requires SQL string as second argument".to_string())
+                    }
+                } else {
+                    Value::Error("db_execute requires a database connection as first argument".to_string())
+                }
+            }
+
+            "db_query" => {
+                // db_query(db, sql, params) - query and return results as array of dicts
+                if let Some(Value::Database { connection, .. }) = arg_values.get(0) {
+                    if let Some(Value::Str(sql)) = arg_values.get(1) {
+                        let params = arg_values.get(2);
+                        let conn = connection.lock().unwrap();
+                        
+                        // Build params vector
+                        let param_values: Vec<Box<dyn rusqlite::ToSql>> = if let Some(Value::Array(param_arr)) = params {
+                            param_arr.iter().map(|v| {
+                                match v {
+                                    Value::Str(s) => Box::new(s.clone()) as Box<dyn rusqlite::ToSql>,
+                                    Value::Number(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
+                                    Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
+                                    _ => Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>,
+                                }
+                            }).collect()
+                        } else {
+                            Vec::new()
+                        };
+                        let params_refs: Vec<&dyn rusqlite::ToSql> = param_values.iter().map(|b| b.as_ref()).collect();
+                        
+                        // Prepare statement
+                        let mut stmt = match conn.prepare(sql) {
+                            Ok(s) => s,
+                            Err(e) => return Value::Error(format!("SQL prepare error: {}", e)),
+                        };
+                        
+                        let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+                        
+                        // Execute query with or without params
+                        let query_result = if params_refs.is_empty() {
+                            stmt.query([])
+                        } else {
+                            stmt.query(params_refs.as_slice())
+                        };
+                        
+                        let mut rows = match query_result {
+                            Ok(r) => r,
+                            Err(e) => return Value::Error(format!("SQL query error: {}", e)),
+                        };
+                        
+                        // Collect results into Value array
+                        let mut results: Vec<Value> = Vec::new();
+                        loop {
+                            match rows.next() {
+                                Ok(Some(row)) => {
+                                    let mut row_dict: HashMap<String, Value> = HashMap::new();
+                                    for (i, col_name) in column_names.iter().enumerate() {
+                                        let value: rusqlite::Result<rusqlite::types::Value> = row.get(i);
+                                        match value {
+                                            Ok(rusqlite::types::Value::Integer(n)) => {
+                                                row_dict.insert(col_name.clone(), Value::Number(n as f64));
+                                            }
+                                            Ok(rusqlite::types::Value::Real(n)) => {
+                                                row_dict.insert(col_name.clone(), Value::Number(n));
+                                            }
+                                            Ok(rusqlite::types::Value::Text(s)) => {
+                                                row_dict.insert(col_name.clone(), Value::Str(s));
+                                            }
+                                            Ok(rusqlite::types::Value::Null) => {
+                                                row_dict.insert(col_name.clone(), Value::Str("".to_string()));
+                                            }
+                                            Ok(rusqlite::types::Value::Blob(_)) => {
+                                                row_dict.insert(col_name.clone(), Value::Str("[blob]".to_string()));
+                                            }
+                                            Err(_) => {
+                                                row_dict.insert(col_name.clone(), Value::Str("".to_string()));
+                                            }
+                                        }
+                                    }
+                                    results.push(Value::Dict(row_dict));
+                                }
+                                Ok(None) => break,
+                                Err(e) => return Value::Error(format!("SQL row error: {}", e)),
+                            }
+                        }
+                        
+                        Value::Array(results)
+                    } else {
+                        Value::Error("db_query requires SQL string as second argument".to_string())
+                    }
+                } else {
+                    Value::Error("db_query requires a database connection as first argument".to_string())
+                }
+            }
+
+            "db_close" => {
+                // db_close(db) - close database connection
+                // In Rust, the connection is automatically closed when dropped
+                // This is more for semantic clarity in user code
+                if let Some(Value::Database { .. }) = arg_values.get(0) {
+                    Value::Bool(true)
+                } else {
+                    Value::Error("db_close requires a database connection".to_string())
                 }
             }
 
