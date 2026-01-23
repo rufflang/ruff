@@ -2,12 +2,36 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.5.0 (in development)  
-> **Next Planned Release**: v0.5.0
+> **Current Version**: v0.5.0  
+> **Next Planned Release**: v0.6.0
 
 ---
 
-## 🌟 Planned Features (v0.5.0)
+## ✅ Completed Features (v0.5.0)
+
+### REPL (Interactive Shell)
+
+**Status**: ✅ Completed (v0.5.0)  
+**Implementation Date**: January 23, 2026
+
+**Features**:
+- ✅ Interactive Read-Eval-Print Loop
+- ✅ Multi-line input support with automatic detection
+- ✅ Command history (up/down arrows) via rustyline
+- ✅ Line editing with cursor movement
+- ✅ Special commands (`:help`, `:clear`, `:quit`, `:vars`, `:reset`)
+- ✅ Pretty-printed colored output
+- ✅ Persistent state across inputs
+- ✅ Error handling without crashes
+
+**Usage**:
+```bash
+ruff repl
+```
+
+---
+
+## 🌟 Planned Features (v0.6.0)
 
 ### HTTP Server & Networking
 
@@ -52,20 +76,6 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 - Microservices
 - Web applications
 - API integrations
-
----
-
-### REPL (Interactive Shell)
-
-**Status**: Planned  
-**Estimated Effort**: Medium (3-4 days)
-
-**Features**:
-- Interactive Read-Eval-Print Loop
-- Multi-line input support
-- Command history (up/down arrows)
-- Tab completion
-- Special commands (`:help`, `:clear`, `:quit`)
 
 ---
 
