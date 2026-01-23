@@ -243,6 +243,12 @@ impl Interpreter {
         self.env.define("slice".to_string(), Value::NativeFunction("slice".to_string()));
         self.env.define("concat".to_string(), Value::NativeFunction("concat".to_string()));
 
+        // Array higher-order functions
+        self.env.define("map".to_string(), Value::NativeFunction("map".to_string()));
+        self.env.define("filter".to_string(), Value::NativeFunction("filter".to_string()));
+        self.env.define("reduce".to_string(), Value::NativeFunction("reduce".to_string()));
+        self.env.define("find".to_string(), Value::NativeFunction("find".to_string()));
+
         // Dict functions
         self.env.define("keys".to_string(), Value::NativeFunction("keys".to_string()));
         self.env.define("values".to_string(), Value::NativeFunction("values".to_string()));
@@ -294,6 +300,46 @@ impl Interpreter {
     /// Sets the output sink for print statements (used for testing)
     pub fn set_output(&mut self, output: Arc<Mutex<Vec<u8>>>) {
         self.output = Some(output);
+    }
+
+    /// Helper function to call a user-defined function with given arguments
+    /// Used by higher-order functions like map, filter, reduce
+    fn call_user_function(&mut self, func: &Value, args: &[Value]) -> Value {
+        match func {
+            Value::Function(params, body) => {
+                // Create new scope for function call
+                self.env.push_scope();
+
+                // Bind parameters to arguments
+                for (i, param) in params.iter().enumerate() {
+                    if let Some(arg) = args.get(i) {
+                        self.env.define(param.clone(), arg.clone());
+                    }
+                }
+
+                // Execute function body
+                self.eval_stmts(body);
+
+                // Get return value
+                let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                    self.return_value = None; // Clear return value
+                    *val
+                } else if let Some(Value::Error(msg)) = self.return_value.clone() {
+                    // Propagate error - don't clear
+                    Value::Error(msg)
+                } else {
+                    // No explicit return - function returns 0
+                    self.return_value = None;
+                    Value::Number(0.0)
+                };
+
+                // Restore parent environment
+                self.env.pop_scope();
+
+                result
+            }
+            _ => Value::Number(0.0),
+        }
     }
 
     /// Calls a native built-in function
@@ -534,6 +580,120 @@ impl Interpreter {
                 } else {
                     Value::Array(vec![])
                 }
+            }
+
+            // Array higher-order functions
+            "map" => {
+                // map(array, func) - transforms each element by applying func
+                // Returns new array with function applied to each element
+                if arg_values.len() < 2 {
+                    return Value::Error("map requires two arguments: array and function".to_string());
+                }
+                
+                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
+                        (arr.clone(), func.clone())
+                    }
+                    _ => return Value::Error("map expects an array and a function".to_string()),
+                };
+
+                let mut result = Vec::new();
+                for element in array {
+                    // Call the function with the element as argument
+                    let func_result = self.call_user_function(&func, &[element]);
+                    result.push(func_result);
+                }
+                Value::Array(result)
+            }
+
+            "filter" => {
+                // filter(array, func) - selects elements where func returns truthy value
+                // Returns new array with only elements where func(element) is truthy
+                if arg_values.len() < 2 {
+                    return Value::Error("filter requires two arguments: array and function".to_string());
+                }
+                
+                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
+                        (arr.clone(), func.clone())
+                    }
+                    _ => return Value::Error("filter expects an array and a function".to_string()),
+                };
+
+                let mut result = Vec::new();
+                for element in array {
+                    // Call the function with the element as argument
+                    let func_result = self.call_user_function(&func, &[element.clone()]);
+                    
+                    // Check if result is truthy
+                    let is_truthy = match func_result {
+                        Value::Bool(b) => b,
+                        Value::Number(n) => n != 0.0,
+                        Value::Str(s) => !s.is_empty(),
+                        _ => false,
+                    };
+                    
+                    if is_truthy {
+                        result.push(element);
+                    }
+                }
+                Value::Array(result)
+            }
+
+            "reduce" => {
+                // reduce(array, initial, func) - accumulates array into single value
+                // func(accumulator, element) is called for each element
+                if arg_values.len() < 3 {
+                    return Value::Error("reduce requires three arguments: array, initial value, and function".to_string());
+                }
+                
+                let (array, initial, func) = match (arg_values.get(0), arg_values.get(1), arg_values.get(2)) {
+                    (Some(Value::Array(arr)), Some(init), Some(func @ Value::Function(_, _))) => {
+                        (arr.clone(), init.clone(), func.clone())
+                    }
+                    _ => return Value::Error("reduce expects an array, an initial value, and a function".to_string()),
+                };
+
+                let mut accumulator = initial;
+                for element in array {
+                    // Call the function with accumulator and element as arguments
+                    accumulator = self.call_user_function(&func, &[accumulator, element]);
+                }
+                accumulator
+            }
+
+            "find" => {
+                // find(array, func) - returns first element where func returns truthy value
+                // Returns the element or Value::Number(0.0) if not found (null equivalent)
+                if arg_values.len() < 2 {
+                    return Value::Error("find requires two arguments: array and function".to_string());
+                }
+                
+                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _))) => {
+                        (arr.clone(), func.clone())
+                    }
+                    _ => return Value::Error("find expects an array and a function".to_string()),
+                };
+
+                for element in array {
+                    // Call the function with the element as argument
+                    let func_result = self.call_user_function(&func, &[element.clone()]);
+                    
+                    // Check if result is truthy
+                    let is_truthy = match func_result {
+                        Value::Bool(b) => b,
+                        Value::Number(n) => n != 0.0,
+                        Value::Str(s) => !s.is_empty(),
+                        _ => false,
+                    };
+                    
+                    if is_truthy {
+                        return element;
+                    }
+                }
+                // Not found - return 0 as "null" equivalent
+                Value::Number(0.0)
             }
 
             // Dict functions

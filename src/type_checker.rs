@@ -196,6 +196,39 @@ impl TypeChecker {
                 return_type: Some(TypeAnnotation::String),
             },
         );
+
+        // Array higher-order functions
+        self.functions.insert(
+            "map".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Array and function
+                return_type: None,              // Returns array
+            },
+        );
+
+        self.functions.insert(
+            "filter".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Array and function
+                return_type: None,              // Returns array
+            },
+        );
+
+        self.functions.insert(
+            "reduce".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None, None], // Array, initial value, and function
+                return_type: None,                   // Returns value of initial type
+            },
+        );
+
+        self.functions.insert(
+            "find".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Array and function
+                return_type: None,              // Returns element or 0
+            },
+        );
     }
 
     /// Type check a list of statements
