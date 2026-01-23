@@ -46,6 +46,7 @@
 * **Data Types**
   - Numbers (f64)
   - Strings with escape sequences
+  - **NEW**: String interpolation with `${}` (v0.3.0): `"Hello, ${name}!"`
   - Booleans: `true`, `false` (v0.3.0)
   - Enums with tagged variants
   - Arrays: `[1, 2, 3]`
@@ -178,6 +179,30 @@ try {
 print("Program continues")
 ```
 
+### String Interpolation (v0.3.0) ✨
+
+```ruff
+name := "Alice"
+age := 30
+score := 95
+
+# Embed expressions directly in strings
+greeting := "Hello, ${name}!"
+bio := "${name} is ${age} years old"
+result := "Score: ${score}/100 (${score >= 90}% = A)"
+
+print(greeting)  # Hello, Alice!
+print(bio)       # Alice is 30 years old
+print(result)    # Score: 95/100 (true% = A)
+
+# Complex expressions with parentheses
+a := 2
+b := 3
+c := 4
+calculation := "Result: (${a} + ${b}) * ${c} = ${(a + b) * c}"
+print(calculation)  # Result: (2 + 3) * 4 = 20
+```
+
 ---
 
 ## 🧪 Running Tests
@@ -211,6 +236,10 @@ cargo run -- test --update
 * ✅ Built-in collection methods: `push()`, `pop()`, `slice()`, `concat()`, `keys()`, `values()`, `has_key()`, `remove()`, `len()` (v0.2.0)
 * ✅ Type system with type checking and inference (v0.1.0)
 * ✅ Module system with import/export (v0.1.0)
+* ✅ String interpolation with `${}` syntax (v0.3.0)
+* ✅ Boolean type as first-class value (v0.3.0)
+* ✅ Loop control with `while`, `break`, and `continue` (v0.3.0)
+* ✅ Lexical scoping with proper environment stack (v0.3.0)
 * ✅ Standard library with math, string, and I/O functions
 * ✅ CLI testing framework with snapshot testing
 * ✅ Colored error messages with source location tracking
