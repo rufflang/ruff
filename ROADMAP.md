@@ -11,19 +11,26 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 1. JSON Support
 
-**Status**: Planned  
-**Estimated Effort**: Medium (3-4 days)
+**Status**: ✅ Completed (January 22, 2026)  
+**Implementation**: Added parse_json() and to_json() built-in functions
 
-**Planned Functions**:
+**Implemented Functions**:
 ```ruff
 # Parse JSON string to Ruff value
-data := parse_json('{"name": "Alice", "age": 30}')
+data := parse_json("{\"name\": \"Alice\", \"age\": 30}")
 print(data["name"])  # Alice
 
 # Convert Ruff value to JSON string
 person := {"name": "Bob", "score": 95}
-json_str := to_json(person)  # '{"name":"Bob","score":95}'
+json_str := to_json(person)  # {"name":"Bob","score":95}
 ```
+
+**Features**:
+- Full JSON data type support (objects, arrays, strings, numbers, booleans, null)
+- Bidirectional conversion between JSON and Ruff values
+- Nested structure support
+- Error handling for invalid JSON
+- Uses serde_json for reliable parsing/serialization
 
 ---
 

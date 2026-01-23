@@ -110,6 +110,7 @@
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
   - **Array Higher-Order**: `map()`, `filter()`, `reduce()`, `find()` (v0.3.0)
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
+  - **JSON**: `parse_json()`, `to_json()` - Parse and serialize JSON data (v0.3.0)
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`

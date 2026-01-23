@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **JSON Support**: Native JSON parsing and serialization functions
+  - New built-in function `parse_json(json_string)` - parses JSON strings into Ruff values
+  - New built-in function `to_json(value)` - converts Ruff values to JSON strings
+  - Full support for JSON data types: objects, arrays, strings, numbers, booleans, null
+  - JSON objects convert to/from Ruff dictionaries
+  - JSON arrays convert to/from Ruff arrays
+  - JSON null converts to Ruff Number(0.0) by convention
+  - Handles nested structures and complex data
+  - Error handling for invalid JSON with descriptive error messages
+  - Round-trip conversion support (parse → modify → serialize)
+  - Example: `data := parse_json("{\"name\": \"Alice\", \"age\": 30}")`
+  - Example: `json_str := to_json({"status": "ok", "data": [1, 2, 3]})`
+  - Uses serde_json library for reliable JSON processing
 - **Multi-Line Comments**: Support for block comments spanning multiple lines
   - Syntax: `/* comment */` for single or multi-line comments
   - Example: `/* This is a comment */`
