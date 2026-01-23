@@ -36,7 +36,12 @@ pub struct TypeChecker {
     current_function_return: Option<TypeAnnotation>,
     /// Collect errors instead of failing immediately
     errors: Vec<RuffError>,
+    /// Recursion depth counter to prevent infinite loops
+    recursion_depth: usize,
 }
+
+/// Maximum recursion depth for type checking to prevent infinite loops
+const MAX_RECURSION_DEPTH: usize = 1000;
 
 impl TypeChecker {
     /// Creates a new type checker with empty symbol tables
@@ -47,6 +52,7 @@ impl TypeChecker {
             scope_stack: Vec::new(),
             current_function_return: None,
             errors: Vec::new(),
+            recursion_depth: 0,
         };
 
         // Register built-in functions
@@ -440,6 +446,18 @@ impl TypeChecker {
 
     /// Check a single statement
     fn check_stmt(&mut self, stmt: &Stmt) {
+        // Check for excessive recursion depth
+        if self.recursion_depth >= MAX_RECURSION_DEPTH {
+            self.errors.push(RuffError::new(
+                ErrorKind::TypeError,
+                format!("Type checker recursion depth exceeded (max: {}). Possible infinite loop in type checking.", MAX_RECURSION_DEPTH),
+                SourceLocation::unknown(),
+            ));
+            return;
+        }
+
+        self.recursion_depth += 1;
+        
         match stmt {
             Stmt::Let { name, value, type_annotation, .. } => {
                 let inferred_type = self.infer_expr(value);
@@ -664,11 +682,25 @@ impl TypeChecker {
                 }
             }
         }
+        
+        self.recursion_depth -= 1;
     }
 
     /// Infer the type of an expression
     fn infer_expr(&mut self, expr: &Expr) -> Option<TypeAnnotation> {
-        match expr {
+        // Check for excessive recursion depth
+        if self.recursion_depth >= MAX_RECURSION_DEPTH {
+            self.errors.push(RuffError::new(
+                ErrorKind::TypeError,
+                format!("Type checker recursion depth exceeded (max: {}). Possible infinite loop in type inference.", MAX_RECURSION_DEPTH),
+                SourceLocation::unknown(),
+            ));
+            return None;
+        }
+
+        self.recursion_depth += 1;
+        
+        let result = match expr {
             Expr::Number(n) => {
                 // Check if it's an integer or float
                 if n.fract() == 0.0 {
@@ -898,7 +930,10 @@ impl TypeChecker {
                 let _ = return_type;
                 None
             }
-        }
+        };
+        
+        self.recursion_depth -= 1;
+        result
     }
 
     /// Push a new scope onto the scope stack

@@ -42,7 +42,7 @@ pub enum Value {
     Number(f64),
     Str(String),
     Bool(bool),
-    Function(Vec<String>, Vec<Stmt>),
+    Function(Vec<String>, Arc<Vec<Stmt>>),
     NativeFunction(String), // Name of the native function
     Return(Box<Value>),
     Error(String), // Legacy simple error for backward compatibility
@@ -1789,7 +1789,7 @@ impl Interpreter {
                 }
             }
             Stmt::FuncDef { name, params, param_types: _, return_type: _, body } => {
-                let func = Value::Function(params.clone(), body.clone());
+                let func = Value::Function(params.clone(), Arc::new(body.clone()));
                 self.env.define(name.clone(), func);
             }
             Stmt::EnumDef { name, variants } => {
@@ -1798,10 +1798,10 @@ impl Interpreter {
                     // Store constructor function in env
                     let func = Value::Function(
                         vec!["$0".to_string()],
-                        vec![Stmt::Return(Some(Expr::Tag(
+                        Arc::new(vec![Stmt::Return(Some(Expr::Tag(
                             tag.clone(),
                             vec![Expr::Identifier("$0".to_string())],
-                        )))],
+                        )))]),
                     );
                     self.env.define(tag.clone(), func);
                 }
@@ -2254,7 +2254,7 @@ impl Interpreter {
                         body,
                     } = method_stmt
                     {
-                        let func = Value::Function(params.clone(), body.clone());
+                        let func = Value::Function(params.clone(), Arc::new(body.clone()));
                         method_map.insert(method_name.clone(), func);
                     }
                 }
@@ -2292,7 +2292,7 @@ impl Interpreter {
             Expr::Identifier(name) => self.env.get(name).unwrap_or(Value::Str(name.clone())),
             Expr::Function { params, param_types: _, return_type: _, body } => {
                 // Anonymous function expression - return as a value
-                Value::Function(params.clone(), body.clone())
+                Value::Function(params.clone(), Arc::new(body.clone()))
             }
             Expr::UnaryOp { op, operand } => {
                 let val = self.eval_expr(operand);

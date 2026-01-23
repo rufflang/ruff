@@ -66,54 +66,58 @@ cargo run --quiet -- run examples/http_client.ruff
 
 ## 🚨 Critical Bugs & Issues
 
-### Type Checker Infinite Loop Bug
+### Function Cleanup Hang Bug
 
 **Status**: 🐛 **CRITICAL BUG - Blocks Feature Development**  
 **Priority**: **URGENT - Must Fix Before v0.6.0**  
-**Discovered**: January 23, 2026
+**Discovered**: January 23, 2026  
+**Investigation**: Partially diagnosed, not yet fixed
 
 **Issue Description**:  
-The type checker enters an infinite loop when processing function definitions that contain:
-- A `for` loop
-- Function calls inside that loop
+Functions containing `for` loops cause the interpreter to hang **during program cleanup/shutdown**, not during execution. The hang occurs when Rust's Drop implementation tries to clean up deeply nested AST structures.
 
-This causes the interpreter to hang indefinitely during the type checking phase, before any code execution begins.
+**Actual Behavior**:
+- Type checking completes successfully
+- Function definition executes without error  
+- All subsequent code executes normally
+- Program hangs **after** all code finishes executing
+- Hang occurs during Rust's automatic cleanup/drop phase
 
 **Reproduction**:
 ```ruff
-# This function definition causes infinite hang
-func generate_code() {
-    code := ""
-    for i in range(6) {
-        idx := random_int(0.0, 35.0)  # Any function call here triggers bug
-        code := code + substring(chars, idx, idx + 1)
+# This function definition causes hang AFTER program completes
+func test() {
+    x := 0
+    for i in range(3) {
+        x := x + 1  # Even without function calls, loop causes hang
     }
-    return code
+    return x
 }
 
-# Script hangs during type checking - never reaches execution
-print("This never prints")
+print("This prints successfully")
+# Program hangs during cleanup after this point
 ```
 
+**Root Cause**:  
+When storing function bodies with loops, the AST structure `Vec<Stmt>` contains deeply nested loops (`For { body: Vec<Stmt> }`). During program shutdown, Rust's automatic drop implementation recurses deeply through these nested vectors, causing an infinite hang (possibly stack overflow in drop glue).
+
+**Attempted Fixes**:
+- ✅ Changed `Function(Vec<String>, Vec<Stmt>)` to `Function(Vec<String>, Arc<Vec<Stmt>>)` - Partially helps but doesn't fully resolve
+- ❌ Recursion depth counter in type checker - Not applicable (bug is in runtime cleanup)
+- ⏸️ Custom Drop implementation - Not yet attempted
+
 **Impact**:
-- Blocks implementation of HTTP sample projects (url_shortener, weather_dashboard, blog_api)
-- Any moderately complex function with loops becomes unusable
+- HTTP sample projects cannot use loops with logic inside functions
+- Any moderately complex function with loops becomes unusable  
 - Makes Ruff impractical for real-world applications
-
-**Workaround**:
-Avoid function calls inside loops within function definitions. Move loop logic to top-level code or use simpler implementations.
-
-**Root Cause**:
-Type checker (`src/type_checker.rs`) likely has infinite recursion or loop when analyzing:
-1. Function parameter types in loop context
-2. Variable reassignment inside loops (`:=` operator)
-3. Nested function call type inference
+- Workaround: Avoid loops inside function definitions
 
 **Fix Required**:
-- Debug type checker loop analysis
-- Add cycle detection for type inference
-- Add timeout mechanism as safety
-- Add comprehensive test suite for loop + function call combinations
+- Implement custom Drop for Value enum to prevent deep recursion
+- Use Box<Stmt> instead of Vec<Stmt> for recursive structures
+- Flatten AST representation to avoid deep nesting
+- Add iterative drop instead of recursive drop
+- Memory leak acceptable as temporary workaround (don't drop function bodies)
 
 ---
 
