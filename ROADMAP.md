@@ -9,67 +9,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## 🔥 High Priority (v0.3.0)
 
-### 1. Array Higher-Order Functions
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 22, 2026
-
-**Description**:  
-Functional programming operations on arrays.
-
-**Implemented Functions**:
-```ruff
-# Map - transform each element
-squared := map([1, 2, 3], func(x) { return x * x })  # [1, 4, 9]
-
-# Filter - select elements
-evens := filter([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # [2, 4]
-
-# Reduce - accumulate
-sum := reduce([1, 2, 3], 0, func(acc, x) { return acc + x })  # 6
-
-# Find - first matching element
-first_even := find([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # 2
-```
-
----
-
-### 2. Multi-Line and Doc Comments
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 22, 2026
-
-**Description**:  
-Support for multi-line block comments and documentation comments.
-
-**Implemented Syntax**:
-```ruff
-# Single-line comment (already supported)
-
-/*
- * Multi-line comment
- * Spans multiple lines
- */
-
-/// Documentation comment for functions
-/// @param x The input value
-/// @return The squared value
-func square(x) {
-    return x * x
-}
-```
-
-**Features**:
-- Multi-line comments with `/* ... */` syntax
-- Doc comments with `///` syntax
-- All comment types can be mixed in the same file
-- Comments properly handled in lexer
-- Comprehensive test coverage
-- Example file demonstrating all comment types
-
----
-
-### 3. JSON Support
+### 1. JSON Support
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -89,7 +29,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ## 📦 Medium Priority (v0.4.0)
 
-### 4. Standard Library Enhancements
+### 2. Standard Library Enhancements
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -148,7 +88,7 @@ exists := path_exists("/home/user/file.txt")  # true/false
 
 ---
 
-### 5. Regular Expressions
+### 3. Regular Expressions
 
 **Status**: Planned  
 **Estimated Effort**: Medium (4-5 days)
@@ -182,7 +122,7 @@ parts := regex_split("one123two456three", "\\d+")  # ["one", "two", "three"]
 
 ---
 
-### 6. Error Handling Improvements
+### 4. Error Handling Improvements
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -229,7 +169,7 @@ try {
 
 ---
 
-### 7. Operator Overloading
+### 5. Operator Overloading
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -277,7 +217,7 @@ if v1 == v2 {
 
 ## 🌟 Long Term (v0.5.0)
 
-### 8. HTTP Server & Networking
+### 6. HTTP Server & Networking
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -323,7 +263,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 9. REPL (Interactive Shell)
+### 7. REPL (Interactive Shell)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -337,7 +277,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 10. Concurrency & Async
+### 8. Concurrency & Async
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
@@ -397,7 +337,7 @@ for i in range(10) {
 
 ---
 
-### 11. Advanced Collections
+### 9. Advanced Collections
 
 **Status**: Planned  
 **Estimated Effort**: Medium (2 weeks)
@@ -447,7 +387,7 @@ highest := pq.pop()  # Returns "high priority"
 
 ---
 
-### 12. Method Chaining & Fluent APIs
+### 10. Method Chaining & Fluent APIs
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -482,7 +422,7 @@ value := user?.name ?? "Anonymous"  # Use "Anonymous" if name is null
 
 ---
 
-### 13. Closures & Capturing
+### 11. Closures & Capturing
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -535,7 +475,7 @@ for i in range(5) {
 
 ## 🎓 Professional Features (v0.6.0+)
 
-### 14. Advanced Type System Features
+### 12. Advanced Type System Features
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -549,7 +489,7 @@ for i in range(5) {
 
 ---
 
-### 15. LSP (Language Server Protocol)
+### 13. LSP (Language Server Protocol)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -565,7 +505,7 @@ for i in range(5) {
 
 ---
 
-### 16. Macros & Metaprogramming
+### 14. Macros & Metaprogramming
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -618,7 +558,7 @@ page := html! {
 
 ---
 
-### 17. Database Support
+### 15. Database Support
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -683,7 +623,7 @@ user.save()
 
 ---
 
-### 18. Serialization Formats
+### 16. Serialization Formats
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -730,7 +670,7 @@ func User.deserialize(data) {
 
 ---
 
-### 19. Testing Enhancements
+### 17. Testing Enhancements
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -783,7 +723,7 @@ ruff test --coverage
 
 ## 🏗️ Infrastructure (v0.7.0+)
 
-### 20. Package Manager
+### 18. Package Manager
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -797,7 +737,7 @@ ruff test --coverage
 
 ---
 
-### 21. Memory Management
+### 19. Memory Management
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -833,7 +773,7 @@ ruff run --detect-leaks program.ruff
 
 ---
 
-### 22. Foreign Function Interface (FFI)
+### 20. Foreign Function Interface (FFI)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -867,7 +807,7 @@ extern func qsort(arr: array, size: int, compare: func) from "libc.so"
 
 ---
 
-### 23. Graphics & GUI
+### 21. Graphics & GUI
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -931,7 +871,7 @@ app.run()
 
 ---
 
-### 24. Compilation Targets
+### 22. Compilation Targets
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
@@ -970,13 +910,7 @@ app.run()
 
 | Feature | Priority | Target Version | Status |
 |---------|----------|----------------|--------|
-| Boolean Type | High | v0.3.0 | ✅ Complete |
-| Loop Control | High | v0.3.0 | ✅ Complete |
-| String Interpolation | High | v0.3.0 | ✅ Complete |
-| Array Higher-Order Fns | High | v0.3.0 | ✅ Complete |
-| Enhanced Strings | Medium | v0.3.0 | ✅ Complete |
-| Multi-line Comments | Low | v0.3.0 | Planned |
-| JSON Support | Medium | v0.4.0 | Planned |
+| JSON Support | High | v0.3.0 | Planned |
 | Standard Library | Medium | v0.4.0 | Planned |
 | Regular Expressions | Medium | v0.4.0 | Planned |
 | Error Handling | Medium | v0.4.0 | Planned |
@@ -1004,14 +938,10 @@ app.run()
 ## 🎯 Version Milestones
 
 **v0.3.0 - "Functional"** (Current - Q1 2026)
-- ✅ Boolean type as first-class value
-- ✅ Loop control (break/continue/while)
-- ✅ String interpolation
-- ✅ Array higher-order functions (map, filter, reduce, find)
-- Multi-line comments
+- JSON support
+- Enhanced comment types
 
 **v0.4.0 - "Practical"** (Target: Q2 2026)
-- JSON support
 - Standard library enhancements (random, date/time, system, paths)
 - Regular expressions
 - Improved error handling with stack traces
