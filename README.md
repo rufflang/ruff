@@ -2,7 +2,9 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.4.0 (in development) - Standard library enhancements with random, date/time, system operations, and path utilities! Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
+> **Status**: v0.4.0 - Standard library enhancements with random, date/time, system operations, and path utilities! Production-ready with comprehensive features including structs, methods, collections, type checking, and modules.
+
+**Quick Links**: [Installation](#-installation) • [Getting Started](#-getting-started) • [Examples](#-writing-ruff-scripts) • [Features](#-project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
 ---
 
