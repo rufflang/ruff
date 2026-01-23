@@ -100,11 +100,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Database connection error management
   - Multi-layer error context preservation
 
----
-
-## [0.4.0] - 2026-01-23
-
-### Added
 - **Standard Library Enhancements**: Expanded built-in functions for common programming tasks
   
   **Math & Random Functions**:
