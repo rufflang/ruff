@@ -2,7 +2,7 @@
 //
 // Built-in native functions for the Ruff standard library.
 // These are implemented in Rust for performance and provide
-// core functionality for math, strings, arrays, and I/O operations.
+// core functionality for math, strings, arrays, I/O operations, and JSON.
 
 use crate::interpreter::Value;
 use std::collections::HashMap;
@@ -130,6 +130,83 @@ pub fn split(s: &str, delimiter: &str) -> Vec<String> {
 
 pub fn join(arr: &[String], separator: &str) -> String {
     arr.join(separator)
+}
+
+/// JSON functions
+
+/// Parse a JSON string into a Ruff value
+pub fn parse_json(json_str: &str) -> Result<Value, String> {
+    match serde_json::from_str::<serde_json::Value>(json_str) {
+        Ok(json_value) => Ok(json_to_ruff_value(json_value)),
+        Err(e) => Err(format!("JSON parse error: {}", e)),
+    }
+}
+
+/// Convert a Ruff value to a JSON string
+pub fn to_json(value: &Value) -> Result<String, String> {
+    let json_value = ruff_value_to_json(value)?;
+    match serde_json::to_string(&json_value) {
+        Ok(s) => Ok(s),
+        Err(e) => Err(format!("JSON serialization error: {}", e)),
+    }
+}
+
+/// Convert serde_json::Value to Ruff Value
+fn json_to_ruff_value(json: serde_json::Value) -> Value {
+    match json {
+        serde_json::Value::Null => Value::Number(0.0), // null -> 0 (Ruff convention)
+        serde_json::Value::Bool(b) => Value::Bool(b),
+        serde_json::Value::Number(n) => {
+            if let Some(f) = n.as_f64() {
+                Value::Number(f)
+            } else {
+                Value::Number(0.0)
+            }
+        }
+        serde_json::Value::String(s) => Value::Str(s),
+        serde_json::Value::Array(arr) => {
+            let ruff_arr: Vec<Value> = arr.into_iter().map(json_to_ruff_value).collect();
+            Value::Array(ruff_arr)
+        }
+        serde_json::Value::Object(obj) => {
+            let mut ruff_dict = HashMap::new();
+            for (key, val) in obj {
+                ruff_dict.insert(key, json_to_ruff_value(val));
+            }
+            Value::Dict(ruff_dict)
+        }
+    }
+}
+
+/// Convert Ruff Value to serde_json::Value
+fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
+    match value {
+        Value::Number(n) => {
+            // Check if it's 0 and might represent null, but we'll always use number
+            // Users can explicitly use 0 if they want null in their JSON
+            Ok(serde_json::Value::Number(
+                serde_json::Number::from_f64(*n)
+                    .unwrap_or_else(|| serde_json::Number::from(0)),
+            ))
+        }
+        Value::Str(s) => Ok(serde_json::Value::String(s.clone())),
+        Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
+        Value::Array(arr) => {
+            let mut json_arr = Vec::new();
+            for item in arr {
+                json_arr.push(ruff_value_to_json(item)?);
+            }
+            Ok(serde_json::Value::Array(json_arr))
+        }
+        Value::Dict(dict) => {
+            let mut json_obj = serde_json::Map::new();
+            for (key, val) in dict {
+                json_obj.insert(key.clone(), ruff_value_to_json(val)?);
+            }
+            Ok(serde_json::Value::Object(json_obj))
+        }
+        _ => Err(format!("Cannot convert {:?} to JSON", value)),
+    }
 }
 
 /// Array functions

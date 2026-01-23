@@ -273,6 +273,10 @@ impl Interpreter {
         self.env.define("read_lines".to_string(), Value::NativeFunction("read_lines".to_string()));
         self.env.define("list_dir".to_string(), Value::NativeFunction("list_dir".to_string()));
         self.env.define("create_dir".to_string(), Value::NativeFunction("create_dir".to_string()));
+
+        // JSON functions
+        self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
+        self.env.define("to_json".to_string(), Value::NativeFunction("to_json".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -915,6 +919,31 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("create_dir requires a string path argument".to_string())
+                }
+            }
+
+            // JSON functions
+            "parse_json" => {
+                // parse_json(json_string) - parses JSON string to Ruff value
+                if let Some(Value::Str(json_str)) = arg_values.get(0) {
+                    match builtins::parse_json(json_str) {
+                        Ok(value) => value,
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("parse_json requires a string argument".to_string())
+                }
+            }
+
+            "to_json" => {
+                // to_json(value) - converts Ruff value to JSON string
+                if let Some(value) = arg_values.get(0) {
+                    match builtins::to_json(value) {
+                        Ok(json_str) => Value::Str(json_str),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("to_json requires a value argument".to_string())
                 }
             }
 
