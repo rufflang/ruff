@@ -1,0 +1,207 @@
+/*
+ * URL Shortener Service
+ * 
+ * A complete HTTP service that creates and resolves shortened URLs.
+ * Demonstrates: HTTP server, routing, JSON handling, in-memory storage
+ * 
+ * Features:
+ * - POST /shorten - Create a short URL
+ * - GET /:code - Redirect to original URL
+ * - GET /stats/:code - Get URL statistics
+ * - GET /list - List all shortened URLs
+ * 
+ * Run: cargo run --quiet -- run examples/projects/url_shortener.ruff
+ * Then test with:
+ *   curl -X POST http://localhost:3000/shorten -d '{"url": "https://example.com"}'
+ *   curl http://localhost:3000/abc123
+ */
+
+# In-memory storage for URLs
+urls := {}
+stats := {}
+
+# Generate a random short code
+func generate_code() {
+    chars := "abcdefghijklmnopqrstuvwxyz0123456789"
+    code := ""
+    
+    for i in range(6) {
+        idx := random_int(0, len(chars) - 1)
+        code := code + substring(chars, idx, idx + 1)
+    }
+    
+    return code
+}
+
+# Validate URL format
+func is_valid_url(url) {
+    return starts_with(url, "http://") || starts_with(url, "https://")
+}
+
+print("🔗 URL Shortener Service")
+print("=" * 50)
+
+server := http_server(3000)
+
+# Create shortened URL
+server.route("POST", "/shorten", func(request) {
+    try {
+        data := parse_json(request.body)
+        
+        if !has_key(data, "url") {
+            return json_response(400, {
+                "error": "Missing 'url' field"
+            })
+        }
+        
+        original_url := data["url"]
+        
+        if !is_valid_url(original_url) {
+            return json_response(400, {
+                "error": "Invalid URL format. Must start with http:// or https://"
+            })
+        }
+        
+        # Generate unique code
+        code := generate_code()
+        while has_key(urls, code) {
+            code := generate_code()
+        }
+        
+        # Store URL and initialize stats
+        urls[code] := original_url
+        stats[code] := {
+            "clicks": 0,
+            "created": now()
+        }
+        
+        short_url := "http://localhost:3000/" + code
+        
+        print("✓ Created: " + code + " -> " + original_url)
+        
+        return json_response(201, {
+            "code": code,
+            "short_url": short_url,
+            "original_url": original_url
+        })
+        
+    } except err {
+        return json_response(400, {
+            "error": "Invalid JSON: " + err.message
+        })
+    }
+})
+
+# Redirect to original URL
+server.route("GET", "/redirect", func(request) {
+    # Extract code from path (simplified - assumes /redirect?code=abc123)
+    code := substring(request.path, 10, len(request.path))  # Skip "/redirect/"
+    
+    if has_key(urls, code) {
+        # Update stats
+        current_stats := stats[code]
+        current_stats["clicks"] := current_stats["clicks"] + 1
+        stats[code] := current_stats
+        
+        original_url := urls[code]
+        print("↗ Redirect: " + code + " -> " + original_url + " (clicks: " + to_json(current_stats["clicks"]) + ")")
+        
+        return json_response(200, {
+            "redirect_to": original_url,
+            "clicks": current_stats["clicks"]
+        })
+    }
+    
+    return json_response(404, {
+        "error": "Short URL not found: " + code
+    })
+})
+
+# Get URL statistics
+server.route("GET", "/stats", func(request) {
+    # Parse request body for code
+    try {
+        data := parse_json(request.body)
+        code := data["code"]
+        
+        if has_key(urls, code) {
+            return json_response(200, {
+                "code": code,
+                "original_url": urls[code],
+                "clicks": stats[code]["clicks"],
+                "created": stats[code]["created"]
+            })
+        }
+        
+        return json_response(404, {
+            "error": "Short URL not found: " + code
+        })
+        
+    } except err {
+        return json_response(400, {
+            "error": "Invalid request. Send JSON with 'code' field"
+        })
+    }
+})
+
+# List all shortened URLs
+server.route("GET", "/list", func(request) {
+    url_list := []
+    
+    for code in urls {
+        url_info := {
+            "code": code,
+            "short_url": "http://localhost:3000/" + code,
+            "original_url": urls[code],
+            "clicks": stats[code]["clicks"]
+        }
+        push(url_list, url_info)
+    }
+    
+    return json_response(200, {
+        "total": len(url_list),
+        "urls": url_list
+    })
+})
+
+# Health check
+server.route("GET", "/health", func(request) {
+    return json_response(200, {
+        "status": "healthy",
+        "total_urls": len(keys(urls)),
+        "uptime": "running"
+    })
+})
+
+# API info
+server.route("GET", "/", func(request) {
+    return json_response(200, {
+        "service": "URL Shortener API",
+        "version": "1.0",
+        "endpoints": {
+            "POST /shorten": "Create short URL (body: {\"url\": \"https://...\"})",
+            "GET /redirect?code=xxx": "Get redirect info for short code",
+            "GET /stats": "Get URL statistics (body: {\"code\": \"xxx\"})",
+            "GET /list": "List all shortened URLs",
+            "GET /health": "Health check"
+        }
+    })
+})
+
+print("")
+print("🚀 Server running on http://localhost:3000")
+print("")
+print("Try these commands:")
+print("  # Create short URL:")
+print("  curl -X POST http://localhost:3000/shorten -d '{\"url\": \"https://github.com/rufflang/ruff\"}'")
+print("")
+print("  # List all URLs:")
+print("  curl http://localhost:3000/list")
+print("")
+print("  # Get statistics:")
+print("  curl http://localhost:3000/stats -d '{\"code\": \"abc123\"}'")
+print("")
+print("Press Ctrl+C to stop")
+print("=" * 50)
+
+server.listen()
