@@ -13,23 +13,23 @@ use crate::errors::SourceLocation;
 /// These methods can be defined on structs to customize operator behavior
 pub mod operator_methods {
     // Arithmetic operators
-    pub const ADD: &str = "__add__";
-    pub const SUB: &str = "__sub__";
-    pub const MUL: &str = "__mul__";
-    pub const DIV: &str = "__div__";
-    pub const MOD: &str = "__mod__";
+    pub const ADD: &str = "op_add";
+    pub const SUB: &str = "op_sub";
+    pub const MUL: &str = "op_mul";
+    pub const DIV: &str = "op_div";
+    pub const MOD: &str = "op_mod";
     
     // Comparison operators
-    pub const EQ: &str = "__eq__";
-    pub const NE: &str = "__ne__";
-    pub const LT: &str = "__lt__";
-    pub const GT: &str = "__gt__";
-    pub const LE: &str = "__le__";
-    pub const GE: &str = "__ge__";
+    pub const EQ: &str = "op_eq";
+    pub const NE: &str = "op_ne";
+    pub const LT: &str = "op_lt";
+    pub const GT: &str = "op_gt";
+    pub const LE: &str = "op_le";
+    pub const GE: &str = "op_ge";
     
-    // Unary operators
-    pub const NEG: &str = "__neg__";
-    pub const NOT: &str = "__not__";
+    // Unary operators (for future implementation)
+    pub const NEG: &str = "op_neg";
+    pub const NOT: &str = "op_not";
     
     /// Maps binary operators to their corresponding method names
     pub fn binary_op_method(op: &str) -> Option<&'static str> {
