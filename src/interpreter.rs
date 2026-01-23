@@ -1491,11 +1491,11 @@ impl Interpreter {
 
             // Base64 functions
             "encode_base64" => {
-                // encode_base64(bytes) - encodes bytes to base64 string
-                if let Some(Value::Bytes(bytes)) = arg_values.get(0) {
-                    Value::Str(builtins::encode_base64(bytes))
-                } else {
-                    Value::Error("encode_base64 requires a bytes argument".to_string())
+                // encode_base64(bytes_or_string) - encodes bytes or string to base64 string
+                match arg_values.get(0) {
+                    Some(Value::Bytes(bytes)) => Value::Str(builtins::encode_base64(bytes)),
+                    Some(Value::Str(s)) => Value::Str(builtins::encode_base64(s.as_bytes())),
+                    _ => Value::Error("encode_base64 requires a bytes or string argument".to_string()),
                 }
             }
 
