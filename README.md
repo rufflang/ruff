@@ -46,6 +46,19 @@
   - Lexical scoping with access to outer variables
   - Functions as first-class values
   - Nested function definitions
+  - **NEW**: Closures with variable capturing (v0.6.0)
+    - Functions capture their definition environment
+    - Closure state persists across calls
+    - Support for counter patterns and partial application
+    ```ruff
+    func make_counter() {
+        let count := 0
+        return func() {
+            count := count + 1
+            return count
+        }
+    }
+    ```
 
 * **Control Flow**
   - `if`/`else` statements

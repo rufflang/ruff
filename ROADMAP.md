@@ -3,7 +3,7 @@
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
 > **Current Version**: v0.5.1 (HTTP headers support added)  
-> **Next Planned Release**: v0.6.0
+> **Next Planned Release**: v0.6.0 (Closures implemented)
 
 ---
 
@@ -19,13 +19,20 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 1. Closures & Variable Capturing (P1)
 
-**Status**: Planned  
+**Status**: ✅ Completed (2026-01-23)  
 **Estimated Effort**: Medium (1 week)
 
 **Description**:  
 Proper closure support with variable capturing from outer scopes.
 
-**Planned Features**:
+**Implementation Notes**:
+- Uses `Rc<RefCell<Environment>>` for shared mutable captured environment
+- Functions capture their definition environment at creation time
+- Counter patterns work correctly with persistent state
+- Simple closures (adders, counters) fully functional
+- Complex multi-variable scenarios may need additional testing
+
+**Completed Examples**:
 ```ruff
 # Counter closure
 func make_counter() {
@@ -44,16 +51,16 @@ print(counter1())  # 3
 counter2 := make_counter()
 print(counter2())  # 1 (independent state)
 
-# Partial application
-func multiply(a, b) {
-    return a * b
+# Simple closures
+func make_adder(x) {
+    return func(y) {
+        return x + y
+    }
 }
 
-double := func(x) { return multiply(2, x) }
-triple := func(x) { return multiply(3, x) }
-
-print(double(5))  # 10
-print(triple(5))  # 15
+add5 := make_adder(5)
+print(add5(3))   # 8
+print(add5(10))  # 15
 ```
 
 ---
