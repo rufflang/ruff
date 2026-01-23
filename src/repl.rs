@@ -34,13 +34,11 @@ impl Repl {
     /// Displays the welcome banner with version and help information
     fn show_banner(&self) {
         println!("{}", "╔══════════════════════════════════════════════════════╗".bright_cyan());
-        println!(
-            "{}",
-            "║          Ruff REPL v0.5.0 - Interactive Shell       ║".bright_cyan()
-        );
+        println!("{}", "║          Ruff REPL v0.5.0 - Interactive Shell       ║".bright_cyan());
         println!("{}", "╚══════════════════════════════════════════════════════╝".bright_cyan());
         println!();
-        println!("  {} Use {}{}{}{}",
+        println!(
+            "  {} Use {}{}{}{}",
             "Welcome!".bright_green(),
             ":".bright_blue(),
             "help".bright_yellow(),
@@ -90,9 +88,7 @@ impl Repl {
                     }
                 }
                 Err(ReadlineError::Interrupted) => {
-                    println!("{}",
-                        "^C (Ctrl+C to interrupt, :quit to exit)".bright_yellow()
-                    );
+                    println!("{}", "^C (Ctrl+C to interrupt, :quit to exit)".bright_yellow());
                     buffer.clear();
                 }
                 Err(ReadlineError::Eof) => {
@@ -155,7 +151,11 @@ impl Repl {
         println!();
         println!("{}", "REPL Commands:".bright_cyan().bold());
         println!();
-        println!("  {}{}  Display this help message", ":help".bright_yellow(), " or :h     ".dimmed());
+        println!(
+            "  {}{}  Display this help message",
+            ":help".bright_yellow(),
+            " or :h     ".dimmed()
+        );
         println!("  {}{}  Exit the REPL", ":quit".bright_yellow(), " or :q     ".dimmed());
         println!("  {}{}  Clear the screen", ":clear".bright_yellow(), " or :c    ".dimmed());
         println!("  {}{}  Show defined variables", ":vars".bright_yellow(), " or :v    ".dimmed());
@@ -174,21 +174,11 @@ impl Repl {
         println!();
         println!("{}", "Examples:".bright_cyan().bold());
         println!();
-        println!("  {}",
-            "ruff> let x := 42".dimmed()
-        );
-        println!("  {}",
-            "ruff> func greet(name) {".dimmed()
-        );
-        println!("  {}",
-            "....>     print(\"Hello, \" + name)".dimmed()
-        );
-        println!("  {}",
-            "....> }".dimmed()
-        );
-        println!("  {}",
-            "ruff> greet(\"World\")".dimmed()
-        );
+        println!("  {}", "ruff> let x := 42".dimmed());
+        println!("  {}", "ruff> func greet(name) {".dimmed());
+        println!("  {}", "....>     print(\"Hello, \" + name)".dimmed());
+        println!("  {}", "....> }".dimmed());
+        println!("  {}", "ruff> greet(\"World\")".dimmed());
         println!();
     }
 
@@ -200,11 +190,11 @@ impl Repl {
 
         // Get all variables from all scopes
         let _all_vars: HashMap<String, &Value> = HashMap::new();
-        
+
         // Access the environment - we need to iterate through scopes
         // For now, we'll show this as a simplified view
         // In a full implementation, we'd expose more of the environment structure
-        
+
         println!("  {}", "(Variable inspection not yet fully implemented)".dimmed());
         println!("  {}", "Tip: You can still use variables normally in the REPL".dimmed());
         println!();
@@ -214,7 +204,7 @@ impl Repl {
     /// Returns true if all brackets/braces/parentheses are balanced
     fn is_input_complete(&self, input: &str) -> bool {
         let trimmed = input.trim();
-        
+
         // Empty input is complete
         if trimmed.is_empty() {
             return true;
@@ -268,7 +258,7 @@ impl Repl {
     /// Evaluates the input code and displays the result
     fn eval_input(&mut self, input: &str) {
         let trimmed = input.trim();
-        
+
         // Skip empty input
         if trimmed.is_empty() {
             return;
@@ -277,12 +267,10 @@ impl Repl {
         // Tokenize and parse
         let tokens = lexer::tokenize(input);
         let mut parser = parser::Parser::new(tokens);
-        
+
         // Try to parse as expression first (for REPL convenience)
         // If that fails, try as statement
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            parser.parse()
-        }));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parser.parse()));
 
         match result {
             Ok(stmts) if !stmts.is_empty() => {
@@ -290,16 +278,14 @@ impl Repl {
                 for stmt in &stmts {
                     match stmt {
                         // For expression statements in REPL, show the value
-                        Stmt::ExprStmt(expr) => {
-                            match self.interpreter.eval_expr_repl(expr) {
-                                Ok(value) => {
-                                    self.print_value(&value);
-                                }
-                                Err(err) => {
-                                    self.print_error(&err);
-                                }
+                        Stmt::ExprStmt(expr) => match self.interpreter.eval_expr_repl(expr) {
+                            Ok(value) => {
+                                self.print_value(&value);
                             }
-                        }
+                            Err(err) => {
+                                self.print_error(&err);
+                            }
+                        },
                         // For other statements, just execute
                         _ => {
                             if let Err(err) = self.interpreter.eval_stmt_repl(stmt) {
@@ -351,7 +337,8 @@ impl Repl {
                     if i > 0 {
                         print!(", ");
                     }
-                    print!("{}: {}", 
+                    print!(
+                        "{}: {}",
                         format!("\"{}\"", key).bright_yellow(),
                         self.format_value_inline(val)
                     );

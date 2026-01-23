@@ -208,7 +208,7 @@ impl TypeChecker {
             "map".to_string(),
             FunctionSignature {
                 param_types: vec![None, None], // Array and function
-                return_type: None,              // Returns array
+                return_type: None,             // Returns array
             },
         );
 
@@ -216,7 +216,7 @@ impl TypeChecker {
             "filter".to_string(),
             FunctionSignature {
                 param_types: vec![None, None], // Array and function
-                return_type: None,              // Returns array
+                return_type: None,             // Returns array
             },
         );
 
@@ -232,7 +232,7 @@ impl TypeChecker {
             "find".to_string(),
             FunctionSignature {
                 param_types: vec![None, None], // Array and function
-                return_type: None,              // Returns element or 0
+                return_type: None,             // Returns element or 0
             },
         );
 
@@ -256,10 +256,7 @@ impl TypeChecker {
         // Random functions
         self.functions.insert(
             "random".to_string(),
-            FunctionSignature {
-                param_types: vec![],
-                return_type: Some(TypeAnnotation::Float),
-            },
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Float) },
         );
 
         self.functions.insert(
@@ -281,10 +278,7 @@ impl TypeChecker {
         // Date/Time functions
         self.functions.insert(
             "now".to_string(),
-            FunctionSignature {
-                param_types: vec![],
-                return_type: Some(TypeAnnotation::Float),
-            },
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Float) },
         );
 
         self.functions.insert(
@@ -322,18 +316,12 @@ impl TypeChecker {
 
         self.functions.insert(
             "exit".to_string(),
-            FunctionSignature {
-                param_types: vec![Some(TypeAnnotation::Float)],
-                return_type: None,
-            },
+            FunctionSignature { param_types: vec![Some(TypeAnnotation::Float)], return_type: None },
         );
 
         self.functions.insert(
             "sleep".to_string(),
-            FunctionSignature {
-                param_types: vec![Some(TypeAnnotation::Float)],
-                return_type: None,
-            },
+            FunctionSignature { param_types: vec![Some(TypeAnnotation::Float)], return_type: None },
         );
 
         self.functions.insert(
@@ -468,7 +456,7 @@ impl TypeChecker {
             "json_response".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::Int), None], // Status code and any data
-                return_type: None, // Returns HttpResponse object
+                return_type: None,                                  // Returns HttpResponse object
             },
         );
 
@@ -492,7 +480,7 @@ impl TypeChecker {
             "set_headers".to_string(),
             FunctionSignature {
                 param_types: vec![None, None], // Response, headers dict
-                return_type: None, // Returns HttpResponse object
+                return_type: None,             // Returns HttpResponse object
             },
         );
 
@@ -501,7 +489,7 @@ impl TypeChecker {
             "db_connect".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String)], // Database path
-                return_type: None, // Returns Database object
+                return_type: None,                               // Returns Database object
             },
         );
 
@@ -572,7 +560,7 @@ impl TypeChecker {
         }
 
         self.recursion_depth += 1;
-        
+
         match stmt {
             Stmt::Let { name, value, type_annotation, .. } => {
                 let inferred_type = self.infer_expr(value);
@@ -797,7 +785,7 @@ impl TypeChecker {
                 }
             }
         }
-        
+
         self.recursion_depth -= 1;
     }
 
@@ -814,7 +802,7 @@ impl TypeChecker {
         }
 
         self.recursion_depth += 1;
-        
+
         let result = match expr {
             Expr::Number(n) => {
                 // Check if it's an integer or float
@@ -848,7 +836,7 @@ impl TypeChecker {
 
             Expr::UnaryOp { op, operand } => {
                 let operand_type = self.infer_expr(operand);
-                
+
                 match op.as_str() {
                     "-" => {
                         // Unary minus on numbers
@@ -931,9 +919,10 @@ impl TypeChecker {
 
                     if let Some(sig) = sig {
                         // Check argument count - allow fewer args than params if trailing params are optional (None)
-                        let min_required = sig.param_types.iter().take_while(|p| p.is_some()).count();
+                        let min_required =
+                            sig.param_types.iter().take_while(|p| p.is_some()).count();
                         let max_allowed = sig.param_types.len();
-                        
+
                         if args.len() < min_required || args.len() > max_allowed {
                             self.errors.push(RuffError::new(
                                 ErrorKind::TypeError,
@@ -1050,7 +1039,7 @@ impl TypeChecker {
                 None
             }
         };
-        
+
         self.recursion_depth -= 1;
         result
     }

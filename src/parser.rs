@@ -789,7 +789,7 @@ impl Parser {
             let operand = self.parse_unary()?; // Recursive for nested unary ops like --x
             return Some(Expr::UnaryOp { op, operand: Box::new(operand) });
         }
-        
+
         // If not a unary operator, parse as call/postfix expression
         self.parse_call()
     }

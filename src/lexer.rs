@@ -73,7 +73,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             '#' => {
                 chars.next(); // consume #
                 col += 1;
-                
+
                 // Regular single-line comment
                 while let Some(&ch) = chars.peek() {
                     chars.next();
@@ -295,12 +295,12 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             '/' => {
                 chars.next(); // consume /
                 col += 1;
-                
+
                 // Check for multi-line comment /* */
                 if chars.peek() == Some(&'*') {
                     chars.next(); // consume *
                     col += 1;
-                    
+
                     // Multi-line comment - scan until */
                     let mut found_end = false;
                     while let Some(&ch) = chars.peek() {
@@ -311,7 +311,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         } else {
                             col += 1;
                         }
-                        
+
                         if ch == '*' && chars.peek() == Some(&'/') {
                             chars.next(); // consume /
                             col += 1;
@@ -319,7 +319,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                             break;
                         }
                     }
-                    
+
                     // If we didn't find closing */, that's a syntax error but we'll continue
                     // The parser/interpreter can handle this gracefully
                     if !found_end {
@@ -329,12 +329,12 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 } else if chars.peek() == Some(&'/') {
                     chars.next(); // consume second /
                     col += 1;
-                    
+
                     // Check for doc comment (///)
                     if chars.peek() == Some(&'/') {
                         chars.next(); // consume third /
                         col += 1;
-                        
+
                         // Doc comment - consume until end of line
                         while let Some(&ch) = chars.peek() {
                             chars.next();
@@ -359,21 +359,13 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     }
                 } else {
                     // Regular division operator
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("/".into()),
-                        line,
-                        column: col,
-                    });
+                    tokens.push(Token { kind: TokenKind::Operator("/".into()), line, column: col });
                 }
             }
             '%' => {
                 chars.next();
                 col += 1;
-                tokens.push(Token {
-                    kind: TokenKind::Operator("%".into()),
-                    line,
-                    column: col,
-                });
+                tokens.push(Token { kind: TokenKind::Operator("%".into()), line, column: col });
             }
             '|' => {
                 chars.next();
@@ -388,11 +380,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     });
                 } else {
                     // Single | is not a valid operator in Ruff yet
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("|".into()),
-                        line,
-                        column: col,
-                    });
+                    tokens.push(Token { kind: TokenKind::Operator("|".into()), line, column: col });
                 }
             }
             '&' => {
@@ -408,11 +396,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     });
                 } else {
                     // Single & is not a valid operator in Ruff yet
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("&".into()),
-                        line,
-                        column: col,
-                    });
+                    tokens.push(Token { kind: TokenKind::Operator("&".into()), line, column: col });
                 }
             }
             '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' | '.' => {
