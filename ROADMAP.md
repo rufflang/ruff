@@ -2,128 +2,14 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.3.0 (January 23, 2026)  
+> **Current Version**: v0.4.0 (in development)  
 > **Next Planned Release**: v0.4.0
 
 ---
 
-## 🔥 High Priority (v0.3.0)
+## 📦 High Priority (v0.4.0)
 
-### 1. JSON Support
-
-**Status**: ✅ Completed (January 22, 2026)  
-**Implementation**: Added parse_json() and to_json() built-in functions
-
-**Implemented Functions**:
-```ruff
-# Parse JSON string to Ruff value
-data := parse_json("{\"name\": \"Alice\", \"age\": 30}")
-print(data["name"])  # Alice
-
-# Convert Ruff value to JSON string
-person := {"name": "Bob", "score": 95}
-json_str := to_json(person)  # {"name":"Bob","score":95}
-```
-
-**Features**:
-- Full JSON data type support (objects, arrays, strings, numbers, booleans, null)
-- Bidirectional conversion between JSON and Ruff values
-- Nested structure support
-- Error handling for invalid JSON
-- Uses serde_json for reliable parsing/serialization
-
----
-
-## 📦 Medium Priority (v0.4.0)
-
-### 2. Standard Library Enhancements
-
-**Status**: ✅ Completed (January 23, 2026)  
-**Implementation**: Added random, date/time, system operations, and path functions
-
-**Implemented Functions**:
-
-**Math & Random**:
-```ruff
-# Random number generation
-rand_num := random()  # Float between 0.0 and 1.0
-rand_int := random_int(1, 100)  # Integer between 1 and 100
-rand_item := random_choice(["A", "B", "C"])  # Random element from array
-```
-
-**Date/Time**:
-```ruff
-# Current timestamp
-timestamp := now()  # Unix timestamp
-
-# Date formatting
-date_str := format_date(timestamp, "YYYY-MM-DD HH:mm:ss")
-
-# Date parsing
-date := parse_date("2026-01-22", "YYYY-MM-DD")
-```
-
-**System Operations**:
-```ruff
-# Environment variables
-home := env("HOME")
-
-# Command-line arguments
-args := args()  # Array of arguments
-
-# Exit with code
-exit(0)
-
-# Sleep/delay
-sleep(1000)  # Sleep for 1000ms
-
-# Execute shell command
-result := execute("ls -la")
-```
-
-**Path Operations**:
-```ruff
-# Path manipulation
-full_path := join_path("/home/user", "documents", "file.txt")
-dir := dirname("/home/user/file.txt")  # "/home/user"
-file := basename("/home/user/file.txt")  # "file.txt"
-exists := path_exists("/home/user/file.txt")  # true/false
-```
-
----
-
-### 3. Regular Expressions
-
-**Status**: ✅ Completed (January 23, 2026)  
-**Implementation**: Added regex_match(), regex_find_all(), regex_replace(), regex_split()
-
-**Implemented Functions**:
-```ruff
-# Pattern matching
-email := "user@example.com"
-is_valid := regex_match(email, "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
-
-# Find matches
-text := "Call me at 555-1234 or 555-5678"
-phones := regex_find_all(text, "\\d{3}-\\d{4}")  # ["555-1234", "555-5678"]
-
-# Replace with pattern
-redacted := regex_replace(text, "\\d{3}-\\d{4}", "XXX-XXXX")
-# "Call me at XXX-XXXX or XXX-XXXX"
-
-# Split by pattern
-parts := regex_split("one123two456three", "\\d+")  # ["one", "two", "three"]
-```
-
-**Use Cases**:
-- Email/phone validation
-- URL parsing
-- Log file analysis
-- Data extraction
-
----
-
-### 4. Error Handling Improvements
+### 1. Error Handling Improvements
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -170,7 +56,7 @@ try {
 
 ---
 
-### 5. Operator Overloading
+### 2. Operator Overloading
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -216,9 +102,9 @@ if v1 == v2 {
 
 ---
 
-## 🌟 Long Term (v0.5.0)
+## 🌟 Medium Priority (v0.5.0)
 
-### 6. HTTP Server & Networking
+### 3. HTTP Server & Networking
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -264,7 +150,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 7. REPL (Interactive Shell)
+### 4. REPL (Interactive Shell)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -278,7 +164,7 @@ result := http_post("https://api.example.com/submit", {"key": "value"})
 
 ---
 
-### 8. Concurrency & Async
+### 5. Concurrency & Async
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
@@ -338,7 +224,7 @@ for i in range(10) {
 
 ---
 
-### 9. Advanced Collections
+### 6. Advanced Collections
 
 **Status**: Planned  
 **Estimated Effort**: Medium (2 weeks)
@@ -388,7 +274,7 @@ highest := pq.pop()  # Returns "high priority"
 
 ---
 
-### 10. Method Chaining & Fluent APIs
+### 7. Method Chaining & Fluent APIs
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -423,7 +309,7 @@ value := user?.name ?? "Anonymous"  # Use "Anonymous" if name is null
 
 ---
 
-### 11. Closures & Capturing
+### 8. Closures & Capturing
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -476,7 +362,7 @@ for i in range(5) {
 
 ## 🎓 Professional Features (v0.6.0+)
 
-### 12. Advanced Type System Features
+### 9. Advanced Type System Features
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -490,7 +376,7 @@ for i in range(5) {
 
 ---
 
-### 13. LSP (Language Server Protocol)
+### 10. LSP (Language Server Protocol)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -506,7 +392,7 @@ for i in range(5) {
 
 ---
 
-### 14. Macros & Metaprogramming
+### 11. Macros & Metaprogramming
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -559,7 +445,7 @@ page := html! {
 
 ---
 
-### 15. Database Support
+### 12. Database Support
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -624,7 +510,7 @@ user.save()
 
 ---
 
-### 16. Serialization Formats
+### 13. Serialization Formats
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -671,7 +557,7 @@ func User.deserialize(data) {
 
 ---
 
-### 17. Testing Enhancements
+### 14. Testing Enhancements
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -724,7 +610,7 @@ ruff test --coverage
 
 ## 🏗️ Infrastructure (v0.7.0+)
 
-### 18. Package Manager
+### 15. Package Manager
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -738,7 +624,7 @@ ruff test --coverage
 
 ---
 
-### 19. Memory Management
+### 16. Memory Management
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -774,7 +660,7 @@ ruff run --detect-leaks program.ruff
 
 ---
 
-### 20. Foreign Function Interface (FFI)
+### 17. Foreign Function Interface (FFI)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -808,7 +694,7 @@ extern func qsort(arr: array, size: int, compare: func) from "libc.so"
 
 ---
 
-### 21. Graphics & GUI
+### 18. Graphics & GUI
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
