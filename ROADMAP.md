@@ -64,60 +64,37 @@ cargo run --quiet -- run examples/http_client.ruff
 
 ---
 
-## 🚨 Critical Bugs & Issues
+## � Recently Fixed Critical Bugs
 
 ### Function Cleanup Hang Bug
 
-**Status**: 🐛 **CRITICAL BUG - Blocks Feature Development**  
-**Priority**: **URGENT - Must Fix Before v0.6.0**  
-**Discovered**: January 23, 2026  
-**Investigation**: Partially diagnosed, not yet fixed
+**Status**: ✅ **RESOLVED - Fixed in v0.6.0**  
+**Resolution Date**: January 23, 2026  
+**Fix**: LeakyFunctionBody wrapper with ManuallyDrop
 
-**Issue Description**:  
-Functions containing `for` loops cause the interpreter to hang **during program cleanup/shutdown**, not during execution. The hang occurs when Rust's Drop implementation tries to clean up deeply nested AST structures.
-
-**Actual Behavior**:
-- Type checking completes successfully
-- Function definition executes without error  
-- All subsequent code executes normally
-- Program hangs **after** all code finishes executing
-- Hang occurs during Rust's automatic cleanup/drop phase
-
-**Reproduction**:
-```ruff
-# This function definition causes hang AFTER program completes
-func test() {
-    x := 0
-    for i in range(3) {
-        x := x + 1  # Even without function calls, loop causes hang
-    }
-    return x
-}
-
-print("This prints successfully")
-# Program hangs during cleanup after this point
-```
+**Original Issue**:  
+Functions containing `for` loops caused the interpreter to hang **during program cleanup/shutdown**, not during execution. The hang occurred when Rust's Drop implementation tried to clean up deeply nested AST structures.
 
 **Root Cause**:  
-When storing function bodies with loops, the AST structure `Vec<Stmt>` contains deeply nested loops (`For { body: Vec<Stmt> }`). During program shutdown, Rust's automatic drop implementation recurses deeply through these nested vectors, causing an infinite hang (possibly stack overflow in drop glue).
+When storing function bodies with loops, the AST structure `Vec<Stmt>` contains deeply nested loops (`For { body: Vec<Stmt> }`). During program shutdown, Rust's automatic drop implementation recurses deeply through these nested vectors, causing stack overflow.
 
-**Attempted Fixes**:
-- ✅ Changed `Function(Vec<String>, Vec<Stmt>)` to `Function(Vec<String>, Arc<Vec<Stmt>>)` - Partially helps but doesn't fully resolve
-- ❌ Recursion depth counter in type checker - Not applicable (bug is in runtime cleanup)
-- ⏸️ Custom Drop implementation - Not yet attempted
+**Solution**:  
+Introduced `LeakyFunctionBody` wrapper type that uses `ManuallyDrop<Arc<Vec<Stmt>>>` to prevent recursive drop of deeply nested AST structures. The Arc containing function bodies is intentionally leaked during drop, which is acceptable since it only occurs at program shutdown when the OS reclaims all memory anyway.
 
-**Impact**:
-- HTTP sample projects cannot use loops with logic inside functions
-- Any moderately complex function with loops becomes unusable  
-- Makes Ruff impractical for real-world applications
-- Workaround: Avoid loops inside function definitions
+**Changes**:
+- Added `LeakyFunctionBody` wrapper type in `src/interpreter.rs`
+- Updated `Value::Function` to use `LeakyFunctionBody` instead of `Arc<Vec<Stmt>>`
+- Updated all function creation sites to use `LeakyFunctionBody::new()`
+- Updated all function body access sites to use `.get()` method
+- Removed workarounds from examples (e.g., `url_shortener.ruff` now uses proper loops)
 
-**Fix Required**:
-- Implement custom Drop for Value enum to prevent deep recursion
-- Use Box<Stmt> instead of Vec<Stmt> for recursive structures
-- Flatten AST representation to avoid deep nesting
-- Add iterative drop instead of recursive drop
-- Memory leak acceptable as temporary workaround (don't drop function bodies)
+**Impact**:  
+Functions can now safely contain loops, nested control structures, and complex logic without hanging during program cleanup. Makes Ruff practical for real-world applications.
+
+**Tests**:
+- `tests/test_function_drop_fix.ruff` - Comprehensive test suite
+- `tests/test_func_loop_correct.ruff` - Simple function with loop test
+- `tests/test_loop_correct.ruff` - Basic loop test
 
 ---
 
