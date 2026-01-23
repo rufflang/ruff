@@ -3249,4 +3249,211 @@ mod tests {
             matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: Bob, Age: 25")
         );
     }
+
+    #[test]
+    fn test_starts_with_basic() {
+        let code = r#"
+            result1 := starts_with("hello world", "hello")
+            result2 := starts_with("hello world", "world")
+            result3 := starts_with("test", "test")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_ends_with_basic() {
+        let code = r#"
+            result1 := ends_with("test.ruff", ".ruff")
+            result2 := ends_with("test.ruff", ".py")
+            result3 := ends_with("hello", "lo")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_index_of_found() {
+        let code = r#"
+            idx1 := index_of("hello world", "world")
+            idx2 := index_of("hello", "ll")
+            idx3 := index_of("test", "t")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("idx1"), Some(Value::Number(n)) if n == 6.0));
+        assert!(matches!(interp.env.get("idx2"), Some(Value::Number(n)) if n == 2.0));
+        assert!(matches!(interp.env.get("idx3"), Some(Value::Number(n)) if n == 0.0));
+    }
+
+    #[test]
+    fn test_index_of_not_found() {
+        let code = r#"
+            idx1 := index_of("hello", "xyz")
+            idx2 := index_of("test", "abc")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("idx1"), Some(Value::Number(n)) if n == -1.0));
+        assert!(matches!(interp.env.get("idx2"), Some(Value::Number(n)) if n == -1.0));
+    }
+
+    #[test]
+    fn test_repeat_basic() {
+        let code = r#"
+            str1 := repeat("ha", 3)
+            str2 := repeat("x", 5)
+            str3 := repeat("abc", 2)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("str1"), Some(Value::Str(s)) if s == "hahaha"));
+        assert!(matches!(interp.env.get("str2"), Some(Value::Str(s)) if s == "xxxxx"));
+        assert!(matches!(interp.env.get("str3"), Some(Value::Str(s)) if s == "abcabc"));
+    }
+
+    #[test]
+    fn test_repeat_zero() {
+        let code = r#"
+            str1 := repeat("hello", 0)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("str1"), Some(Value::Str(s)) if s.is_empty()));
+    }
+
+    #[test]
+    fn test_split_basic() {
+        let code = r#"
+            parts := split("a,b,c", ",")
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("parts") {
+            assert_eq!(arr.len(), 3);
+            assert!(matches!(&arr[0], Value::Str(s) if s == "a"));
+            assert!(matches!(&arr[1], Value::Str(s) if s == "b"));
+            assert!(matches!(&arr[2], Value::Str(s) if s == "c"));
+        } else {
+            panic!("Expected parts to be an array");
+        }
+    }
+
+    #[test]
+    fn test_split_multiple_chars() {
+        let code = r#"
+            parts := split("hello::world::test", "::")
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("parts") {
+            assert_eq!(arr.len(), 3);
+            assert!(matches!(&arr[0], Value::Str(s) if s == "hello"));
+            assert!(matches!(&arr[1], Value::Str(s) if s == "world"));
+            assert!(matches!(&arr[2], Value::Str(s) if s == "test"));
+        } else {
+            panic!("Expected parts to be an array");
+        }
+    }
+
+    #[test]
+    fn test_split_spaces() {
+        let code = r#"
+            words := split("one two three", " ")
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("words") {
+            assert_eq!(arr.len(), 3);
+            assert!(matches!(&arr[0], Value::Str(s) if s == "one"));
+            assert!(matches!(&arr[1], Value::Str(s) if s == "two"));
+            assert!(matches!(&arr[2], Value::Str(s) if s == "three"));
+        } else {
+            panic!("Expected words to be an array");
+        }
+    }
+
+    #[test]
+    fn test_join_basic() {
+        let code = r#"
+            arr := ["a", "b", "c"]
+            result := join(arr, ",")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "a,b,c"));
+    }
+
+    #[test]
+    fn test_join_with_spaces() {
+        let code = r#"
+            words := ["hello", "world", "test"]
+            sentence := join(words, " ")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("sentence"), Some(Value::Str(s)) if s == "hello world test")
+        );
+    }
+
+    #[test]
+    fn test_join_numbers() {
+        let code = r#"
+            nums := [1, 2, 3]
+            result := join(nums, "-")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "1-2-3"));
+    }
+
+    #[test]
+    fn test_split_join_roundtrip() {
+        let code = r#"
+            original := "apple,banana,cherry"
+            parts := split(original, ",")
+            rejoined := join(parts, ",")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("rejoined"), Some(Value::Str(s)) if s == "apple,banana,cherry")
+        );
+    }
+
+    #[test]
+    fn test_string_functions_in_condition() {
+        let code = r#"
+            filename := "test.ruff"
+            is_ruff := ends_with(filename, ".ruff")
+            result := 0
+            if is_ruff {
+                result := 1
+            }
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Number(n)) if n == 1.0));
+    }
 }
