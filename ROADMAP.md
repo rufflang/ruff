@@ -64,6 +64,76 @@ if (v1 == v2) {  # Calls v1.op_eq(v2)
 
 ## 🌟 Medium Priority (v0.5.0)
 
+### 2. Struct Method Improvements
+
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 days)
+
+**Description**:  
+Enhance struct methods to support calling other methods on the same instance and add explicit `self` parameter support.
+
+**Current Limitation**:
+```ruff
+struct Calculator {
+    base: float,
+    
+    func add(x) {
+        return base + x;
+    }
+    
+    func chain(x) {
+        # ❌ This doesn't work - 'add' is not found
+        temp := add(x);
+        return temp * 2.0;
+    }
+}
+```
+
+**Planned Enhancement**:
+```ruff
+struct Calculator {
+    base: float,
+    
+    func add(self, x) {
+        return self.base + x;
+    }
+    
+    func chain(self, x) {
+        # ✅ Call other methods on self
+        temp := self.add(x);
+        return temp * 2.0;
+    }
+    
+    func multiply(self, a, b) {
+        return a * b;
+    }
+}
+
+calc := Calculator { base: 10.0 };
+result := calc.chain(5.0);  # Returns 30.0
+```
+
+**Implementation Plan**:
+- Add explicit `self` parameter to method signatures (optional, maintains backward compatibility)
+- When `self` is present, enable `self.method_name()` calls within methods
+- Support `self.field` access (already works with implicit field access)
+- Methods without `self` parameter work as they do now (current behavior)
+- Type checker updates to recognize `self` as special parameter
+
+**Benefits**:
+- Enables method composition and code reuse within structs
+- Clearer code with explicit `self` reference
+- Supports builder patterns and fluent interfaces
+- Maintains backward compatibility with current method syntax
+
+**Use Cases**:
+- Builder patterns: `builder.set_x(10).set_y(20).build()`
+- Method composition: Complex methods calling simpler helper methods
+- State machines: Methods transitioning between states
+- Validation chains: `validator.check_email().check_password().validate()`
+
+---
+
 ### 3. HTTP Server & Networking
 
 **Status**: Planned  
