@@ -44,6 +44,7 @@
 * **Data Types**
   - Numbers (f64)
   - Strings with escape sequences
+  - Booleans: `true`, `false` (v0.3.0)
   - Enums with tagged variants
   - Arrays: `[1, 2, 3]`
   - Dictionaries: `{"key": value}`
@@ -91,7 +92,7 @@
 
 * **Operators**
   - Arithmetic: `+`, `-`, `*`, `/`
-  - Comparison: `==`, `>`, `<`, `>=`, `<=`
+  - Comparison: `==`, `>`, `<`, `>=`, `<=` (return `true`/`false` - v0.3.0)
   - String concatenation with `+`
 
 * **Error Messages**
@@ -218,13 +219,14 @@ cargo run -- test --update
 
 See [ROADMAP.md](ROADMAP.md) for detailed feature plans.
 
-**Completed (6/14):**
+**Completed (7/14):**
 * ✅ Error Messages & Diagnostics (v0.1.0)
 * ✅ Type System & Type Checking (v0.1.0)
 * ✅ Module System & Imports (v0.1.0)
 * ✅ Standard Library Expansion (v0.2.0)
 * ✅ Structs & Methods (v0.2.0)
 * ✅ Arrays & Dictionaries (v0.2.0)
+* ✅ Boolean Type (v0.3.0)
 
 **High Priority:**
 * [ ] Loop control (`break`, `continue`)
