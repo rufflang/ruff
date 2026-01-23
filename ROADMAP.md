@@ -122,7 +122,110 @@ top := stack.pop()  # 2
 
 ---
 
-### 4. Serialization Formats (P2)
+### 4. Binary File Support & HTTP Downloads (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (1 week)
+
+**Description**:  
+Support for downloading and working with binary files (images, PDFs, archives, etc.) via HTTP client and file I/O.
+
+**Planned Features**:
+```ruff
+# Binary HTTP downloads
+image_data := http_get_binary("https://example.com/photo.jpg")
+write_binary_file("photo.jpg", image_data)
+
+# Download with progress tracking
+download("https://example.com/large.zip", "output.zip", func(progress) {
+    print("Downloaded: " + progress.percent + "%")
+})
+
+# Read binary files
+image_bytes := read_binary_file("photo.jpg")
+file_size := len(image_bytes)
+
+# Base64 encoding/decoding (for API transfers)
+base64_str := encode_base64(image_bytes)
+decoded := decode_base64(base64_str)
+```
+
+**Use Cases**:
+- Download AI-generated images from DALL-E, Stable Diffusion
+- Fetch PDFs, zip files, executables
+- Handle file uploads/downloads in HTTP servers
+- Work with media files (images, audio, video metadata)
+
+---
+
+### 5. Image Processing (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (1-2 weeks)
+
+**Description**:  
+Built-in image manipulation capabilities for common operations without external dependencies.
+
+**Planned Features**:
+```ruff
+# Load and basic operations
+img := load_image("photo.jpg")
+width := img.width
+height := img.height
+format := img.format  # "jpeg", "png", "webp"
+
+# Resize
+resized := img.resize(800, 600)
+thumbnail := img.resize(200, 200, "fit")  # Maintain aspect ratio
+
+# Crop
+cropped := img.crop(100, 100, 400, 400)  # x, y, width, height
+
+# Rotate and flip
+rotated := img.rotate(90)
+flipped := img.flip("horizontal")
+
+# Format conversion
+img.save("output.png")  # Auto-converts JPEG -> PNG
+img.save("output.webp", {"quality": 85})
+
+# Filters and adjustments
+brightened := img.adjust_brightness(1.2)
+contrasted := img.adjust_contrast(1.1)
+grayscale := img.to_grayscale()
+blurred := img.blur(5)
+
+# Watermarking
+watermarked := img.add_text("© 2026", {
+    "position": "bottom-right",
+    "font": "Arial",
+    "size": 20,
+    "color": "white"
+})
+
+# Composite images
+logo := load_image("logo.png")
+final := img.overlay(logo, 10, 10)  # x, y position
+
+# Batch operations
+images := ["img1.jpg", "img2.jpg", "img3.jpg"]
+for path in images {
+    img := load_image(path)
+    thumb := img.resize(200, 200, "fit")
+    thumb.save("thumbs/" + basename(path))
+}
+```
+
+**Use Cases**:
+- AI image generation pipelines (resize, crop, watermark outputs)
+- Thumbnail generation for galleries
+- Image optimization for web (format conversion, compression)
+- Social media image preparation (specific dimensions)
+- Batch processing for e-commerce product photos
+
+---
+
+### 6. Serialization Formats (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -147,9 +250,73 @@ csv_str := to_csv(rows)
 
 ---
 
+### 7. Concurrency & Async/Await (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Large (3-4 weeks)
+
+**Description**:  
+Lightweight concurrency for parallel API calls, background tasks, and non-blocking I/O operations.
+
+**Planned Features**:
+```ruff
+# Async/await for non-blocking operations
+async func fetch_data(url) {
+    response := await http_get(url)
+    return parse_json(response.body)
+}
+
+# Parallel API calls - critical for AI tools!
+async func compare_models(prompt) {
+    # All three calls happen simultaneously
+    gpt_task := fetch_data("https://api.openai.com/v1/chat/completions")
+    claude_task := fetch_data("https://api.anthropic.com/v1/messages")
+    deepseek_task := fetch_data("https://api.deepseek.com/v1/chat/completions")
+    
+    # Wait for all to complete
+    results := await all([gpt_task, claude_task, deepseek_task])
+    return results
+}
+
+# Spawn lightweight threads for background work
+spawn {
+    print("Processing in background...")
+    process_large_file()
+}
+
+# Channels for thread communication
+chan := channel()
+
+spawn {
+    result := expensive_computation()
+    chan.send(result)
+}
+
+data := chan.receive()  # Block until data received
+
+# Timeout for async operations
+try {
+    result := await timeout(fetch_data(url), 5000)  # 5 second timeout
+} except TimeoutError {
+    print("Request timed out")
+}
+```
+
+**Use Cases**:
+- **AI Tools**: Parallel API calls to multiple providers (OpenAI, DeepSeek, Claude)
+- **Batch Processing**: Generate 100+ pieces of content simultaneously
+- **Web Servers**: Handle multiple HTTP requests concurrently
+- **Background Tasks**: Process files while accepting user input
+- **Data Pipelines**: Parallel data fetching and processing
+
+**Why P1 for v0.6.0**:
+This is CRITICAL for AI tool development - without it, multi-model comparison takes 3x longer, batch generation is slow, and the tools are not production-ready.
+
+---
+
 ## v0.7.0 - Production Database Support
 
-### 5. PostgreSQL & MySQL (P1)
+### 8. PostgreSQL & MySQL (P1)
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
@@ -212,54 +379,9 @@ try {
 
 ---
 
-### 6. Concurrency & Async (P1)
-
-**Status**: Planned  
-**Estimated Effort**: Large (3-4 weeks)
-
-**Description**:  
-Lightweight concurrency with goroutine-style threads and channels.
-
-**Planned Features**:
-```ruff
-# Spawn lightweight threads
-spawn {
-    print("Running in background")
-    heavy_computation()
-}
-
-# Channels for communication
-chan := channel()
-
-spawn {
-    result := fetch_data()
-    chan.send(result)
-}
-
-data := chan.receive()  # Block until data received
-print(data)
-
-# Async/await syntax
-async func fetch_user(id: int) {
-    response := await http_get("/api/users/" + id)
-    return parse_json(response.body)
-}
-
-user := await fetch_user(123)
-print(user.name)
-```
-
-**Use Cases**:
-- Parallel processing
-- Web servers handling multiple requests
-- Background tasks
-- Non-blocking I/O
-
----
-
 ## v0.8.0 - Developer Experience
 
-### 7. LSP (Language Server Protocol) (P1)
+### 9. LSP (Language Server Protocol) (P1)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -275,7 +397,7 @@ print(user.name)
 
 ---
 
-### 8. Testing Enhancements (P2)
+### 10. Testing Enhancements (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -314,7 +436,7 @@ ruff test --coverage
 
 ---
 
-### 9. Package Manager (P2)
+### 11. Package Manager (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -330,7 +452,7 @@ ruff test --coverage
 
 ## v0.9.0+ - Advanced Features
 
-### 10. Advanced Type System (P2)
+### 12. Advanced Type System (P2)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -343,7 +465,7 @@ ruff test --coverage
 
 ---
 
-### 11. Macros & Metaprogramming (P3)
+### 13. Macros & Metaprogramming (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -365,7 +487,7 @@ debug_print!(x + 10)  # Output: "x + 10 = 52"
 
 ---
 
-### 12. Foreign Function Interface (FFI) (P3)
+### 14. Foreign Function Interface (FFI) (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (3-4 weeks)
@@ -387,7 +509,7 @@ result := cos(3.14)
 
 ---
 
-### 13. Memory Management (P3)
+### 15. Memory Management (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -404,7 +526,7 @@ Automatic memory management with garbage collection or reference counting.
 
 ---
 
-### 14. Graphics & GUI (P3)
+### 16. Graphics & GUI (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
@@ -441,7 +563,7 @@ canvas.save("output.png")
 
 ---
 
-### 15. Compilation Targets (P3)
+### 17. Compilation Targets (P3)
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
