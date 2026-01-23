@@ -6,6 +6,13 @@
 
 use crate::interpreter::Value;
 use std::collections::HashMap;
+use rand::Rng;
+use chrono::{DateTime, Utc, TimeZone};
+use std::env;
+use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
+use std::process::Command;
 
 /// Returns a HashMap of all built-in functions
 #[allow(dead_code)]
@@ -63,6 +70,32 @@ pub fn cos(x: f64) -> f64 {
 
 pub fn tan(x: f64) -> f64 {
     x.tan()
+}
+
+/// Random number functions
+
+/// Generate a random float between 0.0 and 1.0
+pub fn random() -> f64 {
+    let mut rng = rand::thread_rng();
+    rng.gen::<f64>()
+}
+
+/// Generate a random integer between min and max (inclusive)
+pub fn random_int(min: f64, max: f64) -> f64 {
+    let mut rng = rand::thread_rng();
+    let min_i = min as i64;
+    let max_i = max as i64;
+    rng.gen_range(min_i..=max_i) as f64
+}
+
+/// Select a random element from an array
+pub fn random_choice(arr: &[Value]) -> Value {
+    if arr.is_empty() {
+        return Value::Number(0.0);
+    }
+    let mut rng = rand::thread_rng();
+    let idx = rng.gen_range(0..arr.len());
+    arr[idx].clone()
 }
 
 /// String functions
@@ -207,6 +240,116 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
         }
         _ => Err(format!("Cannot convert {:?} to JSON", value)),
     }
+}
+
+/// Date/Time functions
+
+/// Get current Unix timestamp (seconds since epoch)
+pub fn now() -> f64 {
+    Utc::now().timestamp() as f64
+}
+
+/// Format a Unix timestamp to a date string
+/// Supports basic format: "YYYY-MM-DD HH:mm:ss"
+pub fn format_date(timestamp: f64, format_str: &str) -> String {
+    let dt: DateTime<Utc> = Utc.timestamp_opt(timestamp as i64, 0).unwrap();
+    
+    // Simple format string replacement
+    let result = format_str
+        .replace("YYYY", &dt.format("%Y").to_string())
+        .replace("MM", &dt.format("%m").to_string())
+        .replace("DD", &dt.format("%d").to_string())
+        .replace("HH", &dt.format("%H").to_string())
+        .replace("mm", &dt.format("%M").to_string())
+        .replace("ss", &dt.format("%S").to_string());
+    
+    result
+}
+
+/// Parse a date string to Unix timestamp
+/// Supports format: "YYYY-MM-DD"
+pub fn parse_date(date_str: &str, _format: &str) -> f64 {
+    // Simple parser for "YYYY-MM-DD" format
+    let parts: Vec<&str> = date_str.split('-').collect();
+    if parts.len() != 3 {
+        return 0.0;
+    }
+    
+    let year = parts[0].parse::<i32>().unwrap_or(1970);
+    let month = parts[1].parse::<u32>().unwrap_or(1);
+    let day = parts[2].parse::<u32>().unwrap_or(1);
+    
+    if let Some(dt) = Utc.with_ymd_and_hms(year, month, day, 0, 0, 0).single() {
+        dt.timestamp() as f64
+    } else {
+        0.0
+    }
+}
+
+/// System operation functions
+
+/// Get environment variable value
+pub fn get_env(var_name: &str) -> String {
+    env::var(var_name).unwrap_or_default()
+}
+
+/// Get command-line arguments
+pub fn get_args() -> Vec<String> {
+    env::args().skip(1).collect() // Skip the program name
+}
+
+/// Sleep for specified milliseconds
+pub fn sleep_ms(ms: f64) {
+    thread::sleep(Duration::from_millis(ms as u64));
+}
+
+/// Execute a shell command and return output
+pub fn execute_command(command: &str) -> String {
+    if cfg!(target_os = "windows") {
+        match Command::new("cmd")
+            .args(["/C", command])
+            .output() {
+                Ok(output) => String::from_utf8_lossy(&output.stdout).to_string(),
+                Err(e) => format!("Error: {}", e),
+            }
+    } else {
+        match Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .output() {
+                Ok(output) => String::from_utf8_lossy(&output.stdout).to_string(),
+                Err(e) => format!("Error: {}", e),
+            }
+    }
+}
+
+/// Path operation functions
+
+/// Join path components
+pub fn join_path(parts: &[String]) -> String {
+    let path: PathBuf = parts.iter().collect();
+    path.to_string_lossy().to_string()
+}
+
+/// Get directory name from path
+pub fn dirname(path_str: &str) -> String {
+    let path = Path::new(path_str);
+    path.parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("/"))
+}
+
+/// Get base filename from path
+pub fn basename(path_str: &str) -> String {
+    let path = Path::new(path_str);
+    path.file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default()
+}
+
+/// Check if path exists
+pub fn path_exists(path_str: &str) -> bool {
+    Path::new(path_str).exists()
 }
 
 /// Array functions
