@@ -646,7 +646,7 @@ impl Parser {
     fn parse_comparison(&mut self) -> Option<Expr> {
         let mut left = self.parse_additive()?;
         
-        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "==" | ">" | "<" | ">=" | "<=")) {
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "==" | "!=" | ">" | "<" | ">=" | "<=")) {
             let op = match self.advance() {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,
@@ -684,7 +684,7 @@ impl Parser {
     fn parse_multiplicative(&mut self) -> Option<Expr> {
         let mut left = self.parse_call()?;
         
-        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "*" | "/")) {
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "*" | "/" | "%")) {
             let op = match self.advance() {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,

@@ -1284,7 +1284,9 @@ impl Interpreter {
                         "-" => Value::Number(a - b),
                         "*" => Value::Number(a * b),
                         "/" => Value::Number(a / b),
+                        "%" => Value::Number(a % b),
                         "==" => Value::Bool(a == b),
+                        "!=" => Value::Bool(a != b),
                         ">" => Value::Bool(a > b),
                         "<" => Value::Bool(a < b),
                         ">=" => Value::Bool(a >= b),
@@ -2605,5 +2607,262 @@ mod tests {
         } else {
             panic!("Expected flags array");
         }
+    }
+
+    #[test]
+    fn test_while_loop_basic() {
+        // Test basic while loop functionality
+        let code = r#"
+            x := 0
+            while x < 5 {
+                x := x + 1
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 5.0));
+    }
+
+    #[test]
+    fn test_while_loop_with_boolean() {
+        // Test while loop with boolean condition
+        let code = r#"
+            running := true
+            count := 0
+            while running {
+                count := count + 1
+                if count >= 3 {
+                    running := false
+                }
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("count"), Some(Value::Number(n)) if n == 3.0));
+        assert!(matches!(interp.env.get("running"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_break_in_while_loop() {
+        // Test break statement in while loop
+        let code = r#"
+            x := 0
+            while x < 100 {
+                x := x + 1
+                if x == 5 {
+                    break
+                }
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 5.0));
+    }
+
+    #[test]
+    fn test_break_in_for_loop() {
+        // Test break statement in for loop
+        let code = r#"
+            sum := 0
+            for i in 10 {
+                if i > 5 {
+                    break
+                }
+                sum := sum + i
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should sum 0+1+2+3+4+5 = 15
+        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 15.0));
+    }
+
+    #[test]
+    fn test_continue_in_while_loop() {
+        // Test continue statement in while loop
+        let code = r#"
+            x := 0
+            sum := 0
+            while x < 5 {
+                x := x + 1
+                if x == 3 {
+                    continue
+                }
+                sum := sum + x
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should sum 1+2+4+5 = 12 (skipping 3)
+        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 12.0));
+    }
+
+    #[test]
+    fn test_continue_in_for_loop() {
+        // Test continue statement in for loop
+        let code = r#"
+            sum := 0
+            for i in 10 {
+                if i % 2 == 0 {
+                    continue
+                }
+                sum := sum + i
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should sum only odd numbers: 1+3+5+7+9 = 25
+        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 25.0));
+    }
+
+    #[test]
+    fn test_nested_loops_with_break() {
+        // Test break only breaks inner loop
+        let code = r#"
+            outer := 0
+            inner_count := 0
+            for i in 3 {
+                outer := outer + 1
+                for j in 5 {
+                    inner_count := inner_count + 1
+                    if j == 2 {
+                        break
+                    }
+                }
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Outer loop runs 3 times, inner loop breaks at j==2 (runs 3 times per outer iteration)
+        // So inner_count should be 3 * 3 = 9
+        assert!(matches!(interp.env.get("outer"), Some(Value::Number(n)) if n == 3.0));
+        assert!(matches!(interp.env.get("inner_count"), Some(Value::Number(n)) if n == 9.0));
+    }
+
+    #[test]
+    fn test_nested_loops_with_continue() {
+        // Test continue only affects inner loop
+        let code = r#"
+            total := 0
+            for i in 3 {
+                for j in 5 {
+                    if j == 2 {
+                        continue
+                    }
+                    total := total + 1
+                }
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Outer loop runs 3 times, inner loop runs 5 times but skips j==2
+        // So total should be 3 * 4 = 12
+        assert!(matches!(interp.env.get("total"), Some(Value::Number(n)) if n == 12.0));
+    }
+
+    #[test]
+    fn test_while_with_break_and_continue() {
+        // Test both break and continue in same while loop
+        let code = r#"
+            x := 0
+            sum := 0
+            while true {
+                x := x + 1
+                if x > 10 {
+                    break
+                }
+                if x % 2 == 0 {
+                    continue
+                }
+                sum := sum + x
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should sum odd numbers from 1 to 9: 1+3+5+7+9 = 25
+        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 25.0));
+        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 11.0));
+    }
+
+    #[test]
+    fn test_while_false_condition() {
+        // Test while loop with false condition never executes
+        let code = r#"
+            executed := false
+            while false {
+                executed := true
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("executed"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_for_loop_with_array_and_break() {
+        // Test break in for loop iterating over array
+        let code = r#"
+            numbers := [1, 2, 3, 4, 5]
+            sum := 0
+            for n in numbers {
+                sum := sum + n
+                if n == 3 {
+                    break
+                }
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should sum 1+2+3 = 6
+        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 6.0));
+    }
+
+    #[test]
+    fn test_for_loop_with_array_and_continue() {
+        // Test continue in for loop iterating over array
+        let code = r#"
+            numbers := [1, 2, 3, 4, 5]
+            sum := 0
+            for n in numbers {
+                if n == 3 {
+                    continue
+                }
+                sum := sum + n
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        // Should sum 1+2+4+5 = 12 (skipping 3)
+        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 12.0));
+    }
+
+    #[test]
+    fn test_while_with_complex_condition() {
+        // Test while loop with complex boolean condition
+        let code = r#"
+            x := 0
+            y := 10
+            while x < 5 {
+                x := x + 1
+                y := y - 1
+            }
+        "#;
+        
+        let interp = run_code(code);
+        
+        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 5.0));
+        assert!(matches!(interp.env.get("y"), Some(Value::Number(n)) if n == 5.0));
     }
 }
