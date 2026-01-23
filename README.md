@@ -148,7 +148,7 @@
   - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()` - Timestamp and date operations
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
-  - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()` - HTTP client and server
+  - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()`, `set_header()` (v0.5.1), `set_headers()` (v0.5.1) - HTTP client and server with full header control
   - **Database** (v0.5.1): `db_connect()`, `db_execute()`, `db_query()`, `db_close()` - SQLite database operations
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
@@ -422,7 +422,58 @@ print("REST API running on http://localhost:8080")
 server.listen()
 ```
 
-See [examples/http_server_simple.ruff](examples/http_server_simple.ruff), [examples/http_rest_api.ruff](examples/http_rest_api.ruff), [examples/http_client.ruff](examples/http_client.ruff), and [examples/http_webhook.ruff](examples/http_webhook.ruff) for complete examples.
+**HTTP Headers** (v0.5.1):
+```ruff
+# Add individual headers
+response := http_response(200, "Success")
+response := set_header(response, "X-API-Version", "1.0")
+response := set_header(response, "Cache-Control", "max-age=3600")
+
+# Set multiple headers at once
+headers := {
+    "X-Request-ID": "abc-123",
+    "X-Rate-Limit": "1000",
+    "Access-Control-Allow-Origin": "*"
+}
+response := set_headers(response, headers)
+
+# JSON responses automatically include Content-Type
+json := json_response(200, {"status": "success"})  # Includes Content-Type: application/json
+
+# Redirects with custom headers
+redirect_headers := {"X-Redirect-Reason": "Moved permanently"}
+redirect := redirect_response("https://new-url.com", redirect_headers)
+
+# Access request headers in route handlers
+server.route("POST", "/api/upload", func(request) {
+    content_type := request.headers["Content-Type"]
+    auth_token := request.headers["Authorization"]
+    
+    if content_type != "application/json" {
+        return http_response(400, "Invalid Content-Type")
+    }
+    
+    response := json_response(200, {"uploaded": true})
+    return set_header(response, "X-Upload-ID", "upload-123")
+})
+```
+
+**Key Features**:
+- HTTP methods: GET, POST, PUT, DELETE
+- Path-based routing with exact matching
+- JSON request/response handling
+- Automatic request body parsing
+- Request body parsing (JSON)
+- Built-in response helpers
+- Error handling with proper status codes
+- Full header control:
+  - Custom response headers
+  - Automatic headers (Content-Type for JSON)
+  - Request header access
+  - CORS support
+  - Security headers
+
+See [examples/http_server_simple.ruff](examples/http_server_simple.ruff), [examples/http_rest_api.ruff](examples/http_rest_api.ruff), [examples/http_client.ruff](examples/http_client.ruff), [examples/http_webhook.ruff](examples/http_webhook.ruff), and [examples/http_headers_demo.ruff](examples/http_headers_demo.ruff) for complete examples.
 
 ### SQLite Database (v0.5.0) ✨
 
