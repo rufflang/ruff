@@ -3,7 +3,7 @@
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
 > **Current Version**: v0.5.1 (HTTP headers support added)  
-> **Next Planned Release**: v0.6.0 (Closures implemented)
+> **Next Planned Release**: v0.6.0 (Closures, method chaining, and binary file support completed)
 
 ---
 
@@ -144,37 +144,47 @@ top := stack.pop()  # 2
 
 ### 4. Binary File Support & HTTP Downloads (P1)
 
-**Status**: Planned  
+**Status**: ✅ Completed (2026-01-23)  
 **Estimated Effort**: Medium (1 week)
 
 **Description**:  
 Support for downloading and working with binary files (images, PDFs, archives, etc.) via HTTP client and file I/O.
 
-**Planned Features**:
+**Implemented Features**:
 ```ruff
 # Binary HTTP downloads
 image_data := http_get_binary("https://example.com/photo.jpg")
 write_binary_file("photo.jpg", image_data)
-
-# Download with progress tracking
-download("https://example.com/large.zip", "output.zip", func(progress) {
-    print("Downloaded: " + progress.percent + "%")
-})
 
 # Read binary files
 image_bytes := read_binary_file("photo.jpg")
 file_size := len(image_bytes)
 
 # Base64 encoding/decoding (for API transfers)
-base64_str := encode_base64(image_bytes)
+base64_str := encode_base64(image_bytes)  # Also accepts strings
 decoded := decode_base64(base64_str)
 ```
 
+**Implementation Notes**:
+- Added `Value::Bytes` type for native binary data handling
+- `read_binary_file(path)` - Read entire file as bytes
+- `write_binary_file(path, bytes)` - Write bytes to file
+- `http_get_binary(url)` - Download binary files via HTTP
+- `encode_base64(bytes_or_string)` - Encode to base64 string
+- `decode_base64(string)` - Decode base64 to bytes
+- `len()` function supports binary data for byte count
+
+**Examples**:
+- See `examples/binary_file_demo.ruff` for practical usage
+- See `examples/http_download.ruff` for HTTP download patterns
+- Comprehensive tests in `tests/test_binary_files.ruff`
+
 **Use Cases**:
 - Download AI-generated images from DALL-E, Stable Diffusion
-- Fetch PDFs, zip files, executables
+- Fetch PDFs, zip files, archives
 - Handle file uploads/downloads in HTTP servers
 - Work with media files (images, audio, video metadata)
+- Embed binary data in JSON via base64
 
 ---
 
