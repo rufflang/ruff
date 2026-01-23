@@ -1,6 +1,6 @@
 # Ruff Language - Development Roadmap
 
-This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features in v0.1.0, v0.2.0, and v0.3.0 (in progress), see [CHANGELOG.md](CHANGELOG.md).
+This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features, see [CHANGELOG.md](CHANGELOG.md).
 
 > **Current Version**: v0.3.0-dev (January 2026)  
 > **Next Planned Release**: v0.3.0
@@ -9,40 +9,11 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## 🔥 High Priority (v0.3.0)
 
-### 1. Boolean as First-Class Type
+### 1. Loop Control (break, continue, while)
 
 **Status**: Planned for v0.3.0  
-**Estimated Effort**: Medium (3-4 days)  
-**Priority**: Medium - Improves type system
-
-**Description**:  
-Make booleans a proper type instead of string identifiers.
-
-**Current Problem**:
-- `true` and `false` are identifiers that evaluate to `Value::Str("true")`
-- Special handling needed in if conditions
-- Type system doesn't recognize bool as distinct type
-
-**Planned Changes**:
-- Add `Value::Bool(bool)` variant
-- Parser recognizes `true`/`false` as bool literals
-- Type system has `TypeAnnotation::Bool`
-- Remove special string handling for "true"/"false"
-
-**Benefits**:
-- Cleaner implementation
-- Proper type checking for booleans
-- Better performance (no string comparisons)
-- More intuitive semantics
-
----
-
-## 🎯 Medium Priority (v0.3.x - v0.4.0)
-
-### 2. Loop Control (break, continue, while)
-
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 days)
+**Estimated Effort**: Small (2-3 days)  
+**Priority**: High - Essential control flow
 
 **Description**:  
 Add break, continue statements and while loops for better loop control.
@@ -75,7 +46,7 @@ for i in 10 {
 
 ---
 
-### 3. String Interpolation
+### 2. String Interpolation
 
 **Status**: Planned  
 **Estimated Effort**: Small (2-3 days)
@@ -94,7 +65,7 @@ result := "The answer is ${x * 2}"  # "The answer is 84"
 
 ---
 
-### 4. Enhanced String Functions
+### 3. Enhanced String Functions
 
 **Status**: Planned  
 **Estimated Effort**: Small (2-3 days)
@@ -111,7 +82,7 @@ join(["a", "b", "c"], ",")           # "a,b,c"
 
 ---
 
-### 5. Array Higher-Order Functions
+### 4. Array Higher-Order Functions
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -136,7 +107,7 @@ first_even := find([1, 2, 3, 4], func(x) { return x % 2 == 0 })  # 2
 
 ---
 
-### 6. Multi-Line and Doc Comments
+### 5. Multi-Line and Doc Comments
 
 **Status**: Planned  
 **Estimated Effort**: Small (1-2 days)
@@ -160,7 +131,7 @@ func square(x) {
 
 ---
 
-### 7. JSON Support
+### 6. JSON Support
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -180,7 +151,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ## 🚀 Long Term (v0.5.0+)
 
-### 8. REPL (Interactive Shell)
+### 7. REPL (Interactive Shell)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (3-4 days)
@@ -194,7 +165,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 9. Advanced Type System Features
+### 8. Advanced Type System Features
 
 **Status**: Research Phase  
 **Estimated Effort**: Large (2-3 weeks)
@@ -208,7 +179,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 10. LSP (Language Server Protocol)
+### 9. LSP (Language Server Protocol)
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -224,7 +195,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 11. Package Manager
+### 10. Package Manager
 
 **Status**: Planned  
 **Estimated Effort**: Large (2-3 weeks)
@@ -238,7 +209,7 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 ---
 
-### 12. Compilation Targets
+### 11. Compilation Targets
 
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (1-2 months)
@@ -277,8 +248,8 @@ json_str := to_json(person)  # '{"name":"Bob","score":95}'
 
 | Feature | Priority | Target Version | Status |
 |---------|----------|----------------|--------|
-| Boolean Type | High | v0.3.0 | Planned |
-| Loop Control | Medium | v0.3.x | Planned |
+| Boolean Type | High | v0.3.0 | ✅ Complete (see CHANGELOG) |
+| Loop Control | High | v0.3.0 | Planned |
 | String Interpolation | Medium | v0.3.x | Planned |
 | Enhanced Strings | Medium | v0.4.0 | Planned |
 | Array Higher-Order Fns | Medium | v0.4.0 | Planned |

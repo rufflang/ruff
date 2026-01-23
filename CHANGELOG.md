@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Boolean Type as First-Class Value**: Booleans are now proper runtime values
+  - Added `Value::Bool(bool)` variant to replace string-based "true"/"false"
+  - Added `Expr::Bool(bool)` to AST for boolean literals
+  - Lexer tokenizes `true` and `false` as `TokenKind::Bool` instead of identifiers
+  - Parser creates `Expr::Bool` for boolean tokens
+  - All comparison operators (`==`, `!=`, `<`, `>`, `<=`, `>=`) now return `Value::Bool`
+  - Type checker recognizes `TypeAnnotation::Bool` and infers boolean types from comparisons
+  - Boolean values work directly in if conditions: `if my_bool { }`
+  - Print function correctly displays boolean values as "true" or "false"
+  - File I/O functions (`write_file`, `append_file`, `create_dir`, `file_exists`) return proper booleans
+  - Backwards compatible: string-based "true"/"false" still work in if conditions
+  - 10 comprehensive integration tests covering: literals, comparisons, if conditions, equality, variables, structs, arrays
+  - Enhanced `examples/test_bool.ruff` with comprehensive demonstrations
+  - Fixed parser bug where `if x {` was incorrectly parsed as struct instantiation
 - **File I/O Functions**: Complete filesystem operations support
   - `read_file(path)`: Reads entire file as string
   - `write_file(path, content)`: Writes/overwrites file content
