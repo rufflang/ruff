@@ -38,6 +38,8 @@
   - `if`/`else` statements
   - Pattern matching with `match`/`case`
   - `loop` and `for` loops
+  - **NEW**: `while` loops (v0.3.0)
+  - **NEW**: `break` and `continue` statements (v0.3.0)
   - For-in iteration over arrays, dicts, strings, and ranges
   - `try`/`except`/`throw` error handling
 
@@ -91,8 +93,8 @@
   - **Error handling**: `throw()`
 
 * **Operators**
-  - Arithmetic: `+`, `-`, `*`, `/`
-  - Comparison: `==`, `>`, `<`, `>=`, `<=` (return `true`/`false` - v0.3.0)
+  - Arithmetic: `+`, `-`, `*`, `/`, `%` (modulo - v0.3.0)
+  - Comparison: `==`, `!=` (v0.3.0), `>`, `<`, `>=`, `<=` (return `true`/`false` - v0.3.0)
   - String concatenation with `+`
 
 * **Error Messages**
