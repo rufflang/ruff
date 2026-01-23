@@ -802,6 +802,15 @@ impl Parser {
         match self.peek() {
             TokenKind::Punctuation('[') => self.parse_array_literal(),
             TokenKind::Punctuation('{') => self.parse_dict_literal(),
+            TokenKind::Punctuation('(') => {
+                // Handle parenthesized expressions for grouping
+                self.advance(); // consume (
+                let expr = self.parse_expr();
+                if matches!(self.peek(), TokenKind::Punctuation(')')) {
+                    self.advance(); // consume )
+                }
+                expr
+            }
             TokenKind::InterpolatedString(_) => {
                 // Handle interpolated strings - extract parts first to avoid borrow issues
                 let parts = if let TokenKind::InterpolatedString(p) = self.peek() {

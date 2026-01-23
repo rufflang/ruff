@@ -2941,4 +2941,230 @@ mod tests {
         assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 5.0));
         assert!(matches!(interp.env.get("y"), Some(Value::Number(n)) if n == 5.0));
     }
+
+    // String Interpolation Tests
+    #[test]
+    fn test_string_interpolation_basic() {
+        let code = r#"
+            name := "World"
+            message := "Hello, ${name}!"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_numbers() {
+        let code = r#"
+            x := 42
+            result := "The answer is ${x}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "The answer is 42"));
+    }
+
+    #[test]
+    fn test_string_interpolation_expressions() {
+        let code = r#"
+            x := 6
+            y := 7
+            result := "6 times 7 equals ${x * y}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "6 times 7 equals 42")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_multiple() {
+        let code = r#"
+            first := "John"
+            last := "Doe"
+            age := 30
+            bio := "Name: ${first} ${last}, Age: ${age}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: John Doe, Age: 30")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_booleans() {
+        let code = r#"
+            is_valid := true
+            status := "Valid: ${is_valid}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("status"), Some(Value::Str(s)) if s == "Valid: true")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_comparisons() {
+        let code = r#"
+            x := 10
+            y := 5
+            result := "x > y: ${x > y}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x > y: true")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_nested_expressions() {
+        let code = r#"
+            a := 2
+            b := 3
+            c := 4
+            result := "Result: ${(a + b) * c}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Result: 20")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_function_call() {
+        let code = r#"
+            func double(x) {
+                return x * 2
+            }
+            
+            n := 21
+            result := "Double of ${n} is ${double(n)}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Double of 21 is 42")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_empty() {
+        let code = r#"
+            message := "No interpolation here"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "No interpolation here")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_only_expression() {
+        let code = r#"
+            x := 100
+            result := "${x}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "100"));
+    }
+
+    #[test]
+    fn test_string_interpolation_adjacent_expressions() {
+        let code = r#"
+            a := 1
+            b := 2
+            c := 3
+            result := "${a}${b}${c}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "123"));
+    }
+
+    #[test]
+    fn test_string_interpolation_with_text_between() {
+        let code = r#"
+            x := 10
+            y := 20
+            result := "x=${x}, y=${y}, sum=${x + y}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x=10, y=20, sum=30")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_string_concat() {
+        let code = r#"
+            greeting := "Hello"
+            name := "Alice"
+            result := "${greeting}, ${name}!"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Hello, Alice!")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_in_function() {
+        let code = r#"
+            func greet(name) {
+                return "Hello, ${name}!"
+            }
+            
+            message := greet("World")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!")
+        );
+    }
+
+    #[test]
+    fn test_string_interpolation_struct_field() {
+        let code = r#"
+            struct Person {
+                name: string,
+                age: int
+            }
+            
+            p := Person { name: "Bob", age: 25 }
+            bio := "Name: ${p.name}, Age: ${p.age}"
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(
+            matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: Bob, Age: 25")
+        );
+    }
 }
