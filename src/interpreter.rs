@@ -300,6 +300,12 @@ impl Interpreter {
         self.env.define("dirname".to_string(), Value::NativeFunction("dirname".to_string()));
         self.env.define("basename".to_string(), Value::NativeFunction("basename".to_string()));
         self.env.define("path_exists".to_string(), Value::NativeFunction("path_exists".to_string()));
+
+        // Regular expression functions
+        self.env.define("regex_match".to_string(), Value::NativeFunction("regex_match".to_string()));
+        self.env.define("regex_find_all".to_string(), Value::NativeFunction("regex_find_all".to_string()));
+        self.env.define("regex_replace".to_string(), Value::NativeFunction("regex_replace".to_string()));
+        self.env.define("regex_split".to_string(), Value::NativeFunction("regex_split".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -1110,6 +1116,55 @@ impl Interpreter {
                     Value::Bool(builtins::path_exists(path))
                 } else {
                     Value::Error("path_exists requires a string argument (path)".to_string())
+                }
+            }
+
+            // Regular expression functions
+            "regex_match" => {
+                // regex_match(text, pattern) - checks if text matches regex pattern
+                if let (Some(Value::Str(text)), Some(Value::Str(pattern))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Bool(builtins::regex_match(text, pattern))
+                } else {
+                    Value::Error("regex_match requires two string arguments (text, pattern)".to_string())
+                }
+            }
+
+            "regex_find_all" => {
+                // regex_find_all(text, pattern) - finds all matches of pattern in text
+                if let (Some(Value::Str(text)), Some(Value::Str(pattern))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let matches = builtins::regex_find_all(text, pattern);
+                    let values: Vec<Value> = matches.into_iter().map(Value::Str).collect();
+                    Value::Array(values)
+                } else {
+                    Value::Error("regex_find_all requires two string arguments (text, pattern)".to_string())
+                }
+            }
+
+            "regex_replace" => {
+                // regex_replace(text, pattern, replacement) - replaces pattern matches with replacement
+                if let (Some(Value::Str(text)), Some(Value::Str(pattern)), Some(Value::Str(replacement))) =
+                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                {
+                    Value::Str(builtins::regex_replace(text, pattern, replacement))
+                } else {
+                    Value::Error("regex_replace requires three string arguments (text, pattern, replacement)".to_string())
+                }
+            }
+
+            "regex_split" => {
+                // regex_split(text, pattern) - splits text by pattern
+                if let (Some(Value::Str(text)), Some(Value::Str(pattern))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let parts = builtins::regex_split(text, pattern);
+                    let values: Vec<Value> = parts.into_iter().map(Value::Str).collect();
+                    Value::Array(values)
+                } else {
+                    Value::Error("regex_split requires two string arguments (text, pattern)".to_string())
                 }
             }
 

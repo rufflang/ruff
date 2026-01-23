@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 use std::process::Command;
+use regex::Regex;
 
 /// Returns a HashMap of all built-in functions
 #[allow(dead_code)]
@@ -350,6 +351,48 @@ pub fn basename(path_str: &str) -> String {
 /// Check if path exists
 pub fn path_exists(path_str: &str) -> bool {
     Path::new(path_str).exists()
+}
+
+/// Regular expression functions
+
+/// Check if string matches regex pattern
+pub fn regex_match(text: &str, pattern: &str) -> bool {
+    match Regex::new(pattern) {
+        Ok(re) => re.is_match(text),
+        Err(_) => false, // Invalid regex returns false
+    }
+}
+
+/// Find all matches of regex pattern in text
+pub fn regex_find_all(text: &str, pattern: &str) -> Vec<String> {
+    match Regex::new(pattern) {
+        Ok(re) => {
+            re.find_iter(text)
+                .map(|m| m.as_str().to_string())
+                .collect()
+        }
+        Err(_) => vec![], // Invalid regex returns empty array
+    }
+}
+
+/// Replace all matches of regex pattern with replacement string
+pub fn regex_replace(text: &str, pattern: &str, replacement: &str) -> String {
+    match Regex::new(pattern) {
+        Ok(re) => re.replace_all(text, replacement).to_string(),
+        Err(_) => text.to_string(), // Invalid regex returns original text
+    }
+}
+
+/// Split string by regex pattern
+pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
+    match Regex::new(pattern) {
+        Ok(re) => {
+            re.split(text)
+                .map(|s| s.to_string())
+                .collect()
+        }
+        Err(_) => vec![text.to_string()], // Invalid regex returns original text as single element
+    }
 }
 
 /// Array functions
