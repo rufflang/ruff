@@ -380,6 +380,8 @@ impl Interpreter {
         self.env.define("http_response".to_string(), Value::NativeFunction("http_response".to_string()));
         self.env.define("json_response".to_string(), Value::NativeFunction("json_response".to_string()));
         self.env.define("redirect_response".to_string(), Value::NativeFunction("redirect_response".to_string()));
+        self.env.define("set_header".to_string(), Value::NativeFunction("set_header".to_string()));
+        self.env.define("set_headers".to_string(), Value::NativeFunction("set_headers".to_string()));
         
         // Database functions
         self.env.define("db_connect".to_string(), Value::NativeFunction("db_connect".to_string()));
@@ -672,6 +674,15 @@ impl Interpreter {
                 req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
                 req_fields.insert("body".to_string(), Value::Str(body_content.clone()));
                 req_fields.insert("params".to_string(), Value::Dict(params_dict));
+                
+                // Extract headers from request
+                let mut headers_dict = HashMap::new();
+                for header in request.headers() {
+                    let header_name = header.field.as_str().to_string();
+                    let header_value = header.value.as_str().to_string();
+                    headers_dict.insert(header_name, Value::Str(header_value));
+                }
+                req_fields.insert("headers".to_string(), Value::Dict(headers_dict));
                 
                 let req_obj = Value::Struct {
                     name: "Request".to_string(),
@@ -1591,6 +1602,52 @@ impl Interpreter {
                 }
             }
 
+            "set_header" => {
+                // set_header(response, key, value) - add a header to HTTP response
+                if let (Some(response), Some(Value::Str(key)), Some(Value::Str(value))) =
+                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                {
+                    if let Value::HttpResponse { status, body, headers } = response {
+                        let mut new_headers = headers.clone();
+                        new_headers.insert(key.clone(), value.clone());
+                        Value::HttpResponse {
+                            status: *status,
+                            body: body.clone(),
+                            headers: new_headers,
+                        }
+                    } else {
+                        Value::Error("set_header requires an HTTP response as first argument".to_string())
+                    }
+                } else {
+                    Value::Error("set_header requires response, header name, and header value".to_string())
+                }
+            }
+
+            "set_headers" => {
+                // set_headers(response, headers_dict) - set multiple headers at once
+                if let (Some(response), Some(Value::Dict(headers_dict))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    if let Value::HttpResponse { status, body, headers } = response {
+                        let mut new_headers = headers.clone();
+                        for (key, value) in headers_dict {
+                            if let Value::Str(val_str) = value {
+                                new_headers.insert(key.clone(), val_str.clone());
+                            }
+                        }
+                        Value::HttpResponse {
+                            status: *status,
+                            body: body.clone(),
+                            headers: new_headers,
+                        }
+                    } else {
+                        Value::Error("set_headers requires an HTTP response as first argument".to_string())
+                    }
+                } else {
+                    Value::Error("set_headers requires response and headers dictionary".to_string())
+                }
+            }
+
             "http_response" => {
                 // http_response(status, body) - create HTTP response
                 if let (Some(Value::Number(status)), Some(Value::Str(body))) =
@@ -1627,10 +1684,19 @@ impl Interpreter {
             }
 
             "redirect_response" => {
-                // redirect_response(url) - create HTTP 302 redirect response
+                // redirect_response(url) or redirect_response(url, headers_dict) - create HTTP 302 redirect response
                 if let Some(Value::Str(url)) = arg_values.get(0) {
                     let mut headers = HashMap::new();
                     headers.insert("Location".to_string(), url.clone());
+                    
+                    // If second argument is provided, merge additional headers
+                    if let Some(Value::Dict(extra_headers)) = arg_values.get(1) {
+                        for (key, value) in extra_headers {
+                            if let Value::Str(val_str) = value {
+                                headers.insert(key.clone(), val_str.clone());
+                            }
+                        }
+                    }
                     
                     Value::HttpResponse {
                         status: 302,

@@ -480,6 +480,22 @@ impl TypeChecker {
             },
         );
 
+        self.functions.insert(
+            "set_header".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // Response, key, value
+                return_type: None, // Returns HttpResponse object
+            },
+        );
+
+        self.functions.insert(
+            "set_headers".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Response, headers dict
+                return_type: None, // Returns HttpResponse object
+            },
+        );
+
         // Database functions
         self.functions.insert(
             "db_connect".to_string(),
