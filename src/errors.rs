@@ -4,8 +4,8 @@
 // Provides structured error types with source location information
 // and pretty-printed error messages.
 
-use std::fmt;
 use colored::Colorize;
+use std::fmt;
 
 /// Source location information for tracking where code appears in a file
 #[derive(Debug, Clone, PartialEq)]
@@ -18,27 +18,15 @@ pub struct SourceLocation {
 #[allow(dead_code)]
 impl SourceLocation {
     pub fn new(line: usize, column: usize) -> Self {
-        Self {
-            line,
-            column,
-            file: None,
-        }
+        Self { line, column, file: None }
     }
 
     pub fn with_file(line: usize, column: usize, file: String) -> Self {
-        Self {
-            line,
-            column,
-            file: Some(file),
-        }
+        Self { line, column, file: Some(file) }
     }
 
     pub fn unknown() -> Self {
-        Self {
-            line: 0,
-            column: 0,
-            file: None,
-        }
+        Self { line: 0, column: 0, file: None }
     }
 }
 
@@ -91,12 +79,7 @@ pub struct RuffError {
 #[allow(dead_code)]
 impl RuffError {
     pub fn new(kind: ErrorKind, message: String, location: SourceLocation) -> Self {
-        Self {
-            kind,
-            message,
-            location,
-            source_line: None,
-        }
+        Self { kind, message, location, source_line: None }
     }
 
     pub fn with_source(mut self, source_line: String) -> Self {
@@ -138,29 +121,33 @@ impl fmt::Display for RuffError {
         // Error header with kind and message
         let kind_str = format!("{}", self.kind);
         writeln!(f, "{}: {}", kind_str.red().bold(), self.message.bold())?;
-        
+
         // Location arrow
         let location_str = format!("  --> {}", self.location);
         writeln!(f, "{}", location_str.bright_blue())?;
-        
+
         // Source code context
         if let Some(ref source) = self.source_line {
             let line_num = self.location.line;
             let col_num = self.location.column;
-            
+
             writeln!(f, "   {}", "|".bright_blue())?;
-            writeln!(f, "{} {} {}", 
-                format!("{:3}", line_num).bright_blue(), 
+            writeln!(
+                f,
+                "{} {} {}",
+                format!("{:3}", line_num).bright_blue(),
                 "|".bright_blue(),
                 source
             )?;
-            writeln!(f, "   {} {}{}", 
+            writeln!(
+                f,
+                "   {} {}{}",
                 "|".bright_blue(),
-                " ".repeat(col_num.saturating_sub(1)), 
+                " ".repeat(col_num.saturating_sub(1)),
                 "^".red().bold()
             )?;
         }
-        
+
         Ok(())
     }
 }

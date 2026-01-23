@@ -39,6 +39,7 @@ git commit -m ":package: NEW: <description>"
 git commit -m ":ok_hand: IMPROVE: <description>"
 git commit -m ":bug: BUG: <description>"
 git commit -m ":book: DOC: <description>"
+git commit -m ":rocket: RELESE: v<description>"
 ```
 
 **Commit Types:**
@@ -608,6 +609,14 @@ return Err(RuffError::runtime(
    - ROADMAP updated (remove if completed)
    - README if user-facing
    - Code comments for complex logic
+
+---
+
+# When creating temporary files
+
+❗ All files MUST be written inside the workspace directory.
+❗ Do NOT write to /tmp, /var, or absolute paths.
+❗ Use ./scratch/, ./notes/, or ./checkpoints/ instead.
 
 ---
 

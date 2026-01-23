@@ -1,0 +1,111 @@
+# Loop Control Examples
+# Demonstrates while loops, break, and continue statements in Ruff
+
+# === While Loop Basics ===
+print("=== While Loop Basics ===")
+counter := 0
+while counter < 5 {
+    print(counter)
+    counter := counter + 1
+}
+print("Counter after loop:" + " " + counter)
+
+# === Break Statement ===
+print("\n=== Break Statement ===")
+# Break immediately exits the loop
+x := 0
+while true {
+    print(x)
+    x := x + 1
+    if x >= 3 {
+        print("Breaking at x = 3")
+        break
+    }
+}
+print("Final x value: " + x)
+
+# === Continue Statement ===
+print("\n=== Continue Statement ===")
+# Continue skips to the next iteration
+i := 0
+while i < 6 {
+    i := i + 1
+    if i == 3 {
+        print("Skipping 3")
+        continue
+    }
+    print("Processing: " + i)
+}
+
+# === Break in For Loop ===
+print("\n=== Break in For Loop ===")
+# Search for a specific number
+target := 7
+found := false
+for num in 10 {
+    if num == target {
+        print("Found target: " + num)
+        found := true
+        break
+    }
+}
+if !found {
+    print("Target not found")
+}
+
+# === Continue in For Loop ===
+print("\n=== Continue in For Loop ===")
+# Process only odd numbers
+sum := 0
+for i in 10 {
+    if i % 2 == 0 {
+        continue  # Skip even numbers
+    }
+    print("Adding odd number: " + i)
+    sum := sum + i
+}
+print("Sum of odd numbers (0-9): " + sum)
+
+# === Nested Loops with Break ===
+print("\n=== Nested Loops with Break ===")
+# Break only exits the inner loop
+for outer in 3 {
+    print("Outer loop: " + outer)
+    for inner in 5 {
+        if inner == 2 {
+            print("  Breaking inner at: " + inner)
+            break
+        }
+        print("  Inner loop: " + inner)
+    }
+}
+
+# === Complex Condition ===
+print("\n=== Complex Condition ===")
+# FizzBuzz-like example using while, continue, and modulo
+n := 1
+while n <= 15 {
+    fizz := n % 3 == 0
+    buzz := n % 5 == 0
+    
+    if fizz {
+        if buzz {
+            print(n + ": FizzBuzz")
+        } else {
+            print(n + ": Fizz")
+        }
+        n := n + 1
+        continue
+    }
+    
+    if buzz {
+        print(n + ": Buzz")
+        n := n + 1
+        continue
+    }
+    
+    print(n)
+    n := n + 1
+}
+
+print("\n=== Examples Complete ===")

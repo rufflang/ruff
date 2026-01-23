@@ -18,8 +18,8 @@ use crate::ast::{Expr, Stmt};
 use crate::lexer::{Token, TokenKind};
 use std::fs;
 use std::path::Path;
-use std::time::Instant;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// Parser maintains position in token stream and provides methods to parse statements and expressions
 pub struct Parser {
@@ -35,10 +35,7 @@ impl Parser {
 
     /// Peek at the current token without consuming it
     fn peek(&self) -> &TokenKind {
-        self.tokens
-            .get(self.pos)
-            .map(|t| &t.kind)
-            .unwrap_or(&TokenKind::Eof)
+        self.tokens.get(self.pos).map(|t| &t.kind).unwrap_or(&TokenKind::Eof)
     }
 
     /// Consume and return the current token, then advance to the next
@@ -57,7 +54,7 @@ impl Parser {
                 self.advance();
                 continue;
             }
-            
+
             if let Some(stmt) = self.parse_stmt() {
                 stmts.push(stmt);
             } else {
@@ -107,14 +104,11 @@ impl Parser {
                     // Check if next token is :=
                     if matches!(self.peek(), TokenKind::Operator(op) if op == ":=") {
                         self.advance(); // consume :=
-                        
+
                         // Parse := as assignment (create or update)
                         // The interpreter will decide whether to create new or update existing
                         let value = self.parse_expr()?;
-                        Some(Stmt::Assign {
-                            target: expr,
-                            value,
-                        })
+                        Some(Stmt::Assign { target: expr, value })
                     } else {
                         // Not an assignment, restore position and parse as expression statement
                         self.pos = saved_pos;
@@ -155,12 +149,14 @@ impl Parser {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
         };
-        
+
         self.advance(); // {
         let mut fields = Vec::new();
         let mut methods = Vec::new();
-        
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) && !matches!(self.peek(), TokenKind::Eof) {
+
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             // Check if this is a method definition
             if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
                 if let Some(method) = self.parse_func() {
@@ -170,10 +166,10 @@ impl Parser {
                 // Parse field: name: type
                 let field_name = field_name.clone();
                 self.advance();
-                
+
                 let field_type = self.parse_type_annotation();
                 fields.push((field_name, field_type));
-                
+
                 // Consume optional comma
                 if matches!(self.peek(), TokenKind::Punctuation(',')) {
                     self.advance();
@@ -184,7 +180,7 @@ impl Parser {
                 self.advance();
             }
         }
-        
+
         self.advance(); // }
         Some(Stmt::StructDef { name, fields, methods })
     }
@@ -202,23 +198,18 @@ impl Parser {
             }
             _ => false, // Plain identifier (e.g., val := ...)
         };
-        
+
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
         };
-        
+
         // Parse optional type annotation (: type)
         let type_annotation = self.parse_type_annotation();
-        
+
         self.advance(); // :=
         let value = self.parse_expr()?;
-        Some(Stmt::Let {
-            name,
-            value,
-            mutable: is_mut,
-            type_annotation,
-        })
+        Some(Stmt::Let { name, value, mutable: is_mut, type_annotation })
     }
 
     fn parse_const(&mut self) -> Option<Stmt> {
@@ -227,10 +218,10 @@ impl Parser {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
         };
-        
+
         // Parse optional type annotation (: type)
         let type_annotation = self.parse_type_annotation();
-        
+
         self.advance(); // :=
         let value = self.parse_expr()?;
         Some(Stmt::Const { name, value, type_annotation })
@@ -245,15 +236,15 @@ impl Parser {
         self.advance(); // (
         let mut params = Vec::new();
         let mut param_types = Vec::new();
-        
+
         while let TokenKind::Identifier(p) = self.peek() {
             params.push(p.clone());
             self.advance();
-            
+
             // Parse optional type annotation for parameter
             let param_type = self.parse_type_annotation();
             param_types.push(param_type);
-            
+
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
                 self.advance();
             } else {
@@ -261,7 +252,7 @@ impl Parser {
             }
         }
         self.advance(); // )
-        
+
         // Parse optional return type annotation (-> type)
         let return_type = if matches!(self.peek(), TokenKind::Operator(op) if op == "->") {
             self.advance(); // ->
@@ -287,7 +278,7 @@ impl Parser {
         } else {
             None
         };
-        
+
         self.advance(); // {
         let mut body = Vec::new();
         while !matches!(self.peek(), TokenKind::Punctuation('}')) {
@@ -298,13 +289,7 @@ impl Parser {
             }
         }
         self.advance(); // }
-        Some(Stmt::FuncDef { 
-            name, 
-            param_types,
-            return_type,
-            params, 
-            body 
-        })
+        Some(Stmt::FuncDef { name, param_types, return_type, params, body })
     }
 
     fn parse_match(&mut self) -> Option<Stmt> {
@@ -318,13 +303,13 @@ impl Parser {
             match self.peek() {
                 TokenKind::Keyword(k) if k == "case" => {
                     self.advance(); // case
-                    
+
                     // Parse pattern which might be Base::Variant or Base::Variant(var)
                     let pat = match self.advance() {
                         TokenKind::Identifier(s) => s.clone(),
                         _ => return None,
                     };
-                    
+
                     // Check for :: operator (enum variant)
                     let pat_str = if matches!(self.peek(), TokenKind::Operator(op) if op == "::") {
                         self.advance(); // ::
@@ -333,7 +318,7 @@ impl Parser {
                             _ => return None,
                         };
                         let full_tag = format!("{}::{}", pat, variant);
-                        
+
                         // Check for parameter binding like Result::Ok(msg)
                         if matches!(self.peek(), TokenKind::Punctuation('(')) {
                             self.advance(); // (
@@ -360,7 +345,7 @@ impl Parser {
                             pat
                         }
                     };
-                    
+
                     self.advance(); // :
                     self.advance(); // {
                     let mut body = Vec::new();
@@ -441,8 +426,8 @@ impl Parser {
             _ => return None,
         };
         self.advance(); // in
-        // Use parse_primary to get just the identifier without postfix operations
-        // This prevents "for i in arr { }" from being parsed as struct instantiation
+                        // Use parse_primary to get just the identifier without postfix operations
+                        // This prevents "for i in arr { }" from being parsed as struct instantiation
         let iterable = self.parse_primary()?;
         self.advance(); // {
         let mut body = Vec::new();
@@ -491,23 +476,23 @@ impl Parser {
         // Two forms:
         // 1. import module
         // 2. from module import symbol1, symbol2
-        
+
         let is_from = matches!(self.peek(), TokenKind::Keyword(k) if k == "from");
         self.advance(); // import or from
-        
+
         if is_from {
             // from module import ...
             let module = match self.advance() {
                 TokenKind::Identifier(m) => m.clone(),
                 _ => return None,
             };
-            
+
             // expect 'import' keyword
             if !matches!(self.peek(), TokenKind::Keyword(k) if k == "import") {
                 return None;
             }
             self.advance(); // import
-            
+
             // Parse symbol list
             let mut symbols = Vec::new();
             loop {
@@ -515,41 +500,33 @@ impl Parser {
                     TokenKind::Identifier(s) => symbols.push(s.clone()),
                     _ => return None,
                 }
-                
+
                 if matches!(self.peek(), TokenKind::Punctuation(',')) {
                     self.advance(); // ,
                 } else {
                     break;
                 }
             }
-            
-            Some(Stmt::Import {
-                module,
-                symbols: Some(symbols),
-            })
+
+            Some(Stmt::Import { module, symbols: Some(symbols) })
         } else {
             // import module
             let module = match self.advance() {
                 TokenKind::Identifier(m) => m.clone(),
                 _ => return None,
             };
-            
-            Some(Stmt::Import {
-                module,
-                symbols: None,
-            })
+
+            Some(Stmt::Import { module, symbols: None })
         }
     }
 
     fn parse_export(&mut self) -> Option<Stmt> {
         self.advance(); // export
-        
+
         // Parse the statement to be exported
         let stmt = self.parse_stmt()?;
-        
-        Some(Stmt::Export {
-            stmt: Box::new(stmt),
-        })
+
+        Some(Stmt::Export { stmt: Box::new(stmt) })
     }
 
     fn parse_if(&mut self) -> Option<Stmt> {
@@ -565,7 +542,7 @@ impl Parser {
             }
         }
         self.advance(); // }
-        
+
         let else_branch = if matches!(self.peek(), TokenKind::Keyword(k) if k == "else") {
             self.advance(); // else
             self.advance(); // {
@@ -582,14 +559,16 @@ impl Parser {
         } else {
             None
         };
-        
+
         Some(Stmt::If { condition, then_branch, else_branch })
     }
 
     fn parse_expr(&mut self) -> Option<Expr> {
         // Check for enum tag (e.g., Result::Ok(...))
         if let TokenKind::Identifier(a) = self.peek() {
-            if self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Operator("::".into())) {
+            if self.tokens.get(self.pos + 1).map(|t| &t.kind)
+                == Some(&TokenKind::Operator("::".into()))
+            {
                 let base = a.clone();
                 self.advance(); // base
                 self.advance(); // ::
@@ -620,7 +599,9 @@ impl Parser {
         if let TokenKind::Identifier(name) = self.peek() {
             let name_clone = name.clone();
             if matches!(name_clone.as_str(), "print" | "throw") {
-                if self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Punctuation('(')) {
+                if self.tokens.get(self.pos + 1).map(|t| &t.kind)
+                    == Some(&TokenKind::Punctuation('('))
+                {
                     self.advance(); // name
                     self.advance(); // (
                     let mut args = Vec::new();
@@ -645,64 +626,54 @@ impl Parser {
 
     fn parse_comparison(&mut self) -> Option<Expr> {
         let mut left = self.parse_additive()?;
-        
-        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "==" | "!=" | ">" | "<" | ">=" | "<=")) {
+
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "==" | "!=" | ">" | "<" | ">=" | "<="))
+        {
             let op = match self.advance() {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,
             };
             let right = self.parse_additive()?;
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op,
-                right: Box::new(right),
-            };
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
         }
-        
+
         Some(left)
     }
 
     fn parse_additive(&mut self) -> Option<Expr> {
         let mut left = self.parse_multiplicative()?;
-        
+
         while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "+" | "-")) {
             let op = match self.advance() {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,
             };
             let right = self.parse_multiplicative()?;
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op,
-                right: Box::new(right),
-            };
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
         }
-        
+
         Some(left)
     }
 
     fn parse_multiplicative(&mut self) -> Option<Expr> {
         let mut left = self.parse_call()?;
-        
-        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "*" | "/" | "%")) {
+
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "*" | "/" | "%"))
+        {
             let op = match self.advance() {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,
             };
             let right = self.parse_call()?;
-            left = Expr::BinaryOp {
-                left: Box::new(left),
-                op,
-                right: Box::new(right),
-            };
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
         }
-        
+
         Some(left)
     }
 
     fn parse_call(&mut self) -> Option<Expr> {
         let mut expr = self.parse_primary()?;
-        
+
         loop {
             match self.peek() {
                 // Handle function calls
@@ -720,10 +691,7 @@ impl Parser {
                         }
                     }
                     self.advance(); // )
-                    expr = Expr::Call {
-                        function: Box::new(expr),
-                        args,
-                    };
+                    expr = Expr::Call { function: Box::new(expr), args };
                 }
                 // Handle field access
                 TokenKind::Punctuation('.') => {
@@ -731,10 +699,7 @@ impl Parser {
                     if let TokenKind::Identifier(field) = self.peek() {
                         let field_name = field.clone();
                         self.advance();
-                        expr = Expr::FieldAccess {
-                            object: Box::new(expr),
-                            field: field_name,
-                        };
+                        expr = Expr::FieldAccess { object: Box::new(expr), field: field_name };
                     } else {
                         break;
                     }
@@ -765,47 +730,48 @@ impl Parser {
                     let is_struct = match next_token.map(|t| &t.kind) {
                         Some(TokenKind::Identifier(_)) => {
                             // Check if there's a colon after the identifier
-                            self.tokens.get(self.pos + 2).map(|t| &t.kind) == Some(&TokenKind::Punctuation(':'))
+                            self.tokens.get(self.pos + 2).map(|t| &t.kind)
+                                == Some(&TokenKind::Punctuation(':'))
                         }
                         Some(TokenKind::Punctuation('}')) => {
                             // Empty braces {} - treat as empty struct
                             true
                         }
-                        _ => false
+                        _ => false,
                     };
-                    
+
                     if !is_struct {
                         // Not a struct instantiation, stop parsing here
                         break;
                     }
-                    
+
                     // This is a struct instantiation
                     if let Expr::Identifier(name) = expr {
                         self.advance(); // {
                         let mut fields = Vec::new();
-                        
+
                         loop {
                             if matches!(self.peek(), TokenKind::Punctuation('}')) {
                                 break;
                             }
-                            
+
                             if let TokenKind::Identifier(field_name) = self.peek() {
                                 let field_name = field_name.clone();
                                 self.advance(); // consume field name
-                                
+
                                 // Expect colon
                                 if !matches!(self.peek(), TokenKind::Punctuation(':')) {
                                     break; // Invalid syntax
                                 }
                                 self.advance(); // consume :
-                                
+
                                 // Parse field value - use parse_primary to avoid recursion
                                 // This means field values can only be literals or identifiers for now
                                 // TODO: Support full expressions in struct literals
                                 if let Some(value) = self.parse_primary() {
                                     fields.push((field_name, value));
                                 }
-                                
+
                                 // Check for comma or end
                                 if matches!(self.peek(), TokenKind::Punctuation(',')) {
                                     self.advance();
@@ -819,7 +785,7 @@ impl Parser {
                                 break;
                             }
                         }
-                        
+
                         self.advance(); // consume }
                         expr = Expr::StructInstance { name, fields };
                     }
@@ -828,7 +794,7 @@ impl Parser {
                 _ => break,
             }
         }
-        
+
         Some(expr)
     }
 
@@ -852,56 +818,60 @@ impl Parser {
     fn parse_array_literal(&mut self) -> Option<Expr> {
         self.advance(); // consume [
         let mut elements = Vec::new();
-        
-        while !matches!(self.peek(), TokenKind::Punctuation(']')) && !matches!(self.peek(), TokenKind::Eof) {
+
+        while !matches!(self.peek(), TokenKind::Punctuation(']'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             // Use parse_comparison to avoid infinite recursion through parse_call
             if let Some(elem) = self.parse_comparison() {
                 elements.push(elem);
             }
-            
+
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
                 self.advance();
             } else if !matches!(self.peek(), TokenKind::Punctuation(']')) {
                 break; // Unexpected token
             }
         }
-        
+
         if matches!(self.peek(), TokenKind::Punctuation(']')) {
             self.advance(); // consume ]
         }
-        
+
         Some(Expr::ArrayLiteral(elements))
     }
 
     fn parse_dict_literal(&mut self) -> Option<Expr> {
         self.advance(); // consume {
         let mut pairs = Vec::new();
-        
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) && !matches!(self.peek(), TokenKind::Eof) {
+
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             // Parse key - use parse_comparison to avoid recursion
             let key = self.parse_comparison()?;
-            
+
             // Expect colon
             if !matches!(self.peek(), TokenKind::Punctuation(':')) {
                 break;
             }
             self.advance(); // consume :
-            
+
             // Parse value - use parse_comparison to avoid recursion
             let value = self.parse_comparison()?;
             pairs.push((key, value));
-            
+
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
                 self.advance();
             } else if !matches!(self.peek(), TokenKind::Punctuation('}')) {
                 break;
             }
         }
-        
+
         if matches!(self.peek(), TokenKind::Punctuation('}')) {
             self.advance(); // consume }
         }
-        
+
         Some(Expr::DictLiteral(pairs))
     }
 
@@ -909,24 +879,24 @@ impl Parser {
     /// Returns Some(TypeAnnotation) if a type annotation is present, None otherwise
     fn parse_type_annotation(&mut self) -> Option<crate::ast::TypeAnnotation> {
         use crate::ast::TypeAnnotation;
-        
+
         // Check if there's a colon for type annotation
         // But NOT if it's := (assignment operator)
         if !matches!(self.peek(), TokenKind::Punctuation(':')) {
             return None;
         }
-        
+
         // Peek ahead - if next token is '=', this is ':=' not a type annotation
         let saved_pos = self.pos;
         self.advance(); // tentatively consume :
-        
+
         // Check if this is actually part of ':='
         if matches!(self.peek(), TokenKind::Operator(op) if op == "=") {
             // This was part of ':=', backtrack
             self.pos = saved_pos;
             return None;
         }
-        
+
         // Parse the type keyword
         match self.peek() {
             TokenKind::Keyword(k) if k == "int" => {

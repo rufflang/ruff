@@ -17,10 +17,7 @@ pub enum TypeAnnotation {
     Float,
     String,
     Bool,
-    Function {
-        params: Vec<TypeAnnotation>,
-        return_type: Box<TypeAnnotation>,
-    },
+    Function { params: Vec<TypeAnnotation>, return_type: Box<TypeAnnotation> },
     Enum(String),
     Union(Vec<TypeAnnotation>),
     Any, // For gradual typing - no type checking
@@ -105,7 +102,7 @@ pub enum Stmt {
     },
     #[allow(dead_code)]
     Assign {
-        target: Expr,  // Can be Identifier or IndexAccess
+        target: Expr, // Can be Identifier or IndexAccess
         value: Expr,
     },
     FuncDef {

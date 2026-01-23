@@ -93,11 +93,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         s.push(ch);
                     }
                 }
-                tokens.push(Token {
-                    kind: TokenKind::String(s),
-                    line,
-                    column: col,
-                });
+                tokens.push(Token { kind: TokenKind::String(s), line, column: col });
                 col += 1;
             }
             '0'..='9' => {
@@ -112,11 +108,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     }
                 }
                 let parsed = num.parse().unwrap_or(0.0);
-                tokens.push(Token {
-                    kind: TokenKind::Number(parsed),
-                    line,
-                    column: col,
-                });
+                tokens.push(Token { kind: TokenKind::Number(parsed), line, column: col });
             }
             'a'..='z' | 'A'..='Z' | '_' => {
                 let mut ident = String::new();
@@ -131,11 +123,10 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 }
 
                 let kind = match ident.as_str() {
-                    "let" | "mut" | "const" | "func" | "return" | "enum" |
-                    "match" | "case" | "default" | "if" | "else" | "loop" |
-                    "while" | "for" | "in" | "break" | "continue" | "try" | "except" |
-                    "int" | "float" | "string" | "bool" |
-                    "import" | "export" | "from" | "struct" | "impl" | "self" => {
+                    "let" | "mut" | "const" | "func" | "return" | "enum" | "match" | "case"
+                    | "default" | "if" | "else" | "loop" | "while" | "for" | "in" | "break"
+                    | "continue" | "try" | "except" | "int" | "float" | "string" | "bool"
+                    | "import" | "export" | "from" | "struct" | "impl" | "self" => {
                         TokenKind::Keyword(ident)
                     }
                     "true" => TokenKind::Bool(true),
@@ -143,11 +134,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     _ => TokenKind::Identifier(ident),
                 };
 
-                tokens.push(Token {
-                    kind,
-                    line,
-                    column: col,
-                });
+                tokens.push(Token { kind, line, column: col });
             }
             ':' => {
                 chars.next();
@@ -169,11 +156,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         column: col,
                     });
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Punctuation(':'),
-                        line,
-                        column: col,
-                    });
+                    tokens.push(Token { kind: TokenKind::Punctuation(':'), line, column: col });
                 }
             }
             '=' | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '!' => {
@@ -229,11 +212,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                 }
             }
             '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' | '.' => {
-                tokens.push(Token {
-                    kind: TokenKind::Punctuation(c),
-                    line,
-                    column: col,
-                });
+                tokens.push(Token { kind: TokenKind::Punctuation(c), line, column: col });
                 chars.next();
                 col += 1;
             }
@@ -244,11 +223,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
         }
     }
 
-    tokens.push(Token {
-        kind: TokenKind::Eof,
-        line,
-        column: col,
-    });
+    tokens.push(Token { kind: TokenKind::Eof, line, column: col });
 
     tokens
 }
