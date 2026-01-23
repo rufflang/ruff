@@ -144,6 +144,9 @@
   - Arithmetic: `+`, `-`, `*`, `/`, `%` (modulo - v0.3.0)
   - Comparison: `==`, `!=` (v0.3.0), `>`, `<`, `>=`, `<=` (return `true`/`false` - v0.3.0)
   - String concatenation with `+`
+  - **Operator Overloading** (v0.4.0+): Structs can define custom operator behavior
+    - Binary operators: `op_add`, `op_sub`, `op_mul`, `op_div`, `op_mod`, `op_eq`, `op_ne`, `op_gt`, `op_lt`, `op_ge`, `op_le`
+    - Unary operators: `op_neg` (unary minus `-`), `op_not` (logical not `!`)
 
 * **Error Messages**
   - Colored error output
