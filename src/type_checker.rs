@@ -246,6 +246,130 @@ impl TypeChecker {
                 return_type: Some(TypeAnnotation::String),
             },
         );
+
+        // Random functions
+        self.functions.insert(
+            "random".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
+            "random_int".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Float), Some(TypeAnnotation::Float)],
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
+            "random_choice".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns element from array
+            },
+        );
+
+        // Date/Time functions
+        self.functions.insert(
+            "now".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
+            "format_date".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Float), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "parse_date".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        // System operation functions
+        self.functions.insert(
+            "env".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "args".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: None, // Returns array of strings
+            },
+        );
+
+        self.functions.insert(
+            "exit".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Float)],
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "sleep".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Float)],
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "execute".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        // Path operation functions
+        self.functions.insert(
+            "join_path".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Variadic string arguments
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "dirname".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "basename".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "path_exists".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
     }
 
     /// Type check a list of statements
