@@ -401,6 +401,7 @@ impl Interpreter {
         self.env.define("http_put".to_string(), Value::NativeFunction("http_put".to_string()));
         self.env
             .define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
+        self.env.define("http_get_binary".to_string(), Value::NativeFunction("http_get_binary".to_string()));
 
         // HTTP server functions
         self.env
@@ -1739,6 +1740,18 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("http_delete requires a URL string".to_string())
+                }
+            }
+
+            "http_get_binary" => {
+                // http_get_binary(url) - make GET request and return binary data
+                if let Some(Value::Str(url)) = arg_values.get(0) {
+                    match builtins::http_get_binary(url) {
+                        Ok(bytes) => Value::Bytes(bytes),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("http_get_binary requires a URL string".to_string())
                 }
             }
 

@@ -468,6 +468,22 @@ pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
     }
 }
 
+/// Make an HTTP GET request and return binary data
+pub fn http_get_binary(url: &str) -> Result<Vec<u8>, String> {
+    match reqwest::blocking::get(url) {
+        Ok(response) => {
+            if !response.status().is_success() {
+                return Err(format!("HTTP GET failed with status: {}", response.status()));
+            }
+            match response.bytes() {
+                Ok(bytes) => Ok(bytes.to_vec()),
+                Err(e) => Err(format!("Failed to read response bytes: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("HTTP GET request failed: {}", e)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
