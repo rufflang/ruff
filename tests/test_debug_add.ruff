@@ -1,0 +1,21 @@
+# Debug: check if __add__ exists
+
+struct Vector {
+    x: float,
+    y: float,
+    
+    func __add__(other) {
+        print("In __add__!");
+        return x + other.x;
+    }
+}
+
+v1 := Vector { x: 1.0, y: 2.0 };
+v2 := Vector { x: 3.0, y: 4.0 };
+print("Calling __add__ via method:");
+result := v1.__add__(v2);
+print(result);
+
+print("Calling __add__ via operator:");
+result2 := v1 + v2;
+print(result2);

@@ -2041,7 +2041,6 @@ impl Interpreter {
 
                                 // Execute method body
                                 self.eval_stmts(&body);
-
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
                                 {
