@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Operator Overloading (Partial)**: Infrastructure for custom operator behavior on structs
+  - Added operator method naming convention: `op_add`, `op_sub`, `op_mul`, `op_div`, `op_mod` for arithmetic operators
+  - Added comparison operator methods: `op_eq`, `op_ne`, `op_lt`, `op_gt`, `op_le`, `op_ge`
+  - Interpreter checks for operator methods on struct instances before using default behavior
+  - **Note**: Full functionality awaits resolution of struct method parameter handling
+  - Example (intended usage):
+    ```ruff
+    struct Vector {
+        x: float,
+        y: float,
+        func op_add(other) {
+            return Vector { x: x + other.x, y: y + other.y };
+        }
+    }
+    v3 := v1 + v2;  # Will call op_add when method parameters work
+    ```
+
 - **Enhanced Error Handling**: Comprehensive error handling improvements for better debugging and error management
   
   **Error Properties**: Access detailed error information in except blocks

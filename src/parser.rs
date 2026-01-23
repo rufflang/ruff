@@ -282,6 +282,12 @@ impl Parser {
         self.advance(); // {
         let mut body = Vec::new();
         while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            // Skip semicolons between statements
+            if matches!(self.peek(), TokenKind::Punctuation(';')) {
+                self.advance();
+                continue;
+            }
+
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
@@ -827,10 +833,9 @@ impl Parser {
                                 }
                                 self.advance(); // consume :
 
-                                // Parse field value - use parse_primary to avoid recursion
-                                // This means field values can only be literals or identifiers for now
-                                // TODO: Support full expressions in struct literals
-                                if let Some(value) = self.parse_primary() {
+                                // Parse field value - use parse_comparison to avoid infinite recursion
+                                // while still supporting expressions like x + y, x * 2, etc.
+                                if let Some(value) = self.parse_comparison() {
                                     fields.push((field_name, value));
                                 }
 

@@ -1,0 +1,56 @@
+# Operator Overloading Example
+# Demonstrates operator overloading for custom structs
+
+# Note: Due to current limitations with struct methods taking parameters,
+# this example shows the intended usage. Full support will be available
+# when struct method parameters are fully implemented.
+
+# Example 1: Vector addition
+# When struct methods with parameters are supported, this will work:
+#
+# struct Vector {
+#     x: float,
+#     y: float,
+#     
+#     func op_add(other) {
+#         return Vector { x: x + other.x, y: y + other.y };
+#     },
+#     
+#     func op_mul(scalar) {
+#         return Vector { x: x * scalar, y: y * scalar };
+#     }
+# }
+#
+# v1 := Vector { x: 1.0, y: 2.0 };
+# v2 := Vector { x: 3.0, y: 4.0 };
+# v3 := v1 + v2;  # Calls op_add method
+# v4 := v1 * 2.0;  # Calls op_mul method
+
+# Example 2: Money type with arithmetic
+# struct Money {
+#     amount: float,
+#     currency: string,
+#     
+#     func op_add(other) {
+#         return Money { amount: amount + other.amount, currency: currency };
+#     },
+#     
+#     func op_sub(other) {
+#         return Money { amount: amount - other.amount, currency: currency };
+#     },
+#     
+#     func op_eq(other) {
+#         return amount == other.amount && currency == other.currency;
+#     },
+#     
+#     func op_lt(other) {
+#         return amount < other.amount;
+#     }
+# }
+
+print("Operator overloading support added!");
+print("Supported operator methods:");
+print("  op_add (+), op_sub (-), op_mul (*), op_div (/), op_mod (%)");
+print("  op_eq (==), op_ne (!=), op_lt (<), op_gt (>), op_le (<=), op_ge (>=)");
+print("");
+print("Full examples will work once struct method parameters are fully supported.");
