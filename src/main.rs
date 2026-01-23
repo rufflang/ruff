@@ -4,14 +4,14 @@
 // Handles command-line argument parsing and dispatches to the appropriate
 // subcommand (run, repl, or test).
 
-mod lexer;
-mod parser;
 mod ast;
-mod interpreter;
-mod errors;
-mod type_checker;
-mod module;
 mod builtins;
+mod errors;
+mod interpreter;
+mod lexer;
+mod module;
+mod parser;
+mod type_checker;
 
 use clap::{Parser as ClapParser, Subcommand};
 use std::fs;
@@ -59,7 +59,7 @@ fn main() {
             let tokens = lexer::tokenize(&code);
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
-            
+
             // Type checking phase (optional - won't stop execution even if errors found)
             let mut type_checker = type_checker::TypeChecker::new();
             if let Err(errors) = type_checker.check(&stmts) {
@@ -69,7 +69,7 @@ fn main() {
                 }
                 eprintln!();
             }
-            
+
             let mut interpreter = interpreter::Interpreter::new();
             interpreter.set_source(filename, &code);
             interpreter.eval_stmts(&stmts);
