@@ -24,6 +24,14 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
+/// Control flow signals for loop statements
+#[derive(Debug, Clone, PartialEq)]
+enum ControlFlow {
+    None,
+    Break,
+    Continue,
+}
+
 /// Runtime values in the Ruff interpreter
 #[derive(Clone)]
 pub enum Value {
@@ -161,6 +169,7 @@ impl Default for Environment {
 pub struct Interpreter {
     pub env: Environment,
     pub return_value: Option<Value>,
+    control_flow: ControlFlow,
     output: Option<Arc<Mutex<Vec<u8>>>>,
     pub source_file: Option<String>,
     pub source_lines: Vec<String>,
@@ -173,6 +182,7 @@ impl Interpreter {
 		let mut interpreter = Interpreter {
 			env: Environment::default(),
 			return_value: None,
+			control_flow: ControlFlow::None,
 			output: None,
 			source_file: None,
 			source_lines: Vec::new(),
@@ -650,7 +660,7 @@ impl Interpreter {
     pub fn eval_stmts(&mut self, stmts: &[Stmt]) {
         for stmt in stmts {
             self.eval_stmt(stmt);
-            if self.return_value.is_some() {
+            if self.return_value.is_some() || self.control_flow != ControlFlow::None {
                 break;
             }
         }
@@ -967,6 +977,16 @@ impl Interpreter {
                     .unwrap_or(true)
                 {
                     self.eval_stmts(&body);
+                    
+                    // Handle control flow
+                    if self.control_flow == ControlFlow::Break {
+                        self.control_flow = ControlFlow::None;
+                        break;
+                    } else if self.control_flow == ControlFlow::Continue {
+                        self.control_flow = ControlFlow::None;
+                        continue;
+                    }
+                    
                     if self.return_value.is_some() {
                         break;
                     }
@@ -989,6 +1009,15 @@ impl Interpreter {
                             // Restore parent environment
                             self.env.pop_scope();
                             
+                            // Handle control flow
+                            if self.control_flow == ControlFlow::Break {
+                                self.control_flow = ControlFlow::None;
+                                break;
+                            } else if self.control_flow == ControlFlow::Continue {
+                                self.control_flow = ControlFlow::None;
+                                continue;
+                            }
+                            
                             if self.return_value.is_some() {
                                 break;
                             }
@@ -1007,6 +1036,15 @@ impl Interpreter {
                             
                             // Restore parent environment
                             self.env.pop_scope();
+                            
+                            // Handle control flow
+                            if self.control_flow == ControlFlow::Break {
+                                self.control_flow = ControlFlow::None;
+                                break;
+                            } else if self.control_flow == ControlFlow::Continue {
+                                self.control_flow = ControlFlow::None;
+                                continue;
+                            }
                             
                             if self.return_value.is_some() {
                                 break;
@@ -1028,6 +1066,15 @@ impl Interpreter {
                             // Restore parent environment
                             self.env.pop_scope();
                             
+                            // Handle control flow
+                            if self.control_flow == ControlFlow::Break {
+                                self.control_flow = ControlFlow::None;
+                                break;
+                            } else if self.control_flow == ControlFlow::Continue {
+                                self.control_flow = ControlFlow::None;
+                                continue;
+                            }
+                            
                             if self.return_value.is_some() {
                                 break;
                             }
@@ -1047,6 +1094,15 @@ impl Interpreter {
                             // Restore parent environment
                             self.env.pop_scope();
                             
+                            // Handle control flow
+                            if self.control_flow == ControlFlow::Break {
+                                self.control_flow = ControlFlow::None;
+                                break;
+                            } else if self.control_flow == ControlFlow::Continue {
+                                self.control_flow = ControlFlow::None;
+                                continue;
+                            }
+                            
                             if self.return_value.is_some() {
                                 break;
                             }
@@ -1056,6 +1112,53 @@ impl Interpreter {
                         eprintln!("Cannot iterate over non-iterable type");
                     }
                 }
+            }
+            Stmt::While { condition, body } => {
+                // While loop: execute body while condition is truthy
+                loop {
+                    let cond_val = self.eval_expr(condition);
+                    let is_truthy = match cond_val {
+                        Value::Bool(b) => b,
+                        Value::Number(n) => n != 0.0,
+                        Value::Str(s) => {
+                            if s == "true" {
+                                true
+                            } else if s == "false" {
+                                false
+                            } else {
+                                !s.is_empty()
+                            }
+                        }
+                        Value::Array(ref arr) => !arr.is_empty(),
+                        Value::Dict(ref dict) => !dict.is_empty(),
+                        _ => true,
+                    };
+                    
+                    if !is_truthy {
+                        break;
+                    }
+                    
+                    self.eval_stmts(&body);
+                    
+                    // Handle control flow
+                    if self.control_flow == ControlFlow::Break {
+                        self.control_flow = ControlFlow::None;
+                        break;
+                    } else if self.control_flow == ControlFlow::Continue {
+                        self.control_flow = ControlFlow::None;
+                        continue;
+                    }
+                    
+                    if self.return_value.is_some() {
+                        break;
+                    }
+                }
+            }
+            Stmt::Break => {
+                self.control_flow = ControlFlow::Break;
+            }
+            Stmt::Continue => {
+                self.control_flow = ControlFlow::Continue;
             }
             Stmt::Return(expr) => {
                 let value = expr.as_ref().map(|e| self.eval_expr(&e)).unwrap_or(Value::Number(0.0));

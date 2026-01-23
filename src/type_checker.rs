@@ -262,6 +262,21 @@ impl TypeChecker {
 				}
 			}
 
+			Stmt::While { condition, body } => {
+				self.infer_expr(condition);
+				for s in body {
+					self.check_stmt(s);
+				}
+			}
+
+			Stmt::Break => {
+				// No type checking needed for break
+			}
+
+			Stmt::Continue => {
+				// No type checking needed for continue
+			}
+
 			Stmt::For { var, iterable, body } => {
 				self.infer_expr(iterable);
 				self.push_scope();
