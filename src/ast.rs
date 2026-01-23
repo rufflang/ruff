@@ -27,10 +27,8 @@ pub mod operator_methods {
     pub const LE: &str = "op_le";
     pub const GE: &str = "op_ge";
     
-    // Unary operators (for future implementation)
-    #[allow(dead_code)]
+    // Unary operators
     pub const NEG: &str = "op_neg";
-    #[allow(dead_code)]
     pub const NOT: &str = "op_not";
     
     /// Maps binary operators to their corresponding method names
@@ -52,7 +50,6 @@ pub mod operator_methods {
     }
     
     /// Maps unary operators to their corresponding method names
-    #[allow(dead_code)]
     pub fn unary_op_method(op: &str) -> Option<&'static str> {
         match op {
             "-" => Some(NEG),
@@ -114,6 +111,10 @@ pub enum Expr {
         param_types: Vec<Option<TypeAnnotation>>,
         return_type: Option<TypeAnnotation>,
         body: Vec<Stmt>,
+    },
+    UnaryOp {
+        op: String,
+        operand: Box<Expr>,
     },
     #[allow(dead_code)]
     BinaryOp {

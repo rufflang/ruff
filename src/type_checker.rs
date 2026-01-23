@@ -699,6 +699,29 @@ impl TypeChecker {
                 self.variables.get(name).cloned().flatten()
             }
 
+            Expr::UnaryOp { op, operand } => {
+                let operand_type = self.infer_expr(operand);
+                
+                match op.as_str() {
+                    "-" => {
+                        // Unary minus on numbers
+                        match operand_type {
+                            Some(TypeAnnotation::Int) => Some(TypeAnnotation::Int),
+                            Some(TypeAnnotation::Float) => Some(TypeAnnotation::Float),
+                            _ => operand_type, // Could be struct with op_neg
+                        }
+                    }
+                    "!" => {
+                        // Logical not on booleans
+                        match operand_type {
+                            Some(TypeAnnotation::Bool) => Some(TypeAnnotation::Bool),
+                            _ => operand_type, // Could be struct with op_not
+                        }
+                    }
+                    _ => None,
+                }
+            }
+
             Expr::BinaryOp { op, left, right } => {
                 let left_type = self.infer_expr(left);
                 let right_type = self.infer_expr(right);

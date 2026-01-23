@@ -734,7 +734,7 @@ impl Parser {
     }
 
     fn parse_multiplicative(&mut self) -> Option<Expr> {
-        let mut left = self.parse_call()?;
+        let mut left = self.parse_unary()?;
 
         while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "*" | "/" | "%"))
         {
@@ -742,11 +742,26 @@ impl Parser {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,
             };
-            let right = self.parse_call()?;
+            let right = self.parse_unary()?;
             left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
         }
 
         Some(left)
+    }
+
+    fn parse_unary(&mut self) -> Option<Expr> {
+        // Check for unary operators: - and !
+        if matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "-" | "!")) {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => return None,
+            };
+            let operand = self.parse_unary()?; // Recursive for nested unary ops like --x
+            return Some(Expr::UnaryOp { op, operand: Box::new(operand) });
+        }
+        
+        // If not a unary operator, parse as call/postfix expression
+        self.parse_call()
     }
 
     fn parse_call(&mut self) -> Option<Expr> {
