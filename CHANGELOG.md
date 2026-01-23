@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Method Chaining & Fluent APIs** (v0.6.0):
+  - **Null Coalescing Operator (`??`)**: Returns left value if not null, otherwise returns right value
+    ```ruff
+    username := user?.name ?? "Anonymous"
+    timeout := config?.timeout ?? 5000
+    ```
+  - **Optional Chaining Operator (`?.`)**: Safely access properties that might be null
+    ```ruff
+    email := user?.profile?.email  # Returns null if any part is null
+    value := dict?.field           # Safe dictionary access
+    ```
+  - **Pipe Operator (`|>`)**: Pass value as first argument to function for data transformation pipelines
+    ```ruff
+    result := 5 |> double |> add_ten |> square
+    greeting := "hello" |> to_upper |> exclaim  # "HELLO!"
+    ```
+  - **Null Type**: Added `null` keyword and `Value::Null` type for representing absence of value
+  - **Use Cases**:
+    - Safe property access without explicit null checks
+    - Default value fallbacks in configuration and user data
+    - Functional data transformation pipelines
+    - Chainable operations for cleaner code
+  - **Examples**:
+    - See `examples/method_chaining.ruff` for practical demonstrations
+    - See `tests/test_method_chaining.ruff` for comprehensive test coverage
+
 - **Closures & Variable Capturing** (v0.6.0):
   - Functions now properly capture their definition environment
   - Closure state persists across multiple function calls

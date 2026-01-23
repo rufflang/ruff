@@ -67,27 +67,40 @@ print(add5(10))  # 15
 
 ### 2. Method Chaining & Fluent APIs (P1)
 
-**Status**: Planned  
+**Status**: ✅ Completed (2026-01-23)  
 **Estimated Effort**: Medium (1 week)
 
 **Description**:  
 Enhanced syntax for chainable operations and null-safe access.
 
-**Planned Features**:
+**Implemented Features**:
 ```ruff
+# Null coalescing - provide default values for null
+username := user?.name ?? "Anonymous"
+timeout := config?.timeout ?? 5000
+
 # Optional chaining - safely access nested properties
 user := get_user(123)
 email := user?.profile?.email  # Returns null if any part is null
 
 # Pipe operator for data transformation
 result := data
-    |> filter(func(x) { return x > 10 })
-    |> map(func(x) { return x * 2 })
-    |> reduce(0, func(acc, x) { return acc + x })
+    |> double
+    |> add_ten
+    |> square
 
-# Null coalescing
-value := user?.name ?? "Anonymous"  # Use "Anonymous" if name is null
+# Chainable string operations
+greeting := "hello" |> to_upper |> exclaim  # "HELLO!"
 ```
+
+**Implementation Notes**:
+- Null coalescing (`??`) has low precedence, evaluated after `||`
+- Optional chaining (`?.`) is handled in postfix operations like `.`
+- Pipe operator (`|>`) has lowest precedence, passes left value as first arg to right function
+- Added `null` keyword and `Value::Null` type
+- Works with user functions, closures, and native functions
+- Examples: `examples/method_chaining.ruff`
+- Tests: `tests/test_method_chaining.ruff`
 
 ---
 
