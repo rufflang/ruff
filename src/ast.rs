@@ -28,7 +28,9 @@ pub mod operator_methods {
     pub const GE: &str = "op_ge";
     
     // Unary operators (for future implementation)
+    #[allow(dead_code)]
     pub const NEG: &str = "op_neg";
+    #[allow(dead_code)]
     pub const NOT: &str = "op_not";
     
     /// Maps binary operators to their corresponding method names
@@ -50,6 +52,7 @@ pub mod operator_methods {
     }
     
     /// Maps unary operators to their corresponding method names
+    #[allow(dead_code)]
     pub fn unary_op_method(op: &str) -> Option<&'static str> {
         match op {
             "-" => Some(NEG),
