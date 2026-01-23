@@ -98,7 +98,7 @@ print("=" * 50)
 server := http_server(5000)
 
 # Create new post
-server.route("POST", "/posts", func(request) {
+server := server.route("POST", "/posts", func(request) {
     try {
         data := parse_json(request.body)
         
@@ -136,7 +136,7 @@ server.route("POST", "/posts", func(request) {
 })
 
 # List all posts (with optional filtering)
-server.route("GET", "/posts", func(request) {
+server := server.route("GET", "/posts", func(request) {
     try {
         # Check for author filter in request body
         author_filter := ""
@@ -174,7 +174,7 @@ server.route("GET", "/posts", func(request) {
 })
 
 # Get specific post
-server.route("GET", "/post", func(request) {
+server := server.route("GET", "/post", func(request) {
     try {
         data := parse_json(request.body)
         
@@ -215,7 +215,7 @@ server.route("GET", "/post", func(request) {
 })
 
 # Update post
-server.route("PUT", "/posts", func(request) {
+server := server.route("PUT", "/posts", func(request) {
     try {
         data := parse_json(request.body)
         
@@ -260,7 +260,7 @@ server.route("PUT", "/posts", func(request) {
 })
 
 # Delete post
-server.route("DELETE", "/posts", func(request) {
+server := server.route("DELETE", "/posts", func(request) {
     try {
         data := parse_json(request.body)
         
@@ -308,7 +308,7 @@ server.route("DELETE", "/posts", func(request) {
 })
 
 # Add comment to post
-server.route("POST", "/comments", func(request) {
+server := server.route("POST", "/comments", func(request) {
     try {
         data := parse_json(request.body)
         
@@ -366,7 +366,7 @@ server.route("POST", "/comments", func(request) {
 })
 
 # Get stats
-server.route("GET", "/stats", func(request) {
+server := server.route("GET", "/stats", func(request) {
     total_posts := len(posts)
     total_comments := 0
     
@@ -382,7 +382,7 @@ server.route("GET", "/stats", func(request) {
 })
 
 # API documentation
-server.route("GET", "/", func(request) {
+server := server.route("GET", "/", func(request) {
     return json_response(200, {
         "service": "Simple Blog API",
         "version": "1.0",
