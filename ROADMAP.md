@@ -9,54 +9,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## 📦 High Priority (v0.4.0)
 
-### 1. Error Handling Improvements
-
-**Status**: Planned  
-**Estimated Effort**: Medium (3-4 days)
-
-**Description**:  
-Enhanced error handling with stack traces, better messages, and custom error types.
-
-**Planned Features**:
-```ruff
-# Stack traces with line numbers
-try {
-    risky_operation()
-} except err {
-    print(err.message)  # Error description
-    print(err.stack)    # Stack trace
-    print(err.line)     # Line number where error occurred
-}
-
-# Custom error types
-struct ValidationError {
-    field: string
-    message: string
-}
-
-func validate_user(user) {
-    if len(user.email) == 0 {
-        throw ValidationError {
-            field: "email",
-            message: "Email is required"
-        }
-    }
-}
-
-# Error chaining
-try {
-    result := parse_json(data)
-} except parse_err {
-    throw Error {
-        message: "Failed to process data",
-        cause: parse_err
-    }
-}
-```
-
----
-
-### 2. Operator Overloading
+### 1. Operator Overloading
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1 week)
@@ -798,9 +751,9 @@ app.run()
 | Feature | Priority | Target Version | Status |
 |---------|----------|----------------|--------|
 | JSON Support | High | v0.3.0 | Planned |
-| Standard Library | Medium | v0.4.0 | Planned |
-| Regular Expressions | Medium | v0.4.0 | Planned |
-| Error Handling | Medium | v0.4.0 | Planned |
+| Standard Library | Medium | v0.4.0 | ✅ Complete (see CHANGELOG) |
+| Regular Expressions | Medium | v0.4.0 | ✅ Complete (see CHANGELOG) |
+| Error Handling | Medium | v0.4.0 | ✅ Complete (see CHANGELOG) |
 | Operator Overloading | Medium | v0.4.0 | Planned |
 | HTTP/Networking | High | v0.5.0 | Planned |
 | REPL | Medium | v0.5.0 | Planned |

@@ -42,6 +42,7 @@
   - **NEW**: `break` and `continue` statements (v0.3.0)
   - For-in iteration over arrays, dicts, strings, and ranges
   - `try`/`except`/`throw` error handling
+  - **NEW**: Enhanced error handling (v0.4.0) with error properties, custom error types, and stack traces
 
 * **Data Types**
   - Numbers (f64)
@@ -187,24 +188,73 @@ match res {
 }
 ```
 
-### Error Handling with Try/Except
+### Enhanced Error Handling (v0.4.0) ✨
+
+Comprehensive error handling with error properties, custom error types, and stack traces:
 
 ```ruff
-func process(x) {
-    if x == 0 {
-        throw("Cannot process zero value")
+# Access error properties
+try {
+    throw("Something went wrong")
+} except err {
+    print("Message:", err.message)
+    print("Line:", err.line)
+    print("Stack depth:", len(err.stack))
+}
+
+# Custom error types with structs
+struct ValidationError {
+    field: string,
+    message: string
+}
+
+func validate_email(email: string) {
+    if !contains(email, "@") {
+        error := ValidationError {
+            field: "email",
+            message: "Email must contain @ symbol"
+        }
+        throw(error)
     }
-    return x * 2
 }
 
 try {
-    result := process(0)
-    print("Result:", result)
+    validate_email("invalid")
 } except err {
-    print("Error caught:", err)
+    print("Validation failed:", err.message)
 }
 
-print("Program continues")
+# Error chaining with cause
+struct DatabaseError {
+    message: string,
+    cause: string
+}
+
+try {
+    connect_to_db()
+} except conn_err {
+    error := DatabaseError {
+        message: "Failed to initialize app",
+        cause: conn_err.message
+    }
+    throw(error)
+}
+
+# Stack traces from nested function calls
+func inner() {
+    throw("Error from inner")
+}
+
+func outer() {
+    inner()
+}
+
+try {
+    outer()
+} except err {
+    print("Error:", err.message)
+    print("Call stack:", err.stack)
+}
 ```
 
 ### String Interpolation (v0.3.0) ✨
