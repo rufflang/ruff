@@ -1319,6 +1319,60 @@ impl Interpreter {
         }
     }
 
+    /// Public wrapper for evaluating a single statement (for REPL use)
+    /// Returns an error if execution fails
+    pub fn eval_stmt_repl(&mut self, stmt: &Stmt) -> Result<(), RuffError> {
+        self.eval_stmt(stmt);
+        
+        // Check if an error occurred during evaluation
+        if let Some(ref val) = self.return_value {
+            match val {
+                Value::Error(msg) => {
+                    let err = RuffError::runtime_error(
+                        msg.clone(),
+                        crate::errors::SourceLocation::unknown()
+                    );
+                    self.return_value = None; // Clear error for next input
+                    return Err(err);
+                }
+                Value::ErrorObject { message, .. } => {
+                    let err = RuffError::runtime_error(
+                        message.clone(),
+                        crate::errors::SourceLocation::unknown()
+                    );
+                    self.return_value = None; // Clear error for next input
+                    return Err(err);
+                }
+                _ => {}
+            }
+        }
+        
+        Ok(())
+    }
+
+    /// Public wrapper for evaluating an expression (for REPL use)
+    /// Returns the evaluated value or an error
+    pub fn eval_expr_repl(&mut self, expr: &Expr) -> Result<Value, RuffError> {
+        let value = self.eval_expr(expr);
+        
+        // Check if the value is an error
+        match value {
+            Value::Error(msg) => {
+                Err(RuffError::runtime_error(
+                    msg,
+                    crate::errors::SourceLocation::unknown()
+                ))
+            }
+            Value::ErrorObject { message, .. } => {
+                Err(RuffError::runtime_error(
+                    message,
+                    crate::errors::SourceLocation::unknown()
+                ))
+            }
+            _ => Ok(value)
+        }
+    }
+
     /// Helper to write output to either the output buffer or stdout
     fn write_output(&self, msg: &str) {
         if let Some(out) = &self.output {
