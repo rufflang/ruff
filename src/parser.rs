@@ -89,7 +89,16 @@ impl Parser {
             TokenKind::Keyword(k) if k == "try" => self.parse_try_except(),
             TokenKind::Keyword(k) if k == "match" => self.parse_match(),
             TokenKind::Keyword(k) if k == "loop" => self.parse_loop(),
+            TokenKind::Keyword(k) if k == "while" => self.parse_while(),
             TokenKind::Keyword(k) if k == "for" => self.parse_for(),
+            TokenKind::Keyword(k) if k == "break" => {
+                self.advance();
+                Some(Stmt::Break)
+            }
+            TokenKind::Keyword(k) if k == "continue" => {
+                self.advance();
+                Some(Stmt::Continue)
+            }
             TokenKind::Identifier(_) => {
                 // Check for variable assignment (name := expr or expr[...] := expr)
                 // We need to look ahead and parse an expression to see if it's followed by :=
@@ -407,6 +416,22 @@ impl Parser {
         }
         self.advance(); // }
         Some(Stmt::Loop { condition, body })
+    }
+
+    fn parse_while(&mut self) -> Option<Stmt> {
+        self.advance(); // while
+        let condition = self.parse_expr()?;
+        self.advance(); // {
+        let mut body = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                body.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        Some(Stmt::While { condition, body })
     }
 
     fn parse_for(&mut self) -> Option<Stmt> {

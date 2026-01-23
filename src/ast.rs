@@ -141,6 +141,12 @@ pub enum Stmt {
         iterable: Expr,
         body: Vec<Stmt>,
     },
+    While {
+        condition: Expr,
+        body: Vec<Stmt>,
+    },
+    Break,
+    Continue,
     TryExcept {
         try_block: Vec<Stmt>,
         except_var: String,
