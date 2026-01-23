@@ -16,6 +16,7 @@ pub enum TokenKind {
     Identifier(String),
     Number(f64),
     String(String),
+    Bool(bool),
     Operator(String),
     Punctuation(char),
     Keyword(String),
@@ -137,6 +138,8 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     "import" | "export" | "from" | "struct" | "impl" | "self" => {
                         TokenKind::Keyword(ident)
                     }
+                    "true" => TokenKind::Bool(true),
+                    "false" => TokenKind::Bool(false),
                     _ => TokenKind::Identifier(ident),
                 };
 

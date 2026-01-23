@@ -375,6 +375,8 @@ impl TypeChecker {
 			}
 
 			Expr::String(_) => Some(TypeAnnotation::String),
+			
+			Expr::Bool(_) => Some(TypeAnnotation::Bool),
 
 			Expr::Identifier(name) => {
 				// Look up variable type in symbol table
@@ -386,6 +388,23 @@ impl TypeChecker {
 				let right_type = self.infer_expr(right);
 
 				match op.as_str() {
+					"==" | "!=" | "<" | ">" | "<=" | ">=" => {
+						// Comparison operations always return bool
+						// Check that operands are comparable
+						if let (Some(l), Some(r)) = (&left_type, &right_type) {
+							if !l.matches(r) && !r.matches(l) {
+								self.errors.push(RuffError::new(
+									ErrorKind::TypeError,
+									format!(
+										"Comparison '{}' between incompatible types: {:?} and {:?}",
+										op, l, r
+									),
+									SourceLocation::unknown(),
+								));
+							}
+						}
+						Some(TypeAnnotation::Bool)
+					}
 					"+" | "-" | "*" | "/" => {
 						// Arithmetic operations
 						match (&left_type, &right_type) {
@@ -411,23 +430,6 @@ impl TypeChecker {
 							}
 							_ => None, // Unknown or incompatible types
 						}
-					}
-					"==" | "!=" | "<" | ">" | "<=" | ">=" => {
-						// Comparison operations return bool
-						// Check that operands are comparable
-						if let (Some(l), Some(r)) = (&left_type, &right_type) {
-							if !l.matches(r) && !r.matches(l) {
-								self.errors.push(RuffError::new(
-									ErrorKind::TypeError,
-									format!(
-										"Comparison '{}' between incompatible types: {:?} and {:?}",
-										op, l, r
-									),
-									SourceLocation::unknown(),
-								));
-							}
-						}
-						Some(TypeAnnotation::Bool)
 					}
 					_ => None,
 				}
