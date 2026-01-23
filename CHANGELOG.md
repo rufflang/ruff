@@ -8,6 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Closures & Variable Capturing** (v0.6.0):
+  - Functions now properly capture their definition environment
+  - Closure state persists across multiple function calls
+  - Support for counter patterns with mutable captured variables
+  - Nested closures with multiple levels of variable capturing
+  - Anonymous functions inherit parent scope automatically
+  - **Examples**:
+    ```ruff
+    # Counter closure
+    func make_counter() {
+        let count := 0
+        return func() {
+            count := count + 1
+            return count
+        }
+    }
+    
+    counter := make_counter()
+    print(counter())  # 1
+    print(counter())  # 2
+    print(counter())  # 3
+    
+    # Adder closure
+    func make_adder(x) {
+        return func(y) {
+            return x + y
+        }
+    }
+    
+    add5 := make_adder(5)
+    print(add5(3))   # 8
+    print(add5(10))  # 15
+    ```
+  - **Implementation**: Uses `Rc<RefCell<Environment>>` for shared mutable environment
+  - **Known Limitations**: Some complex multi-variable capture scenarios need further testing
+
 - **HTTP Headers Support**: Full control over HTTP response headers
   - **Header Manipulation Functions**:
     - `set_header(response, key, value)` - Add or update a single header on an HTTP response
