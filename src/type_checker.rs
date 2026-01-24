@@ -516,6 +516,84 @@ impl TypeChecker {
                 return_type: Some(TypeAnnotation::Bool),
             },
         );
+
+        // File I/O functions
+        self.functions.insert(
+            "create_dir".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // Directory path
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "write_binary_file".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), None], // Path and bytes
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        // HTTP streaming functions
+        self.functions.insert(
+            "http_get_stream".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // URL
+                return_type: None, // Returns bytes array
+            },
+        );
+
+        // v0.6.0 Authentication & Streaming functions
+        self.functions.insert(
+            "jwt_encode".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String)], // Payload dict and secret
+                return_type: Some(TypeAnnotation::String), // Returns JWT token string
+            },
+        );
+
+        self.functions.insert(
+            "jwt_decode".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // Token and secret
+                return_type: None, // Returns dict or error
+            },
+        );
+
+        self.functions.insert(
+            "oauth2_auth_url".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String), // client_id
+                    Some(TypeAnnotation::String), // redirect_uri
+                    Some(TypeAnnotation::String), // auth_url
+                    Some(TypeAnnotation::String), // scope
+                ],
+                return_type: Some(TypeAnnotation::String), // Returns authorization URL
+            },
+        );
+
+        self.functions.insert(
+            "oauth2_get_token".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String), // code
+                    Some(TypeAnnotation::String), // client_id
+                    Some(TypeAnnotation::String), // client_secret
+                    Some(TypeAnnotation::String), // token_url
+                    Some(TypeAnnotation::String), // redirect_uri
+                ],
+                return_type: None, // Returns dict with token data
+            },
+        );
+
+        self.functions.insert(
+            "html_response".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Int), Some(TypeAnnotation::String)], // Status code and HTML
+                return_type: None, // Returns HttpResponse object
+            },
+        );
     }
 
     /// Type check a list of statements

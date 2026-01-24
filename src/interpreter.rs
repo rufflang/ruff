@@ -430,6 +430,10 @@ impl Interpreter {
             Value::NativeFunction("json_response".to_string()),
         );
         self.env.define(
+            "html_response".to_string(),
+            Value::NativeFunction("html_response".to_string()),
+        );
+        self.env.define(
             "redirect_response".to_string(),
             Value::NativeFunction("redirect_response".to_string()),
         );
@@ -1961,6 +1965,20 @@ impl Interpreter {
                     Value::HttpResponse { status: *status as u16, body: json_body, headers }
                 } else {
                     Value::Error("json_response requires status code and data".to_string())
+                }
+            }
+
+            "html_response" => {
+                // html_response(status, html) - create HTML HTTP response
+                if let (Some(Value::Number(status)), Some(Value::Str(html))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let mut headers = HashMap::new();
+                    headers.insert("Content-Type".to_string(), "text/html; charset=utf-8".to_string());
+
+                    Value::HttpResponse { status: *status as u16, body: html.clone(), headers }
+                } else {
+                    Value::Error("html_response requires status code and HTML string".to_string())
                 }
             }
 

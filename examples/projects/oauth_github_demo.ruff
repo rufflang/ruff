@@ -75,7 +75,7 @@ server := server.route("GET", "/", func(req) {
     html := html + "</ol>"
     html := html + "</body></html>"
     
-    return http_response(200, html)
+    return html_response(200, html)
 })
 
 # GET /callback - OAuth callback handler
@@ -116,7 +116,7 @@ server := server.route("GET", "/callback", func(req) {
     
     print("✓ OAuth callback received")
     
-    return http_response(200, html)
+    return html_response(200, html)
 })
 
 # GET /test - Test OAuth functions
@@ -150,7 +150,7 @@ server := server.route("GET", "/test", func(req) {
     html := html + "<br><a href='/'>Back to Home</a>"
     html := html + "</body></html>"
     
-    return http_response(200, html)
+    return html_response(200, html)
 })
 
 print("OAuth2 GitHub Demo")
