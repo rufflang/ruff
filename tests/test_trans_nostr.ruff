@@ -1,0 +1,15 @@
+# Test without str()
+
+db := db_connect("sqlite", ":memory:")
+db_execute(db, "CREATE TABLE test (id INTEGER)", [])
+
+print("1. First begin...")
+first_result := db_begin(db)
+print(first_result)
+
+print("2. Second begin (should error)...")
+second_result := db_begin(db)
+print(second_result)
+
+print("Done!")
+db_close(db)
