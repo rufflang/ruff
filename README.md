@@ -191,7 +191,7 @@
   - **HTTP Streaming** (v0.6.0): `http_get_stream()` - Memory-efficient downloads for large files
   - **Binary Files** (v0.6.0): `http_get_binary()`, `read_binary_file()`, `write_binary_file()`, `encode_base64()`, `decode_base64()` - Download and work with binary data (images, PDFs, archives)
   - **Image Processing** (v0.6.0): `load_image()`, `img.resize()`, `img.crop()`, `img.rotate()`, `img.flip()`, `img.to_grayscale()`, `img.blur()`, `img.adjust_brightness()`, `img.adjust_contrast()`, `img.save()` - Load, manipulate, and save images (JPEG, PNG, WebP, GIF, BMP)
-  - **Database** (v0.5.1): `db_connect()`, `db_execute()`, `db_query()`, `db_close()` - SQLite database operations
+  - **Database** (v0.7.0): `db_connect(db_type, connection_string)` - Unified database API supporting SQLite (PostgreSQL/MySQL coming soon), `db_execute()`, `db_query()`, `db_close()` - Database operations with parameter binding
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
@@ -698,13 +698,13 @@ func prepare_instagram_post(image_path) {
 
 See [examples/http_server_simple.ruff](examples/http_server_simple.ruff), [examples/http_rest_api.ruff](examples/http_rest_api.ruff), [examples/http_client.ruff](examples/http_client.ruff), [examples/http_webhook.ruff](examples/http_webhook.ruff), and [examples/http_headers_demo.ruff](examples/http_headers_demo.ruff) for complete examples.
 
-### SQLite Database (v0.5.0) ✨
+### Unified Database API (v0.7.0) 🗄️
 
-Ruff includes built-in SQLite database support for persistent data storage:
+Ruff includes a unified database API that works across different database backends. Currently supports SQLite, with PostgreSQL and MySQL coming soon:
 
 ```ruff
-# Connect to database (creates file if not exists)
-db := db_connect("myapp.db")
+# Connect to SQLite using unified API
+db := db_connect("sqlite", "myapp.db")
 
 # Create table
 db_execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)", [])
@@ -731,9 +731,19 @@ db_execute(db, "DELETE FROM users WHERE name = ?", ["Bob"])
 
 # Close connection
 db_close(db)
+
+# Future: Same API will work with PostgreSQL and MySQL!
+# db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
+# db := db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")
 ```
 
-See [examples/projects/url_shortener.ruff](examples/projects/url_shortener.ruff) for a complete example using SQLite with an HTTP server.
+**Key Features**:
+- **Unified API**: Same `db_connect()`, `db_execute()`, and `db_query()` functions work across all databases
+- **Parameter Binding**: Prevents SQL injection with `?` placeholders
+- **Type Safety**: Returns proper Null values for NULL database fields
+- **Multi-Backend Ready**: Infrastructure in place for PostgreSQL and MySQL
+
+See `examples/database_unified.ruff` for comprehensive SQLite examples and `examples/projects/url_shortener.ruff` for a complete URL shortener using SQLite with an HTTP server.
 
 ### String Interpolation (v0.3.0)
 
