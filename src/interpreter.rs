@@ -69,16 +69,154 @@ pub enum DatabaseConnection {
     Mysql(Arc<Mutex<MysqlConn>>),
 }
 
-// Connection pooling to be implemented in future version
-// #[derive(Clone)]
-// pub struct ConnectionPool {
-//     db_type: String,
-//     connection_string: String,
-//     min_connections: usize,
-//     max_connections: usize,
-//     available: Arc<Mutex<Vec<DatabaseConnection>>>,
-//     in_use: Arc<Mutex<usize>>,
-// }
+// Connection pooling
+#[derive(Clone)]
+pub struct ConnectionPool {
+    db_type: String,
+    connection_string: String,
+    min_connections: usize,
+    max_connections: usize,
+    connection_timeout: u64, // seconds
+    available: Arc<Mutex<std::collections::VecDeque<DatabaseConnection>>>,
+    in_use: Arc<Mutex<usize>>,
+    total_created: Arc<Mutex<usize>>,
+}
+
+impl ConnectionPool {
+    pub fn new(db_type: String, connection_string: String, config: HashMap<String, Value>) -> Result<Self, String> {
+        // Parse configuration
+        let min_connections = config.get("min_connections")
+            .and_then(|v| if let Value::Number(n) = v { Some(*n as usize) } else { None })
+            .unwrap_or(5);
+        
+        let max_connections = config.get("max_connections")
+            .and_then(|v| if let Value::Number(n) = v { Some(*n as usize) } else { None })
+            .unwrap_or(20);
+        
+        let connection_timeout = config.get("connection_timeout")
+            .and_then(|v| if let Value::Number(n) = v { Some(*n as u64) } else { None })
+            .unwrap_or(30);
+        
+        if min_connections > max_connections {
+            return Err("min_connections cannot be greater than max_connections".to_string());
+        }
+        
+        Ok(ConnectionPool {
+            db_type,
+            connection_string,
+            min_connections,
+            max_connections,
+            connection_timeout,
+            available: Arc::new(Mutex::new(std::collections::VecDeque::new())),
+            in_use: Arc::new(Mutex::new(0)),
+            total_created: Arc::new(Mutex::new(0)),
+        })
+    }
+    
+    pub fn acquire(&self) -> Result<DatabaseConnection, String> {
+        let start_time = std::time::Instant::now();
+        
+        loop {
+            // Try to get an available connection
+            {
+                let mut available = self.available.lock().unwrap();
+                if let Some(conn) = available.pop_front() {
+                    let mut in_use = self.in_use.lock().unwrap();
+                    *in_use += 1;
+                    return Ok(conn);
+                }
+            }
+            
+            // No available connections - try to create a new one
+            {
+                let total = self.total_created.lock().unwrap();
+                if *total < self.max_connections {
+                    drop(total); // Release lock before creating connection
+                    
+                    // Create new connection
+                    let conn = self.create_connection()?;
+                    
+                    let mut total = self.total_created.lock().unwrap();
+                    *total += 1;
+                    let mut in_use = self.in_use.lock().unwrap();
+                    *in_use += 1;
+                    
+                    return Ok(conn);
+                }
+            }
+            
+            // All connections in use and at max - check timeout
+            if start_time.elapsed().as_secs() >= self.connection_timeout {
+                return Err("Connection pool timeout: all connections are in use".to_string());
+            }
+            
+            // Wait a bit before retrying
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+    
+    pub fn release(&self, conn: DatabaseConnection) {
+        let mut available = self.available.lock().unwrap();
+        available.push_back(conn);
+        let mut in_use = self.in_use.lock().unwrap();
+        if *in_use > 0 {
+            *in_use -= 1;
+        }
+    }
+    
+    pub fn stats(&self) -> HashMap<String, usize> {
+        let available = self.available.lock().unwrap();
+        let in_use = self.in_use.lock().unwrap();
+        let total = self.total_created.lock().unwrap();
+        
+        let mut stats = HashMap::new();
+        stats.insert("available".to_string(), available.len());
+        stats.insert("in_use".to_string(), *in_use);
+        stats.insert("total".to_string(), *total);
+        stats.insert("max".to_string(), self.max_connections);
+        stats
+    }
+    
+    pub fn close(&self) {
+        let mut available = self.available.lock().unwrap();
+        available.clear();
+        let mut in_use = self.in_use.lock().unwrap();
+        *in_use = 0;
+        let mut total = self.total_created.lock().unwrap();
+        *total = 0;
+    }
+    
+    fn create_connection(&self) -> Result<DatabaseConnection, String> {
+        match self.db_type.as_str() {
+            "sqlite" => {
+                SqliteConnection::open(&self.connection_string)
+                    .map(|conn| DatabaseConnection::Sqlite(Arc::new(Mutex::new(conn))))
+                    .map_err(|e| format!("Failed to create SQLite connection: {}", e))
+            }
+            "postgres" | "postgresql" => {
+                PostgresClient::connect(&self.connection_string, NoTls)
+                    .map(|client| DatabaseConnection::Postgres(Arc::new(Mutex::new(client))))
+                    .map_err(|e| format!("Failed to create PostgreSQL connection: {}", e))
+            }
+            "mysql" => {
+                let opts = mysql_async::OptsBuilder::from_opts(
+                    mysql_async::Opts::from_url(&self.connection_string)
+                        .map_err(|e| format!("Invalid MySQL connection string: {}", e))?
+                );
+                
+                let runtime = tokio::runtime::Runtime::new()
+                    .map_err(|e| format!("Failed to create runtime: {}", e))?;
+                
+                runtime.block_on(async {
+                    mysql_async::Conn::new(opts).await
+                        .map(|conn| DatabaseConnection::Mysql(Arc::new(Mutex::new(conn))))
+                        .map_err(|e| format!("Failed to create MySQL connection: {}", e))
+                })
+            }
+            _ => Err(format!("Unsupported database type: {}", self.db_type)),
+        }
+    }
+}
 
 /// Runtime values in the Ruff interpreter
 #[derive(Clone)]
@@ -132,11 +270,11 @@ pub enum Value {
         connection: DatabaseConnection,
         db_type: String, // "sqlite", "postgres", "mysql"
         connection_string: String,
+        in_transaction: Arc<Mutex<bool>>, // Track transaction state
     },
-    // Connection pooling to be added in future version
-    // DatabasePool {
-    //     pool: ConnectionPool,
-    // },
+    DatabasePool {
+        pool: Arc<Mutex<ConnectionPool>>,
+    },
     Image {
         data: Arc<Mutex<DynamicImage>>,
         format: String,
@@ -194,10 +332,10 @@ impl std::fmt::Debug for Value {
             Value::Database { db_type, connection_string, .. } => {
                 write!(f, "Database(type={}, connection={})", db_type, connection_string)
             }
-            // Connection pooling to be added in future version
-            // Value::DatabasePool { pool } => {
-            //     write!(f, "DatabasePool(type={}, max_connections={})", pool.db_type, pool.max_connections)
-            // }
+            Value::DatabasePool { pool } => {
+                let p = pool.lock().unwrap();
+                write!(f, "DatabasePool(type={}, max={})", p.db_type, p.max_connections)
+            }
             Value::Image { format, data } => {
                 let img = data.lock().unwrap();
                 write!(f, "Image({}x{}, format={})", img.width(), img.height(), format)
@@ -509,9 +647,14 @@ impl Interpreter {
         self.env.define("db_query".to_string(), Value::NativeFunction("db_query".to_string()));
         self.env.define("db_close".to_string(), Value::NativeFunction("db_close".to_string()));
         self.env.define("db_pool".to_string(), Value::NativeFunction("db_pool".to_string()));
+        self.env.define("db_pool_acquire".to_string(), Value::NativeFunction("db_pool_acquire".to_string()));
+        self.env.define("db_pool_release".to_string(), Value::NativeFunction("db_pool_release".to_string()));
+        self.env.define("db_pool_stats".to_string(), Value::NativeFunction("db_pool_stats".to_string()));
+        self.env.define("db_pool_close".to_string(), Value::NativeFunction("db_pool_close".to_string()));
         self.env.define("db_begin".to_string(), Value::NativeFunction("db_begin".to_string()));
         self.env.define("db_commit".to_string(), Value::NativeFunction("db_commit".to_string()));
         self.env.define("db_rollback".to_string(), Value::NativeFunction("db_rollback".to_string()));
+        self.env.define("db_last_insert_id".to_string(), Value::NativeFunction("db_last_insert_id".to_string()));
 
         // Collection constructors and methods
         // Set
@@ -958,7 +1101,7 @@ impl Interpreter {
         // Evaluate all arguments
         let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
 
-        match name {
+        let result = match name {
             // Math functions - single argument
             "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" => {
                 if let Some(Value::Number(x)) = arg_values.get(0) {
@@ -2259,6 +2402,7 @@ impl Interpreter {
                                     connection: DatabaseConnection::Sqlite(Arc::new(Mutex::new(conn))),
                                     db_type: "sqlite".to_string(),
                                     connection_string: conn_str.clone(),
+                                    in_transaction: Arc::new(Mutex::new(false)),
                                 },
                                 Err(e) => Value::Error(format!("Failed to connect to SQLite: {}", e)),
                             }
@@ -2269,6 +2413,7 @@ impl Interpreter {
                                     connection: DatabaseConnection::Postgres(Arc::new(Mutex::new(client))),
                                     db_type: "postgres".to_string(),
                                     connection_string: conn_str.clone(),
+                                    in_transaction: Arc::new(Mutex::new(false)),
                                 },
                                 Err(e) => Value::Error(format!("Failed to connect to PostgreSQL: {}", e)),
                             }
@@ -2291,6 +2436,7 @@ impl Interpreter {
                                     connection: DatabaseConnection::Mysql(Arc::new(Mutex::new(conn))),
                                     db_type: "mysql".to_string(),
                                     connection_string: conn_str.clone(),
+                                    in_transaction: Arc::new(Mutex::new(false)),
                                 },
                                 Err(e) => Value::Error(format!("Failed to connect to MySQL: {}", e)),
                             }
@@ -2963,27 +3109,320 @@ impl Interpreter {
             }
 
             "db_pool" => {
-                // db_pool(db_type, connection_string, options) - create connection pool
-                // Connection pooling planned for high-traffic applications
-                Value::Error("Connection pooling not yet implemented. Use db_connect() for single connections.".to_string())
+                // db_pool(db_type, connection_string, config) - create connection pool
+                // config is a dict with optional: min_connections, max_connections, connection_timeout
+                if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) = 
+                    (arg_values.get(0), arg_values.get(1)) {
+                    
+                    let config = if let Some(Value::Dict(cfg)) = arg_values.get(2) {
+                        cfg.clone()
+                    } else {
+                        HashMap::new()
+                    };
+                    
+                    match ConnectionPool::new(db_type.clone(), conn_str.clone(), config) {
+                        Ok(pool) => Value::DatabasePool {
+                            pool: Arc::new(Mutex::new(pool)),
+                        },
+                        Err(e) => Value::Error(format!("Failed to create connection pool: {}", e)),
+                    }
+                } else {
+                    Value::Error("db_pool requires database type and connection string".to_string())
+                }
+            }
+
+            "db_pool_acquire" => {
+                // db_pool_acquire(pool) - acquire a connection from the pool
+                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                    let pool_lock = pool.lock().unwrap();
+                    match pool_lock.acquire() {
+                        Ok(connection) => {
+                            Value::Database {
+                                connection,
+                                db_type: pool_lock.db_type.clone(),
+                                connection_string: pool_lock.connection_string.clone(),
+                                in_transaction: Arc::new(Mutex::new(false)),
+                            }
+                        }
+                        Err(e) => Value::Error(format!("Failed to acquire connection: {}", e)),
+                    }
+                } else {
+                    Value::Error("db_pool_acquire requires a database pool".to_string())
+                }
+            }
+
+            "db_pool_release" => {
+                // db_pool_release(pool, connection) - release a connection back to the pool
+                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                    if let Some(Value::Database { connection, .. }) = arg_values.get(1) {
+                        let pool_lock = pool.lock().unwrap();
+                        pool_lock.release(connection.clone());
+                        Value::Bool(true)
+                    } else {
+                        Value::Error("db_pool_release requires a database connection as second argument".to_string())
+                    }
+                } else {
+                    Value::Error("db_pool_release requires a database pool as first argument".to_string())
+                }
+            }
+
+            "db_pool_stats" => {
+                // db_pool_stats(pool) - get pool statistics
+                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                    let pool_lock = pool.lock().unwrap();
+                    let stats = pool_lock.stats();
+                    
+                    // Convert to Ruff dict
+                    let mut dict = HashMap::new();
+                    for (key, value) in stats {
+                        dict.insert(key, Value::Number(value as f64));
+                    }
+                    Value::Dict(dict)
+                } else {
+                    Value::Error("db_pool_stats requires a database pool".to_string())
+                }
+            }
+
+            "db_pool_close" => {
+                // db_pool_close(pool) - close all connections in the pool
+                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                    let pool_lock = pool.lock().unwrap();
+                    pool_lock.close();
+                    Value::Bool(true)
+                } else {
+                    Value::Error("db_pool_close requires a database pool".to_string())
+                }
             }
 
             "db_begin" => {
                 // db_begin(db) - begin database transaction
-                // Transaction support planned for future release
-                Value::Error("Transactions not yet implemented. SQL statements auto-commit currently.".to_string())
+                
+                // Extract what we need from the database
+                let (conn_clone, db_type_clone, trans_arc_clone) = if let Some(Value::Database { connection, db_type, in_transaction, .. }) = arg_values.first() {
+                    (connection.clone(), db_type.clone(), in_transaction.clone())
+                } else {
+                    return Value::Error("db_begin requires a database connection as first argument".to_string());
+                };
+                
+                
+                // Check if already in transaction
+                let already_in_trans = {
+                    let in_trans = trans_arc_clone.lock().unwrap();
+                    *in_trans
+                };
+                
+                
+                if already_in_trans {
+                    Value::Error("Transaction already in progress. Commit or rollback first.".to_string())
+                } else {
+                    let result = match (conn_clone, db_type_clone.as_str()) {
+                        (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                            let conn = conn_arc.lock().unwrap();
+                            match conn.execute("BEGIN TRANSACTION", []) {
+                                Ok(_) => Ok(()),
+                                Err(e) => Err(format!("Failed to begin transaction: {}", e)),
+                            }
+                        }
+                        (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                            let mut client = client_arc.lock().unwrap();
+                            match client.execute("BEGIN", &[]) {
+                                Ok(_) => Ok(()),
+                                Err(e) => Err(format!("Failed to begin transaction: {}", e)),
+                            }
+                        }
+                        (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                            let mut conn = conn_arc.lock().unwrap();
+                            match tokio::runtime::Runtime::new() {
+                                Ok(runtime) => {
+                                    match runtime.block_on(async {
+                                        conn.exec_drop("START TRANSACTION", mysql_async::Params::Empty).await
+                                    }) {
+                                        Ok(_) => Ok(()),
+                                        Err(e) => Err(format!("Failed to begin transaction: {}", e)),
+                                    }
+                                }
+                                Err(e) => Err(format!("Failed to create runtime: {}", e)),
+                            }
+                        }
+                        _ => Err("Invalid database connection".to_string()),
+                    };
+                    
+                    match result {
+                        Ok(()) => {
+                            let mut in_trans = trans_arc_clone.lock().unwrap();
+                            *in_trans = true;
+                            Value::Bool(true)
+                        }
+                        Err(e) => {
+                            Value::Error(e)
+                        }
+                    }
+                }
             }
 
             "db_commit" => {
                 // db_commit(db) - commit database transaction
-                // Transaction support planned for future release
-                Value::Error("Transactions not yet implemented. SQL statements auto-commit currently.".to_string())
+                match arg_values.get(0).cloned() {
+                    Some(Value::Database { connection, db_type, in_transaction, .. }) => {
+                        // Check if in transaction
+                        let is_in_trans = {
+                            let in_trans = in_transaction.lock().unwrap();
+                            *in_trans
+                        }; // Lock released here
+                        
+                        if !is_in_trans {
+                            Value::Error("No transaction in progress. Use db_begin() first.".to_string())
+                        } else {
+                            let result = match (connection, db_type.as_str()) {
+                                (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                                    let conn = conn_arc.lock().unwrap();
+                                    match conn.execute("COMMIT", []) {
+                                        Ok(_) => Ok(()),
+                                        Err(e) => Err(format!("Failed to commit transaction: {}", e)),
+                                    }
+                                }
+                                (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                                    let mut client = client_arc.lock().unwrap();
+                                    match client.execute("COMMIT", &[]) {
+                                        Ok(_) => Ok(()),
+                                        Err(e) => Err(format!("Failed to commit transaction: {}", e)),
+                                    }
+                                }
+                                (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                                    let mut conn = conn_arc.lock().unwrap();
+                                    match tokio::runtime::Runtime::new() {
+                                        Ok(runtime) => {
+                                            match runtime.block_on(async {
+                                                conn.exec_drop("COMMIT", mysql_async::Params::Empty).await
+                                            }) {
+                                                Ok(_) => Ok(()),
+                                                Err(e) => Err(format!("Failed to commit transaction: {}", e)),
+                                            }
+                                        }
+                                        Err(e) => Err(format!("Failed to create runtime: {}", e)),
+                                    }
+                                }
+                                _ => Err("Invalid database connection".to_string()),
+                            };
+                            
+                            match result {
+                                Ok(()) => {
+                                    let mut in_trans = in_transaction.lock().unwrap();
+                                    *in_trans = false;
+                                    Value::Bool(true)
+                                }
+                                Err(e) => Value::Error(e),
+                            }
+                        }
+                    }
+                    _ => Value::Error("db_commit requires a database connection as first argument".to_string()),
+                }
             }
 
             "db_rollback" => {
                 // db_rollback(db) - rollback database transaction
-                // Transaction support planned for future release
-                Value::Error("Transactions not yet implemented. SQL statements auto-commit currently.".to_string())
+                match arg_values.get(0).cloned() {
+                    Some(Value::Database { connection, db_type, in_transaction, .. }) => {
+                        // Check if in transaction
+                        let is_in_trans = {
+                            let in_trans = in_transaction.lock().unwrap();
+                            *in_trans
+                        }; // Lock released here
+                        
+                        if !is_in_trans {
+                            Value::Error("No transaction in progress. Use db_begin() first.".to_string())
+                        } else {
+                            let result = match (connection, db_type.as_str()) {
+                                (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                                    let conn = conn_arc.lock().unwrap();
+                                    match conn.execute("ROLLBACK", []) {
+                                        Ok(_) => Ok(()),
+                                        Err(e) => Err(format!("Failed to rollback transaction: {}", e)),
+                                    }
+                                }
+                                (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                                    let mut client = client_arc.lock().unwrap();
+                                    match client.execute("ROLLBACK", &[]) {
+                                        Ok(_) => Ok(()),
+                                        Err(e) => Err(format!("Failed to rollback transaction: {}", e)),
+                                    }
+                                }
+                                (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                                    let mut conn = conn_arc.lock().unwrap();
+                                    match tokio::runtime::Runtime::new() {
+                                        Ok(runtime) => {
+                                            match runtime.block_on(async {
+                                                conn.exec_drop("ROLLBACK", mysql_async::Params::Empty).await
+                                            }) {
+                                                Ok(_) => Ok(()),
+                                                Err(e) => Err(format!("Failed to rollback transaction: {}", e)),
+                                            }
+                                        }
+                                        Err(e) => Err(format!("Failed to create runtime: {}", e)),
+                                    }
+                                }
+                                _ => Err("Invalid database connection".to_string()),
+                            };
+                            
+                            match result {
+                                Ok(()) => {
+                                    let mut in_trans = in_transaction.lock().unwrap();
+                                    *in_trans = false;
+                                    Value::Bool(true)
+                                }
+                                Err(e) => Value::Error(e),
+                            }
+                        }
+                    }
+                    _ => Value::Error("db_rollback requires a database connection as first argument".to_string()),
+                }
+            }
+
+            "db_last_insert_id" => {
+                // db_last_insert_id(db) - get the ID of the last inserted row
+                // Useful after INSERT statements to get the auto-generated ID
+                if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
+                    match (connection, db_type.as_str()) {
+                        (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                            let conn = conn_arc.lock().unwrap();
+                            Value::Number(conn.last_insert_rowid() as f64)
+                        }
+                        (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                            // PostgreSQL uses RETURNING clause or currval()
+                            // Since we can't easily track the last insert, we need to query it
+                            let mut client = client_arc.lock().unwrap();
+                            match client.query("SELECT lastval()", &[]) {
+                                Ok(rows) => {
+                                    if let Some(row) = rows.first() {
+                                        let id: i64 = row.get(0);
+                                        Value::Number(id as f64)
+                                    } else {
+                                        Value::Error("No last insert ID available".to_string())
+                                    }
+                                }
+                                Err(e) => Value::Error(format!("Failed to get last insert ID: {}. Use RETURNING clause instead.", e)),
+                            }
+                        }
+                        (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                            let mut conn = conn_arc.lock().unwrap();
+                            let runtime = match tokio::runtime::Runtime::new() {
+                                Ok(rt) => rt,
+                                Err(e) => return Value::Error(format!("Failed to create runtime: {}", e)),
+                            };
+                            
+                            match runtime.block_on(async {
+                                conn.query_first::<u64, _>("SELECT LAST_INSERT_ID()").await
+                            }) {
+                                Ok(Some(id)) => Value::Number(id as f64),
+                                Ok(None) => Value::Error("No last insert ID available".to_string()),
+                                Err(e) => Value::Error(format!("Failed to get last insert ID: {}", e)),
+                            }
+                        }
+                        _ => Value::Error("Invalid database connection".to_string()),
+                    }
+                } else {
+                    Value::Error("db_last_insert_id requires a database connection as first argument".to_string())
+                }
             }
 
             // Image processing functions
@@ -3012,7 +3451,9 @@ impl Interpreter {
             }
 
             _ => Value::Number(0.0),
-        }
+        };
+        
+        result
     }
 
     /// Helper method to check if two values are equal (for Set operations)
@@ -3154,16 +3595,12 @@ impl Interpreter {
             }
             Stmt::Assign { target, value } => {
                 let val = self.eval_expr(&value);
-                // If expression evaluation resulted in an error, propagate it
-                if matches!(val, Value::Error(_)) {
-                    self.return_value = Some(val.clone());
-                    return;
-                }
-
+                
+                // Always perform the assignment, even for errors
                 match target {
                     Expr::Identifier(name) => {
                         // Simple variable assignment - use set to update in correct scope
-                        self.env.set(name.clone(), val);
+                        self.env.set(name.clone(), val.clone());
                     }
                     Expr::IndexAccess { object, index } => {
                         // Array or dict element assignment
@@ -3274,6 +3711,11 @@ impl Interpreter {
                     _ => {
                         eprintln!("Invalid assignment target");
                     }
+                }
+                
+                // If expression evaluation resulted in an error, propagate it
+                if matches!(val, Value::Error(_)) {
+                    self.return_value = Some(val);
                 }
             }
             Stmt::FuncDef { name, params, param_types: _, return_type: _, body } => {
@@ -3774,7 +4216,7 @@ impl Interpreter {
 
     /// Evaluates an expression to produce a value
     fn eval_expr(&mut self, expr: &Expr) -> Value {
-        match expr {
+        let result = match expr {
             Expr::Number(n) => Value::Number(*n),
             Expr::String(s) => Value::Str(s.clone()),
             Expr::Bool(b) => Value::Bool(*b),
@@ -4316,10 +4758,11 @@ impl Interpreter {
 
                 // Regular function call
                 let func_val = self.eval_expr(&function);
-                match func_val {
+                let call_result = match func_val {
                     Value::NativeFunction(name) => {
                         // Handle native function calls
-                        self.call_native_function(&name, args)
+                        let res = self.call_native_function(&name, args);
+                        res
                     }
                     Value::Function(params, body, captured_env) => {
                         // Push to call stack
@@ -4394,7 +4837,8 @@ impl Interpreter {
                         }
                     }
                     _ => Value::Number(0.0),
-                }
+                };
+                call_result
             }
             Expr::Tag(name, args) => {
                 // First check if this is a native or user function
@@ -4565,7 +5009,8 @@ impl Interpreter {
                     _ => Value::Number(0.0),
                 }
             }
-        }
+        };
+        result
     }
 
     /// Converts a runtime value to a string for display
@@ -4608,6 +5053,54 @@ impl Interpreter {
             Value::ErrorObject { message, .. } => format!("Error: {}", message),
             Value::NativeFunction(name) => format!("<native function: {}>", name),
             _ => "<unknown>".into(),
+        }
+    }
+
+    /// Cleanup method to rollback any active transactions before interpreter is dropped
+    /// This prevents hanging when SQLite connections are dropped while in transaction
+    pub fn cleanup(&mut self) {
+        // Get all variables from the environment
+        let var_names: Vec<String> = self.env.scopes.iter()
+            .flat_map(|scope| scope.keys().cloned())
+            .collect();
+        
+        for var_name in var_names {
+            if let Some(value) = self.env.get(&var_name) {
+                if let Value::Database { connection, db_type, in_transaction, .. } = value {
+                    // Check if in transaction
+                    let is_in_trans = {
+                        let in_trans = in_transaction.lock().unwrap();
+                        *in_trans
+                    };
+                    
+                    if is_in_trans {
+                        // Rollback the transaction
+                        match (connection, db_type.as_str()) {
+                            (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                                let conn = conn_arc.lock().unwrap();
+                                let _ = conn.execute("ROLLBACK", []);
+                            }
+                            (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                                let mut client = client_arc.lock().unwrap();
+                                let _ = client.execute("ROLLBACK", &[]);
+                            }
+                            (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                                let mut conn = conn_arc.lock().unwrap();
+                                if let Ok(runtime) = tokio::runtime::Runtime::new() {
+                                    let _ = runtime.block_on(async {
+                                        conn.exec_drop("ROLLBACK", mysql_async::Params::Empty).await
+                                    });
+                                }
+                            }
+                            _ => {}
+                        }
+                        
+                        // Update transaction flag
+                        let mut in_trans = in_transaction.lock().unwrap();
+                        *in_trans = false;
+                    }
+                }
+            }
         }
     }
 }
