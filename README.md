@@ -191,7 +191,7 @@
   - **HTTP Streaming** (v0.6.0): `http_get_stream()` - Memory-efficient downloads for large files
   - **Binary Files** (v0.6.0): `http_get_binary()`, `read_binary_file()`, `write_binary_file()`, `encode_base64()`, `decode_base64()` - Download and work with binary data (images, PDFs, archives)
   - **Image Processing** (v0.6.0): `load_image()`, `img.resize()`, `img.crop()`, `img.rotate()`, `img.flip()`, `img.to_grayscale()`, `img.blur()`, `img.adjust_brightness()`, `img.adjust_contrast()`, `img.save()` - Load, manipulate, and save images (JPEG, PNG, WebP, GIF, BMP)
-  - **Database** (v0.7.0): `db_connect(db_type, connection_string)` - Unified database API supporting SQLite (PostgreSQL/MySQL coming soon), `db_execute()`, `db_query()`, `db_close()` - Database operations with parameter binding
+  - **Database** (v0.7.0): `db_connect(db_type, connection_string)` - Unified database API supporting SQLite ✅ and PostgreSQL ✅ (MySQL coming soon), `db_execute()`, `db_query()`, `db_close()` - Full CRUD operations with parameter binding
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
@@ -700,50 +700,53 @@ See [examples/http_server_simple.ruff](examples/http_server_simple.ruff), [examp
 
 ### Unified Database API (v0.7.0) 🗄️
 
-Ruff includes a unified database API that works across different database backends. Currently supports SQLite, with PostgreSQL and MySQL coming soon:
+Ruff includes a unified database API that works across different database backends. Currently supports **SQLite** and **PostgreSQL**, with MySQL coming soon:
 
 ```ruff
-# Connect to SQLite using unified API
+# SQLite - Perfect for local apps and embedded databases
 db := db_connect("sqlite", "myapp.db")
-
-# Create table
 db_execute(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)", [])
-
-# Insert data with parameterized queries (prevents SQL injection)
 db_execute(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Alice", "alice@example.com"])
-db_execute(db, "INSERT INTO users (name, email) VALUES (?, ?)", ["Bob", "bob@example.com"])
+users := db_query(db, "SELECT * FROM users", [])
 
-# Query data - returns array of dicts
-results := db_query(db, "SELECT * FROM users", [])
-for user in results {
+# PostgreSQL - Perfect for production web applications  
+db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
+db_execute(db, "CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name TEXT, email TEXT)", [])
+db_execute(db, "INSERT INTO users (name, email) VALUES ($1, $2)", ["Alice", "alice@example.com"])
+users := db_query(db, "SELECT * FROM users", [])
+
+# Same Ruff code works with both databases!
+for user in users {
     print("User: " + user["name"] + " - " + user["email"])
 }
 
-# Query with parameters
-user := db_query(db, "SELECT * FROM users WHERE name = ?", ["Alice"])
-if len(user) > 0 {
-    print("Found: " + user[0]["email"])
-}
+# Query with parameters (prevents SQL injection)
+bob := db_query(db, "SELECT * FROM users WHERE name = $1", ["Bob"])  # PostgreSQL uses $1, $2
+# bob := db_query(db, "SELECT * FROM users WHERE name = ?", ["Bob"])   # SQLite uses ?
 
 # Update and delete
-db_execute(db, "UPDATE users SET email = ? WHERE name = ?", ["alice@newmail.com", "Alice"])
-db_execute(db, "DELETE FROM users WHERE name = ?", ["Bob"])
+db_execute(db, "UPDATE users SET email = $1 WHERE name = $2", ["alice@newmail.com", "Alice"])
+db_execute(db, "DELETE FROM users WHERE name = $1", ["Bob"])
 
 # Close connection
 db_close(db)
-
-# Future: Same API will work with PostgreSQL and MySQL!
-# db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
-# db := db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")
 ```
 
 **Key Features**:
 - **Unified API**: Same `db_connect()`, `db_execute()`, and `db_query()` functions work across all databases
-- **Parameter Binding**: Prevents SQL injection with `?` placeholders
+- **SQLite Support**: `?` placeholders for parameters
+- **PostgreSQL Support**: `$1, $2, $3` placeholders for parameters
+- **Parameter Binding**: Prevents SQL injection attacks
 - **Type Safety**: Returns proper Null values for NULL database fields
-- **Multi-Backend Ready**: Infrastructure in place for PostgreSQL and MySQL
+- **Type Support**: Integers, floats, strings, booleans, and NULL
+- **Multi-Backend Ready**: Switch databases by changing connection string only
 
-See `examples/database_unified.ruff` for comprehensive SQLite examples and `examples/projects/url_shortener.ruff` for a complete URL shortener using SQLite with an HTTP server.
+**Database-Specific Syntax Notes**:
+- **SQLite**: Uses `?` for parameters: `INSERT INTO users VALUES (?, ?)`
+- **PostgreSQL**: Uses `$1, $2` for parameters: `INSERT INTO users VALUES ($1, $2)`
+- Everything else is the same Ruff code!
+
+See `examples/database_unified.ruff` for comprehensive SQLite examples, `examples/database_postgres.ruff` for PostgreSQL examples, and `examples/projects/url_shortener.ruff` for a complete URL shortener using SQLite with an HTTP server.
 
 ### String Interpolation (v0.3.0)
 

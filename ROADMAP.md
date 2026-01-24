@@ -44,50 +44,54 @@ All serialization format features have been implemented! See [CHANGELOG.md](CHAN
 
 ### 9. PostgreSQL & MySQL (P1)
 
-**Status**: ⚡ Partially Complete - SQLite unified API implemented, PostgreSQL/MySQL coming soon  
+**Status**: ✅ SQLite & PostgreSQL Complete | ⏳ MySQL Pending  
 **Estimated Effort**: Large (3-4 weeks)  
-**Completed**: 2026-01-24 (SQLite unified API)
+**Completed**: 2026-01-24 (SQLite & PostgreSQL fully implemented)
 
 **Description**:  
 Production database support for large-scale applications (restaurants, blogs, forums, e-commerce, etc.).
 
-**✅ Completed Features**:
+**✅ COMPLETED - SQLite & PostgreSQL**:
 
-**Unified Database Interface** (SQLite):
+Both SQLite and PostgreSQL are now fully functional with the unified database API:
+
 ```ruff
-# SQLite connection with unified API
+# SQLite connection
 db := db_connect("sqlite", "app.db")
-
-# Execute SQL with parameters
 db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
-
-# Query data
 users := db_query(db, "SELECT * FROM users", [])
 
-# Close connection
-db_close(db)
+# PostgreSQL connection - SAME API!
+db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
+db_execute(db, "INSERT INTO users (name) VALUES ($1)", ["Alice"])
+users := db_query(db, "SELECT * FROM users", [])
 ```
 
-**Architecture Ready for PostgreSQL & MySQL**:
-- `DatabaseConnection` enum supports multiple backend types
-- `db_connect()`, `db_execute()`, `db_query()` designed for any database
-- Infrastructure in place, awaiting dependency build fixes
-- Shows helpful "coming soon" messages
+**Features Implemented**:
+- ✅ Unified `db_connect(db_type, connection_string)` API
+- ✅ SQLite with `?` parameter placeholders
+- ✅ PostgreSQL with `$1, $2, $3` parameter placeholders
+- ✅ Full CRUD operations (Create, Read, Update, Delete)
+- ✅ Parameter binding for SQL injection prevention
+- ✅ Proper NULL value handling
+- ✅ Type conversion (integers, floats, strings, booleans, NULL)
+- ✅ `db_close()` for connection cleanup
+- ✅ Comprehensive examples for both databases
 
-**🔜 Planned - PostgreSQL & MySQL**:
+**🔜 Planned - MySQL**:
+
+MySQL support is architecturally ready but blocked by `subprocess` crate build issues in mysql_common dependencies. Alternative pure-Rust MySQL drivers being evaluated.
+
 ```ruff
-# PostgreSQL connection (coming soon)
-db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
-
-# MySQL connection (coming soon)
+# MySQL (coming soon)
 db := db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")
-
-# Same API works for all databases
-db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
-users := db_query(db, "SELECT * FROM users", [])
+# Same db_execute() and db_query() calls will work identically
 ```
 
 **🔜 Planned - Connection Pooling**:
+
+For high-traffic applications with many concurrent database connections:
+
 ```ruff
 # Create connection pool (coming soon)
 pool := db_pool("postgres", "host=localhost dbname=myapp", {
@@ -102,6 +106,9 @@ pool.release(db)
 ```
 
 **🔜 Planned - Transactions**:
+
+For atomic operations across multiple SQL statements:
+
 ```ruff
 # Transactions (coming soon)
 db_begin(db)
@@ -115,16 +122,20 @@ try {
 }
 ```
 
-**Target Use Cases**:
-- 🍽️ Restaurant menu management systems (SQLite ✅)
-- 📝 Blog platforms with user accounts (PostgreSQL coming soon)
-- 💬 Forums and community sites (MySQL coming soon)
-- 🛒 E-commerce applications
-- 📊 Analytics dashboards
-- 🏢 Business management tools
+**Use Cases Now Supported**:
+- 🍽️ Restaurant menu management systems (SQLite ✅ or PostgreSQL ✅)
+- 📝 Blog platforms with user accounts (PostgreSQL ✅)
+- 💬 Forums and community sites (PostgreSQL ✅)
+- 🛒 E-commerce applications (PostgreSQL ✅)
+- 📊 Analytics dashboards (SQLite ✅ or PostgreSQL ✅)
+- 🏢 Business management tools (both databases ✅)
 
-**See**: `examples/database_unified.ruff` for working SQLite examples  
-**See**: CHANGELOG.md for detailed API documentation
+**Examples Available**:
+- `examples/database_unified.ruff` - Comprehensive SQLite examples
+- `examples/database_postgres.ruff` - PostgreSQL-specific examples with advanced queries
+- `examples/projects/url_shortener.ruff` - Real-world SQLite + HTTP server application
+
+**See**: CHANGELOG.md for detailed API documentation and migration guide
 
 ---
 
