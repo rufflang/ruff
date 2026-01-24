@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.6.0] - 2025-01-XX (In Testing)
+
+### Added
+
+- **Database Transactions** 🎉:
+  - `db_begin(db)` - Start a database transaction
+  - `db_commit(db)` - Commit transaction changes
+  - `db_rollback(db)` - Rollback transaction on error
+  - `db_last_insert_id(db)` - Get auto-generated ID from last INSERT
+  - Ensures atomic operations across multiple SQL statements
+  - Full support for SQLite, PostgreSQL, and MySQL
+  - Automatic transaction cleanup on interpreter shutdown (prevents hangs)
+  - Example: Money transfers, e-commerce order processing, inventory management
+  - See `examples/database_transactions.ruff` for working examples
+  - See `tests/test_transactions_working.ruff` for comprehensive tests
+
+- **Connection Pooling** 🎉:
+  - `db_pool(db_type, connection_string, config)` - Create connection pool
+  - `db_pool_acquire(pool)` - Acquire connection from pool (blocks if all in use)
+  - `db_pool_release(pool, conn)` - Release connection back to pool
+  - `db_pool_stats(pool)` - Get pool statistics (available, in_use, total, max)
+  - `db_pool_close(pool)` - Close entire pool and all connections
+  - Configuration options:
+    - `min_connections` - Minimum pool size (reserved for future use)
+    - `max_connections` - Maximum concurrent connections
+    - `connection_timeout` - Seconds to wait for available connection
+  - Thread-safe lazy connection creation
+  - Supports all three database backends: SQLite, PostgreSQL, MySQL
+  - Critical for production apps with high traffic and concurrent users
+  - See `examples/database_pooling.ruff` for working examples
+  - See `tests/test_connection_pooling.ruff` for comprehensive tests
+
+### Fixed
+
+- Fixed critical bug where SQLite connections would hang on exit if in active transaction
+- Added `Interpreter::cleanup()` method to rollback active transactions before drop
+
+### Added (Previous)
+
 - **Unified Database API** (v0.7.0):
   - **Multi-Backend Support**:
     - Unified `db_connect(db_type, connection_string)` API that works across different databases
