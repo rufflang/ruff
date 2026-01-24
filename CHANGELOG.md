@@ -10,62 +10,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Unified Database API** (v0.7.0):
-  - **Multi-Backend Support Architecture**:
+  - **Multi-Backend Support**:
     - Unified `db_connect(db_type, connection_string)` API that works across different databases
-    - Database type parameter: `"sqlite"`, `"postgres"` (coming soon), `"mysql"` (coming soon)
+    - Database type parameter: `"sqlite"` ✅, `"postgres"` ✅, `"mysql"` (coming soon)
     - Same `db_execute()` and `db_query()` functions work with any database backend
     - Seamless migration path between database types without code changes
-  - **SQLite Implementation**:
+  - **SQLite Support** ✅:
     - `db_connect("sqlite", "path/to/database.db")` - Connect to SQLite database
     - `db_execute(db, sql, params)` - Execute INSERT, UPDATE, DELETE, CREATE statements
     - `db_query(db, sql, params)` - Query data and return array of dictionaries
-    - `db_close(db)` - Close database connection
-    - Full parameter binding support for SQL injection prevention
-    - Returns proper Null values instead of empty strings for NULL database values
-  - **Future PostgreSQL & MySQL Support** (infrastructure ready):
+    - Parameter binding with `?` placeholders: `["Alice", 30]`
+    - Full support for NULL values, integers, floats, text, and blobs
+  - **PostgreSQL Support** ✅:
     - `db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")`
+    - `db_connect("postgresql", ...)` - Both "postgres" and "postgresql" accepted
+    - `db_execute(db, sql, params)` - Execute SQL with `$1, $2, $3` parameter syntax
+    - `db_query(db, sql, params)` - Query with full type support
+    - Parameter binding: `["Alice", 30]` mapped to `$1, $2` in SQL
+    - Supports: SERIAL, INTEGER, BIGINT, REAL, DOUBLE PRECISION, TEXT, BOOLEAN, NULL
+    - Compatible with PostgreSQL 9.6+ features
+  - **MySQL Support** (planned):
+    - Infrastructure ready, awaiting resolution of `subprocess` crate build dependency
     - `db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")`
-    - API design complete, implementation deferred due to dependency build issues
-    - Shows helpful "coming soon" messages when attempting to use
+    - Shows helpful "coming soon" message
+  - **Common Database Functions**:
+    - `db_close(db)` - Close database connection (works for all database types)
+    - Full parameter binding support prevents SQL injection
+    - Automatic type conversion between Ruff and database types
+    - Proper NULL value handling across all databases
   - **Transaction Support (Planned)**:
     - `db_begin(db)` - Begin transaction
     - `db_commit(db)` - Commit transaction
     - `db_rollback(db)` - Rollback transaction
-    - Stub implementations added, full support coming in future release
+    - Stub implementations show helpful messages
   - **Connection Pooling (Planned)**:
     - `db_pool(db_type, connection_string, options)` - Create connection pool
-    - `pool.acquire()` - Get connection from pool
-    - `pool.release(connection)` - Return connection to pool
-    - Infrastructure ready, implementation coming with PostgreSQL/MySQL
+    - For high-traffic applications
+    - Infrastructure designed, implementation planned for future release
   - **Use Cases**:
-    - 🍽️ Restaurant menu management with SQLite
-    - 📝 Blog platforms with PostgreSQL (coming soon)
-    - 💬 Forums with MySQL (coming soon)
+    - 🍽️ Restaurant menu management (SQLite for local, PostgreSQL for cloud)
+    - 📝 Blog platforms with PostgreSQL
+    - 💬 Forums and community sites
     - 🛒 E-commerce applications
     - 📊 Analytics dashboards
     - 🏢 Business management tools
   - **Examples**:
     ```ruff
-    # Connect to SQLite with unified API
+    # SQLite with unified API
     db := db_connect("sqlite", "myapp.db")
-    
-    # Execute DDL
     db_execute(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)", [])
-    
-    # Insert with parameters (prevents SQL injection)
     db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
-    
-    # Query data
     users := db_query(db, "SELECT * FROM users WHERE id > ?", [100])
+    
+    # PostgreSQL with same API!
+    db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
+    db_execute(db, "CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT)", [])
+    db_execute(db, "INSERT INTO users (name) VALUES ($1)", ["Alice"])
+    users := db_query(db, "SELECT * FROM users WHERE id > $1", [100])
+    
+    # Same Ruff code, just change connection string!
     for user in users {
         print(user["name"])
     }
-    
-    # Future: Same code works with PostgreSQL!
-    # db := db_connect("postgres", "host=localhost dbname=myapp")
-    # Same db_execute() and db_query() calls work identically
+    db_close(db)
     ```
   - See `examples/database_unified.ruff` for comprehensive SQLite examples
+  - See `examples/database_postgres.ruff` for comprehensive PostgreSQL examples
   - Breaking change: Old `db_connect(path)` syntax replaced with `db_connect("sqlite", path)`
   - Migration: Add `"sqlite"` as first argument to existing db_connect() calls
 
