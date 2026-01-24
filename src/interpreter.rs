@@ -21,9 +21,7 @@ use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use rusqlite::Connection as SqliteConnection;
-// TODO: Add when build issues resolved
-// use postgres::{Client as PostgresClient, NoTls};
-// use mysql::{Pool as MysqlPool, PooledConn as MysqlConn, Opts as MysqlOpts, OptsBuilder};
+use postgres::{Client as PostgresClient, NoTls};
 use image::DynamicImage;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -66,13 +64,10 @@ enum ControlFlow {
 #[derive(Clone)]
 pub enum DatabaseConnection {
     Sqlite(Arc<Mutex<SqliteConnection>>),
-    // TODO: Add when build issues resolved
-    // Postgres(Arc<Mutex<PostgresClient>>),
-    // Mysql(Arc<Mutex<MysqlConn>>),
+    Postgres(Arc<Mutex<PostgresClient>>),
 }
 
-// TODO: Implement connection pooling when PostgreSQL/MySQL are added
-// /// Connection pool for database connections
+// Connection pooling to be implemented in future version
 // #[derive(Clone)]
 // pub struct ConnectionPool {
 //     db_type: String,
@@ -136,7 +131,7 @@ pub enum Value {
         db_type: String, // "sqlite", "postgres", "mysql"
         connection_string: String,
     },
-    // TODO: Add when connection pooling is implemented
+    // Connection pooling to be added in future version
     // DatabasePool {
     //     pool: ConnectionPool,
     // },
@@ -197,7 +192,7 @@ impl std::fmt::Debug for Value {
             Value::Database { db_type, connection_string, .. } => {
                 write!(f, "Database(type={}, connection={})", db_type, connection_string)
             }
-            // TODO: Add when pooling is implemented
+            // Connection pooling to be added in future version
             // Value::DatabasePool { pool } => {
             //     write!(f, "DatabasePool(type={}, max_connections={})", pool.db_type, pool.max_connections)
             // }
@@ -2244,11 +2239,11 @@ impl Interpreter {
             // Database functions
             "db_connect" => {
                 // db_connect(db_type, connection_string) - connect to database
-                // db_type: "sqlite" (postgres/mysql coming soon)
+                // db_type: "sqlite", "postgres" (mysql coming soon)
                 // Examples:
                 // - db_connect("sqlite", "app.db")
-                // - db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret") [not yet implemented]
-                // - db_connect("mysql", "mysql://user:pass@localhost:3306/myapp") [not yet implemented]
+                // - db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
+                // - db_connect("mysql", "mysql://user:pass@localhost:3306/myapp") [coming soon]
                 
                 if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) = 
                     (arg_values.get(0), arg_values.get(1)) {
@@ -2266,13 +2261,20 @@ impl Interpreter {
                                 Err(e) => Value::Error(format!("Failed to connect to SQLite: {}", e)),
                             }
                         }
-                        "postgres" => {
-                            Value::Error("PostgreSQL support coming soon! Currently only SQLite is supported.".to_string())
+                        "postgres" | "postgresql" => {
+                            match PostgresClient::connect(conn_str, NoTls) {
+                                Ok(client) => Value::Database {
+                                    connection: DatabaseConnection::Postgres(Arc::new(Mutex::new(client))),
+                                    db_type: "postgres".to_string(),
+                                    connection_string: conn_str.clone(),
+                                },
+                                Err(e) => Value::Error(format!("Failed to connect to PostgreSQL: {}", e)),
+                            }
                         }
                         "mysql" => {
-                            Value::Error("MySQL support coming soon! Currently only SQLite is supported.".to_string())
+                            Value::Error("MySQL support coming soon! Currently supported: 'sqlite', 'postgres'".to_string())
                         }
-                        _ => Value::Error(format!("Unsupported database type: {}. Currently supported: 'sqlite'", db_type)),
+                        _ => Value::Error(format!("Unsupported database type: {}. Currently supported: 'sqlite', 'postgres'", db_type)),
                     }
                 } else {
                     Value::Error("db_connect requires database type ('sqlite'|'postgres'|'mysql') and connection string".to_string())
@@ -2314,6 +2316,46 @@ impl Interpreter {
                                 match result {
                                     Ok(rows_affected) => Value::Number(rows_affected as f64),
                                     Err(e) => Value::Error(format!("SQLite execution error: {}", e)),
+                                }
+                            }
+                            (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                                let mut client = client_arc.lock().unwrap();
+                                
+                                // For PostgreSQL, we need to convert params properly
+                                let result = if let Some(Value::Array(param_arr)) = params {
+                                    // Convert Ruff values to Postgres-compatible types
+                                    // We'll use string representation for simplicity since postgres crate
+                                    // requires specific type implementations
+                                    let param_strs: Vec<String> = param_arr.iter().map(|v| match v {
+                                        Value::Str(s) => s.clone(),
+                                        Value::Number(n) => n.to_string(),
+                                        Value::Bool(b) => b.to_string(),
+                                        Value::Null => String::new(),
+                                        _ => format!("{:?}", v),
+                                    }).collect();
+                                    
+                                    // Build params refs for postgres
+                                    let params_refs: Vec<&(dyn postgres::types::ToSql + Sync)> = param_arr
+                                        .iter()
+                                        .zip(param_strs.iter())
+                                        .map(|(v, s)| -> &(dyn postgres::types::ToSql + Sync) {
+                                            match v {
+                                                Value::Str(s) => s as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Number(n) => n as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Bool(b) => b as &(dyn postgres::types::ToSql + Sync),
+                                                _ => s as &(dyn postgres::types::ToSql + Sync),
+                                            }
+                                        })
+                                        .collect();
+                                    
+                                    client.execute(sql.as_str(), &params_refs[..])
+                                } else {
+                                    client.execute(sql.as_str(), &[])
+                                };
+                                
+                                match result {
+                                    Ok(rows_affected) => Value::Number(rows_affected as f64),
+                                    Err(e) => Value::Error(format!("PostgreSQL execution error: {}", e)),
                                 }
                             }
                             _ => Value::Error("Invalid database connection type or database type not yet supported".to_string()),
@@ -2436,6 +2478,77 @@ impl Interpreter {
                                 }
                                 
                                 Value::Array(results)
+                            }
+                            (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                                let mut client = client_arc.lock().unwrap();
+                                
+                                // Execute query with PostgreSQL
+                                let result = if let Some(Value::Array(param_arr)) = params {
+                                    // Convert params for postgres
+                                    let param_strs: Vec<String> = param_arr.iter().map(|v| match v {
+                                        Value::Str(s) => s.clone(),
+                                        Value::Number(n) => n.to_string(),
+                                        Value::Bool(b) => b.to_string(),
+                                        Value::Null => String::new(),
+                                        _ => format!("{:?}", v),
+                                    }).collect();
+                                    
+                                    let params_refs: Vec<&(dyn postgres::types::ToSql + Sync)> = param_arr
+                                        .iter()
+                                        .zip(param_strs.iter())
+                                        .map(|(v, s)| -> &(dyn postgres::types::ToSql + Sync) {
+                                            match v {
+                                                Value::Str(s) => s as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Number(n) => n as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Bool(b) => b as &(dyn postgres::types::ToSql + Sync),
+                                                _ => s as &(dyn postgres::types::ToSql + Sync),
+                                            }
+                                        })
+                                        .collect();
+                                    
+                                    client.query(sql.as_str(), &params_refs[..])
+                                } else {
+                                    client.query(sql.as_str(), &[])
+                                };
+                                
+                                match result {
+                                    Ok(rows) => {
+                                        let mut results: Vec<Value> = Vec::new();
+                                        
+                                        for row in rows.iter() {
+                                            let mut row_dict: HashMap<String, Value> = HashMap::new();
+                                            
+                                            for (i, column) in row.columns().iter().enumerate() {
+                                                let col_name = column.name().to_string();
+                                                
+                                                // Try to get value as different types
+                                                let value = if let Ok(v) = row.try_get::<_, i32>(i) {
+                                                    Value::Number(v as f64)
+                                                } else if let Ok(v) = row.try_get::<_, i64>(i) {
+                                                    Value::Number(v as f64)
+                                                } else if let Ok(v) = row.try_get::<_, f64>(i) {
+                                                    Value::Number(v)
+                                                } else if let Ok(v) = row.try_get::<_, f32>(i) {
+                                                    Value::Number(v as f64)
+                                                } else if let Ok(v) = row.try_get::<_, String>(i) {
+                                                    Value::Str(v)
+                                                } else if let Ok(v) = row.try_get::<_, bool>(i) {
+                                                    Value::Bool(v)
+                                                } else {
+                                                    // Try to detect NULL values
+                                                    Value::Null
+                                                };
+                                                
+                                                row_dict.insert(col_name, value);
+                                            }
+                                            
+                                            results.push(Value::Dict(row_dict));
+                                        }
+                                        
+                                        Value::Array(results)
+                                    }
+                                    Err(e) => Value::Error(format!("PostgreSQL query error: {}", e)),
+                                }
                             }
                             _ => Value::Error("Invalid database connection type or database type not yet supported".to_string()),
                         }
@@ -2711,26 +2824,26 @@ impl Interpreter {
 
             "db_pool" => {
                 // db_pool(db_type, connection_string, options) - create connection pool
-                // TODO: Implement connection pooling when PostgreSQL/MySQL support is added
-                Value::Error("Connection pooling not yet implemented. Coming in future release.".to_string())
+                // Connection pooling planned for high-traffic applications
+                Value::Error("Connection pooling not yet implemented. Use db_connect() for single connections.".to_string())
             }
 
             "db_begin" => {
                 // db_begin(db) - begin database transaction
-                // TODO: Implement transactions when needed
-                Value::Error("Transactions not yet implemented. Coming in future release.".to_string())
+                // Transaction support planned for future release
+                Value::Error("Transactions not yet implemented. SQL statements auto-commit currently.".to_string())
             }
 
             "db_commit" => {
                 // db_commit(db) - commit database transaction
-                // TODO: Implement transactions when needed
-                Value::Error("Transactions not yet implemented. Coming in future release.".to_string())
+                // Transaction support planned for future release
+                Value::Error("Transactions not yet implemented. SQL statements auto-commit currently.".to_string())
             }
 
             "db_rollback" => {
                 // db_rollback(db) - rollback database transaction
-                // TODO: Implement transactions when needed
-                Value::Error("Transactions not yet implemented. Coming in future release.".to_string())
+                // Transaction support planned for future release
+                Value::Error("Transactions not yet implemented. SQL statements auto-commit currently.".to_string())
             }
 
             // Image processing functions
