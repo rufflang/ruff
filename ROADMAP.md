@@ -39,7 +39,7 @@ All serialization format features have been implemented! See [CHANGELOG.md](CHAN
 
 ---
 
-## v0.7.0 - Production Database Support & Concurrency
+## v0.6.0 - Production Database Support & Concurrency
 
 ### 1. Image Processing (P2)
 
