@@ -21,6 +21,7 @@ use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use rusqlite::Connection;
+use image::DynamicImage;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
@@ -109,6 +110,10 @@ pub enum Value {
         connection: Arc<Mutex<Connection>>,
         path: String,
     },
+    Image {
+        data: Arc<Mutex<DynamicImage>>,
+        format: String,
+    },
 }
 
 // Manual Debug impl since NativeFunction doesn't need detailed output
@@ -160,6 +165,10 @@ impl std::fmt::Debug for Value {
             }
             Value::Database { path, .. } => {
                 write!(f, "Database(path={})", path)
+            }
+            Value::Image { format, data } => {
+                let img = data.lock().unwrap();
+                write!(f, "Image({}x{}, format={})", img.width(), img.height(), format)
             }
         }
     }
@@ -491,6 +500,9 @@ impl Interpreter {
         self.env.define("stack_peek".to_string(), Value::NativeFunction("stack_peek".to_string()));
         self.env.define("stack_is_empty".to_string(), Value::NativeFunction("stack_is_empty".to_string()));
         self.env.define("stack_to_array".to_string(), Value::NativeFunction("stack_to_array".to_string()));
+
+        // Image processing functions
+        self.env.define("load_image".to_string(), Value::NativeFunction("load_image".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -2555,6 +2567,31 @@ impl Interpreter {
                 }
             }
 
+            // Image processing functions
+            "load_image" => {
+                // load_image(path) - loads an image from file
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match image::open(path) {
+                        Ok(img) => {
+                            // Detect format from path extension
+                            let format = std::path::Path::new(path)
+                                .extension()
+                                .and_then(|ext| ext.to_str())
+                                .unwrap_or("unknown")
+                                .to_lowercase();
+                            
+                            Value::Image {
+                                data: Arc::new(Mutex::new(img)),
+                                format,
+                            }
+                        }
+                        Err(e) => Value::Error(format!("Cannot load image '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("load_image requires a string path argument".to_string())
+                }
+            }
+
             _ => Value::Number(0.0),
         }
     }
@@ -3536,6 +3573,211 @@ impl Interpreter {
                         }
                     }
 
+                    // Handle Image methods
+                    if let Value::Image { data, format } = &obj_val {
+                        match field.as_str() {
+                            "resize" => {
+                                // img.resize(width, height) or img.resize(width, height, "fit")
+                                if args.len() < 2 {
+                                    return Value::Error("resize requires at least width and height arguments".to_string());
+                                }
+
+                                let width_val = self.eval_expr(&args[0]);
+                                let height_val = self.eval_expr(&args[1]);
+                                
+                                if let (Value::Number(w), Value::Number(h)) = (width_val, height_val) {
+                                    let width = w as u32;
+                                    let height = h as u32;
+                                    
+                                    let img = data.lock().unwrap();
+                                    let resized = if args.len() >= 3 {
+                                        let mode_val = self.eval_expr(&args[2]);
+                                        if let Value::Str(mode) = mode_val {
+                                            if mode == "fit" {
+                                                // Maintain aspect ratio
+                                                img.resize(width, height, image::imageops::FilterType::Lanczos3)
+                                            } else {
+                                                // Exact dimensions
+                                                img.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+                                            }
+                                        } else {
+                                            img.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+                                        }
+                                    } else {
+                                        // Exact dimensions by default
+                                        img.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+                                    };
+                                    
+                                    return Value::Image {
+                                        data: Arc::new(Mutex::new(resized)),
+                                        format: format.clone(),
+                                    };
+                                } else {
+                                    return Value::Error("resize requires numeric width and height".to_string());
+                                }
+                            }
+                            "crop" => {
+                                // img.crop(x, y, width, height)
+                                if args.len() < 4 {
+                                    return Value::Error("crop requires x, y, width, and height arguments".to_string());
+                                }
+                                
+                                let x_val = self.eval_expr(&args[0]);
+                                let y_val = self.eval_expr(&args[1]);
+                                let w_val = self.eval_expr(&args[2]);
+                                let h_val = self.eval_expr(&args[3]);
+                                
+                                if let (Value::Number(x), Value::Number(y), Value::Number(w), Value::Number(h)) 
+                                    = (x_val, y_val, w_val, h_val) {
+                                    let mut img = data.lock().unwrap().clone();
+                                    let cropped = img.crop(x as u32, y as u32, w as u32, h as u32);
+                                    
+                                    return Value::Image {
+                                        data: Arc::new(Mutex::new(cropped)),
+                                        format: format.clone(),
+                                    };
+                                } else {
+                                    return Value::Error("crop requires numeric x, y, width, and height".to_string());
+                                }
+                            }
+                            "rotate" => {
+                                // img.rotate(degrees)
+                                if args.is_empty() {
+                                    return Value::Error("rotate requires a degrees argument".to_string());
+                                }
+                                
+                                let degrees_val = self.eval_expr(&args[0]);
+                                if let Value::Number(degrees) = degrees_val {
+                                    let img = data.lock().unwrap();
+                                    let rotated = match degrees as i32 {
+                                        90 => img.rotate90(),
+                                        180 => img.rotate180(),
+                                        270 => img.rotate270(),
+                                        _ => return Value::Error("rotate only supports 90, 180, or 270 degrees".to_string()),
+                                    };
+                                    
+                                    return Value::Image {
+                                        data: Arc::new(Mutex::new(rotated)),
+                                        format: format.clone(),
+                                    };
+                                } else {
+                                    return Value::Error("rotate requires a numeric degrees argument".to_string());
+                                }
+                            }
+                            "flip" => {
+                                // img.flip("horizontal") or img.flip("vertical")
+                                if args.is_empty() {
+                                    return Value::Error("flip requires a direction argument ('horizontal' or 'vertical')".to_string());
+                                }
+                                
+                                let direction_val = self.eval_expr(&args[0]);
+                                if let Value::Str(direction) = direction_val {
+                                    let img = data.lock().unwrap();
+                                    let flipped = match direction.as_str() {
+                                        "horizontal" => img.fliph(),
+                                        "vertical" => img.flipv(),
+                                        _ => return Value::Error("flip direction must be 'horizontal' or 'vertical'".to_string()),
+                                    };
+                                    
+                                    return Value::Image {
+                                        data: Arc::new(Mutex::new(flipped)),
+                                        format: format.clone(),
+                                    };
+                                } else {
+                                    return Value::Error("flip requires a string direction argument".to_string());
+                                }
+                            }
+                            "save" => {
+                                // img.save(path) or img.save(path, options)
+                                if args.is_empty() {
+                                    return Value::Error("save requires a path argument".to_string());
+                                }
+                                
+                                let path_val = self.eval_expr(&args[0]);
+                                if let Value::Str(path) = path_val {
+                                    let img = data.lock().unwrap();
+                                    
+                                    // The image crate will auto-detect format from extension
+                                    // No need to manually specify the format
+                                    match img.save(&path) {
+                                        Ok(_) => return Value::Bool(true),
+                                        Err(e) => return Value::Error(format!("Failed to save image: {}", e)),
+                                    }
+                                } else {
+                                    return Value::Error("save requires a string path argument".to_string());
+                                }
+                            }
+                            "to_grayscale" => {
+                                // img.to_grayscale()
+                                let img = data.lock().unwrap();
+                                let gray = img.grayscale();
+                                
+                                return Value::Image {
+                                    data: Arc::new(Mutex::new(gray)),
+                                    format: format.clone(),
+                                };
+                            }
+                            "blur" => {
+                                // img.blur(sigma)
+                                if args.is_empty() {
+                                    return Value::Error("blur requires a sigma argument".to_string());
+                                }
+                                
+                                let sigma_val = self.eval_expr(&args[0]);
+                                if let Value::Number(sigma) = sigma_val {
+                                    let img = data.lock().unwrap();
+                                    let blurred = img.blur(sigma as f32);
+                                    
+                                    return Value::Image {
+                                        data: Arc::new(Mutex::new(blurred)),
+                                        format: format.clone(),
+                                    };
+                                } else {
+                                    return Value::Error("blur requires a numeric sigma argument".to_string());
+                                }
+                            }
+                            "adjust_brightness" => {
+                                // img.adjust_brightness(factor)
+                                if args.is_empty() {
+                                    return Value::Error("adjust_brightness requires a factor argument".to_string());
+                                }
+                                
+                                let factor_val = self.eval_expr(&args[0]);
+                                if let Value::Number(factor) = factor_val {
+                                    let img = data.lock().unwrap();
+                                    let adjusted = img.brighten((factor * 50.0) as i32);
+                                    
+                                    return Value::Image {
+                                        data: Arc::new(Mutex::new(adjusted)),
+                                        format: format.clone(),
+                                    };
+                                } else {
+                                    return Value::Error("adjust_brightness requires a numeric factor argument".to_string());
+                                }
+                            }
+                            "adjust_contrast" => {
+                                // img.adjust_contrast(factor)
+                                if args.is_empty() {
+                                    return Value::Error("adjust_contrast requires a factor argument".to_string());
+                                }
+                                
+                                let factor_val = self.eval_expr(&args[0]);
+                                if let Value::Number(factor) = factor_val {
+                                    let img = data.lock().unwrap();
+                                    let adjusted = img.adjust_contrast(factor as f32);
+                                    
+                                    return Value::Image {
+                                        data: Arc::new(Mutex::new(adjusted)),
+                                        format: format.clone(),
+                                    };
+                                } else {
+                                    return Value::Error("adjust_contrast requires a numeric factor argument".to_string());
+                                }
+                            }
+                            _ => return Value::Error(format!("Image has no method '{}'", field)),
+                        }
+                    }
+
                     if let Value::Struct { name, fields } = &obj_val {
                         // Look up the struct definition to find the method
                         if let Some(Value::StructDef { name: _, field_names: _, methods }) =
@@ -3794,6 +4036,21 @@ impl Interpreter {
                     Value::Struct { name: _, fields } => {
                         // Access field from struct instance
                         fields.get(field).cloned().unwrap_or(Value::Number(0.0))
+                    }
+                    Value::Image { data, format } => {
+                        // Access image properties
+                        match field.as_str() {
+                            "width" => {
+                                let img = data.lock().unwrap();
+                                Value::Number(img.width() as f64)
+                            }
+                            "height" => {
+                                let img = data.lock().unwrap();
+                                Value::Number(img.height() as f64)
+                            }
+                            "format" => Value::Str(format),
+                            _ => Value::Error(format!("Image has no field '{}'", field)),
+                        }
                     }
                     _ => Value::Number(0.0),
                 }
