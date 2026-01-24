@@ -539,7 +539,7 @@ impl TypeChecker {
         self.functions.insert(
             "db_connect".to_string(),
             FunctionSignature {
-                param_types: vec![Some(TypeAnnotation::String)], // Database path
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // db_type, connection_string
                 return_type: None,                               // Returns Database object
             },
         );
@@ -565,6 +565,38 @@ impl TypeChecker {
             FunctionSignature {
                 param_types: vec![None], // Database connection
                 return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "db_pool".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String), None], // db_type, connection_string, options
+                return_type: None, // Returns DatabasePool object
+            },
+        );
+
+        self.functions.insert(
+            "db_begin".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Database connection
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "db_commit".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Database connection
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "db_rollback".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Database connection
+                return_type: None,
             },
         );
 
