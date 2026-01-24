@@ -44,33 +44,52 @@ All serialization format features have been implemented! See [CHANGELOG.md](CHAN
 
 ### 9. PostgreSQL & MySQL (P1)
 
-**Status**: Planned  
-**Estimated Effort**: Large (3-4 weeks)
+**Status**: ⚡ Partially Complete - SQLite unified API implemented, PostgreSQL/MySQL coming soon  
+**Estimated Effort**: Large (3-4 weeks)  
+**Completed**: 2026-01-24 (SQLite unified API)
 
 **Description**:  
 Production database support for large-scale applications (restaurants, blogs, forums, e-commerce, etc.).
 
-**Planned Features**:
+**✅ Completed Features**:
 
-**Unified Database Interface**:
+**Unified Database Interface** (SQLite):
 ```ruff
-# PostgreSQL connection
+# SQLite connection with unified API
+db := db_connect("sqlite", "app.db")
+
+# Execute SQL with parameters
+db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
+
+# Query data
+users := db_query(db, "SELECT * FROM users", [])
+
+# Close connection
+db_close(db)
+```
+
+**Architecture Ready for PostgreSQL & MySQL**:
+- `DatabaseConnection` enum supports multiple backend types
+- `db_connect()`, `db_execute()`, `db_query()` designed for any database
+- Infrastructure in place, awaiting dependency build fixes
+- Shows helpful "coming soon" messages
+
+**🔜 Planned - PostgreSQL & MySQL**:
+```ruff
+# PostgreSQL connection (coming soon)
 db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
 
-# MySQL connection  
+# MySQL connection (coming soon)
 db := db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")
-
-# SQLite connection (existing)
-db := db_connect("sqlite", "app.db")
 
 # Same API works for all databases
 db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
 users := db_query(db, "SELECT * FROM users", [])
 ```
 
-**Connection Pooling** (for high-traffic applications):
+**🔜 Planned - Connection Pooling**:
 ```ruff
-# Create connection pool
+# Create connection pool (coming soon)
 pool := db_pool("postgres", "host=localhost dbname=myapp", {
     "min_connections": 5,
     "max_connections": 20
@@ -82,8 +101,9 @@ users := db_query(db, "SELECT * FROM users", [])
 pool.release(db)
 ```
 
-**Transactions**:
+**🔜 Planned - Transactions**:
 ```ruff
+# Transactions (coming soon)
 db_begin(db)
 try {
     db_execute(db, "INSERT INTO orders ...", [order_data])
@@ -96,12 +116,15 @@ try {
 ```
 
 **Target Use Cases**:
-- 🍽️ Restaurant menu management systems
-- 📝 Blog platforms with user accounts
-- 💬 Forums and community sites
+- 🍽️ Restaurant menu management systems (SQLite ✅)
+- 📝 Blog platforms with user accounts (PostgreSQL coming soon)
+- 💬 Forums and community sites (MySQL coming soon)
 - 🛒 E-commerce applications
 - 📊 Analytics dashboards
 - 🏢 Business management tools
+
+**See**: `examples/database_unified.ruff` for working SQLite examples  
+**See**: CHANGELOG.md for detailed API documentation
 
 ---
 
