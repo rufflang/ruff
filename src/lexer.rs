@@ -4,7 +4,7 @@
 // Converts source code text into a stream of tokens for parsing.
 //
 // Supports:
-// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except, int, float, string, bool, import, export, from
+// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except, int, float, string, bool, import, export, from, spawn
 // - Identifiers and numbers
 // - String literals with escape sequences
 // - Operators: +, -, *, /, =, ==, <, >, <=, >=, ->, :=, ::
@@ -207,7 +207,8 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     "let" | "mut" | "const" | "func" | "return" | "enum" | "match" | "case"
                     | "default" | "if" | "else" | "loop" | "while" | "for" | "in" | "break"
                     | "continue" | "try" | "except" | "int" | "float" | "string" | "bool"
-                    | "import" | "export" | "from" | "struct" | "impl" | "self" | "null" => {
+                    | "import" | "export" | "from" | "struct" | "impl" | "self" | "null" 
+                    | "spawn" => {
                         TokenKind::Keyword(ident)
                     }
                     "true" => TokenKind::Bool(true),

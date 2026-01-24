@@ -233,6 +233,10 @@ pub enum Stmt {
         fields: Vec<(String, Option<TypeAnnotation>)>,
         methods: Vec<Stmt>, // FuncDef statements
     },
+    /// Spawn statement: run a block of code in a background thread
+    Spawn {
+        body: Vec<Stmt>,
+    },
 }
 
 impl Stmt {

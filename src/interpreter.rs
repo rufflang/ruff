@@ -97,6 +97,7 @@ pub enum Value {
     Set(Vec<Value>), // Unique values - using Vec for simplicity since we need Clone on Value
     Queue(std::collections::VecDeque<Value>), // FIFO queue
     Stack(Vec<Value>), // LIFO stack
+    Channel(Arc<Mutex<(std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)>>), // Thread-safe channel
     HttpServer {
         port: u16,
         routes: Vec<(String, String, Value)>, // (method, path, handler_function)
@@ -157,6 +158,7 @@ impl std::fmt::Debug for Value {
             Value::Set(elements) => write!(f, "Set{{{} items}}", elements.len()),
             Value::Queue(queue) => write!(f, "Queue({} items)", queue.len()),
             Value::Stack(stack) => write!(f, "Stack({} items)", stack.len()),
+            Value::Channel(_) => write!(f, "Channel"),
             Value::HttpServer { port, routes } => {
                 write!(f, "HttpServer(port={}, {} routes)", port, routes.len())
             }
@@ -433,6 +435,9 @@ impl Interpreter {
         self.env
             .define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
         self.env.define("http_get_binary".to_string(), Value::NativeFunction("http_get_binary".to_string()));
+        
+        // Concurrent HTTP functions
+        self.env.define("parallel_http".to_string(), Value::NativeFunction("parallel_http".to_string()));
 
         // JWT authentication functions
         self.env.define("jwt_encode".to_string(), Value::NativeFunction("jwt_encode".to_string()));
@@ -500,6 +505,9 @@ impl Interpreter {
         self.env.define("stack_peek".to_string(), Value::NativeFunction("stack_peek".to_string()));
         self.env.define("stack_is_empty".to_string(), Value::NativeFunction("stack_is_empty".to_string()));
         self.env.define("stack_to_array".to_string(), Value::NativeFunction("stack_to_array".to_string()));
+
+        // Concurrency functions
+        self.env.define("channel".to_string(), Value::NativeFunction("channel".to_string()));
 
         // Image processing functions
         self.env.define("load_image".to_string(), Value::NativeFunction("load_image".to_string()));
@@ -1931,6 +1939,60 @@ impl Interpreter {
                 }
             }
 
+            "parallel_http" => {
+                // parallel_http(urls_array) - make parallel GET requests
+                // Returns array of response dicts in same order as input URLs
+                if let Some(Value::Array(urls)) = arg_values.get(0) {
+                    // Extract URLs as strings
+                    let url_strings: Vec<String> = urls
+                        .iter()
+                        .filter_map(|v| {
+                            if let Value::Str(s) = v {
+                                Some(s.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    // Spawn threads for parallel requests
+                    // Each thread returns (status_code, body_string) or error
+                    let mut handles = Vec::new();
+                    for url in url_strings {
+                        let handle = std::thread::spawn(move || -> Result<(u16, String), String> {
+                            match reqwest::blocking::get(&url) {
+                                Ok(response) => {
+                                    let status = response.status().as_u16();
+                                    let body = response.text().unwrap_or_default();
+                                    Ok((status, body))
+                                }
+                                Err(e) => Err(format!("HTTP GET failed: {}", e)),
+                            }
+                        });
+                        handles.push(handle);
+                    }
+
+                    // Wait for all requests to complete and convert to Values
+                    let mut results = Vec::new();
+                    for handle in handles {
+                        match handle.join() {
+                            Ok(Ok((status, body))) => {
+                                let mut result_map = HashMap::new();
+                                result_map.insert("status".to_string(), Value::Number(status as f64));
+                                result_map.insert("body".to_string(), Value::Str(body));
+                                results.push(Value::Dict(result_map));
+                            }
+                            Ok(Err(e)) => results.push(Value::Error(e)),
+                            Err(_) => results.push(Value::Error("Thread panicked".to_string())),
+                        }
+                    }
+
+                    Value::Array(results)
+                } else {
+                    Value::Error("parallel_http requires an array of URL strings".to_string())
+                }
+            }
+
             "jwt_encode" => {
                 // jwt_encode(payload_dict, secret_key) - encode JWT token
                 if let (Some(Value::Dict(payload)), Some(Value::Str(secret))) =
@@ -2554,6 +2616,13 @@ impl Interpreter {
                 } else {
                     Value::Array(Vec::new())
                 }
+            }
+
+            "channel" => {
+                // channel() - creates a new channel for thread communication
+                use std::sync::mpsc;
+                let (sender, receiver) = mpsc::channel();
+                Value::Channel(Arc::new(Mutex::new((sender, receiver))))
             }
 
             "db_close" => {
@@ -3307,6 +3376,18 @@ impl Interpreter {
                     }
                 }
             }
+            Stmt::Spawn { body } => {
+                // Clone the body for the spawned thread
+                let body_clone = body.clone();
+                
+                // Spawn a new thread to execute the body
+                // Note: The spawned code runs in isolation and cannot access the parent environment
+                std::thread::spawn(move || {
+                    let mut thread_interp = Interpreter::new();
+                    thread_interp.eval_stmts(&body_clone);
+                });
+                // Don't wait for the thread to finish - it runs in the background
+            }
             Stmt::StructDef { name, fields, methods } => {
                 // Extract field names
                 let field_names: Vec<String> =
@@ -3775,6 +3856,45 @@ impl Interpreter {
                                 }
                             }
                             _ => return Value::Error(format!("Image has no method '{}'", field)),
+                        }
+                    }
+
+                    // Handle Channel methods
+                    if let Value::Channel(chan) = &obj_val {
+                        match field.as_str() {
+                            "send" => {
+                                // chan.send(value) - send value to channel
+                                if args.is_empty() {
+                                    return Value::Error("send requires a value argument".to_string());
+                                }
+                                
+                                let value = self.eval_expr(&args[0]);
+                                let chan_lock = chan.lock().unwrap();
+                                let (sender, _) = &*chan_lock;
+                                
+                                match sender.send(value) {
+                                    Ok(_) => return Value::Bool(true),
+                                    Err(_) => return Value::Error("Failed to send to channel".to_string()),
+                                }
+                            }
+                            "receive" => {
+                                // chan.receive() - receive value from channel (non-blocking for now)
+                                // TODO: Implement proper blocking receive
+                                let chan_lock = chan.lock().unwrap();
+                                let (_, receiver) = &*chan_lock;
+                                
+                                match receiver.try_recv() {
+                                    Ok(value) => return value,
+                                    Err(std::sync::mpsc::TryRecvError::Empty) => {
+                                        // Channel is empty - return null
+                                        return Value::Null;
+                                    }
+                                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                        return Value::Error("Channel disconnected".to_string());
+                                    }
+                                }
+                            }
+                            _ => return Value::Error(format!("Channel has no method '{}'", field)),
                         }
                     }
 
