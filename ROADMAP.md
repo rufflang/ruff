@@ -39,74 +39,44 @@ All serialization format features have been implemented! See [CHANGELOG.md](CHAN
 
 ---
 
-## v0.6.0 - Production Database Support & Concurrency
+## v0.6.0 - Image Processing ✅ COMPLETED
 
-### 1. Image Processing (P2)
+### 1. Image Processing (P2) ✅ COMPLETED
 
-**Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
+**Status**: Completed 2026-01-23  
+**Effort**: Medium (1-2 weeks)
 
 **Description**:  
 Built-in image manipulation capabilities for common operations without external dependencies.
 
-**Planned Features**:
-```ruff
-# Load and basic operations
-img := load_image("photo.jpg")
-width := img.width
-height := img.height
-format := img.format  # "jpeg", "png", "webp"
-
-# Resize
-resized := img.resize(800, 600)
-thumbnail := img.resize(200, 200, "fit")  # Maintain aspect ratio
-
-# Crop
-cropped := img.crop(100, 100, 400, 400)  # x, y, width, height
-
-# Rotate and flip
-rotated := img.rotate(90)
-flipped := img.flip("horizontal")
-
-# Format conversion
-img.save("output.png")  # Auto-converts JPEG -> PNG
-img.save("output.webp", {"quality": 85})
-
-# Filters and adjustments
-brightened := img.adjust_brightness(1.2)
-contrasted := img.adjust_contrast(1.1)
-grayscale := img.to_grayscale()
-blurred := img.blur(5)
-
-# Watermarking
-watermarked := img.add_text("© 2026", {
-    "position": "bottom-right",
-    "font": "Arial",
-    "size": 20,
-    "color": "white"
-})
-
-# Composite images
-logo := load_image("logo.png")
-final := img.overlay(logo, 10, 10)  # x, y position
-
-# Batch operations
-images := ["img1.jpg", "img2.jpg", "img3.jpg"]
-for path in images {
-    img := load_image(path)
-    thumb := img.resize(200, 200, "fit")
-    thumb.save("thumbs/" + basename(path))
-}
-```
+**Implemented Features**:
+- ✅ `load_image(path)` - Load images from files (JPEG, PNG, WebP, GIF, BMP)
+- ✅ `img.width`, `img.height`, `img.format` - Image properties
+- ✅ `img.resize(width, height)` - Resize to exact dimensions
+- ✅ `img.resize(width, height, "fit")` - Resize maintaining aspect ratio
+- ✅ `img.crop(x, y, width, height)` - Crop rectangular region
+- ✅ `img.rotate(degrees)` - Rotate 90, 180, or 270 degrees
+- ✅ `img.flip(direction)` - Flip horizontal or vertical
+- ✅ `img.to_grayscale()` - Convert to grayscale
+- ✅ `img.blur(sigma)` - Apply Gaussian blur
+- ✅ `img.adjust_brightness(factor)` - Adjust brightness
+- ✅ `img.adjust_contrast(factor)` - Adjust contrast
+- ✅ `img.save(path)` - Save with automatic format conversion
+- ✅ Method chaining support for complex workflows
+- ✅ Comprehensive test suite in `tests/image_processing_test.ruff`
+- ✅ Example code in `examples/image_processing.ruff`
 
 **Use Cases**:
 - AI image generation pipelines (resize, crop, watermark outputs)
-- Thumbnail generation for galleries
+- Thumbnail generation for galleries and listings
 - Image optimization for web (format conversion, compression)
-- Social media image preparation (specific dimensions)
+- Social media image preparation (specific dimensions, filters)
 - Batch processing for e-commerce product photos
+- Automated image enhancement workflows
 
 ---
+
+## v0.7.0 - Production Database Support & Concurrency
 
 ### 2. Concurrency & Async/Await (P1) 🚀
 
