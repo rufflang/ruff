@@ -9,6 +9,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Serialization Formats** (v0.7.0):
+  - **TOML Support**:
+    - `parse_toml(toml_string)` - Parse TOML configuration files to Ruff dictionaries and arrays
+    - `to_toml(value)` - Convert Ruff dictionaries and arrays to TOML format
+    - Full support for TOML data types: strings, integers, floats, booleans, datetime, arrays, and tables
+    - Perfect for configuration files and structured data
+  - **YAML Support**:
+    - `parse_yaml(yaml_string)` - Parse YAML documents to Ruff values
+    - `to_yaml(value)` - Serialize Ruff values to YAML format
+    - Support for YAML sequences, mappings, scalars, and null values
+    - Ideal for API specifications, data files, and cloud configs
+  - **CSV Support**:
+    - `parse_csv(csv_string)` - Parse CSV data into array of dictionaries (one dict per row)
+    - `to_csv(array_of_dicts)` - Convert array of dictionaries to CSV string
+    - Automatic header detection from first row
+    - Automatic number parsing for numeric fields
+    - Perfect for data analysis, reports, and spreadsheet data
+  - **Use Cases**:
+    - Configuration management (TOML for app configs)
+    - API specifications (YAML for OpenAPI/Swagger)
+    - Data import/export (CSV for spreadsheets and databases)
+    - Infrastructure as code (YAML for Kubernetes, Docker Compose)
+    - Data transformation pipelines
+  - **Examples**:
+    ```ruff
+    # TOML Configuration
+    config := parse_toml(read_file("config.toml"))
+    port := config["server"]["port"]
+    
+    # YAML Processing
+    api_spec := parse_yaml(read_file("openapi.yaml"))
+    endpoints := api_spec["paths"]
+    
+    # CSV Data Analysis
+    sales := parse_csv(read_file("sales.csv"))
+    for row in sales {
+        total := row["quantity"] * row["price"]
+        print(row["product"] + ": $" + to_string(total))
+    }
+    ```
+  - See `examples/toml_demo.ruff` for TOML configuration examples
+  - See `examples/yaml_demo.ruff` for YAML processing examples
+  - See `examples/csv_demo.ruff` for CSV data processing examples
+  - Full type checker support for all serialization functions
+
 - **Advanced Collections** (v0.6.0):
   - **Set Collection**:
     - `Set(array)` - Create a set from an array, automatically removing duplicates
