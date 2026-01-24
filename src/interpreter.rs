@@ -22,6 +22,7 @@ use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use rusqlite::Connection as SqliteConnection;
 use postgres::{Client as PostgresClient, NoTls};
+use mysql_async::{Conn as MysqlConn, Opts as MysqlOpts, prelude::*};
 use image::DynamicImage;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -65,6 +66,7 @@ enum ControlFlow {
 pub enum DatabaseConnection {
     Sqlite(Arc<Mutex<SqliteConnection>>),
     Postgres(Arc<Mutex<PostgresClient>>),
+    Mysql(Arc<Mutex<MysqlConn>>),
 }
 
 // Connection pooling to be implemented in future version
@@ -2272,7 +2274,26 @@ impl Interpreter {
                             }
                         }
                         "mysql" => {
-                            Value::Error("MySQL support coming soon! Currently supported: 'sqlite', 'postgres'".to_string())
+                            // MySQL uses async driver, so we need to block on it
+                            let opts = match MysqlOpts::from_url(conn_str) {
+                                Ok(opts) => opts,
+                                Err(e) => return Value::Error(format!("Invalid MySQL connection string: {}", e)),
+                            };
+                            
+                            // Create a Tokio runtime to run async code
+                            let runtime = match tokio::runtime::Runtime::new() {
+                                Ok(rt) => rt,
+                                Err(e) => return Value::Error(format!("Failed to create async runtime: {}", e)),
+                            };
+                            
+                            match runtime.block_on(async { MysqlConn::new(opts).await }) {
+                                Ok(conn) => Value::Database {
+                                    connection: DatabaseConnection::Mysql(Arc::new(Mutex::new(conn))),
+                                    db_type: "mysql".to_string(),
+                                    connection_string: conn_str.clone(),
+                                },
+                                Err(e) => Value::Error(format!("Failed to connect to MySQL: {}", e)),
+                            }
                         }
                         _ => Value::Error(format!("Unsupported database type: {}. Currently supported: 'sqlite', 'postgres'", db_type)),
                     }
@@ -2356,6 +2377,48 @@ impl Interpreter {
                                 match result {
                                     Ok(rows_affected) => Value::Number(rows_affected as f64),
                                     Err(e) => Value::Error(format!("PostgreSQL execution error: {}", e)),
+                                }
+                            }
+                            (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                                let mut conn = conn_arc.lock().unwrap();
+                                
+                                // Create a Tokio runtime to run async code
+                                let runtime = match tokio::runtime::Runtime::new() {
+                                    Ok(rt) => rt,
+                                    Err(e) => return Value::Error(format!("Failed to create async runtime: {}", e)),
+                                };
+                                
+                                // Convert params to mysql_async format
+                                let result = if let Some(Value::Array(param_arr)) = params {
+                                    let mysql_params: Vec<mysql_async::Value> = param_arr
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Str(s) => mysql_async::Value::Bytes(s.as_bytes().to_vec()),
+                                            Value::Number(n) => mysql_async::Value::Double(*n),
+                                            Value::Bool(b) => mysql_async::Value::Int(if *b { 1 } else { 0 }),
+                                            Value::Null => mysql_async::Value::NULL,
+                                            _ => mysql_async::Value::Bytes(format!("{:?}", v).as_bytes().to_vec()),
+                                        })
+                                        .collect();
+                                    
+                                    runtime.block_on(async {
+                                        conn.exec_drop(sql.as_str(), mysql_params).await
+                                    })
+                                } else {
+                                    runtime.block_on(async {
+                                        conn.exec_drop(sql.as_str(), ()).await
+                                    })
+                                };
+                                
+                                match result {
+                                    Ok(_) => {
+                                        // Get affected rows count
+                                        let affected = runtime.block_on(async {
+                                            conn.affected_rows()
+                                        });
+                                        Value::Number(affected as f64)
+                                    }
+                                    Err(e) => Value::Error(format!("MySQL execution error: {}", e)),
                                 }
                             }
                             _ => Value::Error("Invalid database connection type or database type not yet supported".to_string()),
@@ -2548,6 +2611,83 @@ impl Interpreter {
                                         Value::Array(results)
                                     }
                                     Err(e) => Value::Error(format!("PostgreSQL query error: {}", e)),
+                                }
+                            }
+                            (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                                let mut conn = conn_arc.lock().unwrap();
+                                
+                                // Create a Tokio runtime to run async code
+                                let runtime = match tokio::runtime::Runtime::new() {
+                                    Ok(rt) => rt,
+                                    Err(e) => return Value::Error(format!("Failed to create async runtime: {}", e)),
+                                };
+                                
+                                // Execute query with MySQL - fetch raw mysql_async::Row objects first
+                                let result: Result<Vec<mysql_async::Row>, mysql_async::Error> = if let Some(Value::Array(param_arr)) = params {
+                                    let mysql_params: Vec<mysql_async::Value> = param_arr
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Str(s) => mysql_async::Value::Bytes(s.as_bytes().to_vec()),
+                                            Value::Number(n) => mysql_async::Value::Double(*n),
+                                            Value::Bool(b) => mysql_async::Value::Int(if *b { 1 } else { 0 }),
+                                            Value::Null => mysql_async::Value::NULL,
+                                            _ => mysql_async::Value::Bytes(format!("{:?}", v).as_bytes().to_vec()),
+                                        })
+                                        .collect();
+                                    
+                                    runtime.block_on(async {
+                                        conn.exec(sql.as_str(), mysql_params).await
+                                    })
+                                } else {
+                                    runtime.block_on(async {
+                                        conn.exec(sql.as_str(), ()).await
+                                    })
+                                };
+                                
+                                // Convert rows to Value::Array outside async context
+                                match result {
+                                    Ok(rows) => {
+                                        let mut results: Vec<Value> = Vec::new();
+                                        
+                                        for mut row in rows {
+                                            let mut row_dict: HashMap<String, Value> = HashMap::new();
+                                            let columns = row.columns();
+                                            
+                                            for (i, column) in columns.iter().enumerate() {
+                                                let col_name = column.name_str().to_string();
+                                                let value = row.take::<mysql_async::Value, _>(i).unwrap_or(mysql_async::Value::NULL);
+                                                
+                                                let ruff_value = match value {
+                                                    mysql_async::Value::NULL => Value::Null,
+                                                    mysql_async::Value::Bytes(b) => {
+                                                        String::from_utf8(b)
+                                                            .map(Value::Str)
+                                                            .unwrap_or(Value::Null)
+                                                    }
+                                                    mysql_async::Value::Int(i) => Value::Number(i as f64),
+                                                    mysql_async::Value::UInt(u) => Value::Number(u as f64),
+                                                    mysql_async::Value::Float(f) => Value::Number(f as f64),
+                                                    mysql_async::Value::Double(d) => Value::Number(d),
+                                                    mysql_async::Value::Date(year, month, day, hour, min, sec, micro) => {
+                                                        Value::Str(format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}",
+                                                            year, month, day, hour, min, sec, micro))
+                                                    }
+                                                    mysql_async::Value::Time(is_neg, days, hours, minutes, seconds, micros) => {
+                                                        let sign = if is_neg { "-" } else { "" };
+                                                        Value::Str(format!("{}{}d {:02}:{:02}:{:02}.{:06}",
+                                                            sign, days, hours, minutes, seconds, micros))
+                                                    }
+                                                };
+                                                
+                                                row_dict.insert(col_name, ruff_value);
+                                            }
+                                            
+                                            results.push(Value::Dict(row_dict));
+                                        }
+                                        
+                                        Value::Array(results)
+                                    }
+                                    Err(e) => Value::Error(format!("MySQL query error: {}", e)),
                                 }
                             }
                             _ => Value::Error("Invalid database connection type or database type not yet supported".to_string()),

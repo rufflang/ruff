@@ -29,10 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Parameter binding: `["Alice", 30]` mapped to `$1, $2` in SQL
     - Supports: SERIAL, INTEGER, BIGINT, REAL, DOUBLE PRECISION, TEXT, BOOLEAN, NULL
     - Compatible with PostgreSQL 9.6+ features
-  - **MySQL Support** (planned):
-    - Infrastructure ready, awaiting resolution of `subprocess` crate build dependency
+  - **MySQL Support** ✅:
     - `db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")`
-    - Shows helpful "coming soon" message
+    - Asynchronous driver (mysql_async) with transparent blocking interface
+    - Parameter binding with `?` placeholders (MySQL style)
+    - Full CRUD support: CREATE, INSERT, SELECT, UPDATE, DELETE
+    - Supports: INT, AUTO_INCREMENT, VARCHAR, BOOLEAN, TIMESTAMP, NULL
+    - Compatible with MySQL 5.7+ and MariaDB 10.2+
   - **Common Database Functions**:
     - `db_close(db)` - Close database connection (works for all database types)
     - Full parameter binding support prevents SQL injection
@@ -68,7 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     db_execute(db, "INSERT INTO users (name) VALUES ($1)", ["Alice"])
     users := db_query(db, "SELECT * FROM users WHERE id > $1", [100])
     
-    # Same Ruff code, just change connection string!
+    # MySQL with same API!
+    db := db_connect("mysql", "mysql://root@localhost:3306/myapp")
+    db_execute(db, "CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100))", [])
+    db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
+    users := db_query(db, "SELECT * FROM users WHERE id > ?", [100])
+    
+    # Same Ruff code works across all databases!
     for user in users {
         print(user["name"])
     }
@@ -76,8 +85,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ```
   - See `examples/database_unified.ruff` for comprehensive SQLite examples
   - See `examples/database_postgres.ruff` for comprehensive PostgreSQL examples
+  - See `examples/database_mysql.ruff` for comprehensive MySQL examples
   - Breaking change: Old `db_connect(path)` syntax replaced with `db_connect("sqlite", path)`
   - Migration: Add `"sqlite"` as first argument to existing db_connect() calls
+
+### Fixed
+
+- **Function Scope Handling**:
+  - Fixed variable shadowing in functions - functions now properly use call-time environment
+  - Fixed outer variable modification from within functions
+  - Regular function definitions no longer capture environment (only closures do)
+  - All 117 tests now pass (fixed 5 previously failing scope tests)
 
 - **Concurrency & Parallelism** (v0.6.0):
   - **spawn Statement**:

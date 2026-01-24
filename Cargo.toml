@@ -21,8 +21,8 @@ tiny_http = "0.12"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 postgres = { version = "0.19", features = ["with-chrono-0_4"] }
-# MySQL temporarily disabled due to subprocess crate build issues in mysql_common
-# Will add in future version with alternative driver
+mysql_async = "0.36"
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
 base64 = "0.21"
 jsonwebtoken = "9.2"
 serde = { version = "1.0", features = ["derive"] }

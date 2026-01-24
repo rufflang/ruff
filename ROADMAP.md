@@ -44,16 +44,16 @@ All serialization format features have been implemented! See [CHANGELOG.md](CHAN
 
 ### 9. PostgreSQL & MySQL (P1)
 
-**Status**: ✅ SQLite & PostgreSQL Complete | ⏳ MySQL Pending  
+**Status**: ✅ COMPLETE - All Three Databases Fully Functional!  
 **Estimated Effort**: Large (3-4 weeks)  
-**Completed**: 2026-01-24 (SQLite & PostgreSQL fully implemented)
+**Completed**: 2026-01-24 (SQLite, PostgreSQL, and MySQL fully implemented)
 
 **Description**:  
 Production database support for large-scale applications (restaurants, blogs, forums, e-commerce, etc.).
 
-**✅ COMPLETED - SQLite & PostgreSQL**:
+**✅ COMPLETED - SQLite, PostgreSQL & MySQL**:
 
-Both SQLite and PostgreSQL are now fully functional with the unified database API:
+All three major databases are now fully functional with the unified database API:
 
 ```ruff
 # SQLite connection
@@ -65,28 +65,26 @@ users := db_query(db, "SELECT * FROM users", [])
 db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
 db_execute(db, "INSERT INTO users (name) VALUES ($1)", ["Alice"])
 users := db_query(db, "SELECT * FROM users", [])
+
+# MySQL connection - SAME API!
+db := db_connect("mysql", "mysql://root@localhost:3306/myapp")
+db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
+users := db_query(db, "SELECT * FROM users", [])
 ```
 
 **Features Implemented**:
 - ✅ Unified `db_connect(db_type, connection_string)` API
 - ✅ SQLite with `?` parameter placeholders
-- ✅ PostgreSQL with `$1, $2, $3` parameter placeholders
-- ✅ Full CRUD operations (Create, Read, Update, Delete)
+- ✅ PostgreSQL with `$1, $2, $3` parameter placeholders  
+- ✅ MySQL with `?` parameter placeholders
+- ✅ Full CRUD operations (Create, Read, Update, DELETE)
 - ✅ Parameter binding for SQL injection prevention
 - ✅ Proper NULL value handling
 - ✅ Type conversion (integers, floats, strings, booleans, NULL)
 - ✅ `db_close()` for connection cleanup
-- ✅ Comprehensive examples for both databases
-
-**🔜 Planned - MySQL**:
-
-MySQL support is architecturally ready but blocked by `subprocess` crate build issues in mysql_common dependencies. Alternative pure-Rust MySQL drivers being evaluated.
-
-```ruff
-# MySQL (coming soon)
-db := db_connect("mysql", "mysql://user:pass@localhost:3306/myapp")
-# Same db_execute() and db_query() calls will work identically
-```
+- ✅ Comprehensive examples for all three databases
+- ✅ Async MySQL driver (mysql_async) with transparent blocking interface
+- ✅ Compatible with SQLite, PostgreSQL 9.6+, MySQL 5.7+, and MariaDB 10.2+
 
 **🔜 Planned - Connection Pooling**:
 
