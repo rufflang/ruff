@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Advanced Collections** (v0.6.0):
+  - **Set Collection**:
+    - `Set(array)` - Create a set from an array, automatically removing duplicates
+    - `set_add(set, item)` - Add item to set if not already present
+    - `set_has(set, item)` - Check if set contains item (returns boolean)
+    - `set_remove(set, item)` - Remove item from set
+    - `set_union(set1, set2)` - Create new set with all unique elements from both sets
+    - `set_intersect(set1, set2)` - Create new set with elements present in both sets
+    - `set_difference(set1, set2)` - Create new set with elements in set1 but not in set2
+    - `set_to_array(set)` - Convert set back to array
+    - Works with `len(set)` for counting unique elements
+  - **Queue Collection (FIFO)**:
+    - `Queue(array?)` - Create empty queue or initialize from array
+    - `queue_enqueue(queue, item)` - Add item to back of queue
+    - `queue_dequeue(queue)` - Remove and return `[modified_queue, front_item]` or `[queue, null]` if empty
+    - `queue_peek(queue)` - View front item without removing (returns null if empty)
+    - `queue_is_empty(queue)` - Check if queue has no items (returns boolean)
+    - `queue_to_array(queue)` - Convert queue to array (front to back)
+    - Works with `len(queue)` for counting items
+  - **Stack Collection (LIFO)**:
+    - `Stack(array?)` - Create empty stack or initialize from array
+    - `stack_push(stack, item)` - Push item onto top of stack
+    - `stack_pop(stack)` - Pop and return `[modified_stack, top_item]` or `[stack, null]` if empty
+    - `stack_peek(stack)` - View top item without popping (returns null if empty)
+    - `stack_is_empty(stack)` - Check if stack has no items (returns boolean)
+    - `stack_to_array(stack)` - Convert stack to array (bottom to top)
+    - Works with `len(stack)` for counting items
+  - **Use Cases**:
+    - **Set**: Unique visitor tracking, tag management, email deduplication, removing duplicates
+    - **Queue**: Task processing systems, message queues, customer support ticketing, job scheduling
+    - **Stack**: Browser history, undo/redo systems, function call stacks, depth-first traversal
+  - **Examples**:
+    ```ruff
+    # Set - Track unique visitors
+    visitors := Set(["user1", "user2", "user1", "user3"])
+    print(len(visitors))  # 3 unique visitors
+    
+    # Queue - Task processing (FIFO)
+    tasks := Queue([])
+    tasks := queue_enqueue(tasks, "Task 1")
+    tasks := queue_enqueue(tasks, "Task 2")
+    result := queue_dequeue(tasks)  # Gets "Task 1"
+    
+    # Stack - Browser history (LIFO)
+    history := Stack([])
+    history := stack_push(history, "google.com")
+    history := stack_push(history, "github.com")
+    result := stack_pop(history)  # Gets "github.com"
+    ```
+  - See `examples/collections_advanced.ruff` for 10+ practical examples
+  - See `tests/test_collections.ruff` for 30 comprehensive tests
+  - Full type checker support for all collection functions
+
 - **HTTP Authentication & Streaming** (v0.6.0):
   - **JWT (JSON Web Token) Functions**:
     - `jwt_encode(payload_dict, secret_key)` - Encode a JWT token from dictionary payload
