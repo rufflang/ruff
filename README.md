@@ -185,6 +185,7 @@
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
   - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()`, `set_header()` (v0.5.1), `set_headers()` (v0.5.1) - HTTP client and server with full header control
+  - **Concurrency & Parallelism** (v0.6.0): `spawn { }`, `parallel_http()`, `channel()`, `chan.send()`, `chan.receive()` - Background tasks and parallel HTTP requests for 3x faster API calls
   - **HTTP Authentication** (v0.6.0): `jwt_encode()`, `jwt_decode()` - JWT token encoding/decoding for API authentication
   - **OAuth2** (v0.6.0): `oauth2_auth_url()`, `oauth2_get_token()` - OAuth2 flow helpers for third-party authentication
   - **HTTP Streaming** (v0.6.0): `http_get_stream()` - Memory-efficient downloads for large files
@@ -548,6 +549,59 @@ server.route("POST", "/api/upload", func(request) {
 - JSON request/response handling
 - Automatic request body parsing
 - Request body parsing (JSON)
+
+### Concurrency & Parallelism (v0.6.0)
+
+Run code concurrently for faster AI tools, batch processing, and non-blocking operations:
+
+**Parallel HTTP Requests** (3x faster for AI model comparison):
+```ruff
+# Query multiple AI providers simultaneously
+urls := [
+    "https://api.openai.com/v1/chat/completions",
+    "https://api.anthropic.com/v1/messages",
+    "https://api.deepseek.com/v1/chat/completions"
+]
+
+# All 3 requests happen in parallel - returns in ~2s instead of 6s!
+results := parallel_http(urls)
+
+for result in results {
+    print("Status: " + result["status"])
+    print("Response: " + result["body"])
+}
+```
+
+**Background Tasks with spawn**:
+```ruff
+# Fire and forget - main thread continues immediately
+spawn {
+    print("Processing in background...")
+    process_large_file()
+}
+
+print("Main thread continues without waiting")
+```
+
+**Thread Communication with Channels**:
+```ruff
+chan := channel()
+
+spawn {
+    result := expensive_computation()
+    chan.send(result)
+}
+
+# Receive result from background thread
+value := chan.receive()
+print("Got result: " + value)
+```
+
+**Key Features**:
+- **3x faster** parallel HTTP requests for AI model comparison
+- Non-blocking background tasks with `spawn`
+- Thread-safe communication with channels
+- Perfect for batch processing and data pipelines
 
 ### Image Processing (v0.6.0)
 
