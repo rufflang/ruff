@@ -2,7 +2,7 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.7.0 - Serialization Formats! TOML, YAML, and CSV parsing/serialization. Previously added: HTTP Authentication & Streaming, JWT tokens, OAuth2 flows. Built with comprehensive features including structs, methods, collections, type checking, modules, and closures.
+> **Status**: v0.6.0 - HTTP Authentication, Streaming & Serialization! JWT tokens, OAuth2 flows, TOML/YAML/CSV support, and efficient large file downloads. Built with comprehensive features including structs, methods, collections, type checking, modules, and closures.
 
 **Quick Links**: [Installation](#-installation) • [Getting Started](#-getting-started) • [REPL](#-interactive-repl-v050-) • [Examples](#-writing-ruff-scripts) • [Features](#-project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -10,7 +10,7 @@
 
 ## Project Status
 
-### Implemented Features (v0.7.0)
+### Implemented Features (v0.6.0)
 
 * **Interactive REPL** (v0.5.0)
   - Full-featured Read-Eval-Print Loop
@@ -178,9 +178,9 @@
   - **Array Higher-Order**: `map()`, `filter()`, `reduce()`, `find()` (v0.3.0)
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
   - **JSON**: `parse_json()`, `to_json()` - Parse and serialize JSON data (v0.3.0)
-  - **TOML** (v0.7.0): `parse_toml()`, `to_toml()` - Parse and serialize TOML configuration files
-  - **YAML** (v0.7.0): `parse_yaml()`, `to_yaml()` - Parse and serialize YAML documents
-  - **CSV** (v0.7.0): `parse_csv()`, `to_csv()` - Parse and serialize CSV data files
+  - **TOML** (v0.6.0): `parse_toml()`, `to_toml()` - Parse and serialize TOML configuration files
+  - **YAML** (v0.6.0): `parse_yaml()`, `to_yaml()` - Parse and serialize YAML documents
+  - **CSV** (v0.6.0): `parse_csv()`, `to_csv()` - Parse and serialize CSV data files
   - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()` - Timestamp and date operations
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
