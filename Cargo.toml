@@ -20,9 +20,9 @@ rustyline = "14.0"
 tiny_http = "0.12"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
-# TODO: Add PostgreSQL and MySQL support
-# postgres = { version = "0.19", features = ["with-chrono-0_4"] }
-# mysql = "24.0"
+postgres = { version = "0.19", features = ["with-chrono-0_4"] }
+# MySQL temporarily disabled due to subprocess crate build issues in mysql_common
+# Will add in future version with alternative driver
 base64 = "0.21"
 jsonwebtoken = "9.2"
 serde = { version = "1.0", features = ["derive"] }
