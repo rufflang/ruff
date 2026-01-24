@@ -88,6 +88,7 @@ impl Parser {
             TokenKind::Keyword(k) if k == "loop" => self.parse_loop(),
             TokenKind::Keyword(k) if k == "while" => self.parse_while(),
             TokenKind::Keyword(k) if k == "for" => self.parse_for(),
+            TokenKind::Keyword(k) if k == "spawn" => self.parse_spawn(),
             TokenKind::Keyword(k) if k == "break" => {
                 self.advance();
                 Some(Stmt::Break)
@@ -518,6 +519,21 @@ impl Parser {
         }
         self.advance(); // }
         Some(Stmt::For { var, iterable, body })
+    }
+
+    fn parse_spawn(&mut self) -> Option<Stmt> {
+        self.advance(); // spawn
+        self.advance(); // {
+        let mut body = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                body.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        Some(Stmt::Spawn { body })
     }
 
     fn parse_try_except(&mut self) -> Option<Stmt> {

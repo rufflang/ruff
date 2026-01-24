@@ -982,6 +982,15 @@ impl TypeChecker {
                 self.pop_scope();
             }
 
+            Stmt::Spawn { body } => {
+                // Check the spawn body in a new scope
+                self.push_scope();
+                for s in body {
+                    self.check_stmt(s);
+                }
+                self.pop_scope();
+            }
+
             Stmt::Match { value, cases, default } => {
                 self.infer_expr(value);
                 for (_, case_body) in cases {

@@ -74,10 +74,6 @@ Built-in image manipulation capabilities for common operations without external 
 - Batch processing for e-commerce product photos
 - Automated image enhancement workflows
 
----
-
-## v0.7.0 - Production Database Support & Concurrency
-
 ### 2. Concurrency & Async/Await (P1) 🚀
 
 **Status**: Planned  
