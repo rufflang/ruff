@@ -1,0 +1,15 @@
+# Minimal Transaction Test
+
+db := db_connect("sqlite", ":memory:")
+db_execute(db, "CREATE TABLE test (id INTEGER)", [])
+
+print("1. First begin...")
+r1 := db_begin(db)
+print("Got result: " + str(r1))
+
+print("2. Second begin (should error)...")
+r2 := db_begin(db)
+print("Got result: " + str(r2))
+
+print("Done!")
+db_close(db)

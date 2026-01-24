@@ -1,0 +1,16 @@
+# Test with NEW variable each time
+
+db := db_connect("sqlite", ":memory:")
+db_execute(db, "CREATE TABLE test (id INTEGER)", [])
+
+print("1. First begin...")
+db_begin(db)
+
+print("2. Second begin into new var...")
+error_value := db_begin(db)
+
+print("3. Got result!")
+print(error_value)
+
+print("Done!")
+db_close(db)
