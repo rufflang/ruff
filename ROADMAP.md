@@ -86,35 +86,51 @@ users := db_query(db, "SELECT * FROM users", [])
 - ✅ Async MySQL driver (mysql_async) with transparent blocking interface
 - ✅ Compatible with SQLite, PostgreSQL 9.6+, MySQL 5.7+, and MariaDB 10.2+
 
-**🔜 Planned - Connection Pooling**:
+**✅ Connection Pooling** (v0.6.0):
 
 For high-traffic applications with many concurrent database connections:
 
 ```ruff
-# Create connection pool (coming soon)
+# Create connection pool
 pool := db_pool("postgres", "host=localhost dbname=myapp", {
     "min_connections": 5,
-    "max_connections": 20
+    "max_connections": 20,
+    "connection_timeout": 30
 })
 
-# Get connection from pool
-db := pool.acquire()
-users := db_query(db, "SELECT * FROM users", [])
-pool.release(db)
+# Acquire connection from pool
+conn := db_pool_acquire(pool)
+users := db_query(conn, "SELECT * FROM users", [])
+
+# Release connection back to pool
+db_pool_release(pool, conn)
+
+# Monitor pool usage
+stats := db_pool_stats(pool)
+println("Active: " + str(stats["in_use"]) + "/" + str(stats["max"]))
+
+# Close pool when done
+db_pool_close(pool)
 ```
 
-**🔜 Planned - Transactions**:
+**✅ Database Transactions** (v0.6.0):
 
 For atomic operations across multiple SQL statements:
 
 ```ruff
-# Transactions (coming soon)
+# Begin transaction
 db_begin(db)
+
 try {
-    db_execute(db, "INSERT INTO orders ...", [order_data])
-    db_execute(db, "UPDATE inventory ...", [inventory_data])
+    db_execute(db, "INSERT INTO orders (user_id, total) VALUES (?, ?)", [user_id, 100.50])
+    order_id := db_last_insert_id(db)  # Get auto-generated ID
+    db_execute(db, "UPDATE inventory SET quantity = quantity - 1 WHERE id = ?", [item_id])
+    db_execute(db, "INSERT INTO order_items VALUES (?, ?)", [order_id, item_id])
+    
+    # Commit if all succeed
     db_commit(db)
 } except err {
+    # Rollback on any error
     db_rollback(db)
     throw err
 }
