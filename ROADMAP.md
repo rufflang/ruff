@@ -2,7 +2,7 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.6.0 (HTTP Authentication & Streaming completed)  
+> **Current Version**: v0.6.0 (Advanced Collections completed)  
 > **Next Planned Release**: v0.6.0 (Production database support and advanced features)
 
 ---
@@ -23,50 +23,13 @@ All features for v0.6.0 HTTP Authentication & Streaming have been completed! See
 - **OAuth2 Authorization Flow** (P1) - Completed 2026-01-23  
 - **HTTP Streaming for Large Files** (P1) - Completed 2026-01-23
 - **HTML Response with Content-Type Header** (P1) - Completed 2026-01-23
+- **Advanced Collections (Set, Queue, Stack)** (P2) - Completed 2026-01-23
 
 ---
 
 ## v0.6.0 - Advanced Features & Production Support
 
-### 1. Advanced Collections (P2)
-
-**Status**: Planned  
-**Estimated Effort**: Medium (2 weeks)
-
-**Description**:  
-Additional data structures beyond arrays and dictionaries.
-
-**Planned Types**:
-```ruff
-# Sets - unique values
-set := Set{1, 2, 3, 3, 2}  # {1, 2, 3}
-set.add(4)
-set.has(2)  # true
-set.remove(1)
-
-# Set operations
-a := Set{1, 2, 3}
-b := Set{2, 3, 4}
-union := a.union(b)         # {1, 2, 3, 4}
-intersect := a.intersect(b) # {2, 3}
-diff := a.difference(b)     # {1}
-
-# Queue - FIFO
-queue := Queue{}
-queue.enqueue("first")
-queue.enqueue("second")
-item := queue.dequeue()  # "first"
-
-# Stack - LIFO
-stack := Stack{}
-stack.push(1)
-stack.push(2)
-top := stack.pop()  # 2
-```
-
----
-
-### 2. Image Processing (P2)
+### 1. Image Processing (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -133,7 +96,7 @@ for path in images {
 
 ---
 
-### 3. Serialization Formats (P2)
+### 2. Serialization Formats (P2)
 
 **Status**: Planned  
 **Estimated Effort**: Medium (1-2 weeks)
@@ -158,7 +121,7 @@ csv_str := to_csv(rows)
 
 ---
 
-### 4. Concurrency & Async/Await (P1) 🚀
+### 3. Concurrency & Async/Await (P1) 🚀
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
@@ -521,7 +484,7 @@ Want to help implement these features? Check out [CONTRIBUTING.md](CONTRIBUTING.
 
 **Good First Issues** (v0.6.0):
 - Serialization formats (TOML, YAML, CSV)
-- Advanced collections (Set, Queue, Stack)
+- Image processing (resize, crop, filters)
 
 **Medium Complexity** (v0.7.0):
 - PostgreSQL/MySQL support
