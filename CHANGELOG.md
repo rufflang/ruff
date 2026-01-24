@@ -9,6 +9,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Image Processing** (v0.6.0):
+  - **Image Loading**:
+    - `load_image(path)` - Load images from files (JPEG, PNG, WebP, GIF, BMP)
+    - Error handling for missing or invalid image files
+    - Automatic format detection from file extension
+  - **Image Properties**:
+    - `img.width` - Get image width in pixels
+    - `img.height` - Get image height in pixels
+    - `img.format` - Get image format (e.g., "jpg", "png")
+  - **Image Transformations**:
+    - `img.resize(width, height)` - Resize to exact dimensions
+    - `img.resize(width, height, "fit")` - Resize maintaining aspect ratio
+    - `img.crop(x, y, width, height)` - Extract rectangular region
+    - `img.rotate(degrees)` - Rotate 90, 180, or 270 degrees
+    - `img.flip("horizontal")` - Flip horizontally
+    - `img.flip("vertical")` - Flip vertically
+  - **Image Filters**:
+    - `img.to_grayscale()` - Convert to grayscale
+    - `img.blur(sigma)` - Apply Gaussian blur (sigma controls intensity)
+    - `img.adjust_brightness(factor)` - Adjust brightness (1.0 = no change, >1.0 = brighter)
+    - `img.adjust_contrast(factor)` - Adjust contrast (1.0 = no change, >1.0 = more contrast)
+  - **Image Saving**:
+    - `img.save(path)` - Save image with automatic format conversion
+    - Supports JPEG, PNG, WebP, GIF, BMP output formats
+    - Format automatically detected from file extension
+  - **Method Chaining**:
+    - All transformation methods return new Image values
+    - Chain multiple operations: `img.resize(800, 600).to_grayscale().save("out.jpg")`
+  - **Use Cases**:
+    - AI image generation pipelines (resize, crop, watermark outputs)
+    - Thumbnail generation for galleries and listings
+    - Image optimization for web (format conversion, compression)
+    - Social media image preparation (specific dimensions, filters)
+    - Batch processing for e-commerce product photos
+    - Automated image enhancement workflows
+  - **Examples**:
+    ```ruff
+    # Load and inspect
+    img := load_image("photo.jpg")
+    print("Size: " + img.width + "x" + img.height)
+    
+    # Create thumbnail
+    thumb := img.resize(200, 200, "fit")
+    thumb.save("thumbnail.jpg")
+    
+    # Apply filters
+    enhanced := img
+        .adjust_brightness(1.2)
+        .adjust_contrast(1.15)
+        .save("enhanced.jpg")
+    
+    # Batch process
+    for path in ["img1.jpg", "img2.jpg", "img3.jpg"] {
+        img := load_image(path)
+        thumb := img.resize(200, 200, "fit")
+        thumb.save("thumbs/" + path)
+    }
+    ```
+  - See `examples/image_processing.ruff` for comprehensive examples
+  - See `tests/image_processing_test.ruff` for test suite
+  - Full type checker support for load_image function
+
 - **Serialization Formats** (v0.6.0):
   - **TOML Support**:
     - `parse_toml(toml_string)` - Parse TOML configuration files to Ruff dictionaries and arrays

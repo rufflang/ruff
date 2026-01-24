@@ -189,6 +189,7 @@
   - **OAuth2** (v0.6.0): `oauth2_auth_url()`, `oauth2_get_token()` - OAuth2 flow helpers for third-party authentication
   - **HTTP Streaming** (v0.6.0): `http_get_stream()` - Memory-efficient downloads for large files
   - **Binary Files** (v0.6.0): `http_get_binary()`, `read_binary_file()`, `write_binary_file()`, `encode_base64()`, `decode_base64()` - Download and work with binary data (images, PDFs, archives)
+  - **Image Processing** (v0.6.0): `load_image()`, `img.resize()`, `img.crop()`, `img.rotate()`, `img.flip()`, `img.to_grayscale()`, `img.blur()`, `img.adjust_brightness()`, `img.adjust_contrast()`, `img.save()` - Load, manipulate, and save images (JPEG, PNG, WebP, GIF, BMP)
   - **Database** (v0.5.1): `db_connect()`, `db_execute()`, `db_query()`, `db_close()` - SQLite database operations
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
@@ -547,6 +548,91 @@ server.route("POST", "/api/upload", func(request) {
 - JSON request/response handling
 - Automatic request body parsing
 - Request body parsing (JSON)
+
+### Image Processing (v0.6.0)
+
+Load, manipulate, and save images with built-in support for JPEG, PNG, WebP, GIF, and BMP:
+
+```ruff
+# Load and inspect image
+img := load_image("photo.jpg")
+print("Size: " + img.width + "x" + img.height)
+print("Format: " + img.format)
+
+# Create thumbnail (maintain aspect ratio)
+thumb := img.resize(200, 200, "fit")
+thumb.save("thumbnail.jpg")
+
+# Exact dimensions
+resized := img.resize(800, 600)
+resized.save("resized.jpg")
+
+# Crop region (x, y, width, height)
+cropped := img.crop(100, 100, 400, 300)
+cropped.save("cropped.jpg")
+
+# Transformations
+rotated := img.rotate(90)  # 90, 180, or 270 degrees
+flipped := img.flip("horizontal")  # or "vertical"
+
+# Filters and adjustments
+gray := img.to_grayscale()
+blurred := img.blur(5.0)  # sigma value
+brighter := img.adjust_brightness(1.2)  # 20% brighter
+contrast := img.adjust_contrast(1.3)  # More contrast
+
+# Method chaining for complex workflows
+enhanced := img
+    .resize(800, 600)
+    .adjust_brightness(1.1)
+    .adjust_contrast(1.15)
+    .to_grayscale()
+
+enhanced.save("enhanced.jpg")
+
+# Format conversion (auto-detects from extension)
+img.save("output.png")  # JPEG -> PNG
+img.save("output.webp")  # JPEG -> WebP
+
+# Batch processing
+images := ["img1.jpg", "img2.jpg", "img3.jpg"]
+for path in images {
+    img := load_image(path)
+    thumb := img.resize(200, 200, "fit")
+    
+    # Extract filename
+    parts := split(path, ".")
+    name := parts[0]
+    
+    thumb.save("thumbs/" + name + "_thumb.jpg")
+}
+
+# Social media image prep
+func prepare_instagram_post(image_path) {
+    img := load_image(image_path)
+    
+    # Instagram: 1080x1080
+    resized := img.resize(1080, 1080, "fit")
+    
+    # Enhance for social media
+    enhanced := resized
+        .adjust_brightness(1.1)
+        .adjust_contrast(1.15)
+    
+    enhanced.save("instagram_post.jpg")
+}
+```
+
+**Supported Operations**:
+- Load/save: JPEG, PNG, WebP, GIF, BMP
+- Resize: exact dimensions or maintain aspect ratio
+- Transform: crop, rotate (90/180/270), flip (h/v)
+- Filters: grayscale, blur (Gaussian)
+- Adjust: brightness, contrast
+- Properties: width, height, format
+- Method chaining for complex workflows
+- Error handling for missing/invalid files
+
 - Built-in response helpers
 - Error handling with proper status codes
 - Full header control:
