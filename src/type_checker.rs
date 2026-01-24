@@ -792,6 +792,15 @@ impl TypeChecker {
                 return_type: None,       // Returns Array
             },
         );
+
+        // Image processing functions
+        self.functions.insert(
+            "load_image".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // Image path
+                return_type: None, // Returns Image object
+            },
+        );
     }
 
     /// Type check a list of statements
