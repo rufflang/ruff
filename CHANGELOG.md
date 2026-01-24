@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Serialization Formats** (v0.7.0):
+- **Serialization Formats** (v0.6.0):
   - **TOML Support**:
     - `parse_toml(toml_string)` - Parse TOML configuration files to Ruff dictionaries and arrays
     - `to_toml(value)` - Convert Ruff dictionaries and arrays to TOML format

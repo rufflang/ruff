@@ -27,21 +27,19 @@ All features for v0.6.0 HTTP Authentication & Streaming have been completed! See
 
 ---
 
-## v0.6.0 - Advanced Features
+## v0.6.0 - Serialization Formats ✅ COMPLETED
 
 **Status**: Completed 2026-01-23
 
 All serialization format features have been implemented! See [CHANGELOG.md](CHANGELOG.md) for full details:
 
 - **TOML Support** (P2) - Completed 2026-01-23
-  - `parse_toml()` - Parse TOML configuration files
-  - `to_toml()` - Serialize to TOML format
 - **YAML Support** (P2) - Completed 2026-01-23
-  - `parse_yaml()` - Parse YAML documents
-  - `to_yaml()` - Serialize to YAML format
 - **CSV Support** (P2) - Completed 2026-01-23
-  - `parse_csv()` - Parse CSV data to array of dictionaries
-  - `to_csv()` - Convert array of dicts to CSV
+
+---
+
+## v0.7.0 - Production Database Support & Concurrency
 
 ### 1. Image Processing (P2)
 
