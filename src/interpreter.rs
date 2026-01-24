@@ -6469,4 +6469,108 @@ mod tests {
         let interp = run_code(code);
         assert!(matches!(interp.env.get("flow_started"), Some(Value::Bool(true))));
     }
+
+    #[test]
+    fn test_spawn_basic() {
+        let code = r#"
+            x := 0
+            spawn {
+                y := 5
+                # Note: spawn runs in isolation, can't modify outer x
+            }
+            # Main thread continues immediately
+            z := 10
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 0.0));
+        assert!(matches!(interp.env.get("z"), Some(Value::Number(n)) if n == 10.0));
+        // y should not exist in main scope
+        assert!(interp.env.get("y").is_none());
+    }
+
+    #[test]
+    fn test_parallel_http_basic() {
+        // This test requires a network connection
+        // Using a public API for testing
+        let code = r#"
+            urls := [
+                "https://httpbin.org/status/200",
+                "https://httpbin.org/status/201"
+            ]
+            results := parallel_http(urls)
+            count := len(results)
+        "#;
+
+        let interp = run_code(code);
+        // Should get 2 results
+        assert!(matches!(interp.env.get("count"), Some(Value::Number(n)) if n == 2.0));
+        
+        // Results should be an array
+        if let Some(Value::Array(results)) = interp.env.get("results") {
+            assert_eq!(results.len(), 2);
+            // Each result should be a dict with status and body
+            for result in results {
+                if let Value::Dict(dict) = result {
+                    assert!(dict.contains_key("status"));
+                    assert!(dict.contains_key("body"));
+                }
+            }
+        } else {
+            panic!("Expected results to be an array");
+        }
+    }
+
+    #[test]
+    fn test_channel_basic() {
+        let code = r#"
+            chan := channel()
+            # Send a value
+            chan.send(42)
+            # Receive the value
+            value := chan.receive()
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(interp.env.get("value"), Some(Value::Number(n)) if n == 42.0));
+    }
+
+    #[test]
+    fn test_channel_multiple_values() {
+        let code = r#"
+            chan := channel()
+            chan.send("hello")
+            chan.send("world")
+            first := chan.receive()
+            second := chan.receive()
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(interp.env.get("first"), Some(Value::Str(s)) if s == "hello"));
+        assert!(matches!(interp.env.get("second"), Some(Value::Str(s)) if s == "world"));
+    }
+
+    #[test]
+    fn test_channel_empty() {
+        let code = r#"
+            chan := channel()
+            # Try to receive from empty channel - should return null
+            value := chan.receive()
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(interp.env.get("value"), Some(Value::Null)));
+    }
+
+    #[test]
+    fn test_parallel_http_empty_array() {
+        let code = r#"
+            urls := []
+            results := parallel_http(urls)
+            count := len(results)
+        "#;
+
+        let interp = run_code(code);
+        assert!(matches!(interp.env.get("count"), Some(Value::Number(n)) if n == 0.0));
+    }
 }
