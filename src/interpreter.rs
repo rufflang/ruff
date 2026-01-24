@@ -22,7 +22,7 @@ use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use rusqlite::Connection;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::mem::ManuallyDrop;
 use std::rc::Rc;
@@ -93,6 +93,9 @@ pub enum Value {
     },
     Array(Vec<Value>),
     Dict(HashMap<String, Value>),
+    Set(Vec<Value>), // Unique values - using Vec for simplicity since we need Clone on Value
+    Queue(std::collections::VecDeque<Value>), // FIFO queue
+    Stack(Vec<Value>), // LIFO stack
     HttpServer {
         port: u16,
         routes: Vec<(String, String, Value)>, // (method, path, handler_function)
@@ -146,6 +149,9 @@ impl std::fmt::Debug for Value {
                 .finish(),
             Value::Array(elements) => write!(f, "Array[{}]", elements.len()),
             Value::Dict(map) => write!(f, "Dict{{{} keys}}", map.len()),
+            Value::Set(elements) => write!(f, "Set{{{} items}}", elements.len()),
+            Value::Queue(queue) => write!(f, "Queue({} items)", queue.len()),
+            Value::Stack(stack) => write!(f, "Stack({} items)", stack.len()),
             Value::HttpServer { port, routes } => {
                 write!(f, "HttpServer(port={}, {} routes)", port, routes.len())
             }
@@ -446,6 +452,33 @@ impl Interpreter {
         self.env.define("db_execute".to_string(), Value::NativeFunction("db_execute".to_string()));
         self.env.define("db_query".to_string(), Value::NativeFunction("db_query".to_string()));
         self.env.define("db_close".to_string(), Value::NativeFunction("db_close".to_string()));
+
+        // Collection constructors and methods
+        // Set
+        self.env.define("Set".to_string(), Value::NativeFunction("Set".to_string()));
+        self.env.define("set_add".to_string(), Value::NativeFunction("set_add".to_string()));
+        self.env.define("set_has".to_string(), Value::NativeFunction("set_has".to_string()));
+        self.env.define("set_remove".to_string(), Value::NativeFunction("set_remove".to_string()));
+        self.env.define("set_union".to_string(), Value::NativeFunction("set_union".to_string()));
+        self.env.define("set_intersect".to_string(), Value::NativeFunction("set_intersect".to_string()));
+        self.env.define("set_difference".to_string(), Value::NativeFunction("set_difference".to_string()));
+        self.env.define("set_to_array".to_string(), Value::NativeFunction("set_to_array".to_string()));
+        
+        // Queue
+        self.env.define("Queue".to_string(), Value::NativeFunction("Queue".to_string()));
+        self.env.define("queue_enqueue".to_string(), Value::NativeFunction("queue_enqueue".to_string()));
+        self.env.define("queue_dequeue".to_string(), Value::NativeFunction("queue_dequeue".to_string()));
+        self.env.define("queue_peek".to_string(), Value::NativeFunction("queue_peek".to_string()));
+        self.env.define("queue_is_empty".to_string(), Value::NativeFunction("queue_is_empty".to_string()));
+        self.env.define("queue_to_array".to_string(), Value::NativeFunction("queue_to_array".to_string()));
+        
+        // Stack
+        self.env.define("Stack".to_string(), Value::NativeFunction("Stack".to_string()));
+        self.env.define("stack_push".to_string(), Value::NativeFunction("stack_push".to_string()));
+        self.env.define("stack_pop".to_string(), Value::NativeFunction("stack_pop".to_string()));
+        self.env.define("stack_peek".to_string(), Value::NativeFunction("stack_peek".to_string()));
+        self.env.define("stack_is_empty".to_string(), Value::NativeFunction("stack_is_empty".to_string()));
+        self.env.define("stack_to_array".to_string(), Value::NativeFunction("stack_to_array".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -897,12 +930,15 @@ impl Interpreter {
                 }
             }
 
-            // len() - works on strings, arrays, and dicts
+            // len() - works on strings, arrays, dicts, sets, queues, and stacks
             "len" => match arg_values.get(0) {
                 Some(Value::Str(s)) => Value::Number(builtins::str_len(s)),
                 Some(Value::Array(arr)) => Value::Number(arr.len() as f64),
                 Some(Value::Dict(dict)) => Value::Number(dict.len() as f64),
                 Some(Value::Bytes(bytes)) => Value::Number(bytes.len() as f64),
+                Some(Value::Set(set)) => Value::Number(set.len() as f64),
+                Some(Value::Queue(queue)) => Value::Number(queue.len() as f64),
+                Some(Value::Stack(stack)) => Value::Number(stack.len() as f64),
                 _ => Value::Number(0.0),
             },
 
@@ -2179,6 +2215,248 @@ impl Interpreter {
                 }
             }
 
+            // Collection constructors and methods
+            "Set" => {
+                // Set(array) - creates a Set from an array, removing duplicates
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    let mut unique_values = Vec::new();
+                    for value in arr {
+                        // Check if value already exists (simple comparison)
+                        let exists = unique_values.iter().any(|v| {
+                            self.values_equal(v, value)
+                        });
+                        if !exists {
+                            unique_values.push(value.clone());
+                        }
+                    }
+                    Value::Set(unique_values)
+                } else {
+                    Value::Set(Vec::new())
+                }
+            }
+
+            "set_add" => {
+                // set_add(set, item) - adds item if not present, returns modified set
+                if let (Some(Value::Set(mut set)), Some(item)) = 
+                    (arg_values.get(0).cloned(), arg_values.get(1).cloned())
+                {
+                    let exists = set.iter().any(|v| self.values_equal(v, &item));
+                    if !exists {
+                        set.push(item);
+                    }
+                    Value::Set(set)
+                } else {
+                    Value::Set(Vec::new())
+                }
+            }
+
+            "set_has" => {
+                // set_has(set, item) - returns 1 if item exists, 0 otherwise
+                if let (Some(Value::Set(set)), Some(item)) = 
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let exists = set.iter().any(|v| self.values_equal(v, item));
+                    Value::Bool(exists)
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "set_remove" => {
+                // set_remove(set, item) - removes item if present, returns modified set
+                if let (Some(Value::Set(mut set)), Some(item)) = 
+                    (arg_values.get(0).cloned(), arg_values.get(1))
+                {
+                    set.retain(|v| !self.values_equal(v, item));
+                    Value::Set(set)
+                } else {
+                    Value::Set(Vec::new())
+                }
+            }
+
+            "set_union" => {
+                // set_union(set1, set2) - returns new set with all unique elements from both sets
+                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) = 
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let mut result = set1.clone();
+                    for item in set2 {
+                        let exists = result.iter().any(|v| self.values_equal(v, item));
+                        if !exists {
+                            result.push(item.clone());
+                        }
+                    }
+                    Value::Set(result)
+                } else {
+                    Value::Set(Vec::new())
+                }
+            }
+
+            "set_intersect" => {
+                // set_intersect(set1, set2) - returns new set with elements in both sets
+                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) = 
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let result: Vec<Value> = set1.iter()
+                        .filter(|v| set2.iter().any(|v2| self.values_equal(v, v2)))
+                        .cloned()
+                        .collect();
+                    Value::Set(result)
+                } else {
+                    Value::Set(Vec::new())
+                }
+            }
+
+            "set_difference" => {
+                // set_difference(set1, set2) - returns new set with elements in set1 but not in set2
+                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) = 
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let result: Vec<Value> = set1.iter()
+                        .filter(|v| !set2.iter().any(|v2| self.values_equal(v, v2)))
+                        .cloned()
+                        .collect();
+                    Value::Set(result)
+                } else {
+                    Value::Set(Vec::new())
+                }
+            }
+
+            "set_to_array" => {
+                // set_to_array(set) - converts set to array
+                if let Some(Value::Set(set)) = arg_values.get(0) {
+                    Value::Array(set.clone())
+                } else {
+                    Value::Array(Vec::new())
+                }
+            }
+
+            "Queue" => {
+                // Queue() - creates an empty queue, or Queue(array) - creates queue from array
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    let mut queue = VecDeque::new();
+                    for item in arr {
+                        queue.push_back(item.clone());
+                    }
+                    Value::Queue(queue)
+                } else {
+                    Value::Queue(VecDeque::new())
+                }
+            }
+
+            "queue_enqueue" => {
+                // queue_enqueue(queue, item) - adds item to back of queue, returns modified queue
+                if let (Some(Value::Queue(mut queue)), Some(item)) = 
+                    (arg_values.get(0).cloned(), arg_values.get(1).cloned())
+                {
+                    queue.push_back(item);
+                    Value::Queue(queue)
+                } else {
+                    Value::Queue(VecDeque::new())
+                }
+            }
+
+            "queue_dequeue" => {
+                // queue_dequeue(queue) - removes and returns [modified_queue, item] or [queue, null] if empty
+                if let Some(Value::Queue(mut queue)) = arg_values.get(0).cloned() {
+                    if let Some(item) = queue.pop_front() {
+                        Value::Array(vec![Value::Queue(queue), item])
+                    } else {
+                        Value::Array(vec![Value::Queue(queue), Value::Null])
+                    }
+                } else {
+                    Value::Array(vec![Value::Queue(VecDeque::new()), Value::Null])
+                }
+            }
+
+            "queue_peek" => {
+                // queue_peek(queue) - returns front item without removing, or null if empty
+                if let Some(Value::Queue(queue)) = arg_values.get(0) {
+                    queue.front().cloned().unwrap_or(Value::Null)
+                } else {
+                    Value::Null
+                }
+            }
+
+            "queue_is_empty" => {
+                // queue_is_empty(queue) - returns true if queue is empty
+                if let Some(Value::Queue(queue)) = arg_values.get(0) {
+                    Value::Bool(queue.is_empty())
+                } else {
+                    Value::Bool(true)
+                }
+            }
+
+            "queue_to_array" => {
+                // queue_to_array(queue) - converts queue to array
+                if let Some(Value::Queue(queue)) = arg_values.get(0) {
+                    Value::Array(queue.iter().cloned().collect())
+                } else {
+                    Value::Array(Vec::new())
+                }
+            }
+
+            "Stack" => {
+                // Stack() - creates an empty stack, or Stack(array) - creates stack from array
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    Value::Stack(arr.clone())
+                } else {
+                    Value::Stack(Vec::new())
+                }
+            }
+
+            "stack_push" => {
+                // stack_push(stack, item) - pushes item onto top of stack, returns modified stack
+                if let (Some(Value::Stack(mut stack)), Some(item)) = 
+                    (arg_values.get(0).cloned(), arg_values.get(1).cloned())
+                {
+                    stack.push(item);
+                    Value::Stack(stack)
+                } else {
+                    Value::Stack(Vec::new())
+                }
+            }
+
+            "stack_pop" => {
+                // stack_pop(stack) - removes and returns [modified_stack, item] or [stack, null] if empty
+                if let Some(Value::Stack(mut stack)) = arg_values.get(0).cloned() {
+                    if let Some(item) = stack.pop() {
+                        Value::Array(vec![Value::Stack(stack), item])
+                    } else {
+                        Value::Array(vec![Value::Stack(stack), Value::Null])
+                    }
+                } else {
+                    Value::Array(vec![Value::Stack(Vec::new()), Value::Null])
+                }
+            }
+
+            "stack_peek" => {
+                // stack_peek(stack) - returns top item without removing, or null if empty
+                if let Some(Value::Stack(stack)) = arg_values.get(0) {
+                    stack.last().cloned().unwrap_or(Value::Null)
+                } else {
+                    Value::Null
+                }
+            }
+
+            "stack_is_empty" => {
+                // stack_is_empty(stack) - returns true if stack is empty
+                if let Some(Value::Stack(stack)) = arg_values.get(0) {
+                    Value::Bool(stack.is_empty())
+                } else {
+                    Value::Bool(true)
+                }
+            }
+
+            "stack_to_array" => {
+                // stack_to_array(stack) - converts stack to array
+                if let Some(Value::Stack(stack)) = arg_values.get(0) {
+                    Value::Array(stack.clone())
+                } else {
+                    Value::Array(Vec::new())
+                }
+            }
+
             "db_close" => {
                 // db_close(db) - close database connection
                 // In Rust, the connection is automatically closed when dropped
@@ -2191,6 +2469,20 @@ impl Interpreter {
             }
 
             _ => Value::Number(0.0),
+        }
+    }
+
+    /// Helper method to check if two values are equal (for Set operations)
+    fn values_equal(&self, a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::Number(x), Value::Number(y)) => (x - y).abs() < f64::EPSILON,
+            (Value::Str(x), Value::Str(y)) => x == y,
+            (Value::Bool(x), Value::Bool(y)) => x == y,
+            (Value::Null, Value::Null) => true,
+            (Value::Array(x), Value::Array(y)) => {
+                x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| self.values_equal(a, b))
+            }
+            _ => false, // Different types or complex types not supported for equality
         }
     }
 
