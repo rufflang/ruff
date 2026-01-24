@@ -20,7 +20,10 @@ use crate::ast::{Expr, Stmt};
 use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
-use rusqlite::Connection;
+use rusqlite::Connection as SqliteConnection;
+// TODO: Add when build issues resolved
+// use postgres::{Client as PostgresClient, NoTls};
+// use mysql::{Pool as MysqlPool, PooledConn as MysqlConn, Opts as MysqlOpts, OptsBuilder};
 use image::DynamicImage;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -58,6 +61,27 @@ enum ControlFlow {
     Break,
     Continue,
 }
+
+/// Database connection types
+#[derive(Clone)]
+pub enum DatabaseConnection {
+    Sqlite(Arc<Mutex<SqliteConnection>>),
+    // TODO: Add when build issues resolved
+    // Postgres(Arc<Mutex<PostgresClient>>),
+    // Mysql(Arc<Mutex<MysqlConn>>),
+}
+
+// TODO: Implement connection pooling when PostgreSQL/MySQL are added
+// /// Connection pool for database connections
+// #[derive(Clone)]
+// pub struct ConnectionPool {
+//     db_type: String,
+//     connection_string: String,
+//     min_connections: usize,
+//     max_connections: usize,
+//     available: Arc<Mutex<Vec<DatabaseConnection>>>,
+//     in_use: Arc<Mutex<usize>>,
+// }
 
 /// Runtime values in the Ruff interpreter
 #[derive(Clone)]
@@ -108,9 +132,14 @@ pub enum Value {
         headers: HashMap<String, String>,
     },
     Database {
-        connection: Arc<Mutex<Connection>>,
-        path: String,
+        connection: DatabaseConnection,
+        db_type: String, // "sqlite", "postgres", "mysql"
+        connection_string: String,
     },
+    // TODO: Add when connection pooling is implemented
+    // DatabasePool {
+    //     pool: ConnectionPool,
+    // },
     Image {
         data: Arc<Mutex<DynamicImage>>,
         format: String,
@@ -165,9 +194,13 @@ impl std::fmt::Debug for Value {
             Value::HttpResponse { status, body, .. } => {
                 write!(f, "HttpResponse(status={}, body_len={})", status, body.len())
             }
-            Value::Database { path, .. } => {
-                write!(f, "Database(path={})", path)
+            Value::Database { db_type, connection_string, .. } => {
+                write!(f, "Database(type={}, connection={})", db_type, connection_string)
             }
+            // TODO: Add when pooling is implemented
+            // Value::DatabasePool { pool } => {
+            //     write!(f, "DatabasePool(type={}, max_connections={})", pool.db_type, pool.max_connections)
+            // }
             Value::Image { format, data } => {
                 let img = data.lock().unwrap();
                 write!(f, "Image({}x{}, format={})", img.width(), img.height(), format)
@@ -478,6 +511,10 @@ impl Interpreter {
         self.env.define("db_execute".to_string(), Value::NativeFunction("db_execute".to_string()));
         self.env.define("db_query".to_string(), Value::NativeFunction("db_query".to_string()));
         self.env.define("db_close".to_string(), Value::NativeFunction("db_close".to_string()));
+        self.env.define("db_pool".to_string(), Value::NativeFunction("db_pool".to_string()));
+        self.env.define("db_begin".to_string(), Value::NativeFunction("db_begin".to_string()));
+        self.env.define("db_commit".to_string(), Value::NativeFunction("db_commit".to_string()));
+        self.env.define("db_rollback".to_string(), Value::NativeFunction("db_rollback".to_string()));
 
         // Collection constructors and methods
         // Set
@@ -2206,51 +2243,80 @@ impl Interpreter {
 
             // Database functions
             "db_connect" => {
-                // db_connect(path) - connect to SQLite database
-                if let Some(Value::Str(path)) = arg_values.get(0) {
-                    match Connection::open(path) {
-                        Ok(conn) => Value::Database {
-                            connection: Arc::new(Mutex::new(conn)),
-                            path: path.clone(),
-                        },
-                        Err(e) => Value::Error(format!("Failed to connect to database: {}", e)),
+                // db_connect(db_type, connection_string) - connect to database
+                // db_type: "sqlite" (postgres/mysql coming soon)
+                // Examples:
+                // - db_connect("sqlite", "app.db")
+                // - db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret") [not yet implemented]
+                // - db_connect("mysql", "mysql://user:pass@localhost:3306/myapp") [not yet implemented]
+                
+                if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) = 
+                    (arg_values.get(0), arg_values.get(1)) {
+                    
+                    let db_type_lower = db_type.to_lowercase();
+                    
+                    match db_type_lower.as_str() {
+                        "sqlite" => {
+                            match SqliteConnection::open(conn_str) {
+                                Ok(conn) => Value::Database {
+                                    connection: DatabaseConnection::Sqlite(Arc::new(Mutex::new(conn))),
+                                    db_type: "sqlite".to_string(),
+                                    connection_string: conn_str.clone(),
+                                },
+                                Err(e) => Value::Error(format!("Failed to connect to SQLite: {}", e)),
+                            }
+                        }
+                        "postgres" => {
+                            Value::Error("PostgreSQL support coming soon! Currently only SQLite is supported.".to_string())
+                        }
+                        "mysql" => {
+                            Value::Error("MySQL support coming soon! Currently only SQLite is supported.".to_string())
+                        }
+                        _ => Value::Error(format!("Unsupported database type: {}. Currently supported: 'sqlite'", db_type)),
                     }
                 } else {
-                    Value::Error("db_connect requires a database path string".to_string())
+                    Value::Error("db_connect requires database type ('sqlite'|'postgres'|'mysql') and connection string".to_string())
                 }
             }
 
             "db_execute" => {
                 // db_execute(db, sql, params) - execute SQL (INSERT, UPDATE, DELETE, CREATE)
                 // params is an array of values to bind
-                if let Some(Value::Database { connection, .. }) = arg_values.get(0) {
+                if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
-                        let conn = connection.lock().unwrap();
-
-                        // Convert params array to rusqlite params
-                        let result = if let Some(Value::Array(param_arr)) = params {
-                            let param_values: Vec<Box<dyn rusqlite::ToSql>> = param_arr
-                                .iter()
-                                .map(|v| match v {
-                                    Value::Str(s) => {
-                                        Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
-                                    }
-                                    Value::Number(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
-                                    Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
-                                    _ => Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>,
-                                })
-                                .collect();
-                            let params_refs: Vec<&dyn rusqlite::ToSql> =
-                                param_values.iter().map(|b| b.as_ref()).collect();
-                            conn.execute(sql, params_refs.as_slice())
-                        } else {
-                            conn.execute(sql, [])
-                        };
-
-                        match result {
-                            Ok(rows_affected) => Value::Number(rows_affected as f64),
-                            Err(e) => Value::Error(format!("SQL execution error: {}", e)),
+                        
+                        match (connection, db_type.as_str()) {
+                            (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                                let conn = conn_arc.lock().unwrap();
+                                
+                                // Convert params array to rusqlite params
+                                let result = if let Some(Value::Array(param_arr)) = params {
+                                    let param_values: Vec<Box<dyn rusqlite::ToSql>> = param_arr
+                                        .iter()
+                                        .map(|v| match v {
+                                            Value::Str(s) => {
+                                                Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
+                                            }
+                                            Value::Number(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
+                                            Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
+                                            Value::Null => Box::new(rusqlite::types::Null) as Box<dyn rusqlite::ToSql>,
+                                            _ => Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>,
+                                        })
+                                        .collect();
+                                    let params_refs: Vec<&dyn rusqlite::ToSql> =
+                                        param_values.iter().map(|b| b.as_ref()).collect();
+                                    conn.execute(sql, params_refs.as_slice())
+                                } else {
+                                    conn.execute(sql, [])
+                                };
+                                
+                                match result {
+                                    Ok(rows_affected) => Value::Number(rows_affected as f64),
+                                    Err(e) => Value::Error(format!("SQLite execution error: {}", e)),
+                                }
+                            }
+                            _ => Value::Error("Invalid database connection type or database type not yet supported".to_string()),
                         }
                     } else {
                         Value::Error(
@@ -2266,106 +2332,113 @@ impl Interpreter {
 
             "db_query" => {
                 // db_query(db, sql, params) - query and return results as array of dicts
-                if let Some(Value::Database { connection, .. }) = arg_values.get(0) {
+                if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
-                        let conn = connection.lock().unwrap();
-
-                        // Build params vector
-                        let param_values: Vec<Box<dyn rusqlite::ToSql>> =
-                            if let Some(Value::Array(param_arr)) = params {
-                                param_arr
-                                    .iter()
-                                    .map(|v| match v {
-                                        Value::Str(s) => {
-                                            Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
+                        
+                        match (connection, db_type.as_str()) {
+                            (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                                let conn = conn_arc.lock().unwrap();
+                                
+                                // Build params vector
+                                let param_values: Vec<Box<dyn rusqlite::ToSql>> =
+                                    if let Some(Value::Array(param_arr)) = params {
+                                        param_arr
+                                            .iter()
+                                            .map(|v| match v {
+                                                Value::Str(s) => {
+                                                    Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
+                                                }
+                                                Value::Number(n) => {
+                                                    Box::new(*n) as Box<dyn rusqlite::ToSql>
+                                                }
+                                                Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
+                                                Value::Null => Box::new(rusqlite::types::Null) as Box<dyn rusqlite::ToSql>,
+                                                _ => {
+                                                    Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>
+                                                }
+                                            })
+                                            .collect()
+                                    } else {
+                                        Vec::new()
+                                    };
+                                let params_refs: Vec<&dyn rusqlite::ToSql> =
+                                    param_values.iter().map(|b| b.as_ref()).collect();
+                                
+                                // Prepare statement
+                                let mut stmt = match conn.prepare(sql) {
+                                    Ok(s) => s,
+                                    Err(e) => return Value::Error(format!("SQLite prepare error: {}", e)),
+                                };
+                                
+                                let column_names: Vec<String> =
+                                    stmt.column_names().iter().map(|s| s.to_string()).collect();
+                                
+                                // Execute query with or without params
+                                let query_result = if params_refs.is_empty() {
+                                    stmt.query([])
+                                } else {
+                                    stmt.query(params_refs.as_slice())
+                                };
+                                
+                                let mut rows = match query_result {
+                                    Ok(r) => r,
+                                    Err(e) => return Value::Error(format!("SQLite query error: {}", e)),
+                                };
+                                
+                                // Collect results into Value array
+                                let mut results: Vec<Value> = Vec::new();
+                                loop {
+                                    match rows.next() {
+                                        Ok(Some(row)) => {
+                                            let mut row_dict: HashMap<String, Value> = HashMap::new();
+                                            for (i, col_name) in column_names.iter().enumerate() {
+                                                let value: rusqlite::Result<rusqlite::types::Value> =
+                                                    row.get(i);
+                                                match value {
+                                                    Ok(rusqlite::types::Value::Integer(n)) => {
+                                                        row_dict.insert(
+                                                            col_name.clone(),
+                                                            Value::Number(n as f64),
+                                                        );
+                                                    }
+                                                    Ok(rusqlite::types::Value::Real(n)) => {
+                                                        row_dict.insert(col_name.clone(), Value::Number(n));
+                                                    }
+                                                    Ok(rusqlite::types::Value::Text(s)) => {
+                                                        row_dict.insert(col_name.clone(), Value::Str(s));
+                                                    }
+                                                    Ok(rusqlite::types::Value::Null) => {
+                                                        row_dict.insert(
+                                                            col_name.clone(),
+                                                            Value::Null,
+                                                        );
+                                                    }
+                                                    Ok(rusqlite::types::Value::Blob(_)) => {
+                                                        row_dict.insert(
+                                                            col_name.clone(),
+                                                            Value::Str("[blob]".to_string()),
+                                                        );
+                                                    }
+                                                    Err(_) => {
+                                                        row_dict.insert(
+                                                            col_name.clone(),
+                                                            Value::Null,
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            results.push(Value::Dict(row_dict));
                                         }
-                                        Value::Number(n) => {
-                                            Box::new(*n) as Box<dyn rusqlite::ToSql>
-                                        }
-                                        Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
-                                        _ => {
-                                            Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>
-                                        }
-                                    })
-                                    .collect()
-                            } else {
-                                Vec::new()
-                            };
-                        let params_refs: Vec<&dyn rusqlite::ToSql> =
-                            param_values.iter().map(|b| b.as_ref()).collect();
-
-                        // Prepare statement
-                        let mut stmt = match conn.prepare(sql) {
-                            Ok(s) => s,
-                            Err(e) => return Value::Error(format!("SQL prepare error: {}", e)),
-                        };
-
-                        let column_names: Vec<String> =
-                            stmt.column_names().iter().map(|s| s.to_string()).collect();
-
-                        // Execute query with or without params
-                        let query_result = if params_refs.is_empty() {
-                            stmt.query([])
-                        } else {
-                            stmt.query(params_refs.as_slice())
-                        };
-
-                        let mut rows = match query_result {
-                            Ok(r) => r,
-                            Err(e) => return Value::Error(format!("SQL query error: {}", e)),
-                        };
-
-                        // Collect results into Value array
-                        let mut results: Vec<Value> = Vec::new();
-                        loop {
-                            match rows.next() {
-                                Ok(Some(row)) => {
-                                    let mut row_dict: HashMap<String, Value> = HashMap::new();
-                                    for (i, col_name) in column_names.iter().enumerate() {
-                                        let value: rusqlite::Result<rusqlite::types::Value> =
-                                            row.get(i);
-                                        match value {
-                                            Ok(rusqlite::types::Value::Integer(n)) => {
-                                                row_dict.insert(
-                                                    col_name.clone(),
-                                                    Value::Number(n as f64),
-                                                );
-                                            }
-                                            Ok(rusqlite::types::Value::Real(n)) => {
-                                                row_dict.insert(col_name.clone(), Value::Number(n));
-                                            }
-                                            Ok(rusqlite::types::Value::Text(s)) => {
-                                                row_dict.insert(col_name.clone(), Value::Str(s));
-                                            }
-                                            Ok(rusqlite::types::Value::Null) => {
-                                                row_dict.insert(
-                                                    col_name.clone(),
-                                                    Value::Str("".to_string()),
-                                                );
-                                            }
-                                            Ok(rusqlite::types::Value::Blob(_)) => {
-                                                row_dict.insert(
-                                                    col_name.clone(),
-                                                    Value::Str("[blob]".to_string()),
-                                                );
-                                            }
-                                            Err(_) => {
-                                                row_dict.insert(
-                                                    col_name.clone(),
-                                                    Value::Str("".to_string()),
-                                                );
-                                            }
-                                        }
+                                        Ok(None) => break,
+                                        Err(e) => return Value::Error(format!("SQLite row error: {}", e)),
                                     }
-                                    results.push(Value::Dict(row_dict));
                                 }
-                                Ok(None) => break,
-                                Err(e) => return Value::Error(format!("SQL row error: {}", e)),
+                                
+                                Value::Array(results)
                             }
+                            _ => Value::Error("Invalid database connection type or database type not yet supported".to_string()),
                         }
-
-                        Value::Array(results)
                     } else {
                         Value::Error("db_query requires SQL string as second argument".to_string())
                     }
@@ -2634,6 +2707,30 @@ impl Interpreter {
                 } else {
                     Value::Error("db_close requires a database connection".to_string())
                 }
+            }
+
+            "db_pool" => {
+                // db_pool(db_type, connection_string, options) - create connection pool
+                // TODO: Implement connection pooling when PostgreSQL/MySQL support is added
+                Value::Error("Connection pooling not yet implemented. Coming in future release.".to_string())
+            }
+
+            "db_begin" => {
+                // db_begin(db) - begin database transaction
+                // TODO: Implement transactions when needed
+                Value::Error("Transactions not yet implemented. Coming in future release.".to_string())
+            }
+
+            "db_commit" => {
+                // db_commit(db) - commit database transaction
+                // TODO: Implement transactions when needed
+                Value::Error("Transactions not yet implemented. Coming in future release.".to_string())
+            }
+
+            "db_rollback" => {
+                // db_rollback(db) - rollback database transaction
+                // TODO: Implement transactions when needed
+                Value::Error("Transactions not yet implemented. Coming in future release.".to_string())
             }
 
             // Image processing functions
