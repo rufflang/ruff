@@ -4,7 +4,7 @@
 
 > **Status**: v0.6.0 - HTTP Authentication, Streaming & Serialization! JWT tokens, OAuth2 flows, TOML/YAML/CSV support, and efficient large file downloads. Built with comprehensive features including structs, methods, collections, type checking, modules, and closures.
 
-**Quick Links**: [Installation](#-installation) • [Getting Started](#-getting-started) • [REPL](#-interactive-repl-v050-) • [Examples](#-writing-ruff-scripts) • [Features](#-project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
+**Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
 ---
 
