@@ -74,6 +74,8 @@ fn main() {
             let mut interpreter = interpreter::Interpreter::new();
             interpreter.set_source(filename, &code);
             interpreter.eval_stmts(&stmts);
+            interpreter.cleanup();
+            drop(interpreter);
         }
 
         Commands::Repl => match repl::Repl::new() {
