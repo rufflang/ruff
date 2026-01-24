@@ -90,6 +90,25 @@
   - For-in iteration: `for item in array { }`, `for key in dict { }`
   - Built-in methods: `push()`, `pop()`, `slice()`, `concat()`, `keys()`, `values()`, `has_key()`, `remove()`
   - `len()` function for strings, arrays, and dicts
+  - **NEW**: Advanced Collections (v0.6.0)
+    - **Set**: Unique value collections with union, intersection, difference operations
+      ```ruff
+      users := Set(["alice", "bob", "alice"])  # {"alice", "bob"}
+      users := set_add(users, "charlie")
+      has_bob := set_has(users, "bob")  # true
+      ```
+    - **Queue**: FIFO (First-In-First-Out) data structure for task processing
+      ```ruff
+      tasks := Queue([])
+      tasks := queue_enqueue(tasks, "task1")
+      result := queue_dequeue(tasks)  # [modified_queue, "task1"]
+      ```
+    - **Stack**: LIFO (Last-In-First-Out) data structure for undo/history
+      ```ruff
+      history := Stack([])
+      history := stack_push(history, "page1")
+      result := stack_pop(history)  # [modified_stack, "page1"]
+      ```
 
 * **Array Higher-Order Functions** (v0.3.0)
   - Functional programming operations for data transformation
