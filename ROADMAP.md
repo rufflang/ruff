@@ -2,8 +2,8 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.6.0 (Advanced Collections completed)  
-> **Next Planned Release**: v0.6.0 (Production database support and advanced features)
+> **Current Version**: v0.6.0 (All features COMPLETE!)  
+> **Next Planned Release**: v0.7.0 (Developer Experience - LSP, Testing, Package Manager)
 
 ---
 
@@ -40,7 +40,7 @@ All serialization format features have been implemented! See [CHANGELOG.md](CHAN
 
 ---
 
-## v0.7.0 - Production Database Support
+## v0.6.0 - Production Database Support ✅ COMPLETED
 
 ### 9. PostgreSQL & MySQL (P1)
 
@@ -137,7 +137,7 @@ try {
 
 ---
 
-## v0.8.0 - Developer Experience
+## v0.7.0 - Developer Experience
 
 ### 10. LSP (Language Server Protocol) (P1)
 
