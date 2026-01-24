@@ -27,7 +27,21 @@ All features for v0.6.0 HTTP Authentication & Streaming have been completed! See
 
 ---
 
-## v0.6.0 - Advanced Features & Production Support
+## v0.6.0 - Advanced Features
+
+**Status**: Completed 2026-01-23
+
+All serialization format features have been implemented! See [CHANGELOG.md](CHANGELOG.md) for full details:
+
+- **TOML Support** (P2) - Completed 2026-01-23
+  - `parse_toml()` - Parse TOML configuration files
+  - `to_toml()` - Serialize to TOML format
+- **YAML Support** (P2) - Completed 2026-01-23
+  - `parse_yaml()` - Parse YAML documents
+  - `to_yaml()` - Serialize to YAML format
+- **CSV Support** (P2) - Completed 2026-01-23
+  - `parse_csv()` - Parse CSV data to array of dictionaries
+  - `to_csv()` - Convert array of dicts to CSV
 
 ### 1. Image Processing (P2)
 
@@ -96,32 +110,7 @@ for path in images {
 
 ---
 
-### 2. Serialization Formats (P2)
-
-**Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
-
-**Description**:  
-Support for multiple data serialization formats beyond JSON.
-
-**Planned Formats**:
-```ruff
-# TOML
-config := parse_toml(read_file("config.toml"))
-toml_str := to_toml(config)
-
-# YAML
-data := parse_yaml(read_file("data.yaml"))
-yaml_str := to_yaml(data)
-
-# CSV
-rows := parse_csv(read_file("data.csv"))
-csv_str := to_csv(rows)
-```
-
----
-
-### 3. Concurrency & Async/Await (P1) 🚀
+### 2. Concurrency & Async/Await (P1) 🚀
 
 **Status**: Planned  
 **Estimated Effort**: Large (3-4 weeks)
