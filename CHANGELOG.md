@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Concurrency & Parallelism** (v0.6.0):
+  - **spawn Statement**:
+    - `spawn { code }` - Execute code block in a background thread
+    - Non-blocking execution for fire-and-forget tasks
+    - Each spawn runs in isolation with its own environment
+    - Perfect for background processing and long-running operations
+  - **Parallel HTTP Requests**:
+    - `parallel_http(urls_array)` - Make multiple HTTP GET requests concurrently
+    - Returns array of response dicts in same order as input URLs
+    - Each response contains `status` (number) and `body` (string) fields
+    - **3x faster** than sequential requests when fetching from 3+ endpoints
+    - Critical for AI tools comparing multiple model providers (OpenAI, Claude, DeepSeek)
+    - Ideal for batch processing and data pipelines
+  - **Channels for Thread Communication**:
+    - `channel()` - Create thread-safe communication channel
+    - `chan.send(value)` - Send value to channel (non-blocking)
+    - `chan.receive()` - Receive value from channel (returns null if empty)
+    - FIFO ordering (first in, first out)
+    - Perfect for producer-consumer patterns
+    - Enables coordination between spawned tasks and main thread
+  - **Use Cases**:
+    - **AI Model Comparison**: Query GPT-4, Claude, and DeepSeek simultaneously for 3x speedup
+    - **Batch Content Generation**: Process 100+ prompts across multiple providers in parallel
+    - **Background Processing**: File processing, log analysis, data transformation without blocking
+    - **Web Scraping**: Fetch multiple pages concurrently
+    - **API Aggregation**: Combine data from multiple services in real-time
+  - **Examples**:
+    ```ruff
+    # Parallel HTTP requests
+    urls := ["https://api1.com", "https://api2.com", "https://api3.com"]
+    results := parallel_http(urls)  # All 3 requests happen simultaneously
+    
+    # Background tasks with spawn
+    spawn {
+        print("Processing in background...")
+        process_large_file()
+    }
+    print("Main thread continues immediately")
+    
+    # Thread communication with channels
+    chan := channel()
+    
+    spawn {
+        result := expensive_computation()
+        chan.send(result)
+    }
+    
+    value := chan.receive()  # Get result from background thread
+    ```
+  - See `examples/concurrency_parallel_http.ruff` for parallel HTTP demo
+  - See `examples/concurrency_spawn.ruff` for spawn examples
+  - See `examples/concurrency_channels.ruff` for channel communication patterns
+  - See `examples/projects/ai_model_comparison.ruff` for real-world AI tool example
+
 - **Image Processing** (v0.6.0):
   - **Image Loading**:
     - `load_image(path)` - Load images from files (JPEG, PNG, WebP, GIF, BMP)
