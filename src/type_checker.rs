@@ -594,6 +594,153 @@ impl TypeChecker {
                 return_type: None, // Returns HttpResponse object
             },
         );
+
+        // Collection constructors and methods
+        // Set operations
+        self.functions.insert(
+            "Set".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns Set
+            },
+        );
+        self.functions.insert(
+            "set_add".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Set and item
+                return_type: None,             // Returns modified Set
+            },
+        );
+        self.functions.insert(
+            "set_has".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Set and item
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+        self.functions.insert(
+            "set_remove".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Set and item
+                return_type: None,             // Returns modified Set
+            },
+        );
+        self.functions.insert(
+            "set_union".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Two Sets
+                return_type: None,             // Returns new Set
+            },
+        );
+        self.functions.insert(
+            "set_intersect".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Two Sets
+                return_type: None,             // Returns new Set
+            },
+        );
+        self.functions.insert(
+            "set_difference".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Two Sets
+                return_type: None,             // Returns new Set
+            },
+        );
+        self.functions.insert(
+            "set_to_array".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Set
+                return_type: None,       // Returns Array
+            },
+        );
+
+        // Queue operations
+        self.functions.insert(
+            "Queue".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Optional array
+                return_type: None,       // Returns Queue
+            },
+        );
+        self.functions.insert(
+            "queue_enqueue".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Queue and item
+                return_type: None,             // Returns modified Queue
+            },
+        );
+        self.functions.insert(
+            "queue_dequeue".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Queue
+                return_type: None,       // Returns [modified Queue, item]
+            },
+        );
+        self.functions.insert(
+            "queue_peek".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Queue
+                return_type: None,       // Returns item or null
+            },
+        );
+        self.functions.insert(
+            "queue_is_empty".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Queue
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+        self.functions.insert(
+            "queue_to_array".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Queue
+                return_type: None,       // Returns Array
+            },
+        );
+
+        // Stack operations
+        self.functions.insert(
+            "Stack".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Optional array
+                return_type: None,       // Returns Stack
+            },
+        );
+        self.functions.insert(
+            "stack_push".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Stack and item
+                return_type: None,             // Returns modified Stack
+            },
+        );
+        self.functions.insert(
+            "stack_pop".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Stack
+                return_type: None,       // Returns [modified Stack, item]
+            },
+        );
+        self.functions.insert(
+            "stack_peek".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Stack
+                return_type: None,       // Returns item or null
+            },
+        );
+        self.functions.insert(
+            "stack_is_empty".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Stack
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+        self.functions.insert(
+            "stack_to_array".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Stack
+                return_type: None,       // Returns Array
+            },
+        );
     }
 
     /// Type check a list of statements
