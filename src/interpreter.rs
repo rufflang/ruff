@@ -3137,11 +3137,12 @@ impl Interpreter {
                 }
             }
             Stmt::FuncDef { name, params, param_types: _, return_type: _, body } => {
-                // Capture current environment for closure support
+                // Regular functions don't capture environment - they use the environment at call time
+                // Only lambda expressions (closures) should capture environment
                 let func = Value::Function(
                     params.clone(),
                     LeakyFunctionBody::new(body.clone()),
-                    Some(Rc::new(RefCell::new(self.env.clone()))),
+                    None, // No captured environment for regular function definitions
                 );
                 self.env.define(name.clone(), func);
             }
