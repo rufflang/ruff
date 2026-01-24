@@ -253,6 +253,57 @@ impl TypeChecker {
             },
         );
 
+        // TOML functions
+        self.functions.insert(
+            "parse_toml".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns any type (dict, array, etc.)
+            },
+        );
+
+        self.functions.insert(
+            "to_toml".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any value
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        // YAML functions
+        self.functions.insert(
+            "parse_yaml".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns any type (dict, array, etc.)
+            },
+        );
+
+        self.functions.insert(
+            "to_yaml".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any value
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        // CSV functions
+        self.functions.insert(
+            "parse_csv".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns array of dicts
+            },
+        );
+
+        self.functions.insert(
+            "to_csv".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts array of dicts
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
         // Random functions
         self.functions.insert(
             "random".to_string(),
