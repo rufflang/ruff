@@ -3,7 +3,7 @@
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
 > **Current Version**: v0.6.0 (HTTP Authentication & Streaming completed)  
-> **Next Planned Release**: v0.7.0 (Production database support and advanced features)
+> **Next Planned Release**: v0.6.0 (Production database support and advanced features)
 
 ---
 
@@ -15,18 +15,18 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## v0.6.0 - Core Language Improvements ✅ COMPLETED
+## v0.6.0 - HTTP Authentication & Streaming ✅ COMPLETED
 
-All features for v0.6.0 have been completed! See [CHANGELOG.md](CHANGELOG.md) for full details:
+All features for v0.6.0 HTTP Authentication & Streaming have been completed! See [CHANGELOG.md](CHANGELOG.md) for full details:
 
-- **Closures & Variable Capturing** (P1) - Completed 2026-01-23
-- **Method Chaining & Fluent APIs** (P1) - Completed 2026-01-23  
-- **Binary File Support & HTTP Downloads** (P1) - Completed 2026-01-23
-- **HTTP Authentication & Streaming** (P1) - Completed 2026-01-23
+- **JWT Encoding & Decoding** (P1) - Completed 2026-01-23
+- **OAuth2 Authorization Flow** (P1) - Completed 2026-01-23  
+- **HTTP Streaming for Large Files** (P1) - Completed 2026-01-23
+- **HTML Response with Content-Type Header** (P1) - Completed 2026-01-23
 
 ---
 
-## v0.7.0 - Advanced Features & Production Support
+## v0.6.0 - Advanced Features & Production Support
 
 ### 1. Advanced Collections (P2)
 
