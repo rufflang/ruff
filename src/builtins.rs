@@ -246,6 +246,259 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
     }
 }
 
+/// TOML functions
+
+/// Parse a TOML string into a Ruff value
+pub fn parse_toml(toml_str: &str) -> Result<Value, String> {
+    match toml::from_str::<toml::Value>(toml_str) {
+        Ok(toml_value) => Ok(toml_to_ruff_value(toml_value)),
+        Err(e) => Err(format!("TOML parse error: {}", e)),
+    }
+}
+
+/// Convert a Ruff value to a TOML string
+pub fn to_toml(value: &Value) -> Result<String, String> {
+    let toml_value = ruff_value_to_toml(value)?;
+    match toml::to_string(&toml_value) {
+        Ok(s) => Ok(s),
+        Err(e) => Err(format!("TOML serialization error: {}", e)),
+    }
+}
+
+/// Convert toml::Value to Ruff Value
+fn toml_to_ruff_value(toml: toml::Value) -> Value {
+    match toml {
+        toml::Value::String(s) => Value::Str(s),
+        toml::Value::Integer(i) => Value::Number(i as f64),
+        toml::Value::Float(f) => Value::Number(f),
+        toml::Value::Boolean(b) => Value::Bool(b),
+        toml::Value::Datetime(dt) => Value::Str(dt.to_string()),
+        toml::Value::Array(arr) => {
+            let ruff_arr: Vec<Value> = arr.into_iter().map(toml_to_ruff_value).collect();
+            Value::Array(ruff_arr)
+        }
+        toml::Value::Table(table) => {
+            let mut ruff_dict = HashMap::new();
+            for (key, val) in table {
+                ruff_dict.insert(key, toml_to_ruff_value(val));
+            }
+            Value::Dict(ruff_dict)
+        }
+    }
+}
+
+/// Convert Ruff Value to toml::Value
+fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
+    match value {
+        Value::Null => Ok(toml::Value::String(String::new())), // TOML doesn't have null, use empty string
+        Value::Number(n) => {
+            // Check if it's an integer or float
+            if n.fract() == 0.0 && n.is_finite() {
+                Ok(toml::Value::Integer(*n as i64))
+            } else {
+                Ok(toml::Value::Float(*n))
+            }
+        }
+        Value::Str(s) => Ok(toml::Value::String(s.clone())),
+        Value::Bool(b) => Ok(toml::Value::Boolean(*b)),
+        Value::Array(arr) => {
+            let mut toml_arr = Vec::new();
+            for item in arr {
+                toml_arr.push(ruff_value_to_toml(item)?);
+            }
+            Ok(toml::Value::Array(toml_arr))
+        }
+        Value::Dict(dict) => {
+            let mut toml_table = toml::map::Map::new();
+            for (key, val) in dict {
+                toml_table.insert(key.clone(), ruff_value_to_toml(val)?);
+            }
+            Ok(toml::Value::Table(toml_table))
+        }
+        _ => Err(format!("Cannot convert {:?} to TOML", value)),
+    }
+}
+
+/// YAML functions
+
+/// Parse a YAML string into a Ruff value
+pub fn parse_yaml(yaml_str: &str) -> Result<Value, String> {
+    match serde_yaml::from_str::<serde_yaml::Value>(yaml_str) {
+        Ok(yaml_value) => Ok(yaml_to_ruff_value(yaml_value)),
+        Err(e) => Err(format!("YAML parse error: {}", e)),
+    }
+}
+
+/// Convert a Ruff value to a YAML string
+pub fn to_yaml(value: &Value) -> Result<String, String> {
+    let yaml_value = ruff_value_to_yaml(value)?;
+    match serde_yaml::to_string(&yaml_value) {
+        Ok(s) => Ok(s),
+        Err(e) => Err(format!("YAML serialization error: {}", e)),
+    }
+}
+
+/// Convert serde_yaml::Value to Ruff Value
+fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
+    match yaml {
+        serde_yaml::Value::Null => Value::Null,
+        serde_yaml::Value::Bool(b) => Value::Bool(b),
+        serde_yaml::Value::Number(n) => {
+            if let Some(f) = n.as_f64() {
+                Value::Number(f)
+            } else {
+                Value::Number(0.0)
+            }
+        }
+        serde_yaml::Value::String(s) => Value::Str(s),
+        serde_yaml::Value::Sequence(arr) => {
+            let ruff_arr: Vec<Value> = arr.into_iter().map(yaml_to_ruff_value).collect();
+            Value::Array(ruff_arr)
+        }
+        serde_yaml::Value::Mapping(map) => {
+            let mut ruff_dict = HashMap::new();
+            for (key, val) in map {
+                if let serde_yaml::Value::String(key_str) = key {
+                    ruff_dict.insert(key_str, yaml_to_ruff_value(val));
+                } else {
+                    // Convert non-string keys to strings
+                    let key_str = format!("{:?}", key);
+                    ruff_dict.insert(key_str, yaml_to_ruff_value(val));
+                }
+            }
+            Value::Dict(ruff_dict)
+        }
+        serde_yaml::Value::Tagged(tagged) => {
+            // Handle tagged values by converting the value itself
+            yaml_to_ruff_value(tagged.value)
+        }
+    }
+}
+
+/// Convert Ruff Value to serde_yaml::Value
+fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
+    match value {
+        Value::Null => Ok(serde_yaml::Value::Null),
+        Value::Number(n) => {
+            if n.fract() == 0.0 && n.is_finite() {
+                Ok(serde_yaml::Value::Number((*n as i64).into()))
+            } else {
+                Ok(serde_yaml::Value::Number(
+                    serde_yaml::Number::from(*n),
+                ))
+            }
+        }
+        Value::Str(s) => Ok(serde_yaml::Value::String(s.clone())),
+        Value::Bool(b) => Ok(serde_yaml::Value::Bool(*b)),
+        Value::Array(arr) => {
+            let mut yaml_arr = Vec::new();
+            for item in arr {
+                yaml_arr.push(ruff_value_to_yaml(item)?);
+            }
+            Ok(serde_yaml::Value::Sequence(yaml_arr))
+        }
+        Value::Dict(dict) => {
+            let mut yaml_map = serde_yaml::Mapping::new();
+            for (key, val) in dict {
+                yaml_map.insert(
+                    serde_yaml::Value::String(key.clone()),
+                    ruff_value_to_yaml(val)?,
+                );
+            }
+            Ok(serde_yaml::Value::Mapping(yaml_map))
+        }
+        _ => Err(format!("Cannot convert {:?} to YAML", value)),
+    }
+}
+
+/// CSV functions
+
+/// Parse a CSV string into a Ruff array of dictionaries
+/// Each row becomes a dictionary with column headers as keys
+pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
+    let mut reader = csv::Reader::from_reader(csv_str.as_bytes());
+    
+    // Get headers
+    let headers = match reader.headers() {
+        Ok(h) => h.clone(),
+        Err(e) => return Err(format!("CSV header error: {}", e)),
+    };
+    
+    let mut rows = Vec::new();
+    
+    for result in reader.records() {
+        match result {
+            Ok(record) => {
+                let mut row_dict = HashMap::new();
+                for (i, field) in record.iter().enumerate() {
+                    let header = headers.get(i).unwrap_or("unknown");
+                    // Try to parse as number, otherwise keep as string
+                    let value = if let Ok(num) = field.parse::<f64>() {
+                        Value::Number(num)
+                    } else {
+                        Value::Str(field.to_string())
+                    };
+                    row_dict.insert(header.to_string(), value);
+                }
+                rows.push(Value::Dict(row_dict));
+            }
+            Err(e) => return Err(format!("CSV parse error: {}", e)),
+        }
+    }
+    
+    Ok(Value::Array(rows))
+}
+
+/// Convert a Ruff array of dictionaries to a CSV string
+pub fn to_csv(value: &Value) -> Result<String, String> {
+    match value {
+        Value::Array(rows) if !rows.is_empty() => {
+            let mut wtr = csv::Writer::from_writer(vec![]);
+            
+            // Get headers from first row
+            if let Some(Value::Dict(first_row)) = rows.first() {
+                let headers: Vec<String> = first_row.keys().cloned().collect();
+                
+                if let Err(e) = wtr.write_record(&headers) {
+                    return Err(format!("CSV write error: {}", e));
+                }
+                
+                // Write each row
+                for row_val in rows {
+                    if let Value::Dict(row) = row_val {
+                        let mut record = Vec::new();
+                        for header in &headers {
+                            let value_str = match row.get(header) {
+                                Some(Value::Number(n)) => n.to_string(),
+                                Some(Value::Str(s)) => s.clone(),
+                                Some(Value::Bool(b)) => b.to_string(),
+                                Some(Value::Null) => String::new(),
+                                _ => String::new(),
+                            };
+                            record.push(value_str);
+                        }
+                        if let Err(e) = wtr.write_record(&record) {
+                            return Err(format!("CSV write error: {}", e));
+                        }
+                    } else {
+                        return Err("CSV requires array of dictionaries".to_string());
+                    }
+                }
+                
+                match wtr.into_inner() {
+                    Ok(bytes) => String::from_utf8(bytes)
+                        .map_err(|e| format!("CSV encoding error: {}", e)),
+                    Err(e) => Err(format!("CSV write error: {}", e)),
+                }
+            } else {
+                Err("CSV requires array of dictionaries".to_string())
+            }
+        }
+        Value::Array(_) => Err("CSV requires non-empty array".to_string()),
+        _ => Err("CSV requires array of dictionaries".to_string()),
+    }
+}
+
 /// Date/Time functions
 
 /// Get current Unix timestamp (seconds since epoch)

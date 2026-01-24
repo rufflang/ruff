@@ -359,6 +359,18 @@ impl Interpreter {
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
         self.env.define("to_json".to_string(), Value::NativeFunction("to_json".to_string()));
 
+        // TOML functions
+        self.env.define("parse_toml".to_string(), Value::NativeFunction("parse_toml".to_string()));
+        self.env.define("to_toml".to_string(), Value::NativeFunction("to_toml".to_string()));
+
+        // YAML functions
+        self.env.define("parse_yaml".to_string(), Value::NativeFunction("parse_yaml".to_string()));
+        self.env.define("to_yaml".to_string(), Value::NativeFunction("to_yaml".to_string()));
+
+        // CSV functions
+        self.env.define("parse_csv".to_string(), Value::NativeFunction("parse_csv".to_string()));
+        self.env.define("to_csv".to_string(), Value::NativeFunction("to_csv".to_string()));
+
         // Base64 encoding/decoding functions
         self.env.define("encode_base64".to_string(), Value::NativeFunction("encode_base64".to_string()));
         self.env.define("decode_base64".to_string(), Value::NativeFunction("decode_base64".to_string()));
@@ -1537,6 +1549,81 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("to_json requires a value argument".to_string())
+                }
+            }
+
+            // TOML functions
+            "parse_toml" => {
+                // parse_toml(toml_string) - parses TOML string to Ruff value
+                if let Some(Value::Str(toml_str)) = arg_values.get(0) {
+                    match builtins::parse_toml(toml_str) {
+                        Ok(value) => value,
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("parse_toml requires a string argument".to_string())
+                }
+            }
+
+            "to_toml" => {
+                // to_toml(value) - converts Ruff value to TOML string
+                if let Some(value) = arg_values.get(0) {
+                    match builtins::to_toml(value) {
+                        Ok(toml_str) => Value::Str(toml_str),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("to_toml requires a value argument".to_string())
+                }
+            }
+
+            // YAML functions
+            "parse_yaml" => {
+                // parse_yaml(yaml_string) - parses YAML string to Ruff value
+                if let Some(Value::Str(yaml_str)) = arg_values.get(0) {
+                    match builtins::parse_yaml(yaml_str) {
+                        Ok(value) => value,
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("parse_yaml requires a string argument".to_string())
+                }
+            }
+
+            "to_yaml" => {
+                // to_yaml(value) - converts Ruff value to YAML string
+                if let Some(value) = arg_values.get(0) {
+                    match builtins::to_yaml(value) {
+                        Ok(yaml_str) => Value::Str(yaml_str),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("to_yaml requires a value argument".to_string())
+                }
+            }
+
+            // CSV functions
+            "parse_csv" => {
+                // parse_csv(csv_string) - parses CSV string to Ruff array of dictionaries
+                if let Some(Value::Str(csv_str)) = arg_values.get(0) {
+                    match builtins::parse_csv(csv_str) {
+                        Ok(value) => value,
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("parse_csv requires a string argument".to_string())
+                }
+            }
+
+            "to_csv" => {
+                // to_csv(array_of_dicts) - converts Ruff array of dictionaries to CSV string
+                if let Some(value) = arg_values.get(0) {
+                    match builtins::to_csv(value) {
+                        Ok(csv_str) => Value::Str(csv_str),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("to_csv requires an array argument".to_string())
                 }
             }
 
