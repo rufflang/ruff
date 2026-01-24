@@ -74,6 +74,7 @@ pub enum DatabaseConnection {
 pub struct ConnectionPool {
     db_type: String,
     connection_string: String,
+    #[allow(dead_code)] // Reserved for future use
     min_connections: usize,
     max_connections: usize,
     connection_timeout: u64, // seconds
