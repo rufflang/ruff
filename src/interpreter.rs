@@ -2414,7 +2414,7 @@ impl Interpreter {
                 // parse_int(str) - converts string to integer (as f64), returns error on failure
                 if let Some(Value::Str(s)) = arg_values.first() {
                     match s.trim().parse::<i64>() {
-                        Ok(n) => Value::Int(n as i64),
+                        Ok(n) => Value::Int(n),
                         Err(_) => Value::Error(format!("Cannot parse '{}' as integer", s)),
                     }
                 } else {
@@ -4028,7 +4028,7 @@ impl Interpreter {
                                                     Ok(rusqlite::types::Value::Integer(n)) => {
                                                         row_dict.insert(
                                                             col_name.clone(),
-                                                            Value::Int(n as i64),
+                                                            Value::Int(n),
                                                         );
                                                     }
                                                     Ok(rusqlite::types::Value::Real(n)) => {
@@ -4114,7 +4114,7 @@ impl Interpreter {
                                                 let value = if let Ok(v) = row.try_get::<_, i32>(i) {
                                                     Value::Int(v as i64)
                                                 } else if let Ok(v) = row.try_get::<_, i64>(i) {
-                                                    Value::Int(v as i64)
+                                                    Value::Int(v)
                                                 } else if let Ok(v) = row.try_get::<_, f64>(i) {
                                                     Value::Float(v)
                                                 } else if let Ok(v) = row.try_get::<_, f32>(i) {
@@ -4191,7 +4191,7 @@ impl Interpreter {
                                                             .map(Value::Str)
                                                             .unwrap_or(Value::Null)
                                                     }
-                                                    mysql_async::Value::Int(i) => Value::Int(i as i64),
+                                                    mysql_async::Value::Int(i) => Value::Int(i),
                                                     mysql_async::Value::UInt(u) => Value::Int(u as i64),
                                                     mysql_async::Value::Float(f) => Value::Int(f as i64),
                                                     mysql_async::Value::Double(d) => Value::Float(d),
@@ -4812,7 +4812,7 @@ impl Interpreter {
                                 Ok(rows) => {
                                     if let Some(row) = rows.first() {
                                         let id: i64 = row.get(0);
-                                        Value::Int(id as i64)
+                                        Value::Int(id)
                                     } else {
                                         Value::Error("No last insert ID available".to_string())
                                     }
@@ -5300,7 +5300,7 @@ impl Interpreter {
 
                 if is_result_or_option {
                     // Match against Result or Option
-                    for (_i, (pattern, body)) in cases_clone.iter().enumerate() {
+                    for (pattern, body) in cases_clone.iter() {
                         if let Some(open_paren) = pattern.find('(') {
                             let (enum_tag, param_var) = pattern.split_at(open_paren);
                             let param_var = param_var.trim_matches(&['(', ')'][..]);
