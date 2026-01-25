@@ -12,6 +12,40 @@
 
 ### Recently Completed in v0.8.0 ✅
 
+* **Standard Library Expansion** 📦
+  - Comprehensive compression, hashing, and process management functions
+  - **Compression**: Create and extract ZIP archives (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)
+  - **Hashing**: SHA-256, MD5 for data integrity (`sha256`, `md5`, `md5_file`)
+  - **Password Security**: Bcrypt password hashing (`hash_password`, `verify_password`)
+  - **Process Management**: Execute commands and pipe operations (`spawn_process`, `pipe_commands`)
+  - Example:
+    ```ruff
+    # Create backup archive
+    archive := zip_create("backup.zip")
+    zip_add_dir(archive, "documents/")
+    zip_close(archive)
+    
+    # Verify file integrity
+    let hash := md5_file("important.pdf")
+    
+    # Secure password storage
+    let hashed := hash_password("user_password")
+    let valid := verify_password("user_password", hashed)
+    
+    # Execute system commands
+    let result := spawn_process(["ls", "-la"])
+    print(result.stdout)
+    
+    # Pipe commands together
+    let errors := pipe_commands([
+        ["cat", "server.log"],
+        ["grep", "ERROR"],
+        ["wc", "-l"]
+    ])
+    ```
+  - See `examples/stdlib_compression.ruff`, `examples/stdlib_crypto.ruff`, `examples/stdlib_process.ruff`
+  - All functions tested with comprehensive test suite in `tests/stdlib_test.ruff`
+
 * **Showcase Projects** 🎨
   - Six comprehensive real-world projects demonstrating Ruff capabilities
   - Complete examples: log analyzer, task manager, API tester, data pipeline, web scraper, markdown converter
