@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Type Introspection** 🔍 - Runtime type checking and inspection (P0 feature):
+  - **Type Inspection Function**:
+    - `type(value)` - Returns the type name of any value as a string
+    - Type names: `"int"`, `"float"`, `"string"`, `"bool"`, `"null"`, `"array"`, `"dict"`, `"function"`, etc.
+  - **Type Predicate Functions**:
+    - `is_int(value)` - Returns `true` if value is an integer
+    - `is_float(value)` - Returns `true` if value is a float
+    - `is_string(value)` - Returns `true` if value is a string
+    - `is_array(value)` - Returns `true` if value is an array
+    - `is_dict(value)` - Returns `true` if value is a dictionary
+    - `is_bool(value)` - Returns `true` if value is a boolean
+    - `is_null(value)` - Returns `true` if value is null
+    - `is_function(value)` - Returns `true` if value is a function (user-defined or native)
+  - **Use Cases**:
+    - Write defensive code that handles different types gracefully
+    - Build generic functions that adapt to input types
+    - Validate function arguments at runtime
+    - Debug and inspect values in production code
+  - **Example**:
+    ```ruff
+    # Type inspection
+    x := 42
+    print(type(x))        # "int"
+    
+    # Type predicates for defensive coding
+    func process_value(val) {
+        if is_int(val) {
+            return val * 2
+        } else if is_string(val) {
+            return len(val)
+        } else {
+            return 0
+        }
+    }
+    
+    print(process_value(10))        # 20
+    print(process_value("hello"))   # 5
+    print(process_value(true))      # 0
+    
+    # Type validation
+    func validate_user(data) {
+        if !is_dict(data) {
+            return "Error: User data must be a dictionary"
+        }
+        if !is_string(data["name"]) {
+            return "Error: Name must be a string"
+        }
+        if !is_int(data["age"]) {
+            return "Error: Age must be an integer"
+        }
+        return "Valid"
+    }
+    ```
+
 - **Integer Type System** 🔢 - Separate integer and floating-point types (P0 feature):
   - **Integer Literals**: `42`, `-10`, `0` are parsed as `Int(i64)` type
   - **Float Literals**: `3.14`, `-2.5`, `0.0` are parsed as `Float(f64)` type

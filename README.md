@@ -199,6 +199,7 @@
   - **Database** (v0.6.0): `db_connect(db_type, connection_string)` - Unified database API supporting SQLite ✅, PostgreSQL ✅, and MySQL ✅, `db_execute()`, `db_query()`, `db_close()`, `db_begin()`, `db_commit()`, `db_rollback()` - Full CRUD operations with transactions and connection pooling
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
+  - **Type Introspection** (v0.7.0): `type()`, `is_int()`, `is_float()`, `is_string()`, `is_array()`, `is_dict()`, `is_bool()`, `is_null()`, `is_function()` - Runtime type checking for defensive coding and validation
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
   - **Error handling**: `throw()`
 
