@@ -98,6 +98,8 @@ pub enum TypeAnnotation {
     Enum(String),
     Union(Vec<TypeAnnotation>),
     Any, // For gradual typing - no type checking
+    Result { ok_type: Box<TypeAnnotation>, err_type: Box<TypeAnnotation> }, // Result<T, E>
+    Option { inner_type: Box<TypeAnnotation> }, // Option<T>
 }
 
 impl TypeAnnotation {
@@ -115,6 +117,12 @@ impl TypeAnnotation {
             (TypeAnnotation::Enum(a), TypeAnnotation::Enum(b)) => a == b,
             (TypeAnnotation::Union(types), other) | (other, TypeAnnotation::Union(types)) => {
                 types.iter().any(|t| t.matches(other))
+            }
+            (TypeAnnotation::Result { ok_type: ok1, err_type: err1 }, TypeAnnotation::Result { ok_type: ok2, err_type: err2 }) => {
+                ok1.matches(ok2) && err1.matches(err2)
+            }
+            (TypeAnnotation::Option { inner_type: t1 }, TypeAnnotation::Option { inner_type: t2 }) => {
+                t1.matches(t2)
             }
             _ => false,
         }
@@ -175,6 +183,14 @@ pub enum Expr {
     /// is intentional - spread semantics depend on container context.
     #[allow(dead_code)]
     Spread(Box<Expr>),
+    /// Result type constructors
+    Ok(Box<Expr>),   // Ok(value)
+    Err(Box<Expr>),  // Err(error)
+    /// Option type constructors
+    Some(Box<Expr>), // Some(value)
+    None,            // None
+    /// Try operator for error propagation: expr?
+    Try(Box<Expr>),
 }
 
 /// Array element can be a regular expression or a spread
