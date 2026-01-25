@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-## [0.6.0] - 2025-01-XX (In Testing)
+(No unreleased changes yet - see v0.7.0 in [ROADMAP.md](ROADMAP.md) for planned features)
+
+## [0.6.0] - 2026-01-24
+
+**Focus**: Production Database Features - Transactions, Connection Pooling, and Multi-Backend Support
+
+This release completes the database foundation for production applications with SQLite, PostgreSQL, and MySQL support, plus critical features for high-traffic apps.
 
 ### Added
 
@@ -48,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added (Previous)
 
-- **Unified Database API** (v0.7.0):
+- **Unified Database API**:
   - **Multi-Backend Support**:
     - Unified `db_connect(db_type, connection_string)` API that works across different databases
     - Database type parameter: `"sqlite"` ✅, `"postgres"` ✅, `"mysql"` (coming soon)

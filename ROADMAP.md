@@ -2,8 +2,9 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.6.0 (All features COMPLETE!)  
-> **Next Planned Release**: v0.7.0 (Developer Experience - LSP, Testing, Package Manager)
+> **Current Version**: v0.6.0 (Production Database & Streaming - COMPLETE!)  
+> **Next Planned Release**: v0.7.0 (Core Language Completion)  
+> **Path to v1.0**: See [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for comprehensive roadmap
 
 ---
 
@@ -15,212 +16,433 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## v0.6.0 - HTTP Authentication & Streaming ✅ COMPLETED
+## v0.7.0 - Core Language Completion
 
-All features for v0.6.0 HTTP Authentication & Streaming have been completed! See [CHANGELOG.md](CHANGELOG.md) for full details:
+**Focus**: Complete foundational language features before building developer tooling  
+**Timeline**: Q1 2026 (3-4 weeks)  
+**Priority**: **P0 - CRITICAL** - These features block everything else
 
-- **JWT Encoding & Decoding** (P1) - Completed 2026-01-23
-- **OAuth2 Authorization Flow** (P1) - Completed 2026-01-23  
-- **HTTP Streaming for Large Files** (P1) - Completed 2026-01-23
-- **HTML Response with Content-Type Header** (P1) - Completed 2026-01-23
-- **Advanced Collections (Set, Queue, Stack)** (P2) - Completed 2026-01-23
-- **Concurrency & Parallelism** (P1) - Completed 2026-01-23
+**See**: [CORE_FEATURES_NEEDED.md](CORE_FEATURES_NEEDED.md) for detailed implementation guide
 
----
-
-## v0.6.0 - Serialization Formats ✅ COMPLETED
-
-**Status**: Completed 2026-01-23
-
-All serialization format features have been implemented! See [CHANGELOG.md](CHANGELOG.md) for full details:
-
-- **TOML Support** (P2) - Completed 2026-01-23
-- **YAML Support** (P2) - Completed 2026-01-23
-- **CSV Support** (P2) - Completed 2026-01-23
-
----
-
-## v0.6.0 - Production Database Support ✅ COMPLETED
-
-### 9. PostgreSQL & MySQL (P1)
-
-**Status**: ✅ COMPLETE - All Three Databases Fully Functional!  
-**Estimated Effort**: Large (3-4 weeks)  
-**Completed**: 2026-01-24 (SQLite, PostgreSQL, and MySQL fully implemented)
-
-**Description**:  
-Production database support for large-scale applications (restaurants, blogs, forums, e-commerce, etc.).
-
-**✅ COMPLETED - SQLite, PostgreSQL & MySQL**:
-
-All three major databases are now fully functional with the unified database API:
-
-```ruff
-# SQLite connection
-db := db_connect("sqlite", "app.db")
-db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
-users := db_query(db, "SELECT * FROM users", [])
-
-# PostgreSQL connection - SAME API!
-db := db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
-db_execute(db, "INSERT INTO users (name) VALUES ($1)", ["Alice"])
-users := db_query(db, "SELECT * FROM users", [])
-
-# MySQL connection - SAME API!
-db := db_connect("mysql", "mysql://root@localhost:3306/myapp")
-db_execute(db, "INSERT INTO users (name) VALUES (?)", ["Alice"])
-users := db_query(db, "SELECT * FROM users", [])
-```
-
-**Features Implemented**:
-- ✅ Unified `db_connect(db_type, connection_string)` API
-- ✅ SQLite with `?` parameter placeholders
-- ✅ PostgreSQL with `$1, $2, $3` parameter placeholders  
-- ✅ MySQL with `?` parameter placeholders
-- ✅ Full CRUD operations (Create, Read, Update, DELETE)
-- ✅ Parameter binding for SQL injection prevention
-- ✅ Proper NULL value handling
-- ✅ Type conversion (integers, floats, strings, booleans, NULL)
-- ✅ `db_close()` for connection cleanup
-- ✅ Comprehensive examples for all three databases
-- ✅ Async MySQL driver (mysql_async) with transparent blocking interface
-- ✅ Compatible with SQLite, PostgreSQL 9.6+, MySQL 5.7+, and MariaDB 10.2+
-
-**✅ Connection Pooling** (v0.6.0):
-
-For high-traffic applications with many concurrent database connections:
-
-```ruff
-# Create connection pool
-pool := db_pool("postgres", "host=localhost dbname=myapp", {
-    "min_connections": 5,
-    "max_connections": 20,
-    "connection_timeout": 30
-})
-
-# Acquire connection from pool
-conn := db_pool_acquire(pool)
-users := db_query(conn, "SELECT * FROM users", [])
-
-# Release connection back to pool
-db_pool_release(pool, conn)
-
-# Monitor pool usage
-stats := db_pool_stats(pool)
-println("Active: " + str(stats["in_use"]) + "/" + str(stats["max"]))
-
-# Close pool when done
-db_pool_close(pool)
-```
-
-**✅ Database Transactions** (v0.6.0):
-
-For atomic operations across multiple SQL statements:
-
-```ruff
-# Begin transaction
-db_begin(db)
-
-try {
-    db_execute(db, "INSERT INTO orders (user_id, total) VALUES (?, ?)", [user_id, 100.50])
-    order_id := db_last_insert_id(db)  # Get auto-generated ID
-    db_execute(db, "UPDATE inventory SET quantity = quantity - 1 WHERE id = ?", [item_id])
-    db_execute(db, "INSERT INTO order_items VALUES (?, ?)", [order_id, item_id])
-    
-    # Commit if all succeed
-    db_commit(db)
-} except err {
-    # Rollback on any error
-    db_rollback(db)
-    throw err
-}
-```
-
-**Use Cases Now Supported**:
-- 🍽️ Restaurant menu management systems (SQLite ✅ or PostgreSQL ✅)
-- 📝 Blog platforms with user accounts (PostgreSQL ✅)
-- 💬 Forums and community sites (PostgreSQL ✅)
-- 🛒 E-commerce applications (PostgreSQL ✅)
-- 📊 Analytics dashboards (SQLite ✅ or PostgreSQL ✅)
-- 🏢 Business management tools (both databases ✅)
-
-**Examples Available**:
-- `examples/database_unified.ruff` - Comprehensive SQLite examples
-- `examples/database_postgres.ruff` - PostgreSQL-specific examples with advanced queries
-- `examples/projects/url_shortener.ruff` - Real-world SQLite + HTTP server application
-
-**See**: CHANGELOG.md for detailed API documentation and migration guide
-
----
-
-## v0.7.0 - Developer Experience
-
-### 10. LSP (Language Server Protocol) (P1)
+### 10. Timing Functions (P0)
 
 **Status**: Planned  
-**Estimated Effort**: Large (2-3 weeks)
+**Estimated Effort**: Small (2-3 hours)
+
+**Critical Bug Fix**: Fix `current_timestamp()` bug in `examples/projects/ai_model_comparison.ruff`
 
 **Features**:
-- Syntax highlighting
-- Autocomplete
-- Go to definition
-- Find references
-- Hover information
-- Real-time error checking
-- VS Code extension
+```ruff
+# High-resolution timestamp in milliseconds
+timestamp := current_timestamp()  # 1737734400000
+
+# Performance timing
+start := performance_now()
+expensive_operation()
+elapsed := performance_now() - start
+print("Took ${elapsed}ms")
+```
+
+**Implementation**: Add to `builtins.rs` using `std::time::SystemTime` and `Instant`
 
 ---
 
-### 11. Testing Enhancements (P2)
+### 11. Integer Type (P0)
 
 **Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
+**Estimated Effort**: Medium (1-2 days)
 
-**Description**:  
-Advanced testing capabilities beyond basic test runner.
+**Current Issue**: All numbers are `f64`, causing precision loss in integer operations
+
+**Features**:
+```ruff
+x := 42           # Integer literal
+y := 3.14         # Float literal
+z := x + 5        # Integer arithmetic
+result := x / 2   # Integer division -> 21 (not 21.0)
+
+# Type preservation
+is_int(42)        # true
+is_float(3.14)    # true
+```
+
+**Implementation**: Add `Value::Int(i64)` to `interpreter.rs:224`, update arithmetic operators
+
+---
+
+### 12. Type Introspection (P0)
+
+**Status**: Planned  
+**Estimated Effort**: Small (3-4 hours)
+
+**Features**:
+```ruff
+type_of(42)           # "int"
+type_of("hello")      # "string"
+type_of([1, 2, 3])    # "array"
+
+# Type checking
+is_string("hello")    # true
+is_array([1, 2])      # true
+is_function(print)    # true
+
+# Type conversion
+to_s1.0.0 - Production Ready
+
+**Focus**: Polish, documentation, community  
+**Timeline**: Q4 2026 (3 months)  
+**Goal**: Production-ready language competitive with Go/Python
+
+**Milestones**:
+- ✅ Complete core features (v0.7.0)
+- ✅ 10-20x performance improvement (v0.8.0)
+- ✅ World-class tooling (v0.9.0)
+- ✅ Comprehensive documentation
+- ✅ Production example projects
+- ✅ Security audit
+- ✅ Package registry with 50+ packages
+- ✅ Community of 1000+ users
+
+**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for complete v1.0 roadmap
+
+---
+
+## Future Versions (v1.1.0+)
+
+### 27. Generic Types (P2)
+
+**Status**: Research Phase  
+**Estimated Effort**: Large (4-6 weeks)
 
 **Planned Features**:
 ```ruff
-# Benchmarking
-benchmark "Array operations" {
-    setup {
-        arr := range(1000)
+# Generic functions
+func first<T>(arr: Array<T>) -> Option<T> {
+    if len(arr) > 0 {
+        return Some(arr[0])
     }
+    return None
+}
+
+# Ge30ric structs
+struct Container<T> {
+    value: T
     
-    test "map" {
-        result := map(arr, func(x) { return x * 2 })
+    func get() -> T {
+        return self.value
     }
 }
 
-# Mocking
-mock_api := mock({
-    get_user: func(id) { return {"id": id, "name": "Test User"} }
-})
-
-test "User service" {
-    service := UserService { api: mock_api }
-    user := service.fetch_user(123)
-    assert(user.name == "Test User")
+# Type constraints
+func process<T: Serializable>(item: T) {
+    data := item.serialize()
 }
-
-# Code coverage
-ruff test --coverage
-# Output: 85% coverage (120/140 lines)
 ```
 
 ---
 
-### 12. Package Manager (P2)
+### 28. Union Types (P2)
+
+**Status**: Research Phase  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Fe31. Advancedres**:
+```ruff
+# Union type annotations
+func process(value: int | string | null) {
+    match type_of(value) {
+        case "int": print("Number: ${value}")
+        case "string": print("Text: ${value}")
+        case "null": print("Empty")
+    }
+}
+
+# Type aliases
+type UserID = int
+type Handler = func(Request) -> Response
+```
+
+---
+
+### 29ures**:
+```ruff
+# sprintf-style formatting
+format("Hello, %s!", ["World"])           # "Hello, World!"
+format("Number: %d", [42])                # "Number: 42"
+format("Float: %.2f", [3.14159])          # "Float: 3.14"
+format("User %s scored %d points", ["Alice", 100])
+```
+
+**Implementation**: Add `format()` to `builtins.rs` with pattern matching
+
+---
+
+### 14. Array Utilities (P1)
 
 **Status**: Planned  
-**Estimated Effort**: Large (2-3 weeks)
+**Estimated Effort**: Medium (4-6 hours)
+
+**Features**:
+```ruff
+nums := [3, 1, 4, 1, 5, 9]
+
+sort(nums)            # [1, 1, 3, 4, 5, 9]
+reverse(nums)         # [9, 5, 1, 4, 1, 3]
+unique(nums)          # [3, 1, 4, 5, 9]
+
+sum(nums)             # 23
+any(nums, func(x) { return x > 5 })   # true
+all(nums, func(x) { return x > 0 })   # true
+```
+
+**Implementation**: Add functions to `builtins.rs` operating on `Value::Array`
+
+---
+
+### 15. File Operations (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Small (3-4 hours)
+
+**Current Gap**: Can read/write but missing common operations
+
+**Features**:
+```ruff
+size := file_size("document.pdf")     # 1024000 bytes
+delete_file("temp.txt")               # Remove file
+rename_file("old.txt", "new.txt")     # Rename
+copy_file("source.txt", "dest.txt")   # Copy
+```
+
+**Implementation**: Add to `builtins.rs` using `std::fs` methods
+
+---
+
+### 16. Assert & Debug (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 hours)
+
+**Features**:
+```ruff
+# Runtime assertions
+assert(x > 0, "x must be positive")
+assert_equal(actual, expected)
+
+# Debug output
+debug(complex_object)    # Pretty-printed output
+```
+
+**Implementation**: Add to `builtins.rs`, throw error on assertion failure
+
+---
+
+### 17. Range Function (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 hours)
+
+**Current Issue**: Examples use `range()` but it doesn't exist
+
+**Features**:
+```ruff
+# Generate array of numbers
+range(5)              # [0, 1, 2, 3, 4]
+range(2, 8)           # [2, 3, 4, 5, 6, 7]
+range(0, 10, 2)       # [0, 2, 4, 6, 8]
+
+# Use in loops
+for i in range(10) {
+    print(i)
+}
+```
+
+**Implementation**: Add `range()` to `builtins.rs`, return `Value::Array`
+
+---
+
+## v0.8.0 - Performance & Error Handling
+
+**Focus**: Speed improvements and modern error handling  
+**Timeline**: Q2 2026 (2-3 months)  
+**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for details
+
+### 18. Bytecode Compiler & VM (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Large (6-8 weeks)
+
+**Goal**: **10-20x performance improvement** over tree-walking interpreter
+
+**Architecture**:
+- Compile AST to bytecode instructions
+- Stack-based virtual machine
+- Register-based optimization passes
+
+**Expected Performance**: Move from ~50-100x slower than Python to competitive speeds
+
+---
+
+### 19. Result & Option Types (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Features**:
+```ruff
+# Result type for operations that can fail
+func divide(a: float, b: float) -> Result<float, string> {
+    if b == 0.0 {
+        return Err("Division by zero")
+    }
+    return Ok(a / b)
+}
+
+# Pattern matching on Result
+match divide(10, 2) {
+    case Ok(value): print("Result: ${value}")
+    case Err(error): print("Error: ${error}")
+}
+
+# Option type for nullable values
+func find_user(id: int) -> Option<User> {
+    if exists {
+        return Some(user)
+    }
+    return None
+}
+
+# Error propagation with ? operator
+func complex_operation() -> Result<Data, Error> {
+    data1 := fetch_data()?      # Returns early if Err
+    data2 := process(data1)?     # Chains operations
+    return Ok(finalize(data2))
+}
+```
+
+---
+
+### 20. Standard Library Expansion (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Large (3 months)
+
+**Core Modules** (First Priority):
+- `os` - Operating system interface (getcwd, chdir, mkdir, environ)
+- `path` - Path manipulation (join, absolute, exists, is_dir)
+- `io` - Buffered I/O and binary operations
+- `net` - TCP/UDP sockets beyond HTTP
+- `crypto` - Hashing (SHA256, MD5) and encryption (AES)
+
+**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) Section 3.1 for complete module list
+
+---
+
+## v0.9.0 - Developer Experience
+
+**Focus**: World-class tooling for productivity  
+**Timeline**: Q3 2026 (3 months)  
+**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) Pillar 4
+
+### 21. Language Server Protocol (LSP) (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Large (4-6 weeks)
+
+**Features**:
+- Autocomplete (built-ins, variables, functions)
+- Go to definition
+- Find references
+- Hover documentation
+- Real-time error diagnostics
+- Rename refactoring
+- Code actions (quick fixes)
+- VS Code, IntelliJ, Vim, Emacs support
+
+**Implementation**: Use `tower-lsp` Rust framework
+
+---
+
+### 22. Code Formatter (ruff-fmt) (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Features**:
+```bash
+$ ruff fmt myproject/
+Formatted 47 files in 1.2s
+```
+
+- Opinionated formatting (like gofmt, black, prettier)
+- Configurable indentation
+- Line length limits
+- Import sorting
+
+---
+
+### 23. Linter (ruff-lint) (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (3-4 weeks)
+
+**Rules**:
+- Unused variables
+- Unreachable code
+- Type mismatches
+- Suspicious comparisons
+- Missing error handling
+- Auto-fix for simple issues
+
+---
+
+### 24. Package Manager (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Large (8-12 weeks)
 
 **Features**:
 - `ruff.toml` project configuration
-- Dependency management
-- Package registry
-- Semantic versioning
-- CLI commands: `ruff init`, `ruff add`, `ruff install`
+- Dependency management with semver
+- Package registry (like npm, crates.io)
+- CLI commands: `ruff init`, `ruff add`, `ruff install`, `ruff publish`
+
+---
+
+### 25. Debugger (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (3-4 weeks)
+
+**Features**:
+```bash
+$ ruff debug script.ruff
+> break 25        # Set breakpoint
+> run            # Start execution
+> step           # Step into
+> print x        # Inspect variable
+> continue       # Continue to next breakpoint
+```
+
+---
+
+### 26. Profiler (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Features**:
+```bash
+$ ruff profile --cpu myapp.ruff
+Top 10 functions by CPU time:
+  43.2%  process_data    (1240ms)
+  21.5%  http_get        (630ms)
+  
+$ ruff profile --memory myapp.ruff
+Memory allocations:
+  12.5 MB  Array allocations
+   8.3 MB  Dict allocations
+```
 
 ---
 
@@ -238,7 +460,7 @@ ruff test --coverage
 - Null safety with `Option<T>`
 
 ---
-
+32
 ### 14. Macros & Metaprogramming (P3)
 
 **Status**: Research Phase  
@@ -275,16 +497,15 @@ Call external C libraries and system functions from Ruff.
 lib := load_library("libmath.so")
 
 # Declare external function
-extern func cos(x: float) -> float from "libm.so"
+exte33. Additional Compilation Targets (P3)
 
-# Call external function
-result := cos(3.14)
-```
+**Status**: Research Phase  
+**Estimated Effort**: Very Large (1-2 months per target)
 
----
-
-### 16. Memory Management (P3)
-
+**Options** (after bytecode VM in v0.8.0):
+1. **WebAssembly** - Compile to WASM for browser/embedded use
+2. **Native Code** - AOT compilation to native executables via LLVM
+3. **JIT Compilation** - Just-in-time compilation for hot paths (100x+ speedup)
 **Status**: Research Phase  
 **Estimated Effort**: Very Large (2-3 months)
 
@@ -315,20 +536,41 @@ import tui
 app := tui.App()
 window := app.create_window(80, 24)
 
-button := tui.Button { 
-    text: "Click Me",
-    on_click: func() { print("Clicked!") }
-}
+button := tui.Button { 7.0):
+- Timing functions (`current_timestamp`, `performance_now`)
+- Type introspection (`type_of`, `is_string`, etc.)
+- String formatting (`format` function)
+- Array utilities (`sort`, `reverse`, `unique`)
 
-window.add(button, 10, 5)
-app.run()
-```
+**Medium Complexity** (v0.8.0):
+- Result/Option types
+- Standard library modules (os, path, io)
+- Bytecode instruction design
 
-**2D Graphics**:
-```ruff
-import graphics
+**Advanced Projects** (v0.9.0+):
+- Language Server Protocol (LSP)
+- Package manager & registry
+- Code formatter and linter
+- Debugger implementation
+## Version Strategy
 
-canvas := graphics.Canvas(800, 600)
+**Current Approach**:
+- **v0.6.0**: Production database support, HTTP streaming, collections ✅
+- **v0.7.0**: Core language completion (foundation features)
+- **v0.8.0**: Performance (bytecode, 10x speedup) + error handling
+- **v0.9.0**: Developer experience (LSP, package manager, tooling)
+- **v1.0.0**: Production-ready, Go/Python competitive 🎉
+
+**Philosophy**: Build the foundation first (language features), then performance, then tooling. This ensures LSP autocomplete and package manager are built on a complete, stable language.
+
+**See Also**:
+- [CORE_FEATURES_NEEDED.md](CORE_FEATURES_NEEDED.md) - v0.7.0 implementation guide
+- [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) - Complete roadmap to world-class language
+- [CHANGELOG.md](CHANGELOG.md) - Completed features and release history
+
+---
+
+*Last Updated: January 24(800, 600)
 canvas.set_color(255, 0, 0)  # Red
 canvas.draw_rect(100, 100, 200, 150)
 canvas.draw_circle(400, 300, 50)
