@@ -19,29 +19,45 @@ print(option2)  # Should print: None
 
 # Test 5: Pattern match on Ok
 match Ok(5) {
-    case Ok(value): print("Got OK with value: " + to_string(value))
-    case Err(error): print("Got error: " + error)
+    case Ok(value): {
+        print("Got OK with value: " + to_string(value))
+    }
+    case Err(error): {
+        print("Got error: " + error)
+    }
 }
 # Expected output: Got OK with value: 5
 
 # Test 6: Pattern match on Err
 match Err("failed") {
-    case Ok(value): print("Got OK with value: " + to_string(value))
-    case Err(error): print("Got error: " + error)
+    case Ok(value): {
+        print("Got OK with value: " + to_string(value))
+    }
+    case Err(error): {
+        print("Got error: " + error)
+    }
 }
 # Expected output: Got error: failed
 
 # Test 7: Pattern match on Some
 match Some(42) {
-    case Some(value): print("Got Some with value: " + to_string(value))
-    case None: print("Got None")
+    case Some(value): {
+        print("Got Some with value: " + to_string(value))
+    }
+    case None: {
+        print("Got None")
+    }
 }
 # Expected output: Got Some with value: 42
 
 # Test 8: Pattern match on None
 match None {
-    case Some(value): print("Got Some with value: " + to_string(value))
-    case None: print("Got None")
+    case Some(value): {
+        print("Got Some with value: " + to_string(value))
+    }
+    case None: {
+        print("Got None")
+    }
 }
 # Expected output: Got None
 
@@ -55,16 +71,24 @@ func divide(a, b) {
 
 let div_result := divide(10, 2)
 match div_result {
-    case Ok(value): print("Division result: " + to_string(value))
-    case Err(error): print("Division error: " + error)
+    case Ok(value): {
+        print("Division result: " + to_string(value))
+    }
+    case Err(error): {
+        print("Division error: " + error)
+    }
 }
 # Expected output: Division result: 5
 
 # Test 10: Function returning Result - error case
 let div_result2 := divide(10, 0)
 match div_result2 {
-    case Ok(value): print("Division result: " + to_string(value))
-    case Err(error): print("Division error: " + error)
+    case Ok(value): {
+        print("Division result: " + to_string(value))
+    }
+    case Err(error): {
+        print("Division error: " + error)
+    }
 }
 # Expected output: Division error: Division by zero
 
@@ -78,16 +102,24 @@ func find_user(id) {
 
 let user := find_user(1)
 match user {
-    case Some(name): print("Found user: " + name)
-    case None: print("User not found")
+    case Some(name): {
+        print("Found user: " + name)
+    }
+    case None: {
+        print("User not found")
+    }
 }
 # Expected output: Found user: Alice
 
 # Test 12: Function returning Option - none case
 let user2 := find_user(99)
 match user2 {
-    case Some(name): print("Found user: " + name)
-    case None: print("User not found")
+    case Some(name): {
+        print("Found user: " + name)
+    }
+    case None: {
+        print("User not found")
+    }
 }
 # Expected output: User not found
 
@@ -99,8 +131,12 @@ func test_try_ok() {
 
 let try_result := test_try_ok()
 match try_result {
-    case Ok(value): print("Try OK result: " + to_string(value))
-    case Err(error): print("Try OK error: " + error)
+    case Ok(value): {
+        print("Try OK result: " + to_string(value))
+    }
+    case Err(error): {
+        print("Try OK error: " + error)
+    }
 }
 # Expected output: Try OK result: 84
 
@@ -113,8 +149,12 @@ func test_try_err() {
 
 let try_result2 := test_try_err()
 match try_result2 {
-    case Ok(value): print("Try Err result: " + to_string(value))
-    case Err(error): print("Try Err error: " + error)
+    case Ok(value): {
+        print("Try Err result: " + to_string(value))
+    }
+    case Err(error): {
+        print("Try Err error: " + error)
+    }
 }
 # Expected output: Try Err error: failed
 
@@ -138,8 +178,12 @@ func complex_operation() {
 
 let chain_result := complex_operation()
 match chain_result {
-    case Ok(value): print("Chained result: " + to_string(value))
-    case Err(error): print("Chained error: " + error)
+    case Ok(value): {
+        print("Chained result: " + to_string(value))
+    }
+    case Err(error): {
+        print("Chained error: " + error)
+    }
 }
 # Expected output: Chained result: 25
 
@@ -148,11 +192,17 @@ let nested := Ok(Ok(42))
 match nested {
     case Ok(inner): {
         match inner {
-            case Ok(value): print("Nested OK value: " + to_string(value))
-            case Err(error): print("Inner error: " + error)
+            case Ok(value): {
+                print("Nested OK value: " + to_string(value))
+            }
+            case Err(error): {
+                print("Inner error: " + error)
+            }
         }
     }
-    case Err(error): print("Outer error: " + error)
+    case Err(error): {
+        print("Outer error: " + error)
+    }
 }
 # Expected output: Nested OK value: 42
 
@@ -183,8 +233,12 @@ let results := [Ok(1), Err("error"), Ok(2), Ok(3)]
 print("Results array:")
 for result in results {
     match result {
-        case Ok(value): print("  OK: " + to_string(value))
-        case Err(error): print("  ERR: " + error)
+        case Ok(value): {
+            print("  OK: " + to_string(value))
+        }
+        case Err(error): {
+            print("  ERR: " + error)
+        }
     }
 }
 
@@ -193,8 +247,12 @@ let options := [Some(10), None, Some(20), Some(30), None]
 print("Options array:")
 for option in options {
     match option {
-        case Some(value): print("  Some: " + to_string(value))
-        case None: print("  None")
+        case Some(value): {
+            print("  Some: " + to_string(value))
+        }
+        case None: {
+            print("  None")
+        }
     }
 }
 
