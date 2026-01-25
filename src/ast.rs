@@ -252,6 +252,7 @@ pub enum Stmt {
         cases: Vec<(String, Vec<Stmt>)>,
         default: Option<Vec<Stmt>>,
     },
+    #[allow(clippy::enum_variant_names)]
     ExprStmt(Expr),
     Return(Option<Expr>),
     #[allow(dead_code)]

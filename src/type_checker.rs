@@ -1589,7 +1589,7 @@ impl TypeChecker {
             }
 
             Stmt::Return(expr) => {
-                let return_type = expr.as_ref().map(|e| self.infer_expr(e)).flatten();
+                let return_type = expr.as_ref().and_then(|e| self.infer_expr(e));
 
                 // Check if return type matches function signature
                 if let Some(expected) = &self.current_function_return {
@@ -1698,23 +1698,21 @@ impl TypeChecker {
                 match target {
                     Expr::Identifier(name) => {
                         // Check if variable exists and types are compatible
-                        if let Some(var_type) = self.variables.get(name) {
-                            if let Some(expected) = var_type {
-                                if let Some(actual) = &inferred_type {
-                                    if !expected.matches(actual) {
-                                        let error = RuffError::new(
-                                            ErrorKind::TypeError,
-                                            format!(
-												"Type mismatch: cannot assign {:?} to variable '{}' of type {:?}",
-												actual, name, expected
-											),
-                                            SourceLocation::unknown(),
-                                        )
-                                        .with_help("Try converting the value with to_int(), to_float(), to_string(), or to_bool()".to_string())
-                                        .with_note(format!("Variable '{}' was declared with type {:?}", name, expected));
-                                        
-                                        self.errors.push(error);
-                                    }
+                        if let Some(Some(expected)) = self.variables.get(name) {
+                            if let Some(actual) = &inferred_type {
+                                if !expected.matches(actual) {
+                                    let error = RuffError::new(
+                                        ErrorKind::TypeError,
+                                        format!(
+                                            "Type mismatch: cannot assign {:?} to variable '{}' of type {:?}",
+                                            actual, name, expected
+                                        ),
+                                        SourceLocation::unknown(),
+                                    )
+                                    .with_help("Try converting the value with to_int(), to_float(), to_string(), or to_bool()".to_string())
+                                    .with_note(format!("Variable '{}' was declared with type {:?}", name, expected));
+                                    
+                                    self.errors.push(error);
                                 }
                             }
                         }
@@ -2024,12 +2022,10 @@ impl TypeChecker {
                 self.push_scope();
 
                 // Add parameters to scope
-                for param_type in param_types {
-                    if let Some(t) = param_type {
-                        // We would need the param name here, but it's not available in this context
-                        // For now, just validate the function body
-                        let _ = t;
-                    }
+                for t in param_types.iter().flatten() {
+                    // We would need the param name here, but it's not available in this context
+                    // For now, just validate the function body
+                    let _ = t;
                 }
 
                 // Check function body

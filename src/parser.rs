@@ -832,26 +832,22 @@ impl Parser {
         // Check for throw - still uses Tag since it's a control-flow primitive
         if let TokenKind::Identifier(name) = self.peek() {
             let name_clone = name.clone();
-            if name_clone.as_str() == "throw" {
-                if self.tokens.get(self.pos + 1).map(|t| &t.kind)
-                    == Some(&TokenKind::Punctuation('('))
-                {
-                    self.advance(); // name
-                    self.advance(); // (
-                    let mut args = Vec::new();
-                    while !matches!(self.peek(), TokenKind::Punctuation(')')) {
-                        if let Some(arg) = self.parse_expr() {
-                            args.push(arg);
-                        }
-                        if matches!(self.peek(), TokenKind::Punctuation(',')) {
-                            self.advance();
-                        } else {
-                            break;
-                        }
+            if name_clone.as_str() == "throw" && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Punctuation('(')) {
+                self.advance(); // name
+                self.advance(); // (
+                let mut args = Vec::new();
+                while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                    if let Some(arg) = self.parse_expr() {
+                        args.push(arg);
                     }
-                    self.advance(); // )
-                    return Some(Expr::Tag(name_clone, args));
+                    if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
                 }
+                self.advance(); // )
+                return Some(Expr::Tag(name_clone, args));
             }
         }
 
@@ -1522,7 +1518,7 @@ impl Parser {
                 let start = Instant::now();
 
                 let buffer = Arc::new(Mutex::new(Vec::new()));
-                let _ = interp.set_output(buffer.clone());
+                interp.set_output(buffer.clone());
 
                 interp.eval_stmts(&ast);
 

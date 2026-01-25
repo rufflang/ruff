@@ -267,7 +267,7 @@ pub fn repeat(s: &str, count: f64) -> String {
 
 pub fn char_at(s: &str, index: f64) -> String {
     let idx = index as usize;
-    s.chars().nth(idx).map(|c| c.to_string()).unwrap_or_else(String::new)
+    s.chars().nth(idx).map(|c| c.to_string()).unwrap_or_default()
 }
 
 pub fn is_empty(s: &str) -> bool {
@@ -362,11 +362,7 @@ pub fn str_truncate(s: &str, max_len: i64, suffix: &str) -> String {
     }
     
     let suffix_len = suffix.chars().count();
-    let truncate_at = if max_len > suffix_len {
-        max_len - suffix_len
-    } else {
-        0
-    };
+    let truncate_at = max_len.saturating_sub(suffix_len);
     
     let truncated: String = s.chars().take(truncate_at).collect();
     format!("{}{}", truncated, suffix)
@@ -838,7 +834,7 @@ pub fn performance_now() -> f64 {
     // This ensures performance_now() returns milliseconds since program start
     use std::sync::OnceLock;
     static START: OnceLock<Instant> = OnceLock::new();
-    let start = START.get_or_init(|| Instant::now());
+    let start = START.get_or_init(Instant::now);
 
     start.elapsed().as_secs_f64() * 1000.0
 }
@@ -849,7 +845,7 @@ pub fn performance_now() -> f64 {
 pub fn time_us() -> f64 {
     use std::sync::OnceLock;
     static START: OnceLock<Instant> = OnceLock::new();
-    let start = START.get_or_init(|| Instant::now());
+    let start = START.get_or_init(Instant::now);
 
     start.elapsed().as_micros() as f64
 }
@@ -860,7 +856,7 @@ pub fn time_us() -> f64 {
 pub fn time_ns() -> f64 {
     use std::sync::OnceLock;
     static START: OnceLock<Instant> = OnceLock::new();
-    let start = START.get_or_init(|| Instant::now());
+    let start = START.get_or_init(Instant::now);
 
     start.elapsed().as_nanos() as f64
 }
@@ -1553,7 +1549,7 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::Bool(b) => format!("Bool({})", b),
         Value::Null => "Null".to_string(),
         Value::Array(arr) => {
-            let items: Vec<String> = arr.iter().map(|v| format_debug_value(v)).collect();
+            let items: Vec<String> = arr.iter().map(format_debug_value).collect();
             format!("Array[{}]", items.join(", "))
         }
         Value::Dict(dict) => {
@@ -1566,7 +1562,7 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::Function(_, _, _) => "Function".to_string(),
         Value::NativeFunction(name) => format!("NativeFunction({})", name),
         Value::BytecodeFunction { chunk, .. } => {
-            let name = chunk.name.as_ref().map(|s| s.as_str()).unwrap_or("<lambda>");
+            let name = chunk.name.as_deref().unwrap_or("<lambda>");
             format!("BytecodeFunction({})", name)
         }
         Value::ArrayMarker => "ArrayMarker".to_string(),

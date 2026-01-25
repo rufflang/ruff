@@ -61,7 +61,7 @@ impl ModuleLoader {
     }
 
     /// Loads a module by name, returning cached version if available
-    pub fn load_module(&mut self, module_name: &str) -> Result<Module, RuffError> {
+    pub fn load_module(&mut self, module_name: &str) -> Result<Module, Box<RuffError>> {
         // Check cache first
         if let Some(module) = self.loaded_modules.get(module_name) {
             return Ok(module.clone());
@@ -69,11 +69,11 @@ impl ModuleLoader {
 
         // Check for circular imports
         if self.loading_stack.contains(&module_name.to_string()) {
-            return Err(RuffError::new(
+            return Err(Box::new(RuffError::new(
                 ErrorKind::RuntimeError,
                 format!("Circular import detected: {}", module_name),
                 crate::errors::SourceLocation::unknown(),
-            ));
+            )));
         }
 
         // Resolve module path
@@ -116,15 +116,15 @@ impl ModuleLoader {
     }
 
     /// Gets a specific symbol from a module
-    pub fn get_symbol(&mut self, module_name: &str, symbol_name: &str) -> Result<Value, RuffError> {
+    pub fn get_symbol(&mut self, module_name: &str, symbol_name: &str) -> Result<Value, Box<RuffError>> {
         let module = self.load_module(module_name)?;
 
         module.exports.get(symbol_name).cloned().ok_or_else(|| {
-            RuffError::new(
+            Box::new(RuffError::new(
                 ErrorKind::RuntimeError,
                 format!("Symbol '{}' not found in module '{}'", symbol_name, module_name),
                 crate::errors::SourceLocation::unknown(),
-            )
+            ))
         })
     }
 
@@ -132,7 +132,7 @@ impl ModuleLoader {
     pub fn get_all_exports(
         &mut self,
         module_name: &str,
-    ) -> Result<HashMap<String, Value>, RuffError> {
+    ) -> Result<HashMap<String, Value>, Box<RuffError>> {
         let module = self.load_module(module_name)?;
         Ok(module.exports.clone())
     }
