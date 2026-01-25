@@ -236,6 +236,55 @@ impl TypeChecker {
             },
         );
 
+        // Array utility functions
+        self.functions.insert(
+            "sort".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns sorted array
+            },
+        );
+
+        self.functions.insert(
+            "reverse".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns reversed array
+            },
+        );
+
+        self.functions.insert(
+            "unique".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns array with unique elements
+            },
+        );
+
+        self.functions.insert(
+            "sum".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns Int or Float
+            },
+        );
+
+        self.functions.insert(
+            "any".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Array and function
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "all".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Array and function
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
         // JSON functions
         self.functions.insert(
             "parse_json".to_string(),
