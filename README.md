@@ -1,8 +1,8 @@
 # 🐾 Ruff Programming Language
 
-**Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
+**Ruff** is a purpose-built, correctness-first execution language designed for tooling, automation, and AI-assisted development.
 
-> **Status**: v0.7.0 (Released January 2026) - **Core Language Complete!** 🎉 A fully-featured, Python/Go/Rust competitive language with production-ready databases, comprehensive string/array/dict methods, type system, testing utilities, HTTP server/client, concurrency, and 100+ built-in functions. No developer should think "I wish Ruff had X" for essential operations.
+> **Status**: v0.7.0 (Released January 2026) - **Core Language Complete!** 🎉 A fully-featured language with production-ready databases, comprehensive string/array/dict methods, type system, testing utilities, HTTP server/client, concurrency, and 100+ built-in functions.
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -10,7 +10,7 @@
 
 ## Project Status
 
-### Implemented Features (v0.6.0)
+### Implemented Features (v0.7.0)
 
 * **Interactive REPL** (v0.5.0)
   - Full-featured Read-Eval-Print Loop
