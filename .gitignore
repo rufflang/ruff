@@ -82,6 +82,7 @@ Icon?
 
 # === WORKSPACE ===
 /tmp/
+/notes/
 
 # === DATABASES ===
 *.db
