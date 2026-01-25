@@ -524,6 +524,14 @@ impl Interpreter {
         self.env.define("reduce".to_string(), Value::NativeFunction("reduce".to_string()));
         self.env.define("find".to_string(), Value::NativeFunction("find".to_string()));
 
+        // Array utility functions
+        self.env.define("sort".to_string(), Value::NativeFunction("sort".to_string()));
+        self.env.define("reverse".to_string(), Value::NativeFunction("reverse".to_string()));
+        self.env.define("unique".to_string(), Value::NativeFunction("unique".to_string()));
+        self.env.define("sum".to_string(), Value::NativeFunction("sum".to_string()));
+        self.env.define("any".to_string(), Value::NativeFunction("any".to_string()));
+        self.env.define("all".to_string(), Value::NativeFunction("all".to_string()));
+
         // Dict functions
         self.env.define("keys".to_string(), Value::NativeFunction("keys".to_string()));
         self.env.define("values".to_string(), Value::NativeFunction("values".to_string()));
@@ -1621,6 +1629,169 @@ impl Interpreter {
                 }
                 // Not found - return 0 as "null" equivalent
                 Value::Int(0)
+            }
+
+            "sort" => {
+                // sort(array) - returns sorted array (ascending order)
+                // Works with numbers and strings
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    let mut sorted = arr.clone();
+                    sorted.sort_by(|a, b| {
+                        match (a, b) {
+                            (Value::Int(x), Value::Int(y)) => x.cmp(y),
+                            (Value::Float(x), Value::Float(y)) => {
+                                x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
+                            }
+                            (Value::Int(x), Value::Float(y)) => {
+                                (*x as f64).partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
+                            }
+                            (Value::Float(x), Value::Int(y)) => {
+                                x.partial_cmp(&(*y as f64)).unwrap_or(std::cmp::Ordering::Equal)
+                            }
+                            (Value::Str(x), Value::Str(y)) => x.cmp(y),
+                            _ => std::cmp::Ordering::Equal,
+                        }
+                    });
+                    Value::Array(sorted)
+                } else {
+                    Value::Error("sort requires an array argument".to_string())
+                }
+            }
+
+            "reverse" => {
+                // reverse(array) - returns reversed array
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    let mut reversed = arr.clone();
+                    reversed.reverse();
+                    Value::Array(reversed)
+                } else {
+                    Value::Error("reverse requires an array argument".to_string())
+                }
+            }
+
+            "unique" => {
+                // unique(array) - returns array with duplicates removed (preserves order)
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    let mut seen = std::collections::HashSet::new();
+                    let mut result = Vec::new();
+                    
+                    for element in arr {
+                        // Create a string representation for comparison
+                        let key = format!("{:?}", element);
+                        if seen.insert(key) {
+                            result.push(element.clone());
+                        }
+                    }
+                    Value::Array(result)
+                } else {
+                    Value::Error("unique requires an array argument".to_string())
+                }
+            }
+
+            "sum" => {
+                // sum(array) - returns sum of numeric elements
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    let mut int_sum: i64 = 0;
+                    let mut float_sum: f64 = 0.0;
+                    let mut has_float = false;
+
+                    for element in arr {
+                        match element {
+                            Value::Int(n) => {
+                                if has_float {
+                                    float_sum += *n as f64;
+                                } else {
+                                    int_sum += n;
+                                }
+                            }
+                            Value::Float(n) => {
+                                if !has_float {
+                                    // Convert accumulated int sum to float
+                                    float_sum = int_sum as f64;
+                                    has_float = true;
+                                }
+                                float_sum += n;
+                            }
+                            _ => {} // Skip non-numeric values
+                        }
+                    }
+
+                    if has_float {
+                        Value::Float(float_sum)
+                    } else {
+                        Value::Int(int_sum)
+                    }
+                } else {
+                    Value::Error("sum requires an array argument".to_string())
+                }
+            }
+
+            "any" => {
+                // any(array, func) - returns true if any element satisfies the predicate
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "any requires two arguments: array and function".to_string(),
+                    );
+                }
+
+                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
+                        (arr.clone(), func.clone())
+                    }
+                    _ => return Value::Error("any expects an array and a function".to_string()),
+                };
+
+                for element in array {
+                    let func_result = self.call_user_function(&func, &[element]);
+
+                    // Check if result is truthy
+                    let is_truthy = match func_result {
+                        Value::Bool(b) => b,
+                        Value::Int(n) => n != 0,
+                        Value::Float(n) => n != 0.0,
+                        Value::Str(s) => !s.is_empty(),
+                        _ => false,
+                    };
+
+                    if is_truthy {
+                        return Value::Bool(true);
+                    }
+                }
+                Value::Bool(false)
+            }
+
+            "all" => {
+                // all(array, func) - returns true if all elements satisfy the predicate
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "all requires two arguments: array and function".to_string(),
+                    );
+                }
+
+                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
+                        (arr.clone(), func.clone())
+                    }
+                    _ => return Value::Error("all expects an array and a function".to_string()),
+                };
+
+                for element in array {
+                    let func_result = self.call_user_function(&func, &[element]);
+
+                    // Check if result is truthy
+                    let is_truthy = match func_result {
+                        Value::Bool(b) => b,
+                        Value::Int(n) => n != 0,
+                        Value::Float(n) => n != 0.0,
+                        Value::Str(s) => !s.is_empty(),
+                        _ => false,
+                    };
+
+                    if !is_truthy {
+                        return Value::Bool(false);
+                    }
+                }
+                Value::Bool(true)
             }
 
             // Dict functions
