@@ -5072,13 +5072,13 @@ impl Interpreter {
                 // Push new scope
                 self.env.push_scope();
 
-                self.eval_stmts(&stmts);
+                self.eval_stmts(stmts);
 
                 // Restore parent environment
                 self.env.pop_scope();
             }
             Stmt::Let { pattern, value, mutable: _, type_annotation: _ } => {
-                let val = self.eval_expr(&value);
+                let val = self.eval_expr(value);
                 // If expression evaluation resulted in an error, propagate it
                 if matches!(val, Value::Error(_)) {
                     self.return_value = Some(val.clone());
@@ -5086,7 +5086,7 @@ impl Interpreter {
                 self.bind_pattern(pattern, val);
             }
             Stmt::Const { name, value, type_annotation: _ } => {
-                let val = self.eval_expr(&value);
+                let val = self.eval_expr(value);
                 // If expression evaluation resulted in an error, propagate it
                 if matches!(val, Value::Error(_)) {
                     self.return_value = Some(val.clone());
@@ -5094,7 +5094,7 @@ impl Interpreter {
                 self.env.define(name.clone(), val);
             }
             Stmt::Assign { target, value } => {
-                let val = self.eval_expr(&value);
+                let val = self.eval_expr(value);
 
                 // Always perform the assignment, even for errors
                 match target {
@@ -5278,7 +5278,7 @@ impl Interpreter {
                 self.eval_stmt(stmt);
             }
             Stmt::Match { value, cases, default } => {
-                let val = self.eval_expr(&value);
+                let val = self.eval_expr(value);
 
                 // Clone cases and default to avoid borrow issues during evaluation
                 let cases_clone = cases.clone();
@@ -5385,10 +5385,10 @@ impl Interpreter {
             Stmt::Loop { condition, body } => {
                 while condition
                     .as_ref()
-                    .map(|c| matches!(self.eval_expr(&c), Value::Float(n) if n != 0.0))
+                    .map(|c| matches!(self.eval_expr(c), Value::Float(n) if n != 0.0))
                     .unwrap_or(true)
                 {
-                    self.eval_stmts(&body);
+                    self.eval_stmts(body);
 
                     // Handle control flow
                     if self.control_flow == ControlFlow::Break {
@@ -5405,7 +5405,7 @@ impl Interpreter {
                 }
             }
             Stmt::For { var, iterable, body } => {
-                let iterable_value = self.eval_expr(&iterable);
+                let iterable_value = self.eval_expr(iterable);
 
                 match &iterable_value {
                     Value::Int(n) => {
@@ -5416,7 +5416,7 @@ impl Interpreter {
                             self.env.push_scope();
                             self.env.define(var.clone(), Value::Int(i));
 
-                            self.eval_stmts(&body);
+                            self.eval_stmts(body);
 
                             // Restore parent environment
                             self.env.pop_scope();
@@ -5443,7 +5443,7 @@ impl Interpreter {
                             self.env.push_scope();
                             self.env.define(var.clone(), Value::Int(i));
 
-                            self.eval_stmts(&body);
+                            self.eval_stmts(body);
 
                             // Restore parent environment
                             self.env.pop_scope();
@@ -5471,7 +5471,7 @@ impl Interpreter {
                             self.env.push_scope();
                             self.env.define(var.clone(), item);
 
-                            self.eval_stmts(&body);
+                            self.eval_stmts(body);
 
                             // Restore parent environment
                             self.env.pop_scope();
@@ -5500,7 +5500,7 @@ impl Interpreter {
                             self.env.push_scope();
                             self.env.define(var.clone(), Value::Str(key));
 
-                            self.eval_stmts(&body);
+                            self.eval_stmts(body);
 
                             // Restore parent environment
                             self.env.pop_scope();
@@ -5528,7 +5528,7 @@ impl Interpreter {
                             self.env.push_scope();
                             self.env.define(var.clone(), Value::Str(ch.to_string()));
 
-                            self.eval_stmts(&body);
+                            self.eval_stmts(body);
 
                             // Restore parent environment
                             self.env.pop_scope();
@@ -5577,7 +5577,7 @@ impl Interpreter {
                         break;
                     }
 
-                    self.eval_stmts(&body);
+                    self.eval_stmts(body);
 
                     // Handle control flow
                     if self.control_flow == ControlFlow::Break {
@@ -5600,7 +5600,7 @@ impl Interpreter {
                 self.control_flow = ControlFlow::Continue;
             }
             Stmt::Return(expr) => {
-                let value = expr.as_ref().map(|e| self.eval_expr(&e)).unwrap_or(Value::Int(0));
+                let value = expr.as_ref().map(|e| self.eval_expr(e)).unwrap_or(Value::Int(0));
                 self.return_value = Some(Value::Return(Box::new(value)));
             }
             Stmt::TryExcept { try_block, except_var, except_block } => {
@@ -5608,7 +5608,7 @@ impl Interpreter {
                 // Push new scope
                 self.env.push_scope();
 
-                self.eval_stmts(&try_block);
+                self.eval_stmts(try_block);
 
                 // Check if an error occurred (support both old Error and new ErrorObject)
                 let error_occurred = matches!(
@@ -5660,7 +5660,7 @@ impl Interpreter {
 
                     // Clear error and execute except block
                     self.return_value = None;
-                    self.eval_stmts(&except_block);
+                    self.eval_stmts(except_block);
                 }
 
                 // Restore parent environment
@@ -5844,15 +5844,15 @@ impl Interpreter {
                 match op.as_str() {
                     // Null coalescing: return left if not null, otherwise right
                     "??" => {
-                        let l = self.eval_expr(&left);
+                        let l = self.eval_expr(left);
                         if matches!(l, Value::Null) {
-                            return self.eval_expr(&right);
+                            return self.eval_expr(right);
                         }
                         return l;
                     }
                     // Optional chaining: return null if left is null, otherwise access field
                     "?." => {
-                        let l = self.eval_expr(&left);
+                        let l = self.eval_expr(left);
                         if matches!(l, Value::Null) {
                             return Value::Null;
                         }
@@ -5873,8 +5873,8 @@ impl Interpreter {
                     }
                     // Pipe operator: pass left value as first argument to right function
                     "|>" => {
-                        let value = self.eval_expr(&left);
-                        let func = self.eval_expr(&right);
+                        let value = self.eval_expr(left);
+                        let func = self.eval_expr(right);
 
                         // Call the function with the value as the first argument
                         if let Value::Function(params, body, captured_env) = func {
@@ -5939,8 +5939,8 @@ impl Interpreter {
                     _ => {}
                 }
 
-                let l = self.eval_expr(&left);
-                let r = self.eval_expr(&right);
+                let l = self.eval_expr(left);
+                let r = self.eval_expr(right);
 
                 // Check if left operand is a struct with an operator method
                 if let Some(method_name) = crate::ast::operator_methods::binary_op_method(op) {
@@ -6489,7 +6489,7 @@ impl Interpreter {
                 }
 
                 // Regular function call
-                let func_val = self.eval_expr(&function);
+                let func_val = self.eval_expr(function);
                 let call_result = match func_val {
                     Value::NativeFunction(name) => {
                         // Handle native function calls
@@ -6684,7 +6684,7 @@ impl Interpreter {
                 // Otherwise, treat as enum constructor
                 let mut fields = HashMap::new();
                 for (i, arg) in args.iter().enumerate() {
-                    fields.insert(format!("${}", i), self.eval_expr(&arg));
+                    fields.insert(format!("${}", i), self.eval_expr(arg));
                 }
                 Value::Tagged { tag: name.clone(), fields }
             }

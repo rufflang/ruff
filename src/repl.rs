@@ -70,7 +70,7 @@ impl Repl {
 
                     // Check for special commands (only when not in multi-line mode)
                     if buffer.is_empty() && line.trim().starts_with(':') {
-                        if self.handle_command(&line.trim()) {
+                        if self.handle_command(line.trim()) {
                             continue;
                         } else {
                             break; // :quit was called
