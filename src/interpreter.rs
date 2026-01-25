@@ -734,6 +734,13 @@ impl Interpreter {
 
         // System operation functions
         self.env.define("env".to_string(), Value::NativeFunction("env".to_string()));
+        self.env.define("env_or".to_string(), Value::NativeFunction("env_or".to_string()));
+        self.env.define("env_int".to_string(), Value::NativeFunction("env_int".to_string()));
+        self.env.define("env_float".to_string(), Value::NativeFunction("env_float".to_string()));
+        self.env.define("env_bool".to_string(), Value::NativeFunction("env_bool".to_string()));
+        self.env.define("env_required".to_string(), Value::NativeFunction("env_required".to_string()));
+        self.env.define("env_set".to_string(), Value::NativeFunction("env_set".to_string()));
+        self.env.define("env_list".to_string(), Value::NativeFunction("env_list".to_string()));
         self.env.define("args".to_string(), Value::NativeFunction("args".to_string()));
         self.env.define("exit".to_string(), Value::NativeFunction("exit".to_string()));
         self.env.define("sleep".to_string(), Value::NativeFunction("sleep".to_string()));
@@ -3153,6 +3160,105 @@ impl Interpreter {
                 } else {
                     Value::Error("env requires a string argument (variable name)".to_string())
                 }
+            }
+
+            "env_or" => {
+                // env_or(var_name, default) - gets environment variable or returns default
+                match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Str(var_name)), Some(Value::Str(default))) => {
+                        Value::Str(builtins::env_or(var_name, default))
+                    }
+                    _ => Value::Error("env_or requires two string arguments (variable name, default value)".to_string())
+                }
+            }
+
+            "env_int" => {
+                // env_int(var_name) - gets environment variable and parses as integer
+                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                    match builtins::env_int(var_name) {
+                        Ok(val) => Value::Int(val),
+                        Err(msg) => Value::ErrorObject {
+                            message: msg.clone(),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("env_int requires a string argument (variable name)".to_string())
+                }
+            }
+
+            "env_float" => {
+                // env_float(var_name) - gets environment variable and parses as float
+                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                    match builtins::env_float(var_name) {
+                        Ok(val) => Value::Float(val),
+                        Err(msg) => Value::ErrorObject {
+                            message: msg.clone(),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("env_float requires a string argument (variable name)".to_string())
+                }
+            }
+
+            "env_bool" => {
+                // env_bool(var_name) - gets environment variable and parses as boolean
+                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                    match builtins::env_bool(var_name) {
+                        Ok(val) => Value::Bool(val),
+                        Err(msg) => Value::ErrorObject {
+                            message: msg.clone(),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("env_bool requires a string argument (variable name)".to_string())
+                }
+            }
+
+            "env_required" => {
+                // env_required(var_name) - gets required environment variable or errors
+                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                    match builtins::env_required(var_name) {
+                        Ok(val) => Value::Str(val),
+                        Err(msg) => Value::ErrorObject {
+                            message: msg.clone(),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("env_required requires a string argument (variable name)".to_string())
+                }
+            }
+
+            "env_set" => {
+                // env_set(var_name, value) - sets environment variable
+                match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Str(var_name)), Some(Value::Str(value))) => {
+                        builtins::env_set(var_name, value);
+                        Value::Null
+                    }
+                    _ => Value::Error("env_set requires two string arguments (variable name, value)".to_string())
+                }
+            }
+
+            "env_list" => {
+                // env_list() - returns all environment variables as a dictionary
+                let env_vars = builtins::env_list();
+                let mut dict = HashMap::new();
+                for (key, val) in env_vars {
+                    dict.insert(key, Value::Str(val));
+                }
+                Value::Dict(dict)
             }
 
             "args" => {
@@ -6372,7 +6478,18 @@ impl Interpreter {
                     Value::NativeFunction(name) => {
                         // Handle native function calls
                         let res = self.call_native_function(&name, args);
-                        res
+                        // Check if result is an error and set return_value to trigger try/except handling
+                        match res {
+                            Value::ErrorObject { .. } => {
+                                self.return_value = Some(res.clone());
+                                res
+                            }
+                            Value::Error(_) => {
+                                self.return_value = Some(res.clone());
+                                res
+                            }
+                            _ => res
+                        }
                     }
                     Value::Function(params, body, captured_env) => {
                         // Push to call stack

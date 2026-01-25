@@ -314,7 +314,16 @@
   - **YAML** (v0.6.0): `parse_yaml()`, `to_yaml()` - Parse and serialize YAML documents
   - **CSV** (v0.6.0): `parse_csv()`, `to_csv()` - Parse and serialize CSV data files
   - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()`, `current_timestamp()` (v0.7.0), `performance_now()` (v0.7.0), `time_us()` (v0.7.0), `time_ns()` (v0.7.0), `format_duration()` (v0.7.0), `elapsed()` (v0.7.0) - Complete timing suite with microsecond/nanosecond precision for robust benchmarking
-  - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
+  - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - Basic system operations
+    - **NEW in v0.8.0**: Advanced environment variable helpers:
+      - `env_or(key, default)` - Get environment variable with fallback default
+      - `env_int(key)` - Parse environment variable as integer
+      - `env_float(key)` - Parse environment variable as float
+      - `env_bool(key)` - Parse environment variable as boolean
+      - `env_required(key)` - Get required environment variable (errors if missing)
+      - `env_set(key, value)` - Set environment variable
+      - `env_list()` - Get all environment variables as dictionary
+    - Enhanced `args()` - Returns only script arguments (filters out ruff command)
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
   - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()`, `set_header()` (v0.5.1), `set_headers()` (v0.5.1) - HTTP client and server with full header control
   - **Concurrency & Parallelism** (v0.6.0): `spawn { }`, `parallel_http()`, `channel()`, `chan.send()`, `chan.receive()` - Background tasks and parallel HTTP requests for 3x faster API calls
