@@ -39,18 +39,18 @@ This roadmap outlines planned features and improvements for future versions of t
 - ✅ File Operations
 - ✅ Array Utilities
 
-**Quality-of-Life Features (P2)**: 🚧 In Progress
+**Quality-of-Life Features (P2)**: ✅ Complete!
 - ✅ Assert & Debug
-- ⏳ **Range Function** - Generate number sequences for loops and iteration
-- ⏳ **Format String** - sprintf-style string formatting (`format("Hello %s", name)`)
-- ⏳ **Math Functions** - Extended operations: `abs()`, `min()`, `max()`, `floor()`, `ceil()`, `round()`, `sqrt()`, `pow()`, `sin()`, `cos()`, `tan()`, `log()`, `exp()`
-- ⏳ **String Methods (Essential)** - Core manipulation:
+- ✅ **Range Function** - Generate number sequences for loops and iteration
+- ✅ **Format String** - sprintf-style string formatting (`format("Hello %s", name)`)
+- ✅ **Math Functions** - Extended operations: `abs()`, `min()`, `max()`, `floor()`, `ceil()`, `round()`, `sqrt()`, `pow()`, `sin()`, `cos()`, `tan()`, `log()`, `exp()`
+- ✅ **String Methods (Essential)** - Core manipulation:
   - Case conversion: `upper()`, `lower()`, `capitalize()`
-  - Search: `contains()`, `starts_with()`, `ends_with()`, `find()`, `index()`
+  - Search: `contains()`, `starts_with()`, `ends_with()`, `index_of()`
   - Manipulation: `trim()`, `trim_start()`, `trim_end()`, `replace()`, `split()`, `join()`
   - Extraction: `substring()`, `char_at()`, `repeat()`
   - Validation: `is_empty()`, `count_chars()`
-- ⏳ **Array Methods (Mutation)** - Essential operations Python/Go/Rust developers expect:
+- ✅ **Array Methods (Mutation)** - Essential operations Python/Go/Rust developers expect:
   - `push()` / `append()` - Add item to end
   - `pop()` - Remove and return last item
   - `insert(index, item)` - Insert at position
@@ -60,7 +60,7 @@ This roadmap outlines planned features and improvements for future versions of t
   - `index_of(item)` - Find position
   - `contains(item)` - Check existence
   - `concat(array)` - Merge arrays
-- ⏳ **Dict/Map Methods** - Key operations for working with dictionaries:
+- ✅ **Dict/Map Methods** - Key operations for working with dictionaries:
   - `keys()` - Get all keys as array
   - `values()` - Get all values as array
   - `items()` - Get key-value pairs

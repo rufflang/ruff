@@ -175,14 +175,46 @@
   - Module caching and circular import detection
 
 * **Built-in Functions**
-  - **Math**: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, constants `PI` and `E`
+  - **Math**: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, `log()` (v0.7.0), `exp()` (v0.7.0), constants `PI` and `E`
   - **Random** (v0.4.0): `random()`, `random_int(min, max)`, `random_choice(array)` - Random number generation
+  - **Range** (v0.7.0): `range(stop)`, `range(start, stop)`, `range(start, stop, step)` - Generate number sequences for loops
+    ```ruff
+    for i in range(5) { print(i) }  # 0, 1, 2, 3, 4
+    for i in range(1, 10, 2) { print(i) }  # 1, 3, 5, 7, 9
+    for i in range(10, 0, 0 - 2) { print(i) }  # 10, 8, 6, 4, 2
+    ```
+  - **Format String** (v0.7.0): `format(template, ...args)` - sprintf-style string formatting with `%s`, `%d`, `%f`
+    ```ruff
+    format("Hello %s", "world")  # "Hello world"
+    format("%s has %d apples", "Alice", 5)  # "Alice has 5 apples"
+    format("Pi is %.2f", 3.14159)  # "Pi is 3.14"
+    ```
   - **Strings**: `len()`, `to_upper()`, `to_lower()`, `trim()`, `substring()`, `contains()`, `replace_str()`, `starts_with()`, `ends_with()`, `index_of()`, `repeat()`, `split()`, `join()`
+  - **String Methods** (v0.7.0): `upper()`, `lower()`, `capitalize()`, `trim_start()`, `trim_end()`, `char_at(index)`, `is_empty()`, `count_chars()` - Enhanced string manipulation
+    ```ruff
+    capitalize("hello world")  # "Hello world"
+    char_at("ruff", 1)  # "u"
+    is_empty("")  # true
+    ```
   - **Regex** (v0.4.0): `regex_match()`, `regex_find_all()`, `regex_replace()`, `regex_split()` - Pattern matching and text processing
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
   - **Array Higher-Order**: `map()`, `filter()`, `reduce()`, `find()` (v0.3.0)
   - **Array Utilities** (v0.7.0): `sort()`, `reverse()`, `unique()`, `sum()`, `any()`, `all()` - Essential operations for data processing and analysis
+  - **Array Mutation** (v0.7.0): `insert(array, index, item)`, `remove(array, item)`, `remove_at(array, index)`, `clear(array)`, `index_of(array, item)`, `contains(array, item)` - In-place array operations
+    ```ruff
+    arr := [1, 2, 4]
+    arr2 := insert(arr, 2, 3)  # [1, 2, 3, 4]
+    arr3 := remove(arr2, 3)  # [1, 2, 4]
+    has := contains(arr3, 2)  # true
+    ```
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
+  - **Dict Methods** (v0.7.0): `items(dict)`, `get(dict, key, default)`, `merge(dict1, dict2)`, `clear(dict)` - Enhanced dictionary operations
+    ```ruff
+    user := {"name": "Alice", "age": 30}
+    pairs := items(user)  # [["name", "Alice"], ["age", 30]]
+    email := get(user, "email", "N/A")  # "N/A" (not found)
+    combined := merge(user, {"city": "NYC"})  # {"name": "Alice", "age": 30, "city": "NYC"}
+    ```
   - **JSON**: `parse_json()`, `to_json()` - Parse and serialize JSON data (v0.3.0)
   - **TOML** (v0.6.0): `parse_toml()`, `to_toml()` - Parse and serialize TOML configuration files
   - **YAML** (v0.6.0): `parse_yaml()`, `to_yaml()` - Parse and serialize YAML documents
