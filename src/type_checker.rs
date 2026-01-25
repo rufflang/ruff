@@ -279,6 +279,71 @@ impl TypeChecker {
             },
         );
 
+        // Array mutation methods
+        self.functions.insert(
+            "push".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Array and item
+                return_type: None,             // Returns modified array
+            },
+        );
+
+        self.functions.insert(
+            "append".to_string(), // Alias
+            FunctionSignature {
+                param_types: vec![None, None], // Array and item
+                return_type: None,             // Returns modified array
+            },
+        );
+
+        self.functions.insert(
+            "pop".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns [array, popped_item]
+            },
+        );
+
+        self.functions.insert(
+            "insert".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::Int), None], // Array, index, item
+                return_type: None,                                        // Returns modified array
+            },
+        );
+
+        self.functions.insert(
+            "remove_at".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::Int)], // Array, index
+                return_type: None,                                  // Returns [array, removed_item]
+            },
+        );
+
+        self.functions.insert(
+            "clear".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns empty array
+            },
+        );
+
+        self.functions.insert(
+            "slice".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::Int), Some(TypeAnnotation::Int)], // Array, start, end
+                return_type: None, // Returns sub-array
+            },
+        );
+
+        self.functions.insert(
+            "concat".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Two arrays
+                return_type: None,             // Returns combined array
+            },
+        );
+
         // Array higher-order functions
         self.functions.insert(
             "map".to_string(),

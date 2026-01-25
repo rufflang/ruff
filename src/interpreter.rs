@@ -525,7 +525,12 @@ impl Interpreter {
 
         // Array functions
         self.env.define("push".to_string(), Value::NativeFunction("push".to_string()));
+        self.env.define("append".to_string(), Value::NativeFunction("append".to_string())); // Alias
         self.env.define("pop".to_string(), Value::NativeFunction("pop".to_string()));
+        self.env.define("insert".to_string(), Value::NativeFunction("insert".to_string()));
+        self.env.define("remove".to_string(), Value::NativeFunction("remove".to_string()));
+        self.env.define("remove_at".to_string(), Value::NativeFunction("remove_at".to_string()));
+        self.env.define("clear".to_string(), Value::NativeFunction("clear".to_string()));
         self.env.define("slice".to_string(), Value::NativeFunction("slice".to_string()));
         self.env.define("concat".to_string(), Value::NativeFunction("concat".to_string()));
 
@@ -1398,12 +1403,15 @@ impl Interpreter {
 
             // String functions - two arguments
             "contains" => {
-                if let (Some(Value::Str(s)), Some(Value::Str(substr))) =
-                    (arg_values.get(0), arg_values.get(1))
-                {
-                    Value::Int(if builtins::contains(s, substr) { 1 } else { 0 })
-                } else {
-                    Value::Int(0)
+                // Polymorphic: works with strings and arrays
+                match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Str(s)), Some(Value::Str(substr))) => {
+                        Value::Int(if builtins::contains(s, substr) { 1 } else { 0 })
+                    }
+                    (Some(Value::Array(arr)), Some(item)) => {
+                        Value::Bool(builtins::array_contains(arr, item))
+                    }
+                    _ => Value::Int(0),
                 }
             }
 
@@ -1462,12 +1470,15 @@ impl Interpreter {
 
             // String function: index_of(str, substr) - returns number (index or -1)
             "index_of" => {
-                if let (Some(Value::Str(s)), Some(Value::Str(substr))) =
-                    (arg_values.get(0), arg_values.get(1))
-                {
-                    Value::Int(builtins::index_of(s, substr) as i64)
-                } else {
-                    Value::Int(-1)
+                // Polymorphic: works with strings and arrays
+                match (arg_values.get(0), arg_values.get(1)) {
+                    (Some(Value::Str(s)), Some(Value::Str(substr))) => {
+                        Value::Int(builtins::index_of(s, substr) as i64)
+                    }
+                    (Some(Value::Array(arr)), Some(item)) => {
+                        Value::Int(builtins::array_index_of(arr, item))
+                    }
+                    _ => Value::Int(-1),
                 }
             }
 
@@ -1523,7 +1534,7 @@ impl Interpreter {
             }
 
             // Array functions
-            "push" => {
+            "push" | "append" => {
                 // push(arr, item) - returns the modified array (note: doesn't modify original due to value semantics)
                 if let Some(Value::Array(mut arr)) = arg_values.get(0).cloned() {
                     if let Some(item) = arg_values.get(1).cloned() {
@@ -1572,6 +1583,67 @@ impl Interpreter {
                 } else {
                     Value::Array(vec![])
                 }
+            }
+
+            "insert" => {
+                // insert(arr, index, item) - inserts item at index
+                if let (Some(Value::Array(arr)), Some(index_val), Some(item)) =
+                    (arg_values.get(0).cloned(), arg_values.get(1), arg_values.get(2).cloned())
+                {
+                    let index = match index_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => return Value::Error("insert() index must be a number".to_string()),
+                    };
+                    
+                    match builtins::array_insert(arr, index, item) {
+                        Ok(new_arr) => Value::Array(new_arr),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("insert() requires 3 arguments: array, index, and item".to_string())
+                }
+            }
+
+            "remove" => {
+                // Polymorphic: remove(arr, item) for arrays, remove(dict, key) for dicts
+                match (arg_values.get(0).cloned(), arg_values.get(1)) {
+                    (Some(Value::Array(arr)), Some(item)) => {
+                        // remove(arr, item) - removes first occurrence of item
+                        Value::Array(builtins::array_remove(arr, item))
+                    }
+                    (Some(Value::Dict(mut dict)), Some(Value::Str(key))) => {
+                        // remove(dict, key) - returns [modified_dict, removed_value]
+                        let removed = dict.remove(key).unwrap_or(Value::Int(0));
+                        Value::Array(vec![Value::Dict(dict), removed])
+                    }
+                    _ => Value::Array(vec![]),
+                }
+            }
+
+            "remove_at" => {
+                // remove_at(arr, index) - returns [modified_array, removed_item]
+                if let (Some(Value::Array(arr)), Some(index_val)) =
+                    (arg_values.get(0).cloned(), arg_values.get(1))
+                {
+                    let index = match index_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => return Value::Error("remove_at() index must be a number".to_string()),
+                    };
+                    
+                    match builtins::array_remove_at(arr, index) {
+                        Ok((new_arr, removed)) => Value::Array(vec![Value::Array(new_arr), removed]),
+                        Err(e) => Value::Error(e),
+                    }
+                } else {
+                    Value::Error("remove_at() requires 2 arguments: array and index".to_string())
+                }
+            }
+
+            "clear" => {
+                // clear(arr) - returns empty array
+                Value::Array(builtins::array_clear())
             }
 
             // Array higher-order functions
@@ -1927,18 +1999,6 @@ impl Interpreter {
                     Value::Int(if dict.contains_key(key) { 1 } else { 0 })
                 } else {
                     Value::Int(0)
-                }
-            }
-
-            "remove" => {
-                // remove(dict, key) - returns [modified_dict, removed_value] or [dict, 0] if key not found
-                if let (Some(Value::Dict(mut dict)), Some(Value::Str(key))) =
-                    (arg_values.get(0).cloned(), arg_values.get(1))
-                {
-                    let removed = dict.remove(key).unwrap_or(Value::Int(0));
-                    Value::Array(vec![Value::Dict(dict), removed])
-                } else {
-                    Value::Array(vec![])
                 }
             }
 
