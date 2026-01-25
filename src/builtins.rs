@@ -945,9 +945,84 @@ pub fn get_env(var_name: &str) -> String {
     env::var(var_name).unwrap_or_default()
 }
 
+/// Get environment variable or return default value if not set
+pub fn env_or(var_name: &str, default: &str) -> String {
+    env::var(var_name).unwrap_or_else(|_| default.to_string())
+}
+
+/// Get environment variable and parse as integer
+pub fn env_int(var_name: &str) -> Result<i64, String> {
+    match env::var(var_name) {
+        Ok(val) => val.parse::<i64>()
+            .map_err(|_| format!("Environment variable '{}' value '{}' is not a valid integer", var_name, val)),
+        Err(_) => Err(format!("Environment variable '{}' not found", var_name)),
+    }
+}
+
+/// Get environment variable and parse as float
+pub fn env_float(var_name: &str) -> Result<f64, String> {
+    match env::var(var_name) {
+        Ok(val) => val.parse::<f64>()
+            .map_err(|_| format!("Environment variable '{}' value '{}' is not a valid float", var_name, val)),
+        Err(_) => Err(format!("Environment variable '{}' not found", var_name)),
+    }
+}
+
+/// Get environment variable and parse as boolean
+/// Accepts: "true", "1", "yes", "on" (case insensitive) as true
+/// Everything else is false
+pub fn env_bool(var_name: &str) -> Result<bool, String> {
+    match env::var(var_name) {
+        Ok(val) => {
+            let val_lower = val.to_lowercase();
+            Ok(matches!(val_lower.as_str(), "true" | "1" | "yes" | "on"))
+        }
+        Err(_) => Err(format!("Environment variable '{}' not found", var_name)),
+    }
+}
+
+/// Get required environment variable or error if not set
+pub fn env_required(var_name: &str) -> Result<String, String> {
+    env::var(var_name)
+        .map_err(|_| format!("Required environment variable '{}' is not set", var_name))
+}
+
+/// Set environment variable
+pub fn env_set(var_name: &str, value: &str) {
+    env::set_var(var_name, value);
+}
+
+/// Get all environment variables as a HashMap
+pub fn env_list() -> HashMap<String, String> {
+    env::vars().collect()
+}
+
 /// Get command-line arguments
 pub fn get_args() -> Vec<String> {
-    env::args().skip(1).collect() // Skip the program name
+    let all_args: Vec<String> = env::args().collect();
+    
+    // Filter out the ruff executable, subcommand, and script file
+    // Example: ["ruff", "run", "script.ruff", "arg1", "arg2"] -> ["arg1", "arg2"]
+    // Example: ["ruff", "script.ruff", "arg1"] -> ["arg1"]
+    
+    // Skip executable name
+    let mut iter = all_args.iter().skip(1);
+    
+    // Check for subcommand (run, repl, etc.)
+    if let Some(first) = iter.next() {
+        if first == "run" || first == "check" || first == "format" {
+            // Skip subcommand and script file
+            iter.skip(1).cloned().collect()
+        } else if first.ends_with(".ruff") {
+            // No subcommand, just script file
+            iter.cloned().collect()
+        } else {
+            // Return all remaining args
+            std::iter::once(first.clone()).chain(iter.cloned()).collect()
+        }
+    } else {
+        Vec::new()
+    }
 }
 
 /// Sleep for specified milliseconds

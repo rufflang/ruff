@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Environment Variable Helpers** 🔧 - Advanced environment variable management (P1 feature):
+  - **`env_or(key, default)`**: Get environment variable with fallback default value
+  - **`env_int(key)`**: Parse environment variable as integer with error handling
+  - **`env_float(key)`**: Parse environment variable as float with error handling
+  - **`env_bool(key)`**: Parse environment variable as boolean (accepts "true", "1", "yes", "on")
+  - **`env_required(key)`**: Get required environment variable or throw error if missing
+  - **`env_set(key, value)`**: Set environment variable programmatically
+  - **`env_list()`**: Get all environment variables as a dictionary
+  - **Error Handling**: Proper ErrorObject integration with try/except for missing or malformed variables
+  - **Example Use Cases**:
+    ```ruff
+    # Database configuration from environment
+    let db_config := {
+        host: env_or("DB_HOST", "localhost"),
+        port: env_int("DB_PORT"),
+        database: env_required("DB_NAME"),
+        ssl_enabled: env_bool("DB_SSL")
+    }
+    ```
+
+- **Command-Line Arguments** 📋 - Enhanced CLI argument access:
+  - **`args()`**: Returns array of command-line arguments (properly filtered)
+  - **Smart Filtering**: Automatically excludes ruff executable, subcommand, and script file
+  - **Ready for CLI Tools**: Foundation for building command-line applications in Ruff
+  - **Example**:
+    ```ruff
+    let cli_args := args()
+    for arg in cli_args {
+        print("Argument: ${arg}")
+    }
+    ```
+
 - **Bytecode Compiler & VM Foundation** ⚡ (IN PROGRESS - P1 feature):
   - **Bytecode Instruction Set**: Complete OpCode enum with 60+ instructions for all language features
   - **AST-to-Bytecode Compiler**: Compiles Ruff AST to stack-based bytecode instructions
