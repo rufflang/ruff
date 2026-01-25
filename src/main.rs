@@ -6,6 +6,8 @@
 
 mod ast;
 mod builtins;
+mod bytecode;
+mod compiler;
 mod errors;
 mod interpreter;
 mod lexer;
@@ -13,6 +15,7 @@ mod module;
 mod parser;
 mod repl;
 mod type_checker;
+mod vm;
 
 use clap::{Parser as ClapParser, Subcommand};
 use std::fs;

@@ -1512,6 +1512,10 @@ pub fn format_debug_value(value: &Value) -> String {
         }
         Value::Function(_, _, _) => "Function".to_string(),
         Value::NativeFunction(name) => format!("NativeFunction({})", name),
+        Value::BytecodeFunction { chunk, .. } => {
+            let name = chunk.name.as_ref().map(|s| s.as_str()).unwrap_or("<lambda>");
+            format!("BytecodeFunction({})", name)
+        }
         Value::Struct { name, .. } => format!("Struct({})", name),
         Value::StructDef { name, .. } => format!("StructDef({})", name),
         Value::Tagged { tag, fields } => {
