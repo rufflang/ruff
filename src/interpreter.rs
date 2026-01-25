@@ -547,6 +547,18 @@ impl Interpreter {
         self.env.define("is_empty".to_string(), Value::NativeFunction("is_empty".to_string()));
         self.env.define("count_chars".to_string(), Value::NativeFunction("count_chars".to_string()));
 
+        // Advanced string methods
+        self.env.define("pad_left".to_string(), Value::NativeFunction("pad_left".to_string()));
+        self.env.define("pad_right".to_string(), Value::NativeFunction("pad_right".to_string()));
+        self.env.define("lines".to_string(), Value::NativeFunction("lines".to_string()));
+        self.env.define("words".to_string(), Value::NativeFunction("words".to_string()));
+        self.env.define("str_reverse".to_string(), Value::NativeFunction("str_reverse".to_string()));
+        self.env.define("slugify".to_string(), Value::NativeFunction("slugify".to_string()));
+        self.env.define("truncate".to_string(), Value::NativeFunction("truncate".to_string()));
+        self.env.define("to_camel_case".to_string(), Value::NativeFunction("to_camel_case".to_string()));
+        self.env.define("to_snake_case".to_string(), Value::NativeFunction("to_snake_case".to_string()));
+        self.env.define("to_kebab_case".to_string(), Value::NativeFunction("to_kebab_case".to_string()));
+
         // Array functions
         self.env.define("push".to_string(), Value::NativeFunction("push".to_string()));
         self.env.define("append".to_string(), Value::NativeFunction("append".to_string())); // Alias
@@ -572,6 +584,15 @@ impl Interpreter {
         self.env.define("any".to_string(), Value::NativeFunction("any".to_string()));
         self.env.define("all".to_string(), Value::NativeFunction("all".to_string()));
 
+        // Advanced array methods
+        self.env.define("chunk".to_string(), Value::NativeFunction("chunk".to_string()));
+        self.env.define("flatten".to_string(), Value::NativeFunction("flatten".to_string()));
+        self.env.define("zip".to_string(), Value::NativeFunction("zip".to_string()));
+        self.env.define("enumerate".to_string(), Value::NativeFunction("enumerate".to_string()));
+        self.env.define("take".to_string(), Value::NativeFunction("take".to_string()));
+        self.env.define("skip".to_string(), Value::NativeFunction("skip".to_string()));
+        self.env.define("windows".to_string(), Value::NativeFunction("windows".to_string()));
+
         // Array generation functions
         self.env.define("range".to_string(), Value::NativeFunction("range".to_string()));
 
@@ -587,6 +608,11 @@ impl Interpreter {
         self.env.define("remove".to_string(), Value::NativeFunction("remove".to_string()));
         self.env.define("clear".to_string(), Value::NativeFunction("clear".to_string()));
         self.env.define("merge".to_string(), Value::NativeFunction("merge".to_string()));
+
+        // Advanced dict methods
+        self.env.define("invert".to_string(), Value::NativeFunction("invert".to_string()));
+        self.env.define("update".to_string(), Value::NativeFunction("update".to_string()));
+        self.env.define("get_default".to_string(), Value::NativeFunction("get_default".to_string()));
 
         // I/O functions
         self.env.define("input".to_string(), Value::NativeFunction("input".to_string()));
@@ -1561,6 +1587,120 @@ impl Interpreter {
                 }
             }
 
+            // Advanced string methods
+            "pad_left" => {
+                // pad_left(str, width, char) - pad string on left
+                if let (Some(Value::Str(s)), Some(width_val), Some(Value::Str(pad_char))) =
+                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                {
+                    let width = match width_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => 0,
+                    };
+                    Value::Str(builtins::str_pad_left(s, width, pad_char))
+                } else {
+                    Value::Error("pad_left() requires 3 arguments: string, width, char".to_string())
+                }
+            }
+
+            "pad_right" => {
+                // pad_right(str, width, char) - pad string on right
+                if let (Some(Value::Str(s)), Some(width_val), Some(Value::Str(pad_char))) =
+                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                {
+                    let width = match width_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => 0,
+                    };
+                    Value::Str(builtins::str_pad_right(s, width, pad_char))
+                } else {
+                    Value::Error("pad_right() requires 3 arguments: string, width, char".to_string())
+                }
+            }
+
+            "lines" => {
+                // lines(str) - split string into lines
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    let lines = builtins::str_lines(s);
+                    Value::Array(lines.into_iter().map(Value::Str).collect())
+                } else {
+                    Value::Error("lines() requires a string argument".to_string())
+                }
+            }
+
+            "words" => {
+                // words(str) - split string into words
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    let words = builtins::str_words(s);
+                    Value::Array(words.into_iter().map(Value::Str).collect())
+                } else {
+                    Value::Error("words() requires a string argument".to_string())
+                }
+            }
+
+            "str_reverse" => {
+                // str_reverse(str) - reverse a string
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::str_reverse(s))
+                } else {
+                    Value::Error("str_reverse() requires a string argument".to_string())
+                }
+            }
+
+            "slugify" => {
+                // slugify(str) - convert to URL-friendly slug
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::str_slugify(s))
+                } else {
+                    Value::Error("slugify() requires a string argument".to_string())
+                }
+            }
+
+            "truncate" => {
+                // truncate(str, len, suffix) - truncate string with suffix
+                if let (Some(Value::Str(s)), Some(len_val), Some(Value::Str(suffix))) =
+                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                {
+                    let max_len = match len_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => 0,
+                    };
+                    Value::Str(builtins::str_truncate(s, max_len, suffix))
+                } else {
+                    Value::Error("truncate() requires 3 arguments: string, length, suffix".to_string())
+                }
+            }
+
+            "to_camel_case" => {
+                // to_camel_case(str) - convert to camelCase
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::str_to_camel_case(s))
+                } else {
+                    Value::Error("to_camel_case() requires a string argument".to_string())
+                }
+            }
+
+            "to_snake_case" => {
+                // to_snake_case(str) - convert to snake_case
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::str_to_snake_case(s))
+                } else {
+                    Value::Error("to_snake_case() requires a string argument".to_string())
+                }
+            }
+
+            "to_kebab_case" => {
+                // to_kebab_case(str) - convert to kebab-case
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::str_to_kebab_case(s))
+                } else {
+                    Value::Error("to_kebab_case() requires a string argument".to_string())
+                }
+            }
+
             // Array functions
             "push" | "append" => {
                 // push(arr, item) - returns the modified array (note: doesn't modify original due to value semantics)
@@ -1974,6 +2114,100 @@ impl Interpreter {
                 Value::Bool(true)
             }
 
+            // Advanced array methods
+            "chunk" => {
+                // chunk(array, size) - split array into chunks of specified size
+                if let (Some(Value::Array(arr)), Some(size_val)) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let size = match size_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => return Value::Error("chunk() size must be a number".to_string()),
+                    };
+                    Value::Array(builtins::array_chunk(arr, size))
+                } else {
+                    Value::Error("chunk() requires 2 arguments: array and size".to_string())
+                }
+            }
+
+            "flatten" => {
+                // flatten(array) - flatten nested arrays by one level
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    Value::Array(builtins::array_flatten(arr))
+                } else {
+                    Value::Error("flatten() requires an array argument".to_string())
+                }
+            }
+
+            "zip" => {
+                // zip(array1, array2) - zip two arrays together
+                if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Array(builtins::array_zip(arr1, arr2))
+                } else {
+                    Value::Error("zip() requires 2 array arguments".to_string())
+                }
+            }
+
+            "enumerate" => {
+                // enumerate(array) - add index to each element
+                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                    Value::Array(builtins::array_enumerate(arr))
+                } else {
+                    Value::Error("enumerate() requires an array argument".to_string())
+                }
+            }
+
+            "take" => {
+                // take(array, n) - take first n elements
+                if let (Some(Value::Array(arr)), Some(n_val)) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let n = match n_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => return Value::Error("take() count must be a number".to_string()),
+                    };
+                    Value::Array(builtins::array_take(arr, n))
+                } else {
+                    Value::Error("take() requires 2 arguments: array and count".to_string())
+                }
+            }
+
+            "skip" => {
+                // skip(array, n) - skip first n elements
+                if let (Some(Value::Array(arr)), Some(n_val)) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let n = match n_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => return Value::Error("skip() count must be a number".to_string()),
+                    };
+                    Value::Array(builtins::array_skip(arr, n))
+                } else {
+                    Value::Error("skip() requires 2 arguments: array and count".to_string())
+                }
+            }
+
+            "windows" => {
+                // windows(array, size) - create sliding windows
+                if let (Some(Value::Array(arr)), Some(size_val)) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let size = match size_val {
+                        Value::Int(n) => *n,
+                        Value::Float(n) => *n as i64,
+                        _ => return Value::Error("windows() size must be a number".to_string()),
+                    };
+                    Value::Array(builtins::array_windows(arr, size))
+                } else {
+                    Value::Error("windows() requires 2 arguments: array and size".to_string())
+                }
+            }
+
             // Array generation functions
             "range" => {
                 // range(stop) or range(start, stop) or range(start, stop, step)
@@ -2071,6 +2305,48 @@ impl Interpreter {
                     Value::Dict(result)
                 } else {
                     Value::Dict(HashMap::new())
+                }
+            }
+
+            // Advanced dict methods
+            "invert" => {
+                // invert(dict) - swap keys and values
+                if let Some(Value::Dict(dict)) = arg_values.get(0) {
+                    Value::Dict(builtins::dict_invert(dict))
+                } else {
+                    Value::Error("invert() requires a dict argument".to_string())
+                }
+            }
+
+            "update" => {
+                // update(dict1, dict2) - modify dict1 in place (returns updated dict1)
+                // Note: Due to value semantics, this returns a new dict like merge
+                if let (Some(Value::Dict(dict1)), Some(Value::Dict(dict2))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let mut result = dict1.clone();
+                    for (k, v) in dict2.iter() {
+                        result.insert(k.clone(), v.clone());
+                    }
+                    Value::Dict(result)
+                } else {
+                    Value::Dict(HashMap::new())
+                }
+            }
+
+            "get_default" => {
+                // get_default(dict, key, default_value) - get value or return default if missing
+                if let (Some(Value::Dict(dict)), Some(Value::Str(key)), Some(default_val)) =
+                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                {
+                    if let Some(value) = dict.get(key) {
+                        value.clone()
+                    } else {
+                        // Return the default value (in a real mutable version, we'd insert it)
+                        default_val.clone()
+                    }
+                } else {
+                    Value::Error("get_default() requires 3 arguments: dict, key, default_value".to_string())
                 }
             }
 

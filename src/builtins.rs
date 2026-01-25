@@ -290,6 +290,147 @@ pub fn join(arr: &[String], separator: &str) -> String {
     arr.join(separator)
 }
 
+/// Advanced string methods
+
+/// Pad string on the left with specified character to reach target width
+pub fn str_pad_left(s: &str, width: i64, pad_char: &str) -> String {
+    let pad_char = pad_char.chars().next().unwrap_or(' ');
+    let current_len = s.chars().count();
+    let target_width = width as usize;
+    
+    if current_len >= target_width {
+        return s.to_string();
+    }
+    
+    let pad_count = target_width - current_len;
+    format!("{}{}", pad_char.to_string().repeat(pad_count), s)
+}
+
+/// Pad string on the right with specified character to reach target width
+pub fn str_pad_right(s: &str, width: i64, pad_char: &str) -> String {
+    let pad_char = pad_char.chars().next().unwrap_or(' ');
+    let current_len = s.chars().count();
+    let target_width = width as usize;
+    
+    if current_len >= target_width {
+        return s.to_string();
+    }
+    
+    let pad_count = target_width - current_len;
+    format!("{}{}", s, pad_char.to_string().repeat(pad_count))
+}
+
+/// Split string into lines (handles \n, \r\n, and \r)
+pub fn str_lines(s: &str) -> Vec<String> {
+    s.lines().map(|line| line.to_string()).collect()
+}
+
+/// Split string into words (splits on whitespace)
+pub fn str_words(s: &str) -> Vec<String> {
+    s.split_whitespace().map(|word| word.to_string()).collect()
+}
+
+/// Reverse a string
+pub fn str_reverse(s: &str) -> String {
+    s.chars().rev().collect()
+}
+
+/// Convert string to URL-friendly slug
+pub fn str_slugify(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c
+            } else if c.is_whitespace() || c == '_' {
+                '-'
+            } else {
+                ' '  // Will be filtered out
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("")
+        .replace("--", "-")
+        .trim_matches('-')
+        .to_string()
+}
+
+/// Truncate string to specified length with optional suffix
+pub fn str_truncate(s: &str, max_len: i64, suffix: &str) -> String {
+    let len = s.chars().count();
+    let max_len = max_len as usize;
+    
+    if len <= max_len {
+        return s.to_string();
+    }
+    
+    let suffix_len = suffix.chars().count();
+    let truncate_at = if max_len > suffix_len {
+        max_len - suffix_len
+    } else {
+        0
+    };
+    
+    let truncated: String = s.chars().take(truncate_at).collect();
+    format!("{}{}", truncated, suffix)
+}
+
+/// Convert string to camelCase
+pub fn str_to_camel_case(s: &str) -> String {
+    let words: Vec<&str> = s.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    
+    if words.is_empty() {
+        return String::new();
+    }
+    
+    let mut result = words[0].to_lowercase();
+    for word in &words[1..] {
+        let mut chars = word.chars();
+        if let Some(first) = chars.next() {
+            result.push_str(&first.to_uppercase().to_string());
+            result.push_str(&chars.as_str().to_lowercase());
+        }
+    }
+    
+    result
+}
+
+/// Convert string to snake_case
+pub fn str_to_snake_case(s: &str) -> String {
+    let mut result = String::new();
+    let mut prev_was_upper = false;
+    
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() {
+            if i > 0 && !prev_was_upper {
+                result.push('_');
+            }
+            result.push(c.to_lowercase().next().unwrap());
+            prev_was_upper = true;
+        } else if c.is_alphanumeric() {
+            result.push(c);
+            prev_was_upper = false;
+        } else if !c.is_whitespace() && c != '_' && c != '-' {
+            // Skip non-alphanumeric characters except underscore and hyphen
+            prev_was_upper = false;
+        } else {
+            if i > 0 && !result.ends_with('_') {
+                result.push('_');
+            }
+            prev_was_upper = false;
+        }
+    }
+    
+    result.trim_matches('_').to_string()
+}
+
+/// Convert string to kebab-case
+pub fn str_to_kebab_case(s: &str) -> String {
+    str_to_snake_case(s).replace('_', "-")
+}
+
 /// String formatting function
 
 /// Format a string with sprintf-style placeholders
@@ -970,6 +1111,111 @@ pub fn array_contains(arr: &[Value], item: &Value) -> bool {
             _ => false,
         }
     })
+}
+
+/// Advanced array methods
+
+/// Split array into chunks of specified size
+/// Last chunk may be smaller if array length is not divisible by chunk_size
+pub fn array_chunk(arr: &[Value], chunk_size: i64) -> Vec<Value> {
+    if chunk_size <= 0 {
+        return vec![Value::Array(arr.to_vec())];
+    }
+    
+    let size = chunk_size as usize;
+    let chunks: Vec<Value> = arr
+        .chunks(size)
+        .map(|chunk| Value::Array(chunk.to_vec()))
+        .collect();
+    
+    chunks
+}
+
+/// Flatten nested arrays by one level
+/// [[1,2], [3,4]] → [1,2,3,4]
+pub fn array_flatten(arr: &[Value]) -> Vec<Value> {
+    let mut result = Vec::new();
+    
+    for item in arr {
+        match item {
+            Value::Array(inner) => result.extend(inner.clone()),
+            other => result.push(other.clone()),
+        }
+    }
+    
+    result
+}
+
+/// Zip two arrays together into array of pairs
+/// [1,2,3].zip([4,5,6]) → [[1,4], [2,5], [3,6]]
+pub fn array_zip(arr1: &[Value], arr2: &[Value]) -> Vec<Value> {
+    arr1.iter()
+        .zip(arr2.iter())
+        .map(|(a, b)| Value::Array(vec![a.clone(), b.clone()]))
+        .collect()
+}
+
+/// Add index to each element
+/// ["a", "b"] → [[0, "a"], [1, "b"]]
+pub fn array_enumerate(arr: &[Value]) -> Vec<Value> {
+    arr.iter()
+        .enumerate()
+        .map(|(i, v)| Value::Array(vec![Value::Int(i as i64), v.clone()]))
+        .collect()
+}
+
+/// Take first n elements
+pub fn array_take(arr: &[Value], n: i64) -> Vec<Value> {
+    if n <= 0 {
+        return Vec::new();
+    }
+    
+    let count = (n as usize).min(arr.len());
+    arr[..count].to_vec()
+}
+
+/// Skip first n elements
+pub fn array_skip(arr: &[Value], n: i64) -> Vec<Value> {
+    if n <= 0 {
+        return arr.to_vec();
+    }
+    
+    let skip_count = (n as usize).min(arr.len());
+    arr[skip_count..].to_vec()
+}
+
+/// Create sliding windows of specified size
+/// [1,2,3,4].windows(2) → [[1,2], [2,3], [3,4]]
+pub fn array_windows(arr: &[Value], window_size: i64) -> Vec<Value> {
+    if window_size <= 0 || arr.len() < window_size as usize {
+        return Vec::new();
+    }
+    
+    let size = window_size as usize;
+    arr.windows(size)
+        .map(|window| Value::Array(window.to_vec()))
+        .collect()
+}
+
+/// Advanced dict methods
+
+/// Invert a dictionary (swap keys and values)
+/// Keys must convert to valid dict keys
+pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
+    let mut result = HashMap::new();
+    
+    for (key, value) in dict {
+        let new_key = match value {
+            Value::Str(s) => s.clone(),
+            Value::Int(n) => n.to_string(),
+            Value::Float(n) => n.to_string(),
+            Value::Bool(b) => b.to_string(),
+            _ => continue,  // Skip non-primitive values
+        };
+        result.insert(new_key, Value::Str(key.clone()));
+    }
+    
+    result
 }
 
 /// HTTP Client Functions
