@@ -957,6 +957,57 @@ pub fn http_get_stream(url: &str) -> Result<Vec<u8>, String> {
     }
 }
 
+/// Assert & Debug Functions
+
+/// Assert that a condition is true, throw error if false
+/// assert(condition, message) - Throws error with message if condition is false
+pub fn assert_condition(condition: bool, message: Option<&str>) -> Result<(), String> {
+    if !condition {
+        let error_msg = message.unwrap_or("Assertion failed");
+        return Err(error_msg.to_string());
+    }
+    Ok(())
+}
+
+/// Format a value for debug output
+pub fn format_debug_value(value: &Value) -> String {
+    match value {
+        Value::Int(n) => format!("Int({})", n),
+        Value::Float(n) => format!("Float({})", n),
+        Value::Str(s) => format!("String(\"{}\")", s),
+        Value::Bool(b) => format!("Bool({})", b),
+        Value::Null => "Null".to_string(),
+        Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().map(|v| format_debug_value(v)).collect();
+            format!("Array[{}]", items.join(", "))
+        }
+        Value::Dict(dict) => {
+            let items: Vec<String> = dict
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, format_debug_value(v)))
+                .collect();
+            format!("Dict{{{}}}", items.join(", "))
+        }
+        Value::Function { .. } => "Function".to_string(),
+        Value::NativeFunction(name) => format!("NativeFunction({})", name),
+        Value::Struct { name, .. } => format!("Struct({})", name),
+        Value::StructInstance { name, .. } => format!("{}Instance", name),
+        Value::Bytes(bytes) => format!("Bytes({} bytes)", bytes.len()),
+        Value::Set(set) => {
+            let items: Vec<String> = set.iter().map(|v| format_debug_value(v)).collect();
+            format!("Set{{{}}}", items.join(", "))
+        }
+        Value::Queue(queue) => {
+            let items: Vec<String> = queue.iter().map(|v| format_debug_value(v)).collect();
+            format!("Queue[{}]", items.join(", "))
+        }
+        Value::Stack(stack) => {
+            let items: Vec<String> = stack.iter().map(|v| format_debug_value(v)).collect();
+            format!("Stack[{}]", items.join(", "))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
