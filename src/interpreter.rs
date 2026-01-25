@@ -30,6 +30,12 @@ use std::io::Write;
 use std::mem::ManuallyDrop;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use sha2::{Sha256, Digest as Sha2Digest};
+use md5::{Md5, Digest as Md5Digest};
+use zip::{ZipWriter, ZipArchive, write::FileOptions};
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
 ///
@@ -303,6 +309,10 @@ pub enum Value {
         data: Arc<Mutex<DynamicImage>>,
         format: String,
     },
+    ZipArchive {
+        writer: Arc<Mutex<Option<ZipWriter<File>>>>,
+        path: String,
+    },
     /// Result type: Ok(value) or Err(error)
     Result {
         is_ok: bool,
@@ -380,6 +390,9 @@ impl std::fmt::Debug for Value {
             Value::Image { format, data } => {
                 let img = data.lock().unwrap();
                 write!(f, "Image({}x{}, format={})", img.width(), img.height(), format)
+            }
+            Value::ZipArchive { path, .. } => {
+                write!(f, "ZipArchive(path={})", path)
             }
             Value::Result { is_ok, value } => {
                 if *is_ok {
@@ -921,6 +934,24 @@ impl Interpreter {
 
         // Image processing functions
         self.env.define("load_image".to_string(), Value::NativeFunction("load_image".to_string()));
+
+        // Compression & Archive functions
+        self.env.define("zip_create".to_string(), Value::NativeFunction("zip_create".to_string()));
+        self.env.define("zip_add_file".to_string(), Value::NativeFunction("zip_add_file".to_string()));
+        self.env.define("zip_add_dir".to_string(), Value::NativeFunction("zip_add_dir".to_string()));
+        self.env.define("zip_close".to_string(), Value::NativeFunction("zip_close".to_string()));
+        self.env.define("unzip".to_string(), Value::NativeFunction("unzip".to_string()));
+
+        // Hashing & Crypto functions
+        self.env.define("sha256".to_string(), Value::NativeFunction("sha256".to_string()));
+        self.env.define("md5".to_string(), Value::NativeFunction("md5".to_string()));
+        self.env.define("md5_file".to_string(), Value::NativeFunction("md5_file".to_string()));
+        self.env.define("hash_password".to_string(), Value::NativeFunction("hash_password".to_string()));
+        self.env.define("verify_password".to_string(), Value::NativeFunction("verify_password".to_string()));
+
+        // Process management functions
+        self.env.define("spawn_process".to_string(), Value::NativeFunction("spawn_process".to_string()));
+        self.env.define("pipe_commands".to_string(), Value::NativeFunction("pipe_commands".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -2554,6 +2585,7 @@ impl Interpreter {
                         Value::Database { .. } => "database",
                         Value::DatabasePool { .. } => "databasepool",
                         Value::Image { .. } => "image",
+                        Value::ZipArchive { .. } => "ziparchive",
                         Value::Return(_) => "return",
                         Value::Error(_) | Value::ErrorObject { .. } => "error",
                         Value::Result { .. } => "result",
@@ -4884,6 +4916,583 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("load_image requires a string path argument".to_string())
+                }
+            }
+
+            // Compression & Archive functions
+            "zip_create" => {
+                // zip_create(path) - creates a new zip archive
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    match File::create(path) {
+                        Ok(file) => {
+                            let writer = ZipWriter::new(file);
+                            Value::ZipArchive {
+                                writer: Arc::new(Mutex::new(Some(writer))),
+                                path: path.clone(),
+                            }
+                        }
+                        Err(e) => Value::ErrorObject {
+                            message: format!("Failed to create zip file '{}': {}", path, e),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("zip_create requires a string path argument".to_string())
+                }
+            }
+
+            "zip_add_file" => {
+                // zip_add_file(archive, source_path) - adds a file to zip archive
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::ZipArchive { writer, .. }), Some(Value::Str(source_path))) => {
+                        let mut writer_guard = writer.lock().unwrap();
+                        if let Some(zip_writer) = writer_guard.as_mut() {
+                            // Read the source file
+                            match std::fs::read(source_path) {
+                                Ok(contents) => {
+                                    // Get just the filename for the zip entry
+                                    let file_name = Path::new(source_path)
+                                        .file_name()
+                                        .and_then(|n| n.to_str())
+                                        .unwrap_or(source_path);
+                                    
+                                    // Add file to zip
+                                    let options = FileOptions::default()
+                                        .compression_method(zip::CompressionMethod::Deflated);
+                                    
+                                    match zip_writer.start_file(file_name, options) {
+                                        Ok(_) => {
+                                            match zip_writer.write_all(&contents) {
+                                                Ok(_) => Value::Bool(true),
+                                                Err(e) => Value::ErrorObject {
+                                                    message: format!("Failed to write file to zip: {}", e),
+                                                    stack: Vec::new(),
+                                                    line: None,
+                                                    cause: None,
+                                                },
+                                            }
+                                        }
+                                        Err(e) => Value::ErrorObject {
+                                            message: format!("Failed to start zip entry '{}': {}", file_name, e),
+                                            stack: Vec::new(),
+                                            line: None,
+                                            cause: None,
+                                        },
+                                    }
+                                }
+                                Err(e) => Value::ErrorObject {
+                                    message: format!("Failed to read source file '{}': {}", source_path, e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            }
+                        } else {
+                            Value::Error("Zip archive has been closed".to_string())
+                        }
+                    }
+                    _ => Value::Error("zip_add_file requires (ZipArchive, string_path) arguments".to_string()),
+                }
+            }
+
+            "zip_add_dir" => {
+                // zip_add_dir(archive, dir_path) - adds a directory recursively to zip archive
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::ZipArchive { writer, .. }), Some(Value::Str(dir_path))) => {
+                        let mut writer_guard = writer.lock().unwrap();
+                        if let Some(zip_writer) = writer_guard.as_mut() {
+                            // Walk the directory and add all files
+                            fn add_dir_recursive(
+                                zip: &mut ZipWriter<File>,
+                                dir: &Path,
+                                prefix: &str,
+                            ) -> Result<(), String> {
+                                let entries = std::fs::read_dir(dir)
+                                    .map_err(|e| format!("Failed to read directory: {}", e))?;
+
+                                for entry in entries {
+                                    let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+                                    let path = entry.path();
+                                    let name = entry.file_name();
+                                    let name_str = name.to_string_lossy();
+                                    let zip_path = if prefix.is_empty() {
+                                        name_str.to_string()
+                                    } else {
+                                        format!("{}/{}", prefix, name_str)
+                                    };
+
+                                    if path.is_dir() {
+                                        // Add directory entry
+                                        let options = FileOptions::default();
+                                        zip.add_directory(&zip_path, options)
+                                            .map_err(|e| format!("Failed to add directory '{}': {}", zip_path, e))?;
+                                        // Recurse into subdirectory
+                                        add_dir_recursive(zip, &path, &zip_path)?;
+                                    } else {
+                                        // Add file
+                                        let contents = std::fs::read(&path)
+                                            .map_err(|e| format!("Failed to read '{}': {}", path.display(), e))?;
+                                        let options = FileOptions::default()
+                                            .compression_method(zip::CompressionMethod::Deflated);
+                                        zip.start_file(&zip_path, options)
+                                            .map_err(|e| format!("Failed to start file '{}': {}", zip_path, e))?;
+                                        zip.write_all(&contents)
+                                            .map_err(|e| format!("Failed to write file '{}': {}", zip_path, e))?;
+                                    }
+                                }
+                                Ok(())
+                            }
+
+                            let dir = Path::new(dir_path);
+                            match add_dir_recursive(zip_writer, dir, "") {
+                                Ok(_) => Value::Bool(true),
+                                Err(msg) => Value::ErrorObject {
+                                    message: msg,
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            }
+                        } else {
+                            Value::Error("Zip archive has been closed".to_string())
+                        }
+                    }
+                    _ => Value::Error("zip_add_dir requires (ZipArchive, string_path) arguments".to_string()),
+                }
+            }
+
+            "zip_close" => {
+                // zip_close(archive) - finalizes and closes the zip archive
+                if let Some(Value::ZipArchive { writer, .. }) = arg_values.first() {
+                    let mut writer_guard = writer.lock().unwrap();
+                    if let Some(mut zip_writer) = writer_guard.take() {
+                        match zip_writer.finish() {
+                            Ok(_) => Value::Bool(true),
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to finalize zip archive: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    } else {
+                        Value::Error("Zip archive has already been closed".to_string())
+                    }
+                } else {
+                    Value::Error("zip_close requires a ZipArchive argument".to_string())
+                }
+            }
+
+            "unzip" => {
+                // unzip(zip_path, output_dir) - extracts a zip archive to a directory
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(zip_path)), Some(Value::Str(output_dir))) => {
+                        match File::open(zip_path) {
+                            Ok(file) => {
+                                match ZipArchive::new(file) {
+                                    Ok(mut archive) => {
+                                        // Create output directory if it doesn't exist
+                                        if let Err(e) = std::fs::create_dir_all(output_dir) {
+                                            return Value::ErrorObject {
+                                                message: format!("Failed to create output directory '{}': {}", output_dir, e),
+                                                stack: Vec::new(),
+                                                line: None,
+                                                cause: None,
+                                            };
+                                        }
+
+                                        let mut extracted_files = Vec::new();
+
+                                        // Extract all files
+                                        for i in 0..archive.len() {
+                                            match archive.by_index(i) {
+                                                Ok(mut file) => {
+                                                    let outpath = Path::new(output_dir).join(file.name());
+                                                    
+                                                    if file.is_dir() {
+                                                        if let Err(e) = std::fs::create_dir_all(&outpath) {
+                                                            return Value::ErrorObject {
+                                                                message: format!("Failed to create directory '{}': {}", outpath.display(), e),
+                                                                stack: Vec::new(),
+                                                                line: None,
+                                                                cause: None,
+                                                            };
+                                                        }
+                                                    } else {
+                                                        // Create parent directories if needed
+                                                        if let Some(parent) = outpath.parent() {
+                                                            if let Err(e) = std::fs::create_dir_all(parent) {
+                                                                return Value::ErrorObject {
+                                                                    message: format!("Failed to create parent directory for '{}': {}", outpath.display(), e),
+                                                                    stack: Vec::new(),
+                                                                    line: None,
+                                                                    cause: None,
+                                                                };
+                                                            }
+                                                        }
+
+                                                        // Extract file
+                                                        match File::create(&outpath) {
+                                                            Ok(mut outfile) => {
+                                                                if let Err(e) = std::io::copy(&mut file, &mut outfile) {
+                                                                    return Value::ErrorObject {
+                                                                        message: format!("Failed to extract file '{}': {}", file.name(), e),
+                                                                        stack: Vec::new(),
+                                                                        line: None,
+                                                                        cause: None,
+                                                                    };
+                                                                }
+                                                                extracted_files.push(Value::Str(outpath.to_string_lossy().to_string()));
+                                                            }
+                                                            Err(e) => {
+                                                                return Value::ErrorObject {
+                                                                    message: format!("Failed to create output file '{}': {}", outpath.display(), e),
+                                                                    stack: Vec::new(),
+                                                                    line: None,
+                                                                    cause: None,
+                                                                };
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    return Value::ErrorObject {
+                                                        message: format!("Failed to read zip entry {}: {}", i, e),
+                                                        stack: Vec::new(),
+                                                        line: None,
+                                                        cause: None,
+                                                    };
+                                                }
+                                            }
+                                        }
+
+                                        Value::Array(extracted_files)
+                                    }
+                                    Err(e) => Value::ErrorObject {
+                                        message: format!("Failed to open zip archive '{}': {}", zip_path, e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to open file '{}': {}", zip_path, e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("unzip requires (string_zip_path, string_output_dir) arguments".to_string()),
+                }
+            }
+
+            // Hashing & Crypto functions
+            "sha256" => {
+                // sha256(data) - computes SHA-256 hash of string data
+                if let Some(Value::Str(data)) = arg_values.first() {
+                    let mut hasher = Sha256::new();
+                    hasher.update(data.as_bytes());
+                    let result = hasher.finalize();
+                    Value::Str(format!("{:x}", result))
+                } else {
+                    Value::Error("sha256 requires a string argument".to_string())
+                }
+            }
+
+            "md5" => {
+                // md5(data) - computes MD5 hash of string data
+                if let Some(Value::Str(data)) = arg_values.first() {
+                    let mut hasher = Md5::new();
+                    hasher.update(data.as_bytes());
+                    let result = hasher.finalize();
+                    Value::Str(format!("{:x}", result))
+                } else {
+                    Value::Error("md5 requires a string argument".to_string())
+                }
+            }
+
+            "md5_file" => {
+                // md5_file(path) - computes MD5 hash of a file
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    match std::fs::read(path) {
+                        Ok(contents) => {
+                            let mut hasher = Md5::new();
+                            hasher.update(&contents);
+                            let result = hasher.finalize();
+                            Value::Str(format!("{:x}", result))
+                        }
+                        Err(e) => Value::ErrorObject {
+                            message: format!("Failed to read file '{}': {}", path, e),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("md5_file requires a string path argument".to_string())
+                }
+            }
+
+            "hash_password" => {
+                // hash_password(password) - hashes a password using bcrypt
+                if let Some(Value::Str(password)) = arg_values.first() {
+                    match bcrypt::hash(password, bcrypt::DEFAULT_COST) {
+                        Ok(hashed) => Value::Str(hashed),
+                        Err(e) => Value::ErrorObject {
+                            message: format!("Failed to hash password: {}", e),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("hash_password requires a string password argument".to_string())
+                }
+            }
+
+            "verify_password" => {
+                // verify_password(password, hash) - verifies a password against a bcrypt hash
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(password)), Some(Value::Str(hash))) => {
+                        match bcrypt::verify(password, hash) {
+                            Ok(is_valid) => Value::Bool(is_valid),
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to verify password: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("verify_password requires (string_password, string_hash) arguments".to_string()),
+                }
+            }
+
+            // Process management functions
+            "spawn_process" => {
+                // spawn_process(command_array) - spawns a process and returns a handle
+                if let Some(Value::Array(args)) = arg_values.first() {
+                    if args.is_empty() {
+                        return Value::Error("spawn_process requires a non-empty array of command arguments".to_string());
+                    }
+
+                    // Extract command and arguments
+                    let mut cmd_parts: Vec<String> = Vec::new();
+                    for arg in args {
+                        if let Value::Str(s) = arg {
+                            cmd_parts.push(s.clone());
+                        } else {
+                            return Value::Error("spawn_process requires an array of strings".to_string());
+                        }
+                    }
+
+                    let program = &cmd_parts[0];
+                    let args_slice = &cmd_parts[1..];
+
+                    // Spawn the process
+                    match std::process::Command::new(program)
+                        .args(args_slice)
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped())
+                        .spawn()
+                    {
+                        Ok(mut child) => {
+                            // Wait for process to complete
+                            match child.wait() {
+                                Ok(status) => {
+                                    // Read stdout
+                                    let stdout = if let Some(mut out) = child.stdout.take() {
+                                        let mut buffer = String::new();
+                                        let _ = out.read_to_string(&mut buffer);
+                                        buffer
+                                    } else {
+                                        String::new()
+                                    };
+
+                                    // Read stderr
+                                    let stderr = if let Some(mut err) = child.stderr.take() {
+                                        let mut buffer = String::new();
+                                        let _ = err.read_to_string(&mut buffer);
+                                        buffer
+                                    } else {
+                                        String::new()
+                                    };
+
+                                    // Return process result as a struct
+                                    let mut fields = HashMap::new();
+                                    fields.insert("exitcode".to_string(), Value::Int(status.code().unwrap_or(-1) as i64));
+                                    fields.insert("stdout".to_string(), Value::Str(stdout));
+                                    fields.insert("stderr".to_string(), Value::Str(stderr));
+                                    fields.insert("success".to_string(), Value::Bool(status.success()));
+
+                                    Value::Struct {
+                                        name: "ProcessResult".to_string(),
+                                        fields,
+                                    }
+                                }
+                                Err(e) => Value::ErrorObject {
+                                    message: format!("Failed to wait for process: {}", e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            }
+                        }
+                        Err(e) => Value::ErrorObject {
+                            message: format!("Failed to spawn process '{}': {}", program, e),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("spawn_process requires an array of command arguments".to_string())
+                }
+            }
+
+            "pipe_commands" => {
+                // pipe_commands(commands_array) - pipes output from one command to the next
+                // commands_array is an array of arrays: [["cat", "file.txt"], ["grep", "error"], ["wc", "-l"]]
+                if let Some(Value::Array(commands)) = arg_values.first() {
+                    if commands.is_empty() {
+                        return Value::Error("pipe_commands requires a non-empty array of commands".to_string());
+                    }
+
+                    // Parse all commands
+                    let mut parsed_commands: Vec<Vec<String>> = Vec::new();
+                    for cmd in commands {
+                        if let Value::Array(args) = cmd {
+                            let mut cmd_parts: Vec<String> = Vec::new();
+                            for arg in args {
+                                if let Value::Str(s) = arg {
+                                    cmd_parts.push(s.clone());
+                                } else {
+                                    return Value::Error("Each command must be an array of strings".to_string());
+                                }
+                            }
+                            if cmd_parts.is_empty() {
+                                return Value::Error("Each command array must not be empty".to_string());
+                            }
+                            parsed_commands.push(cmd_parts);
+                        } else {
+                            return Value::Error("pipe_commands requires an array of command arrays".to_string());
+                        }
+                    }
+
+                    // Execute commands in pipeline
+                    let mut previous_output: Option<Vec<u8>> = None;
+
+                    for (i, cmd_parts) in parsed_commands.iter().enumerate() {
+                        let program = &cmd_parts[0];
+                        let args = &cmd_parts[1..];
+
+                        let mut command = std::process::Command::new(program);
+                        command.args(args);
+
+                        // Set stdin from previous command's output
+                        if previous_output.is_some() {
+                            command.stdin(std::process::Stdio::piped());
+                        }
+
+                        // Set stdout
+                        if i == parsed_commands.len() - 1 {
+                            // Last command - capture output
+                            command.stdout(std::process::Stdio::piped());
+                        } else {
+                            // Intermediate command - pipe to next
+                            command.stdout(std::process::Stdio::piped());
+                        }
+
+                        command.stderr(std::process::Stdio::piped());
+
+                        // Spawn the process
+                        match command.spawn() {
+                            Ok(mut child) => {
+                                // Write input to stdin if available
+                                if let Some(input) = previous_output.take() {
+                                    if let Some(mut stdin) = child.stdin.take() {
+                                        let _ = stdin.write_all(&input);
+                                    }
+                                }
+
+                                // Wait for process to complete
+                                match child.wait() {
+                                    Ok(status) => {
+                                        if !status.success() {
+                                            let stderr = if let Some(mut err) = child.stderr.take() {
+                                                let mut buffer = String::new();
+                                                let _ = err.read_to_string(&mut buffer);
+                                                buffer
+                                            } else {
+                                                String::new()
+                                            };
+
+                                            return Value::ErrorObject {
+                                                message: format!("Command '{}' failed with exit code {}: {}", 
+                                                    cmd_parts.join(" "), 
+                                                    status.code().unwrap_or(-1),
+                                                    stderr),
+                                                stack: Vec::new(),
+                                                line: None,
+                                                cause: None,
+                                            };
+                                        }
+
+                                        // Read stdout for next command
+                                        if let Some(mut stdout) = child.stdout.take() {
+                                            let mut buffer = Vec::new();
+                                            if let Err(e) = stdout.read_to_end(&mut buffer) {
+                                                return Value::ErrorObject {
+                                                    message: format!("Failed to read output from '{}': {}", program, e),
+                                                    stack: Vec::new(),
+                                                    line: None,
+                                                    cause: None,
+                                                };
+                                            }
+                                            previous_output = Some(buffer);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        return Value::ErrorObject {
+                                            message: format!("Failed to wait for process '{}': {}", program, e),
+                                            stack: Vec::new(),
+                                            line: None,
+                                            cause: None,
+                                        };
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                return Value::ErrorObject {
+                                    message: format!("Failed to spawn process '{}': {}", program, e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                };
+                            }
+                        }
+                    }
+
+                    // Return final output as string
+                    if let Some(output) = previous_output {
+                        match String::from_utf8(output) {
+                            Ok(s) => Value::Str(s),
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to decode output as UTF-8: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    } else {
+                        Value::Str(String::new())
+                    }
+                } else {
+                    Value::Error("pipe_commands requires an array of command arrays".to_string())
                 }
             }
 

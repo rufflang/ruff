@@ -1604,6 +1604,7 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::Database { db_type, .. } => format!("Database(type: {})", db_type),
         Value::DatabasePool { .. } => "DatabasePool".to_string(),
         Value::Image { format, .. } => format!("Image(format: {})", format),
+        Value::ZipArchive { path, .. } => format!("ZipArchive(path: {})", path),
         Value::Result { is_ok, value } => {
             if *is_ok {
                 format!("Ok({})", format_debug_value(value))
