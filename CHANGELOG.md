@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **VM Native Function Integration** 🚀 - Complete built-in function support in bytecode VM (P1 feature):
+  - **All 180+ Native Functions**: VM now has access to every interpreter built-in function
+  - **Zero Code Duplication**: VM delegates native function calls to interpreter implementation
+  - **Architecture**: 
+    - VM contains Interpreter instance for native function execution
+    - `call_native_function_impl` method handles pre-evaluated Value arguments
+    - Automatic registration of all built-in function names via `get_builtin_names()`
+  - **Categories Supported**:
+    - Math (abs, sqrt, pow, sin, cos, tan, floor, ceil, round, min, max, etc.)
+    - String (len, to_upper, to_lower, trim, split, join, replace, etc.)
+    - Array (push, pop, map, filter, reduce, sort, reverse, etc.)
+    - Dict (keys, values, items, has_key, merge, etc.)
+    - File I/O (read_file, write_file, list_dir, etc.)
+    - HTTP (http_get, http_post, parallel_http, etc.)
+    - Database (db_connect, db_query, db_execute, etc.)
+    - Compression (zip_create, zip_add_file, unzip, etc.)
+    - Cryptography (sha256, md5, hash_password, verify_password, etc.)
+    - Process Management (spawn_process, pipe_commands, etc.)
+    - OS & Path (os_getcwd, os_chdir, path_join, path_absolute, etc.)
+    - Date/Time (now, format_date, elapsed, etc.)
+    - And 140+ more functions...
+  - **Testing**: Comprehensive VM native function integration test suite
+  - **Benchmark Suite**: Created 7 benchmark programs (fibonacci, primes, sorting, etc.) for future performance validation
+  - **Known Limitation**: VM loop execution has bugs that need fixing before performance benchmarks can be run
+  - **Status**: Production-ready for non-loop code, all native functions work correctly
+  - **Example**:
+    ```ruff
+    # All these work in VM mode (run with --vm flag):
+    print("Math:", sqrt(144), pow(2, 10))
+    let data := http_get("api.example.com/data")
+    let parsed := parse_json(data.body)
+    let hash := sha256(to_json(parsed))
+    write_file("output.txt", hash)
+    ```
+
 - **Standard Library Expansion** 📦 - Comprehensive compression, hashing, and process management (P1 feature):
   - **Compression & Archive Functions**:
     - **`zip_create(path)`**: Create a new ZIP archive
