@@ -7,7 +7,7 @@
 use crate::interpreter::Value;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, TimeZone, Utc};
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::Rng;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Returns a HashMap of all built-in functions
 #[allow(dead_code)]
@@ -223,11 +223,9 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
     match value {
         Value::Null => Ok(serde_json::Value::Null),
         Value::Int(n) => Ok(serde_json::Value::Number(serde_json::Number::from(*n))),
-        Value::Float(n) => {
-            Ok(serde_json::Value::Number(
-                serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0)),
-            ))
-        }
+        Value::Float(n) => Ok(serde_json::Value::Number(
+            serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0)),
+        )),
         Value::Str(s) => Ok(serde_json::Value::String(s.clone())),
         Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
         Value::Array(arr) => {
@@ -392,10 +390,7 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
         Value::Dict(dict) => {
             let mut yaml_map = serde_yaml::Mapping::new();
             for (key, val) in dict {
-                yaml_map.insert(
-                    serde_yaml::Value::String(key.clone()),
-                    ruff_value_to_yaml(val)?,
-                );
+                yaml_map.insert(serde_yaml::Value::String(key.clone()), ruff_value_to_yaml(val)?);
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
         }
@@ -409,15 +404,15 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
 /// Each row becomes a dictionary with column headers as keys
 pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
     let mut reader = csv::Reader::from_reader(csv_str.as_bytes());
-    
+
     // Get headers
     let headers = match reader.headers() {
         Ok(h) => h.clone(),
         Err(e) => return Err(format!("CSV header error: {}", e)),
     };
-    
+
     let mut rows = Vec::new();
-    
+
     for result in reader.records() {
         match result {
             Ok(record) => {
@@ -439,7 +434,7 @@ pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
             Err(e) => return Err(format!("CSV parse error: {}", e)),
         }
     }
-    
+
     Ok(Value::Array(rows))
 }
 
@@ -448,15 +443,15 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
     match value {
         Value::Array(rows) if !rows.is_empty() => {
             let mut wtr = csv::Writer::from_writer(vec![]);
-            
+
             // Get headers from first row
             if let Some(Value::Dict(first_row)) = rows.first() {
                 let headers: Vec<String> = first_row.keys().cloned().collect();
-                
+
                 if let Err(e) = wtr.write_record(&headers) {
                     return Err(format!("CSV write error: {}", e));
                 }
-                
+
                 // Write each row
                 for row_val in rows {
                     if let Value::Dict(row) = row_val {
@@ -479,10 +474,11 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
                         return Err("CSV requires array of dictionaries".to_string());
                     }
                 }
-                
+
                 match wtr.into_inner() {
-                    Ok(bytes) => String::from_utf8(bytes)
-                        .map_err(|e| format!("CSV encoding error: {}", e)),
+                    Ok(bytes) => {
+                        String::from_utf8(bytes).map_err(|e| format!("CSV encoding error: {}", e))
+                    }
                     Err(e) => Err(format!("CSV write error: {}", e)),
                 }
             } else {
@@ -505,10 +501,8 @@ pub fn now() -> f64 {
 /// Returns the number of milliseconds elapsed since January 1, 1970 00:00:00 UTC
 /// This is useful for timestamps and timing operations
 pub fn current_timestamp() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("System time before UNIX epoch")
-        .as_millis() as i64
+    SystemTime::now().duration_since(UNIX_EPOCH).expect("System time before UNIX epoch").as_millis()
+        as i64
 }
 
 /// High-resolution performance timer in milliseconds
@@ -521,7 +515,7 @@ pub fn performance_now() -> f64 {
     use std::sync::OnceLock;
     static START: OnceLock<Instant> = OnceLock::new();
     let start = START.get_or_init(|| Instant::now());
-    
+
     start.elapsed().as_secs_f64() * 1000.0
 }
 
@@ -532,7 +526,7 @@ pub fn time_us() -> f64 {
     use std::sync::OnceLock;
     static START: OnceLock<Instant> = OnceLock::new();
     let start = START.get_or_init(|| Instant::now());
-    
+
     start.elapsed().as_micros() as f64
 }
 
@@ -543,7 +537,7 @@ pub fn time_ns() -> f64 {
     use std::sync::OnceLock;
     static START: OnceLock<Instant> = OnceLock::new();
     let start = START.get_or_init(|| Instant::now());
-    
+
     start.elapsed().as_nanos() as f64
 }
 
@@ -813,9 +807,7 @@ pub fn encode_base64(bytes: &[u8]) -> String {
 
 /// Decode base64 string to bytes
 pub fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
-    general_purpose::STANDARD
-        .decode(s)
-        .map_err(|e| format!("Base64 decode error: {}", e))
+    general_purpose::STANDARD.decode(s).map_err(|e| format!("Base64 decode error: {}", e))
 }
 
 /// JWT Authentication Functions
@@ -841,12 +833,8 @@ pub fn jwt_encode(payload: &HashMap<String, Value>, secret: &str) -> Result<Stri
     let claims = Claims { data: claims_data };
 
     // Encode JWT with HS256 algorithm
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
-    )
-    .map_err(|e| format!("JWT encoding error: {}", e))
+    encode(&Header::default(), &claims, &EncodingKey::from_secret(secret.as_bytes()))
+        .map_err(|e| format!("JWT encoding error: {}", e))
 }
 
 /// Decode a JWT token and return the payload as a dictionary
@@ -858,12 +846,9 @@ pub fn jwt_decode(token: &str, secret: &str) -> Result<HashMap<String, Value>, S
     validation.validate_exp = false; // Don't validate expiration by default
 
     // Decode JWT
-    let token_data = decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &validation,
-    )
-    .map_err(|e| format!("JWT decoding error: {}", e))?;
+    let token_data =
+        decode::<Claims>(token, &DecodingKey::from_secret(secret.as_bytes()), &validation)
+            .map_err(|e| format!("JWT decoding error: {}", e))?;
 
     // Convert claims back to Ruff dictionary
     let mut result = HashMap::new();
@@ -878,15 +863,10 @@ pub fn jwt_decode(token: &str, secret: &str) -> Result<HashMap<String, Value>, S
 
 /// Create an OAuth2 authorization URL
 /// oauth2_auth_url(client_id, redirect_uri, auth_url, scope) -> authorization URL
-pub fn oauth2_auth_url(
-    client_id: &str,
-    redirect_uri: &str,
-    auth_url: &str,
-    scope: &str,
-) -> String {
+pub fn oauth2_auth_url(client_id: &str, redirect_uri: &str, auth_url: &str, scope: &str) -> String {
     // Generate a simple state parameter for CSRF protection
     let state = format!("{:x}", rand::random::<u64>());
-    
+
     format!(
         "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&state={}",
         auth_url,
@@ -907,7 +887,7 @@ pub fn oauth2_get_token(
     redirect_uri: &str,
 ) -> Result<HashMap<String, Value>, String> {
     let client = reqwest::blocking::Client::new();
-    
+
     let params = [
         ("grant_type", "authorization_code"),
         ("code", code),
@@ -916,20 +896,19 @@ pub fn oauth2_get_token(
         ("redirect_uri", redirect_uri),
     ];
 
-    match client
-        .post(token_url)
-        .form(&params)
-        .send()
-    {
+    match client.post(token_url).form(&params).send() {
         Ok(response) => {
             let status = response.status().as_u16();
             if !response.status().is_success() {
                 let error_body = response.text().unwrap_or_default();
-                return Err(format!("OAuth2 token request failed with status {}: {}", status, error_body));
+                return Err(format!(
+                    "OAuth2 token request failed with status {}: {}",
+                    status, error_body
+                ));
             }
 
             let body = response.text().unwrap_or_default();
-            
+
             // Parse the JSON response
             match serde_json::from_str::<serde_json::Value>(&body) {
                 Ok(json) => {

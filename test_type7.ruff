@@ -1,0 +1,9 @@
+func test_func(val) {
+    if is_int(val) {
+        return val * 2
+    }
+    return 0
+}
+
+r1 := test_func(10)
+print("Result:", r1)

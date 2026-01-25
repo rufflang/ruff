@@ -102,8 +102,8 @@ impl TypeAnnotation {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Identifier(String),
-    Int(i64),      // Integer literal like 42
-    Float(f64),    // Float literal like 3.14
+    Int(i64),   // Integer literal like 42
+    Float(f64), // Float literal like 3.14
     String(String),
     InterpolatedString(Vec<InterpolatedStringPart>), // String with expressions
     Bool(bool),

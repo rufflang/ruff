@@ -20,10 +20,10 @@ use crate::ast::{Expr, Stmt};
 use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
-use rusqlite::Connection as SqliteConnection;
-use postgres::{Client as PostgresClient, NoTls};
-use mysql_async::{Conn as MysqlConn, Opts as MysqlOpts, prelude::*};
 use image::DynamicImage;
+use mysql_async::{prelude::*, Conn as MysqlConn, Opts as MysqlOpts};
+use postgres::{Client as PostgresClient, NoTls};
+use rusqlite::Connection as SqliteConnection;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
@@ -84,36 +84,43 @@ pub struct ConnectionPool {
 }
 
 impl ConnectionPool {
-    pub fn new(db_type: String, connection_string: String, config: HashMap<String, Value>) -> Result<Self, String> {
+    pub fn new(
+        db_type: String,
+        connection_string: String,
+        config: HashMap<String, Value>,
+    ) -> Result<Self, String> {
         // Parse configuration
-        let min_connections = config.get("min_connections")
+        let min_connections = config
+            .get("min_connections")
             .and_then(|v| match v {
                 Value::Int(n) => Some(*n as usize),
                 Value::Float(n) => Some(*n as usize),
-                _ => None
+                _ => None,
             })
             .unwrap_or(5);
-        
-        let max_connections = config.get("max_connections")
+
+        let max_connections = config
+            .get("max_connections")
             .and_then(|v| match v {
                 Value::Int(n) => Some(*n as usize),
                 Value::Float(n) => Some(*n as usize),
-                _ => None
+                _ => None,
             })
             .unwrap_or(20);
-        
-        let connection_timeout = config.get("connection_timeout")
+
+        let connection_timeout = config
+            .get("connection_timeout")
             .and_then(|v| match v {
                 Value::Int(n) => Some(*n as u64),
                 Value::Float(n) => Some(*n as u64),
-                _ => None
+                _ => None,
             })
             .unwrap_or(30);
-        
+
         if min_connections > max_connections {
             return Err("min_connections cannot be greater than max_connections".to_string());
         }
-        
+
         Ok(ConnectionPool {
             db_type,
             connection_string,
@@ -125,10 +132,10 @@ impl ConnectionPool {
             total_created: Arc::new(Mutex::new(0)),
         })
     }
-    
+
     pub fn acquire(&self) -> Result<DatabaseConnection, String> {
         let start_time = std::time::Instant::now();
-        
+
         loop {
             // Try to get an available connection
             {
@@ -139,35 +146,35 @@ impl ConnectionPool {
                     return Ok(conn);
                 }
             }
-            
+
             // No available connections - try to create a new one
             {
                 let total = self.total_created.lock().unwrap();
                 if *total < self.max_connections {
                     drop(total); // Release lock before creating connection
-                    
+
                     // Create new connection
                     let conn = self.create_connection()?;
-                    
+
                     let mut total = self.total_created.lock().unwrap();
                     *total += 1;
                     let mut in_use = self.in_use.lock().unwrap();
                     *in_use += 1;
-                    
+
                     return Ok(conn);
                 }
             }
-            
+
             // All connections in use and at max - check timeout
             if start_time.elapsed().as_secs() >= self.connection_timeout {
                 return Err("Connection pool timeout: all connections are in use".to_string());
             }
-            
+
             // Wait a bit before retrying
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
-    
+
     pub fn release(&self, conn: DatabaseConnection) {
         let mut available = self.available.lock().unwrap();
         available.push_back(conn);
@@ -176,12 +183,12 @@ impl ConnectionPool {
             *in_use -= 1;
         }
     }
-    
+
     pub fn stats(&self) -> HashMap<String, usize> {
         let available = self.available.lock().unwrap();
         let in_use = self.in_use.lock().unwrap();
         let total = self.total_created.lock().unwrap();
-        
+
         let mut stats = HashMap::new();
         stats.insert("available".to_string(), available.len());
         stats.insert("in_use".to_string(), *in_use);
@@ -189,7 +196,7 @@ impl ConnectionPool {
         stats.insert("max".to_string(), self.max_connections);
         stats
     }
-    
+
     pub fn close(&self) {
         let mut available = self.available.lock().unwrap();
         available.clear();
@@ -198,30 +205,27 @@ impl ConnectionPool {
         let mut total = self.total_created.lock().unwrap();
         *total = 0;
     }
-    
+
     fn create_connection(&self) -> Result<DatabaseConnection, String> {
         match self.db_type.as_str() {
-            "sqlite" => {
-                SqliteConnection::open(&self.connection_string)
-                    .map(|conn| DatabaseConnection::Sqlite(Arc::new(Mutex::new(conn))))
-                    .map_err(|e| format!("Failed to create SQLite connection: {}", e))
-            }
-            "postgres" | "postgresql" => {
-                PostgresClient::connect(&self.connection_string, NoTls)
-                    .map(|client| DatabaseConnection::Postgres(Arc::new(Mutex::new(client))))
-                    .map_err(|e| format!("Failed to create PostgreSQL connection: {}", e))
-            }
+            "sqlite" => SqliteConnection::open(&self.connection_string)
+                .map(|conn| DatabaseConnection::Sqlite(Arc::new(Mutex::new(conn))))
+                .map_err(|e| format!("Failed to create SQLite connection: {}", e)),
+            "postgres" | "postgresql" => PostgresClient::connect(&self.connection_string, NoTls)
+                .map(|client| DatabaseConnection::Postgres(Arc::new(Mutex::new(client))))
+                .map_err(|e| format!("Failed to create PostgreSQL connection: {}", e)),
             "mysql" => {
                 let opts = mysql_async::OptsBuilder::from_opts(
                     mysql_async::Opts::from_url(&self.connection_string)
-                        .map_err(|e| format!("Invalid MySQL connection string: {}", e))?
+                        .map_err(|e| format!("Invalid MySQL connection string: {}", e))?,
                 );
-                
+
                 let runtime = tokio::runtime::Runtime::new()
                     .map_err(|e| format!("Failed to create runtime: {}", e))?;
-                
+
                 runtime.block_on(async {
-                    mysql_async::Conn::new(opts).await
+                    mysql_async::Conn::new(opts)
+                        .await
                         .map(|conn| DatabaseConnection::Mysql(Arc::new(Mutex::new(conn))))
                         .map_err(|e| format!("Failed to create MySQL connection: {}", e))
                 })
@@ -238,11 +242,11 @@ pub enum Value {
         tag: String,
         fields: HashMap<String, Value>,
     },
-    Int(i64),      // Integer values
-    Float(f64),    // Floating point values
+    Int(i64),   // Integer values
+    Float(f64), // Floating point values
     Str(String),
     Bool(bool),
-    Null, // Null value for optional chaining and null coalescing
+    Null,           // Null value for optional chaining and null coalescing
     Bytes(Vec<u8>), // Binary data for files, HTTP downloads, etc.
     Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
     NativeFunction(String), // Name of the native function
@@ -543,7 +547,8 @@ impl Interpreter {
         self.env.define("is_dict".to_string(), Value::NativeFunction("is_dict".to_string()));
         self.env.define("is_bool".to_string(), Value::NativeFunction("is_bool".to_string()));
         self.env.define("is_null".to_string(), Value::NativeFunction("is_null".to_string()));
-        self.env.define("is_function".to_string(), Value::NativeFunction("is_function".to_string()));
+        self.env
+            .define("is_function".to_string(), Value::NativeFunction("is_function".to_string()));
 
         // File I/O functions
         self.env.define("read_file".to_string(), Value::NativeFunction("read_file".to_string()));
@@ -555,10 +560,16 @@ impl Interpreter {
         self.env.define("read_lines".to_string(), Value::NativeFunction("read_lines".to_string()));
         self.env.define("list_dir".to_string(), Value::NativeFunction("list_dir".to_string()));
         self.env.define("create_dir".to_string(), Value::NativeFunction("create_dir".to_string()));
-        
+
         // Binary file I/O functions
-        self.env.define("read_binary_file".to_string(), Value::NativeFunction("read_binary_file".to_string()));
-        self.env.define("write_binary_file".to_string(), Value::NativeFunction("write_binary_file".to_string()));
+        self.env.define(
+            "read_binary_file".to_string(),
+            Value::NativeFunction("read_binary_file".to_string()),
+        );
+        self.env.define(
+            "write_binary_file".to_string(),
+            Value::NativeFunction("write_binary_file".to_string()),
+        );
 
         // JSON functions
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
@@ -577,8 +588,14 @@ impl Interpreter {
         self.env.define("to_csv".to_string(), Value::NativeFunction("to_csv".to_string()));
 
         // Base64 encoding/decoding functions
-        self.env.define("encode_base64".to_string(), Value::NativeFunction("encode_base64".to_string()));
-        self.env.define("decode_base64".to_string(), Value::NativeFunction("decode_base64".to_string()));
+        self.env.define(
+            "encode_base64".to_string(),
+            Value::NativeFunction("encode_base64".to_string()),
+        );
+        self.env.define(
+            "decode_base64".to_string(),
+            Value::NativeFunction("decode_base64".to_string()),
+        );
 
         // Random functions
         self.env.define("random".to_string(), Value::NativeFunction("random".to_string()));
@@ -590,11 +607,20 @@ impl Interpreter {
 
         // Date/Time functions
         self.env.define("now".to_string(), Value::NativeFunction("now".to_string()));
-        self.env.define("current_timestamp".to_string(), Value::NativeFunction("current_timestamp".to_string()));
-        self.env.define("performance_now".to_string(), Value::NativeFunction("performance_now".to_string()));
+        self.env.define(
+            "current_timestamp".to_string(),
+            Value::NativeFunction("current_timestamp".to_string()),
+        );
+        self.env.define(
+            "performance_now".to_string(),
+            Value::NativeFunction("performance_now".to_string()),
+        );
         self.env.define("time_us".to_string(), Value::NativeFunction("time_us".to_string()));
         self.env.define("time_ns".to_string(), Value::NativeFunction("time_ns".to_string()));
-        self.env.define("format_duration".to_string(), Value::NativeFunction("format_duration".to_string()));
+        self.env.define(
+            "format_duration".to_string(),
+            Value::NativeFunction("format_duration".to_string()),
+        );
         self.env.define("elapsed".to_string(), Value::NativeFunction("elapsed".to_string()));
         self.env
             .define("format_date".to_string(), Value::NativeFunction("format_date".to_string()));
@@ -634,21 +660,36 @@ impl Interpreter {
         self.env.define("http_put".to_string(), Value::NativeFunction("http_put".to_string()));
         self.env
             .define("http_delete".to_string(), Value::NativeFunction("http_delete".to_string()));
-        self.env.define("http_get_binary".to_string(), Value::NativeFunction("http_get_binary".to_string()));
-        
+        self.env.define(
+            "http_get_binary".to_string(),
+            Value::NativeFunction("http_get_binary".to_string()),
+        );
+
         // Concurrent HTTP functions
-        self.env.define("parallel_http".to_string(), Value::NativeFunction("parallel_http".to_string()));
+        self.env.define(
+            "parallel_http".to_string(),
+            Value::NativeFunction("parallel_http".to_string()),
+        );
 
         // JWT authentication functions
         self.env.define("jwt_encode".to_string(), Value::NativeFunction("jwt_encode".to_string()));
         self.env.define("jwt_decode".to_string(), Value::NativeFunction("jwt_decode".to_string()));
 
         // OAuth2 helper functions
-        self.env.define("oauth2_auth_url".to_string(), Value::NativeFunction("oauth2_auth_url".to_string()));
-        self.env.define("oauth2_get_token".to_string(), Value::NativeFunction("oauth2_get_token".to_string()));
+        self.env.define(
+            "oauth2_auth_url".to_string(),
+            Value::NativeFunction("oauth2_auth_url".to_string()),
+        );
+        self.env.define(
+            "oauth2_get_token".to_string(),
+            Value::NativeFunction("oauth2_get_token".to_string()),
+        );
 
         // HTTP streaming functions
-        self.env.define("http_get_stream".to_string(), Value::NativeFunction("http_get_stream".to_string()));
+        self.env.define(
+            "http_get_stream".to_string(),
+            Value::NativeFunction("http_get_stream".to_string()),
+        );
 
         // HTTP server functions
         self.env
@@ -679,14 +720,30 @@ impl Interpreter {
         self.env.define("db_query".to_string(), Value::NativeFunction("db_query".to_string()));
         self.env.define("db_close".to_string(), Value::NativeFunction("db_close".to_string()));
         self.env.define("db_pool".to_string(), Value::NativeFunction("db_pool".to_string()));
-        self.env.define("db_pool_acquire".to_string(), Value::NativeFunction("db_pool_acquire".to_string()));
-        self.env.define("db_pool_release".to_string(), Value::NativeFunction("db_pool_release".to_string()));
-        self.env.define("db_pool_stats".to_string(), Value::NativeFunction("db_pool_stats".to_string()));
-        self.env.define("db_pool_close".to_string(), Value::NativeFunction("db_pool_close".to_string()));
+        self.env.define(
+            "db_pool_acquire".to_string(),
+            Value::NativeFunction("db_pool_acquire".to_string()),
+        );
+        self.env.define(
+            "db_pool_release".to_string(),
+            Value::NativeFunction("db_pool_release".to_string()),
+        );
+        self.env.define(
+            "db_pool_stats".to_string(),
+            Value::NativeFunction("db_pool_stats".to_string()),
+        );
+        self.env.define(
+            "db_pool_close".to_string(),
+            Value::NativeFunction("db_pool_close".to_string()),
+        );
         self.env.define("db_begin".to_string(), Value::NativeFunction("db_begin".to_string()));
         self.env.define("db_commit".to_string(), Value::NativeFunction("db_commit".to_string()));
-        self.env.define("db_rollback".to_string(), Value::NativeFunction("db_rollback".to_string()));
-        self.env.define("db_last_insert_id".to_string(), Value::NativeFunction("db_last_insert_id".to_string()));
+        self.env
+            .define("db_rollback".to_string(), Value::NativeFunction("db_rollback".to_string()));
+        self.env.define(
+            "db_last_insert_id".to_string(),
+            Value::NativeFunction("db_last_insert_id".to_string()),
+        );
 
         // Collection constructors and methods
         // Set
@@ -695,25 +752,50 @@ impl Interpreter {
         self.env.define("set_has".to_string(), Value::NativeFunction("set_has".to_string()));
         self.env.define("set_remove".to_string(), Value::NativeFunction("set_remove".to_string()));
         self.env.define("set_union".to_string(), Value::NativeFunction("set_union".to_string()));
-        self.env.define("set_intersect".to_string(), Value::NativeFunction("set_intersect".to_string()));
-        self.env.define("set_difference".to_string(), Value::NativeFunction("set_difference".to_string()));
-        self.env.define("set_to_array".to_string(), Value::NativeFunction("set_to_array".to_string()));
-        
+        self.env.define(
+            "set_intersect".to_string(),
+            Value::NativeFunction("set_intersect".to_string()),
+        );
+        self.env.define(
+            "set_difference".to_string(),
+            Value::NativeFunction("set_difference".to_string()),
+        );
+        self.env
+            .define("set_to_array".to_string(), Value::NativeFunction("set_to_array".to_string()));
+
         // Queue
         self.env.define("Queue".to_string(), Value::NativeFunction("Queue".to_string()));
-        self.env.define("queue_enqueue".to_string(), Value::NativeFunction("queue_enqueue".to_string()));
-        self.env.define("queue_dequeue".to_string(), Value::NativeFunction("queue_dequeue".to_string()));
+        self.env.define(
+            "queue_enqueue".to_string(),
+            Value::NativeFunction("queue_enqueue".to_string()),
+        );
+        self.env.define(
+            "queue_dequeue".to_string(),
+            Value::NativeFunction("queue_dequeue".to_string()),
+        );
         self.env.define("queue_peek".to_string(), Value::NativeFunction("queue_peek".to_string()));
-        self.env.define("queue_is_empty".to_string(), Value::NativeFunction("queue_is_empty".to_string()));
-        self.env.define("queue_to_array".to_string(), Value::NativeFunction("queue_to_array".to_string()));
-        
+        self.env.define(
+            "queue_is_empty".to_string(),
+            Value::NativeFunction("queue_is_empty".to_string()),
+        );
+        self.env.define(
+            "queue_to_array".to_string(),
+            Value::NativeFunction("queue_to_array".to_string()),
+        );
+
         // Stack
         self.env.define("Stack".to_string(), Value::NativeFunction("Stack".to_string()));
         self.env.define("stack_push".to_string(), Value::NativeFunction("stack_push".to_string()));
         self.env.define("stack_pop".to_string(), Value::NativeFunction("stack_pop".to_string()));
         self.env.define("stack_peek".to_string(), Value::NativeFunction("stack_peek".to_string()));
-        self.env.define("stack_is_empty".to_string(), Value::NativeFunction("stack_is_empty".to_string()));
-        self.env.define("stack_to_array".to_string(), Value::NativeFunction("stack_to_array".to_string()));
+        self.env.define(
+            "stack_is_empty".to_string(),
+            Value::NativeFunction("stack_is_empty".to_string()),
+        );
+        self.env.define(
+            "stack_to_array".to_string(),
+            Value::NativeFunction("stack_to_array".to_string()),
+        );
 
         // Concurrency functions
         self.env.define("channel".to_string(), Value::NativeFunction("channel".to_string()));
@@ -763,7 +845,7 @@ impl Interpreter {
                 if let Some(closure_env_ref) = captured_env {
                     // Save current environment
                     let saved_env = self.env.clone();
-                    
+
                     // Use the captured environment (which is shared via Rc<RefCell<>>)
                     self.env = closure_env_ref.borrow().clone();
                     self.env.push_scope();
@@ -796,10 +878,10 @@ impl Interpreter {
 
                     // Pop the parameter scope
                     self.env.pop_scope();
-                    
+
                     // Update the captured environment with the modified state
                     *closure_env_ref.borrow_mut() = self.env.clone();
-                    
+
                     // Restore the saved environment
                     self.env = saved_env;
 
@@ -862,7 +944,8 @@ impl Interpreter {
             // Look up the struct definition to find the operator method
             if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name)
             {
-                if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name) {
+                if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name)
+                {
                     // Create new scope for operator method call
                     self.env.push_scope();
 
@@ -921,7 +1004,8 @@ impl Interpreter {
             // Look up the struct definition to find the operator method
             if let Some(Value::StructDef { name: _, field_names: _, methods }) = self.env.get(name)
             {
-                if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name) {
+                if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name)
+                {
                     // Create new scope for operator method call
                     self.env.push_scope();
 
@@ -1374,11 +1458,8 @@ impl Interpreter {
 
             "slice" => {
                 // slice(arr, start, end) - returns subarray from start (inclusive) to end (exclusive)
-                if let (
-                    Some(Value::Array(arr)),
-                    Some(Value::Int(start)),
-                    Some(Value::Int(end)),
-                ) = (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                if let (Some(Value::Array(arr)), Some(Value::Int(start)), Some(Value::Int(end))) =
+                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
                 {
                     let start_idx = (*start as usize).max(0).min(arr.len());
                     let end_idx = (*end as usize).max(start_idx).min(arr.len());
@@ -1776,7 +1857,9 @@ impl Interpreter {
                 if let Some(Value::Str(path)) = arg_values.get(0) {
                     match std::fs::read(path) {
                         Ok(bytes) => Value::Bytes(bytes),
-                        Err(e) => Value::Error(format!("Cannot read binary file '{}': {}", path, e)),
+                        Err(e) => {
+                            Value::Error(format!("Cannot read binary file '{}': {}", path, e))
+                        }
                     }
                 } else {
                     Value::Error("read_binary_file requires a string path argument".to_string())
@@ -1795,10 +1878,14 @@ impl Interpreter {
                 {
                     match std::fs::write(path, bytes) {
                         Ok(_) => Value::Bool(true),
-                        Err(e) => Value::Error(format!("Cannot write binary file '{}': {}", path, e)),
+                        Err(e) => {
+                            Value::Error(format!("Cannot write binary file '{}': {}", path, e))
+                        }
                     }
                 } else {
-                    Value::Error("write_binary_file requires path (string) and bytes arguments".to_string())
+                    Value::Error(
+                        "write_binary_file requires path (string) and bytes arguments".to_string(),
+                    )
                 }
             }
 
@@ -2002,7 +2089,9 @@ impl Interpreter {
                 match arg_values.get(0) {
                     Some(Value::Bytes(bytes)) => Value::Str(builtins::encode_base64(bytes)),
                     Some(Value::Str(s)) => Value::Str(builtins::encode_base64(s.as_bytes())),
-                    _ => Value::Error("encode_base64 requires a bytes or string argument".to_string()),
+                    _ => Value::Error(
+                        "encode_base64 requires a bytes or string argument".to_string(),
+                    ),
                 }
             }
 
@@ -2026,18 +2115,20 @@ impl Interpreter {
 
             "random_int" => {
                 // random_int(min, max) - returns random integer between min and max (inclusive)
-                if let (Some(min_val), Some(max_val)) =
-                    (arg_values.get(0), arg_values.get(1))
-                {
+                if let (Some(min_val), Some(max_val)) = (arg_values.get(0), arg_values.get(1)) {
                     let min = match min_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
-                        _ => return Value::Error("random_int requires number arguments".to_string()),
+                        _ => {
+                            return Value::Error("random_int requires number arguments".to_string())
+                        }
                     };
                     let max = match max_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
-                        _ => return Value::Error("random_int requires number arguments".to_string()),
+                        _ => {
+                            return Value::Error("random_int requires number arguments".to_string())
+                        }
                     };
                     Value::Int(builtins::random_int(min, max) as i64)
                 } else {
@@ -2088,19 +2179,23 @@ impl Interpreter {
                     let ms = match ms_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
-                        _ => return Value::Error("format_duration requires a number argument".to_string()),
+                        _ => {
+                            return Value::Error(
+                                "format_duration requires a number argument".to_string(),
+                            )
+                        }
                     };
                     Value::Str(builtins::format_duration(ms))
                 } else {
-                    Value::Error("format_duration requires a number argument (milliseconds)".to_string())
+                    Value::Error(
+                        "format_duration requires a number argument (milliseconds)".to_string(),
+                    )
                 }
             }
 
             "elapsed" => {
                 // elapsed(start, end) - calculates time difference
-                if let (Some(start_val), Some(end_val)) =
-                    (arg_values.get(0), arg_values.get(1))
-                {
+                if let (Some(start_val), Some(end_val)) = (arg_values.get(0), arg_values.get(1)) {
                     let start = match start_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -2125,7 +2220,11 @@ impl Interpreter {
                     let timestamp = match ts_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
-                        _ => return Value::Error("format_date requires a number timestamp".to_string()),
+                        _ => {
+                            return Value::Error(
+                                "format_date requires a number timestamp".to_string(),
+                            )
+                        }
                     };
                     Value::Str(builtins::format_date(timestamp, format))
                 } else {
@@ -2370,29 +2469,24 @@ impl Interpreter {
                     // Extract URLs as strings
                     let url_strings: Vec<String> = urls
                         .iter()
-                        .filter_map(|v| {
-                            if let Value::Str(s) = v {
-                                Some(s.clone())
-                            } else {
-                                None
-                            }
-                        })
+                        .filter_map(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                         .collect();
 
                     // Spawn threads for parallel requests
                     // Each thread returns (status_code, body_string) or error
                     let mut handles = Vec::new();
                     for url in url_strings {
-                        let handle = std::thread::spawn(move || -> Result<(u16, String), String> {
-                            match reqwest::blocking::get(&url) {
-                                Ok(response) => {
-                                    let status = response.status().as_u16();
-                                    let body = response.text().unwrap_or_default();
-                                    Ok((status, body))
+                        let handle =
+                            std::thread::spawn(move || -> Result<(u16, String), String> {
+                                match reqwest::blocking::get(&url) {
+                                    Ok(response) => {
+                                        let status = response.status().as_u16();
+                                        let body = response.text().unwrap_or_default();
+                                        Ok((status, body))
+                                    }
+                                    Err(e) => Err(format!("HTTP GET failed: {}", e)),
                                 }
-                                Err(e) => Err(format!("HTTP GET failed: {}", e)),
-                            }
-                        });
+                            });
                         handles.push(handle);
                     }
 
@@ -2427,7 +2521,10 @@ impl Interpreter {
                         Err(e) => Value::Error(e),
                     }
                 } else {
-                    Value::Error("jwt_encode requires a dictionary payload and secret key string".to_string())
+                    Value::Error(
+                        "jwt_encode requires a dictionary payload and secret key string"
+                            .to_string(),
+                    )
                 }
             }
 
@@ -2441,7 +2538,9 @@ impl Interpreter {
                         Err(e) => Value::Error(e),
                     }
                 } else {
-                    Value::Error("jwt_decode requires a token string and secret key string".to_string())
+                    Value::Error(
+                        "jwt_decode requires a token string and secret key string".to_string(),
+                    )
                 }
             }
 
@@ -2474,9 +2573,14 @@ impl Interpreter {
                     arg_values.get(2),
                     arg_values.get(3),
                     arg_values.get(4),
-                )
-                {
-                    match builtins::oauth2_get_token(code, client_id, client_secret, token_url, redirect_uri) {
+                ) {
+                    match builtins::oauth2_get_token(
+                        code,
+                        client_id,
+                        client_secret,
+                        token_url,
+                        redirect_uri,
+                    ) {
                         Ok(token_data) => Value::Dict(token_data),
                         Err(e) => Value::Error(e),
                     }
@@ -2595,7 +2699,8 @@ impl Interpreter {
                     (arg_values.get(0), arg_values.get(1))
                 {
                     let mut headers = HashMap::new();
-                    headers.insert("Content-Type".to_string(), "text/html; charset=utf-8".to_string());
+                    headers
+                        .insert("Content-Type".to_string(), "text/html; charset=utf-8".to_string());
 
                     Value::HttpResponse { status: *status as u16, body: html.clone(), headers }
                 } else {
@@ -2636,12 +2741,12 @@ impl Interpreter {
                 // - db_connect("sqlite", "app.db")
                 // - db_connect("postgres", "host=localhost dbname=myapp user=admin password=secret")
                 // - db_connect("mysql", "mysql://user:pass@localhost:3306/myapp") [coming soon]
-                
-                if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) = 
-                    (arg_values.get(0), arg_values.get(1)) {
-                    
+
+                if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
                     let db_type_lower = db_type.to_lowercase();
-                    
+
                     match db_type_lower.as_str() {
                         "sqlite" => {
                             match SqliteConnection::open(conn_str) {
@@ -2671,13 +2776,13 @@ impl Interpreter {
                                 Ok(opts) => opts,
                                 Err(e) => return Value::Error(format!("Invalid MySQL connection string: {}", e)),
                             };
-                            
+
                             // Create a Tokio runtime to run async code
                             let runtime = match tokio::runtime::Runtime::new() {
                                 Ok(rt) => rt,
                                 Err(e) => return Value::Error(format!("Failed to create async runtime: {}", e)),
                             };
-                            
+
                             match runtime.block_on(async { MysqlConn::new(opts).await }) {
                                 Ok(conn) => Value::Database {
                                     connection: DatabaseConnection::Mysql(Arc::new(Mutex::new(conn))),
@@ -2701,11 +2806,11 @@ impl Interpreter {
                 if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
-                        
+
                         match (connection, db_type.as_str()) {
                             (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
                                 let conn = conn_arc.lock().unwrap();
-                                
+
                                 // Convert params array to rusqlite params
                                 let result = if let Some(Value::Array(param_arr)) = params {
                                     let param_values: Vec<Box<dyn rusqlite::ToSql>> = param_arr
@@ -2727,7 +2832,7 @@ impl Interpreter {
                                 } else {
                                     conn.execute(sql, [])
                                 };
-                                
+
                                 match result {
                                     Ok(rows_affected) => Value::Int(rows_affected as i64),
                                     Err(e) => Value::Error(format!("SQLite execution error: {}", e)),
@@ -2735,7 +2840,7 @@ impl Interpreter {
                             }
                             (DatabaseConnection::Postgres(client_arc), "postgres") => {
                                 let mut client = client_arc.lock().unwrap();
-                                
+
                                 // For PostgreSQL, we need to convert params properly
                                 let result = if let Some(Value::Array(param_arr)) = params {
                                     // Convert Ruff values to Postgres-compatible types
@@ -2749,7 +2854,7 @@ impl Interpreter {
                                         Value::Null => String::new(),
                                         _ => format!("{:?}", v),
                                     }).collect();
-                                    
+
                                     // Build params refs for postgres
                                     let params_refs: Vec<&(dyn postgres::types::ToSql + Sync)> = param_arr
                                         .iter()
@@ -2764,12 +2869,12 @@ impl Interpreter {
                                             }
                                         })
                                         .collect();
-                                    
+
                                     client.execute(sql.as_str(), &params_refs[..])
                                 } else {
                                     client.execute(sql.as_str(), &[])
                                 };
-                                
+
                                 match result {
                                     Ok(rows_affected) => Value::Int(rows_affected as i64),
                                     Err(e) => Value::Error(format!("PostgreSQL execution error: {}", e)),
@@ -2777,13 +2882,13 @@ impl Interpreter {
                             }
                             (DatabaseConnection::Mysql(conn_arc), "mysql") => {
                                 let mut conn = conn_arc.lock().unwrap();
-                                
+
                                 // Create a Tokio runtime to run async code
                                 let runtime = match tokio::runtime::Runtime::new() {
                                     Ok(rt) => rt,
                                     Err(e) => return Value::Error(format!("Failed to create async runtime: {}", e)),
                                 };
-                                
+
                                 // Convert params to mysql_async format
                                 let result = if let Some(Value::Array(param_arr)) = params {
                                     let mysql_params: Vec<mysql_async::Value> = param_arr
@@ -2797,7 +2902,7 @@ impl Interpreter {
                                             _ => mysql_async::Value::Bytes(format!("{:?}", v).as_bytes().to_vec()),
                                         })
                                         .collect();
-                                    
+
                                     runtime.block_on(async {
                                         conn.exec_drop(sql.as_str(), mysql_params).await
                                     })
@@ -2806,7 +2911,7 @@ impl Interpreter {
                                         conn.exec_drop(sql.as_str(), ()).await
                                     })
                                 };
-                                
+
                                 match result {
                                     Ok(_) => {
                                         // Get affected rows count
@@ -2837,11 +2942,11 @@ impl Interpreter {
                 if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
-                        
+
                         match (connection, db_type.as_str()) {
                             (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
                                 let conn = conn_arc.lock().unwrap();
-                                
+
                                 // Build params vector
                                 let param_values: Vec<Box<dyn rusqlite::ToSql>> =
                                     if let Some(Value::Array(param_arr)) = params {
@@ -2866,28 +2971,28 @@ impl Interpreter {
                                     };
                                 let params_refs: Vec<&dyn rusqlite::ToSql> =
                                     param_values.iter().map(|b| b.as_ref()).collect();
-                                
+
                                 // Prepare statement
                                 let mut stmt = match conn.prepare(sql) {
                                     Ok(s) => s,
                                     Err(e) => return Value::Error(format!("SQLite prepare error: {}", e)),
                                 };
-                                
+
                                 let column_names: Vec<String> =
                                     stmt.column_names().iter().map(|s| s.to_string()).collect();
-                                
+
                                 // Execute query with or without params
                                 let query_result = if params_refs.is_empty() {
                                     stmt.query([])
                                 } else {
                                     stmt.query(params_refs.as_slice())
                                 };
-                                
+
                                 let mut rows = match query_result {
                                     Ok(r) => r,
                                     Err(e) => return Value::Error(format!("SQLite query error: {}", e)),
                                 };
-                                
+
                                 // Collect results into Value array
                                 let mut results: Vec<Value> = Vec::new();
                                 loop {
@@ -2936,12 +3041,12 @@ impl Interpreter {
                                         Err(e) => return Value::Error(format!("SQLite row error: {}", e)),
                                     }
                                 }
-                                
+
                                 Value::Array(results)
                             }
                             (DatabaseConnection::Postgres(client_arc), "postgres") => {
                                 let mut client = client_arc.lock().unwrap();
-                                
+
                                 // Execute query with PostgreSQL
                                 let result = if let Some(Value::Array(param_arr)) = params {
                                     // Convert params for postgres
@@ -2953,7 +3058,7 @@ impl Interpreter {
                                         Value::Null => String::new(),
                                         _ => format!("{:?}", v),
                                     }).collect();
-                                    
+
                                     let params_refs: Vec<&(dyn postgres::types::ToSql + Sync)> = param_arr
                                         .iter()
                                         .zip(param_strs.iter())
@@ -2967,22 +3072,22 @@ impl Interpreter {
                                             }
                                         })
                                         .collect();
-                                    
+
                                     client.query(sql.as_str(), &params_refs[..])
                                 } else {
                                     client.query(sql.as_str(), &[])
                                 };
-                                
+
                                 match result {
                                     Ok(rows) => {
                                         let mut results: Vec<Value> = Vec::new();
-                                        
+
                                         for row in rows.iter() {
                                             let mut row_dict: HashMap<String, Value> = HashMap::new();
-                                            
+
                                             for (i, column) in row.columns().iter().enumerate() {
                                                 let col_name = column.name().to_string();
-                                                
+
                                                 // Try to get value as different types
                                                 let value = if let Ok(v) = row.try_get::<_, i32>(i) {
                                                     Value::Int(v as i64)
@@ -3000,13 +3105,13 @@ impl Interpreter {
                                                     // Try to detect NULL values
                                                     Value::Null
                                                 };
-                                                
+
                                                 row_dict.insert(col_name, value);
                                             }
-                                            
+
                                             results.push(Value::Dict(row_dict));
                                         }
-                                        
+
                                         Value::Array(results)
                                     }
                                     Err(e) => Value::Error(format!("PostgreSQL query error: {}", e)),
@@ -3014,13 +3119,13 @@ impl Interpreter {
                             }
                             (DatabaseConnection::Mysql(conn_arc), "mysql") => {
                                 let mut conn = conn_arc.lock().unwrap();
-                                
+
                                 // Create a Tokio runtime to run async code
                                 let runtime = match tokio::runtime::Runtime::new() {
                                     Ok(rt) => rt,
                                     Err(e) => return Value::Error(format!("Failed to create async runtime: {}", e)),
                                 };
-                                
+
                                 // Execute query with MySQL - fetch raw mysql_async::Row objects first
                                 let result: Result<Vec<mysql_async::Row>, mysql_async::Error> = if let Some(Value::Array(param_arr)) = params {
                                     let mysql_params: Vec<mysql_async::Value> = param_arr
@@ -3034,7 +3139,7 @@ impl Interpreter {
                                             _ => mysql_async::Value::Bytes(format!("{:?}", v).as_bytes().to_vec()),
                                         })
                                         .collect();
-                                    
+
                                     runtime.block_on(async {
                                         conn.exec(sql.as_str(), mysql_params).await
                                     })
@@ -3043,20 +3148,20 @@ impl Interpreter {
                                         conn.exec(sql.as_str(), ()).await
                                     })
                                 };
-                                
+
                                 // Convert rows to Value::Array outside async context
                                 match result {
                                     Ok(rows) => {
                                         let mut results: Vec<Value> = Vec::new();
-                                        
+
                                         for mut row in rows {
                                             let mut row_dict: HashMap<String, Value> = HashMap::new();
                                             let columns = row.columns();
-                                            
+
                                             for (i, column) in columns.iter().enumerate() {
                                                 let col_name = column.name_str().to_string();
                                                 let value = row.take::<mysql_async::Value, _>(i).unwrap_or(mysql_async::Value::NULL);
-                                                
+
                                                 let ruff_value = match value {
                                                     mysql_async::Value::NULL => Value::Null,
                                                     mysql_async::Value::Bytes(b) => {
@@ -3078,13 +3183,13 @@ impl Interpreter {
                                                             sign, days, hours, minutes, seconds, micros))
                                                     }
                                                 };
-                                                
+
                                                 row_dict.insert(col_name, ruff_value);
                                             }
-                                            
+
                                             results.push(Value::Dict(row_dict));
                                         }
-                                        
+
                                         Value::Array(results)
                                     }
                                     Err(e) => Value::Error(format!("MySQL query error: {}", e)),
@@ -3109,9 +3214,7 @@ impl Interpreter {
                     let mut unique_values = Vec::new();
                     for value in arr {
                         // Check if value already exists (simple comparison)
-                        let exists = unique_values.iter().any(|v| {
-                            self.values_equal(v, value)
-                        });
+                        let exists = unique_values.iter().any(|v| self.values_equal(v, value));
                         if !exists {
                             unique_values.push(value.clone());
                         }
@@ -3124,7 +3227,7 @@ impl Interpreter {
 
             "set_add" => {
                 // set_add(set, item) - adds item if not present, returns modified set
-                if let (Some(Value::Set(mut set)), Some(item)) = 
+                if let (Some(Value::Set(mut set)), Some(item)) =
                     (arg_values.get(0).cloned(), arg_values.get(1).cloned())
                 {
                     let exists = set.iter().any(|v| self.values_equal(v, &item));
@@ -3139,8 +3242,7 @@ impl Interpreter {
 
             "set_has" => {
                 // set_has(set, item) - returns 1 if item exists, 0 otherwise
-                if let (Some(Value::Set(set)), Some(item)) = 
-                    (arg_values.get(0), arg_values.get(1))
+                if let (Some(Value::Set(set)), Some(item)) = (arg_values.get(0), arg_values.get(1))
                 {
                     let exists = set.iter().any(|v| self.values_equal(v, item));
                     Value::Bool(exists)
@@ -3151,7 +3253,7 @@ impl Interpreter {
 
             "set_remove" => {
                 // set_remove(set, item) - removes item if present, returns modified set
-                if let (Some(Value::Set(mut set)), Some(item)) = 
+                if let (Some(Value::Set(mut set)), Some(item)) =
                     (arg_values.get(0).cloned(), arg_values.get(1))
                 {
                     set.retain(|v| !self.values_equal(v, item));
@@ -3163,7 +3265,7 @@ impl Interpreter {
 
             "set_union" => {
                 // set_union(set1, set2) - returns new set with all unique elements from both sets
-                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) = 
+                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
                     let mut result = set1.clone();
@@ -3181,10 +3283,11 @@ impl Interpreter {
 
             "set_intersect" => {
                 // set_intersect(set1, set2) - returns new set with elements in both sets
-                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) = 
+                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    let result: Vec<Value> = set1.iter()
+                    let result: Vec<Value> = set1
+                        .iter()
                         .filter(|v| set2.iter().any(|v2| self.values_equal(v, v2)))
                         .cloned()
                         .collect();
@@ -3196,10 +3299,11 @@ impl Interpreter {
 
             "set_difference" => {
                 // set_difference(set1, set2) - returns new set with elements in set1 but not in set2
-                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) = 
+                if let (Some(Value::Set(set1)), Some(Value::Set(set2))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    let result: Vec<Value> = set1.iter()
+                    let result: Vec<Value> = set1
+                        .iter()
                         .filter(|v| !set2.iter().any(|v2| self.values_equal(v, v2)))
                         .cloned()
                         .collect();
@@ -3233,7 +3337,7 @@ impl Interpreter {
 
             "queue_enqueue" => {
                 // queue_enqueue(queue, item) - adds item to back of queue, returns modified queue
-                if let (Some(Value::Queue(mut queue)), Some(item)) = 
+                if let (Some(Value::Queue(mut queue)), Some(item)) =
                     (arg_values.get(0).cloned(), arg_values.get(1).cloned())
                 {
                     queue.push_back(item);
@@ -3294,7 +3398,7 @@ impl Interpreter {
 
             "stack_push" => {
                 // stack_push(stack, item) - pushes item onto top of stack, returns modified stack
-                if let (Some(Value::Stack(mut stack)), Some(item)) = 
+                if let (Some(Value::Stack(mut stack)), Some(item)) =
                     (arg_values.get(0).cloned(), arg_values.get(1).cloned())
                 {
                     stack.push(item);
@@ -3365,19 +3469,17 @@ impl Interpreter {
             "db_pool" => {
                 // db_pool(db_type, connection_string, config) - create connection pool
                 // config is a dict with optional: min_connections, max_connections, connection_timeout
-                if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) = 
-                    (arg_values.get(0), arg_values.get(1)) {
-                    
+                if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
                     let config = if let Some(Value::Dict(cfg)) = arg_values.get(2) {
                         cfg.clone()
                     } else {
                         HashMap::new()
                     };
-                    
+
                     match ConnectionPool::new(db_type.clone(), conn_str.clone(), config) {
-                        Ok(pool) => Value::DatabasePool {
-                            pool: Arc::new(Mutex::new(pool)),
-                        },
+                        Ok(pool) => Value::DatabasePool { pool: Arc::new(Mutex::new(pool)) },
                         Err(e) => Value::Error(format!("Failed to create connection pool: {}", e)),
                     }
                 } else {
@@ -3390,14 +3492,12 @@ impl Interpreter {
                 if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
                     let pool_lock = pool.lock().unwrap();
                     match pool_lock.acquire() {
-                        Ok(connection) => {
-                            Value::Database {
-                                connection,
-                                db_type: pool_lock.db_type.clone(),
-                                connection_string: pool_lock.connection_string.clone(),
-                                in_transaction: Arc::new(Mutex::new(false)),
-                            }
-                        }
+                        Ok(connection) => Value::Database {
+                            connection,
+                            db_type: pool_lock.db_type.clone(),
+                            connection_string: pool_lock.connection_string.clone(),
+                            in_transaction: Arc::new(Mutex::new(false)),
+                        },
                         Err(e) => Value::Error(format!("Failed to acquire connection: {}", e)),
                     }
                 } else {
@@ -3413,10 +3513,15 @@ impl Interpreter {
                         pool_lock.release(connection.clone());
                         Value::Bool(true)
                     } else {
-                        Value::Error("db_pool_release requires a database connection as second argument".to_string())
+                        Value::Error(
+                            "db_pool_release requires a database connection as second argument"
+                                .to_string(),
+                        )
                     }
                 } else {
-                    Value::Error("db_pool_release requires a database pool as first argument".to_string())
+                    Value::Error(
+                        "db_pool_release requires a database pool as first argument".to_string(),
+                    )
                 }
             }
 
@@ -3425,7 +3530,7 @@ impl Interpreter {
                 if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
                     let pool_lock = pool.lock().unwrap();
                     let stats = pool_lock.stats();
-                    
+
                     // Convert to Ruff dict
                     let mut dict = HashMap::new();
                     for (key, value) in stats {
@@ -3450,24 +3555,29 @@ impl Interpreter {
 
             "db_begin" => {
                 // db_begin(db) - begin database transaction
-                
+
                 // Extract what we need from the database
-                let (conn_clone, db_type_clone, trans_arc_clone) = if let Some(Value::Database { connection, db_type, in_transaction, .. }) = arg_values.first() {
-                    (connection.clone(), db_type.clone(), in_transaction.clone())
-                } else {
-                    return Value::Error("db_begin requires a database connection as first argument".to_string());
-                };
-                
-                
+                let (conn_clone, db_type_clone, trans_arc_clone) =
+                    if let Some(Value::Database { connection, db_type, in_transaction, .. }) =
+                        arg_values.first()
+                    {
+                        (connection.clone(), db_type.clone(), in_transaction.clone())
+                    } else {
+                        return Value::Error(
+                            "db_begin requires a database connection as first argument".to_string(),
+                        );
+                    };
+
                 // Check if already in transaction
                 let already_in_trans = {
                     let in_trans = trans_arc_clone.lock().unwrap();
                     *in_trans
                 };
-                
-                
+
                 if already_in_trans {
-                    Value::Error("Transaction already in progress. Commit or rollback first.".to_string())
+                    Value::Error(
+                        "Transaction already in progress. Commit or rollback first.".to_string(),
+                    )
                 } else {
                     let result = match (conn_clone, db_type_clone.as_str()) {
                         (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
@@ -3489,10 +3599,16 @@ impl Interpreter {
                             match tokio::runtime::Runtime::new() {
                                 Ok(runtime) => {
                                     match runtime.block_on(async {
-                                        conn.exec_drop("START TRANSACTION", mysql_async::Params::Empty).await
+                                        conn.exec_drop(
+                                            "START TRANSACTION",
+                                            mysql_async::Params::Empty,
+                                        )
+                                        .await
                                     }) {
                                         Ok(_) => Ok(()),
-                                        Err(e) => Err(format!("Failed to begin transaction: {}", e)),
+                                        Err(e) => {
+                                            Err(format!("Failed to begin transaction: {}", e))
+                                        }
                                     }
                                 }
                                 Err(e) => Err(format!("Failed to create runtime: {}", e)),
@@ -3500,16 +3616,14 @@ impl Interpreter {
                         }
                         _ => Err("Invalid database connection".to_string()),
                     };
-                    
+
                     match result {
                         Ok(()) => {
                             let mut in_trans = trans_arc_clone.lock().unwrap();
                             *in_trans = true;
                             Value::Bool(true)
                         }
-                        Err(e) => {
-                            Value::Error(e)
-                        }
+                        Err(e) => Value::Error(e),
                     }
                 }
             }
@@ -3523,23 +3637,29 @@ impl Interpreter {
                             let in_trans = in_transaction.lock().unwrap();
                             *in_trans
                         }; // Lock released here
-                        
+
                         if !is_in_trans {
-                            Value::Error("No transaction in progress. Use db_begin() first.".to_string())
+                            Value::Error(
+                                "No transaction in progress. Use db_begin() first.".to_string(),
+                            )
                         } else {
                             let result = match (connection, db_type.as_str()) {
                                 (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
                                     let conn = conn_arc.lock().unwrap();
                                     match conn.execute("COMMIT", []) {
                                         Ok(_) => Ok(()),
-                                        Err(e) => Err(format!("Failed to commit transaction: {}", e)),
+                                        Err(e) => {
+                                            Err(format!("Failed to commit transaction: {}", e))
+                                        }
                                     }
                                 }
                                 (DatabaseConnection::Postgres(client_arc), "postgres") => {
                                     let mut client = client_arc.lock().unwrap();
                                     match client.execute("COMMIT", &[]) {
                                         Ok(_) => Ok(()),
-                                        Err(e) => Err(format!("Failed to commit transaction: {}", e)),
+                                        Err(e) => {
+                                            Err(format!("Failed to commit transaction: {}", e))
+                                        }
                                     }
                                 }
                                 (DatabaseConnection::Mysql(conn_arc), "mysql") => {
@@ -3547,10 +3667,14 @@ impl Interpreter {
                                     match tokio::runtime::Runtime::new() {
                                         Ok(runtime) => {
                                             match runtime.block_on(async {
-                                                conn.exec_drop("COMMIT", mysql_async::Params::Empty).await
+                                                conn.exec_drop("COMMIT", mysql_async::Params::Empty)
+                                                    .await
                                             }) {
                                                 Ok(_) => Ok(()),
-                                                Err(e) => Err(format!("Failed to commit transaction: {}", e)),
+                                                Err(e) => Err(format!(
+                                                    "Failed to commit transaction: {}",
+                                                    e
+                                                )),
                                             }
                                         }
                                         Err(e) => Err(format!("Failed to create runtime: {}", e)),
@@ -3558,7 +3682,7 @@ impl Interpreter {
                                 }
                                 _ => Err("Invalid database connection".to_string()),
                             };
-                            
+
                             match result {
                                 Ok(()) => {
                                     let mut in_trans = in_transaction.lock().unwrap();
@@ -3569,7 +3693,9 @@ impl Interpreter {
                             }
                         }
                     }
-                    _ => Value::Error("db_commit requires a database connection as first argument".to_string()),
+                    _ => Value::Error(
+                        "db_commit requires a database connection as first argument".to_string(),
+                    ),
                 }
             }
 
@@ -3582,23 +3708,29 @@ impl Interpreter {
                             let in_trans = in_transaction.lock().unwrap();
                             *in_trans
                         }; // Lock released here
-                        
+
                         if !is_in_trans {
-                            Value::Error("No transaction in progress. Use db_begin() first.".to_string())
+                            Value::Error(
+                                "No transaction in progress. Use db_begin() first.".to_string(),
+                            )
                         } else {
                             let result = match (connection, db_type.as_str()) {
                                 (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
                                     let conn = conn_arc.lock().unwrap();
                                     match conn.execute("ROLLBACK", []) {
                                         Ok(_) => Ok(()),
-                                        Err(e) => Err(format!("Failed to rollback transaction: {}", e)),
+                                        Err(e) => {
+                                            Err(format!("Failed to rollback transaction: {}", e))
+                                        }
                                     }
                                 }
                                 (DatabaseConnection::Postgres(client_arc), "postgres") => {
                                     let mut client = client_arc.lock().unwrap();
                                     match client.execute("ROLLBACK", &[]) {
                                         Ok(_) => Ok(()),
-                                        Err(e) => Err(format!("Failed to rollback transaction: {}", e)),
+                                        Err(e) => {
+                                            Err(format!("Failed to rollback transaction: {}", e))
+                                        }
                                     }
                                 }
                                 (DatabaseConnection::Mysql(conn_arc), "mysql") => {
@@ -3606,10 +3738,17 @@ impl Interpreter {
                                     match tokio::runtime::Runtime::new() {
                                         Ok(runtime) => {
                                             match runtime.block_on(async {
-                                                conn.exec_drop("ROLLBACK", mysql_async::Params::Empty).await
+                                                conn.exec_drop(
+                                                    "ROLLBACK",
+                                                    mysql_async::Params::Empty,
+                                                )
+                                                .await
                                             }) {
                                                 Ok(_) => Ok(()),
-                                                Err(e) => Err(format!("Failed to rollback transaction: {}", e)),
+                                                Err(e) => Err(format!(
+                                                    "Failed to rollback transaction: {}",
+                                                    e
+                                                )),
                                             }
                                         }
                                         Err(e) => Err(format!("Failed to create runtime: {}", e)),
@@ -3617,7 +3756,7 @@ impl Interpreter {
                                 }
                                 _ => Err("Invalid database connection".to_string()),
                             };
-                            
+
                             match result {
                                 Ok(()) => {
                                     let mut in_trans = in_transaction.lock().unwrap();
@@ -3628,7 +3767,9 @@ impl Interpreter {
                             }
                         }
                     }
-                    _ => Value::Error("db_rollback requires a database connection as first argument".to_string()),
+                    _ => Value::Error(
+                        "db_rollback requires a database connection as first argument".to_string(),
+                    ),
                 }
             }
 
@@ -3661,21 +3802,28 @@ impl Interpreter {
                             let mut conn = conn_arc.lock().unwrap();
                             let runtime = match tokio::runtime::Runtime::new() {
                                 Ok(rt) => rt,
-                                Err(e) => return Value::Error(format!("Failed to create runtime: {}", e)),
+                                Err(e) => {
+                                    return Value::Error(format!("Failed to create runtime: {}", e))
+                                }
                             };
-                            
+
                             match runtime.block_on(async {
                                 conn.query_first::<u64, _>("SELECT LAST_INSERT_ID()").await
                             }) {
                                 Ok(Some(id)) => Value::Int(id as i64),
                                 Ok(None) => Value::Error("No last insert ID available".to_string()),
-                                Err(e) => Value::Error(format!("Failed to get last insert ID: {}", e)),
+                                Err(e) => {
+                                    Value::Error(format!("Failed to get last insert ID: {}", e))
+                                }
                             }
                         }
                         _ => Value::Error("Invalid database connection".to_string()),
                     }
                 } else {
-                    Value::Error("db_last_insert_id requires a database connection as first argument".to_string())
+                    Value::Error(
+                        "db_last_insert_id requires a database connection as first argument"
+                            .to_string(),
+                    )
                 }
             }
 
@@ -3691,11 +3839,8 @@ impl Interpreter {
                                 .and_then(|ext| ext.to_str())
                                 .unwrap_or("unknown")
                                 .to_lowercase();
-                            
-                            Value::Image {
-                                data: Arc::new(Mutex::new(img)),
-                                format,
-                            }
+
+                            Value::Image { data: Arc::new(Mutex::new(img)), format }
                         }
                         Err(e) => Value::Error(format!("Cannot load image '{}': {}", path, e)),
                     }
@@ -3706,7 +3851,7 @@ impl Interpreter {
 
             _ => Value::Int(0),
         };
-        
+
         result
     }
 
@@ -3849,7 +3994,7 @@ impl Interpreter {
             }
             Stmt::Assign { target, value } => {
                 let val = self.eval_expr(&value);
-                
+
                 // Always perform the assignment, even for errors
                 match target {
                     Expr::Identifier(name) => {
@@ -3931,15 +4076,10 @@ impl Interpreter {
                                                     {
                                                         fields.insert(field_clone, val_clone);
                                                     } else {
-                                                        eprintln!(
-                                                            "Array element is not a struct"
-                                                        );
+                                                        eprintln!("Array element is not a struct");
                                                     }
                                                 } else {
-                                                    eprintln!(
-                                                        "Array index out of bounds: {}",
-                                                        i
-                                                    );
+                                                    eprintln!("Array index out of bounds: {}", i);
                                                 }
                                             }
                                             Value::Dict(ref mut dict) => {
@@ -3968,7 +4108,7 @@ impl Interpreter {
                         eprintln!("Invalid assignment target");
                     }
                 }
-                
+
                 // If expression evaluation resulted in an error, propagate it
                 if matches!(val, Value::Error(_)) {
                     self.return_value = Some(val);
@@ -4355,10 +4495,7 @@ impl Interpreter {
                                 "stack".to_string(),
                                 Value::Array(stack.iter().map(|s| Value::Str(s.clone())).collect()),
                             );
-                            fields.insert(
-                                "line".to_string(),
-                                Value::Int(line.unwrap_or(0) as i64),
-                            );
+                            fields.insert("line".to_string(), Value::Int(line.unwrap_or(0) as i64));
                             if let Some(cause_val) = cause {
                                 fields.insert("cause".to_string(), *cause_val);
                             }
@@ -4455,7 +4592,7 @@ impl Interpreter {
             Stmt::Spawn { body } => {
                 // Clone the body for the spawned thread
                 let body_clone = body.clone();
-                
+
                 // Spawn a new thread to execute the body
                 // Note: The spawned code runs in isolation and cannot access the parent environment
                 std::thread::spawn(move || {
@@ -4588,12 +4725,12 @@ impl Interpreter {
                     "|>" => {
                         let value = self.eval_expr(&left);
                         let func = self.eval_expr(&right);
-                        
+
                         // Call the function with the value as the first argument
                         if let Value::Function(params, body, captured_env) = func {
                             // Push new scope
                             self.env.push_scope();
-                            
+
                             // Restore captured environment if this is a closure
                             let restore_env = if let Some(ref closure_env) = captured_env {
                                 // Store current environment
@@ -4604,12 +4741,12 @@ impl Interpreter {
                             } else {
                                 None
                             };
-                            
+
                             // Bind the piped value as the first parameter
                             if let Some(param) = params.first() {
                                 self.env.define(param.clone(), value);
                             }
-                            
+
                             // Execute function body
                             self.eval_stmts(body.get());
                             let mut result = Value::Int(0);
@@ -4617,15 +4754,15 @@ impl Interpreter {
                                 self.return_value = None;
                                 result = *val;
                             }
-                            
+
                             // Restore environment if we changed it
                             if let Some(env) = restore_env {
                                 self.env = env;
                             }
-                            
+
                             // Pop scope
                             self.env.pop_scope();
-                            
+
                             return result;
                         } else if let Value::NativeFunction(ref name) = func {
                             // Handle built-in functions
@@ -4635,12 +4772,19 @@ impl Interpreter {
                                 Value::Float(n) => Expr::Float(n),
                                 Value::Str(s) => Expr::String(s),
                                 Value::Bool(b) => Expr::Bool(b),
-                                _ => return Value::Error("Cannot pipe this value type to native function".to_string()),
+                                _ => {
+                                    return Value::Error(
+                                        "Cannot pipe this value type to native function"
+                                            .to_string(),
+                                    )
+                                }
                             };
                             return self.call_native_function(name, &[arg_expr]);
                         }
-                        
-                        return Value::Error("Pipe operator requires a function on the right side".to_string());
+
+                        return Value::Error(
+                            "Pipe operator requires a function on the right side".to_string(),
+                        );
                     }
                     _ => {}
                 }
@@ -4802,87 +4946,131 @@ impl Interpreter {
                             "resize" => {
                                 // img.resize(width, height) or img.resize(width, height, "fit")
                                 if args.len() < 2 {
-                                    return Value::Error("resize requires at least width and height arguments".to_string());
+                                    return Value::Error(
+                                        "resize requires at least width and height arguments"
+                                            .to_string(),
+                                    );
                                 }
 
                                 let width_val = self.eval_expr(&args[0]);
                                 let height_val = self.eval_expr(&args[1]);
-                                
-                                if let (Value::Float(w), Value::Float(h)) = (width_val, height_val) {
+
+                                if let (Value::Float(w), Value::Float(h)) = (width_val, height_val)
+                                {
                                     let width = w as u32;
                                     let height = h as u32;
-                                    
+
                                     let img = data.lock().unwrap();
                                     let resized = if args.len() >= 3 {
                                         let mode_val = self.eval_expr(&args[2]);
                                         if let Value::Str(mode) = mode_val {
                                             if mode == "fit" {
                                                 // Maintain aspect ratio
-                                                img.resize(width, height, image::imageops::FilterType::Lanczos3)
+                                                img.resize(
+                                                    width,
+                                                    height,
+                                                    image::imageops::FilterType::Lanczos3,
+                                                )
                                             } else {
                                                 // Exact dimensions
-                                                img.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+                                                img.resize_exact(
+                                                    width,
+                                                    height,
+                                                    image::imageops::FilterType::Lanczos3,
+                                                )
                                             }
                                         } else {
-                                            img.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+                                            img.resize_exact(
+                                                width,
+                                                height,
+                                                image::imageops::FilterType::Lanczos3,
+                                            )
                                         }
                                     } else {
                                         // Exact dimensions by default
-                                        img.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+                                        img.resize_exact(
+                                            width,
+                                            height,
+                                            image::imageops::FilterType::Lanczos3,
+                                        )
                                     };
-                                    
+
                                     return Value::Image {
                                         data: Arc::new(Mutex::new(resized)),
                                         format: format.clone(),
                                     };
                                 } else {
-                                    return Value::Error("resize requires numeric width and height".to_string());
+                                    return Value::Error(
+                                        "resize requires numeric width and height".to_string(),
+                                    );
                                 }
                             }
                             "crop" => {
                                 // img.crop(x, y, width, height)
                                 if args.len() < 4 {
-                                    return Value::Error("crop requires x, y, width, and height arguments".to_string());
+                                    return Value::Error(
+                                        "crop requires x, y, width, and height arguments"
+                                            .to_string(),
+                                    );
                                 }
-                                
+
                                 let x_val = self.eval_expr(&args[0]);
                                 let y_val = self.eval_expr(&args[1]);
                                 let w_val = self.eval_expr(&args[2]);
                                 let h_val = self.eval_expr(&args[3]);
-                                
-                                if let (Value::Float(x), Value::Float(y), Value::Float(w), Value::Float(h)) 
-                                    = (x_val, y_val, w_val, h_val) {
+
+                                if let (
+                                    Value::Float(x),
+                                    Value::Float(y),
+                                    Value::Float(w),
+                                    Value::Float(h),
+                                ) = (x_val, y_val, w_val, h_val)
+                                {
                                     let mut img = data.lock().unwrap().clone();
                                     let cropped = img.crop(x as u32, y as u32, w as u32, h as u32);
-                                    
+
                                     return Value::Image {
                                         data: Arc::new(Mutex::new(cropped)),
                                         format: format.clone(),
                                     };
                                 } else {
-                                    return Value::Error("crop requires numeric x, y, width, and height".to_string());
+                                    return Value::Error(
+                                        "crop requires numeric x, y, width, and height".to_string(),
+                                    );
                                 }
                             }
                             "rotate" => {
                                 // img.rotate(degrees)
                                 if args.is_empty() {
-                                    return Value::Error("rotate requires a degrees argument".to_string());
+                                    return Value::Error(
+                                        "rotate requires a degrees argument".to_string(),
+                                    );
                                 }
-                                
+
                                 let degrees_val = self.eval_expr(&args[0]);
                                 let degrees = match degrees_val {
                                     Value::Int(n) => n as f32,
                                     Value::Float(n) => n as f32,
-                                    _ => return Value::Error("rotate requires a numeric degrees argument".to_string()),
+                                    _ => {
+                                        return Value::Error(
+                                            "rotate requires a numeric degrees argument"
+                                                .to_string(),
+                                        )
+                                    }
                                 };
                                 let img = data.lock().unwrap();
                                 let rotated = match degrees as i32 {
                                     90 => img.rotate90(),
                                     180 => img.rotate180(),
                                     270 => img.rotate270(),
-                                    _ => return Value::Error("rotate only supports 90, 180, or 270 degrees".to_string()),
+                                    _ => {
+                                        return Value::Error(
+                                            "rotate only supports 90, 180, or 270 degrees"
+                                                .to_string(),
+                                        )
+                                    }
                                 };
-                                
+
                                 return Value::Image {
                                     data: Arc::new(Mutex::new(rotated)),
                                     format: format.clone(),
@@ -4893,49 +5081,64 @@ impl Interpreter {
                                 if args.is_empty() {
                                     return Value::Error("flip requires a direction argument ('horizontal' or 'vertical')".to_string());
                                 }
-                                
+
                                 let direction_val = self.eval_expr(&args[0]);
                                 if let Value::Str(direction) = direction_val {
                                     let img = data.lock().unwrap();
-                                    let flipped = match direction.as_str() {
-                                        "horizontal" => img.fliph(),
-                                        "vertical" => img.flipv(),
-                                        _ => return Value::Error("flip direction must be 'horizontal' or 'vertical'".to_string()),
-                                    };
-                                    
+                                    let flipped =
+                                        match direction.as_str() {
+                                            "horizontal" => img.fliph(),
+                                            "vertical" => img.flipv(),
+                                            _ => return Value::Error(
+                                                "flip direction must be 'horizontal' or 'vertical'"
+                                                    .to_string(),
+                                            ),
+                                        };
+
                                     return Value::Image {
                                         data: Arc::new(Mutex::new(flipped)),
                                         format: format.clone(),
                                     };
                                 } else {
-                                    return Value::Error("flip requires a string direction argument".to_string());
+                                    return Value::Error(
+                                        "flip requires a string direction argument".to_string(),
+                                    );
                                 }
                             }
                             "save" => {
                                 // img.save(path) or img.save(path, options)
                                 if args.is_empty() {
-                                    return Value::Error("save requires a path argument".to_string());
+                                    return Value::Error(
+                                        "save requires a path argument".to_string(),
+                                    );
                                 }
-                                
+
                                 let path_val = self.eval_expr(&args[0]);
                                 if let Value::Str(path) = path_val {
                                     let img = data.lock().unwrap();
-                                    
+
                                     // The image crate will auto-detect format from extension
                                     // No need to manually specify the format
                                     match img.save(&path) {
                                         Ok(_) => return Value::Bool(true),
-                                        Err(e) => return Value::Error(format!("Failed to save image: {}", e)),
+                                        Err(e) => {
+                                            return Value::Error(format!(
+                                                "Failed to save image: {}",
+                                                e
+                                            ))
+                                        }
                                     }
                                 } else {
-                                    return Value::Error("save requires a string path argument".to_string());
+                                    return Value::Error(
+                                        "save requires a string path argument".to_string(),
+                                    );
                                 }
                             }
                             "to_grayscale" => {
                                 // img.to_grayscale()
                                 let img = data.lock().unwrap();
                                 let gray = img.grayscale();
-                                
+
                                 return Value::Image {
                                     data: Arc::new(Mutex::new(gray)),
                                     format: format.clone(),
@@ -4944,18 +5147,24 @@ impl Interpreter {
                             "blur" => {
                                 // img.blur(sigma)
                                 if args.is_empty() {
-                                    return Value::Error("blur requires a sigma argument".to_string());
+                                    return Value::Error(
+                                        "blur requires a sigma argument".to_string(),
+                                    );
                                 }
-                                
+
                                 let sigma_val = self.eval_expr(&args[0]);
                                 let sigma = match sigma_val {
                                     Value::Int(n) => n as f32,
                                     Value::Float(n) => n as f32,
-                                    _ => return Value::Error("blur requires a numeric sigma argument".to_string()),
+                                    _ => {
+                                        return Value::Error(
+                                            "blur requires a numeric sigma argument".to_string(),
+                                        )
+                                    }
                                 };
                                 let img = data.lock().unwrap();
                                 let blurred = img.blur(sigma);
-                                
+
                                 return Value::Image {
                                     data: Arc::new(Mutex::new(blurred)),
                                     format: format.clone(),
@@ -4964,18 +5173,24 @@ impl Interpreter {
                             "adjust_brightness" => {
                                 // img.adjust_brightness(factor)
                                 if args.is_empty() {
-                                    return Value::Error("adjust_brightness requires a factor argument".to_string());
+                                    return Value::Error(
+                                        "adjust_brightness requires a factor argument".to_string(),
+                                    );
                                 }
-                                
+
                                 let factor_val = self.eval_expr(&args[0]);
-                                let factor = match factor_val {
-                                    Value::Int(n) => n as f64,
-                                    Value::Float(n) => n,
-                                    _ => return Value::Error("adjust_brightness requires a numeric factor argument".to_string()),
-                                };
+                                let factor =
+                                    match factor_val {
+                                        Value::Int(n) => n as f64,
+                                        Value::Float(n) => n,
+                                        _ => return Value::Error(
+                                            "adjust_brightness requires a numeric factor argument"
+                                                .to_string(),
+                                        ),
+                                    };
                                 let img = data.lock().unwrap();
                                 let adjusted = img.brighten((factor * 50.0) as i32);
-                                
+
                                 return Value::Image {
                                     data: Arc::new(Mutex::new(adjusted)),
                                     format: format.clone(),
@@ -4984,18 +5199,24 @@ impl Interpreter {
                             "adjust_contrast" => {
                                 // img.adjust_contrast(factor)
                                 if args.is_empty() {
-                                    return Value::Error("adjust_contrast requires a factor argument".to_string());
+                                    return Value::Error(
+                                        "adjust_contrast requires a factor argument".to_string(),
+                                    );
                                 }
-                                
+
                                 let factor_val = self.eval_expr(&args[0]);
-                                let factor = match factor_val {
-                                    Value::Int(n) => n as f32,
-                                    Value::Float(n) => n as f32,
-                                    _ => return Value::Error("adjust_contrast requires a numeric factor argument".to_string()),
-                                };
+                                let factor =
+                                    match factor_val {
+                                        Value::Int(n) => n as f32,
+                                        Value::Float(n) => n as f32,
+                                        _ => return Value::Error(
+                                            "adjust_contrast requires a numeric factor argument"
+                                                .to_string(),
+                                        ),
+                                    };
                                 let img = data.lock().unwrap();
                                 let adjusted = img.adjust_contrast(factor);
-                                
+
                                 return Value::Image {
                                     data: Arc::new(Mutex::new(adjusted)),
                                     format: format.clone(),
@@ -5011,16 +5232,22 @@ impl Interpreter {
                             "send" => {
                                 // chan.send(value) - send value to channel
                                 if args.is_empty() {
-                                    return Value::Error("send requires a value argument".to_string());
+                                    return Value::Error(
+                                        "send requires a value argument".to_string(),
+                                    );
                                 }
-                                
+
                                 let value = self.eval_expr(&args[0]);
                                 let chan_lock = chan.lock().unwrap();
                                 let (sender, _) = &*chan_lock;
-                                
+
                                 match sender.send(value) {
                                     Ok(_) => return Value::Bool(true),
-                                    Err(_) => return Value::Error("Failed to send to channel".to_string()),
+                                    Err(_) => {
+                                        return Value::Error(
+                                            "Failed to send to channel".to_string(),
+                                        )
+                                    }
                                 }
                             }
                             "receive" => {
@@ -5028,7 +5255,7 @@ impl Interpreter {
                                 // TODO: Implement proper blocking receive
                                 let chan_lock = chan.lock().unwrap();
                                 let (_, receiver) = &*chan_lock;
-                                
+
                                 match receiver.try_recv() {
                                     Ok(value) => return value,
                                     Err(std::sync::mpsc::TryRecvError::Empty) => {
@@ -5049,7 +5276,9 @@ impl Interpreter {
                         if let Some(Value::StructDef { name: _, field_names: _, methods }) =
                             self.env.get(name)
                         {
-                            if let Some(Value::Function(params, body, _captured_env)) = methods.get(field) {
+                            if let Some(Value::Function(params, body, _captured_env)) =
+                                methods.get(field)
+                            {
                                 // Create new scope for method call
                                 // Push new scope
                                 self.env.push_scope();
@@ -5125,7 +5354,7 @@ impl Interpreter {
                         if let Some(closure_env_ref) = captured_env {
                             // Save current environment
                             let saved_env = self.env.clone();
-                            
+
                             // Use the captured environment
                             self.env = closure_env_ref.borrow().clone();
                             self.env.push_scope();
@@ -5139,12 +5368,15 @@ impl Interpreter {
 
                             self.eval_stmts(body.get());
 
-                            let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                            let result = if let Some(Value::Return(val)) = self.return_value.clone()
+                            {
                                 self.return_value = None;
                                 *val
                             } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                                 Value::Error(msg)
-                            } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                            } else if let Some(Value::ErrorObject { .. }) =
+                                self.return_value.clone()
+                            {
                                 self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
@@ -5171,12 +5403,15 @@ impl Interpreter {
 
                             self.eval_stmts(body.get());
 
-                            let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                            let result = if let Some(Value::Return(val)) = self.return_value.clone()
+                            {
                                 self.return_value = None;
                                 *val
                             } else if let Some(Value::Error(msg)) = self.return_value.clone() {
                                 Value::Error(msg)
-                            } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                            } else if let Some(Value::ErrorObject { .. }) =
+                                self.return_value.clone()
+                            {
                                 self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
@@ -5209,7 +5444,7 @@ impl Interpreter {
                             if let Some(closure_env_ref) = captured_env {
                                 // Save current environment
                                 let saved_env = self.env.clone();
-                                
+
                                 // Use the captured environment
                                 self.env = closure_env_ref.borrow().clone();
                                 self.env.push_scope();
@@ -5223,7 +5458,8 @@ impl Interpreter {
 
                                 self.eval_stmts(body.get());
 
-                                let result = if let Some(Value::Return(val)) = self.return_value.clone()
+                                let result = if let Some(Value::Return(val)) =
+                                    self.return_value.clone()
                                 {
                                     self.return_value = None;
                                     *val
@@ -5258,7 +5494,8 @@ impl Interpreter {
 
                                 self.eval_stmts(body.get());
 
-                                let result = if let Some(Value::Return(val)) = self.return_value.clone()
+                                let result = if let Some(Value::Return(val)) =
+                                    self.return_value.clone()
                                 {
                                     self.return_value = None;
                                     *val
@@ -5426,10 +5663,9 @@ impl Interpreter {
     /// This prevents hanging when SQLite connections are dropped while in transaction
     pub fn cleanup(&mut self) {
         // Get all variables from the environment
-        let var_names: Vec<String> = self.env.scopes.iter()
-            .flat_map(|scope| scope.keys().cloned())
-            .collect();
-        
+        let var_names: Vec<String> =
+            self.env.scopes.iter().flat_map(|scope| scope.keys().cloned()).collect();
+
         for var_name in var_names {
             if let Some(value) = self.env.get(&var_name) {
                 if let Value::Database { connection, db_type, in_transaction, .. } = value {
@@ -5438,7 +5674,7 @@ impl Interpreter {
                         let in_trans = in_transaction.lock().unwrap();
                         *in_trans
                     };
-                    
+
                     if is_in_trans {
                         // Rollback the transaction
                         match (connection, db_type.as_str()) {
@@ -5460,7 +5696,7 @@ impl Interpreter {
                             }
                             _ => {}
                         }
-                        
+
                         // Update transaction flag
                         let mut in_trans = in_transaction.lock().unwrap();
                         *in_trans = false;
@@ -5493,7 +5729,7 @@ mod tests {
                 name: string,
                 age: int
             }
-            
+
             p := Person { name: "Alice", age: 25 }
             p.age := 26
         "#;
@@ -5518,12 +5754,12 @@ mod tests {
                 title: string,
                 done: bool
             }
-            
+
             todos := [
                 Todo { title: "Task 1", done: false },
                 Todo { title: "Task 2", done: false }
             ]
-            
+
             todos[0].done := true
         "#;
 
@@ -5676,7 +5912,7 @@ mod tests {
                 width: int,
                 height: int
             }
-            
+
             rect := Rectangle { width: 5, height: 3 }
         "#;
 
@@ -5789,12 +6025,12 @@ mod tests {
         // Variables in function should have their own scope
         let code = r#"
             x := 100
-            
+
             func modify_local() {
                 let x := 50
                 y := x * 2
             }
-            
+
             modify_local()
         "#;
 
@@ -5816,11 +6052,11 @@ mod tests {
         // Function can access and modify outer scope variables
         let code = r#"
             counter := 0
-            
+
             func increment() {
                 counter := counter + 1
             }
-            
+
             increment()
             increment()
             increment()
@@ -6105,7 +6341,7 @@ mod tests {
             a := parse_int("10")
             b := parse_int("20")
             sum := a + b
-            
+
             x := parse_float("3.5")
             y := parse_float("2.5")
             product := x * y
@@ -6393,11 +6629,11 @@ mod tests {
         let code = r#"
             result1 := "not set"
             result2 := "not set"
-            
+
             if true {
                 result1 := "true branch"
             }
-            
+
             if false {
                 result2 := "false branch"
             } else {
@@ -6417,7 +6653,7 @@ mod tests {
         let code = r#"
             result := "not set"
             x := 10
-            
+
             if x > 5 {
                 result := "x is greater than 5"
             }
@@ -6474,7 +6710,7 @@ mod tests {
         let code = r#"
             is_active := true
             result := "not set"
-            
+
             if is_active {
                 result := "is active"
             }
@@ -6522,7 +6758,7 @@ mod tests {
                 active: bool,
                 verified: bool
             }
-            
+
             status := Status { active: true, verified: false }
         "#;
 
@@ -6914,7 +7150,7 @@ mod tests {
             func double(x) {
                 return x * 2
             }
-            
+
             n := 21
             result := "Double of ${n} is ${double(n)}"
         "#;
@@ -6999,7 +7235,7 @@ mod tests {
             func greet(name) {
                 return "Hello, ${name}!"
             }
-            
+
             message := greet("World")
         "#;
 
@@ -7015,7 +7251,7 @@ mod tests {
                 name: string,
                 age: int
             }
-            
+
             p := Person { name: "Bob", age: 25 }
             bio := "Name: ${p.name}, Age: ${p.age}"
         "#;
@@ -7288,7 +7524,7 @@ mod tests {
                 field: string,
                 message: string
             }
-            
+
             caught_error := ""
             try {
                 error := ValidationError {
@@ -7315,7 +7551,7 @@ mod tests {
                 message: string,
                 cause: string
             }
-            
+
             caught := ""
             try {
                 error := DatabaseError {
@@ -7341,11 +7577,11 @@ mod tests {
             func inner() {
                 throw("Inner error")
             }
-            
+
             func outer() {
                 inner()
             }
-            
+
             result := ""
             try {
                 outer()
@@ -7386,7 +7622,7 @@ mod tests {
             func risky() {
                 throw("Unhandled error")
             }
-            
+
             risky()
         "#;
 
@@ -7435,10 +7671,10 @@ mod tests {
         let code = r#"
             payload := {"user_id": 456, "role": "admin", "active": true}
             secret := "test-secret-123"
-            
+
             token := jwt_encode(payload, secret)
             decoded := jwt_decode(token, secret)
-            
+
             user_id := decoded["user_id"]
             role := decoded["role"]
             active := decoded["active"]
@@ -7456,12 +7692,12 @@ mod tests {
             payload := {"user_id": 789}
             secret := "correct-secret"
             wrong_secret := "wrong-secret"
-            
+
             token := jwt_encode(payload, secret)
-            
+
             # Initialize before try block
             decode_failed := false
-            
+
             # Try to decode with wrong secret - should fail
             try {
                 result := jwt_decode(token, wrong_secret)
@@ -7483,13 +7719,13 @@ mod tests {
         let code = r#"
             timestamp := now()
             expiry := timestamp + 3600
-            
+
             payload := {"user_id": 100, "exp": expiry}
             secret := "secret-key"
-            
+
             token := jwt_encode(payload, secret)
             decoded := jwt_decode(token, secret)
-            
+
             decoded_user := decoded["user_id"]
             # has_key returns 1 or 0, so check if greater than 0
             has_expiry_num := has_key(decoded, "exp")
@@ -7509,10 +7745,10 @@ mod tests {
                 "permissions": ["read", "write"]
             }
             secret := "nested-secret"
-            
+
             token := jwt_encode(payload, secret)
             decoded := jwt_decode(token, secret)
-            
+
             user_obj := decoded["user"]
         "#;
 
@@ -7525,10 +7761,10 @@ mod tests {
         let code = r#"
             payload := {}
             secret := "empty-secret"
-            
+
             token := jwt_encode(payload, secret)
             decoded := jwt_decode(token, secret)
-            
+
             is_dict := true
         "#;
 
@@ -7545,9 +7781,9 @@ mod tests {
             redirect_uri := "https://example.com/callback"
             auth_url := "https://provider.com/oauth/authorize"
             scope := "read write"
-            
+
             url := oauth2_auth_url(client_id, redirect_uri, auth_url, scope)
-            
+
             # contains returns 1 or 0, convert to bool
             contains_client := contains(url, "client_id=my-client-id") > 0
             contains_redirect := contains(url, "redirect_uri=") > 0
@@ -7569,9 +7805,9 @@ mod tests {
             redirect_uri := "https://example.com/callback?param=value"
             auth_url := "https://auth.example.com/authorize"
             scope := "read:user write:repo"
-            
+
             url := oauth2_auth_url(client_id, redirect_uri, auth_url, scope)
-            
+
             starts_with_auth := starts_with(url, "https://auth.example.com/authorize?")
             has_encoded_space := contains(url, "%20") || contains(url, "+")
         "#;
@@ -7612,17 +7848,17 @@ mod tests {
             # Simulate an API authentication flow
             user_data := {"user_id": 42, "email": "test@example.com"}
             api_secret := "api-secret-key-2026"
-            
+
             # Generate JWT token
             auth_token := jwt_encode(user_data, api_secret)
-            
+
             # Verify token (as API would do)
             verified_data := jwt_decode(auth_token, api_secret)
-            
+
             # Extract user info
             user_id := verified_data["user_id"]
             email := verified_data["email"]
-            
+
             auth_success := user_id == 42 && email == "test@example.com"
         "#;
 
@@ -7642,10 +7878,10 @@ mod tests {
                 "roles": ["user", "moderator"]
             }
             secret := "multi-claim-secret"
-            
+
             token := jwt_encode(payload, secret)
             decoded := jwt_decode(token, secret)
-            
+
             name := decoded["name"]
             is_admin := decoded["admin"]
             subject := decoded["sub"]
@@ -7667,11 +7903,11 @@ mod tests {
                 "https://provider.com/auth",
                 "user:read user:write"
             )
-            
+
             # Verify URL was generated - contains returns number
             has_client_id := contains(auth_url, "client_id=") > 0
             has_scope := contains(auth_url, "scope=") > 0
-            
+
             # Simulate the authorization flow
             flow_started := has_client_id && has_scope
         "#;
@@ -7715,7 +7951,7 @@ mod tests {
         let interp = run_code(code);
         // Should get 2 results
         assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 2));
-        
+
         // Results should be an array
         if let Some(Value::Array(results)) = interp.env.get("results") {
             assert_eq!(results.len(), 2);
@@ -7816,8 +8052,9 @@ mod tests {
 
         let interp = run_code(code);
         // Verify that ts2 >= ts1 (time moves forward)
-        if let (Some(Value::Int(ts1)), Some(Value::Int(ts2))) = 
-            (interp.env.get("ts1"), interp.env.get("ts2")) {
+        if let (Some(Value::Int(ts1)), Some(Value::Int(ts2))) =
+            (interp.env.get("ts1"), interp.env.get("ts2"))
+        {
             assert!(ts2 >= ts1, "Timestamp should increase or stay the same");
         } else {
             panic!("Expected both timestamps to be numbers");
@@ -7856,8 +8093,9 @@ mod tests {
 
         let interp = run_code(code);
         // Verify that p2 > p1 (time moves forward)
-        if let (Some(Value::Float(p1)), Some(Value::Float(p2))) = 
-            (interp.env.get("p1"), interp.env.get("p2")) {
+        if let (Some(Value::Float(p1)), Some(Value::Float(p2))) =
+            (interp.env.get("p1"), interp.env.get("p2"))
+        {
             assert!(p2 > p1, "Performance timer should increase over time");
             // Difference should be reasonable (not negative, not huge)
             let diff = p2 - p1;
@@ -7936,16 +8174,19 @@ mod tests {
 
         let interp = run_code(code);
         // Verify all three precision levels advance
-        if let (Some(Value::Float(t_ms)), Some(Value::Float(t_ms2))) = 
-            (interp.env.get("t_ms"), interp.env.get("t_ms2")) {
+        if let (Some(Value::Float(t_ms)), Some(Value::Float(t_ms2))) =
+            (interp.env.get("t_ms"), interp.env.get("t_ms2"))
+        {
             assert!(t_ms2 >= t_ms, "Millisecond timer should advance");
         }
-        if let (Some(Value::Float(t_us)), Some(Value::Float(t_us2))) = 
-            (interp.env.get("t_us"), interp.env.get("t_us2")) {
+        if let (Some(Value::Float(t_us)), Some(Value::Float(t_us2))) =
+            (interp.env.get("t_us"), interp.env.get("t_us2"))
+        {
             assert!(t_us2 >= t_us, "Microsecond timer should advance");
         }
-        if let (Some(Value::Float(t_ns)), Some(Value::Float(t_ns2))) = 
-            (interp.env.get("t_ns"), interp.env.get("t_ns2")) {
+        if let (Some(Value::Float(t_ns)), Some(Value::Float(t_ns2))) =
+            (interp.env.get("t_ns"), interp.env.get("t_ns2"))
+        {
             assert!(t_ns2 >= t_ns, "Nanosecond timer should advance");
         }
     }
@@ -7961,23 +8202,23 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        
+
         // Check seconds formatting
         if let Some(Value::Str(s)) = interp.env.get("d1") {
             assert!(s.contains("s"), "Should format as seconds: {}", s);
             assert!(s.contains("5.00"), "Should show 5.00s: {}", s);
         }
-        
+
         // Check milliseconds formatting
         if let Some(Value::Str(s)) = interp.env.get("d2") {
             assert!(s.contains("ms"), "Should format as milliseconds: {}", s);
         }
-        
+
         // Check microseconds formatting
         if let Some(Value::Str(s)) = interp.env.get("d3") {
             assert!(s.contains("μs") || s.contains("us"), "Should format as microseconds: {}", s);
         }
-        
+
         // Check nanoseconds formatting
         if let Some(Value::Str(s)) = interp.env.get("d4") {
             assert!(s.contains("ns"), "Should format as nanoseconds: {}", s);
@@ -7998,5 +8239,264 @@ mod tests {
         } else {
             panic!("Expected elapsed to return a number");
         }
+    }
+
+    // Type introspection tests
+    #[test]
+    fn test_type_function_basic_types() {
+        let code = r#"
+            t_int := type(42)
+            t_float := type(3.14)
+            t_string := type("hello")
+            t_bool := type(true)
+            t_null := type(null)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("t_int"), Some(Value::Str(s)) if s == "int"));
+        assert!(matches!(interp.env.get("t_float"), Some(Value::Str(s)) if s == "float"));
+        assert!(matches!(interp.env.get("t_string"), Some(Value::Str(s)) if s == "string"));
+        assert!(matches!(interp.env.get("t_bool"), Some(Value::Str(s)) if s == "bool"));
+        assert!(matches!(interp.env.get("t_null"), Some(Value::Str(s)) if s == "null"));
+    }
+
+    #[test]
+    fn test_type_function_collections() {
+        let code = r#"
+            t_array := type([1, 2, 3])
+            t_dict := type({"a": 1})
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("t_array"), Some(Value::Str(s)) if s == "array"));
+        assert!(matches!(interp.env.get("t_dict"), Some(Value::Str(s)) if s == "dict"));
+    }
+
+    #[test]
+    fn test_type_function_with_function() {
+        let code = r#"
+            func my_func() {
+                return 42
+            }
+            t_func := type(my_func)
+            t_native := type(len)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("t_func"), Some(Value::Str(s)) if s == "function"));
+        assert!(matches!(interp.env.get("t_native"), Some(Value::Str(s)) if s == "function"));
+    }
+
+    #[test]
+    fn test_is_int_predicate() {
+        let code = r#"
+            r1 := is_int(42)
+            r2 := is_int(3.14)
+            r3 := is_int("hello")
+            r4 := is_int(true)
+            r5 := is_int(null)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r4"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r5"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_is_float_predicate() {
+        let code = r#"
+            r1 := is_float(3.14)
+            r2 := is_float(42)
+            r3 := is_float("3.14")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_is_string_predicate() {
+        let code = r#"
+            r1 := is_string("hello")
+            r2 := is_string(42)
+            r3 := is_string(true)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_is_array_predicate() {
+        let code = r#"
+            r1 := is_array([1, 2, 3])
+            r2 := is_array({"a": 1})
+            r3 := is_array("hello")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_is_dict_predicate() {
+        let code = r#"
+            r1 := is_dict({"a": 1})
+            r2 := is_dict([1, 2, 3])
+            r3 := is_dict("hello")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_is_bool_predicate() {
+        let code = r#"
+            r1 := is_bool(true)
+            r2 := is_bool(false)
+            r3 := is_bool(1)
+            r4 := is_bool("true")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r4"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_is_null_predicate() {
+        let code = r#"
+            r1 := is_null(null)
+            r2 := is_null(0)
+            r3 := is_null(false)
+            r4 := is_null("")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r4"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_is_function_predicate() {
+        let code = r#"
+            func my_func() {
+                return 42
+            }
+            r1 := is_function(my_func)
+            r2 := is_function(len)
+            r3 := is_function(42)
+            r4 := is_function("hello")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("r4"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_type_introspection_in_conditional() {
+        let code = r#"
+            x := 42
+            result := ""
+            if is_int(x) {
+                result := "integer"
+            } else if is_float(x) {
+                result := "float"
+            } else {
+                result := "other"
+            }
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "integer"));
+    }
+
+    #[test]
+    fn test_type_introspection_defensive_coding() {
+        let code = r#"
+            func process_value(val) {
+                if is_int(val) {
+                    return val * 2
+                }
+                if is_string(val) {
+                    return len(val)
+                }
+                return 0
+            }
+
+            r1 := process_value(10)
+            r2 := process_value("hello")
+            r3 := process_value(true)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("r1"), Some(Value::Int(n)) if n == 20));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Int(n)) if n == 5));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Int(n)) if n == 0));
+    }
+
+    #[test]
+    fn test_type_function_edge_cases() {
+        let code = r#"
+            # Test with variables
+            x := 42
+            t1 := type(x)
+
+            # Test with expressions
+            t2 := type(1 + 1)
+            t3 := type("hello" + " world")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("t1"), Some(Value::Str(s)) if s == "int"));
+        assert!(matches!(interp.env.get("t2"), Some(Value::Str(s)) if s == "int"));
+        assert!(matches!(interp.env.get("t3"), Some(Value::Str(s)) if s == "string"));
+    }
+
+    #[test]
+    fn test_combined_type_predicates() {
+        let code = r#"
+            val := 3.14
+            is_numeric := is_int(val) || is_float(val)
+            is_collection := is_array(val) || is_dict(val)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("is_numeric"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("is_collection"), Some(Value::Bool(false))));
     }
 }

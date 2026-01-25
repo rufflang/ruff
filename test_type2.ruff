@@ -1,0 +1,26 @@
+# Test with actual native functions
+t1 := type(len)
+print("Type of len:", t1)
+
+t2 := type(abs)
+print("Type of abs:", t2)
+
+# Test defensive coding function
+func process_value(val) {
+    if is_int(val) {
+        return val * 2
+    } else if is_string(val) {
+        return len(val)
+    } else {
+        return 0
+    }
+}
+
+r1 := process_value(10)
+print("process_value(10):", r1)
+
+r2 := process_value("hello")
+print("process_value('hello'):", r2)
+
+r3 := process_value(true)
+print("process_value(true):", r3)

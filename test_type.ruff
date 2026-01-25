@@ -1,0 +1,6 @@
+# Test type function
+t := type(print)
+print("Type of print:", t)
+
+x := 42
+print("Type of x:", type(x))

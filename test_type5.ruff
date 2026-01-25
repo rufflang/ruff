@@ -1,0 +1,27 @@
+func process_value(val) {
+    print("=== Called with:", val, "===")
+    if is_int(val) {
+        res := val * 2
+        print("Returning:", res)
+        return res
+    } else if is_string(val) {
+        res := len(val)
+        print("Returning:", res)
+        return res
+    } else {
+        print("Returning: 0")
+        return 0
+    }
+}
+
+print("Test 1:")
+r1 := process_value(10)
+print("r1 =", r1)
+
+print("\nTest 2:")
+r2 := process_value("hello")
+print("r2 =", r2)
+
+print("\nTest 3:")
+r3 := process_value(true)
+print("r3 =", r3)
