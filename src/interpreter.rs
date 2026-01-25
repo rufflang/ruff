@@ -9356,4 +9356,356 @@ mod tests {
         assert!(!std::path::Path::new(renamed).exists());
         assert!(!std::path::Path::new(copied).exists());
     }
+
+    #[test]
+    fn test_sort_integers() {
+        let code = r#"
+            nums := [3, 1, 4, 1, 5, 9, 2, 6]
+            sorted := sort(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("sorted") {
+            assert_eq!(arr.len(), 8);
+            // Check if sorted in ascending order
+            let expected = vec![1, 1, 2, 3, 4, 5, 6, 9];
+            for (i, val) in arr.iter().enumerate() {
+                if let Value::Int(n) = val {
+                    assert_eq!(*n, expected[i]);
+                } else {
+                    panic!("Expected integer at index {}", i);
+                }
+            }
+        } else {
+            panic!("Expected sorted to be an array");
+        }
+    }
+
+    #[test]
+    fn test_sort_floats() {
+        let code = r#"
+            nums := [3.5, 1.2, 4.8, 2.1]
+            sorted := sort(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("sorted") {
+            assert_eq!(arr.len(), 4);
+            // Check if sorted in ascending order
+            let expected = vec![1.2, 2.1, 3.5, 4.8];
+            for (i, val) in arr.iter().enumerate() {
+                if let Value::Float(n) = val {
+                    assert!((n - expected[i]).abs() < 0.001);
+                } else {
+                    panic!("Expected float at index {}", i);
+                }
+            }
+        } else {
+            panic!("Expected sorted to be an array");
+        }
+    }
+
+    #[test]
+    fn test_sort_mixed_numbers() {
+        let code = r#"
+            nums := [3, 1.5, 4, 2.2]
+            sorted := sort(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("sorted") {
+            assert_eq!(arr.len(), 4);
+            // Should be sorted: 1.5, 2.2, 3, 4
+            // Extract as floats for comparison
+            let mut values: Vec<f64> = Vec::new();
+            for val in arr {
+                match val {
+                    Value::Int(n) => values.push(n as f64),
+                    Value::Float(n) => values.push(n),
+                    _ => panic!("Expected number"),
+                }
+            }
+            assert!((values[0] - 1.5).abs() < 0.001);
+            assert!((values[1] - 2.2).abs() < 0.001);
+            assert!((values[2] - 3.0).abs() < 0.001);
+            assert!((values[3] - 4.0).abs() < 0.001);
+        } else {
+            panic!("Expected sorted to be an array");
+        }
+    }
+
+    #[test]
+    fn test_sort_strings() {
+        let code = r#"
+            words := ["banana", "apple", "cherry", "date"]
+            sorted := sort(words)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("sorted") {
+            let expected = vec!["apple", "banana", "cherry", "date"];
+            for (i, val) in arr.iter().enumerate() {
+                if let Value::Str(s) = val {
+                    assert_eq!(s, expected[i]);
+                } else {
+                    panic!("Expected string at index {}", i);
+                }
+            }
+        } else {
+            panic!("Expected sorted to be an array");
+        }
+    }
+
+    #[test]
+    fn test_reverse() {
+        let code = r#"
+            nums := [1, 2, 3, 4, 5]
+            reversed := reverse(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("reversed") {
+            let expected = vec![5, 4, 3, 2, 1];
+            for (i, val) in arr.iter().enumerate() {
+                if let Value::Int(n) = val {
+                    assert_eq!(*n, expected[i]);
+                } else {
+                    panic!("Expected integer at index {}", i);
+                }
+            }
+        } else {
+            panic!("Expected reversed to be an array");
+        }
+    }
+
+    #[test]
+    fn test_unique() {
+        let code = r#"
+            nums := [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
+            unique_nums := unique(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("unique_nums") {
+            // Should preserve order and remove duplicates: [3, 1, 4, 5, 9, 2, 6]
+            assert_eq!(arr.len(), 7);
+            let expected = vec![3, 1, 4, 5, 9, 2, 6];
+            for (i, val) in arr.iter().enumerate() {
+                if let Value::Int(n) = val {
+                    assert_eq!(*n, expected[i]);
+                } else {
+                    panic!("Expected integer at index {}", i);
+                }
+            }
+        } else {
+            panic!("Expected unique_nums to be an array");
+        }
+    }
+
+    #[test]
+    fn test_unique_strings() {
+        let code = r#"
+            words := ["apple", "banana", "apple", "cherry", "banana"]
+            unique_words := unique(words)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Array(arr)) = interp.env.get("unique_words") {
+            assert_eq!(arr.len(), 3);
+            let expected = vec!["apple", "banana", "cherry"];
+            for (i, val) in arr.iter().enumerate() {
+                if let Value::Str(s) = val {
+                    assert_eq!(s, expected[i]);
+                } else {
+                    panic!("Expected string at index {}", i);
+                }
+            }
+        } else {
+            panic!("Expected unique_words to be an array");
+        }
+    }
+
+    #[test]
+    fn test_sum_integers() {
+        let code = r#"
+            nums := [1, 2, 3, 4, 5]
+            total := sum(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Int(n)) = interp.env.get("total") {
+            assert_eq!(n, 15);
+        } else {
+            panic!("Expected total to be an integer");
+        }
+    }
+
+    #[test]
+    fn test_sum_floats() {
+        let code = r#"
+            nums := [1.5, 2.5, 3.0]
+            total := sum(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Float(n)) = interp.env.get("total") {
+            assert!((n - 7.0).abs() < 0.001);
+        } else {
+            panic!("Expected total to be a float");
+        }
+    }
+
+    #[test]
+    fn test_sum_mixed() {
+        let code = r#"
+            nums := [1, 2.5, 3, 4.5]
+            total := sum(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Float(n)) = interp.env.get("total") {
+            assert!((n - 11.0).abs() < 0.001);
+        } else {
+            panic!("Expected total to be a float");
+        }
+    }
+
+    #[test]
+    fn test_sum_empty_array() {
+        let code = r#"
+            nums := []
+            total := sum(nums)
+        "#;
+
+        let interp = run_code(code);
+
+        if let Some(Value::Int(n)) = interp.env.get("total") {
+            assert_eq!(n, 0);
+        } else {
+            panic!("Expected total to be 0");
+        }
+    }
+
+    #[test]
+    fn test_any_true() {
+        let code = r#"
+            nums := [1, 2, 3, 4, 5]
+            result := any(nums, func(x) { return x > 3 })
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_any_false() {
+        let code = r#"
+            nums := [1, 2, 3]
+            result := any(nums, func(x) { return x > 10 })
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_any_empty_array() {
+        let code = r#"
+            nums := []
+            result := any(nums, func(x) { return x > 0 })
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_all_true() {
+        let code = r#"
+            nums := [1, 2, 3, 4, 5]
+            result := all(nums, func(x) { return x > 0 })
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_all_false() {
+        let code = r#"
+            nums := [1, 2, 3, 4, 5]
+            result := all(nums, func(x) { return x > 3 })
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_all_empty_array() {
+        let code = r#"
+            nums := []
+            result := all(nums, func(x) { return x > 0 })
+        "#;
+
+        let interp = run_code(code);
+
+        // All elements of empty array satisfy any condition (vacuous truth)
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_array_utilities_chained() {
+        let code = r#"
+            nums := [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
+            
+            # Get unique, sort, reverse
+            step1 := unique(nums)
+            step2 := sort(step1)
+            step3 := reverse(step2)
+            
+            # Sum and check
+            total := sum(nums)
+            has_large := any(nums, func(x) { return x > 8 })
+            all_positive := all(nums, func(x) { return x > 0 })
+        "#;
+
+        let interp = run_code(code);
+
+        // step3 should be [9, 6, 5, 4, 3, 2, 1]
+        if let Some(Value::Array(arr)) = interp.env.get("step3") {
+            assert_eq!(arr.len(), 7);
+            let expected = vec![9, 6, 5, 4, 3, 2, 1];
+            for (i, val) in arr.iter().enumerate() {
+                if let Value::Int(n) = val {
+                    assert_eq!(*n, expected[i]);
+                }
+            }
+        } else {
+            panic!("Expected step3 to be an array");
+        }
+
+        // total should be 39 (3+1+4+1+5+9+2+6+5+3)
+        if let Some(Value::Int(n)) = interp.env.get("total") {
+            assert_eq!(n, 39);
+        }
+
+        assert!(matches!(interp.env.get("has_large"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("all_positive"), Some(Value::Bool(true))));
+    }
 }
