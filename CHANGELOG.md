@@ -5,6 +5,51 @@ All notable changes to the Ruff programming language will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.8.0
+
+### Added
+
+- **Destructuring Patterns** 📦 - Extract values from arrays and dicts (P1 feature):
+  - **Array destructuring**: `[a, b, c] := [1, 2, 3]`
+    - Bind multiple variables from array elements
+    - Support for nested patterns: `[[x, y], z] := [[1, 2], 3]`
+    - Ignore values with `_`: `[x, _, z] := [1, 2, 3]`
+    - Rest elements with `...`: `[first, second, ...rest] := [1, 2, 3, 4, 5]`
+  - **Dict destructuring**: `{name, email} := user`
+    - Extract specific keys from dictionary
+    - Missing keys default to `null`
+    - Rest elements: `{host, port, ...other} := config`
+  - **For-loop destructuring**: Iterate with patterns
+    ```ruff
+    for [x, y] in [[1, 2], [3, 4]] {
+        print(x, y)
+    }
+    ```
+  - Examples: See `examples/destructuring_demo.ruff`
+
+- **Spread Operator** 🌊 - Expand arrays and dicts in place (P1 feature):
+  - **Array spreading**: `[...arr1, ...arr2]`
+    - Merge multiple arrays: `combined := [...fruits, ...vegetables]`
+    - Add elements while spreading: `[1, ...numbers, 5]`
+    - Clone arrays: `copy := [...original]`
+  - **Dict spreading**: `{...dict1, ...dict2}`
+    - Merge dictionaries: `config := {...defaults, ...custom}`
+    - Later values override earlier: `{...base, timeout: 60}`
+    - Add fields while spreading: `{...user, verified: true}`
+  - Examples: See `examples/spread_operator_demo.ruff`
+
+### Changed
+
+- Updated Stmt::Let to use Pattern instead of simple name
+- Array and dict literals now support spread elements
+- Type checker updated to handle destructuring patterns
+
+### Tests
+
+- Added 15 comprehensive destructuring tests
+- Added 15 comprehensive spread operator tests
+- All 208 tests passing
+
 ## [0.7.0] - 2026-01-25
 
 ### 🎉 Core Language Completion Release
