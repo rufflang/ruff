@@ -333,6 +333,16 @@ impl TypeChecker {
         );
 
         self.functions.insert(
+            "current_timestamp".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Float) },
+        );
+
+        self.functions.insert(
+            "performance_now".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Float) },
+        );
+
+        self.functions.insert(
             "format_date".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::Float), Some(TypeAnnotation::String)],

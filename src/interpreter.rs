@@ -565,6 +565,8 @@ impl Interpreter {
 
         // Date/Time functions
         self.env.define("now".to_string(), Value::NativeFunction("now".to_string()));
+        self.env.define("current_timestamp".to_string(), Value::NativeFunction("current_timestamp".to_string()));
+        self.env.define("performance_now".to_string(), Value::NativeFunction("performance_now".to_string()));
         self.env
             .define("format_date".to_string(), Value::NativeFunction("format_date".to_string()));
         self.env.define("parse_date".to_string(), Value::NativeFunction("parse_date".to_string()));
@@ -1879,6 +1881,16 @@ impl Interpreter {
             "now" => {
                 // now() - returns current Unix timestamp
                 Value::Number(builtins::now())
+            }
+
+            "current_timestamp" => {
+                // current_timestamp() - returns current timestamp in milliseconds since UNIX epoch
+                Value::Number(builtins::current_timestamp())
+            }
+
+            "performance_now" => {
+                // performance_now() - returns high-resolution timer in milliseconds
+                Value::Number(builtins::performance_now())
             }
 
             "format_date" => {
@@ -7417,5 +7429,111 @@ mod tests {
 
         let interp = run_code(code);
         assert!(matches!(interp.env.get("count"), Some(Value::Number(n)) if n == 0.0));
+    }
+
+    #[test]
+    fn test_current_timestamp() {
+        let code = r#"
+            ts := current_timestamp()
+        "#;
+
+        let interp = run_code(code);
+        // Verify it returns a number (milliseconds since UNIX epoch)
+        if let Some(Value::Number(timestamp)) = interp.env.get("ts") {
+            // Should be a large positive number (milliseconds since 1970)
+            // As of Jan 2026, this should be around 1.7 trillion
+            assert!(timestamp > 1_700_000_000_000.0, "Timestamp should be > 1.7 trillion ms");
+            assert!(timestamp < 2_000_000_000_000.0, "Timestamp should be < 2 trillion ms");
+        } else {
+            panic!("Expected current_timestamp() to return a number");
+        }
+    }
+
+    #[test]
+    fn test_current_timestamp_progression() {
+        let code = r#"
+            ts1 := current_timestamp()
+            # Do some work
+            x := 0
+            while x < 100 {
+                x := x + 1
+            }
+            ts2 := current_timestamp()
+        "#;
+
+        let interp = run_code(code);
+        // Verify that ts2 >= ts1 (time moves forward)
+        if let (Some(Value::Number(ts1)), Some(Value::Number(ts2))) = 
+            (interp.env.get("ts1"), interp.env.get("ts2")) {
+            assert!(ts2 >= ts1, "Timestamp should increase or stay the same");
+        } else {
+            panic!("Expected both timestamps to be numbers");
+        }
+    }
+
+    #[test]
+    fn test_performance_now() {
+        let code = r#"
+            perf := performance_now()
+        "#;
+
+        let interp = run_code(code);
+        // Verify it returns a number (milliseconds since program start)
+        if let Some(Value::Number(time)) = interp.env.get("perf") {
+            // Should be a small positive number (milliseconds since start)
+            assert!(time >= 0.0, "Performance timer should be >= 0");
+            // Should be less than 1 second for this quick test
+            assert!(time < 10000.0, "Performance timer should be < 10 seconds for quick test");
+        } else {
+            panic!("Expected performance_now() to return a number");
+        }
+    }
+
+    #[test]
+    fn test_performance_now_progression() {
+        let code = r#"
+            p1 := performance_now()
+            # Do some work
+            x := 0
+            while x < 1000 {
+                x := x + 1
+            }
+            p2 := performance_now()
+        "#;
+
+        let interp = run_code(code);
+        // Verify that p2 > p1 (time moves forward)
+        if let (Some(Value::Number(p1)), Some(Value::Number(p2))) = 
+            (interp.env.get("p1"), interp.env.get("p2")) {
+            assert!(p2 > p1, "Performance timer should increase over time");
+            // Difference should be reasonable (not negative, not huge)
+            let diff = p2 - p1;
+            assert!(diff > 0.0, "Time difference should be positive");
+            assert!(diff < 10000.0, "Time difference should be reasonable (< 10s)");
+        } else {
+            panic!("Expected both performance timers to be numbers");
+        }
+    }
+
+    #[test]
+    fn test_timing_arithmetic() {
+        let code = r#"
+            start := performance_now()
+            # Simulate work
+            i := 0
+            while i < 500 {
+                i := i + 1
+            }
+            end := performance_now()
+            elapsed := end - start
+        "#;
+
+        let interp = run_code(code);
+        // Verify arithmetic operations work on timing values
+        if let Some(Value::Number(elapsed)) = interp.env.get("elapsed") {
+            assert!(elapsed >= 0.0, "Elapsed time should be non-negative");
+        } else {
+            panic!("Expected elapsed to be a number");
+        }
     }
 }

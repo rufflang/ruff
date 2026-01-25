@@ -16,7 +16,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH, Instant};
 
 /// Returns a HashMap of all built-in functions
 #[allow(dead_code)]
@@ -504,6 +504,30 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
 /// Get current Unix timestamp (seconds since epoch)
 pub fn now() -> f64 {
     Utc::now().timestamp() as f64
+}
+
+/// Get current timestamp in milliseconds since UNIX epoch
+/// Returns the number of milliseconds elapsed since January 1, 1970 00:00:00 UTC
+/// This is useful for timestamps and timing operations
+pub fn current_timestamp() -> f64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("System time before UNIX epoch")
+        .as_millis() as f64
+}
+
+/// High-resolution performance timer in milliseconds
+/// Returns elapsed time in milliseconds since an arbitrary point in time
+/// This is ideal for measuring performance and elapsed time between operations
+/// Note: The starting point is arbitrary and consistent within the process lifetime
+pub fn performance_now() -> f64 {
+    // Use a static Instant that's initialized once for consistent measurements
+    // This ensures performance_now() returns milliseconds since program start
+    use std::sync::OnceLock;
+    static START: OnceLock<Instant> = OnceLock::new();
+    let start = START.get_or_init(|| Instant::now());
+    
+    start.elapsed().as_secs_f64() * 1000.0
 }
 
 /// Format a Unix timestamp to a date string
