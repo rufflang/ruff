@@ -169,6 +169,11 @@ pub enum Expr {
         index: Box<Expr>,
     },
     /// Spread expression: ...expr
+    /// NOTE: This variant exists in the AST for completeness but is NEVER constructed
+    /// as a standalone expression. Spread is only valid within ArrayElement::Spread
+    /// and DictElement::Spread contexts. The warning is suppressed because this design
+    /// is intentional - spread semantics depend on container context.
+    #[allow(dead_code)]
     Spread(Box<Expr>),
 }
 

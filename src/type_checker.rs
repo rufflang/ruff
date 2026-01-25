@@ -1895,6 +1895,9 @@ impl TypeChecker {
     }
 
     /// Get all available variable names in current scope
+    /// TODO: This will be used when adding "Did you mean?" suggestions to interpreter
+    /// runtime errors (currently only used in type checker for undefined function errors)
+    #[allow(dead_code)]
     fn get_available_variables(&self) -> Vec<String> {
         self.variables.keys().cloned().collect()
     }
