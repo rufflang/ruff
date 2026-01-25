@@ -534,6 +534,17 @@ impl Interpreter {
         self.env
             .define("parse_float".to_string(), Value::NativeFunction("parse_float".to_string()));
 
+        // Type introspection functions
+        self.env.define("type".to_string(), Value::NativeFunction("type".to_string()));
+        self.env.define("is_int".to_string(), Value::NativeFunction("is_int".to_string()));
+        self.env.define("is_float".to_string(), Value::NativeFunction("is_float".to_string()));
+        self.env.define("is_string".to_string(), Value::NativeFunction("is_string".to_string()));
+        self.env.define("is_array".to_string(), Value::NativeFunction("is_array".to_string()));
+        self.env.define("is_dict".to_string(), Value::NativeFunction("is_dict".to_string()));
+        self.env.define("is_bool".to_string(), Value::NativeFunction("is_bool".to_string()));
+        self.env.define("is_null".to_string(), Value::NativeFunction("is_null".to_string()));
+        self.env.define("is_function".to_string(), Value::NativeFunction("is_function".to_string()));
+
         // File I/O functions
         self.env.define("read_file".to_string(), Value::NativeFunction("read_file".to_string()));
         self.env.define("write_file".to_string(), Value::NativeFunction("write_file".to_string()));
@@ -1616,6 +1627,115 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("parse_float requires a string argument".to_string())
+                }
+            }
+
+            // Type introspection functions
+            "type" => {
+                // type(value) - returns the type name of a value as a string
+                if let Some(val) = arg_values.get(0) {
+                    let type_name = match val {
+                        Value::Int(_) => "int",
+                        Value::Float(_) => "float",
+                        Value::Str(_) => "string",
+                        Value::Bool(_) => "bool",
+                        Value::Null => "null",
+                        Value::Array(_) => "array",
+                        Value::Dict(_) => "dict",
+                        Value::Set(_) => "set",
+                        Value::Queue(_) => "queue",
+                        Value::Stack(_) => "stack",
+                        Value::Function(_, _, _) => "function",
+                        Value::NativeFunction(_) => "function",
+                        Value::Struct { .. } => "struct",
+                        Value::StructDef { .. } => "structdef",
+                        Value::Tagged { .. } => "tagged",
+                        Value::Enum(_) => "enum",
+                        Value::Bytes(_) => "bytes",
+                        Value::Channel(_) => "channel",
+                        Value::HttpServer { .. } => "httpserver",
+                        Value::HttpResponse { .. } => "httpresponse",
+                        Value::Database { .. } => "database",
+                        Value::DatabasePool { .. } => "databasepool",
+                        Value::Image { .. } => "image",
+                        Value::Return(_) => "return",
+                        Value::Error(_) | Value::ErrorObject { .. } => "error",
+                    };
+                    Value::Str(type_name.to_string())
+                } else {
+                    Value::Error("type() requires one argument".to_string())
+                }
+            }
+
+            "is_int" => {
+                // is_int(value) - returns true if value is an integer
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Int(_)))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "is_float" => {
+                // is_float(value) - returns true if value is a float
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Float(_)))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "is_string" => {
+                // is_string(value) - returns true if value is a string
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Str(_)))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "is_array" => {
+                // is_array(value) - returns true if value is an array
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Array(_)))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "is_dict" => {
+                // is_dict(value) - returns true if value is a dict
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Dict(_)))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "is_bool" => {
+                // is_bool(value) - returns true if value is a boolean
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Bool(_)))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "is_null" => {
+                // is_null(value) - returns true if value is null
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Null))
+                } else {
+                    Value::Bool(false)
+                }
+            }
+
+            "is_function" => {
+                // is_function(value) - returns true if value is a function
+                if let Some(val) = arg_values.get(0) {
+                    Value::Bool(matches!(val, Value::Function(_, _, _) | Value::NativeFunction(_)))
+                } else {
+                    Value::Bool(false)
                 }
             }
 
