@@ -297,6 +297,16 @@ pub enum Value {
         data: Arc<Mutex<DynamicImage>>,
         format: String,
     },
+    /// Result type: Ok(value) or Err(error)
+    Result {
+        is_ok: bool,
+        value: Box<Value>,
+    },
+    /// Option type: Some(value) or None
+    Option {
+        is_some: bool,
+        value: Box<Value>,
+    },
 }
 
 // Manual Debug impl since NativeFunction doesn't need detailed output
@@ -358,6 +368,20 @@ impl std::fmt::Debug for Value {
             Value::Image { format, data } => {
                 let img = data.lock().unwrap();
                 write!(f, "Image({}x{}, format={})", img.width(), img.height(), format)
+            }
+            Value::Result { is_ok, value } => {
+                if *is_ok {
+                    write!(f, "Ok({:?})", value)
+                } else {
+                    write!(f, "Err({:?})", value)
+                }
+            }
+            Value::Option { is_some, value } => {
+                if *is_some {
+                    write!(f, "Some({:?})", value)
+                } else {
+                    write!(f, "None")
+                }
             }
         }
     }
