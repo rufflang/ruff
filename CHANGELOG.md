@@ -123,6 +123,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Add fields while spreading: `{...user, verified: true}`
   - Examples: See `examples/spread_operator_demo.ruff`
 
+- **Enhanced Collection Methods** 🔧 - Advanced array, dict, and string utilities (P2 feature):
+  - **Advanced array methods**:
+    - `chunk(arr, size)` - Split array into chunks of specified size
+      - Example: `chunk([1,2,3,4,5], 2)` → `[[1,2], [3,4], [5]]`
+    - `flatten(arr)` - Flatten nested arrays by one level
+      - Example: `flatten([[1,2], [3,4]])` → `[1,2,3,4]`
+    - `zip(arr1, arr2)` - Zip two arrays into pairs
+      - Example: `zip([1,2,3], ["a","b","c"])` → `[[1,"a"], [2,"b"], [3,"c"]]`
+    - `enumerate(arr)` - Add index to each element
+      - Example: `enumerate(["a","b","c"])` → `[[0,"a"], [1,"b"], [2,"c"]]`
+    - `take(arr, n)` - Take first n elements
+      - Example: `take([1,2,3,4,5], 3)` → `[1,2,3]`
+    - `skip(arr, n)` - Skip first n elements
+      - Example: `skip([1,2,3,4,5], 2)` → `[3,4,5]`
+    - `windows(arr, size)` - Create sliding windows
+      - Example: `windows([1,2,3,4], 2)` → `[[1,2], [2,3], [3,4]]`
+  - **Advanced dict methods**:
+    - `invert(dict)` - Swap keys and values
+      - Example: `invert({"a":"1", "b":"2"})` → `{"1":"a", "2":"b"}`
+    - `update(dict1, dict2)` - Merge dict2 into dict1 (returns new dict)
+      - Example: `update({age:"30"}, {age:"31", city:"NYC"})` → `{age:"31", city:"NYC"}`
+    - `get_default(dict, key, default)` - Get value or return default if missing
+      - Example: `get_default(config, "timeout", "30")` → returns value or "30"
+  - **Advanced string methods**:
+    - `pad_left(str, width, char)` - Pad string on left
+      - Example: `pad_left("5", 3, "0")` → `"005"`
+    - `pad_right(str, width, char)` - Pad string on right
+      - Example: `pad_right("a", 3, "-")` → `"a--"`
+    - `lines(str)` - Split into lines (handles all newline types)
+      - Example: `lines("a\nb\nc")` → `["a", "b", "c"]`
+    - `words(str)` - Split into words (on whitespace)
+      - Example: `words("hello world")` → `["hello", "world"]`
+    - `str_reverse(str)` - Reverse a string
+      - Example: `str_reverse("hello")` → `"olleh"`
+    - `slugify(str)` - Convert to URL-friendly slug
+      - Example: `slugify("Hello World!")` → `"hello-world"`
+    - `truncate(str, len, suffix)` - Truncate with suffix
+      - Example: `truncate("Hello World", 8, "...")` → `"Hello..."`
+    - `to_camel_case(str)` - Convert to camelCase
+      - Example: `to_camel_case("hello_world")` → `"helloWorld"`
+    - `to_snake_case(str)` - Convert to snake_case
+      - Example: `to_snake_case("helloWorld")` → `"hello_world"`
+    - `to_kebab_case(str)` - Convert to kebab-case
+      - Example: `to_kebab_case("helloWorld")` → `"hello-world"`
+  - All methods are chainable for functional programming patterns
+  - Examples: See `tests/test_enhanced_collections.ruff`
+
 ### Changed
 
 - Updated Stmt::Let to use Pattern instead of simple name
