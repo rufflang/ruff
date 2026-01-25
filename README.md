@@ -389,7 +389,38 @@ cargo run --quiet -- run examples/your_script.ruff
 
 # Or with build messages
 cargo run -- run examples/your_script.ruff
+
+# Use bytecode VM for faster execution (experimental)
+cargo run -- run examples/your_script.ruff --vm
 ```
+
+### Bytecode VM (Experimental)
+
+Ruff includes an experimental bytecode compiler and virtual machine for improved performance:
+
+```bash
+# Run with bytecode VM
+ruff run examples/factorial.ruff --vm
+```
+
+**Current Status**:
+- ✅ Core VM architecture complete
+- ✅ User-defined functions work correctly
+- ✅ Basic arithmetic, control flow, arrays, dicts
+- ⚠️ Limited built-in function support (parser issue being fixed)
+- ⚠️ No benchmarks yet - performance improvements to be measured
+
+**How it works**:
+1. Ruff AST is compiled to stack-based bytecode
+2. Virtual machine executes bytecode instructions
+3. Designed for 10-20x performance improvement over tree-walking interpreter
+
+**Use cases**:
+- Performance-critical scripts
+- Testing VM functionality
+- Comparing execution speeds
+
+Note: The VM is under active development. Some features may not work correctly. Fall back to the default tree-walking interpreter (without `--vm` flag) if you encounter issues.
 
 ---
 
