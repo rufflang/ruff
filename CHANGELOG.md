@@ -9,6 +9,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Range Function** 🔢 - Generate number sequences for loops and iteration (P2 feature):
+  - **range(stop)** - Generate `[0, 1, 2, ..., stop-1]`
+  - **range(start, stop)** - Generate `[start, start+1, ..., stop-1]`
+  - **range(start, stop, step)** - Generate with custom step size
+  - Supports negative steps for descending sequences
+  - Returns empty array for invalid ranges
+  - Example: `range(5)` → `[0, 1, 2, 3, 4]`
+  - Example: `range(2, 7)` → `[2, 3, 4, 5, 6]`
+  - Example: `range(10, 0, 0 - 2)` → `[10, 8, 6, 4, 2]`
+
+- **Format String** 📝 - sprintf-style string formatting (P2 feature):
+  - **format(template, ...args)** - Format strings with placeholders:
+    - `%s` - String placeholder (converts any value to string)
+    - `%d` - Integer placeholder (converts numbers to integers)
+    - `%f` - Float placeholder (converts numbers to floats)
+    - `%%` - Escaped percent sign
+  - Supports variadic arguments
+  - Returns formatted string
+  - Example: `format("Hello %s!", "World")` → `"Hello World!"`
+  - Example: `format("%s is %d years old", "Alice", 25)` → `"Alice is 25 years old"`
+  - Example: `format("Success rate: %d%%", 95)` → `"Success rate: 95%"`
+
+- **Extended Math Functions** 🧮 - Additional mathematical operations (P2 feature):
+  - **log(x)** - Natural logarithm (base e)
+  - **exp(x)** - Exponential function (e^x)
+  - All 13 math functions now available: `abs()`, `sqrt()`, `pow()`, `floor()`, `ceil()`, `round()`, `min()`, `max()`, `sin()`, `cos()`, `tan()`, `log()`, `exp()`
+
+- **String Methods** 📚 - Comprehensive string manipulation (P2 feature):
+  - **Case conversion**:
+    - `upper(str)` / `to_upper(str)` - Convert to uppercase
+    - `lower(str)` / `to_lower(str)` - Convert to lowercase
+    - `capitalize(str)` - Capitalize first character
+  - **Trimming**:
+    - `trim(str)` - Remove whitespace from both ends
+    - `trim_start(str)` - Remove leading whitespace
+    - `trim_end(str)` - Remove trailing whitespace
+  - **Character operations**:
+    - `char_at(str, index)` - Get character at index
+    - `count_chars(str)` - Count characters (not bytes)
+  - **Validation**:
+    - `is_empty(str)` - Check if string is empty
+  - **Search** (existing, now documented):
+    - `contains(str, substr)` - Check if contains substring
+    - `starts_with(str, prefix)` - Check prefix
+    - `ends_with(str, suffix)` - Check suffix
+    - `index_of(str, substr)` - Find first occurrence index
+  - **Manipulation** (existing, now documented):
+    - `replace(str, old, new)` / `replace_str(str, old, new)` - Replace occurrences
+    - `split(str, delimiter)` - Split into array
+    - `join(array, separator)` - Join array into string
+    - `substring(str, start, end)` - Extract substring
+    - `repeat(str, count)` - Repeat string n times
+
+- **Array Mutation Methods** 🔧 - Essential array operations (P2 feature):
+  - **push(arr, item)** / **append(arr, item)** - Add item to end
+  - **pop(arr)** - Remove and return last item (returns `[modified_array, popped_item]`)
+  - **insert(arr, index, item)** - Insert item at specific index
+  - **remove(arr, item)** - Remove first occurrence of item
+  - **remove_at(arr, index)** - Remove item at index (returns `[modified_array, removed_item]`)
+  - **clear(arr)** - Return empty array
+  - **Polymorphic functions** (work with both strings and arrays):
+    - `contains(arr, item)` - Check if array contains item (also works with strings)
+    - `index_of(arr, item)` - Find index of item (also works with strings)
+  - **Existing** (now documented):
+    - `concat(arr1, arr2)` - Concatenate two arrays
+    - `slice(arr, start, end)` - Extract sub-array
+
+- **Dict/Map Methods** 🗺️ - Essential dictionary operations (P2 feature):
+  - **items(dict)** - Get array of `[key, value]` pairs
+  - **get(dict, key, default?)** - Get value with optional default if key not found
+  - **merge(dict1, dict2)** - Merge two dictionaries (dict2 overwrites dict1)
+  - **Polymorphic functions**:
+    - `clear(dict)` - Return empty dict (also works with arrays)
+    - `remove(dict, key)` - Remove key-value pair (returns `[modified_dict, removed_value]`, also works with arrays)
+  - **Existing** (now documented):
+    - `keys(dict)` - Get all keys as array
+    - `values(dict)` - Get all values as array
+    - `has_key(dict, key)` - Check if key exists
+
 - **Assert & Debug Functions** 🐛 - Runtime assertions and debug output for testing and troubleshooting (P2 feature):
   - **assert(condition, message?)** - Runtime assertion with optional custom error message:
     - Returns `true` if condition is truthy (non-zero numbers, non-null values, true boolean)
