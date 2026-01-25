@@ -1,0 +1,12 @@
+func process_value(val) {
+    if is_int(val) {
+        return val * 2
+    } else if is_string(val) {
+        return len(val)
+    } else {
+        return 0
+    }
+}
+
+r1 := process_value(10)
+print("r1:", r1)

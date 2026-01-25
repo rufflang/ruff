@@ -16,8 +16,8 @@
 #[derive(Debug, Clone, PartialEq)] // Added PartialEq here
 pub enum TokenKind {
     Identifier(String),
-    Int(i64),      // Integer literals like 42
-    Float(f64),    // Float literals like 3.14
+    Int(i64),   // Integer literals like 42
+    Float(f64), // Float literals like 3.14
     String(String),
     InterpolatedString(Vec<InterpolatedPart>), // String with ${} expressions
     Bool(bool),
@@ -181,7 +181,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             '0'..='9' => {
                 let mut num = String::new();
                 let mut has_decimal = false;
-                
+
                 while let Some(&ch) = chars.peek() {
                     if ch.is_ascii_digit() {
                         num.push(ch);
@@ -210,7 +210,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         break;
                     }
                 }
-                
+
                 // Create Int or Float token based on presence of decimal point
                 if has_decimal {
                     let parsed = num.parse().unwrap_or(0.0);
@@ -236,10 +236,8 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     "let" | "mut" | "const" | "func" | "return" | "enum" | "match" | "case"
                     | "default" | "if" | "else" | "loop" | "while" | "for" | "in" | "break"
                     | "continue" | "try" | "except" | "int" | "float" | "string" | "bool"
-                    | "import" | "export" | "from" | "struct" | "impl" | "self" | "null" 
-                    | "spawn" => {
-                        TokenKind::Keyword(ident)
-                    }
+                    | "import" | "export" | "from" | "struct" | "impl" | "self" | "null"
+                    | "spawn" => TokenKind::Keyword(ident),
                     "true" => TokenKind::Bool(true),
                     "false" => TokenKind::Bool(false),
                     _ => TokenKind::Identifier(ident),
@@ -344,11 +342,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     });
                 } else {
                     // Single ? might be used for ternary later, for now treat as unknown
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("?".into()),
-                        line,
-                        column: col,
-                    });
+                    tokens.push(Token { kind: TokenKind::Operator("?".into()), line, column: col });
                 }
             }
             '/' => {

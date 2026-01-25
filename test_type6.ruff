@@ -1,0 +1,6 @@
+func test_func(val) {
+    return val * 2
+}
+
+r1 := test_func(10)
+print("Result:", r1)

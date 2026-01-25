@@ -1,0 +1,12 @@
+# Test basic is_int
+x := 10
+print("x:", x)
+result := is_int(x)
+print("is_int(x):", result)
+
+# Test in if statement
+if is_int(x) {
+    print("x is an integer")
+} else {
+    print("x is NOT an integer")
+}

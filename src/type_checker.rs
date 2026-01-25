@@ -576,7 +576,7 @@ impl TypeChecker {
             "db_connect".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // db_type, connection_string
-                return_type: None,                               // Returns Database object
+                return_type: None, // Returns Database object
             },
         );
 
@@ -658,7 +658,7 @@ impl TypeChecker {
             "http_get_stream".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String)], // URL
-                return_type: None, // Returns bytes array
+                return_type: None,                               // Returns bytes array
             },
         );
 
@@ -667,7 +667,7 @@ impl TypeChecker {
             "jwt_encode".to_string(),
             FunctionSignature {
                 param_types: vec![None, Some(TypeAnnotation::String)], // Payload dict and secret
-                return_type: Some(TypeAnnotation::String), // Returns JWT token string
+                return_type: Some(TypeAnnotation::String),             // Returns JWT token string
             },
         );
 
@@ -866,7 +866,7 @@ impl TypeChecker {
             "load_image".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String)], // Image path
-                return_type: None, // Returns Image object
+                return_type: None,                               // Returns Image object
             },
         );
     }

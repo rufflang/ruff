@@ -1,0 +1,22 @@
+func process_value(val) {
+    print("Processing:", val)
+    if is_int(val) {
+        print("Is int, multiplying by 2")
+        return val * 2
+    } else if is_string(val) {
+        print("Is string, getting length")
+        return len(val)
+    } else {
+        print("Is other, returning 0")
+        return 0
+    }
+}
+
+r1 := process_value(10)
+print("Result 1:", r1)
+
+r2 := process_value("hello")
+print("Result 2:", r2)
+
+r3 := process_value(true)
+print("Result 3:", r3)
