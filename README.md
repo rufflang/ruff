@@ -200,7 +200,7 @@
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **Type Introspection** (v0.7.0): `type()`, `is_int()`, `is_float()`, `is_string()`, `is_array()`, `is_dict()`, `is_bool()`, `is_null()`, `is_function()` - Runtime type checking for defensive coding and validation
-  - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
+  - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`, `file_size()`, `delete_file()`, `rename_file()`, `copy_file()`
   - **Error handling**: `throw()`
 
 * **Operators**
