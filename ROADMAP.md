@@ -26,24 +26,12 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 10. Timing Functions (P0)
 
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 hours)
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 25, 2026
 
-**Critical Bug Fix**: Fix `current_timestamp()` bug in `examples/projects/ai_model_comparison.ruff`
+~~**Critical Bug Fix**: Fix `current_timestamp()` bug in `examples/projects/ai_model_comparison.ruff`~~ ✅ Fixed
 
-**Features**:
-```ruff
-# High-resolution timestamp in milliseconds
-timestamp := current_timestamp()  # 1737734400000
-
-# Performance timing
-start := performance_now()
-expensive_operation()
-elapsed := performance_now() - start
-print("Took ${elapsed}ms")
-```
-
-**Implementation**: Add to `builtins.rs` using `std::time::SystemTime` and `Instant`
+Implemented both timing functions with high-precision support. See CHANGELOG for details.
 
 ---
 
