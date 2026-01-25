@@ -273,6 +273,16 @@
     arr3 := remove(arr2, 3)  # [1, 2, 4]
     has := contains(arr3, 2)  # true
     ```
+  - **Enhanced Array Methods** (v0.8.0): `chunk()`, `flatten()`, `zip()`, `enumerate()`, `take()`, `skip()`, `windows()` - Advanced array transformations
+    ```ruff
+    chunk([1,2,3,4,5], 2)  # [[1,2], [3,4], [5]]
+    flatten([[1,2], [3,4]])  # [1,2,3,4]
+    zip([1,2,3], ["a","b","c"])  # [[1,"a"], [2,"b"], [3,"c"]]
+    enumerate(["a","b","c"])  # [[0,"a"], [1,"b"], [2,"c"]]
+    take([1,2,3,4,5], 3)  # [1,2,3]
+    skip([1,2,3,4,5], 2)  # [3,4,5]
+    windows([1,2,3,4], 2)  # [[1,2], [2,3], [3,4]]
+    ```
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
   - **Dict Methods** (v0.7.0): `items(dict)`, `get(dict, key, default)`, `merge(dict1, dict2)`, `clear(dict)` - Enhanced dictionary operations
     ```ruff
@@ -280,6 +290,24 @@
     pairs := items(user)  # [["name", "Alice"], ["age", 30]]
     email := get(user, "email", "N/A")  # "N/A" (not found)
     combined := merge(user, {"city": "NYC"})  # {"name": "Alice", "age": 30, "city": "NYC"}
+    ```
+  - **Enhanced Dict Methods** (v0.8.0): `invert()`, `update()`, `get_default()` - Advanced dictionary utilities
+    ```ruff
+    invert({"a":"1", "b":"2"})  # {"1":"a", "2":"b"}
+    update({age:"30"}, {age:"31", city:"NYC"})  # {age:"31", city:"NYC"}
+    get_default(config, "timeout", "30")  # Returns value or "30"
+    ```
+  - **Enhanced String Methods** (v0.8.0): `pad_left()`, `pad_right()`, `lines()`, `words()`, `str_reverse()`, `slugify()`, `truncate()`, `to_camel_case()`, `to_snake_case()`, `to_kebab_case()` - Advanced string transformations
+    ```ruff
+    pad_left("5", 3, "0")  # "005"
+    lines("a\nb\nc")  # ["a", "b", "c"]
+    words("hello world")  # ["hello", "world"]
+    str_reverse("hello")  # "olleh"
+    slugify("Hello World!")  # "hello-world"
+    truncate("Hello World", 8, "...")  # "Hello..."
+    to_camel_case("hello_world")  # "helloWorld"
+    to_snake_case("helloWorld")  # "hello_world"
+    to_kebab_case("helloWorld")  # "hello-world"
     ```
   - **JSON**: `parse_json()`, `to_json()` - Parse and serialize JSON data (v0.3.0)
   - **TOML** (v0.6.0): `parse_toml()`, `to_toml()` - Parse and serialize TOML configuration files
