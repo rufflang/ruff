@@ -764,6 +764,12 @@ impl Interpreter {
         self.env.define("exit".to_string(), Value::NativeFunction("exit".to_string()));
         self.env.define("sleep".to_string(), Value::NativeFunction("sleep".to_string()));
         self.env.define("execute".to_string(), Value::NativeFunction("execute".to_string()));
+        
+        // OS module functions
+        self.env.define("os_getcwd".to_string(), Value::NativeFunction("os_getcwd".to_string()));
+        self.env.define("os_chdir".to_string(), Value::NativeFunction("os_chdir".to_string()));
+        self.env.define("os_rmdir".to_string(), Value::NativeFunction("os_rmdir".to_string()));
+        self.env.define("os_environ".to_string(), Value::NativeFunction("os_environ".to_string()));
 
         // Path operation functions
         self.env.define("join_path".to_string(), Value::NativeFunction("join_path".to_string()));
@@ -771,6 +777,11 @@ impl Interpreter {
         self.env.define("basename".to_string(), Value::NativeFunction("basename".to_string()));
         self.env
             .define("path_exists".to_string(), Value::NativeFunction("path_exists".to_string()));
+        self.env.define("path_join".to_string(), Value::NativeFunction("path_join".to_string()));
+        self.env.define("path_absolute".to_string(), Value::NativeFunction("path_absolute".to_string()));
+        self.env.define("path_is_dir".to_string(), Value::NativeFunction("path_is_dir".to_string()));
+        self.env.define("path_is_file".to_string(), Value::NativeFunction("path_is_file".to_string()));
+        self.env.define("path_extension".to_string(), Value::NativeFunction("path_extension".to_string()));
 
         // Regular expression functions
         self.env
@@ -3360,6 +3371,51 @@ impl Interpreter {
                 }
             }
 
+            // OS module functions
+            "os_getcwd" => {
+                // os_getcwd() - returns current working directory
+                use std::env;
+                match env::current_dir() {
+                    Ok(path) => Value::Str(path.to_string_lossy().to_string()),
+                    Err(e) => Value::Error(format!("Cannot get current directory: {}", e)),
+                }
+            }
+
+            "os_chdir" => {
+                // os_chdir(path) - changes current working directory
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    use std::env;
+                    match env::set_current_dir(path) {
+                        Ok(_) => Value::Bool(true),
+                        Err(e) => Value::Error(format!("Cannot change directory to '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("os_chdir requires a string argument (path)".to_string())
+                }
+            }
+
+            "os_rmdir" => {
+                // os_rmdir(path) - removes empty directory
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    match std::fs::remove_dir(path) {
+                        Ok(_) => Value::Bool(true),
+                        Err(e) => Value::Error(format!("Cannot remove directory '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("os_rmdir requires a string argument (path)".to_string())
+                }
+            }
+
+            "os_environ" => {
+                // os_environ() - returns all environment variables as a dictionary
+                use std::env;
+                let mut dict = HashMap::new();
+                for (key, val) in env::vars() {
+                    dict.insert(key, Value::Str(val));
+                }
+                Value::Dict(dict)
+            }
+
             // Path operation functions
             "join_path" => {
                 // join_path(parts...) - joins path components
@@ -3402,6 +3458,69 @@ impl Interpreter {
                     Value::Bool(builtins::path_exists(path))
                 } else {
                     Value::Error("path_exists requires a string argument (path)".to_string())
+                }
+            }
+
+            "path_join" => {
+                // path_join(parts...) - joins path components (alias for join_path)
+                let parts: Vec<String> = arg_values
+                    .iter()
+                    .filter_map(|v| match v {
+                        Value::Str(s) => Some(s.clone()),
+                        _ => None,
+                    })
+                    .collect();
+
+                if parts.is_empty() {
+                    Value::Error("path_join requires at least one string argument".to_string())
+                } else {
+                    Value::Str(builtins::join_path(&parts))
+                }
+            }
+
+            "path_absolute" => {
+                // path_absolute(path) - returns absolute path
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    use std::path::Path;
+                    match std::fs::canonicalize(Path::new(path)) {
+                        Ok(abs_path) => Value::Str(abs_path.to_string_lossy().to_string()),
+                        Err(e) => Value::Error(format!("Cannot get absolute path for '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("path_absolute requires a string argument (path)".to_string())
+                }
+            }
+
+            "path_is_dir" => {
+                // path_is_dir(path) - checks if path is a directory
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    use std::path::Path;
+                    Value::Bool(Path::new(path).is_dir())
+                } else {
+                    Value::Error("path_is_dir requires a string argument (path)".to_string())
+                }
+            }
+
+            "path_is_file" => {
+                // path_is_file(path) - checks if path is a file
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    use std::path::Path;
+                    Value::Bool(Path::new(path).is_file())
+                } else {
+                    Value::Error("path_is_file requires a string argument (path)".to_string())
+                }
+            }
+
+            "path_extension" => {
+                // path_extension(path) - returns file extension (without dot)
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    use std::path::Path;
+                    match Path::new(path).extension() {
+                        Some(ext) => Value::Str(ext.to_string_lossy().to_string()),
+                        None => Value::Str(String::new()),
+                    }
+                } else {
+                    Value::Error("path_extension requires a string argument (path)".to_string())
                 }
             }
 
