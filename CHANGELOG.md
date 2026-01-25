@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **File Operations** 📁 - Essential file manipulation functions for common operations (P1 feature):
+  - **file_size(path)** - Get file size in bytes:
+    - Returns integer byte count (e.g., `file_size("document.pdf")` → `1024000`)
+    - Useful for checking file sizes before reading or for progress tracking
+  - **delete_file(path)** - Remove a file:
+    - Deletes the specified file from the filesystem
+    - Returns `true` on success, error on failure
+  - **rename_file(old_path, new_path)** - Rename or move a file:
+    - Renames file from `old_path` to `new_path`
+    - Can also be used to move files between directories
+    - Returns `true` on success, error on failure
+  - **copy_file(source, dest)** - Copy a file:
+    - Creates a copy of `source` at `dest` location
+    - Preserves file content and metadata
+    - Returns `true` on success, error on failure
+  - **Error Handling**: All functions return descriptive errors for missing files, permission issues, etc.
+  - **Comprehensive Testing**: 9 new tests covering all functions and error cases
+  - **Example**:
+    ```ruff
+    # Check file size before processing
+    size := file_size("data.csv")
+    if size > 10000000 {
+        print("File is large: ${size} bytes")
+    }
+    
+    # Create backup before processing
+    copy_file("important.txt", "important.backup.txt")
+    
+    # Rename processed file
+    rename_file("data.csv", "data_processed.csv")
+    
+    # Clean up temporary files
+    delete_file("temp.txt")
+    
+    # Integration example
+    if file_exists("config.json") {
+        size := file_size("config.json")
+        copy_file("config.json", "config.backup.json")
+        print("Backed up config (${size} bytes)")
+    }
+    ```
+
 - **Type Conversion Functions** 🔄 - Convert between types with explicit conversion functions (P0 feature):
   - **to_int(value)** - Convert to integer:
     - From Float: Truncates decimal (e.g., `to_int(3.14)` → `3`)

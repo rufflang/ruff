@@ -37,33 +37,41 @@ Implemented both timing functions with high-precision support. See CHANGELOG for
 
 ### 🔥 NEXT TO IMPLEMENT (Top Priority)
 
-These are the immediate next items after Type Conversion Functions completion:
+These are the immediate next items after File Operations completion:
 
-#### 15. File Operations (P1)
+#### 14. Array Utilities (P1)
 
 **Status**: Planned  
-**Estimated Effort**: Small (3-4 hours)
-**Priority**: HIGH - Common operations for practical scripts
-
-**Current Gap**: Can read/write but missing common operations
+**Estimated Effort**: Medium (4-6 hours)
+**Priority**: HIGH - Essential operations for data processing
 
 **Features**:
 ```ruff
-size := file_size("document.pdf")     # 1024000 bytes
-delete_file("temp.txt")               # Remove file
-rename_file("old.txt", "new.txt")     # Rename
-copy_file("source.txt", "dest.txt")   # Copy
+nums := [3, 1, 4, 1, 5, 9]
+
+sort(nums)            # [1, 1, 3, 4, 5, 9]
+reverse(nums)         # [9, 5, 1, 4, 1, 3]
+unique(nums)          # [3, 1, 4, 5, 9]
+
+sum(nums)             # 23
+any(nums, func(x) { return x > 5 })   # true
+all(nums, func(x) { return x > 0 })   # true
 ```
 
-**Implementation**: Add to `interpreter.rs` using `std::fs` methods
-
----
-
-**Alternative Next Priority**: Array Utilities (P1) - sort, reverse, unique, sum, any, all
+**Implementation**: Add functions to `builtins.rs` operating on `Value::Array`
 
 ---
 
 ### ✅ COMPLETED FEATURES
+
+#### 15. File Operations (P1)
+
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 25, 2026
+
+Implemented four essential file operation functions: `file_size()`, `delete_file()`, `rename_file()`, `copy_file()`. Provides common file manipulation capabilities for practical scripting. Added 9 comprehensive tests including integration tests. See CHANGELOG for complete feature details and examples.
+
+---
 
 #### 14. Type Conversion Functions (P0)
 
@@ -227,25 +235,6 @@ all(nums, func(x) { return x > 0 })   # true
 ```
 
 **Implementation**: Add functions to `builtins.rs` operating on `Value::Array`
-
----
-
-### 15. File Operations (P1)
-
-**Status**: Planned  
-**Estimated Effort**: Small (3-4 hours)
-
-**Current Gap**: Can read/write but missing common operations
-
-**Features**:
-```ruff
-size := file_size("document.pdf")     # 1024000 bytes
-delete_file("temp.txt")               # Remove file
-rename_file("old.txt", "new.txt")     # Rename
-copy_file("source.txt", "dest.txt")   # Copy
-```
-
-**Implementation**: Add to `builtins.rs` using `std::fs` methods
 
 ---
 
