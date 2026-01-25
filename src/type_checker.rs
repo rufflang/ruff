@@ -386,6 +386,25 @@ impl TypeChecker {
             },
         );
 
+        // Type introspection functions
+        self.functions.insert(
+            "type".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any type
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        for name in &["is_int", "is_float", "is_string", "is_array", "is_dict", "is_bool", "is_null", "is_function"] {
+            self.functions.insert(
+                name.to_string(),
+                FunctionSignature {
+                    param_types: vec![None], // Accepts any type
+                    return_type: Some(TypeAnnotation::Bool),
+                },
+            );
+        }
+
         // Assert & Debug functions
         self.functions.insert(
             "assert".to_string(),
@@ -398,8 +417,8 @@ impl TypeChecker {
         self.functions.insert(
             "debug".to_string(),
             FunctionSignature {
-                param_types: vec![None], // Variadic - accepts any number of any type
-                return_type: None,       // Returns null
+                param_types: vec![], // Variadic - accepts any number of any type (empty vec = no validation)
+                return_type: None,   // Returns null
             },
         );
 
@@ -1468,23 +1487,26 @@ impl TypeChecker {
                     let sig = self.functions.get(func_name).cloned();
 
                     if let Some(sig) = sig {
-                        // Check argument count - allow fewer args than params if trailing params are optional (None)
-                        let min_required =
-                            sig.param_types.iter().take_while(|p| p.is_some()).count();
-                        let max_allowed = sig.param_types.len();
+                        // Skip type checking for variadic functions
+                        if func_name != "debug" {
+                            // Check argument count - allow fewer args than params if trailing params are optional (None)
+                            let min_required =
+                                sig.param_types.iter().take_while(|p| p.is_some()).count();
+                            let max_allowed = sig.param_types.len();
 
-                        if args.len() < min_required || args.len() > max_allowed {
-                            self.errors.push(RuffError::new(
-                                ErrorKind::TypeError,
-                                format!(
-                                    "Function '{}' expects {}-{} arguments but got {}",
-                                    func_name,
-                                    min_required,
-                                    max_allowed,
-                                    args.len()
-                                ),
-                                SourceLocation::unknown(),
-                            ));
+                            if args.len() < min_required || args.len() > max_allowed {
+                                self.errors.push(RuffError::new(
+                                    ErrorKind::TypeError,
+                                    format!(
+                                        "Function '{}' expects {}-{} arguments but got {}",
+                                        func_name,
+                                        min_required,
+                                        max_allowed,
+                                        args.len()
+                                    ),
+                                    SourceLocation::unknown(),
+                                ));
+                            }
                         }
 
                         // Check argument types
