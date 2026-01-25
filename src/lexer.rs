@@ -237,9 +237,10 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     | "default" | "if" | "else" | "loop" | "while" | "for" | "in" | "break"
                     | "continue" | "try" | "except" | "int" | "float" | "string" | "bool"
                     | "import" | "export" | "from" | "struct" | "impl" | "self" | "null"
-                    | "spawn" | "Result" | "Option" | "Ok" | "Err" | "Some" | "None" => TokenKind::Keyword(ident),
+                    | "spawn" | "Result" | "Option" => TokenKind::Keyword(ident),
                     "true" => TokenKind::Bool(true),
                     "false" => TokenKind::Bool(false),
+                    // Ok, Err, Some, None are not keywords - they're just identifiers with special meaning in expressions
                     _ => TokenKind::Identifier(ident),
                 };
 

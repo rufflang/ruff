@@ -521,8 +521,12 @@ impl Parser {
 
                     // Parse pattern which might be Base::Variant or Base::Variant(var)
                     let pat = match self.advance() {
-                        TokenKind::Identifier(s) => s.clone(),
-                        _ => return None,
+                        TokenKind::Identifier(s) => {
+                            s.clone()
+                        }
+                        tok => {
+                            return None;
+                        }
                     };
 
                     // Check for :: operator (enum variant)
@@ -1138,12 +1142,12 @@ impl Parser {
                 self.advance();
                 Some(Expr::Identifier("self".to_string()))
             }
-            TokenKind::Keyword(k) if k == "None" => {
+            TokenKind::Identifier(id) if id == "None" => {
                 // Handle None (no arguments)
                 self.advance();
                 Some(Expr::None)
             }
-            TokenKind::Keyword(k) if k == "Ok" => {
+            TokenKind::Identifier(id) if id == "Ok" => {
                 // Handle Ok(value)
                 self.advance(); // consume Ok
                 if matches!(self.peek(), TokenKind::Punctuation('(')) {
@@ -1157,7 +1161,7 @@ impl Parser {
                     None
                 }
             }
-            TokenKind::Keyword(k) if k == "Err" => {
+            TokenKind::Identifier(id) if id == "Err" => {
                 // Handle Err(error)
                 self.advance(); // consume Err
                 if matches!(self.peek(), TokenKind::Punctuation('(')) {
@@ -1171,7 +1175,7 @@ impl Parser {
                     None
                 }
             }
-            TokenKind::Keyword(k) if k == "Some" => {
+            TokenKind::Identifier(id) if id == "Some" => {
                 // Handle Some(value)
                 self.advance(); // consume Some
                 if matches!(self.peek(), TokenKind::Punctuation('(')) {
