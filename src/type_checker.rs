@@ -279,6 +279,99 @@ impl TypeChecker {
             },
         );
 
+        // Advanced string methods
+        self.functions.insert(
+            "pad_left".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::Int),
+                    Some(TypeAnnotation::String),
+                ],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "pad_right".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::Int),
+                    Some(TypeAnnotation::String),
+                ],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "lines".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns array of strings
+            },
+        );
+
+        self.functions.insert(
+            "words".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: None, // Returns array of strings
+            },
+        );
+
+        self.functions.insert(
+            "str_reverse".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "slugify".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "truncate".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::Int),
+                    Some(TypeAnnotation::String),
+                ],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "to_camel_case".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "to_snake_case".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "to_kebab_case".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
         // Array mutation methods
         self.functions.insert(
             "push".to_string(),
@@ -426,6 +519,63 @@ impl TypeChecker {
             },
         );
 
+        // Advanced array methods
+        self.functions.insert(
+            "chunk".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::Int)], // Array and size
+                return_type: None,                                   // Returns array of arrays
+            },
+        );
+
+        self.functions.insert(
+            "flatten".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns flattened array
+            },
+        );
+
+        self.functions.insert(
+            "zip".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Two arrays
+                return_type: None,             // Returns array of pairs
+            },
+        );
+
+        self.functions.insert(
+            "enumerate".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Array
+                return_type: None,       // Returns array of [index, value] pairs
+            },
+        );
+
+        self.functions.insert(
+            "take".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::Int)], // Array and count
+                return_type: None,                                   // Returns sub-array
+            },
+        );
+
+        self.functions.insert(
+            "skip".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::Int)], // Array and count
+                return_type: None,                                   // Returns sub-array
+            },
+        );
+
+        self.functions.insert(
+            "windows".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::Int)], // Array and window size
+                return_type: None,                                   // Returns array of arrays
+            },
+        );
+
         // Dict/Map methods
         self.functions.insert(
             "keys".to_string(),
@@ -472,6 +622,31 @@ impl TypeChecker {
             FunctionSignature {
                 param_types: vec![None, None], // Two dicts
                 return_type: None,             // Returns merged dict
+            },
+        );
+
+        // Advanced dict methods
+        self.functions.insert(
+            "invert".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Dict
+                return_type: None,       // Returns inverted dict
+            },
+        );
+
+        self.functions.insert(
+            "update".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Two dicts
+                return_type: None,             // Returns updated dict
+            },
+        );
+
+        self.functions.insert(
+            "get_default".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String), None], // Dict, key, default value
+                return_type: None, // Returns value or default
             },
         );
 
