@@ -9,7 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-(No unreleased changes yet - see v0.7.0 in [ROADMAP.md](ROADMAP.md) for planned features)
+- **Timing Functions** ⏱️:
+  - `current_timestamp()` - Returns current timestamp in milliseconds since UNIX epoch (January 1, 1970)
+    - Returns a large number like `1769313715178` (milliseconds)
+    - Ideal for timestamps, logging, and date calculations
+    - Based on system wall-clock time
+  - `performance_now()` - Returns high-resolution timer in milliseconds since program start
+    - Returns elapsed time like `3.142` (milliseconds)
+    - Ideal for performance measurement and benchmarking
+    - Monotonic timer not affected by system clock changes
+  - Example usage:
+    ```ruff
+    # Measure execution time
+    start := performance_now()
+    expensive_operation()
+    elapsed := performance_now() - start
+    print("Took " + elapsed + "ms")
+    
+    # Get current timestamp
+    timestamp := current_timestamp()
+    print("Current time: " + timestamp)
+    ```
+  - See `examples/timing_demo.ruff` for working examples
+  - Fixes critical bug in `examples/projects/ai_model_comparison.ruff`
 
 ## [0.6.0] - 2026-01-24
 

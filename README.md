@@ -181,7 +181,7 @@
   - **TOML** (v0.6.0): `parse_toml()`, `to_toml()` - Parse and serialize TOML configuration files
   - **YAML** (v0.6.0): `parse_yaml()`, `to_yaml()` - Parse and serialize YAML documents
   - **CSV** (v0.6.0): `parse_csv()`, `to_csv()` - Parse and serialize CSV data files
-  - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()` - Timestamp and date operations
+  - **Date/Time** (v0.4.0): `now()`, `format_date()`, `parse_date()`, `current_timestamp()` (v0.7.0), `performance_now()` (v0.7.0) - Timestamp and date operations with high-precision timing
   - **System** (v0.4.0): `env()`, `args()`, `exit()`, `sleep()`, `execute()` - System operations
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
   - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()`, `set_header()` (v0.5.1), `set_headers()` (v0.5.1) - HTTP client and server with full header control
