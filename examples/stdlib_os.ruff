@@ -1,0 +1,265 @@
+# OS Module Examples
+# Demonstrates operating system interaction functions
+
+print("=== OS Module Examples ===\n")
+
+# ============================================================
+# Example 1: Working with Current Directory
+# ============================================================
+
+print("Example 1: Working with Current Directory")
+print("-" * 50)
+
+let current_dir := os_getcwd()
+print("Current directory: " + current_dir)
+
+# Parse directory name from path
+let dir_name := basename(current_dir)
+print("Directory name: " + dir_name)
+
+# Get parent directory
+let parent := dirname(current_dir)
+print("Parent directory: " + parent)
+
+# ============================================================
+# Example 2: Directory Navigation
+# ============================================================
+
+print("\nExample 2: Directory Navigation")
+print("-" * 50)
+
+# Save original directory
+let original_dir := os_getcwd()
+print("Starting in: " + original_dir)
+
+# Create and navigate to temp directory
+create_dir("temp_workspace")
+os_chdir("temp_workspace")
+print("Changed to: " + os_getcwd())
+
+# Create nested structure
+create_dir("data")
+create_dir("output")
+create_dir("logs")
+
+# List contents
+let contents := list_dir(".")
+print("\nCreated directories:")
+let i := 0
+loop {
+    if (i >= len(contents)) { break }
+    print("  - " + contents[i])
+    i := i + 1
+}
+
+# Return to original directory
+os_chdir(original_dir)
+print("\nReturned to: " + os_getcwd())
+
+# Cleanup (in reverse order)
+os_rmdir("temp_workspace/logs")
+os_rmdir("temp_workspace/output")
+os_rmdir("temp_workspace/data")
+os_rmdir("temp_workspace")
+print("Cleaned up temp_workspace")
+
+# ============================================================
+# Example 3: Environment Variables
+# ============================================================
+
+print("\nExample 3: Environment Variables")
+print("-" * 50)
+
+# Get all environment variables
+let env_vars := os_environ()
+print("Total environment variables: " + to_string(len(env_vars)))
+
+# Display some common environment variables
+print("\nCommon environment variables:")
+
+if (contains(env_vars, "USER")) {
+    print("  USER: " + env_vars["USER"])
+}
+
+if (contains(env_vars, "HOME")) {
+    print("  HOME: " + env_vars["HOME"])
+}
+
+if (contains(env_vars, "PATH")) {
+    let path_value := env_vars["PATH"]
+    print("  PATH: " + substr(path_value, 0, min(60, len(path_value))) + "...")
+}
+
+if (contains(env_vars, "SHELL")) {
+    print("  SHELL: " + env_vars["SHELL"])
+}
+
+# Set custom environment variable
+env_set("MY_APP_CONFIG", "/etc/myapp/config")
+print("\nSet MY_APP_CONFIG environment variable")
+
+# Retrieve it using env()
+let config_path := env("MY_APP_CONFIG")
+print("Retrieved value: " + config_path)
+
+# ============================================================
+# Example 4: Workspace Organization Script
+# ============================================================
+
+print("\nExample 4: Workspace Organization Script")
+print("-" * 50)
+
+func organize_workspace(base_dir) {
+    print("Organizing workspace at: " + base_dir)
+    
+    # Save current location
+    let orig := os_getcwd()
+    
+    # Create workspace structure
+    create_dir(base_dir)
+    os_chdir(base_dir)
+    
+    # Create standard directories
+    let folders := array("src", "tests", "docs", "build", "data")
+    let i := 0
+    loop {
+        if (i >= len(folders)) { break }
+        create_dir(folders[i])
+        print("  Created: " + folders[i])
+        i := i + 1
+    }
+    
+    # Create README
+    write_file("README.md", "# Project Workspace\n\nOrganized project structure.")
+    print("  Created: README.md")
+    
+    # Return to original directory
+    os_chdir(orig)
+    print("Workspace organized successfully!")
+    
+    return base_dir
+}
+
+# Use the function
+let workspace_path := organize_workspace("my_project")
+
+# Verify it was created
+if (path_is_dir("my_project")) {
+    print("✓ Workspace exists at: my_project")
+    
+    # Show contents
+    let project_files := list_dir("my_project")
+    print("\nWorkspace contents:")
+    let j := 0
+    loop {
+        if (j >= len(project_files)) { break }
+        print("  - " + project_files[j])
+        j := j + 1
+    }
+}
+
+# Cleanup
+delete_file("my_project/README.md")
+os_rmdir("my_project/src")
+os_rmdir("my_project/tests")
+os_rmdir("my_project/docs")
+os_rmdir("my_project/build")
+os_rmdir("my_project/data")
+os_rmdir("my_project")
+print("\n✓ Cleaned up example workspace")
+
+# ============================================================
+# Example 5: Configuration Management
+# ============================================================
+
+print("\nExample 5: Configuration Management")
+print("-" * 50)
+
+func load_config_from_env(app_name) {
+    print("Loading configuration for: " + app_name)
+    
+    let config := dict()
+    let all_env := os_environ()
+    
+    # Filter environment variables for this app
+    # (In real code, you'd iterate over keys, but we'll use known vars)
+    
+    # Set some example env vars
+    env_set(app_name + "_PORT", "8080")
+    env_set(app_name + "_HOST", "localhost")
+    env_set(app_name + "_DEBUG", "true")
+    
+    # Reload env
+    all_env := os_environ()
+    
+    # Build config from env vars
+    let port_key := app_name + "_PORT"
+    let host_key := app_name + "_HOST"
+    let debug_key := app_name + "_DEBUG"
+    
+    if (contains(all_env, port_key)) {
+        config["port"] := all_env[port_key]
+    }
+    
+    if (contains(all_env, host_key)) {
+        config["host"] := all_env[host_key]
+    }
+    
+    if (contains(all_env, debug_key)) {
+        config["debug"] := all_env[debug_key]
+    }
+    
+    return config
+}
+
+# Load configuration
+let app_config := load_config_from_env("MYAPP")
+
+print("Configuration loaded:")
+print("  Host: " + app_config["host"])
+print("  Port: " + app_config["port"])
+print("  Debug: " + app_config["debug"])
+
+# ============================================================
+# Example 6: Temporary Directory Management
+# ============================================================
+
+print("\nExample 6: Temporary Directory Management")
+print("-" * 50)
+
+func with_temp_dir(dir_name, callback) {
+    # Create temp directory
+    create_dir(dir_name)
+    let old_dir := os_getcwd()
+    
+    # Change to temp directory
+    os_chdir(dir_name)
+    print("Working in temp directory: " + os_getcwd())
+    
+    # Execute callback (in real code, this would be a function call)
+    # For demo, we'll just create some files
+    write_file("temp1.txt", "temporary data 1")
+    write_file("temp2.txt", "temporary data 2")
+    print("  Created temporary files")
+    
+    let temp_files := list_dir(".")
+    print("  Files in temp dir: " + to_string(len(temp_files)))
+    
+    # Return to original directory
+    os_chdir(old_dir)
+    
+    # Cleanup temp directory
+    delete_file(dir_name + "/temp1.txt")
+    delete_file(dir_name + "/temp2.txt")
+    os_rmdir(dir_name)
+    print("Temp directory cleaned up")
+    
+    return true
+}
+
+# Use temp directory
+with_temp_dir("temp_processing", null)
+
+print("\n" + "=" * 50)
+print("OS Module Examples Complete!")
+print("=" * 50)
