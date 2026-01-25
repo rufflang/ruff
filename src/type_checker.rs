@@ -426,6 +426,55 @@ impl TypeChecker {
             },
         );
 
+        // Dict/Map methods
+        self.functions.insert(
+            "keys".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Dict
+                return_type: None,       // Returns array of strings (keys)
+            },
+        );
+
+        self.functions.insert(
+            "values".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Dict
+                return_type: None,       // Returns array of values
+            },
+        );
+
+        self.functions.insert(
+            "items".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Dict
+                return_type: None,       // Returns array of [key, value] pairs
+            },
+        );
+
+        self.functions.insert(
+            "has_key".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String)], // Dict, key
+                return_type: Some(TypeAnnotation::Int),
+            },
+        );
+
+        self.functions.insert(
+            "get".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String), None], // Dict, key, default (optional)
+                return_type: None, // Returns value or default
+            },
+        );
+
+        self.functions.insert(
+            "merge".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // Two dicts
+                return_type: None,             // Returns merged dict
+            },
+        );
+
         // Array generation functions
         self.functions.insert(
             "range".to_string(),
