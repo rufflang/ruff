@@ -1339,14 +1339,17 @@ impl TypeChecker {
                     if let Some(annotated_type) = type_annotation {
                         if let Some(inferred) = &inferred_type {
                             if !annotated_type.matches(inferred) {
-                                self.errors.push(RuffError::new(
+                                let error = RuffError::new(
                                     ErrorKind::TypeError,
                                     format!(
                                         "Type mismatch: variable '{}' declared as {:?} but assigned {:?}",
                                         name, annotated_type, inferred
                                     ),
                                     SourceLocation::unknown(),
-                                ));
+                                )
+                                .with_help("Try removing the type annotation or converting the value to the correct type".to_string());
+                                
+                                self.errors.push(error);
                             }
                         }
                         // Store the annotated type
@@ -1367,14 +1370,17 @@ impl TypeChecker {
                 if let Some(annotated_type) = type_annotation {
                     if let Some(inferred) = &inferred_type {
                         if !annotated_type.matches(inferred) {
-                            self.errors.push(RuffError::new(
+                            let error = RuffError::new(
                                 ErrorKind::TypeError,
                                 format!(
 									"Type mismatch: constant '{}' declared as {:?} but assigned {:?}",
 									name, annotated_type, inferred
 								),
                                 SourceLocation::unknown(),
-                            ));
+                            )
+                            .with_help("Constants must be initialized with a value matching their declared type".to_string());
+                            
+                            self.errors.push(error);
                         }
                     }
                     // Store the annotated type
@@ -1414,14 +1420,18 @@ impl TypeChecker {
                 if let Some(expected) = &self.current_function_return {
                     if let Some(actual) = &return_type {
                         if !expected.matches(actual) {
-                            self.errors.push(RuffError::new(
+                            let error = RuffError::new(
                                 ErrorKind::TypeError,
                                 format!(
                                     "Return type mismatch: expected {:?} but got {:?}",
                                     expected, actual
                                 ),
                                 SourceLocation::unknown(),
-                            ));
+                            )
+                            .with_help("Make sure the return value matches the function's declared return type".to_string())
+                            .with_note(format!("Function expects to return {:?}", expected));
+                            
+                            self.errors.push(error);
                         }
                     }
                 }
@@ -1517,14 +1527,18 @@ impl TypeChecker {
                             if let Some(expected) = var_type {
                                 if let Some(actual) = &inferred_type {
                                     if !expected.matches(actual) {
-                                        self.errors.push(RuffError::new(
+                                        let error = RuffError::new(
                                             ErrorKind::TypeError,
                                             format!(
 												"Type mismatch: cannot assign {:?} to variable '{}' of type {:?}",
 												actual, name, expected
 											),
                                             SourceLocation::unknown(),
-                                        ));
+                                        )
+                                        .with_help("Try converting the value with to_int(), to_float(), to_string(), or to_bool()".to_string())
+                                        .with_note(format!("Variable '{}' was declared with type {:?}", name, expected));
+                                        
+                                        self.errors.push(error);
                                     }
                                 }
                             }
@@ -1643,14 +1657,18 @@ impl TypeChecker {
                         // Check that operands are comparable
                         if let (Some(l), Some(r)) = (&left_type, &right_type) {
                             if !l.matches(r) && !r.matches(l) {
-                                self.errors.push(RuffError::new(
+                                let error = RuffError::new(
                                     ErrorKind::TypeError,
                                     format!(
                                         "Comparison '{}' between incompatible types: {:?} and {:?}",
                                         op, l, r
                                     ),
                                     SourceLocation::unknown(),
-                                ));
+                                )
+                                .with_help("Convert one value to match the type of the other".to_string())
+                                .with_note("Comparison operators require both operands to have compatible types".to_string());
+                                
+                                self.errors.push(error);
                             }
                         }
                         Some(TypeAnnotation::Bool)
@@ -1747,12 +1765,23 @@ impl TypeChecker {
                         // Return the function's return type
                         return sig.return_type.clone();
                     } else {
-                        // Function not found
-                        self.errors.push(RuffError::new(
+                        // Function not found - suggest similar functions
+                        let available_functions = self.get_available_functions();
+                        let suggestion = crate::errors::find_closest_match(func_name, &available_functions);
+                        
+                        let mut error = RuffError::new(
                             ErrorKind::UndefinedFunction,
                             format!("Undefined function '{}'", func_name),
                             SourceLocation::unknown(),
-                        ));
+                        );
+                        
+                        if let Some(suggested) = suggestion {
+                            error = error.with_suggestion(suggested.to_string());
+                        }
+                        
+                        error = error.with_note("Function must be defined before it is called".to_string());
+                        
+                        self.errors.push(error);
                     }
                 }
                 None
@@ -1863,6 +1892,16 @@ impl TypeChecker {
         if let Some(prev_scope) = self.scope_stack.pop() {
             self.variables = prev_scope;
         }
+    }
+
+    /// Get all available variable names in current scope
+    fn get_available_variables(&self) -> Vec<String> {
+        self.variables.keys().cloned().collect()
+    }
+
+    /// Get all available function names
+    fn get_available_functions(&self) -> Vec<String> {
+        self.functions.keys().cloned().collect()
     }
 }
 

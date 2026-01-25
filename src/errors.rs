@@ -74,16 +74,42 @@ pub struct RuffError {
     pub message: String,
     pub location: SourceLocation,
     pub source_line: Option<String>,
+    pub suggestion: Option<String>,
+    pub help: Option<String>,
+    pub note: Option<String>,
 }
 
 #[allow(dead_code)]
 impl RuffError {
     pub fn new(kind: ErrorKind, message: String, location: SourceLocation) -> Self {
-        Self { kind, message, location, source_line: None }
+        Self { 
+            kind, 
+            message, 
+            location, 
+            source_line: None,
+            suggestion: None,
+            help: None,
+            note: None,
+        }
     }
 
     pub fn with_source(mut self, source_line: String) -> Self {
         self.source_line = Some(source_line);
+        self
+    }
+
+    pub fn with_suggestion(mut self, suggestion: String) -> Self {
+        self.suggestion = Some(suggestion);
+        self
+    }
+
+    pub fn with_help(mut self, help: String) -> Self {
+        self.help = Some(help);
+        self
+    }
+
+    pub fn with_note(mut self, note: String) -> Self {
+        self.note = Some(note);
         self
     }
 
@@ -146,10 +172,91 @@ impl fmt::Display for RuffError {
                 " ".repeat(col_num.saturating_sub(1)),
                 "^".red().bold()
             )?;
+            writeln!(f, "   {}", "|".bright_blue())?;
+        }
+
+        // Additional context sections
+        if let Some(ref help) = self.help {
+            writeln!(f, "   {} {}", "=".bright_yellow(), format!("help: {}", help).bright_yellow())?;
+        }
+
+        if let Some(ref suggestion) = self.suggestion {
+            writeln!(f, "   {} {}", "=".bright_green(), format!("Did you mean '{}'?", suggestion).bright_green())?;
+        }
+
+        if let Some(ref note) = self.note {
+            writeln!(f, "   {} {}", "=".bright_cyan(), format!("note: {}", note).bright_cyan())?;
         }
 
         Ok(())
     }
+}
+
+/// Computes the Levenshtein distance between two strings
+/// Used for "Did you mean?" suggestions
+pub fn levenshtein_distance(s1: &str, s2: &str) -> usize {
+    let len1 = s1.chars().count();
+    let len2 = s2.chars().count();
+
+    if len1 == 0 {
+        return len2;
+    }
+    if len2 == 0 {
+        return len1;
+    }
+
+    let mut matrix = vec![vec![0; len2 + 1]; len1 + 1];
+
+    // Initialize first column and row
+    for i in 0..=len1 {
+        matrix[i][0] = i;
+    }
+    for j in 0..=len2 {
+        matrix[0][j] = j;
+    }
+
+    // Compute distances
+    let s1_chars: Vec<char> = s1.chars().collect();
+    let s2_chars: Vec<char> = s2.chars().collect();
+
+    for i in 1..=len1 {
+        for j in 1..=len2 {
+            let cost = if s1_chars[i - 1] == s2_chars[j - 1] { 0 } else { 1 };
+            matrix[i][j] = std::cmp::min(
+                std::cmp::min(
+                    matrix[i - 1][j] + 1,      // deletion
+                    matrix[i][j - 1] + 1,      // insertion
+                ),
+                matrix[i - 1][j - 1] + cost,   // substitution
+            );
+        }
+    }
+
+    matrix[len1][len2]
+}
+
+/// Find the closest match from a list of candidates using Levenshtein distance
+/// Returns None if no good match is found (distance > 3)
+pub fn find_closest_match<'a>(target: &str, candidates: &'a [String]) -> Option<&'a str> {
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let mut best_match = None;
+    let mut best_distance = usize::MAX;
+
+    for candidate in candidates {
+        let distance = levenshtein_distance(target, candidate);
+        
+        // Only consider reasonably close matches (distance <= 3)
+        // and prefer shorter distances
+        if distance <= 3 && distance < best_distance {
+            best_distance = distance;
+            best_match = Some(candidate.as_str());
+        }
+    }
+
+    best_match
 }
 
 impl std::error::Error for RuffError {}
