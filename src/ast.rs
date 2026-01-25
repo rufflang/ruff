@@ -82,11 +82,14 @@ pub enum TypeAnnotation {
 
 impl TypeAnnotation {
     /// Returns true if this type matches another type (allowing Any to match anything)
+    /// Also allows Int to match Float (type promotion)
     pub fn matches(&self, other: &TypeAnnotation) -> bool {
         match (self, other) {
             (TypeAnnotation::Any, _) | (_, TypeAnnotation::Any) => true,
             (TypeAnnotation::Int, TypeAnnotation::Int) => true,
             (TypeAnnotation::Float, TypeAnnotation::Float) => true,
+            // Allow Int to be promoted to Float
+            (TypeAnnotation::Float, TypeAnnotation::Int) => true,
             (TypeAnnotation::String, TypeAnnotation::String) => true,
             (TypeAnnotation::Bool, TypeAnnotation::Bool) => true,
             (TypeAnnotation::Enum(a), TypeAnnotation::Enum(b)) => a == b,
