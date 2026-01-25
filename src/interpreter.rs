@@ -7028,7 +7028,7 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Array(todos)) = interp.env.get("todos") {
-            if let Some(Value::Struct { fields, .. }) = todos.get(0) {
+            if let Some(Value::Struct { fields, .. }) = todos.first() {
                 if let Some(Value::Bool(done)) = fields.get("done") {
                     assert!(*done);
                 } else {
@@ -7548,7 +7548,7 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Float(n)) = interp.env.get("result1") {
-            assert!((n - 3.14).abs() < 0.001);
+            assert!((n - std::f64::consts::PI).abs() < 0.01);
         } else {
             panic!("Expected result1 to be 3.14");
         }
@@ -8045,7 +8045,7 @@ mod tests {
 
         if let Some(Value::Array(arr)) = interp.env.get("flags") {
             assert_eq!(arr.len(), 4);
-            assert!(matches!(arr.get(0), Some(Value::Bool(true))));
+            assert!(matches!(arr.first(), Some(Value::Bool(true))));
             assert!(matches!(arr.get(1), Some(Value::Bool(false))));
             assert!(matches!(arr.get(2), Some(Value::Bool(true))));
             assert!(matches!(arr.get(3), Some(Value::Bool(true))));
@@ -9846,7 +9846,7 @@ mod tests {
         let interp = run_code(code);
 
         assert!(
-            matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 3.14).abs() < 0.001)
+            matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - std::f64::consts::PI).abs() < 0.01)
         );
         assert!(
             matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 2.5).abs() < 0.001)
@@ -10077,7 +10077,7 @@ mod tests {
 
         // Check result
         if let Some(Value::Bool(result)) = interp.env.get("result") {
-            assert_eq!(result, true);
+            assert!(result);
         } else {
             panic!("Expected result to be true");
         }
@@ -10131,7 +10131,7 @@ mod tests {
 
         // Check result
         if let Some(Value::Bool(result)) = interp.env.get("result") {
-            assert_eq!(result, true);
+            assert!(result);
         } else {
             panic!("Expected result to be true");
         }
@@ -10188,7 +10188,7 @@ mod tests {
 
         // Check result
         if let Some(Value::Bool(result)) = interp.env.get("result") {
-            assert_eq!(result, true);
+            assert!(result);
         } else {
             panic!("Expected result to be true");
         }
@@ -10294,7 +10294,7 @@ mod tests {
         if let Some(Value::Array(arr)) = interp.env.get("sorted") {
             assert_eq!(arr.len(), 8);
             // Check if sorted in ascending order
-            let expected = vec![1, 1, 2, 3, 4, 5, 6, 9];
+            let expected = [1, 1, 2, 3, 4, 5, 6, 9];
             for (i, val) in arr.iter().enumerate() {
                 if let Value::Int(n) = val {
                     assert_eq!(*n, expected[i]);
@@ -10319,7 +10319,7 @@ mod tests {
         if let Some(Value::Array(arr)) = interp.env.get("sorted") {
             assert_eq!(arr.len(), 4);
             // Check if sorted in ascending order
-            let expected = vec![1.2, 2.1, 3.5, 4.8];
+            let expected = [1.2, 2.1, 3.5, 4.8];
             for (i, val) in arr.iter().enumerate() {
                 if let Value::Float(n) = val {
                     assert!((n - expected[i]).abs() < 0.001);
@@ -10372,7 +10372,7 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Array(arr)) = interp.env.get("sorted") {
-            let expected = vec!["apple", "banana", "cherry", "date"];
+            let expected = ["apple", "banana", "cherry", "date"];
             for (i, val) in arr.iter().enumerate() {
                 if let Value::Str(s) = val {
                     assert_eq!(s, expected[i]);
@@ -10395,7 +10395,7 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Array(arr)) = interp.env.get("reversed") {
-            let expected = vec![5, 4, 3, 2, 1];
+            let expected = [5, 4, 3, 2, 1];
             for (i, val) in arr.iter().enumerate() {
                 if let Value::Int(n) = val {
                     assert_eq!(*n, expected[i]);
@@ -10420,7 +10420,7 @@ mod tests {
         if let Some(Value::Array(arr)) = interp.env.get("unique_nums") {
             // Should preserve order and remove duplicates: [3, 1, 4, 5, 9, 2, 6]
             assert_eq!(arr.len(), 7);
-            let expected = vec![3, 1, 4, 5, 9, 2, 6];
+            let expected = [3, 1, 4, 5, 9, 2, 6];
             for (i, val) in arr.iter().enumerate() {
                 if let Value::Int(n) = val {
                     assert_eq!(*n, expected[i]);
@@ -10444,7 +10444,7 @@ mod tests {
 
         if let Some(Value::Array(arr)) = interp.env.get("unique_words") {
             assert_eq!(arr.len(), 3);
-            let expected = vec!["apple", "banana", "cherry"];
+            let expected = ["apple", "banana", "cherry"];
             for (i, val) in arr.iter().enumerate() {
                 if let Value::Str(s) = val {
                     assert_eq!(s, expected[i]);
@@ -10615,7 +10615,7 @@ mod tests {
         // step3 should be [9, 6, 5, 4, 3, 2, 1]
         if let Some(Value::Array(arr)) = interp.env.get("step3") {
             assert_eq!(arr.len(), 7);
-            let expected = vec![9, 6, 5, 4, 3, 2, 1];
+            let expected = [9, 6, 5, 4, 3, 2, 1];
             for (i, val) in arr.iter().enumerate() {
                 if let Value::Int(n) = val {
                     assert_eq!(*n, expected[i]);

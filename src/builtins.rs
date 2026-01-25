@@ -1650,6 +1650,6 @@ mod tests {
         assert_eq!(index_of("hello", "xyz"), -1.0);
         assert_eq!(repeat("ha", 3.0), "hahaha");
         assert_eq!(split("a,b,c", ","), vec!["a", "b", "c"]);
-        assert_eq!(join(&vec!["a".to_string(), "b".to_string(), "c".to_string()], ","), "a,b,c");
+        assert_eq!(join(&["a".to_string(), "b".to_string(), "c".to_string()], ","), "a,b,c");
     }
 }
