@@ -48,6 +48,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Supported Operations**: Arithmetic, comparison, logical operations, control flow (if/while/for/match)
   - **Data Structures**: Arrays with spread operators (using marker-based collection), dicts, structs
   - **Function Calls**: Parameter binding implemented, user-defined functions work correctly
+
+### Improved
+
+- **Code Quality - Compiler Warnings Cleanup** 🧹:
+  - **Reduced warnings by 89%**: From 271 clippy warnings to 30 warnings
+  - **Fixed 179 instances** of `.get(0)` replaced with idiomatic `.first()`
+  - **Removed 27 needless borrows** in `eval_expr` and `eval_stmts` calls
+  - **Fixed 21 empty lines** after doc comments in builtins.rs
+  - **Removed 6 redundant closures** in iterator `.map()` calls
+  - **Fixed 6 unnecessary casts** from `i64` to `i64`
+  - **All 208 tests still passing** after cleanup
+  - **Remaining 30 warnings** are non-critical (large Error variants, collapsible ifs, etc.)
   - **Native Functions**: Basic support for print, len, to_string (limited set for now)
   - **Type Support**: Result/Option types with Try operator compilation
   - **CLI Integration**: `--vm` flag added to run programs with bytecode VM
