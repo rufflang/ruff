@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Integer Type System** 🔢 - Separate integer and floating-point types (P0 feature):
+  - **Integer Literals**: `42`, `-10`, `0` are parsed as `Int(i64)` type
+  - **Float Literals**: `3.14`, `-2.5`, `0.0` are parsed as `Float(f64)` type
+  - **Type Preservation**: Integer arithmetic operations preserve integer type
+    - `5 + 3` → `Int(8)` (not `Float(8.0)`)
+    - `10 / 3` → `Int(3)` (integer division truncates)
+    - `10 % 3` → `Int(1)` (modulo operation)
+  - **Type Promotion**: Mixed int/float operations promote to float
+    - `5 + 2.5` → `Float(7.5)`
+    - `Int * Float` → `Float`
+  - **Type-Aware Functions**:
+    - `len()` returns `Int` for collection lengths
+    - `current_timestamp()` returns `Int` (milliseconds since epoch)
+    - String functions accept both Int and Float for indices/counts
+    - Math functions accept both Int and Float, return Float
+  - **Database & Serialization**: Types are preserved across:
+    - SQLite: INTEGER vs REAL columns
+    - PostgreSQL: INT8 vs FLOAT8 columns
+    - MySQL: BIGINT vs DOUBLE columns
+    - JSON: integers vs floats in JSON numbers
+    - TOML/YAML: Integer vs Float values
+  - **Example**:
+    ```ruff
+    # Integer arithmetic
+    x := 10
+    y := 3
+    print(x / y)      # 3 (integer division)
+    print(x % y)      # 1 (modulo)
+    
+    # Mixed operations
+    a := 5
+    b := 2.5
+    print(a + b)      # 7.5 (promoted to float)
+    
+    # Type preservation
+    numbers := [1, 2, 3]
+    print(numbers[0])  # 1 (still Int)
+    ```
+
 - **Complete Timing Suite** ⏱️ - Robust benchmarking and performance measurement:
   - **High-Precision Timers**:
     - `time_us()` - Returns microseconds since program start (1/1,000 millisecond precision)
