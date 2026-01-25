@@ -4875,6 +4875,47 @@ impl Interpreter {
                     Value::Enum(e) => (e.clone(), &empty_map),
                     Value::Str(s) => (s.clone(), &empty_map),
                     Value::Float(n) => (n.to_string(), &empty_map),
+                    Value::Result { is_ok, value } => {
+                        // Convert Result to a tagged representation for pattern matching
+                        let tag = if *is_ok { "Ok" } else { "Err" };
+                        let mut map = HashMap::new();
+                        map.insert("$0".to_string(), (**value).clone());
+                        
+                        // Store in environment temporarily for matching
+                        let temp_var = format!("__match_result_temp_{}", self.env.scopes.len());
+                        self.env.define(temp_var.clone(), Value::Tagged {
+                            tag: tag.to_string(),
+                            fields: map.clone(),
+                        });
+                        
+                        // Return temporary reference
+                        if let Some(Value::Tagged { tag, fields }) = self.env.get(&temp_var) {
+                            (tag.clone(), fields)
+                        } else {
+                            (tag.to_string(), &empty_map)
+                        }
+                    }
+                    Value::Option { is_some, value } => {
+                        // Convert Option to a tagged representation for pattern matching
+                        if *is_some {
+                            let mut map = HashMap::new();
+                            map.insert("$0".to_string(), (**value).clone());
+                            
+                            let temp_var = format!("__match_option_temp_{}", self.env.scopes.len());
+                            self.env.define(temp_var.clone(), Value::Tagged {
+                                tag: "Some".to_string(),
+                                fields: map.clone(),
+                            });
+                            
+                            if let Some(Value::Tagged { tag, fields }) = self.env.get(&temp_var) {
+                                (tag.clone(), fields)
+                            } else {
+                                ("Some".to_string(), &empty_map)
+                            }
+                        } else {
+                            ("None".to_string(), &empty_map)
+                        }
+                    }
                     _ => {
                         if let Some(default_body) = default {
                             self.eval_stmts(&default_body);
@@ -6336,6 +6377,55 @@ impl Interpreter {
                     _ => Value::Int(0),
                 }
             }
+            Expr::Ok(value_expr) => {
+                let value = self.eval_expr(value_expr);
+                Value::Result {
+                    is_ok: true,
+                    value: Box::new(value),
+                }
+            }
+            Expr::Err(error_expr) => {
+                let error = self.eval_expr(error_expr);
+                Value::Result {
+                    is_ok: false,
+                    value: Box::new(error),
+                }
+            }
+            Expr::Some(value_expr) => {
+                let value = self.eval_expr(value_expr);
+                Value::Option {
+                    is_some: true,
+                    value: Box::new(value),
+                }
+            }
+            Expr::None => {
+                Value::Option {
+                    is_some: false,
+                    value: Box::new(Value::Null),
+                }
+            }
+            Expr::Try(expr) => {
+                let value = self.eval_expr(expr);
+                match value {
+                    Value::Result { is_ok, value } => {
+                        if is_ok {
+                            // Return the Ok value
+                            *value
+                        } else {
+                            // Early return with the Err value wrapped in Result
+                            self.return_value = Some(Value::Return(Box::new(Value::Result {
+                                is_ok: false,
+                                value,
+                            })));
+                            Value::Null // This will be ignored due to early return
+                        }
+                    }
+                    _ => {
+                        // ? operator only works on Result values
+                        Value::Error("Try operator (?) can only be used on Result values".to_string())
+                    }
+                }
+            }
             Expr::Spread(_) => {
                 // Spread expressions should only appear inside array/dict literals
                 // If we reach here, it's a syntax error, but we'll return an error value
@@ -6385,6 +6475,20 @@ impl Interpreter {
             Value::Error(msg) => format!("Error: {}", msg),
             Value::ErrorObject { message, .. } => format!("Error: {}", message),
             Value::NativeFunction(name) => format!("<native function: {}>", name),
+            Value::Result { is_ok, value } => {
+                if *is_ok {
+                    format!("Ok({})", Interpreter::stringify_value(value))
+                } else {
+                    format!("Err({})", Interpreter::stringify_value(value))
+                }
+            }
+            Value::Option { is_some, value } => {
+                if *is_some {
+                    format!("Some({})", Interpreter::stringify_value(value))
+                } else {
+                    "None".to_string()
+                }
+            }
             _ => "<unknown>".into(),
         }
     }
