@@ -890,6 +890,88 @@ pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
 
 /// Array functions
 
+/// Insert an item at a specific index
+pub fn array_insert(arr: Vec<Value>, index: i64, item: Value) -> Result<Vec<Value>, String> {
+    let idx = index as usize;
+    let mut new_arr = arr;
+    
+    if idx > new_arr.len() {
+        return Err(format!("insert() index {} out of bounds for array of length {}", idx, new_arr.len()));
+    }
+    
+    new_arr.insert(idx, item);
+    Ok(new_arr)
+}
+
+/// Remove the first occurrence of an item
+pub fn array_remove(arr: Vec<Value>, item: &Value) -> Vec<Value> {
+    let mut new_arr = arr;
+    // Find position manually since Value doesn't implement PartialEq
+    let pos = new_arr.iter().position(|x| {
+        match (x, item) {
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Null, Value::Null) => true,
+            _ => false,
+        }
+    });
+    
+    if let Some(idx) = pos {
+        new_arr.remove(idx);
+    }
+    new_arr
+}
+
+/// Remove an item at a specific index
+pub fn array_remove_at(arr: Vec<Value>, index: i64) -> Result<(Vec<Value>, Value), String> {
+    let idx = index as usize;
+    let mut new_arr = arr;
+    
+    if idx >= new_arr.len() {
+        return Err(format!("remove_at() index {} out of bounds for array of length {}", idx, new_arr.len()));
+    }
+    
+    let removed = new_arr.remove(idx);
+    Ok((new_arr, removed))
+}
+
+/// Clear all items from an array
+pub fn array_clear() -> Vec<Value> {
+    Vec::new()
+}
+
+/// Find the index of the first occurrence of an item
+pub fn array_index_of(arr: &[Value], item: &Value) -> i64 {
+    let pos = arr.iter().position(|x| {
+        match (x, item) {
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Null, Value::Null) => true,
+            _ => false,
+        }
+    });
+    
+    pos.map(|i| i as i64).unwrap_or(-1)
+}
+
+/// Check if an array contains an item
+pub fn array_contains(arr: &[Value], item: &Value) -> bool {
+    arr.iter().any(|x| {
+        match (x, item) {
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Null, Value::Null) => true,
+            _ => false,
+        }
+    })
+}
+
 /// HTTP Client Functions
 
 /// Make an HTTP GET request
