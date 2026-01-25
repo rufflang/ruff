@@ -704,7 +704,7 @@ impl VM {
                             if i > 0 {
                                 print!(" ");
                             }
-                            print!("{}", self.value_to_string(arg));
+                            print!("{}", Self::value_to_string(arg));
                         }
                         println!();
                         Ok(Value::Null)
@@ -726,7 +726,7 @@ impl VM {
                         if args.len() != 1 {
                             return Err("to_string() requires exactly 1 argument".to_string());
                         }
-                        Ok(Value::Str(self.value_to_string(&args[0])))
+                        Ok(Value::Str(Self::value_to_string(&args[0])))
                     }
                     
                     _ => {
@@ -742,7 +742,7 @@ impl VM {
     }
     
     /// Convert a value to string representation for printing
-    fn value_to_string(&self, value: &Value) -> String {
+    fn value_to_string(value: &Value) -> String {
         match value {
             Value::Int(n) => n.to_string(),
             Value::Float(f) => f.to_string(),
@@ -750,13 +750,13 @@ impl VM {
             Value::Bool(b) => b.to_string(),
             Value::Null => "null".to_string(),
             Value::Array(arr) => {
-                let items: Vec<String> = arr.iter().map(|v| self.value_to_string(v)).collect();
+                let items: Vec<String> = arr.iter().map(|v| Self::value_to_string(v)).collect();
                 format!("[{}]", items.join(", "))
             }
             Value::Dict(dict) => {
                 let items: Vec<String> = dict
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", k, self.value_to_string(v)))
+                    .map(|(k, v)| format!("{}: {}", k, Self::value_to_string(v)))
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
@@ -792,7 +792,7 @@ impl VM {
             (Value::Str(a), Value::Str(b)) if op == "+" => {
                 Ok(Value::Str(format!("{}{}", a, b)))
             }
-            _ => Err(format!("Type mismatch in binary operation")),
+            _ => Err("Type mismatch in binary operation".to_string()),
         }
     }
     
