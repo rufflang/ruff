@@ -514,6 +514,9 @@ impl Interpreter {
 
     /// Registers all built-in functions and constants
     fn register_builtins(&mut self) {
+        // I/O functions
+        self.env.define("print".to_string(), Value::NativeFunction("print".to_string()));
+        
         // Math constants
         self.env.define("PI".to_string(), Value::Float(std::f64::consts::PI));
         self.env.define("E".to_string(), Value::Float(std::f64::consts::E));
@@ -1333,6 +1336,16 @@ impl Interpreter {
         let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
 
         let result = match name {
+            // I/O functions
+            "print" => {
+                let output_parts: Vec<String> = arg_values
+                    .iter()
+                    .map(|val| Interpreter::stringify_value(val))
+                    .collect();
+                self.write_output(&output_parts.join(" "));
+                Value::Null
+            }
+            
             // Math functions - single argument
             "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" | "log" | "exp" => {
                 if let Some(val) = arg_values.get(0) {
