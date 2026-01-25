@@ -362,6 +362,11 @@
       - `env_required(key)` - Get required environment variable (errors if missing)
       - `env_set(key, value)` - Set environment variable
       - `env_list()` - Get all environment variables as dictionary
+    - **NEW in v0.8.0**: Professional CLI argument parsing:
+      - `arg_parser()` - Create fluent argument parser with `.add_argument()` and `.parse()`
+      - Supports boolean flags, string/int/float options, required/optional, defaults
+      - Short and long forms (`-v`, `--verbose`), automatic help generation
+      - Pass arguments: `ruff run script.ruff --flag --option value`
     - Enhanced `args()` - Returns only script arguments (filters out ruff command)
   - **Paths** (v0.4.0): `join_path()`, `dirname()`, `basename()`, `path_exists()` - Path manipulation
   - **HTTP** (v0.5.0): `http_get()`, `http_post()`, `http_put()`, `http_delete()`, `http_server()`, `http_response()`, `json_response()`, `redirect_response()`, `set_header()` (v0.5.1), `set_headers()` (v0.5.1) - HTTP client and server with full header control
