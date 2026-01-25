@@ -255,6 +255,7 @@ pub enum Value {
         chunk: crate::bytecode::BytecodeChunk,
         captured: HashMap<String, Value>,
     }, // Compiled bytecode function
+    ArrayMarker, // Internal marker for dynamic array construction in VM
     Return(Box<Value>),
     Error(String), // Legacy simple error for backward compatibility
     ErrorObject {
@@ -337,6 +338,7 @@ impl std::fmt::Debug for Value {
                 write!(f, "BytecodeFunction({}, {} instructions, {} captured)", 
                     name, chunk.instructions.len(), captured.len())
             }
+            Value::ArrayMarker => write!(f, "ArrayMarker"),
             Value::Return(v) => write!(f, "Return({:?})", v),
             Value::Error(e) => write!(f, "Error({})", e),
             Value::ErrorObject { message, stack, line, cause } => f
@@ -2527,6 +2529,7 @@ impl Interpreter {
                         Value::Function(_, _, _) => "function",
                         Value::NativeFunction(_) => "function",
                         Value::BytecodeFunction { .. } => "function",
+                        Value::ArrayMarker => "arraymarker", // Internal VM marker
                         Value::Struct { .. } => "struct",
                         Value::StructDef { .. } => "structdef",
                         Value::Tagged { .. } => "tagged",

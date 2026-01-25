@@ -331,13 +331,30 @@ impl VM {
                 }
                 
                 // Collection operations
-                OpCode::MakeArray(count) => {
+                OpCode::MakeArray(_count) => {
+                    // Collect elements from stack until we hit a marker (if present)
+                    // or until we've collected 'count' elements
                     let mut elements = Vec::new();
-                    for _ in 0..count {
-                        elements.push(self.stack.pop().ok_or("Stack underflow")?);
+                    
+                    loop {
+                        let value = self.stack.pop().ok_or("Stack underflow")?;
+                        match value {
+                            Value::ArrayMarker => {
+                                // Found marker, we're done
+                                break;
+                            }
+                            _ => {
+                                elements.push(value);
+                            }
+                        }
                     }
+                    
                     elements.reverse();
                     self.stack.push(Value::Array(elements));
+                }
+                
+                OpCode::PushArrayMarker => {
+                    self.stack.push(Value::ArrayMarker);
                 }
                 
                 OpCode::MakeDict(count) => {

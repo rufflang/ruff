@@ -455,23 +455,31 @@ impl Compiler {
             }
             
             Expr::ArrayLiteral(elements) => {
-                let mut element_count = 0;
+                // Check if we have any spread operations
+                let has_spread = elements.iter().any(|e| matches!(e, ArrayElement::Spread(_)));
                 
+                if has_spread {
+                    // With spreads, push a marker first, then all elements
+                    self.chunk.emit(OpCode::PushArrayMarker);
+                }
+                
+                // Compile all elements and spreads
                 for element in elements {
                     match element {
                         ArrayElement::Single(expr) => {
                             self.compile_expr(expr)?;
-                            element_count += 1;
                         }
                         ArrayElement::Spread(expr) => {
                             self.compile_expr(expr)?;
                             self.chunk.emit(OpCode::SpreadArray);
-                            // Spread adds multiple elements - we'll handle this at runtime
                         }
                     }
                 }
                 
-                self.chunk.emit(OpCode::MakeArray(element_count));
+                // MakeArray will collect everything
+                // If there was a marker, it collects until marker
+                // Otherwise, it collects exactly 'count' elements
+                self.chunk.emit(OpCode::MakeArray(elements.len()));
                 
                 Ok(())
             }
