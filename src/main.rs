@@ -67,6 +67,11 @@ fn main() {
             let tokens = lexer::tokenize(&code);
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
+            
+            // Debug: print AST for inspection
+            if vm && std::env::var("DEBUG_AST").is_ok() {
+                eprintln!("DEBUG AST: {:#?}", stmts);
+            }
 
             if vm {
                 // Use bytecode compiler and VM
