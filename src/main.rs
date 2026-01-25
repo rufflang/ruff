@@ -40,6 +40,10 @@ enum Commands {
     Run {
         /// Path to the .ruff file
         file: PathBuf,
+        
+        /// Use bytecode VM instead of tree-walking interpreter
+        #[arg(long)]
+        vm: bool,
     },
 
     /// Launch interactive Ruff REPL
@@ -57,28 +61,83 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { file } => {
+        Commands::Run { file, vm } => {
             let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
             let filename = file.to_string_lossy().to_string();
             let tokens = lexer::tokenize(&code);
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
 
-            // Type checking phase (optional - won't stop execution even if errors found)
-            let mut type_checker = type_checker::TypeChecker::new();
-            if let Err(errors) = type_checker.check(&stmts) {
-                eprintln!("Type checking warnings:");
-                for error in &errors {
-                    eprintln!("  {}", error);
+            if vm {
+                // Use bytecode compiler and VM
+                use std::rc::Rc;
+                use std::cell::RefCell;
+                
+                let mut compiler = compiler::Compiler::new();
+                match compiler.compile(&stmts) {
+                    Ok(chunk) => {
+                        let mut vm = vm::VM::new();
+                        
+                        // Set up global environment with built-in functions
+                        // We need to populate it with NativeFunction values for all built-ins
+                        let env = Rc::new(RefCell::new(interpreter::Environment::new()));
+                        
+                        // Register all built-in functions as NativeFunction values
+                        let builtins = vec![
+                            "print", "len", "to_string", "to_int", "to_float", "to_bool",
+                            "type", "range", "enumerate", "zip", "map", "filter", "reduce",
+                            "keys", "values", "items", "push", "pop", "shift", "unshift",
+                            "split", "join", "replace", "trim", "upper", "lower", "contains",
+                            "starts_with", "ends_with", "slice", "reverse", "sort", "sum",
+                            "min", "max", "abs", "floor", "ceil", "round", "sqrt", "pow",
+                            "sin", "cos", "tan", "read_file", "write_file", "append_file",
+                            "file_exists", "delete_file", "list_dir", "http_get", "http_post",
+                            "json_parse", "json_stringify", "exit", "sleep", "time", "now",
+                            "random", "random_int",
+                        ];
+                        
+                        for builtin_name in builtins {
+                            env.borrow_mut().set(
+                                builtin_name.to_string(),
+                                interpreter::Value::NativeFunction(builtin_name.to_string())
+                            );
+                        }
+                        
+                        vm.set_globals(env);
+                        
+                        match vm.execute(chunk) {
+                            Ok(_result) => {
+                                // Success - program executed
+                            }
+                            Err(e) => {
+                                eprintln!("Runtime error: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Compilation error: {}", e);
+                        std::process::exit(1);
+                    }
                 }
-                eprintln!();
-            }
+            } else {
+                // Use tree-walking interpreter (default)
+                // Type checking phase (optional - won't stop execution even if errors found)
+                let mut type_checker = type_checker::TypeChecker::new();
+                if let Err(errors) = type_checker.check(&stmts) {
+                    eprintln!("Type checking warnings:");
+                    for error in &errors {
+                        eprintln!("  {}", error);
+                    }
+                    eprintln!();
+                }
 
-            let mut interpreter = interpreter::Interpreter::new();
-            interpreter.set_source(filename, &code);
-            interpreter.eval_stmts(&stmts);
-            interpreter.cleanup();
-            drop(interpreter);
+                let mut interpreter = interpreter::Interpreter::new();
+                interpreter.set_source(filename, &code);
+                interpreter.eval_stmts(&stmts);
+                interpreter.cleanup();
+                drop(interpreter);
+            }
         }
 
         Commands::Repl => match repl::Repl::new() {

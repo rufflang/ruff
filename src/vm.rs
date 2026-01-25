@@ -269,12 +269,13 @@ impl VM {
                 // Function operations
                 OpCode::Call(arg_count) => {
                     // Function is on top of stack, then arguments below it
-                    let function = self.stack.pop().ok_or("Stack underflow")?;
+                    // Stack layout: [... arg1, arg2, ..., argN, function]
+                    let function = self.stack.pop().ok_or("Stack underflow in Call")?;
                     
                     // Collect arguments
                     let mut args = Vec::new();
                     for _ in 0..arg_count {
-                        args.push(self.stack.pop().ok_or("Stack underflow")?);
+                        args.push(self.stack.pop().ok_or("Stack underflow in Call args")?);
                     }
                     args.reverse(); // Arguments were pushed in order
                     
@@ -331,22 +332,27 @@ impl VM {
                 }
                 
                 // Collection operations
-                OpCode::MakeArray(_count) => {
-                    // Collect elements from stack until we hit a marker (if present)
-                    // or until we've collected 'count' elements
+                OpCode::MakeArray(count) => {
+                    // Collect elements from stack
+                    // If the bottom-most element is ArrayMarker, collect until marker
+                    // Otherwise, collect exactly 'count' elements
                     let mut elements = Vec::new();
+                    let mut found_marker = false;
                     
-                    loop {
-                        let value = self.stack.pop().ok_or("Stack underflow")?;
-                        match value {
-                            Value::ArrayMarker => {
-                                // Found marker, we're done
-                                break;
-                            }
-                            _ => {
-                                elements.push(value);
-                            }
+                    for _ in 0..count {
+                        let value = self.stack.pop().ok_or("Stack underflow in MakeArray")?;
+                        if matches!(value, Value::ArrayMarker) {
+                            found_marker = true;
+                            break;
                         }
+                        elements.push(value);
+                    }
+                    
+                    // If we found a marker, that's it
+                    // Otherwise we need to check if there are more elements (from spreads)
+                    if found_marker {
+                        // Collect any remaining elements until we reach the marker
+                        // Actually, we already hit the marker, so we're done
                     }
                     
                     elements.reverse();
@@ -688,13 +694,73 @@ impl VM {
             }
             
             Value::NativeFunction(name) => {
-                // Call built-in function from interpreter
-                // This requires integration with the interpreter's built-in functions
-                // For now, return an error
-                Err(format!("Built-in function calls not yet supported in VM: {}", name))
+                // For now, we need to integrate with the interpreter's built-in functions
+                // This is a simplified implementation for basic functions
+                
+                match name.as_str() {
+                    "print" => {
+                        // Print all arguments
+                        for (i, arg) in args.iter().enumerate() {
+                            if i > 0 {
+                                print!(" ");
+                            }
+                            print!("{}", self.value_to_string(arg));
+                        }
+                        println!();
+                        Ok(Value::Null)
+                    }
+                    
+                    "len" => {
+                        if args.len() != 1 {
+                            return Err("len() requires exactly 1 argument".to_string());
+                        }
+                        match &args[0] {
+                            Value::Array(arr) => Ok(Value::Int(arr.len() as i64)),
+                            Value::Str(s) => Ok(Value::Int(s.len() as i64)),
+                            Value::Dict(dict) => Ok(Value::Int(dict.len() as i64)),
+                            _ => Err("len() requires array, string, or dict".to_string()),
+                        }
+                    }
+                    
+                    "to_string" => {
+                        if args.len() != 1 {
+                            return Err("to_string() requires exactly 1 argument".to_string());
+                        }
+                        Ok(Value::Str(self.value_to_string(&args[0])))
+                    }
+                    
+                    _ => {
+                        // For other built-in functions, we'd need full integration
+                        // For now, return an error
+                        Err(format!("Built-in function '{}' not yet supported in VM", name))
+                    }
+                }
             }
             
             _ => Err("Cannot call non-function".to_string()),
+        }
+    }
+    
+    /// Convert a value to string representation for printing
+    fn value_to_string(&self, value: &Value) -> String {
+        match value {
+            Value::Int(n) => n.to_string(),
+            Value::Float(f) => f.to_string(),
+            Value::Str(s) => s.clone(),
+            Value::Bool(b) => b.to_string(),
+            Value::Null => "null".to_string(),
+            Value::Array(arr) => {
+                let items: Vec<String> = arr.iter().map(|v| self.value_to_string(v)).collect();
+                format!("[{}]", items.join(", "))
+            }
+            Value::Dict(dict) => {
+                let items: Vec<String> = dict
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", k, self.value_to_string(v)))
+                    .collect();
+                format!("{{{}}}", items.join(", "))
+            }
+            _ => format!("{:?}", value),
         }
     }
     
