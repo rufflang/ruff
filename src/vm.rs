@@ -279,8 +279,21 @@ impl VM {
                     }
                     args.reverse(); // Arguments were pushed in order
                     
-                    let result = self.call_function(function, args)?;
-                    self.stack.push(result);
+                    // Check if this is a bytecode function or native function
+                    match &function {
+                        Value::BytecodeFunction { .. } => {
+                            // Set up call frame and switch context
+                            // Return value will be pushed by Return opcode
+                            self.call_bytecode_function(function, args)?;
+                            // Don't push anything - Return will do it
+                        }
+                        Value::NativeFunction(_) => {
+                            // Native functions return synchronously
+                            let result = self.call_native_function_vm(function, args)?;
+                            self.stack.push(result);
+                        }
+                        _ => return Err("Cannot call non-function".to_string()),
+                    }
                 }
                 
                 OpCode::Return => {
@@ -645,99 +658,97 @@ impl VM {
     }
     
     /// Call a function
-    fn call_function(&mut self, function: Value, args: Vec<Value>) -> Result<Value, String> {
-        match function {
-            Value::BytecodeFunction { chunk, captured } => {
-                // Create new call frame with parameters bound
-                let mut locals = HashMap::new();
-                
-                // Bind arguments to parameter names
-                let param_names = &chunk.params;
-                
-                // Check argument count
-                if args.len() != param_names.len() {
-                    return Err(format!(
-                        "Function {} expects {} arguments, got {}",
-                        chunk.name.as_deref().unwrap_or("<lambda>"),
-                        param_names.len(),
-                        args.len()
-                    ));
-                }
-                
-                // Bind each argument to its corresponding parameter name
-                for (param_name, arg_value) in param_names.iter().zip(args.iter()) {
-                    locals.insert(param_name.clone(), arg_value.clone());
-                }
-                
-                // Add captured variables from closure
-                for (name, value) in captured {
-                    locals.insert(name, value);
-                }
-                
-                let frame = CallFrame {
-                    return_ip: self.ip,
-                    stack_offset: self.stack.len(),
-                    locals,
-                    prev_chunk: Some(self.chunk.clone()),
-                };
-                
-                self.call_frames.push(frame);
-                
-                // Execute function by setting the new chunk and resetting IP
-                let _prev_chunk = std::mem::replace(&mut self.chunk, chunk);
-                let _prev_ip = std::mem::replace(&mut self.ip, 0);
-                
-                // Execute until return
-                let result = self.execute(self.chunk.clone())?;
-                
-                Ok(result)
+    /// Set up a call frame for a bytecode function (doesn't return - Return opcode will handle that)
+    fn call_bytecode_function(&mut self, function: Value, args: Vec<Value>) -> Result<(), String> {
+        if let Value::BytecodeFunction { chunk, captured } = function {
+            // Create new call frame with parameters bound
+            let mut locals = HashMap::new();
+            
+            // Bind arguments to parameter names
+            let param_names = &chunk.params;
+            
+            // Check argument count
+            if args.len() != param_names.len() {
+                return Err(format!(
+                    "Function {} expects {} arguments, got {}",
+                    chunk.name.as_deref().unwrap_or("<lambda>"),
+                    param_names.len(),
+                    args.len()
+                ));
             }
             
-            Value::NativeFunction(name) => {
-                // For now, we need to integrate with the interpreter's built-in functions
-                // This is a simplified implementation for basic functions
-                
-                match name.as_str() {
-                    "print" => {
-                        // Print all arguments
-                        for (i, arg) in args.iter().enumerate() {
-                            if i > 0 {
-                                print!(" ");
-                            }
-                            print!("{}", Self::value_to_string(arg));
-                        }
-                        println!();
-                        Ok(Value::Null)
-                    }
-                    
-                    "len" => {
-                        if args.len() != 1 {
-                            return Err("len() requires exactly 1 argument".to_string());
-                        }
-                        match &args[0] {
-                            Value::Array(arr) => Ok(Value::Int(arr.len() as i64)),
-                            Value::Str(s) => Ok(Value::Int(s.len() as i64)),
-                            Value::Dict(dict) => Ok(Value::Int(dict.len() as i64)),
-                            _ => Err("len() requires array, string, or dict".to_string()),
-                        }
-                    }
-                    
-                    "to_string" => {
-                        if args.len() != 1 {
-                            return Err("to_string() requires exactly 1 argument".to_string());
-                        }
-                        Ok(Value::Str(Self::value_to_string(&args[0])))
-                    }
-                    
-                    _ => {
-                        // For other built-in functions, we'd need full integration
-                        // For now, return an error
-                        Err(format!("Built-in function '{}' not yet supported in VM", name))
-                    }
-                }
+            // Bind each argument to its corresponding parameter name
+            for (param_name, arg_value) in param_names.iter().zip(args.iter()) {
+                locals.insert(param_name.clone(), arg_value.clone());
             }
             
-            _ => Err("Cannot call non-function".to_string()),
+            // Add captured variables from closure
+            for (name, value) in captured {
+                locals.insert(name, value);
+            }
+            
+            let frame = CallFrame {
+                return_ip: self.ip,
+                stack_offset: self.stack.len(),
+                locals,
+                prev_chunk: Some(self.chunk.clone()),
+            };
+            
+            self.call_frames.push(frame);
+            
+            // Switch to function's chunk and reset IP
+            self.chunk = chunk;
+            self.ip = 0;
+            
+            Ok(())
+        } else {
+            Err("Expected BytecodeFunction".to_string())
+        }
+    }
+    
+    /// Call a native function (returns synchronously)
+    fn call_native_function_vm(&mut self, function: Value, args: Vec<Value>) -> Result<Value, String> {
+        if let Value::NativeFunction(name) = function {
+            match name.as_str() {
+                "print" => {
+                    // Print all arguments
+                    for (i, arg) in args.iter().enumerate() {
+                        if i > 0 {
+                            print!(" ");
+                        }
+                        print!("{}", Self::value_to_string(arg));
+                    }
+                    println!();
+                    Ok(Value::Null)
+                }
+                
+                "len" => {
+                    if args.len() != 1 {
+                        return Err("len() requires exactly 1 argument".to_string());
+                    }
+                    match &args[0] {
+                        Value::Array(arr) => Ok(Value::Int(arr.len() as i64)),
+                        Value::Str(s) => Ok(Value::Int(s.len() as i64)),
+                        Value::Dict(dict) => Ok(Value::Int(dict.len() as i64)),
+                        _ => Err("len() requires array, string, or dict".to_string()),
+                    }
+                }
+                
+                "to_string" => {
+                    if args.len() != 1 {
+                        return Err("to_string() requires exactly 1 argument".to_string());
+                    }
+                    Ok(Value::Str(Self::value_to_string(&args[0])))
+                }
+                
+                _ => {
+                    // For other built-in functions, we'd need full integration
+                    // For now, return an error
+                    Err(format!("Built-in function '{}' not yet supported in VM", name))
+                }
+            }
+        } else {
+            Err("Expected NativeFunction".to_string())
         }
     }
     
