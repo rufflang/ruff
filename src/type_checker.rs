@@ -386,6 +386,23 @@ impl TypeChecker {
             },
         );
 
+        // Assert & Debug functions
+        self.functions.insert(
+            "assert".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None], // condition (any type), optional message (string)
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "debug".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Variadic - accepts any number of any type
+                return_type: None,       // Returns null
+            },
+        );
+
         // Random functions
         self.functions.insert(
             "random".to_string(),
