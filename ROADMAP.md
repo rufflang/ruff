@@ -39,15 +39,18 @@ This roadmap outlines planned features and improvements for future versions of t
 - `io` - Buffered I/O and binary operations
 - `net` - TCP/UDP sockets beyond HTTP
 - `crypto` - Hashing (SHA256, MD5) and encryption (AES)
+
 **Essential Built-in Functions** (High Priority):
+
+✅ **Command-line argument parsing** - COMPLETED in v0.8.0:
 ```ruff
-# Command-line argument parsing
 parser := arg_parser()
 parser.add_argument("--verbose", "-v", type="bool", help="Enable verbose output")
 parser.add_argument("--config", type="string", required=true)
 args := parser.parse()
+```
 
-# Environment variable helpers
+✅ **Environment variable helpers** - COMPLETED in v0.8.0:
 db_host := env_or("DB_HOST", "localhost")  # Get with default
 db_port := env_int("DB_PORT")  # Parse as int
 api_key := env_required("API_KEY")  # Error if missing

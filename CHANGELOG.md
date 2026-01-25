@@ -41,6 +41,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     }
     ```
 
+- **Argument Parser** 🛠️ - Professional CLI argument parsing (P1 feature):
+  - **`arg_parser()`**: Create a fluent argument parser for building CLI tools
+  - **Flexible Argument Types**:
+    - Boolean flags: `--verbose`, `-v` (no value required)
+    - String options: `--config file.txt`, `-c file.txt`
+    - Integer options: `--port 8080`, `-p 8080`
+    - Float options: `--timeout 30.5`, `-t 30.5`
+  - **Required and Optional Arguments**: Mark arguments as required or provide defaults
+  - **Short and Long Forms**: Support both `-v` and `--verbose` naming
+  - **Automatic Help Generation**: `.help()` method creates formatted usage text
+  - **Type Validation**: Automatic parsing and validation of int/float values
+  - **Error Handling**: Clear error messages for missing required args or invalid values
+  - **Positional Arguments**: Automatically collected in `_positional` key
+  - **CLI Integration**: Pass arguments directly: `ruff run script.ruff --arg1 value --flag`
+  - **Example**:
+    ```ruff
+    let parser := arg_parser()
+    let parser := parser.add_argument("--verbose", "short", "-v", "type", "bool", "help", "Enable verbose output")
+    let parser := parser.add_argument("--config", "short", "-c", "type", "string", "required", true, "help", "Config file")
+    let parser := parser.add_argument("--port", "short", "-p", "type", "int", "default", "8080", "help", "Port number")
+    
+    # Parse arguments
+    let args := parser.parse()
+    
+    # Access parsed values
+    if args["verbose"] {
+        print("Verbose mode enabled")
+    }
+    print("Config file: ${args["config"]}")
+    print("Port: ${args["port"]}")
+    
+    # Show help
+    print(parser.help())
+    ```
+  - **Real-World Use Cases**:
+    - CLI tools with complex argument requirements
+    - Build scripts with multiple configuration options
+    - Data processing pipelines with customizable parameters
+    - Server applications with runtime configuration
+
 - **Bytecode Compiler & VM Foundation** ⚡ (PARTIAL - P1 feature):
   - **Bytecode Instruction Set**: Complete OpCode enum with 60+ instructions for all language features
   - **AST-to-Bytecode Compiler**: Compiles Ruff AST to stack-based bytecode instructions
