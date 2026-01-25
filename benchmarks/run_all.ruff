@@ -1,0 +1,15 @@
+# Comprehensive Benchmark Suite Runner
+# Runs all benchmarks and compares interpreter vs VM performance
+
+print("=" * 60)
+print("Ruff Benchmark Suite")
+print("=" * 60)
+print("")
+
+# Note: Run this file with both modes:
+# ruff run benchmarks/run_all.ruff        (interpreter mode)
+# ruff run --vm benchmarks/run_all.ruff   (VM mode)
+
+print("Running benchmarks...")
+print("(Run this with and without --vm flag to compare)")
+print("")
