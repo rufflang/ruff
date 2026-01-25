@@ -5,7 +5,11 @@ All notable changes to the Ruff programming language will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-01-25
+
+### 🎉 Core Language Completion Release
+
+This release marks the completion of v0.7.0's core language features, making Ruff a **fully-featured, Python/Go/Rust competitive language** with all essential utilities developers expect. All P0 (Critical), P1 (Essential), and P2 (Quality-of-Life) features are now complete!
 
 ### Added
 

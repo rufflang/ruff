@@ -2,8 +2,8 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.6.0 (Production Database & Streaming - COMPLETE!)  
-> **Next Planned Release**: v0.7.0 (Core Language Completion)  
+> **Current Version**: v0.7.0 (Core Language Completion - RELEASED! 🎉)  
+> **Next Planned Release**: v0.8.0 (Performance & Modern Syntax)  
 > **Path to v1.0**: See [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for comprehensive roadmap
 
 ---
@@ -16,88 +16,20 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## v0.7.0 - Core Language Completion
+## v0.7.0 - Core Language Completion ✅ RELEASED
 
-**Focus**: Complete foundational language features + quality-of-life improvements for a feature-rich, fully equipped programming language  
-**Timeline**: Q1 2026 (3-4 weeks)  
-**Status**: P0 features complete! Adding P2 features for richness before release
+**Status**: ✅ **COMPLETE** - Released January 25, 2026  
+**Achievement**: Ruff is now a **fully-featured, Python/Go/Rust competitive language** with all essential utilities!
 
-**See**: [CORE_FEATURES_NEEDED.md](CORE_FEATURES_NEEDED.md) for detailed implementation guide
+All P0 (Critical), P1 (Essential), and P2 (Quality-of-Life) features completed:
+- ✅ Timing Functions, Integer Type, Type Introspection, Type Conversion
+- ✅ File Operations, Array Utilities  
+- ✅ Assert & Debug, Range Function, Format String
+- ✅ Extended Math (log, exp), 17 String Methods, 9 Array Methods, 7 Dict Methods
 
----
+**See**: [CHANGELOG.md](CHANGELOG.md) for complete feature details and examples
 
-### 🎯 v0.7.0 RELEASE CHECKLIST
-
-**Critical Features (P0)**: ✅ All Complete!
-- ✅ Timing Functions
-- ✅ Integer Type
-- ✅ Type Introspection
-- ✅ Type Checker Updates for Int/Float
-- ✅ Type Conversion Functions
-
-**Essential Features (P1)**: ✅ All Complete!
-- ✅ File Operations
-- ✅ Array Utilities
-
-**Quality-of-Life Features (P2)**: ✅ Complete!
-- ✅ Assert & Debug
-- ✅ **Range Function** - Generate number sequences for loops and iteration
-- ✅ **Format String** - sprintf-style string formatting (`format("Hello %s", name)`)
-- ✅ **Math Functions** - Extended operations: `abs()`, `min()`, `max()`, `floor()`, `ceil()`, `round()`, `sqrt()`, `pow()`, `sin()`, `cos()`, `tan()`, `log()`, `exp()`
-- ✅ **String Methods (Essential)** - Core manipulation:
-  - Case conversion: `upper()`, `lower()`, `capitalize()`
-  - Search: `contains()`, `starts_with()`, `ends_with()`, `index_of()`
-  - Manipulation: `trim()`, `trim_start()`, `trim_end()`, `replace()`, `split()`, `join()`
-  - Extraction: `substring()`, `char_at()`, `repeat()`
-  - Validation: `is_empty()`, `count_chars()`
-- ✅ **Array Methods (Mutation)** - Essential operations Python/Go/Rust developers expect:
-  - `push()` / `append()` - Add item to end
-  - `pop()` - Remove and return last item
-  - `insert(index, item)` - Insert at position
-  - `remove(item)` - Remove first occurrence
-  - `remove_at(index)` - Remove by index
-  - `clear()` - Remove all items
-  - `index_of(item)` - Find position
-  - `contains(item)` - Check existence
-  - `concat(array)` - Merge arrays
-- ✅ **Dict/Map Methods** - Key operations for working with dictionaries:
-  - `keys()` - Get all keys as array
-  - `values()` - Get all values as array
-  - `items()` - Get key-value pairs
-  - `has_key(key)` - Check if key exists
-  - `get(key, default)` - Safe access with fallback
-  - `remove(key)` - Delete key-value pair
-  - `clear()` - Remove all entries
-  - `merge(dict)` - Combine dictionaries
-
-**Goal**: Ship v0.7.0 as a **Python/Go/Rust competitive language** with ALL essential utilities that developers expect. No developer should think "I wish Ruff had X" for basic operations.
-
----
-
-### 10. Timing Functions (P0)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
-~~**Critical Bug Fix**: Fix `current_timestamp()` bug in `examples/projects/ai_model_comparison.ruff`~~ ✅ Fixed
-
-Implemented both timing functions with high-precision support. See CHANGELOG for details.
-
----
-
-### 🔥 NEXT TO IMPLEMENT (Top Priority)
-
-**Note**: Assert & Debug feature completed on January 25, 2026! 🎉
-
-**Next High Priority**: Range Function (P2) - Generate number sequences for loops and iteration
-
----
-
-### ✅ COMPLETED FEATURES
-
-#### 16. Assert & Debug (P2)
-
-**Status**: ✅ Complete (see CHANGELOG)  
+---  
 **Completed**: January 25, 2026
 
 Implemented runtime assertions and debug output functions for testing and troubleshooting. `assert(condition, message?)` validates conditions at runtime and returns errors on failure. `debug(...args)` prints detailed type information for any values. Added type introspection functions to type checker and fixed variadic function support. Includes 10 comprehensive integration tests and practical example file. See CHANGELOG for complete feature details and usage examples.
