@@ -221,8 +221,24 @@ pub fn to_lower(s: &str) -> String {
     s.to_lowercase()
 }
 
+pub fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+    }
+}
+
 pub fn trim(s: &str) -> String {
     s.trim().to_string()
+}
+
+pub fn trim_start(s: &str) -> String {
+    s.trim_start().to_string()
+}
+
+pub fn trim_end(s: &str) -> String {
+    s.trim_end().to_string()
 }
 
 pub fn contains(s: &str, substr: &str) -> bool {
@@ -251,6 +267,19 @@ pub fn index_of(s: &str, substr: &str) -> f64 {
 pub fn repeat(s: &str, count: f64) -> String {
     let count = count as usize;
     s.repeat(count)
+}
+
+pub fn char_at(s: &str, index: f64) -> String {
+    let idx = index as usize;
+    s.chars().nth(idx).map(|c| c.to_string()).unwrap_or_else(String::new)
+}
+
+pub fn is_empty(s: &str) -> bool {
+    s.is_empty()
+}
+
+pub fn count_chars(s: &str) -> i64 {
+    s.chars().count() as i64
 }
 
 pub fn split(s: &str, delimiter: &str) -> Vec<String> {

@@ -107,7 +107,31 @@ impl TypeChecker {
         );
 
         self.functions.insert(
+            "upper".to_string(), // Alias
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
             "to_lower".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "lower".to_string(), // Alias
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "capitalize".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String)],
                 return_type: Some(TypeAnnotation::String),
@@ -119,6 +143,46 @@ impl TypeChecker {
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String)],
                 return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "trim_start".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "trim_end".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "char_at".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::Int)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "is_empty".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "count_chars".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Int),
             },
         );
 
@@ -144,6 +208,18 @@ impl TypeChecker {
 
         self.functions.insert(
             "replace_str".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::String),
+                ],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "replace".to_string(), // Alias
             FunctionSignature {
                 param_types: vec![
                     Some(TypeAnnotation::String),

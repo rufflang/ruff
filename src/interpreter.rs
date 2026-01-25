@@ -501,11 +501,17 @@ impl Interpreter {
         self.env.define("len".to_string(), Value::NativeFunction("len".to_string()));
         self.env.define("substring".to_string(), Value::NativeFunction("substring".to_string()));
         self.env.define("to_upper".to_string(), Value::NativeFunction("to_upper".to_string()));
+        self.env.define("upper".to_string(), Value::NativeFunction("upper".to_string())); // Alias
         self.env.define("to_lower".to_string(), Value::NativeFunction("to_lower".to_string()));
+        self.env.define("lower".to_string(), Value::NativeFunction("lower".to_string())); // Alias
+        self.env.define("capitalize".to_string(), Value::NativeFunction("capitalize".to_string()));
         self.env.define("trim".to_string(), Value::NativeFunction("trim".to_string()));
+        self.env.define("trim_start".to_string(), Value::NativeFunction("trim_start".to_string()));
+        self.env.define("trim_end".to_string(), Value::NativeFunction("trim_end".to_string()));
         self.env.define("contains".to_string(), Value::NativeFunction("contains".to_string()));
         self.env
             .define("replace_str".to_string(), Value::NativeFunction("replace_str".to_string()));
+        self.env.define("replace".to_string(), Value::NativeFunction("replace".to_string())); // Alias
         self.env.define("split".to_string(), Value::NativeFunction("split".to_string()));
         self.env.define("join".to_string(), Value::NativeFunction("join".to_string()));
         self.env
@@ -513,6 +519,9 @@ impl Interpreter {
         self.env.define("ends_with".to_string(), Value::NativeFunction("ends_with".to_string()));
         self.env.define("index_of".to_string(), Value::NativeFunction("index_of".to_string()));
         self.env.define("repeat".to_string(), Value::NativeFunction("repeat".to_string()));
+        self.env.define("char_at".to_string(), Value::NativeFunction("char_at".to_string()));
+        self.env.define("is_empty".to_string(), Value::NativeFunction("is_empty".to_string()));
+        self.env.define("count_chars".to_string(), Value::NativeFunction("count_chars".to_string()));
 
         // Array functions
         self.env.define("push".to_string(), Value::NativeFunction("push".to_string()));
@@ -1310,7 +1319,7 @@ impl Interpreter {
                 _ => Value::Int(0),
             },
 
-            "to_upper" => {
+            "to_upper" | "upper" => {
                 if let Some(Value::Str(s)) = arg_values.get(0) {
                     Value::Str(builtins::to_upper(s))
                 } else {
@@ -1318,9 +1327,17 @@ impl Interpreter {
                 }
             }
 
-            "to_lower" => {
+            "to_lower" | "lower" => {
                 if let Some(Value::Str(s)) = arg_values.get(0) {
                     Value::Str(builtins::to_lower(s))
+                } else {
+                    Value::Str(String::new())
+                }
+            }
+
+            "capitalize" => {
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::capitalize(s))
                 } else {
                     Value::Str(String::new())
                 }
@@ -1331,6 +1348,51 @@ impl Interpreter {
                     Value::Str(builtins::trim(s))
                 } else {
                     Value::Str(String::new())
+                }
+            }
+
+            "trim_start" => {
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::trim_start(s))
+                } else {
+                    Value::Str(String::new())
+                }
+            }
+
+            "trim_end" => {
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Str(builtins::trim_end(s))
+                } else {
+                    Value::Str(String::new())
+                }
+            }
+
+            "char_at" => {
+                if let (Some(Value::Str(s)), Some(index_val)) = (arg_values.get(0), arg_values.get(1)) {
+                    let index = match index_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => 0.0,
+                    };
+                    Value::Str(builtins::char_at(s, index))
+                } else {
+                    Value::Str(String::new())
+                }
+            }
+
+            "is_empty" => {
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Bool(builtins::is_empty(s))
+                } else {
+                    Value::Bool(true)
+                }
+            }
+
+            "count_chars" => {
+                if let Some(Value::Str(s)) = arg_values.get(0) {
+                    Value::Int(builtins::count_chars(s))
+                } else {
+                    Value::Int(0)
                 }
             }
 
@@ -1366,7 +1428,7 @@ impl Interpreter {
             }
 
             // String functions - three arguments
-            "replace_str" => {
+            "replace_str" | "replace" => {
                 if let (Some(Value::Str(s)), Some(Value::Str(old)), Some(Value::Str(new))) =
                     (arg_values.get(0), arg_values.get(1), arg_values.get(2))
                 {
