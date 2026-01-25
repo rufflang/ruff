@@ -304,6 +304,39 @@ impl TypeChecker {
             },
         );
 
+        // Type conversion functions
+        self.functions.insert(
+            "to_int".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any type
+                return_type: Some(TypeAnnotation::Int),
+            },
+        );
+
+        self.functions.insert(
+            "to_float".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any type
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
+            "to_string".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any type
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "to_bool".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any type
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
         // Random functions
         self.functions.insert(
             "random".to_string(),
@@ -1559,7 +1592,7 @@ mod tests {
     #[test]
     fn test_math_function_accepts_int_via_promotion() {
         let mut checker = TypeChecker::new();
-        
+
         // abs(5) should be accepted (Int promoted to Float)
         let result = checker.infer_expr(&Expr::Call {
             function: Box::new(Expr::Identifier("abs".to_string())),
@@ -1574,7 +1607,7 @@ mod tests {
     #[test]
     fn test_min_with_ints() {
         let mut checker = TypeChecker::new();
-        
+
         // min(5, 10) should be accepted
         let result = checker.infer_expr(&Expr::Call {
             function: Box::new(Expr::Identifier("min".to_string())),
@@ -1589,7 +1622,7 @@ mod tests {
     #[test]
     fn test_min_with_mixed_types() {
         let mut checker = TypeChecker::new();
-        
+
         // min(5, 10.5) should be accepted
         let result = checker.infer_expr(&Expr::Call {
             function: Box::new(Expr::Identifier("min".to_string())),
@@ -1604,16 +1637,20 @@ mod tests {
     #[test]
     fn test_arithmetic_type_promotion_all_operators() {
         let mut checker = TypeChecker::new();
-        
+
         for op in &["+", "-", "*", "/"] {
             let result = checker.infer_expr(&Expr::BinaryOp {
                 op: op.to_string(),
                 left: Box::new(Expr::Int(10)),
                 right: Box::new(Expr::Float(5.0)),
             });
-            
-            assert_eq!(result, Some(TypeAnnotation::Float), 
-                "Operator {} should promote Int+Float to Float", op);
+
+            assert_eq!(
+                result,
+                Some(TypeAnnotation::Float),
+                "Operator {} should promote Int+Float to Float",
+                op
+            );
         }
     }
 }
