@@ -1,0 +1,8 @@
+# Test with empty body
+let test := Ok(42)
+print("Before match")
+match test {
+    case Ok: {}
+    case Err: {}
+}
+print("After match")

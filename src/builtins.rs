@@ -1298,6 +1298,20 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::Database { db_type, .. } => format!("Database(type: {})", db_type),
         Value::DatabasePool { .. } => "DatabasePool".to_string(),
         Value::Image { format, .. } => format!("Image(format: {})", format),
+        Value::Result { is_ok, value } => {
+            if *is_ok {
+                format!("Ok({})", format_debug_value(value))
+            } else {
+                format!("Err({})", format_debug_value(value))
+            }
+        }
+        Value::Option { is_some, value } => {
+            if *is_some {
+                format!("Some({})", format_debug_value(value))
+            } else {
+                "None".to_string()
+            }
+        }
     }
 }
 
