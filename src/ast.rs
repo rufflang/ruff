@@ -68,7 +68,7 @@ pub enum InterpolatedStringPart {
 
 /// Destructuring patterns for variable binding
 /// Supports array and dict destructuring with rest elements
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
     /// Simple identifier: x
     Identifier(String),

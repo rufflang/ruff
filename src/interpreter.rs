@@ -250,6 +250,10 @@ pub enum Value {
     Bytes(Vec<u8>), // Binary data for files, HTTP downloads, etc.
     Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
     NativeFunction(String), // Name of the native function
+    BytecodeFunction {
+        chunk: crate::bytecode::BytecodeChunk,
+        captured: HashMap<String, Value>,
+    }, // Compiled bytecode function
     Return(Box<Value>),
     Error(String), // Legacy simple error for backward compatibility
     ErrorObject {
@@ -327,6 +331,11 @@ impl std::fmt::Debug for Value {
                 write!(f, "Function({:?}, {} stmts{})", params, body.get().len(), env_info)
             }
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
+            Value::BytecodeFunction { chunk, captured } => {
+                let name = chunk.name.as_ref().map(|s| s.as_str()).unwrap_or("<lambda>");
+                write!(f, "BytecodeFunction({}, {} instructions, {} captured)", 
+                    name, chunk.instructions.len(), captured.len())
+            }
             Value::Return(v) => write!(f, "Return({:?})", v),
             Value::Error(e) => write!(f, "Error({})", e),
             Value::ErrorObject { message, stack, line, cause } => f
@@ -2509,6 +2518,7 @@ impl Interpreter {
                         Value::Stack(_) => "stack",
                         Value::Function(_, _, _) => "function",
                         Value::NativeFunction(_) => "function",
+                        Value::BytecodeFunction { .. } => "function",
                         Value::Struct { .. } => "struct",
                         Value::StructDef { .. } => "structdef",
                         Value::Tagged { .. } => "tagged",
