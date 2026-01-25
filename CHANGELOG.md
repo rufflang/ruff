@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Bytecode Compiler & VM Foundation** ⚡ (IN PROGRESS - P1 feature):
+  - **Bytecode Instruction Set**: Complete OpCode enum with 60+ instructions for all language features
+  - **AST-to-Bytecode Compiler**: Compiles Ruff AST to stack-based bytecode instructions
+  - **Virtual Machine**: Stack-based VM that executes bytecode with call frames and local environments
+  - **Supported Operations**: Arithmetic, comparison, logical operations, control flow (if/while/for/match)
+  - **Data Structures**: Arrays, dicts, structs with spread operators
+  - **Functions**: Basic function compilation and closure creation (calls need more work)
+  - **Type Support**: Result/Option types with Try operator compilation
+  - **Foundation Complete**: Core VM architecture in place, ready for optimization and full integration
+  - **Status**: Foundation implemented, function calls and closures need refinement, CLI integration pending
+  - **Next Steps**: Complete function call mechanism, add benchmarks, integrate with CLI, achieve 10-20x speedup
+
 - **Result and Option Types** 🎁 - Robust error handling and null safety (P1 feature):
   - **Result<T, E>**: Represents success (`Ok`) or failure (`Err`) for operations that can fail
     ```ruff
