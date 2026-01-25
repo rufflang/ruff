@@ -37,37 +37,40 @@ Implemented both timing functions with high-precision support. See CHANGELOG for
 
 ### 🔥 NEXT TO IMPLEMENT (Top Priority)
 
-These are the immediate next items after Type Introspection completion:
+These are the immediate next items after Type Checker Updates completion:
 
-#### 13. Type Checker Updates for Int/Float (P0)
+#### 14. Type Conversion Functions (P0)
 
-**Status**: Ready to implement  
-**Estimated Effort**: Medium (4-6 hours)  
-**Priority**: MEDIUM - Improves DX but not blocking
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 hours)  
+**Priority**: HIGH - Needed with integer types
 
-**Current Gap**: Static type checker still expects all numbers to be Float, shows incorrect warnings
+**Features**:
+```ruff
+# Convert between types
+to_int(3.14)          # 3 (truncate)
+to_int("42")          # 42
+to_float(5)           # 5.0
+to_float("3.14")      # 3.14
+to_string(42)         # "42"
+to_bool(1)            # true
+to_bool(0)            # false
+```
 
-**Issues to Fix**:
-- Type checker shows "expects Float but got Int" for valid code
-- Need to update type inference to distinguish Int from Float literals
-- Function signatures need Int vs Float parameter types
-- Type promotion rules need to match runtime behavior
-
-**Implementation**:
-1. Update `type_checker.rs` line ~1169 to handle `Expr::Int` and `Expr::Float`
-2. Add type promotion rules (Int + Float → Float)
-3. Update function signature checking for native functions
-4. Add tests for type checking with mixed int/float operations
-
-**Files to Update**:
-- `src/type_checker.rs` - Add Int/Float distinction
-- Update all function type signatures that accept numbers
-
-**Why This Matters**: Eliminates false warnings when running valid Ruff scripts with integer operations.
+**Implementation**: Add conversion functions to `builtins.rs`, handle edge cases
 
 ---
 
 ### ✅ COMPLETED FEATURES
+
+#### 13. Type Checker Updates for Int/Float (P0)
+
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 25, 2026
+
+Implemented complete type promotion system for Int and Float types in the static type checker. Eliminates false warnings when using integers with math functions. Added 12 comprehensive tests. See CHANGELOG for complete feature details and examples.
+
+---
 
 #### 10. Timing Functions (P0)
 
