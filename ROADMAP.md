@@ -42,6 +42,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 **Essential Built-in Functions** (High Priority):
 
+```ruff
 # Compression & Archives
 archive := zip_create("backup.zip")
 zip_add_file(archive, "data.txt")
@@ -69,6 +70,7 @@ result := pipe_commands([
     ["wc", "-l"]
 ])
 ```
+
 **See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) Section 3.1 for complete module list
 
 ---
