@@ -9,6 +9,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Standard Library Expansion** 📦 - Comprehensive compression, hashing, and process management (P1 feature):
+  - **Compression & Archive Functions**:
+    - **`zip_create(path)`**: Create a new ZIP archive
+    - **`zip_add_file(archive, file_path)`**: Add a file to ZIP archive
+    - **`zip_add_dir(archive, dir_path)`**: Add entire directory recursively to ZIP
+    - **`zip_close(archive)`**: Finalize and close ZIP archive
+    - **`unzip(zip_path, output_dir)`**: Extract ZIP archive to directory, returns list of extracted files
+    - **Error Handling**: Proper ErrorObject integration for file I/O errors
+    - **Use Cases**: Automated backups, file distribution, data archiving
+    - **Example**:
+      ```ruff
+      let archive := zip_create("backup.zip")
+      zip_add_file(archive, "data.txt")
+      zip_add_dir(archive, "documents/")
+      zip_close(archive)
+      
+      # Extract later
+      let files := unzip("backup.zip", "restored/")
+      print("Extracted ${len(files)} files")
+      ```
+  
+  - **Hashing & Cryptography Functions**:
+    - **`sha256(data)`**: Compute SHA-256 hash of string (returns hex string)
+    - **`md5(data)`**: Compute MD5 hash of string (returns hex string)
+    - **`md5_file(path)`**: Compute MD5 hash of file contents
+    - **`hash_password(password)`**: Hash password using bcrypt (default cost 12)
+    - **`verify_password(password, hash)`**: Verify password against bcrypt hash
+    - **Security**: Uses industry-standard bcrypt for password hashing
+    - **Use Cases**: File integrity verification, password storage, content deduplication
+    - **Example**:
+      ```ruff
+      # Password hashing
+      let hashed := hash_password("user_password")
+      let is_valid := verify_password("user_password", hashed)  # true
+      
+      # File integrity
+      let hash := md5_file("document.pdf")
+      # Later verify if file changed
+      let current_hash := md5_file("document.pdf")
+      if hash != current_hash {
+          print("File was modified!")
+      }
+      ```
+  
+  - **Process Management Functions**:
+    - **`spawn_process(command_array)`**: Execute command and return result with stdout/stderr/exitcode
+    - **`pipe_commands(commands_array)`**: Chain multiple commands via pipes, returns final output
+    - **Process Result Structure**: Returns struct with `stdout`, `stderr`, `exitcode`, `success` fields
+    - **Error Handling**: Proper errors for non-existent commands or failed processes
+    - **Use Cases**: System automation, log analysis, data processing pipelines
+    - **Example**:
+      ```ruff
+      # Single command
+      let result := spawn_process(["ls", "-la"])
+      if result.success {
+          print(result.stdout)
+      }
+      
+      # Pipe multiple commands
+      let errors := pipe_commands([
+          ["cat", "server.log"],
+          ["grep", "ERROR"],
+          ["wc", "-l"]
+      ])
+      print("Found ${trim(errors)} errors")
+      ```
+  
+  - **Dependencies**: Added zip, sha2, md-5, bcrypt crates
+  - **Tests**: Comprehensive test suite in `tests/stdlib_test.ruff` covering all functions and error cases
+  - **Examples**: Three detailed example files demonstrating real-world usage:
+    - `examples/stdlib_compression.ruff` - Archive creation, extraction, automated backups
+    - `examples/stdlib_crypto.ruff` - Password systems, file integrity, deduplication
+    - `examples/stdlib_process.ruff` - Process spawning, command piping, log analysis
+  - **Status**: Production-ready, all tests passing
+  - **Roadmap Progress**: Completes first major milestone of v0.8.0 stdlib expansion
+
 - **Showcase Projects** 🎨 - Six comprehensive real-world projects demonstrating Ruff capabilities:
   - **`project_log_analyzer.ruff`** - Advanced log file analysis with statistics, IP extraction, HTTP status codes, and regex filtering
   - **`project_task_manager.ruff`** - Full CLI task management system with JSON persistence, priorities, due dates, and visual progress tracking
