@@ -31,7 +31,6 @@ pub fn get_builtins() -> HashMap<String, Value> {
 }
 
 /// Math functions
-
 pub fn abs(x: f64) -> f64 {
     x.abs()
 }
