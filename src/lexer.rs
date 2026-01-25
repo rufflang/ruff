@@ -237,7 +237,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     | "default" | "if" | "else" | "loop" | "while" | "for" | "in" | "break"
                     | "continue" | "try" | "except" | "int" | "float" | "string" | "bool"
                     | "import" | "export" | "from" | "struct" | "impl" | "self" | "null"
-                    | "spawn" => TokenKind::Keyword(ident),
+                    | "spawn" | "Result" | "Option" | "Ok" | "Err" | "Some" | "None" => TokenKind::Keyword(ident),
                     "true" => TokenKind::Bool(true),
                     "false" => TokenKind::Bool(false),
                     _ => TokenKind::Identifier(ident),
