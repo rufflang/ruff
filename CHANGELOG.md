@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Enhanced Error Messages** 🎯 - Developer-friendly error reporting with suggestions (P1 feature):
+  - **Contextual error display**: Shows exact location with source code snippet and caret pointer
+    - Example:
+      ```
+      Type Error: Type mismatch: variable 'x' declared as Int but assigned String
+        --> script.ruff:5:10
+         |
+       5 | let x: int := "hello"
+         |               ^^^^^^^
+         |
+         = help: Try removing the type annotation or converting the value to the correct type
+      ```
+  - **"Did you mean?" suggestions**: Uses Levenshtein distance to suggest similar names
+    - Suggests closest matching function when you mistype: `calculat_sum` → suggests `calculate_sum`
+    - Only suggests when distance ≤ 3 characters to avoid false positives
+    - Example:
+      ```
+      Undefined Function: Undefined function 'proces_data'
+        --> script.ruff:23:5
+         |
+         = Did you mean 'process_data'?
+         = note: Function must be defined before it is called
+      ```
+  - **Helpful error messages**: Each error includes actionable guidance
+    - Type mismatches suggest conversion functions: `to_int()`, `to_float()`, `to_string()`, `to_bool()`
+    - Return type errors explain expected vs actual types
+    - Comparison errors note that both operands must have compatible types
+  - **Multiple error reporting**: Type checker collects all errors and displays them together
+    - No more fixing one error only to discover another
+    - See all issues in your code at once
+  - **Improved error categories**:
+    - `help` section: Suggests specific fixes
+    - `note` section: Provides additional context
+    - `suggestion` section: "Did you mean?" alternatives
+  - Examples: See `tests/simple_error_test.ruff` and `tests/enhanced_errors.ruff`
+
 - **Destructuring Patterns** 📦 - Extract values from arrays and dicts (P1 feature):
   - **Array destructuring**: `[a, b, c] := [1, 2, 3]`
     - Bind multiple variables from array elements
