@@ -66,6 +66,26 @@ pub enum InterpolatedStringPart {
     Expr(Box<Expr>), // Expression to evaluate
 }
 
+/// Destructuring patterns for variable binding
+/// Supports array and dict destructuring with rest elements
+#[derive(Debug, Clone)]
+pub enum Pattern {
+    /// Simple identifier: x
+    Identifier(String),
+    /// Array destructuring: [a, b, ...rest]
+    Array {
+        elements: Vec<Pattern>,
+        rest: Option<String>, // Optional rest element
+    },
+    /// Dict destructuring: {name, email, ...rest}
+    Dict {
+        keys: Vec<String>,
+        rest: Option<String>, // Optional rest element
+    },
+    /// Ignore placeholder: _
+    Ignore,
+}
+
 /// Type annotations for variables and functions
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
@@ -140,12 +160,30 @@ pub enum Expr {
         object: Box<Expr>,
         field: String,
     },
-    ArrayLiteral(Vec<Expr>),
-    DictLiteral(Vec<(Expr, Expr)>), // key-value pairs
+    /// Array literal with possible spread elements: [1, 2, ...arr, 3]
+    ArrayLiteral(Vec<ArrayElement>),
+    /// Dict literal with possible spread elements: {a: 1, ...dict, b: 2}
+    DictLiteral(Vec<DictElement>),
     IndexAccess {
         object: Box<Expr>,
         index: Box<Expr>,
     },
+    /// Spread expression: ...expr
+    Spread(Box<Expr>),
+}
+
+/// Array element can be a regular expression or a spread
+#[derive(Debug, Clone)]
+pub enum ArrayElement {
+    Single(Expr),
+    Spread(Expr),
+}
+
+/// Dict element can be a key-value pair or a spread
+#[derive(Debug, Clone)]
+pub enum DictElement {
+    Pair(Expr, Expr),
+    Spread(Expr),
 }
 
 impl Expr {
@@ -161,7 +199,7 @@ impl Expr {
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Let {
-        name: String,
+        pattern: Pattern, // Changed from 'name: String' to support destructuring
         value: Expr,
         #[allow(dead_code)]
         mutable: bool,

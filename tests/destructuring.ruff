@@ -1,0 +1,98 @@
+# Destructuring Tests
+# Tests for array and dict destructuring patterns
+
+# Test 1: Basic array destructuring
+[a, b, c] := [1, 2, 3]
+print("Test 1 - Basic array:")
+print(a)
+print(b)
+print(c)
+
+# Test 2: Array destructuring with rest
+[first, second, ...rest] := [10, 20, 30, 40, 50]
+print("Test 2 - Array with rest:")
+print(first)
+print(second)
+print(rest)
+
+# Test 3: Nested array destructuring
+[[x, y], z] := [[1, 2], 3]
+print("Test 3 - Nested arrays:")
+print(x)
+print(y)
+print(z)
+
+# Test 4: Array destructuring with ignore
+[p, _, q] := [100, 200, 300]
+print("Test 4 - With ignore:")
+print(p)
+print(q)
+
+# Test 5: Dict destructuring basic
+user := {"name": "Alice", "age": 30, "city": "NYC"}
+{name, age} := user
+print("Test 5 - Dict basic:")
+print(name)
+print(age)
+
+# Test 6: Dict destructuring with rest
+config := {"host": "localhost", "port": 8080, "debug": true, "timeout": 30}
+{host, port, ...other} := config
+print("Test 6 - Dict with rest:")
+print(host)
+print(port)
+print(other)
+
+# Test 7: Dict destructuring - missing keys default to null
+person := {"name": "Bob"}
+{name, email, phone} := person
+print("Test 7 - Missing keys:")
+print(name)
+print(email)
+print(phone)
+
+# Test 8: Array destructuring - not enough elements
+[m, n, o] := [1, 2]
+print("Test 8 - Not enough elements:")
+print(m)
+print(n)
+print(o)
+
+# Test 9: Array with all rest
+[...all] := [5, 10, 15, 20, 25]
+print("Test 9 - All rest:")
+print(all)
+
+# Test 10: Dict with all rest
+{...everything} := {"a": 1, "b": 2, "c": 3}
+print("Test 10 - Dict all rest:")
+print(everything)
+
+# Test 11: Empty array destructuring
+[] := []
+print("Test 11 - Empty arrays work")
+
+# Test 12: Empty dict destructuring
+{} := {}
+print("Test 12 - Empty dicts work")
+
+# Test 13: Destructuring in for loop (array)
+data := [[1, 2], [3, 4], [5, 6]]
+for [x, y] in data {
+    print("Pair:")
+    print(x)
+    print(y)
+}
+
+# Test 14: Rest with no remaining elements
+[h, i, j, ...leftover] := [77, 88, 99]
+print("Test 14 - Empty rest:")
+print(h)
+print(i)
+print(j)
+print(leftover)
+
+# Test 15: Multiple ignore placeholders
+[_, _, keep] := [1, 2, 3]
+print("Test 15 - Multiple ignores:")
+print(keep)

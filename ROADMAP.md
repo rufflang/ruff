@@ -19,7 +19,7 @@ This roadmap outlines planned features and improvements for future versions of t
 ## v0.7.0 - Core Language Completion ✅ RELEASED
 
 **Status**: ✅ **COMPLETE** - Released January 25, 2026  
-**Achievement**: Ruff is now a **fully-featured, Python/Go/Rust competitive language** with all essential utilities!
+**Achievement**: Ruff is now a **fully-featured language** with all essential utilities!
 
 All P0 (Critical), P1 (Essential), and P2 (Quality-of-Life) features completed:
 - ✅ Timing Functions, Integer Type, Type Introspection, Type Conversion
@@ -111,7 +111,7 @@ The features below are planned for future versions.
 
 **Focus**: Polish, documentation, community  
 **Timeline**: Q4 2026 (3 months)  
-**Goal**: Production-ready language competitive with Go/Python
+**Goal**: Production-ready language competitive with other popular languages
 
 **Milestones**:
 - ✅ Complete core features (v0.7.0)
@@ -1371,13 +1371,11 @@ ruff build --target wasm script.ruff  # Compile to WASM
 - **v0.7.0**: Core language completion (foundation features + P2 quality-of-life) ✅
 - **v0.8.0**: Performance (bytecode, 10x speedup) + modern syntax (destructuring, async)
 - **v0.9.0**: Developer experience (LSP, package manager, tooling)
-- **v1.0.0**: Production-ready, Go/Python competitive 🎉
+- **v1.0.0**: Production-ready, and competitive with other popular programming languages 🎉
 
 **Philosophy**: Build the foundation first (language features), then performance, then tooling. This ensures LSP autocomplete and package manager are built on a complete, stable language.
 
 **See Also**:
-- [CORE_FEATURES_NEEDED.md](CORE_FEATURES_NEEDED.md) - v0.7.0 implementation guide
-- [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) - Complete roadmap to world-class language
 - [CHANGELOG.md](CHANGELOG.md) - Completed features and release history
 
 ---
