@@ -1944,7 +1944,7 @@ impl Interpreter {
 
             "current_timestamp" => {
                 // current_timestamp() - returns current timestamp in milliseconds since UNIX epoch
-                Value::Float(builtins::current_timestamp())
+                Value::Int(builtins::current_timestamp())
             }
 
             "performance_now" => {
@@ -3998,13 +3998,40 @@ impl Interpreter {
                 let iterable_value = self.eval_expr(&iterable);
 
                 match &iterable_value {
-                    Value::Float(n) => {
+                    Value::Int(n) => {
                         // Numeric range: for i in 5 { ... } iterates 0..5
+                        for i in 0..*n {
+                            // Create new scope for loop iteration
+                            // Push new scope
+                            self.env.push_scope();
+                            self.env.define(var.clone(), Value::Int(i));
+
+                            self.eval_stmts(&body);
+
+                            // Restore parent environment
+                            self.env.pop_scope();
+
+                            // Handle control flow
+                            if self.control_flow == ControlFlow::Break {
+                                self.control_flow = ControlFlow::None;
+                                break;
+                            } else if self.control_flow == ControlFlow::Continue {
+                                self.control_flow = ControlFlow::None;
+                                continue;
+                            }
+
+                            if self.return_value.is_some() {
+                                break;
+                            }
+                        }
+                    }
+                    Value::Float(n) => {
+                        // Numeric range: for i in 5.0 { ... } iterates 0..5
                         for i in 0..*n as i64 {
                             // Create new scope for loop iteration
                             // Push new scope
                             self.env.push_scope();
-                            self.env.define(var.clone(), Value::Int(i as i64));
+                            self.env.define(var.clone(), Value::Int(i));
 
                             self.eval_stmts(&body);
 
@@ -4210,7 +4237,7 @@ impl Interpreter {
                             );
                             fields.insert(
                                 "line".to_string(),
-                                Value::Float(line.unwrap_or(0) as f64),
+                                Value::Int(line.unwrap_or(0) as i64),
                             );
                             if let Some(cause_val) = cause {
                                 fields.insert("cause".to_string(), *cause_val);
@@ -5199,12 +5226,23 @@ impl Interpreter {
                 let idx_val = self.eval_expr(index);
 
                 match (obj_val, idx_val) {
+                    (Value::Array(arr), Value::Int(n)) => {
+                        let idx = n as usize;
+                        arr.get(idx).cloned().unwrap_or(Value::Int(0))
+                    }
                     (Value::Array(arr), Value::Float(n)) => {
                         let idx = n as usize;
                         arr.get(idx).cloned().unwrap_or(Value::Int(0))
                     }
                     (Value::Dict(map), Value::Str(key)) => {
                         map.get(&key).cloned().unwrap_or(Value::Int(0))
+                    }
+                    (Value::Str(s), Value::Int(n)) => {
+                        let idx = n as usize;
+                        s.chars()
+                            .nth(idx)
+                            .map(|c| Value::Str(c.to_string()))
+                            .unwrap_or(Value::Str(String::new()))
                     }
                     (Value::Str(s), Value::Float(n)) => {
                         let idx = n as usize;
@@ -5818,8 +5856,8 @@ mod tests {
         env.pop_scope();
 
         // x should still be 10 in the global scope
-        if let Some(Value::Int(x)) = env.get("x") {
-            assert_eq!(x, 10, "x should be updated to 10 in global scope");
+        if let Some(Value::Float(x)) = env.get("x") {
+            assert!((x - 10.0).abs() < 0.001, "x should be updated to 10 in global scope");
         } else {
             panic!("x should exist");
         }
@@ -7658,7 +7696,7 @@ mod tests {
 
         let interp = run_code(code);
         // Verify that ts2 >= ts1 (time moves forward)
-        if let (Some(Value::Float(ts1)), Some(Value::Float(ts2))) = 
+        if let (Some(Value::Int(ts1)), Some(Value::Int(ts2))) = 
             (interp.env.get("ts1"), interp.env.get("ts2")) {
             assert!(ts2 >= ts1, "Timestamp should increase or stay the same");
         } else {

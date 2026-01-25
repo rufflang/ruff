@@ -504,11 +504,11 @@ pub fn now() -> f64 {
 /// Get current timestamp in milliseconds since UNIX epoch
 /// Returns the number of milliseconds elapsed since January 1, 1970 00:00:00 UTC
 /// This is useful for timestamps and timing operations
-pub fn current_timestamp() -> f64 {
+pub fn current_timestamp() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("System time before UNIX epoch")
-        .as_millis() as f64
+        .as_millis() as i64
 }
 
 /// High-resolution performance timer in milliseconds
