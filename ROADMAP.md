@@ -37,32 +37,42 @@ Implemented both timing functions with high-precision support. See CHANGELOG for
 
 ### 🔥 NEXT TO IMPLEMENT (Top Priority)
 
-These are the immediate next items after File Operations completion:
+These are the immediate next items after Array Utilities completion:
 
-#### 14. Array Utilities (P1)
+#### 16. Assert & Debug (P2)
 
 **Status**: Planned  
-**Estimated Effort**: Medium (4-6 hours)
-**Priority**: HIGH - Essential operations for data processing
+**Estimated Effort**: Small (2-3 hours)
+**Priority**: MEDIUM - Helpful for testing and debugging
 
 **Features**:
 ```ruff
-nums := [3, 1, 4, 1, 5, 9]
+# Runtime assertions
+assert(x > 0, "x must be positive")
+assert_equal(actual, expected)
 
-sort(nums)            # [1, 1, 3, 4, 5, 9]
-reverse(nums)         # [9, 5, 1, 4, 1, 3]
-unique(nums)          # [3, 1, 4, 5, 9]
-
-sum(nums)             # 23
-any(nums, func(x) { return x > 5 })   # true
-all(nums, func(x) { return x > 0 })   # true
+# Debug output
+debug(complex_object)    # Pretty-printed output
 ```
 
-**Implementation**: Add functions to `builtins.rs` operating on `Value::Array`
+**Implementation**: Add to `builtins.rs`, throw error on assertion failure
+
+---
+
+**Alternative Next Priority**: Range Function (P2) - Generate number sequences
 
 ---
 
 ### ✅ COMPLETED FEATURES
+
+#### 14. Array Utilities (P1)
+
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 25, 2026
+
+Implemented six essential array utility functions: `sort()`, `reverse()`, `unique()`, `sum()`, `any()`, `all()`. Provides comprehensive array manipulation and analysis capabilities for data processing. Works with numbers and strings, supports mixed types, and includes predicate-based filtering. Added 18 comprehensive tests covering all functions, edge cases, and chaining operations. See CHANGELOG for complete feature details and examples.
+
+---
 
 #### 15. File Operations (P1)
 
@@ -213,28 +223,6 @@ format("User %s scored %d points", ["Alice", 100])
 ```
 
 **Implementation**: Add `format()` to `builtins.rs` with pattern matching
-
----
-
-### 14. Array Utilities (P1)
-
-**Status**: Planned  
-**Estimated Effort**: Medium (4-6 hours)
-
-**Features**:
-```ruff
-nums := [3, 1, 4, 1, 5, 9]
-
-sort(nums)            # [1, 1, 3, 4, 5, 9]
-reverse(nums)         # [9, 5, 1, 4, 1, 3]
-unique(nums)          # [3, 1, 4, 5, 9]
-
-sum(nums)             # 23
-any(nums, func(x) { return x > 5 })   # true
-all(nums, func(x) { return x > 0 })   # true
-```
-
-**Implementation**: Add functions to `builtins.rs` operating on `Value::Array`
 
 ---
 

@@ -181,6 +181,7 @@
   - **Regex** (v0.4.0): `regex_match()`, `regex_find_all()`, `regex_replace()`, `regex_split()` - Pattern matching and text processing
   - **Arrays**: `push()`, `pop()`, `slice()`, `concat()`, `len()`
   - **Array Higher-Order**: `map()`, `filter()`, `reduce()`, `find()` (v0.3.0)
+  - **Array Utilities** (v0.7.0): `sort()`, `reverse()`, `unique()`, `sum()`, `any()`, `all()` - Essential operations for data processing and analysis
   - **Dicts**: `keys()`, `values()`, `has_key()`, `remove()`, `len()`
   - **JSON**: `parse_json()`, `to_json()` - Parse and serialize JSON data (v0.3.0)
   - **TOML** (v0.6.0): `parse_toml()`, `to_toml()` - Parse and serialize TOML configuration files
