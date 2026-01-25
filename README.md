@@ -12,6 +12,31 @@
 
 ### In Development (v0.8.0)
 
+* **Result & Option Types** (NEW! 🎁)
+  - Robust error handling with `Result<T, E>` type
+  - Null safety with `Option<T>` type
+  - Pattern matching on `Ok`/`Err` and `Some`/`None` variants
+  - Try operator (`?`) for clean error propagation
+  - Example:
+    ```ruff
+    func divide(a, b) {
+        if b == 0 {
+            return Err("Division by zero")
+        }
+        return Ok(a / b)
+    }
+    
+    match divide(10, 2) {
+        case Ok(value): {
+            print("Result: " + to_string(value))
+        }
+        case Err(error): {
+            print("Error: " + error)
+        }
+    }
+    ```
+  - See `tests/result_option.ruff` for comprehensive examples
+
 * **Enhanced Error Messages** (NEW! 🎯)
   - Developer-friendly error reporting with contextual information
   - "Did you mean?" suggestions for typos using Levenshtein distance

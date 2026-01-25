@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Result and Option Types** 🎁 - Robust error handling and null safety (P1 feature):
+  - **Result<T, E>**: Represents success (`Ok`) or failure (`Err`) for operations that can fail
+    ```ruff
+    func divide(a, b) {
+        if b == 0 {
+            return Err("Division by zero")
+        }
+        return Ok(a / b)
+    }
+    
+    match divide(10, 2) {
+        case Ok(value): {
+            print("Result: " + to_string(value))  # Result: 5
+        }
+        case Err(error): {
+            print("Error: " + error)
+        }
+    }
+    ```
+  - **Option<T>**: Represents presence (`Some`) or absence (`None`) of a value
+    ```ruff
+    func find_user(id) {
+        if id == 1 {
+            return Some("Alice")
+        }
+        return None
+    }
+    
+    match find_user(1) {
+        case Some(name): {
+            print("Found: " + name)  # Found: Alice
+        }
+        case None: {
+            print("Not found")
+        }
+    }
+    ```
+  - **Try operator (`?`)**: Unwraps `Ok` values or propagates `Err` early
+    ```ruff
+    func complex_operation() {
+        let data := fetch_data()?      # Returns Err if fetch fails
+        let processed := process(data)? # Returns Err if process fails
+        return Ok(processed + 5)
+    }
+    ```
+  - **Pattern matching support**: Extract values directly in match cases
+  - **Type-safe**: Result<T, E> and Option<T> are fully integrated with the type system
+  - **Generic types**: Type annotations support `Result<Int, String>`, `Option<Float>`, etc.
+
 - **Enhanced Error Messages** 🎯 - Developer-friendly error reporting with suggestions (P1 feature):
   - **Contextual error display**: Shows exact location with source code snippet and caret pointer
     - Example:
