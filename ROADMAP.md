@@ -18,11 +18,61 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ## v0.7.0 - Core Language Completion
 
-**Focus**: Complete foundational language features before building developer tooling  
+**Focus**: Complete foundational language features + quality-of-life improvements for a feature-rich, fully equipped programming language  
 **Timeline**: Q1 2026 (3-4 weeks)  
-**Priority**: **P0 - CRITICAL** - These features block everything else
+**Status**: P0 features complete! Adding P2 features for richness before release
 
 **See**: [CORE_FEATURES_NEEDED.md](CORE_FEATURES_NEEDED.md) for detailed implementation guide
+
+---
+
+### 🎯 v0.7.0 RELEASE CHECKLIST
+
+**Critical Features (P0)**: ✅ All Complete!
+- ✅ Timing Functions
+- ✅ Integer Type
+- ✅ Type Introspection
+- ✅ Type Checker Updates for Int/Float
+- ✅ Type Conversion Functions
+
+**Essential Features (P1)**: ✅ All Complete!
+- ✅ File Operations
+- ✅ Array Utilities
+
+**Quality-of-Life Features (P2)**: 🚧 In Progress
+- ✅ Assert & Debug
+- ⏳ **Range Function** - Generate number sequences for loops and iteration
+- ⏳ **Format String** - sprintf-style string formatting (`format("Hello %s", name)`)
+- ⏳ **Math Functions** - Extended operations: `abs()`, `min()`, `max()`, `floor()`, `ceil()`, `round()`, `sqrt()`, `pow()`, `sin()`, `cos()`, `tan()`, `log()`, `exp()`
+- ⏳ **String Methods (Essential)** - Core manipulation:
+  - Case conversion: `upper()`, `lower()`, `capitalize()`
+  - Search: `contains()`, `starts_with()`, `ends_with()`, `find()`, `index()`
+  - Manipulation: `trim()`, `trim_start()`, `trim_end()`, `replace()`, `split()`, `join()`
+  - Extraction: `substring()`, `char_at()`, `repeat()`
+  - Validation: `is_empty()`, `count_chars()`
+- ⏳ **Array Methods (Mutation)** - Essential operations Python/Go/Rust developers expect:
+  - `push()` / `append()` - Add item to end
+  - `pop()` - Remove and return last item
+  - `insert(index, item)` - Insert at position
+  - `remove(item)` - Remove first occurrence
+  - `remove_at(index)` - Remove by index
+  - `clear()` - Remove all items
+  - `index_of(item)` - Find position
+  - `contains(item)` - Check existence
+  - `concat(array)` - Merge arrays
+- ⏳ **Dict/Map Methods** - Key operations for working with dictionaries:
+  - `keys()` - Get all keys as array
+  - `values()` - Get all values as array
+  - `items()` - Get key-value pairs
+  - `has_key(key)` - Check if key exists
+  - `get(key, default)` - Safe access with fallback
+  - `remove(key)` - Delete key-value pair
+  - `clear()` - Remove all entries
+  - `merge(dict)` - Combine dictionaries
+
+**Goal**: Ship v0.7.0 as a **Python/Go/Rust competitive language** with ALL essential utilities that developers expect. No developer should think "I wish Ruff had X" for basic operations.
+
+---
 
 ### 10. Timing Functions (P0)
 

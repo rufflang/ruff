@@ -76,6 +76,14 @@ pub fn tan(x: f64) -> f64 {
     x.tan()
 }
 
+pub fn log(x: f64) -> f64 {
+    x.ln()
+}
+
+pub fn exp(x: f64) -> f64 {
+    x.exp()
+}
+
 /// Random number functions
 
 /// Generate a random float between 0.0 and 1.0
@@ -100,6 +108,90 @@ pub fn random_choice(arr: &[Value]) -> Value {
     let mut rng = rand::thread_rng();
     let idx = rng.gen_range(0..arr.len());
     arr[idx].clone()
+}
+
+/// Array generation functions
+
+/// Generate a range of numbers
+/// range(stop) - generate [0, 1, 2, ..., stop-1]
+/// range(start, stop) - generate [start, start+1, ..., stop-1]
+/// range(start, stop, step) - generate [start, start+step, start+2*step, ..., <stop]
+pub fn range(args: &[Value]) -> Result<Vec<Value>, String> {
+    match args.len() {
+        1 => {
+            // range(stop)
+            let stop = match &args[0] {
+                Value::Int(n) => *n,
+                Value::Float(f) => *f as i64,
+                _ => return Err("range() requires numeric arguments".to_string()),
+            };
+            
+            if stop < 0 {
+                return Ok(vec![]);
+            }
+            
+            Ok((0..stop).map(Value::Int).collect())
+        }
+        2 => {
+            // range(start, stop)
+            let start = match &args[0] {
+                Value::Int(n) => *n,
+                Value::Float(f) => *f as i64,
+                _ => return Err("range() requires numeric arguments".to_string()),
+            };
+            let stop = match &args[1] {
+                Value::Int(n) => *n,
+                Value::Float(f) => *f as i64,
+                _ => return Err("range() requires numeric arguments".to_string()),
+            };
+            
+            if start >= stop {
+                return Ok(vec![]);
+            }
+            
+            Ok((start..stop).map(Value::Int).collect())
+        }
+        3 => {
+            // range(start, stop, step)
+            let start = match &args[0] {
+                Value::Int(n) => *n,
+                Value::Float(f) => *f as i64,
+                _ => return Err("range() requires numeric arguments".to_string()),
+            };
+            let stop = match &args[1] {
+                Value::Int(n) => *n,
+                Value::Float(f) => *f as i64,
+                _ => return Err("range() requires numeric arguments".to_string()),
+            };
+            let step = match &args[2] {
+                Value::Int(n) => *n,
+                Value::Float(f) => *f as i64,
+                _ => return Err("range() requires numeric arguments".to_string()),
+            };
+            
+            if step == 0 {
+                return Err("range() step cannot be zero".to_string());
+            }
+            
+            let mut result = Vec::new();
+            if step > 0 {
+                let mut current = start;
+                while current < stop {
+                    result.push(Value::Int(current));
+                    current += step;
+                }
+            } else {
+                let mut current = start;
+                while current > stop {
+                    result.push(Value::Int(current));
+                    current += step;
+                }
+            }
+            
+            Ok(result)
+        }
+        _ => Err("range() requires 1, 2, or 3 arguments".to_string()),
+    }
 }
 
 /// String functions
@@ -167,6 +259,79 @@ pub fn split(s: &str, delimiter: &str) -> Vec<String> {
 
 pub fn join(arr: &[String], separator: &str) -> String {
     arr.join(separator)
+}
+
+/// String formatting function
+
+/// Format a string with sprintf-style placeholders
+/// Supports: %s (string), %d (integer), %f (float)
+pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
+    let mut result = String::new();
+    let mut arg_index = 0;
+    let mut chars = template.chars().peekable();
+    
+    while let Some(ch) = chars.next() {
+        if ch == '%' {
+            if let Some(&next_ch) = chars.peek() {
+                if next_ch == '%' {
+                    // Escaped %%
+                    result.push('%');
+                    chars.next();
+                } else if next_ch == 's' || next_ch == 'd' || next_ch == 'f' {
+                    chars.next();
+                    
+                    if arg_index >= args.len() {
+                        return Err(format!("format() missing argument for placeholder %{}", next_ch));
+                    }
+                    
+                    let formatted = match next_ch {
+                        's' => {
+                            // %s - string
+                            match &args[arg_index] {
+                                Value::Str(s) => s.clone(),
+                                Value::Int(n) => n.to_string(),
+                                Value::Float(f) => f.to_string(),
+                                Value::Bool(b) => b.to_string(),
+                                Value::Null => "null".to_string(),
+                                Value::Array(_) => "[Array]".to_string(),
+                                Value::Dict(_) => "{Dict}".to_string(),
+                                _ => format!("{:?}", args[arg_index]),
+                            }
+                        }
+                        'd' => {
+                            // %d - integer
+                            match &args[arg_index] {
+                                Value::Int(n) => n.to_string(),
+                                Value::Float(f) => (*f as i64).to_string(),
+                                Value::Bool(b) => if *b { "1" } else { "0" }.to_string(),
+                                _ => return Err(format!("format() %d requires numeric argument, got {:?}", args[arg_index])),
+                            }
+                        }
+                        'f' => {
+                            // %f - float
+                            match &args[arg_index] {
+                                Value::Float(f) => f.to_string(),
+                                Value::Int(n) => (*n as f64).to_string(),
+                                _ => return Err(format!("format() %f requires numeric argument, got {:?}", args[arg_index])),
+                            }
+                        }
+                        _ => unreachable!(),
+                    };
+                    
+                    result.push_str(&formatted);
+                    arg_index += 1;
+                } else {
+                    result.push(ch);
+                }
+            } else {
+                result.push(ch);
+            }
+        } else {
+            result.push(ch);
+        }
+    }
+    
+    Ok(result)
 }
 
 /// JSON functions
