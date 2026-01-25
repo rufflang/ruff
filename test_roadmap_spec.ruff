@@ -1,0 +1,17 @@
+# Test exact examples from ROADMAP specification
+
+# High-resolution timestamp in milliseconds
+timestamp := current_timestamp()
+print("Timestamp:")
+print(timestamp)
+
+# Performance timing
+start := performance_now()
+# Simulate expensive_operation
+i := 0
+while i < 10000 {
+    i := i + 1
+}
+elapsed := performance_now() - start
+print("Elapsed:")
+print(elapsed)

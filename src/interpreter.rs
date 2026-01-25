@@ -87,15 +87,27 @@ impl ConnectionPool {
     pub fn new(db_type: String, connection_string: String, config: HashMap<String, Value>) -> Result<Self, String> {
         // Parse configuration
         let min_connections = config.get("min_connections")
-            .and_then(|v| if let Value::Number(n) = v { Some(*n as usize) } else { None })
+            .and_then(|v| match v {
+                Value::Int(n) => Some(*n as usize),
+                Value::Float(n) => Some(*n as usize),
+                _ => None
+            })
             .unwrap_or(5);
         
         let max_connections = config.get("max_connections")
-            .and_then(|v| if let Value::Number(n) = v { Some(*n as usize) } else { None })
+            .and_then(|v| match v {
+                Value::Int(n) => Some(*n as usize),
+                Value::Float(n) => Some(*n as usize),
+                _ => None
+            })
             .unwrap_or(20);
         
         let connection_timeout = config.get("connection_timeout")
-            .and_then(|v| if let Value::Number(n) = v { Some(*n as u64) } else { None })
+            .and_then(|v| match v {
+                Value::Int(n) => Some(*n as u64),
+                Value::Float(n) => Some(*n as u64),
+                _ => None
+            })
             .unwrap_or(30);
         
         if min_connections > max_connections {
@@ -226,7 +238,8 @@ pub enum Value {
         tag: String,
         fields: HashMap<String, Value>,
     },
-    Number(f64),
+    Int(i64),      // Integer values
+    Float(f64),    // Floating point values
     Str(String),
     Bool(bool),
     Null, // Null value for optional chaining and null coalescing
@@ -289,7 +302,8 @@ impl std::fmt::Debug for Value {
             Value::Tagged { tag, fields } => {
                 f.debug_struct("Tagged").field("tag", tag).field("fields", fields).finish()
             }
-            Value::Number(n) => write!(f, "Number({})", n),
+            Value::Int(n) => write!(f, "Int({})", n),
+            Value::Float(n) => write!(f, "Float({})", n),
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::Null => write!(f, "Null"),
@@ -461,8 +475,8 @@ impl Interpreter {
     /// Registers all built-in functions and constants
     fn register_builtins(&mut self) {
         // Math constants
-        self.env.define("PI".to_string(), Value::Number(std::f64::consts::PI));
-        self.env.define("E".to_string(), Value::Number(std::f64::consts::E));
+        self.env.define("PI".to_string(), Value::Float(std::f64::consts::PI));
+        self.env.define("E".to_string(), Value::Float(std::f64::consts::E));
 
         // Math functions
         self.env.define("abs".to_string(), Value::NativeFunction("abs".to_string()));
@@ -766,7 +780,7 @@ impl Interpreter {
                     } else {
                         // No explicit return - function returns 0
                         self.return_value = None;
-                        Value::Number(0.0)
+                        Value::Int(0)
                     };
 
                     // Pop the parameter scope
@@ -809,7 +823,7 @@ impl Interpreter {
                     } else {
                         // No explicit return - function returns 0
                         self.return_value = None;
-                        Value::Number(0.0)
+                        Value::Int(0)
                     };
 
                     // Restore parent environment
@@ -821,7 +835,7 @@ impl Interpreter {
                     result
                 }
             }
-            _ => Value::Number(0.0),
+            _ => Value::Int(0),
         }
     }
 
@@ -872,7 +886,7 @@ impl Interpreter {
                         *val
                     } else {
                         self.return_value = None;
-                        Value::Number(0.0)
+                        Value::Int(0)
                     };
 
                     // Restore parent environment
@@ -921,7 +935,7 @@ impl Interpreter {
                         *val
                     } else {
                         self.return_value = None;
-                        Value::Number(0.0)
+                        Value::Int(0)
                     };
 
                     // Restore parent environment
@@ -1101,7 +1115,7 @@ impl Interpreter {
             }
         }
 
-        Value::Number(0.0)
+        Value::Int(0)
     }
     /// Calls a native built-in function
     fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
@@ -1111,51 +1125,64 @@ impl Interpreter {
         let result = match name {
             // Math functions - single argument
             "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" => {
-                if let Some(Value::Number(x)) = arg_values.get(0) {
+                if let Some(val) = arg_values.get(0) {
+                    let x = match val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Int(0),
+                    };
                     let result = match name {
-                        "abs" => builtins::abs(*x),
-                        "sqrt" => builtins::sqrt(*x),
-                        "floor" => builtins::floor(*x),
-                        "ceil" => builtins::ceil(*x),
-                        "round" => builtins::round(*x),
-                        "sin" => builtins::sin(*x),
-                        "cos" => builtins::cos(*x),
-                        "tan" => builtins::tan(*x),
+                        "abs" => builtins::abs(x),
+                        "sqrt" => builtins::sqrt(x),
+                        "floor" => builtins::floor(x),
+                        "ceil" => builtins::ceil(x),
+                        "round" => builtins::round(x),
+                        "sin" => builtins::sin(x),
+                        "cos" => builtins::cos(x),
+                        "tan" => builtins::tan(x),
                         _ => 0.0,
                     };
-                    Value::Number(result)
+                    Value::Float(result)
                 } else {
-                    Value::Number(0.0)
+                    Value::Int(0)
                 }
             }
 
             // Math functions - two arguments
             "pow" | "min" | "max" => {
-                if let (Some(Value::Number(a)), Some(Value::Number(b))) =
-                    (arg_values.get(0), arg_values.get(1))
-                {
+                if let (Some(val_a), Some(val_b)) = (arg_values.get(0), arg_values.get(1)) {
+                    let a = match val_a {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Int(0),
+                    };
+                    let b = match val_b {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Int(0),
+                    };
                     let result = match name {
-                        "pow" => builtins::pow(*a, *b),
-                        "min" => builtins::min(*a, *b),
-                        "max" => builtins::max(*a, *b),
+                        "pow" => builtins::pow(a, b),
+                        "min" => builtins::min(a, b),
+                        "max" => builtins::max(a, b),
                         _ => 0.0,
                     };
-                    Value::Number(result)
+                    Value::Float(result)
                 } else {
-                    Value::Number(0.0)
+                    Value::Int(0)
                 }
             }
 
             // len() - works on strings, arrays, dicts, sets, queues, and stacks
             "len" => match arg_values.get(0) {
-                Some(Value::Str(s)) => Value::Number(builtins::str_len(s)),
-                Some(Value::Array(arr)) => Value::Number(arr.len() as f64),
-                Some(Value::Dict(dict)) => Value::Number(dict.len() as f64),
-                Some(Value::Bytes(bytes)) => Value::Number(bytes.len() as f64),
-                Some(Value::Set(set)) => Value::Number(set.len() as f64),
-                Some(Value::Queue(queue)) => Value::Number(queue.len() as f64),
-                Some(Value::Stack(stack)) => Value::Number(stack.len() as f64),
-                _ => Value::Number(0.0),
+                Some(Value::Str(s)) => Value::Int(builtins::str_len(s) as i64),
+                Some(Value::Array(arr)) => Value::Int(arr.len() as i64),
+                Some(Value::Dict(dict)) => Value::Int(dict.len() as i64),
+                Some(Value::Bytes(bytes)) => Value::Int(bytes.len() as i64),
+                Some(Value::Set(set)) => Value::Int(set.len() as i64),
+                Some(Value::Queue(queue)) => Value::Int(queue.len() as i64),
+                Some(Value::Stack(stack)) => Value::Int(stack.len() as i64),
+                _ => Value::Int(0),
             },
 
             "to_upper" => {
@@ -1187,17 +1214,27 @@ impl Interpreter {
                 if let (Some(Value::Str(s)), Some(Value::Str(substr))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Number(if builtins::contains(s, substr) { 1.0 } else { 0.0 })
+                    Value::Int(if builtins::contains(s, substr) { 1 } else { 0 })
                 } else {
-                    Value::Number(0.0)
+                    Value::Int(0)
                 }
             }
 
             "substring" => {
-                if let (Some(Value::Str(s)), Some(Value::Number(start)), Some(Value::Number(end))) =
+                if let (Some(Value::Str(s)), Some(start_val), Some(end_val)) =
                     (arg_values.get(0), arg_values.get(1), arg_values.get(2))
                 {
-                    Value::Str(builtins::substring(s, *start, *end))
+                    let start = match start_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => 0.0,
+                    };
+                    let end = match end_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => 0.0,
+                    };
+                    Value::Str(builtins::substring(s, start, end))
                 } else {
                     Value::Str(String::new())
                 }
@@ -1241,18 +1278,23 @@ impl Interpreter {
                 if let (Some(Value::Str(s)), Some(Value::Str(substr))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Number(builtins::index_of(s, substr))
+                    Value::Int(builtins::index_of(s, substr) as i64)
                 } else {
-                    Value::Number(-1.0)
+                    Value::Int(-1)
                 }
             }
 
             // String function: repeat(str, count) - returns string
             "repeat" => {
-                if let (Some(Value::Str(s)), Some(Value::Number(count))) =
+                if let (Some(Value::Str(s)), Some(count_val)) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Str(builtins::repeat(s, *count))
+                    let count = match count_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => 0.0,
+                    };
+                    Value::Str(builtins::repeat(s, count))
                 } else {
                     Value::Str(String::new())
                 }
@@ -1281,7 +1323,8 @@ impl Interpreter {
                         .iter()
                         .map(|v| match v {
                             Value::Str(s) => s.clone(),
-                            Value::Number(n) => n.to_string(),
+                            Value::Int(n) => n.to_string(),
+                            Value::Float(n) => n.to_string(),
                             Value::Bool(b) => b.to_string(),
                             _ => format!("{:?}", v),
                         })
@@ -1310,7 +1353,7 @@ impl Interpreter {
             "pop" => {
                 // pop(arr) - returns [modified_array, popped_value] or [arr, 0] if empty
                 if let Some(Value::Array(mut arr)) = arg_values.get(0).cloned() {
-                    let popped = arr.pop().unwrap_or(Value::Number(0.0));
+                    let popped = arr.pop().unwrap_or(Value::Int(0));
                     // Return both the modified array and the popped value as a 2-element array
                     Value::Array(vec![Value::Array(arr), popped])
                 } else {
@@ -1322,8 +1365,8 @@ impl Interpreter {
                 // slice(arr, start, end) - returns subarray from start (inclusive) to end (exclusive)
                 if let (
                     Some(Value::Array(arr)),
-                    Some(Value::Number(start)),
-                    Some(Value::Number(end)),
+                    Some(Value::Int(start)),
+                    Some(Value::Int(end)),
                 ) = (arg_values.get(0), arg_values.get(1), arg_values.get(2))
                 {
                     let start_idx = (*start as usize).max(0).min(arr.len());
@@ -1397,7 +1440,8 @@ impl Interpreter {
                     // Check if result is truthy
                     let is_truthy = match func_result {
                         Value::Bool(b) => b,
-                        Value::Number(n) => n != 0.0,
+                        Value::Int(n) => n != 0,
+                        Value::Float(n) => n != 0.0,
                         Value::Str(s) => !s.is_empty(),
                         _ => false,
                     };
@@ -1444,7 +1488,7 @@ impl Interpreter {
 
             "find" => {
                 // find(array, func) - returns first element where func returns truthy value
-                // Returns the element or Value::Number(0.0) if not found (null equivalent)
+                // Returns the element or Value::Int(0) if not found (null equivalent)
                 if arg_values.len() < 2 {
                     return Value::Error(
                         "find requires two arguments: array and function".to_string(),
@@ -1465,7 +1509,8 @@ impl Interpreter {
                     // Check if result is truthy
                     let is_truthy = match func_result {
                         Value::Bool(b) => b,
-                        Value::Number(n) => n != 0.0,
+                        Value::Int(n) => n != 0,
+                        Value::Float(n) => n != 0.0,
                         Value::Str(s) => !s.is_empty(),
                         _ => false,
                     };
@@ -1475,7 +1520,7 @@ impl Interpreter {
                     }
                 }
                 // Not found - return 0 as "null" equivalent
-                Value::Number(0.0)
+                Value::Int(0)
             }
 
             // Dict functions
@@ -1504,9 +1549,9 @@ impl Interpreter {
                 if let (Some(Value::Dict(dict)), Some(Value::Str(key))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Number(if dict.contains_key(key) { 1.0 } else { 0.0 })
+                    Value::Int(if dict.contains_key(key) { 1 } else { 0 })
                 } else {
-                    Value::Number(0.0)
+                    Value::Int(0)
                 }
             }
 
@@ -1515,7 +1560,7 @@ impl Interpreter {
                 if let (Some(Value::Dict(mut dict)), Some(Value::Str(key))) =
                     (arg_values.get(0).cloned(), arg_values.get(1))
                 {
-                    let removed = dict.remove(key).unwrap_or(Value::Number(0.0));
+                    let removed = dict.remove(key).unwrap_or(Value::Int(0));
                     Value::Array(vec![Value::Dict(dict), removed])
                 } else {
                     Value::Array(vec![])
@@ -1554,7 +1599,7 @@ impl Interpreter {
                 // parse_int(str) - converts string to integer (as f64), returns error on failure
                 if let Some(Value::Str(s)) = arg_values.get(0) {
                     match s.trim().parse::<i64>() {
-                        Ok(n) => Value::Number(n as f64),
+                        Ok(n) => Value::Int(n as i64),
                         Err(_) => Value::Error(format!("Cannot parse '{}' as integer", s)),
                     }
                 } else {
@@ -1566,7 +1611,7 @@ impl Interpreter {
                 // parse_float(str) - converts string to float, returns error on failure
                 if let Some(Value::Str(s)) = arg_values.get(0) {
                     match s.trim().parse::<f64>() {
-                        Ok(n) => Value::Number(n),
+                        Ok(n) => Value::Float(n),
                         Err(_) => Value::Error(format!("Cannot parse '{}' as float", s)),
                     }
                 } else {
@@ -1856,15 +1901,25 @@ impl Interpreter {
             // Random functions
             "random" => {
                 // random() - returns random float between 0.0 and 1.0
-                Value::Number(builtins::random())
+                Value::Float(builtins::random())
             }
 
             "random_int" => {
                 // random_int(min, max) - returns random integer between min and max (inclusive)
-                if let (Some(Value::Number(min)), Some(Value::Number(max))) =
+                if let (Some(min_val), Some(max_val)) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Number(builtins::random_int(*min, *max))
+                    let min = match min_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Error("random_int requires number arguments".to_string()),
+                    };
+                    let max = match max_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Error("random_int requires number arguments".to_string()),
+                    };
+                    Value::Int(builtins::random_int(min, max) as i64)
                 } else {
                     Value::Error(
                         "random_int requires two number arguments: min and max".to_string(),
@@ -1884,33 +1939,38 @@ impl Interpreter {
             // Date/Time functions
             "now" => {
                 // now() - returns current Unix timestamp
-                Value::Number(builtins::now())
+                Value::Float(builtins::now())
             }
 
             "current_timestamp" => {
                 // current_timestamp() - returns current timestamp in milliseconds since UNIX epoch
-                Value::Number(builtins::current_timestamp())
+                Value::Float(builtins::current_timestamp())
             }
 
             "performance_now" => {
                 // performance_now() - returns high-resolution timer in milliseconds
-                Value::Number(builtins::performance_now())
+                Value::Float(builtins::performance_now())
             }
 
             "time_us" => {
                 // time_us() - returns high-resolution timer in microseconds
-                Value::Number(builtins::time_us())
+                Value::Float(builtins::time_us())
             }
 
             "time_ns" => {
                 // time_ns() - returns high-resolution timer in nanoseconds
-                Value::Number(builtins::time_ns())
+                Value::Float(builtins::time_ns())
             }
 
             "format_duration" => {
                 // format_duration(ms) - formats milliseconds to human-readable string
-                if let Some(Value::Number(ms)) = arg_values.get(0) {
-                    Value::Str(builtins::format_duration(*ms))
+                if let Some(ms_val) = arg_values.get(0) {
+                    let ms = match ms_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Error("format_duration requires a number argument".to_string()),
+                    };
+                    Value::Str(builtins::format_duration(ms))
                 } else {
                     Value::Error("format_duration requires a number argument (milliseconds)".to_string())
                 }
@@ -1918,10 +1978,20 @@ impl Interpreter {
 
             "elapsed" => {
                 // elapsed(start, end) - calculates time difference
-                if let (Some(Value::Number(start)), Some(Value::Number(end))) =
+                if let (Some(start_val), Some(end_val)) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Number(builtins::elapsed(*start, *end))
+                    let start = match start_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Error("elapsed requires number arguments".to_string()),
+                    };
+                    let end = match end_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Error("elapsed requires number arguments".to_string()),
+                    };
+                    Value::Float(builtins::elapsed(start, end))
                 } else {
                     Value::Error("elapsed requires two number arguments: start and end".to_string())
                 }
@@ -1929,10 +1999,15 @@ impl Interpreter {
 
             "format_date" => {
                 // format_date(timestamp, format_string) - formats timestamp to string
-                if let (Some(Value::Number(timestamp)), Some(Value::Str(format))) =
+                if let (Some(ts_val), Some(Value::Str(format))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Str(builtins::format_date(*timestamp, format))
+                    let timestamp = match ts_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Error("format_date requires a number timestamp".to_string()),
+                    };
+                    Value::Str(builtins::format_date(timestamp, format))
                 } else {
                     Value::Error(
                         "format_date requires timestamp (number) and format (string)".to_string(),
@@ -1945,7 +2020,7 @@ impl Interpreter {
                 if let (Some(Value::Str(date_str)), Some(Value::Str(format))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
-                    Value::Number(builtins::parse_date(date_str, format))
+                    Value::Float(builtins::parse_date(date_str, format))
                 } else {
                     Value::Error("parse_date requires date string and format string".to_string())
                 }
@@ -1970,7 +2045,7 @@ impl Interpreter {
 
             "exit" => {
                 // exit(code) - exits program with given code
-                if let Some(Value::Number(code)) = arg_values.get(0) {
+                if let Some(Value::Int(code)) = arg_values.get(0) {
                     std::process::exit(*code as i32);
                 } else {
                     std::process::exit(0);
@@ -1979,9 +2054,14 @@ impl Interpreter {
 
             "sleep" => {
                 // sleep(milliseconds) - sleeps for given milliseconds
-                if let Some(Value::Number(ms)) = arg_values.get(0) {
-                    builtins::sleep_ms(*ms);
-                    Value::Number(0.0)
+                if let Some(ms_val) = arg_values.get(0) {
+                    let ms = match ms_val {
+                        Value::Int(n) => *n as f64,
+                        Value::Float(n) => *n,
+                        _ => return Value::Error("sleep requires a number argument".to_string()),
+                    };
+                    builtins::sleep_ms(ms);
+                    Value::Int(0)
                 } else {
                     Value::Error("sleep requires a number argument (milliseconds)".to_string())
                 }
@@ -2202,7 +2282,7 @@ impl Interpreter {
                         match handle.join() {
                             Ok(Ok((status, body))) => {
                                 let mut result_map = HashMap::new();
-                                result_map.insert("status".to_string(), Value::Number(status as f64));
+                                result_map.insert("status".to_string(), Value::Int(status as i64));
                                 result_map.insert("body".to_string(), Value::Str(body));
                                 results.push(Value::Dict(result_map));
                             }
@@ -2299,7 +2379,7 @@ impl Interpreter {
 
             "http_server" => {
                 // http_server(port) - create HTTP server
-                if let Some(Value::Number(port)) = arg_values.get(0) {
+                if let Some(Value::Int(port)) = arg_values.get(0) {
                     Value::HttpServer { port: *port as u16, routes: Vec::new() }
                 } else {
                     Value::Error("http_server requires a port number".to_string())
@@ -2360,7 +2440,7 @@ impl Interpreter {
 
             "http_response" => {
                 // http_response(status, body) - create HTTP response
-                if let (Some(Value::Number(status)), Some(Value::Str(body))) =
+                if let (Some(Value::Int(status)), Some(Value::Str(body))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
                     Value::HttpResponse {
@@ -2375,7 +2455,7 @@ impl Interpreter {
 
             "json_response" => {
                 // json_response(status, data) - create JSON HTTP response
-                if let (Some(Value::Number(status)), Some(data)) =
+                if let (Some(Value::Int(status)), Some(data)) =
                     (arg_values.get(0), arg_values.get(1))
                 {
                     // Convert data to JSON string
@@ -2391,7 +2471,7 @@ impl Interpreter {
 
             "html_response" => {
                 // html_response(status, html) - create HTML HTTP response
-                if let (Some(Value::Number(status)), Some(Value::Str(html))) =
+                if let (Some(Value::Int(status)), Some(Value::Str(html))) =
                     (arg_values.get(0), arg_values.get(1))
                 {
                     let mut headers = HashMap::new();
@@ -2514,7 +2594,8 @@ impl Interpreter {
                                             Value::Str(s) => {
                                                 Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
                                             }
-                                            Value::Number(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
+                                            Value::Int(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
+                                            Value::Float(n) => Box::new(*n) as Box<dyn rusqlite::ToSql>,
                                             Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
                                             Value::Null => Box::new(rusqlite::types::Null) as Box<dyn rusqlite::ToSql>,
                                             _ => Box::new(format!("{:?}", v)) as Box<dyn rusqlite::ToSql>,
@@ -2528,7 +2609,7 @@ impl Interpreter {
                                 };
                                 
                                 match result {
-                                    Ok(rows_affected) => Value::Number(rows_affected as f64),
+                                    Ok(rows_affected) => Value::Int(rows_affected as i64),
                                     Err(e) => Value::Error(format!("SQLite execution error: {}", e)),
                                 }
                             }
@@ -2542,7 +2623,8 @@ impl Interpreter {
                                     // requires specific type implementations
                                     let param_strs: Vec<String> = param_arr.iter().map(|v| match v {
                                         Value::Str(s) => s.clone(),
-                                        Value::Number(n) => n.to_string(),
+                                        Value::Int(n) => n.to_string(),
+                                        Value::Float(n) => n.to_string(),
                                         Value::Bool(b) => b.to_string(),
                                         Value::Null => String::new(),
                                         _ => format!("{:?}", v),
@@ -2555,7 +2637,8 @@ impl Interpreter {
                                         .map(|(v, s)| -> &(dyn postgres::types::ToSql + Sync) {
                                             match v {
                                                 Value::Str(s) => s as &(dyn postgres::types::ToSql + Sync),
-                                                Value::Number(n) => n as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Int(n) => n as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Float(n) => n as &(dyn postgres::types::ToSql + Sync),
                                                 Value::Bool(b) => b as &(dyn postgres::types::ToSql + Sync),
                                                 _ => s as &(dyn postgres::types::ToSql + Sync),
                                             }
@@ -2568,7 +2651,7 @@ impl Interpreter {
                                 };
                                 
                                 match result {
-                                    Ok(rows_affected) => Value::Number(rows_affected as f64),
+                                    Ok(rows_affected) => Value::Int(rows_affected as i64),
                                     Err(e) => Value::Error(format!("PostgreSQL execution error: {}", e)),
                                 }
                             }
@@ -2587,7 +2670,8 @@ impl Interpreter {
                                         .iter()
                                         .map(|v| match v {
                                             Value::Str(s) => mysql_async::Value::Bytes(s.as_bytes().to_vec()),
-                                            Value::Number(n) => mysql_async::Value::Double(*n),
+                                            Value::Int(n) => mysql_async::Value::Int(*n),
+                                            Value::Float(n) => mysql_async::Value::Double(*n),
                                             Value::Bool(b) => mysql_async::Value::Int(if *b { 1 } else { 0 }),
                                             Value::Null => mysql_async::Value::NULL,
                                             _ => mysql_async::Value::Bytes(format!("{:?}", v).as_bytes().to_vec()),
@@ -2609,7 +2693,7 @@ impl Interpreter {
                                         let affected = runtime.block_on(async {
                                             conn.affected_rows()
                                         });
-                                        Value::Number(affected as f64)
+                                        Value::Int(affected as i64)
                                     }
                                     Err(e) => Value::Error(format!("MySQL execution error: {}", e)),
                                 }
@@ -2647,7 +2731,7 @@ impl Interpreter {
                                                 Value::Str(s) => {
                                                     Box::new(s.clone()) as Box<dyn rusqlite::ToSql>
                                                 }
-                                                Value::Number(n) => {
+                                                Value::Float(n) => {
                                                     Box::new(*n) as Box<dyn rusqlite::ToSql>
                                                 }
                                                 Value::Bool(b) => Box::new(*b) as Box<dyn rusqlite::ToSql>,
@@ -2697,11 +2781,11 @@ impl Interpreter {
                                                     Ok(rusqlite::types::Value::Integer(n)) => {
                                                         row_dict.insert(
                                                             col_name.clone(),
-                                                            Value::Number(n as f64),
+                                                            Value::Int(n as i64),
                                                         );
                                                     }
                                                     Ok(rusqlite::types::Value::Real(n)) => {
-                                                        row_dict.insert(col_name.clone(), Value::Number(n));
+                                                        row_dict.insert(col_name.clone(), Value::Float(n));
                                                     }
                                                     Ok(rusqlite::types::Value::Text(s)) => {
                                                         row_dict.insert(col_name.clone(), Value::Str(s));
@@ -2743,7 +2827,8 @@ impl Interpreter {
                                     // Convert params for postgres
                                     let param_strs: Vec<String> = param_arr.iter().map(|v| match v {
                                         Value::Str(s) => s.clone(),
-                                        Value::Number(n) => n.to_string(),
+                                        Value::Int(n) => n.to_string(),
+                                        Value::Float(n) => n.to_string(),
                                         Value::Bool(b) => b.to_string(),
                                         Value::Null => String::new(),
                                         _ => format!("{:?}", v),
@@ -2755,7 +2840,8 @@ impl Interpreter {
                                         .map(|(v, s)| -> &(dyn postgres::types::ToSql + Sync) {
                                             match v {
                                                 Value::Str(s) => s as &(dyn postgres::types::ToSql + Sync),
-                                                Value::Number(n) => n as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Int(n) => n as &(dyn postgres::types::ToSql + Sync),
+                                                Value::Float(n) => n as &(dyn postgres::types::ToSql + Sync),
                                                 Value::Bool(b) => b as &(dyn postgres::types::ToSql + Sync),
                                                 _ => s as &(dyn postgres::types::ToSql + Sync),
                                             }
@@ -2779,13 +2865,13 @@ impl Interpreter {
                                                 
                                                 // Try to get value as different types
                                                 let value = if let Ok(v) = row.try_get::<_, i32>(i) {
-                                                    Value::Number(v as f64)
+                                                    Value::Int(v as i64)
                                                 } else if let Ok(v) = row.try_get::<_, i64>(i) {
-                                                    Value::Number(v as f64)
+                                                    Value::Int(v as i64)
                                                 } else if let Ok(v) = row.try_get::<_, f64>(i) {
-                                                    Value::Number(v)
+                                                    Value::Float(v)
                                                 } else if let Ok(v) = row.try_get::<_, f32>(i) {
-                                                    Value::Number(v as f64)
+                                                    Value::Int(v as i64)
                                                 } else if let Ok(v) = row.try_get::<_, String>(i) {
                                                     Value::Str(v)
                                                 } else if let Ok(v) = row.try_get::<_, bool>(i) {
@@ -2821,7 +2907,8 @@ impl Interpreter {
                                         .iter()
                                         .map(|v| match v {
                                             Value::Str(s) => mysql_async::Value::Bytes(s.as_bytes().to_vec()),
-                                            Value::Number(n) => mysql_async::Value::Double(*n),
+                                            Value::Int(n) => mysql_async::Value::Int(*n),
+                                            Value::Float(n) => mysql_async::Value::Double(*n),
                                             Value::Bool(b) => mysql_async::Value::Int(if *b { 1 } else { 0 }),
                                             Value::Null => mysql_async::Value::NULL,
                                             _ => mysql_async::Value::Bytes(format!("{:?}", v).as_bytes().to_vec()),
@@ -2857,10 +2944,10 @@ impl Interpreter {
                                                             .map(Value::Str)
                                                             .unwrap_or(Value::Null)
                                                     }
-                                                    mysql_async::Value::Int(i) => Value::Number(i as f64),
-                                                    mysql_async::Value::UInt(u) => Value::Number(u as f64),
-                                                    mysql_async::Value::Float(f) => Value::Number(f as f64),
-                                                    mysql_async::Value::Double(d) => Value::Number(d),
+                                                    mysql_async::Value::Int(i) => Value::Int(i as i64),
+                                                    mysql_async::Value::UInt(u) => Value::Int(u as i64),
+                                                    mysql_async::Value::Float(f) => Value::Int(f as i64),
+                                                    mysql_async::Value::Double(d) => Value::Float(d),
                                                     mysql_async::Value::Date(year, month, day, hour, min, sec, micro) => {
                                                         Value::Str(format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}",
                                                             year, month, day, hour, min, sec, micro))
@@ -3222,7 +3309,7 @@ impl Interpreter {
                     // Convert to Ruff dict
                     let mut dict = HashMap::new();
                     for (key, value) in stats {
-                        dict.insert(key, Value::Number(value as f64));
+                        dict.insert(key, Value::Int(value as i64));
                     }
                     Value::Dict(dict)
                 } else {
@@ -3432,7 +3519,7 @@ impl Interpreter {
                     match (connection, db_type.as_str()) {
                         (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
                             let conn = conn_arc.lock().unwrap();
-                            Value::Number(conn.last_insert_rowid() as f64)
+                            Value::Float(conn.last_insert_rowid() as f64)
                         }
                         (DatabaseConnection::Postgres(client_arc), "postgres") => {
                             // PostgreSQL uses RETURNING clause or currval()
@@ -3442,7 +3529,7 @@ impl Interpreter {
                                 Ok(rows) => {
                                     if let Some(row) = rows.first() {
                                         let id: i64 = row.get(0);
-                                        Value::Number(id as f64)
+                                        Value::Int(id as i64)
                                     } else {
                                         Value::Error("No last insert ID available".to_string())
                                     }
@@ -3460,7 +3547,7 @@ impl Interpreter {
                             match runtime.block_on(async {
                                 conn.query_first::<u64, _>("SELECT LAST_INSERT_ID()").await
                             }) {
-                                Ok(Some(id)) => Value::Number(id as f64),
+                                Ok(Some(id)) => Value::Int(id as i64),
                                 Ok(None) => Value::Error("No last insert ID available".to_string()),
                                 Err(e) => Value::Error(format!("Failed to get last insert ID: {}", e)),
                             }
@@ -3497,7 +3584,7 @@ impl Interpreter {
                 }
             }
 
-            _ => Value::Number(0.0),
+            _ => Value::Int(0),
         };
         
         result
@@ -3506,7 +3593,7 @@ impl Interpreter {
     /// Helper method to check if two values are equal (for Set operations)
     fn values_equal(&self, a: &Value, b: &Value) -> bool {
         match (a, b) {
-            (Value::Number(x), Value::Number(y)) => (x - y).abs() < f64::EPSILON,
+            (Value::Float(x), Value::Float(y)) => (x - y).abs() < f64::EPSILON,
             (Value::Str(x), Value::Str(y)) => x == y,
             (Value::Bool(x), Value::Bool(y)) => x == y,
             (Value::Null, Value::Null) => true,
@@ -3592,7 +3679,7 @@ impl Interpreter {
                 let cond_val = self.eval_expr(condition);
                 let is_truthy = match cond_val {
                     Value::Bool(b) => b,
-                    Value::Number(n) => n != 0.0,
+                    Value::Float(n) => n != 0.0,
                     Value::Str(s) => {
                         // Handle string representations of booleans for backward compatibility
                         if s == "true" {
@@ -3660,15 +3747,15 @@ impl Interpreter {
                             let idx_clone = index_val.clone();
                             self.env.mutate(container_name.as_str(), |container| match container {
                                 Value::Array(ref mut arr) => {
-                                    if let Value::Number(idx) = idx_clone {
-                                        let i = idx as usize;
-                                        if i < arr.len() {
-                                            arr[i] = val_clone.clone();
-                                        } else {
-                                            eprintln!("Array index out of bounds: {}", i);
-                                        }
+                                    let i = match &idx_clone {
+                                        Value::Int(n) => *n as usize,
+                                        Value::Float(n) => *n as usize,
+                                        _ => return,
+                                    };
+                                    if i < arr.len() {
+                                        arr[i] = val_clone.clone();
                                     } else {
-                                        eprintln!("Array index must be a number");
+                                        eprintln!("Array index out of bounds: {}", i);
                                     }
                                 }
                                 Value::Dict(ref mut dict) => {
@@ -3713,24 +3800,26 @@ impl Interpreter {
                                     self.env.mutate(container_name.as_str(), |container| {
                                         match container {
                                             Value::Array(ref mut arr) => {
-                                                if let Value::Number(idx) = idx_clone {
-                                                    let i = idx as usize;
-                                                    if i < arr.len() {
-                                                        if let Value::Struct { name: _, fields } =
-                                                            &mut arr[i]
-                                                        {
-                                                            fields.insert(field_clone, val_clone);
-                                                        } else {
-                                                            eprintln!(
-                                                                "Array element is not a struct"
-                                                            );
-                                                        }
+                                                let i = match &idx_clone {
+                                                    Value::Int(n) => *n as usize,
+                                                    Value::Float(n) => *n as usize,
+                                                    _ => return,
+                                                };
+                                                if i < arr.len() {
+                                                    if let Value::Struct { name: _, fields } =
+                                                        &mut arr[i]
+                                                    {
+                                                        fields.insert(field_clone, val_clone);
                                                     } else {
                                                         eprintln!(
-                                                            "Array index out of bounds: {}",
-                                                            i
+                                                            "Array element is not a struct"
                                                         );
                                                     }
+                                                } else {
+                                                    eprintln!(
+                                                        "Array index out of bounds: {}",
+                                                        i
+                                                    );
                                                 }
                                             }
                                             Value::Dict(ref mut dict) => {
@@ -3835,7 +3924,7 @@ impl Interpreter {
                     Value::Tagged { tag, fields } => (tag.clone(), fields),
                     Value::Enum(e) => (e.clone(), &empty_map),
                     Value::Str(s) => (s.clone(), &empty_map),
-                    Value::Number(n) => (n.to_string(), &empty_map),
+                    Value::Float(n) => (n.to_string(), &empty_map),
                     _ => {
                         if let Some(default_body) = default {
                             self.eval_stmts(&default_body);
@@ -3886,7 +3975,7 @@ impl Interpreter {
             Stmt::Loop { condition, body } => {
                 while condition
                     .as_ref()
-                    .map(|c| matches!(self.eval_expr(&c), Value::Number(n) if n != 0.0))
+                    .map(|c| matches!(self.eval_expr(&c), Value::Float(n) if n != 0.0))
                     .unwrap_or(true)
                 {
                     self.eval_stmts(&body);
@@ -3909,13 +3998,13 @@ impl Interpreter {
                 let iterable_value = self.eval_expr(&iterable);
 
                 match &iterable_value {
-                    Value::Number(n) => {
+                    Value::Float(n) => {
                         // Numeric range: for i in 5 { ... } iterates 0..5
                         for i in 0..*n as i64 {
                             // Create new scope for loop iteration
                             // Push new scope
                             self.env.push_scope();
-                            self.env.define(var.clone(), Value::Number(i as f64));
+                            self.env.define(var.clone(), Value::Int(i as i64));
 
                             self.eval_stmts(&body);
 
@@ -4032,7 +4121,7 @@ impl Interpreter {
                     let cond_val = self.eval_expr(condition);
                     let is_truthy = match cond_val {
                         Value::Bool(b) => b,
-                        Value::Number(n) => n != 0.0,
+                        Value::Float(n) => n != 0.0,
                         Value::Str(s) => {
                             if s == "true" {
                                 true
@@ -4074,7 +4163,7 @@ impl Interpreter {
                 self.control_flow = ControlFlow::Continue;
             }
             Stmt::Return(expr) => {
-                let value = expr.as_ref().map(|e| self.eval_expr(&e)).unwrap_or(Value::Number(0.0));
+                let value = expr.as_ref().map(|e| self.eval_expr(&e)).unwrap_or(Value::Int(0));
                 self.return_value = Some(Value::Return(Box::new(value)));
             }
             Stmt::TryExcept { try_block, except_var, except_block } => {
@@ -4104,7 +4193,7 @@ impl Interpreter {
                             let mut fields = HashMap::new();
                             fields.insert("message".to_string(), Value::Str(msg));
                             fields.insert("stack".to_string(), Value::Array(Vec::new()));
-                            fields.insert("line".to_string(), Value::Number(0.0));
+                            fields.insert("line".to_string(), Value::Int(0));
 
                             self.env.define(
                                 except_var.clone(),
@@ -4121,7 +4210,7 @@ impl Interpreter {
                             );
                             fields.insert(
                                 "line".to_string(),
-                                Value::Number(line.unwrap_or(0) as f64),
+                                Value::Float(line.unwrap_or(0) as f64),
                             );
                             if let Some(cause_val) = cause {
                                 fields.insert("cause".to_string(), *cause_val);
@@ -4264,7 +4353,8 @@ impl Interpreter {
     /// Evaluates an expression to produce a value
     fn eval_expr(&mut self, expr: &Expr) -> Value {
         let result = match expr {
-            Expr::Number(n) => Value::Number(*n),
+            Expr::Int(n) => Value::Int(*n),
+            Expr::Float(n) => Value::Float(*n),
             Expr::String(s) => Value::Str(s.clone()),
             Expr::Bool(b) => Value::Bool(*b),
             Expr::InterpolatedString(parts) => {
@@ -4310,9 +4400,9 @@ impl Interpreter {
 
                 // Default behavior for built-in types
                 match (op.as_str(), val) {
-                    ("-", Value::Number(n)) => Value::Number(-n),
+                    ("-", Value::Float(n)) => Value::Float(-n),
                     ("!", Value::Bool(b)) => Value::Bool(!b),
-                    _ => Value::Number(0.0), // Default for unsupported operations
+                    _ => Value::Int(0), // Default for unsupported operations
                 }
             }
             Expr::BinaryOp { left, op, right } => {
@@ -4375,7 +4465,7 @@ impl Interpreter {
                             
                             // Execute function body
                             self.eval_stmts(body.get());
-                            let mut result = Value::Number(0.0);
+                            let mut result = Value::Int(0);
                             if let Some(Value::Return(val)) = self.return_value.clone() {
                                 self.return_value = None;
                                 result = *val;
@@ -4394,7 +4484,8 @@ impl Interpreter {
                             // Handle built-in functions
                             // Create a simple expression for the value and call the native function
                             let arg_expr = match value {
-                                Value::Number(n) => Expr::Number(n),
+                                Value::Int(n) => Expr::Int(n),
+                                Value::Float(n) => Expr::Float(n),
                                 Value::Str(s) => Expr::String(s),
                                 Value::Bool(b) => Expr::Bool(b),
                                 _ => return Value::Error("Cannot pipe this value type to native function".to_string()),
@@ -4419,34 +4510,98 @@ impl Interpreter {
 
                 // Default behavior for built-in types
                 match (l, r) {
-                    (Value::Number(a), Value::Number(b)) => match op.as_str() {
-                        "+" => Value::Number(a + b),
-                        "-" => Value::Number(a - b),
-                        "*" => Value::Number(a * b),
-                        "/" => Value::Number(a / b),
-                        "%" => Value::Number(a % b),
+                    // Int + Int = Int (preserve integer type)
+                    (Value::Int(a), Value::Int(b)) => match op.as_str() {
+                        "+" => Value::Int(a.wrapping_add(b)),
+                        "-" => Value::Int(a.wrapping_sub(b)),
+                        "*" => Value::Int(a.wrapping_mul(b)),
+                        "/" => {
+                            if b == 0 {
+                                Value::Error("Division by zero".to_string())
+                            } else {
+                                Value::Int(a / b) // Integer division: 5/2 = 2
+                            }
+                        }
+                        "%" => {
+                            if b == 0 {
+                                Value::Error("Modulo by zero".to_string())
+                            } else {
+                                Value::Int(a % b)
+                            }
+                        }
                         "==" => Value::Bool(a == b),
                         "!=" => Value::Bool(a != b),
                         ">" => Value::Bool(a > b),
                         "<" => Value::Bool(a < b),
                         ">=" => Value::Bool(a >= b),
                         "<=" => Value::Bool(a <= b),
-                        _ => Value::Number(0.0),
+                        _ => Value::Int(0),
                     },
+                    // Float + Float = Float
+                    (Value::Float(a), Value::Float(b)) => match op.as_str() {
+                        "+" => Value::Float(a + b),
+                        "-" => Value::Float(a - b),
+                        "*" => Value::Float(a * b),
+                        "/" => Value::Float(a / b),
+                        "%" => Value::Float(a % b),
+                        "==" => Value::Bool((a - b).abs() < f64::EPSILON),
+                        "!=" => Value::Bool((a - b).abs() >= f64::EPSILON),
+                        ">" => Value::Bool(a > b),
+                        "<" => Value::Bool(a < b),
+                        ">=" => Value::Bool(a >= b),
+                        "<=" => Value::Bool(a <= b),
+                        _ => Value::Int(0),
+                    },
+                    // Int + Float = Float (promote to float)
+                    (Value::Int(a), Value::Float(b)) => {
+                        let a_float = a as f64;
+                        match op.as_str() {
+                            "+" => Value::Float(a_float + b),
+                            "-" => Value::Float(a_float - b),
+                            "*" => Value::Float(a_float * b),
+                            "/" => Value::Float(a_float / b),
+                            "%" => Value::Float(a_float % b),
+                            "==" => Value::Bool((a_float - b).abs() < f64::EPSILON),
+                            "!=" => Value::Bool((a_float - b).abs() >= f64::EPSILON),
+                            ">" => Value::Bool(a_float > b),
+                            "<" => Value::Bool(a_float < b),
+                            ">=" => Value::Bool(a_float >= b),
+                            "<=" => Value::Bool(a_float <= b),
+                            _ => Value::Int(0),
+                        }
+                    }
+                    // Float + Int = Float (promote to float)
+                    (Value::Float(a), Value::Int(b)) => {
+                        let b_float = b as f64;
+                        match op.as_str() {
+                            "+" => Value::Float(a + b_float),
+                            "-" => Value::Float(a - b_float),
+                            "*" => Value::Float(a * b_float),
+                            "/" => Value::Float(a / b_float),
+                            "%" => Value::Float(a % b_float),
+                            "==" => Value::Bool((a - b_float).abs() < f64::EPSILON),
+                            "!=" => Value::Bool((a - b_float).abs() >= f64::EPSILON),
+                            ">" => Value::Bool(a > b_float),
+                            "<" => Value::Bool(a < b_float),
+                            ">=" => Value::Bool(a >= b_float),
+                            "<=" => Value::Bool(a <= b_float),
+                            _ => Value::Int(0),
+                        }
+                    }
                     (Value::Str(a), Value::Str(b)) => match op.as_str() {
                         "+" => Value::Str(a + &b),
                         "==" => Value::Bool(a == b),
                         "!=" => Value::Bool(a != b),
-                        _ => Value::Number(0.0),
+                        _ => Value::Int(0),
                     },
                     (Value::Bool(a), Value::Bool(b)) => match op.as_str() {
                         "==" => Value::Bool(a == b),
                         "!=" => Value::Bool(a != b),
                         "&&" => Value::Bool(a && b),
                         "||" => Value::Bool(a || b),
-                        _ => Value::Number(0.0),
+                        _ => Value::Int(0),
                     },
-                    _ => Value::Number(0.0),
+                    _ => Value::Int(0),
                 }
             }
             Expr::Call { function, args } => {
@@ -4506,7 +4661,7 @@ impl Interpreter {
                                 let width_val = self.eval_expr(&args[0]);
                                 let height_val = self.eval_expr(&args[1]);
                                 
-                                if let (Value::Number(w), Value::Number(h)) = (width_val, height_val) {
+                                if let (Value::Float(w), Value::Float(h)) = (width_val, height_val) {
                                     let width = w as u32;
                                     let height = h as u32;
                                     
@@ -4548,7 +4703,7 @@ impl Interpreter {
                                 let w_val = self.eval_expr(&args[2]);
                                 let h_val = self.eval_expr(&args[3]);
                                 
-                                if let (Value::Number(x), Value::Number(y), Value::Number(w), Value::Number(h)) 
+                                if let (Value::Float(x), Value::Float(y), Value::Float(w), Value::Float(h)) 
                                     = (x_val, y_val, w_val, h_val) {
                                     let mut img = data.lock().unwrap().clone();
                                     let cropped = img.crop(x as u32, y as u32, w as u32, h as u32);
@@ -4568,22 +4723,23 @@ impl Interpreter {
                                 }
                                 
                                 let degrees_val = self.eval_expr(&args[0]);
-                                if let Value::Number(degrees) = degrees_val {
-                                    let img = data.lock().unwrap();
-                                    let rotated = match degrees as i32 {
-                                        90 => img.rotate90(),
-                                        180 => img.rotate180(),
-                                        270 => img.rotate270(),
-                                        _ => return Value::Error("rotate only supports 90, 180, or 270 degrees".to_string()),
-                                    };
-                                    
-                                    return Value::Image {
-                                        data: Arc::new(Mutex::new(rotated)),
-                                        format: format.clone(),
-                                    };
-                                } else {
-                                    return Value::Error("rotate requires a numeric degrees argument".to_string());
-                                }
+                                let degrees = match degrees_val {
+                                    Value::Int(n) => n as f32,
+                                    Value::Float(n) => n as f32,
+                                    _ => return Value::Error("rotate requires a numeric degrees argument".to_string()),
+                                };
+                                let img = data.lock().unwrap();
+                                let rotated = match degrees as i32 {
+                                    90 => img.rotate90(),
+                                    180 => img.rotate180(),
+                                    270 => img.rotate270(),
+                                    _ => return Value::Error("rotate only supports 90, 180, or 270 degrees".to_string()),
+                                };
+                                
+                                return Value::Image {
+                                    data: Arc::new(Mutex::new(rotated)),
+                                    format: format.clone(),
+                                };
                             }
                             "flip" => {
                                 // img.flip("horizontal") or img.flip("vertical")
@@ -4645,17 +4801,18 @@ impl Interpreter {
                                 }
                                 
                                 let sigma_val = self.eval_expr(&args[0]);
-                                if let Value::Number(sigma) = sigma_val {
-                                    let img = data.lock().unwrap();
-                                    let blurred = img.blur(sigma as f32);
-                                    
-                                    return Value::Image {
-                                        data: Arc::new(Mutex::new(blurred)),
-                                        format: format.clone(),
-                                    };
-                                } else {
-                                    return Value::Error("blur requires a numeric sigma argument".to_string());
-                                }
+                                let sigma = match sigma_val {
+                                    Value::Int(n) => n as f32,
+                                    Value::Float(n) => n as f32,
+                                    _ => return Value::Error("blur requires a numeric sigma argument".to_string()),
+                                };
+                                let img = data.lock().unwrap();
+                                let blurred = img.blur(sigma);
+                                
+                                return Value::Image {
+                                    data: Arc::new(Mutex::new(blurred)),
+                                    format: format.clone(),
+                                };
                             }
                             "adjust_brightness" => {
                                 // img.adjust_brightness(factor)
@@ -4664,17 +4821,18 @@ impl Interpreter {
                                 }
                                 
                                 let factor_val = self.eval_expr(&args[0]);
-                                if let Value::Number(factor) = factor_val {
-                                    let img = data.lock().unwrap();
-                                    let adjusted = img.brighten((factor * 50.0) as i32);
-                                    
-                                    return Value::Image {
-                                        data: Arc::new(Mutex::new(adjusted)),
-                                        format: format.clone(),
-                                    };
-                                } else {
-                                    return Value::Error("adjust_brightness requires a numeric factor argument".to_string());
-                                }
+                                let factor = match factor_val {
+                                    Value::Int(n) => n as f64,
+                                    Value::Float(n) => n,
+                                    _ => return Value::Error("adjust_brightness requires a numeric factor argument".to_string()),
+                                };
+                                let img = data.lock().unwrap();
+                                let adjusted = img.brighten((factor * 50.0) as i32);
+                                
+                                return Value::Image {
+                                    data: Arc::new(Mutex::new(adjusted)),
+                                    format: format.clone(),
+                                };
                             }
                             "adjust_contrast" => {
                                 // img.adjust_contrast(factor)
@@ -4683,17 +4841,18 @@ impl Interpreter {
                                 }
                                 
                                 let factor_val = self.eval_expr(&args[0]);
-                                if let Value::Number(factor) = factor_val {
-                                    let img = data.lock().unwrap();
-                                    let adjusted = img.adjust_contrast(factor as f32);
-                                    
-                                    return Value::Image {
-                                        data: Arc::new(Mutex::new(adjusted)),
-                                        format: format.clone(),
-                                    };
-                                } else {
-                                    return Value::Error("adjust_contrast requires a numeric factor argument".to_string());
-                                }
+                                let factor = match factor_val {
+                                    Value::Int(n) => n as f32,
+                                    Value::Float(n) => n as f32,
+                                    _ => return Value::Error("adjust_contrast requires a numeric factor argument".to_string()),
+                                };
+                                let img = data.lock().unwrap();
+                                let adjusted = img.adjust_contrast(factor);
+                                
+                                return Value::Image {
+                                    data: Arc::new(Mutex::new(adjusted)),
+                                    format: format.clone(),
+                                };
                             }
                             _ => return Value::Error(format!("Image has no method '{}'", field)),
                         }
@@ -4791,7 +4950,7 @@ impl Interpreter {
                                 } else {
                                     // No explicit return - clear any lingering state
                                     self.return_value = None;
-                                    Value::Number(0.0)
+                                    Value::Int(0)
                                 };
 
                                 // Restore parent environment
@@ -4842,7 +5001,7 @@ impl Interpreter {
                                 self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
-                                Value::Number(0.0)
+                                Value::Int(0)
                             };
 
                             self.env.pop_scope();
@@ -4874,7 +5033,7 @@ impl Interpreter {
                                 self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
-                                Value::Number(0.0)
+                                Value::Int(0)
                             };
 
                             self.env.pop_scope();
@@ -4883,7 +5042,7 @@ impl Interpreter {
                             result
                         }
                     }
-                    _ => Value::Number(0.0),
+                    _ => Value::Int(0),
                 };
                 call_result
             }
@@ -4929,7 +5088,7 @@ impl Interpreter {
                                     self.return_value.clone().unwrap()
                                 } else {
                                     self.return_value = None;
-                                    Value::Number(0.0)
+                                    Value::Int(0)
                                 };
 
                                 self.env.pop_scope();
@@ -4964,7 +5123,7 @@ impl Interpreter {
                                     self.return_value.clone().unwrap()
                                 } else {
                                     self.return_value = None;
-                                    Value::Number(0.0)
+                                    Value::Int(0)
                                 };
 
                                 self.env.pop_scope();
@@ -4997,24 +5156,24 @@ impl Interpreter {
                 match obj_val {
                     Value::Struct { name: _, fields } => {
                         // Access field from struct instance
-                        fields.get(field).cloned().unwrap_or(Value::Number(0.0))
+                        fields.get(field).cloned().unwrap_or(Value::Int(0))
                     }
                     Value::Image { data, format } => {
                         // Access image properties
                         match field.as_str() {
                             "width" => {
                                 let img = data.lock().unwrap();
-                                Value::Number(img.width() as f64)
+                                Value::Float(img.width() as f64)
                             }
                             "height" => {
                                 let img = data.lock().unwrap();
-                                Value::Number(img.height() as f64)
+                                Value::Float(img.height() as f64)
                             }
                             "format" => Value::Str(format),
                             _ => Value::Error(format!("Image has no field '{}'", field)),
                         }
                     }
-                    _ => Value::Number(0.0),
+                    _ => Value::Int(0),
                 }
             }
             Expr::ArrayLiteral(elements) => {
@@ -5026,7 +5185,8 @@ impl Interpreter {
                 for (key_expr, val_expr) in pairs {
                     let key = match self.eval_expr(key_expr) {
                         Value::Str(s) => s,
-                        Value::Number(n) => n.to_string(),
+                        Value::Int(n) => n.to_string(),
+                        Value::Float(n) => n.to_string(),
                         _ => continue,
                     };
                     let value = self.eval_expr(val_expr);
@@ -5039,21 +5199,21 @@ impl Interpreter {
                 let idx_val = self.eval_expr(index);
 
                 match (obj_val, idx_val) {
-                    (Value::Array(arr), Value::Number(n)) => {
+                    (Value::Array(arr), Value::Float(n)) => {
                         let idx = n as usize;
-                        arr.get(idx).cloned().unwrap_or(Value::Number(0.0))
+                        arr.get(idx).cloned().unwrap_or(Value::Int(0))
                     }
                     (Value::Dict(map), Value::Str(key)) => {
-                        map.get(&key).cloned().unwrap_or(Value::Number(0.0))
+                        map.get(&key).cloned().unwrap_or(Value::Int(0))
                     }
-                    (Value::Str(s), Value::Number(n)) => {
+                    (Value::Str(s), Value::Float(n)) => {
                         let idx = n as usize;
                         s.chars()
                             .nth(idx)
                             .map(|c| Value::Str(c.to_string()))
                             .unwrap_or(Value::Str(String::new()))
                     }
-                    _ => Value::Number(0.0),
+                    _ => Value::Int(0),
                 }
             }
         };
@@ -5064,7 +5224,8 @@ impl Interpreter {
     fn stringify_value(value: &Value) -> String {
         match value {
             Value::Str(s) => s.clone(),
-            Value::Number(n) => n.to_string(),
+            Value::Int(n) => n.to_string(),
+            Value::Float(n) => n.to_string(),
             Value::Bool(b) => b.to_string(),
             Value::Null => "null".to_string(),
             Value::Tagged { tag, fields } => {
@@ -5182,8 +5343,8 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Struct { fields, .. }) = interp.env.get("p") {
-            if let Some(Value::Number(age)) = fields.get("age") {
-                assert_eq!(*age, 26.0);
+            if let Some(Value::Int(age)) = fields.get("age") {
+                assert_eq!(*age, 26);
             } else {
                 panic!("Expected age to be 26");
             }
@@ -5239,10 +5400,10 @@ mod tests {
 
         // Due to scoping, x remains 0 but we test that the if block executes
         // This is a known limitation documented in the README
-        if let Some(Value::Number(x)) = interp.env.get("x") {
+        if let Some(Value::Int(x)) = interp.env.get("x") {
             // With current scoping, x stays 0 (variable shadowing issue)
             // But the code runs without errors, proving 'true' is handled
-            assert!(x == 0.0 || x == 1.0); // Accept either due to scoping
+            assert!(x == 0 || x == 1); // Accept either due to scoping
         }
     }
 
@@ -5273,8 +5434,8 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Array(arr)) = interp.env.get("arr") {
-            if let Some(Value::Number(n)) = arr.get(1) {
-                assert_eq!(*n, 20.0);
+            if let Some(Value::Int(n)) = arr.get(1) {
+                assert_eq!(*n, 20);
             } else {
                 panic!("Expected second element to be 20");
             }
@@ -5293,8 +5454,8 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Dict(dict)) = interp.env.get("person") {
-            if let Some(Value::Number(age)) = dict.get("age") {
-                assert_eq!(*age, 31.0);
+            if let Some(Value::Int(age)) = dict.get("age") {
+                assert_eq!(*age, 31);
             } else {
                 panic!("Expected age to be 31");
             }
@@ -5343,8 +5504,8 @@ mod tests {
 
         let interp = run_code(code);
 
-        if let Some(Value::Number(x)) = interp.env.get("x") {
-            assert_eq!(x, 20.0);
+        if let Some(Value::Int(x)) = interp.env.get("x") {
+            assert_eq!(x, 20);
         } else {
             panic!("Expected x to be 20");
         }
@@ -5364,8 +5525,8 @@ mod tests {
         let interp = run_code(code);
 
         if let Some(Value::Struct { fields, .. }) = interp.env.get("rect") {
-            if let Some(Value::Number(width)) = fields.get("width") {
-                assert_eq!(*width, 5.0);
+            if let Some(Value::Int(width)) = fields.get("width") {
+                assert_eq!(*width, 5);
             } else {
                 panic!("Expected width to be 5");
             }
@@ -5390,8 +5551,8 @@ mod tests {
         let interp = run_code(code);
 
         // x should be updated to 30
-        if let Some(Value::Number(x)) = interp.env.get("x") {
-            assert_eq!(x, 30.0);
+        if let Some(Value::Int(x)) = interp.env.get("x") {
+            assert_eq!(x, 30);
         } else {
             panic!("Expected x to be 30");
         }
@@ -5410,8 +5571,8 @@ mod tests {
         let interp = run_code(code);
 
         // sum should be 6, not 0
-        if let Some(Value::Number(sum)) = interp.env.get("sum") {
-            assert_eq!(sum, 6.0);
+        if let Some(Value::Int(sum)) = interp.env.get("sum") {
+            assert_eq!(sum, 6);
         } else {
             panic!("Expected sum to be 6");
         }
@@ -5451,15 +5612,15 @@ mod tests {
         let interp = run_code(code);
 
         // result should be 20 (captured the shadowed local x)
-        if let Some(Value::Number(result)) = interp.env.get("result") {
-            assert_eq!(result, 20.0, "result should be 20 from shadowed local x");
+        if let Some(Value::Int(result)) = interp.env.get("result") {
+            assert_eq!(result, 20, "result should be 20 from shadowed local x");
         } else {
             panic!("Expected result to exist");
         }
 
         // x should still be 10 (outer x unchanged)
-        if let Some(Value::Number(x)) = interp.env.get("x") {
-            assert_eq!(x, 10.0, "outer x should remain 10");
+        if let Some(Value::Int(x)) = interp.env.get("x") {
+            assert_eq!(x, 10, "outer x should remain 10");
         } else {
             panic!("Expected x to exist");
         }
@@ -5482,8 +5643,8 @@ mod tests {
         let interp = run_code(code);
 
         // x in outer scope should still be 100
-        if let Some(Value::Number(x)) = interp.env.get("x") {
-            assert_eq!(x, 100.0);
+        if let Some(Value::Int(x)) = interp.env.get("x") {
+            assert_eq!(x, 100);
         } else {
             panic!("Expected x to be 100");
         }
@@ -5510,8 +5671,8 @@ mod tests {
         let interp = run_code(code);
 
         // counter should be 3
-        if let Some(Value::Number(counter)) = interp.env.get("counter") {
-            assert_eq!(counter, 3.0);
+        if let Some(Value::Int(counter)) = interp.env.get("counter") {
+            assert_eq!(counter, 3);
         } else {
             panic!("Expected counter to be 3");
         }
@@ -5532,8 +5693,8 @@ mod tests {
         let interp = run_code(code);
 
         // result should be 6 (3 * 2)
-        if let Some(Value::Number(result)) = interp.env.get("result") {
-            assert_eq!(result, 6.0);
+        if let Some(Value::Int(result)) = interp.env.get("result") {
+            assert_eq!(result, 6);
         } else {
             panic!("Expected result to be 6");
         }
@@ -5559,8 +5720,8 @@ mod tests {
         let interp = run_code(code);
 
         // result should be 6 (1 + 2 + 3)
-        if let Some(Value::Number(result)) = interp.env.get("result") {
-            assert_eq!(result, 6.0);
+        if let Some(Value::Int(result)) = interp.env.get("result") {
+            assert_eq!(result, 6);
         } else {
             panic!("Expected result to be 6");
         }
@@ -5582,8 +5743,8 @@ mod tests {
         let interp = run_code(code);
 
         // x should be 30
-        if let Some(Value::Number(x)) = interp.env.get("x") {
-            assert_eq!(x, 30.0);
+        if let Some(Value::Int(x)) = interp.env.get("x") {
+            assert_eq!(x, 30);
         } else {
             panic!("Expected x to be 30");
         }
@@ -5606,8 +5767,8 @@ mod tests {
         let interp = run_code(code);
 
         // total should be 100
-        if let Some(Value::Number(total)) = interp.env.get("total") {
-            assert_eq!(total, 100.0);
+        if let Some(Value::Int(total)) = interp.env.get("total") {
+            assert_eq!(total, 100);
         } else {
             panic!("Expected total to be 100");
         }
@@ -5628,15 +5789,15 @@ mod tests {
         let interp = run_code(code);
 
         // count should be 5
-        if let Some(Value::Number(count)) = interp.env.get("count") {
-            assert_eq!(count, 5.0);
+        if let Some(Value::Int(count)) = interp.env.get("count") {
+            assert_eq!(count, 5);
         } else {
             panic!("Expected count to be 5");
         }
 
         // sum should be 0+1+2+3+4 = 10
-        if let Some(Value::Number(sum)) = interp.env.get("sum") {
-            assert_eq!(sum, 10.0);
+        if let Some(Value::Int(sum)) = interp.env.get("sum") {
+            assert_eq!(sum, 10);
         } else {
             panic!("Expected sum to be 10");
         }
@@ -5645,20 +5806,20 @@ mod tests {
     #[test]
     fn test_environment_set_across_scopes() {
         let mut env = Environment::new();
-        env.define("x".to_string(), Value::Number(5.0));
+        env.define("x".to_string(), Value::Float(5.0));
 
         // Push a new scope
         env.push_scope();
 
         // Set x from within the child scope
-        env.set("x".to_string(), Value::Number(10.0));
+        env.set("x".to_string(), Value::Float(10.0));
 
         // Pop the scope
         env.pop_scope();
 
         // x should still be 10 in the global scope
-        if let Some(Value::Number(x)) = env.get("x") {
-            assert_eq!(x, 10.0, "x should be updated to 10 in global scope");
+        if let Some(Value::Int(x)) = env.get("x") {
+            assert_eq!(x, 10, "x should be updated to 10 in global scope");
         } else {
             panic!("x should exist");
         }
@@ -5676,20 +5837,20 @@ mod tests {
 
         let interp = run_code(code);
 
-        if let Some(Value::Number(n)) = interp.env.get("result1") {
-            assert_eq!(n, 42.0);
+        if let Some(Value::Int(n)) = interp.env.get("result1") {
+            assert_eq!(n, 42);
         } else {
             panic!("Expected result1 to be 42");
         }
 
-        if let Some(Value::Number(n)) = interp.env.get("result2") {
-            assert_eq!(n, -100.0);
+        if let Some(Value::Int(n)) = interp.env.get("result2") {
+            assert_eq!(n, -100);
         } else {
             panic!("Expected result2 to be -100");
         }
 
-        if let Some(Value::Number(n)) = interp.env.get("result3") {
-            assert_eq!(n, 0.0);
+        if let Some(Value::Int(n)) = interp.env.get("result3") {
+            assert_eq!(n, 0);
         } else {
             panic!("Expected result3 to be 0");
         }
@@ -5730,26 +5891,26 @@ mod tests {
 
         let interp = run_code(code);
 
-        if let Some(Value::Number(n)) = interp.env.get("result1") {
+        if let Some(Value::Float(n)) = interp.env.get("result1") {
             assert!((n - 3.14).abs() < 0.001);
         } else {
             panic!("Expected result1 to be 3.14");
         }
 
-        if let Some(Value::Number(n)) = interp.env.get("result2") {
+        if let Some(Value::Float(n)) = interp.env.get("result2") {
             assert!((n - (-2.5)).abs() < 0.001);
         } else {
             panic!("Expected result2 to be -2.5");
         }
 
-        if let Some(Value::Number(n)) = interp.env.get("result3") {
-            assert_eq!(n, 42.0);
+        if let Some(Value::Float(n)) = interp.env.get("result3") {
+            assert!((n - 42.0).abs() < 0.001);
         } else {
             panic!("Expected result3 to be 42");
         }
 
-        if let Some(Value::Number(n)) = interp.env.get("result4") {
-            assert_eq!(n, 0.0);
+        if let Some(Value::Float(n)) = interp.env.get("result4") {
+            assert!((n - 0.0).abs() < 0.001);
         } else {
             panic!("Expected result4 to be 0");
         }
@@ -5794,13 +5955,13 @@ mod tests {
 
         let interp = run_code(code);
 
-        if let Some(Value::Number(n)) = interp.env.get("sum") {
-            assert_eq!(n, 30.0);
+        if let Some(Value::Int(n)) = interp.env.get("sum") {
+            assert_eq!(n, 30);
         } else {
             panic!("Expected sum to be 30");
         }
 
-        if let Some(Value::Number(n)) = interp.env.get("product") {
+        if let Some(Value::Float(n)) = interp.env.get("product") {
             assert!((n - 8.75).abs() < 0.001);
         } else {
             panic!("Expected product to be 8.75");
@@ -5927,8 +6088,8 @@ mod tests {
 
         let interp = run_code(&code);
 
-        if let Some(Value::Number(n)) = interp.env.get("count") {
-            assert_eq!(n, 3.0);
+        if let Some(Value::Int(n)) = interp.env.get("count") {
+            assert_eq!(n, 3);
         } else {
             panic!("Expected count to be 3");
         }
@@ -5978,8 +6139,8 @@ mod tests {
             panic!("Expected create_dir result to be true");
         }
 
-        if let Some(Value::Number(n)) = interp.env.get("count") {
-            assert_eq!(n, 2.0);
+        if let Some(Value::Int(n)) = interp.env.get("count") {
+            assert_eq!(n, 2);
         } else {
             panic!("Expected 2 files in directory");
         }
@@ -6249,7 +6410,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 5.0));
+        assert!(matches!(interp.env.get("x"), Some(Value::Int(n)) if n == 5));
     }
 
     #[test]
@@ -6268,7 +6429,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("count"), Some(Value::Number(n)) if n == 3.0));
+        assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 3));
         assert!(matches!(interp.env.get("running"), Some(Value::Bool(false))));
     }
 
@@ -6287,7 +6448,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 5.0));
+        assert!(matches!(interp.env.get("x"), Some(Value::Int(n)) if n == 5));
     }
 
     #[test]
@@ -6306,7 +6467,7 @@ mod tests {
         let interp = run_code(code);
 
         // Should sum 0+1+2+3+4+5 = 15
-        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 15.0));
+        assert!(matches!(interp.env.get("sum"), Some(Value::Int(n)) if n == 15));
     }
 
     #[test]
@@ -6327,7 +6488,7 @@ mod tests {
         let interp = run_code(code);
 
         // Should sum 1+2+4+5 = 12 (skipping 3)
-        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 12.0));
+        assert!(matches!(interp.env.get("sum"), Some(Value::Int(n)) if n == 12));
     }
 
     #[test]
@@ -6346,7 +6507,7 @@ mod tests {
         let interp = run_code(code);
 
         // Should sum only odd numbers: 1+3+5+7+9 = 25
-        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 25.0));
+        assert!(matches!(interp.env.get("sum"), Some(Value::Int(n)) if n == 25));
     }
 
     #[test]
@@ -6370,8 +6531,8 @@ mod tests {
 
         // Outer loop runs 3 times, inner loop breaks at j==2 (runs 3 times per outer iteration)
         // So inner_count should be 3 * 3 = 9
-        assert!(matches!(interp.env.get("outer"), Some(Value::Number(n)) if n == 3.0));
-        assert!(matches!(interp.env.get("inner_count"), Some(Value::Number(n)) if n == 9.0));
+        assert!(matches!(interp.env.get("outer"), Some(Value::Int(n)) if n == 3));
+        assert!(matches!(interp.env.get("inner_count"), Some(Value::Int(n)) if n == 9));
     }
 
     #[test]
@@ -6393,7 +6554,7 @@ mod tests {
 
         // Outer loop runs 3 times, inner loop runs 5 times but skips j==2
         // So total should be 3 * 4 = 12
-        assert!(matches!(interp.env.get("total"), Some(Value::Number(n)) if n == 12.0));
+        assert!(matches!(interp.env.get("total"), Some(Value::Int(n)) if n == 12));
     }
 
     #[test]
@@ -6417,8 +6578,8 @@ mod tests {
         let interp = run_code(code);
 
         // Should sum odd numbers from 1 to 9: 1+3+5+7+9 = 25
-        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 25.0));
-        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 11.0));
+        assert!(matches!(interp.env.get("sum"), Some(Value::Int(n)) if n == 25));
+        assert!(matches!(interp.env.get("x"), Some(Value::Int(n)) if n == 11));
     }
 
     #[test]
@@ -6453,7 +6614,7 @@ mod tests {
         let interp = run_code(code);
 
         // Should sum 1+2+3 = 6
-        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 6.0));
+        assert!(matches!(interp.env.get("sum"), Some(Value::Int(n)) if n == 6));
     }
 
     #[test]
@@ -6473,7 +6634,7 @@ mod tests {
         let interp = run_code(code);
 
         // Should sum 1+2+4+5 = 12 (skipping 3)
-        assert!(matches!(interp.env.get("sum"), Some(Value::Number(n)) if n == 12.0));
+        assert!(matches!(interp.env.get("sum"), Some(Value::Int(n)) if n == 12));
     }
 
     #[test]
@@ -6490,8 +6651,8 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 5.0));
-        assert!(matches!(interp.env.get("y"), Some(Value::Number(n)) if n == 5.0));
+        assert!(matches!(interp.env.get("x"), Some(Value::Int(n)) if n == 5));
+        assert!(matches!(interp.env.get("y"), Some(Value::Int(n)) if n == 5));
     }
 
     // String Interpolation Tests
@@ -6746,9 +6907,9 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("idx1"), Some(Value::Number(n)) if n == 6.0));
-        assert!(matches!(interp.env.get("idx2"), Some(Value::Number(n)) if n == 2.0));
-        assert!(matches!(interp.env.get("idx3"), Some(Value::Number(n)) if n == 0.0));
+        assert!(matches!(interp.env.get("idx1"), Some(Value::Int(n)) if n == 6));
+        assert!(matches!(interp.env.get("idx2"), Some(Value::Int(n)) if n == 2));
+        assert!(matches!(interp.env.get("idx3"), Some(Value::Int(n)) if n == 0));
     }
 
     #[test]
@@ -6760,8 +6921,8 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("idx1"), Some(Value::Number(n)) if n == -1.0));
-        assert!(matches!(interp.env.get("idx2"), Some(Value::Number(n)) if n == -1.0));
+        assert!(matches!(interp.env.get("idx1"), Some(Value::Int(n)) if n == -1));
+        assert!(matches!(interp.env.get("idx2"), Some(Value::Int(n)) if n == -1));
     }
 
     #[test]
@@ -6910,7 +7071,7 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("result"), Some(Value::Number(n)) if n == 1.0));
+        assert!(matches!(interp.env.get("result"), Some(Value::Int(n)) if n == 1));
     }
 
     #[test]
@@ -6943,7 +7104,7 @@ mod tests {
 
         let interp = run_code(code);
         // Stack should be an array (even if empty)
-        assert!(matches!(interp.env.get("stack_len"), Some(Value::Number(n)) if n >= 0.0));
+        assert!(matches!(interp.env.get("stack_len"), Some(Value::Int(n)) if n >= 0));
     }
 
     #[test]
@@ -6959,7 +7120,7 @@ mod tests {
 
         let interp = run_code(code);
         // Line number should be accessible (0 if not set)
-        assert!(matches!(interp.env.get("result"), Some(Value::Number(n)) if n >= 0.0));
+        assert!(matches!(interp.env.get("result"), Some(Value::Int(n)) if n >= 0));
     }
 
     #[test]
@@ -7093,7 +7254,7 @@ mod tests {
 
         let interp = run_code(code);
         // After catching error, execution should continue
-        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 2.0));
+        assert!(matches!(interp.env.get("x"), Some(Value::Int(n)) if n == 2));
     }
 
     // JWT Authentication Tests
@@ -7126,7 +7287,7 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        assert!(matches!(interp.env.get("user_id"), Some(Value::Number(n)) if n == 456.0));
+        assert!(matches!(interp.env.get("user_id"), Some(Value::Int(n)) if n == 456));
         assert!(matches!(interp.env.get("role"), Some(Value::Str(s)) if s == "admin"));
         assert!(matches!(interp.env.get("active"), Some(Value::Bool(true))));
     }
@@ -7178,7 +7339,7 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        assert!(matches!(interp.env.get("decoded_user"), Some(Value::Number(n)) if n == 100.0));
+        assert!(matches!(interp.env.get("decoded_user"), Some(Value::Int(n)) if n == 100));
         assert!(matches!(interp.env.get("has_expiry"), Some(Value::Bool(true))));
     }
 
@@ -7284,7 +7445,7 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        assert!(matches!(interp.env.get("length"), Some(Value::Number(n)) if n == 5.0));
+        assert!(matches!(interp.env.get("length"), Some(Value::Int(n)) if n == 5));
     }
 
     #[test]
@@ -7374,8 +7535,8 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        assert!(matches!(interp.env.get("x"), Some(Value::Number(n)) if n == 0.0));
-        assert!(matches!(interp.env.get("z"), Some(Value::Number(n)) if n == 10.0));
+        assert!(matches!(interp.env.get("x"), Some(Value::Int(n)) if n == 0));
+        assert!(matches!(interp.env.get("z"), Some(Value::Int(n)) if n == 10));
         // y should not exist in main scope
         assert!(interp.env.get("y").is_none());
     }
@@ -7395,7 +7556,7 @@ mod tests {
 
         let interp = run_code(code);
         // Should get 2 results
-        assert!(matches!(interp.env.get("count"), Some(Value::Number(n)) if n == 2.0));
+        assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 2));
         
         // Results should be an array
         if let Some(Value::Array(results)) = interp.env.get("results") {
@@ -7423,7 +7584,7 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        assert!(matches!(interp.env.get("value"), Some(Value::Number(n)) if n == 42.0));
+        assert!(matches!(interp.env.get("value"), Some(Value::Int(n)) if n == 42));
     }
 
     #[test]
@@ -7462,7 +7623,7 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        assert!(matches!(interp.env.get("count"), Some(Value::Number(n)) if n == 0.0));
+        assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 0));
     }
 
     #[test]
@@ -7473,11 +7634,11 @@ mod tests {
 
         let interp = run_code(code);
         // Verify it returns a number (milliseconds since UNIX epoch)
-        if let Some(Value::Number(timestamp)) = interp.env.get("ts") {
+        if let Some(Value::Int(timestamp)) = interp.env.get("ts") {
             // Should be a large positive number (milliseconds since 1970)
             // As of Jan 2026, this should be around 1.7 trillion
-            assert!(timestamp > 1_700_000_000_000.0, "Timestamp should be > 1.7 trillion ms");
-            assert!(timestamp < 2_000_000_000_000.0, "Timestamp should be < 2 trillion ms");
+            assert!(timestamp > 1_700_000_000_000, "Timestamp should be > 1.7 trillion ms");
+            assert!(timestamp < 2_000_000_000_000, "Timestamp should be < 2 trillion ms");
         } else {
             panic!("Expected current_timestamp() to return a number");
         }
@@ -7497,7 +7658,7 @@ mod tests {
 
         let interp = run_code(code);
         // Verify that ts2 >= ts1 (time moves forward)
-        if let (Some(Value::Number(ts1)), Some(Value::Number(ts2))) = 
+        if let (Some(Value::Float(ts1)), Some(Value::Float(ts2))) = 
             (interp.env.get("ts1"), interp.env.get("ts2")) {
             assert!(ts2 >= ts1, "Timestamp should increase or stay the same");
         } else {
@@ -7513,7 +7674,7 @@ mod tests {
 
         let interp = run_code(code);
         // Verify it returns a number (milliseconds since program start)
-        if let Some(Value::Number(time)) = interp.env.get("perf") {
+        if let Some(Value::Float(time)) = interp.env.get("perf") {
             // Should be a small positive number (milliseconds since start)
             assert!(time >= 0.0, "Performance timer should be >= 0");
             // Should be less than 1 second for this quick test
@@ -7537,7 +7698,7 @@ mod tests {
 
         let interp = run_code(code);
         // Verify that p2 > p1 (time moves forward)
-        if let (Some(Value::Number(p1)), Some(Value::Number(p2))) = 
+        if let (Some(Value::Float(p1)), Some(Value::Float(p2))) = 
             (interp.env.get("p1"), interp.env.get("p2")) {
             assert!(p2 > p1, "Performance timer should increase over time");
             // Difference should be reasonable (not negative, not huge)
@@ -7564,7 +7725,7 @@ mod tests {
 
         let interp = run_code(code);
         // Verify arithmetic operations work on timing values
-        if let Some(Value::Number(elapsed)) = interp.env.get("elapsed") {
+        if let Some(Value::Float(elapsed)) = interp.env.get("elapsed") {
             assert!(elapsed >= 0.0, "Elapsed time should be non-negative");
         } else {
             panic!("Expected elapsed to be a number");
@@ -7578,7 +7739,7 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        if let Some(Value::Number(time)) = interp.env.get("t") {
+        if let Some(Value::Float(time)) = interp.env.get("t") {
             assert!(time >= 0.0, "Microsecond timer should be >= 0");
         } else {
             panic!("Expected time_us() to return a number");
@@ -7592,7 +7753,7 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        if let Some(Value::Number(time)) = interp.env.get("t") {
+        if let Some(Value::Float(time)) = interp.env.get("t") {
             assert!(time >= 0.0, "Nanosecond timer should be >= 0");
         } else {
             panic!("Expected time_ns() to return a number");
@@ -7617,15 +7778,15 @@ mod tests {
 
         let interp = run_code(code);
         // Verify all three precision levels advance
-        if let (Some(Value::Number(t_ms)), Some(Value::Number(t_ms2))) = 
+        if let (Some(Value::Float(t_ms)), Some(Value::Float(t_ms2))) = 
             (interp.env.get("t_ms"), interp.env.get("t_ms2")) {
             assert!(t_ms2 >= t_ms, "Millisecond timer should advance");
         }
-        if let (Some(Value::Number(t_us)), Some(Value::Number(t_us2))) = 
+        if let (Some(Value::Float(t_us)), Some(Value::Float(t_us2))) = 
             (interp.env.get("t_us"), interp.env.get("t_us2")) {
             assert!(t_us2 >= t_us, "Microsecond timer should advance");
         }
-        if let (Some(Value::Number(t_ns)), Some(Value::Number(t_ns2))) = 
+        if let (Some(Value::Float(t_ns)), Some(Value::Float(t_ns2))) = 
             (interp.env.get("t_ns"), interp.env.get("t_ns2")) {
             assert!(t_ns2 >= t_ns, "Nanosecond timer should advance");
         }
@@ -7674,8 +7835,8 @@ mod tests {
         "#;
 
         let interp = run_code(code);
-        if let Some(Value::Number(diff)) = interp.env.get("diff") {
-            assert_eq!(diff, 150.5, "elapsed should calculate difference correctly");
+        if let Some(Value::Float(diff)) = interp.env.get("diff") {
+            assert!((diff - 150.5).abs() < 0.001, "elapsed should calculate difference correctly");
         } else {
             panic!("Expected elapsed to return a number");
         }

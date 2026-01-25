@@ -1166,14 +1166,8 @@ impl TypeChecker {
         self.recursion_depth += 1;
 
         let result = match expr {
-            Expr::Number(n) => {
-                // Check if it's an integer or float
-                if n.fract() == 0.0 {
-                    Some(TypeAnnotation::Int)
-                } else {
-                    Some(TypeAnnotation::Float)
-                }
-            }
+            Expr::Int(_) => Some(TypeAnnotation::Int),
+            Expr::Float(_) => Some(TypeAnnotation::Float),
 
             Expr::String(_) => Some(TypeAnnotation::String),
 
@@ -1428,7 +1422,7 @@ mod tests {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
             name: "x".to_string(),
-            value: Expr::Number(42.0),
+            value: Expr::Int(42),
             mutable: false,
             type_annotation: Some(TypeAnnotation::Int),
         }];

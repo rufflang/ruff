@@ -24,8 +24,8 @@ pub fn get_builtins() -> HashMap<String, Value> {
     let mut builtins = HashMap::new();
 
     // Math constants
-    builtins.insert("PI".to_string(), Value::Number(std::f64::consts::PI));
-    builtins.insert("E".to_string(), Value::Number(std::f64::consts::E));
+    builtins.insert("PI".to_string(), Value::Float(std::f64::consts::PI));
+    builtins.insert("E".to_string(), Value::Float(std::f64::consts::E));
 
     builtins
 }
@@ -95,7 +95,7 @@ pub fn random_int(min: f64, max: f64) -> f64 {
 /// Select a random element from an array
 pub fn random_choice(arr: &[Value]) -> Value {
     if arr.is_empty() {
-        return Value::Number(0.0);
+        return Value::Int(0);
     }
     let mut rng = rand::thread_rng();
     let idx = rng.gen_range(0..arr.len());
@@ -194,10 +194,13 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
         serde_json::Value::Null => Value::Null, // null -> Null
         serde_json::Value::Bool(b) => Value::Bool(b),
         serde_json::Value::Number(n) => {
-            if let Some(f) = n.as_f64() {
-                Value::Number(f)
+            // Preserve integer vs float distinction
+            if let Some(i) = n.as_i64() {
+                Value::Int(i)
+            } else if let Some(f) = n.as_f64() {
+                Value::Float(f)
             } else {
-                Value::Number(0.0)
+                Value::Int(0)
             }
         }
         serde_json::Value::String(s) => Value::Str(s),
@@ -219,9 +222,8 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
 fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
     match value {
         Value::Null => Ok(serde_json::Value::Null),
-        Value::Number(n) => {
-            // Check if it's 0 and might represent null, but we'll always use number
-            // Users can explicitly use 0 if they want null in their JSON
+        Value::Int(n) => Ok(serde_json::Value::Number(serde_json::Number::from(*n))),
+        Value::Float(n) => {
             Ok(serde_json::Value::Number(
                 serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0)),
             ))
@@ -269,8 +271,8 @@ pub fn to_toml(value: &Value) -> Result<String, String> {
 fn toml_to_ruff_value(toml: toml::Value) -> Value {
     match toml {
         toml::Value::String(s) => Value::Str(s),
-        toml::Value::Integer(i) => Value::Number(i as f64),
-        toml::Value::Float(f) => Value::Number(f),
+        toml::Value::Integer(i) => Value::Int(i),
+        toml::Value::Float(f) => Value::Float(f),
         toml::Value::Boolean(b) => Value::Bool(b),
         toml::Value::Datetime(dt) => Value::Str(dt.to_string()),
         toml::Value::Array(arr) => {
@@ -291,14 +293,8 @@ fn toml_to_ruff_value(toml: toml::Value) -> Value {
 fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
     match value {
         Value::Null => Ok(toml::Value::String(String::new())), // TOML doesn't have null, use empty string
-        Value::Number(n) => {
-            // Check if it's an integer or float
-            if n.fract() == 0.0 && n.is_finite() {
-                Ok(toml::Value::Integer(*n as i64))
-            } else {
-                Ok(toml::Value::Float(*n))
-            }
-        }
+        Value::Int(n) => Ok(toml::Value::Integer(*n)),
+        Value::Float(n) => Ok(toml::Value::Float(*n)),
         Value::Str(s) => Ok(toml::Value::String(s.clone())),
         Value::Bool(b) => Ok(toml::Value::Boolean(*b)),
         Value::Array(arr) => {
@@ -344,10 +340,13 @@ fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
         serde_yaml::Value::Null => Value::Null,
         serde_yaml::Value::Bool(b) => Value::Bool(b),
         serde_yaml::Value::Number(n) => {
-            if let Some(f) = n.as_f64() {
-                Value::Number(f)
+            // Preserve integer vs float distinction
+            if let Some(i) = n.as_i64() {
+                Value::Int(i)
+            } else if let Some(f) = n.as_f64() {
+                Value::Float(f)
             } else {
-                Value::Number(0.0)
+                Value::Int(0)
             }
         }
         serde_yaml::Value::String(s) => Value::Str(s),
@@ -379,15 +378,8 @@ fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
 fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
     match value {
         Value::Null => Ok(serde_yaml::Value::Null),
-        Value::Number(n) => {
-            if n.fract() == 0.0 && n.is_finite() {
-                Ok(serde_yaml::Value::Number((*n as i64).into()))
-            } else {
-                Ok(serde_yaml::Value::Number(
-                    serde_yaml::Number::from(*n),
-                ))
-            }
-        }
+        Value::Int(n) => Ok(serde_yaml::Value::Number((*n).into())),
+        Value::Float(n) => Ok(serde_yaml::Value::Number(serde_yaml::Number::from(*n))),
         Value::Str(s) => Ok(serde_yaml::Value::String(s.clone())),
         Value::Bool(b) => Ok(serde_yaml::Value::Bool(*b)),
         Value::Array(arr) => {
@@ -433,8 +425,10 @@ pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
                 for (i, field) in record.iter().enumerate() {
                     let header = headers.get(i).unwrap_or("unknown");
                     // Try to parse as number, otherwise keep as string
-                    let value = if let Ok(num) = field.parse::<f64>() {
-                        Value::Number(num)
+                    let value = if let Ok(num) = field.parse::<i64>() {
+                        Value::Int(num)
+                    } else if let Ok(num) = field.parse::<f64>() {
+                        Value::Float(num)
                     } else {
                         Value::Str(field.to_string())
                     };
@@ -469,7 +463,8 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
                         let mut record = Vec::new();
                         for header in &headers {
                             let value_str = match row.get(header) {
-                                Some(Value::Number(n)) => n.to_string(),
+                                Some(Value::Int(n)) => n.to_string(),
+                                Some(Value::Float(n)) => n.to_string(),
                                 Some(Value::Str(s)) => s.clone(),
                                 Some(Value::Bool(b)) => b.to_string(),
                                 Some(Value::Null) => String::new(),
@@ -718,7 +713,7 @@ pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
             let body = response.text().unwrap_or_default();
 
             let mut result = HashMap::new();
-            result.insert("status".to_string(), Value::Number(status));
+            result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(body));
 
             Ok(result)
@@ -743,7 +738,7 @@ pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, S
             let body = response.text().unwrap_or_default();
 
             let mut result = HashMap::new();
-            result.insert("status".to_string(), Value::Number(status));
+            result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(body));
 
             Ok(result)
@@ -767,7 +762,7 @@ pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, St
             let body = response.text().unwrap_or_default();
 
             let mut result = HashMap::new();
-            result.insert("status".to_string(), Value::Number(status));
+            result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(body));
 
             Ok(result)
@@ -786,7 +781,7 @@ pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
             let body = response.text().unwrap_or_default();
 
             let mut result = HashMap::new();
-            result.insert("status".to_string(), Value::Number(status));
+            result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(body));
 
             Ok(result)
