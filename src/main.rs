@@ -105,18 +105,8 @@ fn main() {
                         let env = Rc::new(RefCell::new(interpreter::Environment::new()));
                         
                         // Register all built-in functions as NativeFunction values
-                        let builtins = vec![
-                            "print", "len", "to_string", "to_int", "to_float", "to_bool",
-                            "type", "range", "enumerate", "zip", "map", "filter", "reduce",
-                            "keys", "values", "items", "push", "pop", "shift", "unshift",
-                            "split", "join", "replace", "trim", "upper", "lower", "contains",
-                            "starts_with", "ends_with", "slice", "reverse", "sort", "sum",
-                            "min", "max", "abs", "floor", "ceil", "round", "sqrt", "pow",
-                            "sin", "cos", "tan", "read_file", "write_file", "append_file",
-                            "file_exists", "delete_file", "list_dir", "http_get", "http_post",
-                            "json_parse", "json_stringify", "exit", "sleep", "time", "now",
-                            "random", "random_int",
-                        ];
+                        // Get the complete list from the interpreter
+                        let builtins = interpreter::Interpreter::get_builtin_names();
                         
                         for builtin_name in builtins {
                             env.borrow_mut().set(

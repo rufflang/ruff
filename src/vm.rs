@@ -5,7 +5,7 @@
 
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
-use crate::interpreter::{Environment, Value};
+use crate::interpreter::{Environment, Interpreter, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -27,6 +27,9 @@ pub struct VM {
     
     /// Current bytecode chunk
     chunk: BytecodeChunk,
+    
+    /// Interpreter instance for calling native functions
+    interpreter: Interpreter,
 }
 
 /// Call frame for function calls
@@ -55,12 +58,15 @@ impl VM {
             globals: Rc::new(RefCell::new(Environment::new())),
             ip: 0,
             chunk: BytecodeChunk::new(),
+            interpreter: Interpreter::new(),
         }
     }
     
     /// Set the global environment (for accessing built-in functions)
     pub fn set_globals(&mut self, env: Rc<RefCell<Environment>>) {
-        self.globals = env;
+        self.globals = env.clone();
+        // Also set the interpreter's environment so it can resolve native functions
+        self.interpreter.set_env(env);
     }
     
     /// Execute a bytecode chunk
@@ -709,43 +715,15 @@ impl VM {
     /// Call a native function (returns synchronously)
     fn call_native_function_vm(&mut self, function: Value, args: Vec<Value>) -> Result<Value, String> {
         if let Value::NativeFunction(name) = function {
-            match name.as_str() {
-                "print" => {
-                    // Print all arguments
-                    for (i, arg) in args.iter().enumerate() {
-                        if i > 0 {
-                            print!(" ");
-                        }
-                        print!("{}", Self::value_to_string(arg));
-                    }
-                    println!();
-                    Ok(Value::Null)
-                }
-                
-                "len" => {
-                    if args.len() != 1 {
-                        return Err("len() requires exactly 1 argument".to_string());
-                    }
-                    match &args[0] {
-                        Value::Array(arr) => Ok(Value::Int(arr.len() as i64)),
-                        Value::Str(s) => Ok(Value::Int(s.len() as i64)),
-                        Value::Dict(dict) => Ok(Value::Int(dict.len() as i64)),
-                        _ => Err("len() requires array, string, or dict".to_string()),
-                    }
-                }
-                
-                "to_string" => {
-                    if args.len() != 1 {
-                        return Err("to_string() requires exactly 1 argument".to_string());
-                    }
-                    Ok(Value::Str(Self::value_to_string(&args[0])))
-                }
-                
-                _ => {
-                    // For other built-in functions, we'd need full integration
-                    // For now, return an error
-                    Err(format!("Built-in function '{}' not yet supported in VM", name))
-                }
+            // Use the interpreter's native function implementation
+            // This gives us access to ALL 100+ built-in functions automatically
+            let result = self.interpreter.call_native_function_impl(&name, &args);
+            
+            // Check if the result is an error
+            match result {
+                Value::Error(msg) => Err(msg),
+                Value::ErrorObject { .. } => Err("Error occurred in native function".to_string()),
+                other => Ok(other),
             }
         } else {
             Err("Expected NativeFunction".to_string())
