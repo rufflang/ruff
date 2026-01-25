@@ -1,0 +1,2 @@
+Hello from Ruff!
+This is test data for compression.

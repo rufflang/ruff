@@ -525,6 +525,166 @@ impl Interpreter {
         interpreter
     }
 
+    /// Set the environment (used by VM to share environment)
+    pub fn set_env(&mut self, env: Rc<RefCell<Environment>>) {
+        // We need to extract the environment from the RefCell
+        let borrowed_env = env.borrow();
+        self.env = borrowed_env.clone();
+    }
+
+    /// Get all built-in function names (for VM initialization)
+    /// This returns a list of all native functions that the interpreter supports
+    pub fn get_builtin_names() -> Vec<&'static str> {
+        vec![
+            // I/O functions
+            "print",
+            
+            // Math functions
+            "abs", "sqrt", "pow", "floor", "ceil", "round", "min", "max",
+            "sin", "cos", "tan", "log", "exp",
+            
+            // String functions
+            "len", "substring", "to_upper", "upper", "to_lower", "lower",
+            "capitalize", "trim", "trim_start", "trim_end", "contains",
+            "replace_str", "replace", "split", "join", "starts_with", "ends_with",
+            "pad_left", "pad_right", "lines", "words", "str_reverse", "slugify",
+            "truncate", "to_camel_case", "to_snake_case", "to_kebab_case",
+            
+            // Array functions
+            "push", "append", "pop", "insert", "remove", "remove_at", "clear",
+            "slice", "concat",
+            
+            // Array higher-order functions
+            "map", "filter", "reduce", "find",
+            
+            // Array utility functions
+            "sort", "reverse", "unique", "sum", "any", "all",
+            
+            // Advanced array methods
+            "chunk", "flatten", "zip", "enumerate", "take", "skip", "windows",
+            
+            // Array generation functions
+            "range",
+            
+            // String formatting functions
+            "format",
+            
+            // Dict functions
+            "keys", "values", "items", "has_key", "get", "remove", "clear", "merge",
+            
+            // Advanced dict methods
+            "invert", "update", "get_default",
+            
+            // I/O functions
+            "input",
+            
+            // Type conversion functions
+            "parse_int", "parse_float", "to_int", "to_float", "to_string", "to_bool",
+            
+            // Type checking functions
+            "type", "is_int", "is_float", "is_string", "is_bool", "is_array",
+            "is_dict", "is_null", "is_function",
+            
+            // Assert & Debug functions
+            "assert", "debug",
+            
+            // File I/O functions
+            "read_file", "write_file", "append_file", "file_exists",
+            "read_lines", "list_dir", "create_dir", "file_size", "delete_file",
+            "rename_file", "copy_file",
+            
+            // Binary file I/O functions
+            "read_binary_file", "write_binary_file",
+            
+            // JSON functions
+            "parse_json", "to_json",
+            
+            // TOML functions
+            "parse_toml", "to_toml",
+            
+            // YAML functions
+            "parse_yaml", "to_yaml",
+            
+            // CSV functions
+            "parse_csv", "to_csv",
+            
+            // Base64 encoding/decoding functions
+            "encode_base64", "decode_base64",
+            
+            // Random functions
+            "random", "random_int", "random_choice",
+            
+            // Date/Time functions
+            "now", "current_timestamp", "performance_now", "time_us", "time_ns",
+            "format_duration", "elapsed", "format_date", "parse_date",
+            
+            // System operation functions
+            "env", "env_or", "env_int", "env_float", "env_bool", "env_required",
+            "env_set", "env_list", "args", "arg_parser", "exit", "sleep", "execute",
+            
+            // OS module functions
+            "os_getcwd", "os_chdir", "os_rmdir", "os_environ",
+            
+            // Path operation functions
+            "join_path", "dirname", "basename", "path_exists", "path_join",
+            "path_absolute", "path_is_dir", "path_is_file", "path_extension",
+            
+            // Regular expression functions
+            "regex_match", "regex_find_all", "regex_replace", "regex_split",
+            
+            // HTTP client functions
+            "http_get", "http_post", "http_put", "http_delete", "http_get_binary",
+            
+            // Concurrent HTTP functions
+            "parallel_http",
+            
+            // JWT authentication functions
+            "jwt_encode", "jwt_decode",
+            
+            // OAuth2 helper functions
+            "oauth2_auth_url", "oauth2_get_token",
+            
+            // HTTP streaming functions
+            "http_get_stream",
+            
+            // HTTP server functions
+            "http_server", "http_response", "json_response", "html_response",
+            "redirect_response", "set_header", "set_headers",
+            
+            // Database functions
+            "db_connect", "db_execute", "db_query", "db_close", "db_begin",
+            "db_commit", "db_rollback", "db_last_insert_id",
+            
+            // Collection constructors and methods
+            // Set
+            "Set", "set_add", "set_has", "set_remove", "set_union", "set_intersect",
+            "set_difference", "set_to_array",
+            
+            // Queue
+            "Queue", "queue_enqueue", "queue_dequeue", "queue_peek", "queue_size",
+            "queue_is_empty", "queue_to_array",
+            
+            // Stack
+            "Stack", "stack_push", "stack_pop", "stack_peek", "stack_size",
+            "stack_is_empty", "stack_to_array",
+            
+            // Concurrency functions
+            "channel",
+            
+            // Image processing functions
+            "load_image",
+            
+            // Compression & Archive functions
+            "zip_create", "zip_add_file", "zip_add_dir", "zip_close", "unzip",
+            
+            // Hashing & Cryptography functions
+            "sha256", "md5", "md5_file", "hash_password", "verify_password",
+            
+            // Process management functions
+            "spawn_process", "pipe_commands",
+        ]
+    }
+
     /// Registers all built-in functions and constants
     fn register_builtins(&mut self) {
         // I/O functions
@@ -1376,7 +1536,15 @@ impl Interpreter {
     fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
         // Evaluate all arguments
         let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
+        
+        // Delegate to the implementation that works with Values
+        self.call_native_function_impl(name, &arg_values)
+    }
 
+    /// Implementation of native function calling with pre-evaluated Value arguments
+    /// This is used both by call_native_function (after evaluating Expr args)
+    /// and by the VM (which already has Value args)
+    pub fn call_native_function_impl(&mut self, name: &str, arg_values: &[Value]) -> Value {
         let result = match name {
             // I/O functions
             "print" => {
