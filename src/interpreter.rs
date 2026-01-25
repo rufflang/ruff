@@ -250,6 +250,7 @@ pub enum Value {
     Bytes(Vec<u8>), // Binary data for files, HTTP downloads, etc.
     Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
     NativeFunction(String), // Name of the native function
+    #[allow(dead_code)] // BytecodeFunction not yet used - VM integration incomplete
     BytecodeFunction {
         chunk: crate::bytecode::BytecodeChunk,
         captured: HashMap<String, Value>,
@@ -5177,7 +5178,7 @@ impl Interpreter {
 
                 if is_result_or_option {
                     // Match against Result or Option
-                    for (i, (pattern, body)) in cases_clone.iter().enumerate() {
+                    for (_i, (pattern, body)) in cases_clone.iter().enumerate() {
                         if let Some(open_paren) = pattern.find('(') {
                             let (enum_tag, param_var) = pattern.split_at(open_paren);
                             let param_var = param_var.trim_matches(&['(', ')'][..]);

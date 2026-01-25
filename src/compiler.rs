@@ -7,6 +7,7 @@ use crate::ast::{ArrayElement, DictElement, Expr, Pattern, Stmt};
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 
 /// Compiler state for generating bytecode from AST
+#[allow(dead_code)] // Compiler not yet integrated into execution path
 pub struct Compiler {
     /// Current bytecode chunk being compiled
     chunk: BytecodeChunk,
@@ -25,11 +26,13 @@ pub struct Compiler {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Helper struct for incomplete feature
 struct Local {
     name: String,
     depth: usize,
 }
 
+#[allow(dead_code)] // Compiler not yet integrated into execution path
 impl Compiler {
     pub fn new() -> Self {
         Self {
@@ -643,7 +646,7 @@ impl Compiler {
                 Ok(())
             }
             
-            Pattern::Array { elements, rest } => {
+            Pattern::Array { elements: _, rest: _ } => {
                 // Use MatchPattern for complex binding
                 let pattern_index = self.chunk.add_constant(Constant::Pattern(pattern.clone()));
                 self.chunk.emit(OpCode::MatchPattern(pattern_index));
@@ -651,7 +654,7 @@ impl Compiler {
                 Ok(())
             }
             
-            Pattern::Dict { keys, rest } => {
+            Pattern::Dict { keys: _, rest: _ } => {
                 // Use MatchPattern for complex binding
                 let pattern_index = self.chunk.add_constant(Constant::Pattern(pattern.clone()));
                 self.chunk.emit(OpCode::MatchPattern(pattern_index));
