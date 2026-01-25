@@ -84,7 +84,6 @@ pub fn exp(x: f64) -> f64 {
 }
 
 /// Random number functions
-
 /// Generate a random float between 0.0 and 1.0
 pub fn random() -> f64 {
     let mut rng = rand::thread_rng();
@@ -110,7 +109,6 @@ pub fn random_choice(arr: &[Value]) -> Value {
 }
 
 /// Array generation functions
-
 /// Generate a range of numbers
 /// range(stop) - generate [0, 1, 2, ..., stop-1]
 /// range(start, stop) - generate [start, start+1, ..., stop-1]
@@ -194,7 +192,6 @@ pub fn range(args: &[Value]) -> Result<Vec<Value>, String> {
 }
 
 /// String functions
-
 pub fn str_len(s: &str) -> f64 {
     s.len() as f64
 }
@@ -290,7 +287,6 @@ pub fn join(arr: &[String], separator: &str) -> String {
 }
 
 /// Advanced string methods
-
 /// Pad string on the left with specified character to reach target width
 pub fn str_pad_left(s: &str, width: i64, pad_char: &str) -> String {
     let pad_char = pad_char.chars().next().unwrap_or(' ');
@@ -431,7 +427,6 @@ pub fn str_to_kebab_case(s: &str) -> String {
 }
 
 /// String formatting function
-
 /// Format a string with sprintf-style placeholders
 /// Supports: %s (string), %d (integer), %f (float)
 pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
@@ -504,7 +499,6 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
 }
 
 /// JSON functions
-
 /// Parse a JSON string into a Ruff value
 pub fn parse_json(json_str: &str) -> Result<Value, String> {
     match serde_json::from_str::<serde_json::Value>(json_str) {
@@ -581,7 +575,6 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
 }
 
 /// TOML functions
-
 /// Parse a TOML string into a Ruff value
 pub fn parse_toml(toml_str: &str) -> Result<Value, String> {
     match toml::from_str::<toml::Value>(toml_str) {
@@ -648,7 +641,6 @@ fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
 }
 
 /// YAML functions
-
 /// Parse a YAML string into a Ruff value
 pub fn parse_yaml(yaml_str: &str) -> Result<Value, String> {
     match serde_yaml::from_str::<serde_yaml::Value>(yaml_str) {
@@ -733,7 +725,6 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
 }
 
 /// CSV functions
-
 /// Parse a CSV string into a Ruff array of dictionaries
 /// Each row becomes a dictionary with column headers as keys
 pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
@@ -825,7 +816,6 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
 }
 
 /// Date/Time functions
-
 /// Get current Unix timestamp (seconds since epoch)
 pub fn now() -> f64 {
     Utc::now().timestamp() as f64
@@ -938,7 +928,6 @@ pub fn parse_date(date_str: &str, _format: &str) -> f64 {
 }
 
 /// System operation functions
-
 /// Get environment variable value
 pub fn get_env(var_name: &str) -> String {
     env::var(var_name).unwrap_or_default()
@@ -1045,7 +1034,6 @@ pub fn execute_command(command: &str) -> String {
 }
 
 /// Path operation functions
-
 /// Join path components
 pub fn join_path(parts: &[String]) -> String {
     let path: PathBuf = parts.iter().collect();
@@ -1070,7 +1058,6 @@ pub fn path_exists(path_str: &str) -> bool {
 }
 
 /// Regular expression functions
-
 /// Check if string matches regex pattern
 pub fn regex_match(text: &str, pattern: &str) -> bool {
     match Regex::new(pattern) {
@@ -1104,7 +1091,6 @@ pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
 }
 
 /// Array functions
-
 /// Insert an item at a specific index
 pub fn array_insert(arr: Vec<Value>, index: i64, item: Value) -> Result<Vec<Value>, String> {
     let idx = index as usize;
@@ -1188,7 +1174,6 @@ pub fn array_contains(arr: &[Value], item: &Value) -> bool {
 }
 
 /// Advanced array methods
-
 /// Split array into chunks of specified size
 /// Last chunk may be smaller if array length is not divisible by chunk_size
 pub fn array_chunk(arr: &[Value], chunk_size: i64) -> Vec<Value> {
@@ -1272,7 +1257,6 @@ pub fn array_windows(arr: &[Value], window_size: i64) -> Vec<Value> {
 }
 
 /// Advanced dict methods
-
 /// Invert a dictionary (swap keys and values)
 /// Keys must convert to valid dict keys
 pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
@@ -1293,7 +1277,6 @@ pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
 }
 
 /// HTTP Client Functions
-
 /// Make an HTTP GET request
 /// Returns a dictionary with status, body, and headers
 pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
@@ -1407,7 +1390,6 @@ pub fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
 }
 
 /// JWT Authentication Functions
-
 /// JWT Claims structure for encoding/decoding
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
@@ -1456,7 +1438,6 @@ pub fn jwt_decode(token: &str, secret: &str) -> Result<HashMap<String, Value>, S
 }
 
 /// OAuth2 Helper Functions
-
 /// Create an OAuth2 authorization URL
 /// oauth2_auth_url(client_id, redirect_uri, auth_url, scope) -> authorization URL
 pub fn oauth2_auth_url(client_id: &str, redirect_uri: &str, auth_url: &str, scope: &str) -> String {
@@ -1524,7 +1505,6 @@ pub fn oauth2_get_token(
 }
 
 /// HTTP Streaming Functions
-
 /// Stream data structure to hold ongoing stream state
 #[allow(dead_code)] // Infrastructure for future streaming enhancements
 pub struct HttpStream {
@@ -1554,7 +1534,6 @@ pub fn http_get_stream(url: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Assert & Debug Functions
-
 /// Assert that a condition is true, throw error if false
 /// assert(condition, message) - Throws error with message if condition is false
 pub fn assert_condition(condition: bool, message: Option<&str>) -> Result<(), String> {
