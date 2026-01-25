@@ -564,6 +564,10 @@ impl Interpreter {
         self.env.define("read_lines".to_string(), Value::NativeFunction("read_lines".to_string()));
         self.env.define("list_dir".to_string(), Value::NativeFunction("list_dir".to_string()));
         self.env.define("create_dir".to_string(), Value::NativeFunction("create_dir".to_string()));
+        self.env.define("file_size".to_string(), Value::NativeFunction("file_size".to_string()));
+        self.env.define("delete_file".to_string(), Value::NativeFunction("delete_file".to_string()));
+        self.env.define("rename_file".to_string(), Value::NativeFunction("rename_file".to_string()));
+        self.env.define("copy_file".to_string(), Value::NativeFunction("copy_file".to_string()));
 
         // Binary file I/O functions
         self.env.define(
@@ -1728,7 +1732,8 @@ impl Interpreter {
                             Err(_) => Value::Error(format!("Cannot convert '{}' to int", s)),
                         },
                         Value::Bool(b) => Value::Int(if *b { 1 } else { 0 }),
-                        _ => Value::Error(format!("Cannot convert {} to int", 
+                        _ => Value::Error(format!(
+                            "Cannot convert {} to int",
                             match val {
                                 Value::Array(_) => "array",
                                 Value::Dict(_) => "dict",
@@ -1754,7 +1759,8 @@ impl Interpreter {
                             Err(_) => Value::Error(format!("Cannot convert '{}' to float", s)),
                         },
                         Value::Bool(b) => Value::Float(if *b { 1.0 } else { 0.0 }),
-                        _ => Value::Error(format!("Cannot convert {} to float", 
+                        _ => Value::Error(format!(
+                            "Cannot convert {} to float",
                             match val {
                                 Value::Array(_) => "array",
                                 Value::Dict(_) => "dict",
@@ -2072,6 +2078,74 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("create_dir requires a string path argument".to_string())
+                }
+            }
+
+            "file_size" => {
+                // file_size(path) - returns file size in bytes
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match std::fs::metadata(path) {
+                        Ok(metadata) => Value::Int(metadata.len() as i64),
+                        Err(e) => Value::Error(format!("Cannot get file size for '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("file_size requires a string path argument".to_string())
+                }
+            }
+
+            "delete_file" => {
+                // delete_file(path) - removes file
+                if let Some(Value::Str(path)) = arg_values.get(0) {
+                    match std::fs::remove_file(path) {
+                        Ok(_) => Value::Bool(true),
+                        Err(e) => Value::Error(format!("Cannot delete file '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("delete_file requires a string path argument".to_string())
+                }
+            }
+
+            "rename_file" => {
+                // rename_file(old_path, new_path) - renames/moves file
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "rename_file requires two arguments: old_path and new_path".to_string(),
+                    );
+                }
+                if let (Some(Value::Str(old_path)), Some(Value::Str(new_path))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    match std::fs::rename(old_path, new_path) {
+                        Ok(_) => Value::Bool(true),
+                        Err(e) => Value::Error(format!(
+                            "Cannot rename file '{}' to '{}': {}",
+                            old_path, new_path, e
+                        )),
+                    }
+                } else {
+                    Value::Error("rename_file requires string arguments".to_string())
+                }
+            }
+
+            "copy_file" => {
+                // copy_file(source, dest) - copies file
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "copy_file requires two arguments: source and dest".to_string(),
+                    );
+                }
+                if let (Some(Value::Str(source)), Some(Value::Str(dest))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    match std::fs::copy(source, dest) {
+                        Ok(_) => Value::Bool(true),
+                        Err(e) => Value::Error(format!(
+                            "Cannot copy file '{}' to '{}': {}",
+                            source, dest, e
+                        )),
+                    }
+                } else {
+                    Value::Error("copy_file requires string arguments".to_string())
                 }
             }
 
@@ -8657,8 +8731,12 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001));
-        assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 10.0).abs() < 0.001));
+        assert!(
+            matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001)
+        );
+        assert!(
+            matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 10.0).abs() < 0.001)
+        );
     }
 
     #[test]
@@ -8671,9 +8749,15 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 3.14).abs() < 0.001));
-        assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 2.5).abs() < 0.001));
-        assert!(matches!(interp.env.get("result3"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001));
+        assert!(
+            matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 3.14).abs() < 0.001)
+        );
+        assert!(
+            matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 2.5).abs() < 0.001)
+        );
+        assert!(
+            matches!(interp.env.get("result3"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001)
+        );
     }
 
     #[test]
@@ -8685,7 +8769,9 @@ mod tests {
 
         let interp = run_code(code);
 
-        assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 1.0).abs() < 0.001));
+        assert!(
+            matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 1.0).abs() < 0.001)
+        );
         assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if f.abs() < 0.001));
     }
 
