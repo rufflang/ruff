@@ -2,13 +2,31 @@
 
 **Ruff** is a purpose-built, correctness-first execution language designed for tooling, automation, and AI-assisted development.
 
-> **Status**: v0.7.0 (Released January 2026) - **Core Language Complete!** 🎉 A fully-featured language with production-ready databases, comprehensive string/array/dict methods, type system, testing utilities, HTTP server/client, concurrency, and 100+ built-in functions.
+> **Status**: v0.8.0-dev (In Development) - Adding destructuring patterns and spread operators for modern syntax! Previous: v0.7.0 (Released January 2026) - **Core Language Complete!** 🎉
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
 ---
 
 ## Project Status
+
+### In Development (v0.8.0)
+
+* **Destructuring Patterns** (NEW! 🎉)
+  - Array destructuring: `[a, b, c] := [1, 2, 3]`
+  - Dict destructuring: `{name, email} := user`
+  - Nested patterns: `[[x, y], z] := [[1, 2], 3]`
+  - Rest elements: `[first, ...rest] := [1, 2, 3, 4]`
+  - Ignore values: `[x, _, z] := [1, 2, 3]`
+  - For-loop destructuring: `for [k, v] in pairs { }`
+  - See `examples/destructuring_demo.ruff` for examples
+
+* **Spread Operator** (NEW! 🎉)
+  - Array spreading: `[...arr1, ...arr2, ...arr3]`
+  - Dict spreading: `{...defaults, ...custom}`
+  - Override values: `{...base, timeout: 60}`
+  - Clone arrays/dicts: `copy := [...original]`
+  - See `examples/spread_operator_demo.ruff` for examples
 
 ### Implemented Features (v0.7.0)
 
