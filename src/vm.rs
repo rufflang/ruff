@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 /// Virtual Machine for executing bytecode
+#[allow(dead_code)] // VM not yet integrated into execution path
 pub struct VM {
     /// Value stack for computation
     stack: Vec<Value>,
@@ -30,6 +31,7 @@ pub struct VM {
 
 /// Call frame for function calls
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // CallFrame not yet used - nested calls incomplete
 struct CallFrame {
     /// Return address (instruction pointer)
     return_ip: usize,
@@ -44,6 +46,7 @@ struct CallFrame {
     prev_chunk: Option<BytecodeChunk>,
 }
 
+#[allow(dead_code)] // VM not yet integrated into execution path
 impl VM {
     pub fn new() -> Self {
         Self {
@@ -619,7 +622,7 @@ impl VM {
     }
     
     /// Call a function
-    fn call_function(&mut self, function: Value, args: Vec<Value>) -> Result<Value, String> {
+    fn call_function(&mut self, function: Value, _args: Vec<Value>) -> Result<Value, String> {
         match function {
             Value::BytecodeFunction { chunk, .. } => {
                 // Create new call frame
@@ -636,8 +639,8 @@ impl VM {
                 // TODO: Bind parameters properly
                 
                 // Execute function
-                let prev_chunk = std::mem::replace(&mut self.chunk, chunk);
-                let prev_ip = std::mem::replace(&mut self.ip, 0);
+                let _prev_chunk = std::mem::replace(&mut self.chunk, chunk);
+                let _prev_ip = std::mem::replace(&mut self.ip, 0);
                 
                 // Execute until return
                 let result = self.execute(self.chunk.clone())?;
@@ -760,8 +763,8 @@ impl VM {
             
             Pattern::Ignore => Ok(true),
             
-            Pattern::Array { elements, rest } => {
-                if let Value::Array(arr) = value {
+            Pattern::Array { elements: _, rest: _ } => {
+                if let Value::Array(_arr) = value {
                     // TODO: Implement full pattern matching
                     Ok(true)
                 } else {
@@ -769,8 +772,8 @@ impl VM {
                 }
             }
             
-            Pattern::Dict { keys, rest } => {
-                if let Value::Dict(dict) = value {
+            Pattern::Dict { keys: _, rest: _ } => {
+                if let Value::Dict(_dict) = value {
                     // TODO: Implement full pattern matching
                     Ok(true)
                 } else {

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 /// Bytecode instruction opcodes for the Ruff VM
 /// Stack-based virtual machine with separate value and call stacks
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)] // Many opcodes not yet used - VM is work in progress
 pub enum OpCode {
     // === Stack Operations ===
     /// Load a constant from the constant pool onto the stack
@@ -226,6 +227,7 @@ pub struct BytecodeChunk {
     pub name: Option<String>,
 }
 
+#[allow(dead_code)] // Methods not yet used - VM integration incomplete
 impl BytecodeChunk {
     pub fn new() -> Self {
         Self {
@@ -284,6 +286,7 @@ impl BytecodeChunk {
 
 /// Constants that can be stored in the constant pool
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)] // Not all variants used yet - VM is work in progress
 pub enum Constant {
     Int(i64),
     Float(f64),
@@ -298,6 +301,7 @@ pub enum Constant {
 
 /// Represents a compiled function with its bytecode
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Not yet used - function compilation incomplete
 pub struct CompiledFunction {
     pub name: String,
     pub arity: usize, // Number of parameters

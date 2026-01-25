@@ -155,11 +155,43 @@ Error: Type mismatch in function call
 
 **Expected Performance**: Move from ~50-100x slower than Python to competitive speeds
 
-**Next Steps**: 
-1. Complete function call mechanism with proper parameter binding
-2. Add CLI flag to toggle VM execution
-3. Create benchmark suite to measure actual speedup
-4. Optimize hot paths and add JIT compilation later
+**Remaining Tasks for Next Sessions**:
+
+1. **Function Call Parameter Binding** (Priority: HIGH, 1-2 days)
+   - Implement proper parameter binding in `call_function` method
+   - Support multiple parameters and default values
+   - Handle variadic arguments and spread syntax
+   - Test nested function calls
+
+2. **CLI Integration** (Priority: HIGH, 1 day)
+   - Add `--vm` flag to toggle bytecode execution
+   - Modify `Run` command to optionally use compiler + VM
+   - Add performance timing comparison mode
+   - Test with existing example files
+
+3. **Benchmark Suite** (Priority: MEDIUM, 2-3 days)
+   - Create benchmark programs (fibonacci, primes, sorting, etc.)
+   - Measure tree-walking interpreter baseline
+   - Measure VM performance
+   - Validate 10-20x speedup target
+   - Document performance characteristics
+
+4. **Advanced Pattern Matching** (Priority: MEDIUM, 2-3 days)
+   - Implement array destructuring in bytecode
+   - Implement dict destructuring in bytecode
+   - Test complex patterns with nested structures
+   - Ensure match statement covers all cases
+
+5. **Optimization Passes** (Priority: LOW, 1 week)
+   - Constant folding (evaluate 2+3 at compile time)
+   - Dead code elimination
+   - Jump threading and peephole optimization
+   - Instruction combining
+
+6. **Future JIT Compilation** (Priority: FUTURE)
+   - Hot path detection
+   - Dynamic compilation to native code
+   - Tier-based compilation strategy
 
 ---
 

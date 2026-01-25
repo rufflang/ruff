@@ -524,7 +524,7 @@ impl Parser {
                         TokenKind::Identifier(s) => {
                             s.clone()
                         }
-                        tok => {
+                        _tok => {
                             return None;
                         }
                     };
