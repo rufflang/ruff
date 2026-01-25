@@ -257,6 +257,7 @@ impl Compiler {
                 // Create a new compiler for the function body
                 let mut func_compiler = Compiler::new();
                 func_compiler.chunk.name = Some(name.clone());
+                func_compiler.chunk.params = params.clone();
                 func_compiler.scope_depth = 0;
                 
                 // Add parameters as locals
@@ -514,6 +515,7 @@ impl Compiler {
                 // Create anonymous function
                 let mut func_compiler = Compiler::new();
                 func_compiler.chunk.name = Some("<lambda>".to_string());
+                func_compiler.chunk.params = params.clone();
                 
                 // Add parameters as locals
                 for param in params {

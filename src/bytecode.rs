@@ -225,6 +225,9 @@ pub struct BytecodeChunk {
     
     /// Optional name (for functions)
     pub name: Option<String>,
+    
+    /// Parameter names for functions
+    pub params: Vec<String>,
 }
 
 #[allow(dead_code)] // Methods not yet used - VM integration incomplete
@@ -234,8 +237,7 @@ impl BytecodeChunk {
             instructions: Vec::new(),
             constants: Vec::new(),
             source_map: HashMap::new(),
-            name: None,
-        }
+            name: None,            params: Vec::new(),        }
     }
     
     /// Add a constant to the pool and return its index
