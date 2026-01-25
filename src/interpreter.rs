@@ -562,6 +562,10 @@ impl Interpreter {
         self.env
             .define("is_function".to_string(), Value::NativeFunction("is_function".to_string()));
 
+        // Assert & Debug functions
+        self.env.define("assert".to_string(), Value::NativeFunction("assert".to_string()));
+        self.env.define("debug".to_string(), Value::NativeFunction("debug".to_string()));
+
         // File I/O functions
         self.env.define("read_file".to_string(), Value::NativeFunction("read_file".to_string()));
         self.env.define("write_file".to_string(), Value::NativeFunction("write_file".to_string()));
@@ -2087,6 +2091,44 @@ impl Interpreter {
                 } else {
                     Value::Bool(false)
                 }
+            }
+
+            // Assert & Debug functions
+            "assert" => {
+                // assert(condition, message?) - throws error if condition is false
+                if arg_values.is_empty() {
+                    return Value::Error("assert requires at least 1 argument: condition".to_string());
+                }
+                
+                let condition = match arg_values.get(0) {
+                    Some(Value::Bool(b)) => *b,
+                    Some(Value::Int(n)) => *n != 0,
+                    Some(Value::Float(n)) => *n != 0.0,
+                    Some(Value::Null) => false,
+                    Some(_) => true,
+                    None => false,
+                };
+
+                let message = if let Some(Value::Str(msg)) = arg_values.get(1) {
+                    Some(msg.as_str())
+                } else {
+                    None
+                };
+
+                match builtins::assert_condition(condition, message) {
+                    Ok(_) => Value::Bool(true),
+                    Err(e) => Value::Error(e),
+                }
+            }
+
+            "debug" => {
+                // debug(...args) - prints debug output for all arguments
+                let debug_parts: Vec<String> = arg_values
+                    .iter()
+                    .map(|v| builtins::format_debug_value(v))
+                    .collect();
+                println!("[DEBUG] {}", debug_parts.join(" "));
+                Value::Null
             }
 
             // File I/O functions
