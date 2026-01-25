@@ -35,7 +35,86 @@ Implemented both timing functions with high-precision support. See CHANGELOG for
 
 ---
 
-### 11. Integer Type (P0)
+### 🔥 NEXT TO IMPLEMENT (Top Priority)
+
+These are the immediate next items after Integer Type completion:
+
+#### 12. Type Introspection (P0)
+
+**Status**: Ready to implement  
+**Estimated Effort**: Small (3-4 hours)  
+**Priority**: HIGH - Needed for integer type system testing
+
+**Current Gap**: Integer types are implemented but no runtime type checking functions exist
+
+**Features Needed**:
+```ruff
+# Basic type checking
+type(42)              # "int"
+type(3.14)            # "float"
+type("hello")         # "string"
+type([1, 2, 3])       # "array"
+type({"a": 1})        # "dict"
+
+# Type predicates
+is_int(42)            # true
+is_float(3.14)        # true
+is_string("hello")    # true
+is_array([1, 2])      # true
+is_dict({})           # true
+is_bool(true)         # true
+is_null(null)         # true
+is_function(print)    # true
+```
+
+**Implementation**:
+1. Add `type()` native function in `interpreter.rs` line ~1900
+2. Add `is_int()`, `is_float()`, etc. helper functions
+3. Return string type names matching Value enum variants
+4. Add tests for all type checking functions
+
+**Why This Matters**: Users need runtime type introspection to write defensive code and work with the integer type system.
+
+---
+
+#### 13. Type Checker Updates for Int/Float (P0)
+
+**Status**: Ready to implement  
+**Estimated Effort**: Medium (4-6 hours)  
+**Priority**: MEDIUM - Improves DX but not blocking
+
+**Current Gap**: Static type checker still expects all numbers to be Float, shows incorrect warnings
+
+**Issues to Fix**:
+- Type checker shows "expects Float but got Int" for valid code
+- Need to update type inference to distinguish Int from Float literals
+- Function signatures need Int vs Float parameter types
+- Type promotion rules need to match runtime behavior
+
+**Implementation**:
+1. Update `type_checker.rs` line ~1169 to handle `Expr::Int` and `Expr::Float`
+2. Add type promotion rules (Int + Float → Float)
+3. Update function signature checking for native functions
+4. Add tests for type checking with mixed int/float operations
+
+**Files to Update**:
+- `src/type_checker.rs` - Add Int/Float distinction
+- Update all function type signatures that accept numbers
+
+**Why This Matters**: Eliminates false warnings when running valid Ruff scripts with integer operations.
+
+---
+
+### ✅ COMPLETED FEATURES
+
+#### 10. Timing Functions (P0)
+
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 25, 2026
+
+---
+
+#### 11. Integer Type (P0)
 
 **Status**: ✅ Complete (see CHANGELOG)  
 **Completed**: January 25, 2026
@@ -46,24 +125,31 @@ Implemented full integer type system with separate `Int(i64)` and `Float(f64)` t
 
 ---
 
-### 12. Type Introspection (P0)
+### 🔜 PLANNED FEATURES
+
+#### 14. Type Conversion Functions (P0)
 
 **Status**: Planned  
-**Estimated Effort**: Small (3-4 hours)
+**Estimated Effort**: Small (2-3 hours)  
+**Priority**: HIGH - Needed with integer types
 
 **Features**:
 ```ruff
-type_of(42)           # "int"
-type_of("hello")      # "string"
-type_of([1, 2, 3])    # "array"
+# Convert between types
+to_int(3.14)          # 3 (truncate)
+to_int("42")          # 42
+to_float(5)           # 5.0
+to_float("3.14")      # 3.14
+to_string(42)         # "42"
+to_bool(1)            # true
+to_bool(0)            # false
+```
 
-# Type checking
-is_string("hello")    # true
-is_array([1, 2])      # true
-is_function(print)    # true
+**Implementation**: Add conversion functions to `builtins.rs`, handle edge cases
 
-# Type conversion
-to_s1.0.0 - Production Ready
+---
+
+## v1.0.0 - Production Ready
 
 **Focus**: Polish, documentation, community  
 **Timeline**: Q4 2026 (3 months)  
