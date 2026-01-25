@@ -988,10 +988,17 @@ pub fn format_debug_value(value: &Value) -> String {
                 .collect();
             format!("Dict{{{}}}", items.join(", "))
         }
-        Value::Function { .. } => "Function".to_string(),
+        Value::Function(_, _, _) => "Function".to_string(),
         Value::NativeFunction(name) => format!("NativeFunction({})", name),
         Value::Struct { name, .. } => format!("Struct({})", name),
-        Value::StructInstance { name, .. } => format!("{}Instance", name),
+        Value::StructDef { name, .. } => format!("StructDef({})", name),
+        Value::Tagged { tag, fields } => {
+            let items: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, format_debug_value(v)))
+                .collect();
+            format!("{}{{ {} }}", tag, items.join(", "))
+        }
         Value::Bytes(bytes) => format!("Bytes({} bytes)", bytes.len()),
         Value::Set(set) => {
             let items: Vec<String> = set.iter().map(|v| format_debug_value(v)).collect();
@@ -1005,6 +1012,16 @@ pub fn format_debug_value(value: &Value) -> String {
             let items: Vec<String> = stack.iter().map(|v| format_debug_value(v)).collect();
             format!("Stack[{}]", items.join(", "))
         }
+        Value::Return(val) => format!("Return({})", format_debug_value(val)),
+        Value::Error(msg) => format!("Error(\"{}\")", msg),
+        Value::ErrorObject { message, .. } => format!("ErrorObject(\"{}\")", message),
+        Value::Enum(name) => format!("Enum({})", name),
+        Value::Channel(_) => "Channel".to_string(),
+        Value::HttpServer { port, .. } => format!("HttpServer(port: {})", port),
+        Value::HttpResponse { status, .. } => format!("HttpResponse(status: {})", status),
+        Value::Database { db_type, .. } => format!("Database(type: {})", db_type),
+        Value::DatabasePool { .. } => "DatabasePool".to_string(),
+        Value::Image { format, .. } => format!("Image(format: {})", format),
     }
 }
 
