@@ -16,7 +16,8 @@
 #[derive(Debug, Clone, PartialEq)] // Added PartialEq here
 pub enum TokenKind {
     Identifier(String),
-    Number(f64),
+    Int(i64),      // Integer literals like 42
+    Float(f64),    // Float literals like 3.14
     String(String),
     InterpolatedString(Vec<InterpolatedPart>), // String with ${} expressions
     Bool(bool),
@@ -179,17 +180,45 @@ pub fn tokenize(source: &str) -> Vec<Token> {
             }
             '0'..='9' => {
                 let mut num = String::new();
+                let mut has_decimal = false;
+                
                 while let Some(&ch) = chars.peek() {
-                    if ch.is_ascii_digit() || ch == '.' {
+                    if ch.is_ascii_digit() {
                         num.push(ch);
                         chars.next();
                         col += 1;
+                    } else if ch == '.' && !has_decimal {
+                        // Peek ahead to ensure it's not a method call (e.g., 5.abs())
+                        let mut temp_chars = chars.clone();
+                        temp_chars.next(); // Skip the '.'
+                        if let Some(&next_ch) = temp_chars.peek() {
+                            if next_ch.is_ascii_digit() {
+                                // It's a decimal point in a number
+                                has_decimal = true;
+                                num.push(ch);
+                                chars.next();
+                                col += 1;
+                            } else {
+                                // It's a method call, stop parsing the number
+                                break;
+                            }
+                        } else {
+                            // End of input after '.', stop
+                            break;
+                        }
                     } else {
                         break;
                     }
                 }
-                let parsed = num.parse().unwrap_or(0.0);
-                tokens.push(Token { kind: TokenKind::Number(parsed), line, column: col });
+                
+                // Create Int or Float token based on presence of decimal point
+                if has_decimal {
+                    let parsed = num.parse().unwrap_or(0.0);
+                    tokens.push(Token { kind: TokenKind::Float(parsed), line, column: col });
+                } else {
+                    let parsed = num.parse().unwrap_or(0);
+                    tokens.push(Token { kind: TokenKind::Int(parsed), line, column: col });
+                }
             }
             'a'..='z' | 'A'..='Z' | '_' => {
                 let mut ident = String::new();

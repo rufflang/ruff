@@ -307,13 +307,11 @@ impl Repl {
     /// Formats and displays a value
     fn print_value(&self, value: &Value) {
         match value {
-            Value::Number(n) => {
-                // Format number nicely
-                if n.fract() == 0.0 && n.abs() < 1e15 {
-                    println!("{} {}", "=>".bright_blue(), (*n as i64).to_string().bright_white());
-                } else {
-                    println!("{} {}", "=>".bright_blue(), n.to_string().bright_white());
-                }
+            Value::Int(n) => {
+                println!("{} {}", "=>".bright_blue(), n.to_string().bright_white());
+            }
+            Value::Float(n) => {
+                println!("{} {}", "=>".bright_blue(), n.to_string().bright_white());
             }
             Value::Str(s) => {
                 println!("{} {}", "=>".bright_blue(), format!("\"{}\"", s).bright_green());
@@ -372,13 +370,8 @@ impl Repl {
     /// Formats a value for inline display (used in arrays/dicts)
     fn format_value_inline(&self, value: &Value) -> String {
         match value {
-            Value::Number(n) => {
-                if n.fract() == 0.0 && n.abs() < 1e15 {
-                    (*n as i64).to_string()
-                } else {
-                    n.to_string()
-                }
-            }
+            Value::Int(n) => n.to_string(),
+            Value::Float(n) => n.to_string(),
             Value::Str(s) => format!("\"{}\"", s),
             Value::Bool(b) => b.to_string(),
             Value::Array(_) => "[...]".to_string(),

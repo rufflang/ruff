@@ -1020,7 +1020,8 @@ impl Parser {
                 // For other tokens, advance and match
                 match self.advance() {
                     TokenKind::Identifier(name) => Some(Expr::Identifier(name.clone())),
-                    TokenKind::Number(n) => Some(Expr::Number(*n)),
+                    TokenKind::Int(n) => Some(Expr::Int(*n)),
+                    TokenKind::Float(n) => Some(Expr::Float(*n)),
                     TokenKind::String(s) => Some(Expr::String(s.clone())),
                     TokenKind::Bool(b) => Some(Expr::Bool(*b)),
                     _ => None,
