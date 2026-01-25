@@ -9,7 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Type Checker Int/Float Support** 🎯 - Enhanced static type checking for integer and float types:
+  - **Type Promotion**: Type checker now allows `Int` → `Float` promotion
+    - Functions expecting `Float` accept `Int` arguments (e.g., `abs(5)` is valid)
+    - Arithmetic operations correctly infer types: `Int + Int → Int`, `Int + Float → Float`
+    - Assignment allows `Int` values to `Float` variables
+  - **Accurate Type Inference**:
+    - Integer literals (`42`) inferred as `Int` type
+    - Float literals (`3.14`) inferred as `Float` type
+    - Binary operations with mixed types promote to `Float`
+  - **Function Signature Fixes**:
+    - `index_of()` now correctly returns `Int` (was `Float`)
+    - Math functions (`abs`, `min`, `max`, etc.) accept both `Int` and `Float` via promotion
+  - **Comprehensive Testing**: 12 new tests covering all type promotion scenarios
+  - **Example**:
+    ```ruff
+    # All these now pass type checking without warnings:
+    x: int := 42              # Int literal to Int variable
+    y: float := 42            # Int promoted to Float
+    z: float := 5 + 2.5       # Mixed arithmetic promoted to Float
+    
+    result1 := abs(5)         # Int accepted, returns Float
+    result2 := min(10, 20)    # Both Int accepted, returns Float
+    result3 := 5 + 10         # Int + Int returns Int
+    ```
+
 - **Type Introspection** 🔍 - Runtime type checking and inspection (P0 feature):
+
   - **Type Inspection Function**:
     - `type(value)` - Returns the type name of any value as a string
     - Type names: `"int"`, `"float"`, `"string"`, `"bool"`, `"null"`, `"array"`, `"dict"`, `"function"`, etc.
