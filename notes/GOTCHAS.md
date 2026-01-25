@@ -8,6 +8,16 @@ If you are new to the project, read this first.
 
 ## Parser & Syntax
 
+### Reserved keywords cannot be used as function names
+- **Problem:** Function named `default()` causes parse errors and returns Tagged values instead of normal results
+- **Rule:** Cannot use reserved keywords as function names: `if`, `else`, `loop`, `while`, `for`, `in`, `break`, `continue`, `return`, `func`, `struct`, `match`, `case`, `default`, etc.
+- **Why:** The lexer tokenizes these as `TokenKind::Keyword()` before the parser can interpret them as identifiers
+- **Symptom:** Functions with keyword names may appear to work but produce strange behavior or parse errors
+- **Solution:** Use alternative names (e.g., `get_default()` instead of `default()`)
+- **Check:** Search lexer.rs for the keyword list before naming new built-in functions
+
+(Discovered during: 2026-01-25_18-00_enhanced-collections-implementation.md)
+
 ### Ok/Err/Some/None must be identifiers, NOT keywords
 - **Problem:** Match statements hang indefinitely when trying to parse `case Ok:` or `case Err:` patterns
 - **Rule:** `Ok`, `Err`, `Some`, `None` are **identifiers with special meaning in expression context**, not reserved keywords
