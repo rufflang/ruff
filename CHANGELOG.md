@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Showcase Projects** 🎨 - Six comprehensive real-world projects demonstrating Ruff capabilities:
+  - **`project_log_analyzer.ruff`** - Advanced log file analysis with statistics, IP extraction, HTTP status codes, and regex filtering
+  - **`project_task_manager.ruff`** - Full CLI task management system with JSON persistence, priorities, due dates, and visual progress tracking
+  - **`project_api_tester.ruff`** - HTTP endpoint testing suite with validation, assertions, performance benchmarking, and status distribution
+  - **`project_data_pipeline.ruff`** - CSV to JSON transformer with validation, filtering, column selection, and comprehensive error reporting
+  - **`project_web_scraper.ruff`** - Web scraping tool with pattern extraction, email/phone detection, link following, and multi-page support
+  - **`project_markdown_converter.ruff`** - Markdown to HTML converter with TOC generation, code blocks, responsive CSS styling
+  - **Documentation**: Complete guide in `examples/SHOWCASE_PROJECTS.md` with usage examples and learning paths
+  - **Sample files**: Test data (`sample_data.csv`, `sample_markdown.md`) for trying out the projects
+  - **Why Important**: Demonstrates Ruff is production-ready for CLI tools, data processing, web integration, and automation
+
 - **Environment Variable Helpers** 🔧 - Advanced environment variable management (P1 feature):
   - **`env_or(key, default)`**: Get environment variable with fallback default value
   - **`env_int(key)`**: Parse environment variable as integer with error handling
