@@ -2,7 +2,7 @@
 
 **Ruff** is a lean, expressive programming language built from scratch in Rust. It borrows inspiration from Go, Python, and functional design — but stands on its own.
 
-> **Status**: v0.6.0 - HTTP Authentication, Streaming & Serialization! JWT tokens, OAuth2 flows, TOML/YAML/CSV support, and efficient large file downloads. Built with comprehensive features including structs, methods, collections, type checking, modules, and closures.
+> **Status**: v0.6.0 (Released January 2026) - Production-ready databases (SQLite, PostgreSQL, MySQL), HTTP authentication (JWT, OAuth2), streaming, connection pooling, transactions, and serialization (JSON, TOML, YAML, CSV). Built with comprehensive features including structs, methods, closures, collections, type checking, modules, concurrency, and image processing.
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -191,7 +191,7 @@
   - **HTTP Streaming** (v0.6.0): `http_get_stream()` - Memory-efficient downloads for large files
   - **Binary Files** (v0.6.0): `http_get_binary()`, `read_binary_file()`, `write_binary_file()`, `encode_base64()`, `decode_base64()` - Download and work with binary data (images, PDFs, archives)
   - **Image Processing** (v0.6.0): `load_image()`, `img.resize()`, `img.crop()`, `img.rotate()`, `img.flip()`, `img.to_grayscale()`, `img.blur()`, `img.adjust_brightness()`, `img.adjust_contrast()`, `img.save()` - Load, manipulate, and save images (JPEG, PNG, WebP, GIF, BMP)
-  - **Database** (v0.7.0): `db_connect(db_type, connection_string)` - Unified database API supporting SQLite ✅, PostgreSQL ✅, and MySQL ✅, `db_execute()`, `db_query()`, `db_close()` - Full CRUD operations with parameter binding
+  - **Database** (v0.6.0): `db_connect(db_type, connection_string)` - Unified database API supporting SQLite ✅, PostgreSQL ✅, and MySQL ✅, `db_execute()`, `db_query()`, `db_close()`, `db_begin()`, `db_commit()`, `db_rollback()` - Full CRUD operations with transactions and connection pooling
   - **I/O**: `print()`, `input()`
   - **Type Conversion**: `parse_int()`, `parse_float()`
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`
