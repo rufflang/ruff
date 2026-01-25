@@ -2179,7 +2179,7 @@ mod tests {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
             pattern: crate::ast::Pattern::Identifier("pi".to_string()),
-            value: Expr::Float(3.14),
+            value: Expr::Float(std::f64::consts::PI),
             mutable: false,
             type_annotation: None,
         }];
