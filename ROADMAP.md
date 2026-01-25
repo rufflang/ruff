@@ -30,20 +30,29 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 23. Standard Library Expansion (P1)
 
-**Status**: In Progress  
+**Status**: In Progress (Milestone 1 Complete: Compression, Hashing, Process Management)  
 **Estimated Effort**: Large (3 months total, ~2 months remaining)
 
-**Core Modules** (First Priority):
-- `os` - Operating system interface (getcwd, chdir, mkdir, environ)
-- `path` - Path manipulation (join, absolute, exists, is_dir)
-- `io` - Buffered I/O and binary operations
-- `net` - TCP/UDP sockets beyond HTTP
-- `crypto` - Hashing (SHA256, MD5) and encryption (AES)
+**Completed Features** ✅:
+- ✅ **Compression & Archives**: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
+- ✅ **Hashing**: `sha256`, `md5`, `md5_file` for data integrity and content verification
+- ✅ **Password Hashing**: `hash_password`, `verify_password` using bcrypt
+- ✅ **Process Management**: `spawn_process`, `pipe_commands` for system automation
+- ✅ **Tests**: Comprehensive test suite in `tests/stdlib_test.ruff`
+- ✅ **Examples**: Three detailed example files demonstrating real-world usage
+- ✅ **Documentation**: CHANGELOG updated with full API documentation
 
-**Essential Built-in Functions** (High Priority):
+**Remaining Core Modules** (Next Priority):
+- `os` - Operating system interface (getcwd, chdir, mkdir, environ) - **PLANNED**
+- `path` - Path manipulation (join, absolute, exists, is_dir) - **PLANNED**
+- `io` - Buffered I/O and binary operations - **PLANNED**
+- `net` - TCP/UDP sockets beyond HTTP - **PLANNED**
+- `crypto` - Encryption (AES, RSA) beyond hashing - **PLANNED**
+
+**Essential Built-in Functions** (Already Implemented):
 
 ```ruff
-# Compression & Archives
+# Compression & Archives ✅
 archive := zip_create("backup.zip")
 zip_add_file(archive, "data.txt")
 zip_add_dir(archive, "documents/")
@@ -51,19 +60,18 @@ zip_close(archive)
 
 files := unzip("archive.zip", "output/")
 
-# Hashing & Crypto
+# Hashing & Crypto ✅
 sha := sha256("my data")  # SHA-256 hash
 md5hash := md5_file("document.pdf")  # MD5 of file
 password := hash_password("secret123")  # bcrypt
 valid := verify_password(input, password)
 
-# Process management
-proc := spawn_process(["python", "script.py"])
-output := proc.wait_output()  # Blocking wait
-exitcode := proc.exitcode()
-proc.kill()  # Force terminate
+# Process management ✅
+result := spawn_process(["python", "script.py"])
+print(result.stdout)  # Access output
+print(result.exitcode)  # Check exit code
 
-# Process with pipes
+# Process with pipes ✅
 result := pipe_commands([
     ["cat", "data.txt"],
     ["grep", "error"],
