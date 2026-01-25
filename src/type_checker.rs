@@ -175,7 +175,7 @@ impl TypeChecker {
             "index_of".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
-                return_type: Some(TypeAnnotation::Float),
+                return_type: Some(TypeAnnotation::Int),
             },
         );
 
@@ -1236,19 +1236,25 @@ impl TypeChecker {
                         Some(TypeAnnotation::Bool)
                     }
                     "+" | "-" | "*" | "/" => {
-                        // Arithmetic operations
+                        // Arithmetic operations with type promotion
                         match (&left_type, &right_type) {
+                            // Int op Int => Int
                             (Some(TypeAnnotation::Int), Some(TypeAnnotation::Int)) => {
                                 Some(TypeAnnotation::Int)
                             }
-                            (Some(TypeAnnotation::Float), _) | (_, Some(TypeAnnotation::Float)) => {
+                            // Int op Float or Float op Int => Float (type promotion)
+                            (Some(TypeAnnotation::Int), Some(TypeAnnotation::Float))
+                            | (Some(TypeAnnotation::Float), Some(TypeAnnotation::Int))
+                            | (Some(TypeAnnotation::Float), Some(TypeAnnotation::Float)) => {
                                 Some(TypeAnnotation::Float)
                             }
+                            // String + String => String
                             (Some(TypeAnnotation::String), Some(TypeAnnotation::String))
                                 if op == "+" =>
                             {
                                 Some(TypeAnnotation::String)
                             }
+                            // Incompatible types
                             (Some(l), Some(r)) if l != r => {
                                 self.errors.push(RuffError::new(
                                     ErrorKind::TypeError,
@@ -1260,7 +1266,7 @@ impl TypeChecker {
                                 ));
                                 None
                             }
-                            _ => None, // Unknown or incompatible types
+                            _ => None, // Unknown types
                         }
                     }
                     _ => None,
@@ -1442,5 +1448,172 @@ mod tests {
         }];
 
         assert!(checker.check(&stmts).is_err());
+    }
+
+    #[test]
+    fn test_int_literal_inference() {
+        let mut checker = TypeChecker::new();
+        let stmts = vec![Stmt::Let {
+            name: "count".to_string(),
+            value: Expr::Int(42),
+            mutable: false,
+            type_annotation: None,
+        }];
+
+        assert!(checker.check(&stmts).is_ok());
+        // Variable should be inferred as Int
+        assert_eq!(checker.variables.get("count"), Some(&Some(TypeAnnotation::Int)));
+    }
+
+    #[test]
+    fn test_float_literal_inference() {
+        let mut checker = TypeChecker::new();
+        let stmts = vec![Stmt::Let {
+            name: "pi".to_string(),
+            value: Expr::Float(3.14),
+            mutable: false,
+            type_annotation: None,
+        }];
+
+        assert!(checker.check(&stmts).is_ok());
+        // Variable should be inferred as Float
+        assert_eq!(checker.variables.get("pi"), Some(&Some(TypeAnnotation::Float)));
+    }
+
+    #[test]
+    fn test_int_plus_int_equals_int() {
+        let mut checker = TypeChecker::new();
+        let result = checker.infer_expr(&Expr::BinaryOp {
+            op: "+".to_string(),
+            left: Box::new(Expr::Int(5)),
+            right: Box::new(Expr::Int(10)),
+        });
+
+        assert_eq!(result, Some(TypeAnnotation::Int));
+    }
+
+    #[test]
+    fn test_int_plus_float_equals_float() {
+        let mut checker = TypeChecker::new();
+        let result = checker.infer_expr(&Expr::BinaryOp {
+            op: "+".to_string(),
+            left: Box::new(Expr::Int(5)),
+            right: Box::new(Expr::Float(10.5)),
+        });
+
+        assert_eq!(result, Some(TypeAnnotation::Float));
+    }
+
+    #[test]
+    fn test_float_plus_int_equals_float() {
+        let mut checker = TypeChecker::new();
+        let result = checker.infer_expr(&Expr::BinaryOp {
+            op: "+".to_string(),
+            left: Box::new(Expr::Float(5.5)),
+            right: Box::new(Expr::Int(10)),
+        });
+
+        assert_eq!(result, Some(TypeAnnotation::Float));
+    }
+
+    #[test]
+    fn test_float_plus_float_equals_float() {
+        let mut checker = TypeChecker::new();
+        let result = checker.infer_expr(&Expr::BinaryOp {
+            op: "+".to_string(),
+            left: Box::new(Expr::Float(5.5)),
+            right: Box::new(Expr::Float(10.5)),
+        });
+
+        assert_eq!(result, Some(TypeAnnotation::Float));
+    }
+
+    #[test]
+    fn test_int_to_float_promotion_in_assignment() {
+        let mut checker = TypeChecker::new();
+        let stmts = vec![Stmt::Let {
+            name: "x".to_string(),
+            value: Expr::Int(42),
+            mutable: false,
+            type_annotation: Some(TypeAnnotation::Float),
+        }];
+
+        // Should succeed due to Int → Float promotion
+        assert!(checker.check(&stmts).is_ok());
+    }
+
+    #[test]
+    fn test_float_to_int_no_promotion() {
+        let mut checker = TypeChecker::new();
+        let stmts = vec![Stmt::Let {
+            name: "x".to_string(),
+            value: Expr::Float(42.5),
+            mutable: false,
+            type_annotation: Some(TypeAnnotation::Int),
+        }];
+
+        // Should fail - Float cannot be assigned to Int without explicit conversion
+        assert!(checker.check(&stmts).is_err());
+    }
+
+    #[test]
+    fn test_math_function_accepts_int_via_promotion() {
+        let mut checker = TypeChecker::new();
+        
+        // abs(5) should be accepted (Int promoted to Float)
+        let result = checker.infer_expr(&Expr::Call {
+            function: Box::new(Expr::Identifier("abs".to_string())),
+            args: vec![Expr::Int(5)],
+        });
+
+        // Function should accept Int via promotion and return Float
+        assert!(checker.errors.is_empty());
+        assert_eq!(result, Some(TypeAnnotation::Float));
+    }
+
+    #[test]
+    fn test_min_with_ints() {
+        let mut checker = TypeChecker::new();
+        
+        // min(5, 10) should be accepted
+        let result = checker.infer_expr(&Expr::Call {
+            function: Box::new(Expr::Identifier("min".to_string())),
+            args: vec![Expr::Int(5), Expr::Int(10)],
+        });
+
+        // Should accept via promotion
+        assert!(checker.errors.is_empty());
+        assert_eq!(result, Some(TypeAnnotation::Float));
+    }
+
+    #[test]
+    fn test_min_with_mixed_types() {
+        let mut checker = TypeChecker::new();
+        
+        // min(5, 10.5) should be accepted
+        let result = checker.infer_expr(&Expr::Call {
+            function: Box::new(Expr::Identifier("min".to_string())),
+            args: vec![Expr::Int(5), Expr::Float(10.5)],
+        });
+
+        // Should accept via promotion
+        assert!(checker.errors.is_empty());
+        assert_eq!(result, Some(TypeAnnotation::Float));
+    }
+
+    #[test]
+    fn test_arithmetic_type_promotion_all_operators() {
+        let mut checker = TypeChecker::new();
+        
+        for op in &["+", "-", "*", "/"] {
+            let result = checker.infer_expr(&Expr::BinaryOp {
+                op: op.to_string(),
+                left: Box::new(Expr::Int(10)),
+                right: Box::new(Expr::Float(5.0)),
+            });
+            
+            assert_eq!(result, Some(TypeAnnotation::Float), 
+                "Operator {} should promote Int+Float to Float", op);
+        }
     }
 }
