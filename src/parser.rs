@@ -1026,6 +1026,11 @@ impl Parser {
                         break;
                     }
                 }
+                // Handle try operator: expr?
+                TokenKind::Operator(op) if op == "?" => {
+                    self.advance(); // ?
+                    expr = Expr::Try(Box::new(expr));
+                }
                 // Handle index access: arr[index]
                 TokenKind::Punctuation('[') => {
                     self.advance(); // [
@@ -1132,6 +1137,53 @@ impl Parser {
                 // Treat 'self' as an identifier in expression context
                 self.advance();
                 Some(Expr::Identifier("self".to_string()))
+            }
+            TokenKind::Keyword(k) if k == "None" => {
+                // Handle None (no arguments)
+                self.advance();
+                Some(Expr::None)
+            }
+            TokenKind::Keyword(k) if k == "Ok" => {
+                // Handle Ok(value)
+                self.advance(); // consume Ok
+                if matches!(self.peek(), TokenKind::Punctuation('(')) {
+                    self.advance(); // consume (
+                    let value = self.parse_expr()?;
+                    if matches!(self.peek(), TokenKind::Punctuation(')')) {
+                        self.advance(); // consume )
+                    }
+                    Some(Expr::Ok(Box::new(value)))
+                } else {
+                    None
+                }
+            }
+            TokenKind::Keyword(k) if k == "Err" => {
+                // Handle Err(error)
+                self.advance(); // consume Err
+                if matches!(self.peek(), TokenKind::Punctuation('(')) {
+                    self.advance(); // consume (
+                    let error = self.parse_expr()?;
+                    if matches!(self.peek(), TokenKind::Punctuation(')')) {
+                        self.advance(); // consume )
+                    }
+                    Some(Expr::Err(Box::new(error)))
+                } else {
+                    None
+                }
+            }
+            TokenKind::Keyword(k) if k == "Some" => {
+                // Handle Some(value)
+                self.advance(); // consume Some
+                if matches!(self.peek(), TokenKind::Punctuation('(')) {
+                    self.advance(); // consume (
+                    let value = self.parse_expr()?;
+                    if matches!(self.peek(), TokenKind::Punctuation(')')) {
+                        self.advance(); // consume )
+                    }
+                    Some(Expr::Some(Box::new(value)))
+                } else {
+                    None
+                }
             }
             TokenKind::Punctuation('(') => {
                 // Handle parenthesized expressions for grouping
@@ -1316,11 +1368,126 @@ impl Parser {
                 self.advance();
                 Some(TypeAnnotation::Bool)
             }
+            TokenKind::Keyword(k) if k == "Result" => {
+                self.advance(); // consume Result
+                // Expect Result<T, E> syntax
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+                    panic!("Expected '<' after Result");
+                }
+                self.advance(); // consume <
+                
+                let ok_type = self.parse_type_annotation_inner()?;
+                
+                if !matches!(self.peek(), TokenKind::Punctuation(',')) {
+                    panic!("Expected ',' in Result<T, E> type");
+                }
+                self.advance(); // consume ,
+                
+                let err_type = self.parse_type_annotation_inner()?;
+                
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+                    panic!("Expected '>' to close Result type");
+                }
+                self.advance(); // consume >
+                
+                Some(TypeAnnotation::Result {
+                    ok_type: Box::new(ok_type),
+                    err_type: Box::new(err_type),
+                })
+            }
+            TokenKind::Keyword(k) if k == "Option" => {
+                self.advance(); // consume Option
+                // Expect Option<T> syntax
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+                    panic!("Expected '<' after Option");
+                }
+                self.advance(); // consume <
+                
+                let inner_type = self.parse_type_annotation_inner()?;
+                
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+                    panic!("Expected '>' to close Option type");
+                }
+                self.advance(); // consume >
+                
+                Some(TypeAnnotation::Option {
+                    inner_type: Box::new(inner_type),
+                })
+            }
             _ => {
                 // Invalid type, backtrack
                 self.pos = saved_pos;
                 None
             }
+        }
+    }
+
+    /// Parse a type annotation without consuming a leading colon (used inside generics)
+    fn parse_type_annotation_inner(&mut self) -> Option<crate::ast::TypeAnnotation> {
+        use crate::ast::TypeAnnotation;
+        
+        match self.peek() {
+            TokenKind::Keyword(k) if k == "int" => {
+                self.advance();
+                Some(TypeAnnotation::Int)
+            }
+            TokenKind::Keyword(k) if k == "float" => {
+                self.advance();
+                Some(TypeAnnotation::Float)
+            }
+            TokenKind::Keyword(k) if k == "string" => {
+                self.advance();
+                Some(TypeAnnotation::String)
+            }
+            TokenKind::Keyword(k) if k == "bool" => {
+                self.advance();
+                Some(TypeAnnotation::Bool)
+            }
+            TokenKind::Keyword(k) if k == "Result" => {
+                self.advance();
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+                    panic!("Expected '<' after Result");
+                }
+                self.advance();
+                
+                let ok_type = self.parse_type_annotation_inner()?;
+                
+                if !matches!(self.peek(), TokenKind::Punctuation(',')) {
+                    panic!("Expected ',' in Result<T, E> type");
+                }
+                self.advance();
+                
+                let err_type = self.parse_type_annotation_inner()?;
+                
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+                    panic!("Expected '>' to close Result type");
+                }
+                self.advance();
+                
+                Some(TypeAnnotation::Result {
+                    ok_type: Box::new(ok_type),
+                    err_type: Box::new(err_type),
+                })
+            }
+            TokenKind::Keyword(k) if k == "Option" => {
+                self.advance();
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+                    panic!("Expected '<' after Option");
+                }
+                self.advance();
+                
+                let inner_type = self.parse_type_annotation_inner()?;
+                
+                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+                    panic!("Expected '>' to close Option type");
+                }
+                self.advance();
+                
+                Some(TypeAnnotation::Option {
+                    inner_type: Box::new(inner_type),
+                })
+            }
+            _ => None,
         }
     }
 
