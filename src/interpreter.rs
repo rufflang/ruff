@@ -2246,6 +2246,8 @@ impl Interpreter {
                         Value::Image { .. } => "image",
                         Value::Return(_) => "return",
                         Value::Error(_) | Value::ErrorObject { .. } => "error",
+                        Value::Result { .. } => "result",
+                        Value::Option { .. } => "option",
                     };
                     Value::Str(type_name.to_string())
                 } else {
@@ -4869,62 +4871,68 @@ impl Interpreter {
             Stmt::Match { value, cases, default } => {
                 let val = self.eval_expr(&value);
 
+                // Clone cases and default to avoid borrow issues during evaluation
+                let cases_clone = cases.clone();
+                let default_clone = default.clone();
+
+                // Handle Result and Option types specially by extracting data first
+                let (is_result_or_option, tag_str, extracted_value) = match &val {
+                    Value::Result { is_ok, value } => {
+                        let tag = if *is_ok { "Ok" } else { "Err" };
+                        (true, tag.to_string(), Some((**value).clone()))
+                    }
+                    Value::Option { is_some, value } => {
+                        let tag = if *is_some { "Some" } else { "None" };
+                        let val = if *is_some { Some((**value).clone()) } else { None };
+                        (true, tag.to_string(), val)
+                    }
+                    _ => (false, String::new(), None)
+                };
+
+                if is_result_or_option {
+                    // Match against Result or Option
+                    for (pattern, body) in &cases_clone {
+                        if let Some(open_paren) = pattern.find('(') {
+                            let (enum_tag, param_var) = pattern.split_at(open_paren);
+                            let param_var = param_var.trim_matches(&['(', ')'][..]);
+                            if tag_str == enum_tag.trim() {
+                                // Create new scope for pattern match body
+                                self.env.push_scope();
+                                if let Some(val) = extracted_value {
+                                    self.env.define(param_var.to_string(), val);
+                                }
+                                self.eval_stmts(body);
+                                self.env.pop_scope();
+                                return;
+                            }
+                        } else if pattern.as_str() == tag_str {
+                            self.eval_stmts(body);
+                            return;
+                        }
+                    }
+                    
+                    if let Some(default_body) = default_clone {
+                        self.eval_stmts(&default_body);
+                    }
+                    return;
+                }
+
+                // Handle other value types (existing code)
                 let empty_map = HashMap::new();
                 let (tag, fields): (String, &HashMap<String, Value>) = match &val {
                     Value::Tagged { tag, fields } => (tag.clone(), fields),
                     Value::Enum(e) => (e.clone(), &empty_map),
                     Value::Str(s) => (s.clone(), &empty_map),
                     Value::Float(n) => (n.to_string(), &empty_map),
-                    Value::Result { is_ok, value } => {
-                        // Convert Result to a tagged representation for pattern matching
-                        let tag = if *is_ok { "Ok" } else { "Err" };
-                        let mut map = HashMap::new();
-                        map.insert("$0".to_string(), (**value).clone());
-                        
-                        // Store in environment temporarily for matching
-                        let temp_var = format!("__match_result_temp_{}", self.env.scopes.len());
-                        self.env.define(temp_var.clone(), Value::Tagged {
-                            tag: tag.to_string(),
-                            fields: map.clone(),
-                        });
-                        
-                        // Return temporary reference
-                        if let Some(Value::Tagged { tag, fields }) = self.env.get(&temp_var) {
-                            (tag.clone(), fields)
-                        } else {
-                            (tag.to_string(), &empty_map)
-                        }
-                    }
-                    Value::Option { is_some, value } => {
-                        // Convert Option to a tagged representation for pattern matching
-                        if *is_some {
-                            let mut map = HashMap::new();
-                            map.insert("$0".to_string(), (**value).clone());
-                            
-                            let temp_var = format!("__match_option_temp_{}", self.env.scopes.len());
-                            self.env.define(temp_var.clone(), Value::Tagged {
-                                tag: "Some".to_string(),
-                                fields: map.clone(),
-                            });
-                            
-                            if let Some(Value::Tagged { tag, fields }) = self.env.get(&temp_var) {
-                                (tag.clone(), fields)
-                            } else {
-                                ("Some".to_string(), &empty_map)
-                            }
-                        } else {
-                            ("None".to_string(), &empty_map)
-                        }
-                    }
                     _ => {
-                        if let Some(default_body) = default {
+                        if let Some(default_body) = default_clone {
                             self.eval_stmts(&default_body);
                         }
                         return;
                     }
                 };
 
-                for (pattern, body) in cases {
+                for (pattern, body) in &cases_clone {
                     if let Some(open_paren) = pattern.find('(') {
                         let (enum_tag, param_var) = pattern.split_at(open_paren);
                         let param_var = param_var.trim_matches(&['(', ')'][..]);
@@ -4959,7 +4967,7 @@ impl Interpreter {
                     }
                 }
 
-                if let Some(default_body) = default {
+                if let Some(default_body) = default_clone {
                     self.eval_stmts(&default_body);
                 }
             }

@@ -1871,6 +1871,55 @@ impl TypeChecker {
                 None
             }
 
+            Expr::Ok(value_expr) => {
+                let value_type = self.infer_expr(value_expr);
+                // Result<T, Any> - we don't know the error type without more context
+                value_type.map(|t| TypeAnnotation::Result {
+                    ok_type: Box::new(t),
+                    err_type: Box::new(TypeAnnotation::Any),
+                })
+            }
+
+            Expr::Err(error_expr) => {
+                let error_type = self.infer_expr(error_expr);
+                // Result<Any, E> - we don't know the ok type without more context
+                error_type.map(|t| TypeAnnotation::Result {
+                    ok_type: Box::new(TypeAnnotation::Any),
+                    err_type: Box::new(t),
+                })
+            }
+
+            Expr::Some(value_expr) => {
+                let value_type = self.infer_expr(value_expr);
+                value_type.map(|t| TypeAnnotation::Option {
+                    inner_type: Box::new(t),
+                })
+            }
+
+            Expr::None => {
+                // Option<Any> - we don't know the inner type without more context
+                Some(TypeAnnotation::Option {
+                    inner_type: Box::new(TypeAnnotation::Any),
+                })
+            }
+
+            Expr::Try(expr) => {
+                let expr_type = self.infer_expr(expr);
+                // Try operator unwraps Result<T, E> to T
+                match expr_type {
+                    Some(TypeAnnotation::Result { ok_type, .. }) => Some(*ok_type),
+                    _ => {
+                        // Type error: try operator on non-Result value
+                        self.errors.push(RuffError::new(
+                            ErrorKind::TypeError,
+                            "Try operator (?) can only be used on Result values".to_string(),
+                            SourceLocation::unknown(),
+                        ));
+                        None
+                    }
+                }
+            }
+
             Expr::Spread(expr) => {
                 // Type check the spread expression
                 self.infer_expr(expr);
