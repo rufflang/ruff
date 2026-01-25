@@ -9,6 +9,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Assert & Debug Functions** 🐛 - Runtime assertions and debug output for testing and troubleshooting (P2 feature):
+  - **assert(condition, message?)** - Runtime assertion with optional custom error message:
+    - Returns `true` if condition is truthy (non-zero numbers, non-null values, true boolean)
+    - Returns error value with message if condition is falsy (0, null, false)
+    - Falsy values: `false`, `0` (Int), `null`
+    - Truthy values: `true`, non-zero numbers, strings, arrays, objects
+    - Optional message parameter provides context for failed assertions
+    - Use in guard clauses and input validation
+    - Example: `assert(x > 0, "x must be positive")` → returns `true` or error
+  - **debug(...args)** - Print debug output with detailed type information:
+    - Accepts variadic arguments (any number of values)
+    - Prints values with full type information for inspection
+    - Shows detailed structure for arrays, dicts, and nested objects
+    - Prefixed with `[DEBUG]` for easy filtering in logs
+    - Returns `null` (useful for debugging without affecting program flow)
+    - Example: `debug("User", user_id, "logged in")` → prints `[DEBUG] String("User") Int(123) String("logged in")`
+  - **Type Integration**: Added type introspection functions (`is_int`, `is_float`, `is_string`, etc.) to type checker
+  - **Variadic Support**: Fixed type checker to support variadic functions like `debug()`
+  - **Comprehensive Testing**: 10 new integration tests covering:
+    - Successful assertions with various data types
+    - Failed assertions with default and custom messages
+    - Truthy/falsy value handling
+    - Assertions in functions and guard clauses
+    - Debug output for simple and complex values
+    - Debug with multiple arguments
+   - **Example File**: `examples/assert_debug_demo.ruff` with 10 practical use cases
+  - **Example**:
+    ```ruff
+    # Basic assertions
+    assert(age >= 0, "Age cannot be negative")
+    assert(len(items) > 0, "List cannot be empty")
+    
+    # Guard functions
+    func divide(a, b) {
+        if b == 0 {
+            return assert(false, "Division by zero not allowed")
+        }
+        return a / b
+    }
+    
+    # Debug output
+    debug("Processing user:", user_id, "at", timestamp)
+    # Prints: [DEBUG] String("Processing user:") Int(12345) String("at") Int(1706140800)
+    
+    # Debug complex structures
+    data := {"users": [{"name": "Alice", "age": 30}], "count": 1}
+    debug("Data:", data)
+    # Prints: [DEBUG] String("Data:") Dict{users: Array[Dict{name: String("Alice"), age: Int(30)}], count: Int(1)}
+    
+    # Input validation
+    func validate_age(age) {
+        check := assert(age >= 0, "Age cannot be negative")
+        if type(check) == "error" {
+            return check
+        }
+        return "Valid age: " + to_string(age)
+    }
+    ```
+
 - **Array Utilities** 🔢 - Essential array manipulation and analysis functions (P1 feature):
   - **sort(array)** - Sort array in ascending order:
     - Works with numbers (Int and Float) and strings
