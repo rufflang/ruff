@@ -68,7 +68,7 @@ impl TypeChecker {
         self.variables.insert("E".to_string(), Some(TypeAnnotation::Float));
 
         // Math functions - single arg
-        for name in &["abs", "sqrt", "floor", "ceil", "round", "sin", "cos", "tan"] {
+        for name in &["abs", "sqrt", "floor", "ceil", "round", "sin", "cos", "tan", "log", "exp"] {
             self.functions.insert(
                 name.to_string(),
                 FunctionSignature {
@@ -282,6 +282,24 @@ impl TypeChecker {
             FunctionSignature {
                 param_types: vec![None, None], // Array and function
                 return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        // Array generation functions
+        self.functions.insert(
+            "range".to_string(),
+            FunctionSignature {
+                param_types: vec![], // Variadic: 1, 2, or 3 numeric arguments
+                return_type: None,   // Returns array of integers
+            },
+        );
+
+        // String formatting functions
+        self.functions.insert(
+            "format".to_string(),
+            FunctionSignature {
+                param_types: vec![], // Variadic: template + args
+                return_type: Some(TypeAnnotation::String),
             },
         );
 
@@ -1487,8 +1505,10 @@ impl TypeChecker {
                     let sig = self.functions.get(func_name).cloned();
 
                     if let Some(sig) = sig {
-                        // Skip type checking for variadic functions
-                        if func_name != "debug" {
+                        // Skip type checking for variadic functions (empty param_types means variadic)
+                        let is_variadic = sig.param_types.is_empty();
+                        
+                        if !is_variadic {
                             // Check argument count - allow fewer args than params if trailing params are optional (None)
                             let min_required =
                                 sig.param_types.iter().take_while(|p| p.is_some()).count();

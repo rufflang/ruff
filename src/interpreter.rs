@@ -494,6 +494,8 @@ impl Interpreter {
         self.env.define("sin".to_string(), Value::NativeFunction("sin".to_string()));
         self.env.define("cos".to_string(), Value::NativeFunction("cos".to_string()));
         self.env.define("tan".to_string(), Value::NativeFunction("tan".to_string()));
+        self.env.define("log".to_string(), Value::NativeFunction("log".to_string()));
+        self.env.define("exp".to_string(), Value::NativeFunction("exp".to_string()));
 
         // String functions
         self.env.define("len".to_string(), Value::NativeFunction("len".to_string()));
@@ -531,6 +533,12 @@ impl Interpreter {
         self.env.define("sum".to_string(), Value::NativeFunction("sum".to_string()));
         self.env.define("any".to_string(), Value::NativeFunction("any".to_string()));
         self.env.define("all".to_string(), Value::NativeFunction("all".to_string()));
+
+        // Array generation functions
+        self.env.define("range".to_string(), Value::NativeFunction("range".to_string()));
+
+        // String formatting functions
+        self.env.define("format".to_string(), Value::NativeFunction("format".to_string()));
 
         // Dict functions
         self.env.define("keys".to_string(), Value::NativeFunction("keys".to_string()));
@@ -1239,7 +1247,7 @@ impl Interpreter {
 
         let result = match name {
             // Math functions - single argument
-            "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" => {
+            "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" | "log" | "exp" => {
                 if let Some(val) = arg_values.get(0) {
                     let x = match val {
                         Value::Int(n) => *n as f64,
@@ -1255,6 +1263,8 @@ impl Interpreter {
                         "sin" => builtins::sin(x),
                         "cos" => builtins::cos(x),
                         "tan" => builtins::tan(x),
+                        "log" => builtins::log(x),
+                        "exp" => builtins::exp(x),
                         _ => 0.0,
                     };
                     Value::Float(result)
@@ -1796,6 +1806,34 @@ impl Interpreter {
                     }
                 }
                 Value::Bool(true)
+            }
+
+            // Array generation functions
+            "range" => {
+                // range(stop) or range(start, stop) or range(start, stop, step)
+                match builtins::range(&arg_values) {
+                    Ok(arr) => Value::Array(arr),
+                    Err(e) => Value::Error(e),
+                }
+            }
+
+            // String formatting functions
+            "format" => {
+                // format(template, ...args)
+                if arg_values.is_empty() {
+                    return Value::Error("format() requires at least 1 argument (template)".to_string());
+                }
+                
+                let template = match &arg_values[0] {
+                    Value::Str(s) => s,
+                    _ => return Value::Error("format() first argument must be a string".to_string()),
+                };
+                
+                let format_args = &arg_values[1..];
+                match builtins::format_string(template, format_args) {
+                    Ok(s) => Value::Str(s),
+                    Err(e) => Value::Error(e),
+                }
             }
 
             // Dict functions
