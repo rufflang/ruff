@@ -16,230 +16,6 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## v0.7.0 - Core Language Completion ✅ RELEASED
-
-**Status**: ✅ **COMPLETE** - Released January 25, 2026  
-**Achievement**: Ruff is now a **fully-featured language** with all essential utilities!
-
-All P0 (Critical), P1 (Essential), and P2 (Quality-of-Life) features completed:
-- ✅ Timing Functions, Integer Type, Type Introspection, Type Conversion
-- ✅ File Operations, Array Utilities  
-- ✅ Assert & Debug, Range Function, Format String
-- ✅ Extended Math (log, exp), 17 String Methods, 9 Array Methods, 7 Dict Methods
-
-**See**: [CHANGELOG.md](CHANGELOG.md) for complete feature details and examples
-
----  
-**Completed**: January 25, 2026
-
-Implemented runtime assertions and debug output functions for testing and troubleshooting. `assert(condition, message?)` validates conditions at runtime and returns errors on failure. `debug(...args)` prints detailed type information for any values. Added type introspection functions to type checker and fixed variadic function support. Includes 10 comprehensive integration tests and practical example file. See CHANGELOG for complete feature details and usage examples.
-
----
-
-#### 14. Array Utilities (P1)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
-Implemented six essential array utility functions: `sort()`, `reverse()`, `unique()`, `sum()`, `any()`, `all()`. Provides comprehensive array manipulation and analysis capabilities for data processing. Works with numbers and strings, supports mixed types, and includes predicate-based filtering. Added 18 comprehensive tests covering all functions, edge cases, and chaining operations. See CHANGELOG for complete feature details and examples.
-
----
-
-#### 15. File Operations (P1)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
-Implemented four essential file operation functions: `file_size()`, `delete_file()`, `rename_file()`, `copy_file()`. Provides common file manipulation capabilities for practical scripting. Added 9 comprehensive tests including integration tests. See CHANGELOG for complete feature details and examples.
-
----
-
-#### 14. Type Conversion Functions (P0)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
-Implemented four type conversion functions: `to_int()`, `to_float()`, `to_string()`, `to_bool()`. Handles all major type conversions with intuitive semantics. Added 17 comprehensive tests. See CHANGELOG for complete feature details and examples.
-
----
-
-#### 13. Type Checker Updates for Int/Float (P0)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
-Implemented complete type promotion system for Int and Float types in the static type checker. Eliminates false warnings when using integers with math functions. Added 12 comprehensive tests. See CHANGELOG for complete feature details and examples.
-
----
-
-#### 10. Timing Functions (P0)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
----
-
-#### 11. Integer Type (P0)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
-~~**Current Issue**: All numbers were `f64`, causing precision loss in integer operations~~ ✅ Fixed
-
-Implemented full integer type system with separate `Int(i64)` and `Float(f64)` types. See CHANGELOG for complete feature details and examples.
-
----
-
-#### 12. Type Introspection (P0)
-
-**Status**: ✅ Complete (see CHANGELOG)  
-**Completed**: January 25, 2026
-
-Implemented complete runtime type introspection system with `type()` function and eight type predicate functions (`is_int()`, `is_float()`, `is_string()`, `is_array()`, `is_dict()`, `is_bool()`, `is_null()`, `is_function()`). Enables defensive coding, generic functions, and runtime type validation. See CHANGELOG for complete feature details and examples.
-
----
-
-### 🔜 PLANNED FEATURES
-
-**Note**: All P0 (Critical) features for v0.7.0 are now complete! 🎉
-
-The features below are planned for future versions.
-
----
-
-## v1.0.0 - Production Ready
-
-**Focus**: Polish, documentation, community  
-**Timeline**: Q4 2026 (3 months)  
-**Goal**: Production-ready language competitive with other popular languages
-
-**Milestones**:
-- ✅ Complete core features (v0.7.0)
-- ✅ 10-20x performance improvement (v0.8.0)
-- ✅ World-class tooling (v0.9.0)
-- ✅ Comprehensive documentation
-- ✅ Production example projects
-- ✅ Security audit
-- ✅ Package registry with 50+ packages
-- ✅ Community of 1000+ users
-
-**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for complete v1.0 roadmap
-
----
-
-## Future Versions (v1.1.0+)
-
-### 27. Generic Types (P2)
-
-**Status**: Research Phase  
-**Estimated Effort**: Large (4-6 weeks)
-
-**Planned Features**:
-```ruff
-# Generic functions
-func first<T>(arr: Array<T>) -> Option<T> {
-    if len(arr) > 0 {
-        return Some(arr[0])
-    }
-    return None
-}
-
-# Ge30ric structs
-struct Container<T> {
-    value: T
-    
-    func get() -> T {
-        return self.value
-    }
-}
-
-# Type constraints
-func process<T: Serializable>(item: T) {
-    data := item.serialize()
-}
-```
-
----
-
-### 28. Union Types (P2)
-
-**Status**: Research Phase  
-**Estimated Effort**: Medium (2-3 weeks)
-
-**Fe31. Advancedres**:
-```ruff
-# Union type annotations
-func process(value: int | string | null) {
-    match type_of(value) {
-        case "int": print("Number: ${value}")
-        case "string": print("Text: ${value}")
-        case "null": print("Empty")
-    }
-}
-
-# Type aliases
-type UserID = int
-type Handler = func(Request) -> Response
-```
-
----
-
-### 29ures**:
-```ruff
-# sprintf-style formatting
-format("Hello, %s!", ["World"])           # "Hello, World!"
-format("Number: %d", [42])                # "Number: 42"
-format("Float: %.2f", [3.14159])          # "Float: 3.14"
-format("User %s scored %d points", ["Alice", 100])
-```
-
-**Implementation**: Add `format()` to `builtins.rs` with pattern matching
-
----
-
-### 16. Assert & Debug (P2)
-
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 hours)
-
-**Features**:
-```ruff
-# Runtime assertions
-assert(x > 0, "x must be positive")
-assert_equal(actual, expected)
-
-# Debug output
-debug(complex_object)    # Pretty-printed output
-```
-
-**Implementation**: Add to `builtins.rs`, throw error on assertion failure
-
----
-
-### 17. Range Function (P2)
-
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 hours)
-
-**Current Issue**: Examples use `range()` but it doesn't exist
-
-**Features**:
-```ruff
-# Generate array of numbers
-range(5)              # [0, 1, 2, 3, 4]
-range(2, 8)           # [2, 3, 4, 5, 6, 7]
-range(0, 10, 2)       # [0, 2, 4, 6, 8]
-
-# Use in loops
-for i in range(10) {
-    print(i)
-}
-```
-
-**Implementation**: Add `range()` to `builtins.rs`, return `Value::Array`
-
----
-
 ## v0.8.0 - Performance & Error Handling
 
 **Focus**: Speed improvements, modern error handling, and essential language ergonomics  
@@ -248,7 +24,7 @@ for i in range(10) {
 
 ### 18. Destructuring (P1)
 
-**Status**: Planned  
+**Status**: ✅ Complete (v0.8.0)  
 **Estimated Effort**: Medium (2-3 weeks)
 
 **Why Critical**: Expected by developers from JavaScript, Python, Rust. Huge quality-of-life improvement.
@@ -288,7 +64,7 @@ func process_user({name, email, age}) {
 
 ### 19. Spread Operator (P1)
 
-**Status**: Planned  
+**Status**: ✅ Complete (v0.8.0)  
 **Estimated Effort**: Medium (1-2 weeks)
 
 **Why Critical**: Essential for modern functional programming patterns
@@ -1040,6 +816,139 @@ replayer := http_replay("fixtures/api_response.json")
 - **IDE support**: VS Code (primary), IntelliJ, Vim, Emacs, Sublime
 
 **Implementation**: Use `tower-lsp` Rust framework
+
+---
+
+## v1.0.0 - Production Ready
+
+**Focus**: Polish, documentation, community  
+**Timeline**: Q4 2026 (3 months)  
+**Goal**: Production-ready language competitive with other popular languages
+
+**Milestones**:
+- ✅ Complete core features (v0.7.0)
+- ✅ 10-20x performance improvement (v0.8.0)
+- ✅ World-class tooling (v0.9.0)
+- ✅ Comprehensive documentation
+- ✅ Production example projects
+- ✅ Security audit
+- ✅ Package registry with 50+ packages
+- ✅ Community of 1000+ users
+
+**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for complete v1.0 roadmap
+
+---
+
+## Future Versions (v1.1.0+)
+
+### 27. Generic Types (P2)
+
+**Status**: Research Phase  
+**Estimated Effort**: Large (4-6 weeks)
+
+**Planned Features**:
+```ruff
+# Generic functions
+func first<T>(arr: Array<T>) -> Option<T> {
+    if len(arr) > 0 {
+        return Some(arr[0])
+    }
+    return None
+}
+
+# Ge30ric structs
+struct Container<T> {
+    value: T
+    
+    func get() -> T {
+        return self.value
+    }
+}
+
+# Type constraints
+func process<T: Serializable>(item: T) {
+    data := item.serialize()
+}
+```
+
+---
+
+### 28. Union Types (P2)
+
+**Status**: Research Phase  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Fe31. Advancedres**:
+```ruff
+# Union type annotations
+func process(value: int | string | null) {
+    match type_of(value) {
+        case "int": print("Number: ${value}")
+        case "string": print("Text: ${value}")
+        case "null": print("Empty")
+    }
+}
+
+# Type aliases
+type UserID = int
+type Handler = func(Request) -> Response
+```
+
+---
+
+### 29ures**:
+```ruff
+# sprintf-style formatting
+format("Hello, %s!", ["World"])           # "Hello, World!"
+format("Number: %d", [42])                # "Number: 42"
+format("Float: %.2f", [3.14159])          # "Float: 3.14"
+format("User %s scored %d points", ["Alice", 100])
+```
+
+**Implementation**: Add `format()` to `builtins.rs` with pattern matching
+
+---
+
+### 16. Assert & Debug (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 hours)
+
+**Features**:
+```ruff
+# Runtime assertions
+assert(x > 0, "x must be positive")
+assert_equal(actual, expected)
+
+# Debug output
+debug(complex_object)    # Pretty-printed output
+```
+
+**Implementation**: Add to `builtins.rs`, throw error on assertion failure
+
+---
+
+### 17. Range Function (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Small (2-3 hours)
+
+**Current Issue**: Examples use `range()` but it doesn't exist
+
+**Features**:
+```ruff
+# Generate array of numbers
+range(5)              # [0, 1, 2, 3, 4]
+range(2, 8)           # [2, 3, 4, 5, 6, 7]
+range(0, 10, 2)       # [0, 2, 4, 6, 8]
+
+# Use in loops
+for i in range(10) {
+    print(i)
+}
+```
+
+**Implementation**: Add `range()` to `builtins.rs`, return `Value::Array`
 
 ---
 
