@@ -343,6 +343,32 @@ impl TypeChecker {
         );
 
         self.functions.insert(
+            "time_us".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Float) },
+        );
+
+        self.functions.insert(
+            "time_ns".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Float) },
+        );
+
+        self.functions.insert(
+            "format_duration".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Float)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "elapsed".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Float), Some(TypeAnnotation::Float)],
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
             "format_date".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::Float), Some(TypeAnnotation::String)],

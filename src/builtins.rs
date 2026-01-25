@@ -530,6 +530,53 @@ pub fn performance_now() -> f64 {
     start.elapsed().as_secs_f64() * 1000.0
 }
 
+/// High-resolution timer in microseconds since program start
+/// Returns elapsed time with microsecond precision (1/1,000,000 second)
+/// Ideal for measuring very fast operations and detailed performance analysis
+pub fn time_us() -> f64 {
+    use std::sync::OnceLock;
+    static START: OnceLock<Instant> = OnceLock::new();
+    let start = START.get_or_init(|| Instant::now());
+    
+    start.elapsed().as_micros() as f64
+}
+
+/// High-resolution timer in nanoseconds since program start
+/// Returns elapsed time with nanosecond precision (1/1,000,000,000 second)
+/// Highest precision available - ideal for CPU-level performance analysis
+pub fn time_ns() -> f64 {
+    use std::sync::OnceLock;
+    static START: OnceLock<Instant> = OnceLock::new();
+    let start = START.get_or_init(|| Instant::now());
+    
+    start.elapsed().as_nanos() as f64
+}
+
+/// Format a duration in milliseconds to a human-readable string
+/// Automatically chooses the best unit (s, ms, μs, ns)
+/// Examples: "1.23s", "456.78ms", "123.45μs", "789ns"
+pub fn format_duration(ms: f64) -> String {
+    if ms >= 1000.0 {
+        // Format as seconds
+        format!("{:.2}s", ms / 1000.0)
+    } else if ms >= 1.0 {
+        // Format as milliseconds
+        format!("{:.2}ms", ms)
+    } else if ms >= 0.001 {
+        // Format as microseconds
+        format!("{:.2}μs", ms * 1000.0)
+    } else {
+        // Format as nanoseconds
+        format!("{:.0}ns", ms * 1_000_000.0)
+    }
+}
+
+/// Calculate elapsed time between two timestamps
+/// Returns the difference in milliseconds
+pub fn elapsed(start: f64, end: f64) -> f64 {
+    end - start
+}
+
 /// Format a Unix timestamp to a date string
 /// Supports basic format: "YYYY-MM-DD HH:mm:ss"
 pub fn format_date(timestamp: f64, format_str: &str) -> String {

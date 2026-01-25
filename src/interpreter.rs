@@ -567,6 +567,10 @@ impl Interpreter {
         self.env.define("now".to_string(), Value::NativeFunction("now".to_string()));
         self.env.define("current_timestamp".to_string(), Value::NativeFunction("current_timestamp".to_string()));
         self.env.define("performance_now".to_string(), Value::NativeFunction("performance_now".to_string()));
+        self.env.define("time_us".to_string(), Value::NativeFunction("time_us".to_string()));
+        self.env.define("time_ns".to_string(), Value::NativeFunction("time_ns".to_string()));
+        self.env.define("format_duration".to_string(), Value::NativeFunction("format_duration".to_string()));
+        self.env.define("elapsed".to_string(), Value::NativeFunction("elapsed".to_string()));
         self.env
             .define("format_date".to_string(), Value::NativeFunction("format_date".to_string()));
         self.env.define("parse_date".to_string(), Value::NativeFunction("parse_date".to_string()));
@@ -1891,6 +1895,36 @@ impl Interpreter {
             "performance_now" => {
                 // performance_now() - returns high-resolution timer in milliseconds
                 Value::Number(builtins::performance_now())
+            }
+
+            "time_us" => {
+                // time_us() - returns high-resolution timer in microseconds
+                Value::Number(builtins::time_us())
+            }
+
+            "time_ns" => {
+                // time_ns() - returns high-resolution timer in nanoseconds
+                Value::Number(builtins::time_ns())
+            }
+
+            "format_duration" => {
+                // format_duration(ms) - formats milliseconds to human-readable string
+                if let Some(Value::Number(ms)) = arg_values.get(0) {
+                    Value::Str(builtins::format_duration(*ms))
+                } else {
+                    Value::Error("format_duration requires a number argument (milliseconds)".to_string())
+                }
+            }
+
+            "elapsed" => {
+                // elapsed(start, end) - calculates time difference
+                if let (Some(Value::Number(start)), Some(Value::Number(end))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    Value::Number(builtins::elapsed(*start, *end))
+                } else {
+                    Value::Error("elapsed requires two number arguments: start and end".to_string())
+                }
             }
 
             "format_date" => {
@@ -7534,6 +7568,116 @@ mod tests {
             assert!(elapsed >= 0.0, "Elapsed time should be non-negative");
         } else {
             panic!("Expected elapsed to be a number");
+        }
+    }
+
+    #[test]
+    fn test_time_us() {
+        let code = r#"
+            t := time_us()
+        "#;
+
+        let interp = run_code(code);
+        if let Some(Value::Number(time)) = interp.env.get("t") {
+            assert!(time >= 0.0, "Microsecond timer should be >= 0");
+        } else {
+            panic!("Expected time_us() to return a number");
+        }
+    }
+
+    #[test]
+    fn test_time_ns() {
+        let code = r#"
+            t := time_ns()
+        "#;
+
+        let interp = run_code(code);
+        if let Some(Value::Number(time)) = interp.env.get("t") {
+            assert!(time >= 0.0, "Nanosecond timer should be >= 0");
+        } else {
+            panic!("Expected time_ns() to return a number");
+        }
+    }
+
+    #[test]
+    fn test_precision_ordering() {
+        let code = r#"
+            t_ms := performance_now()
+            t_us := time_us()
+            t_ns := time_ns()
+            # Do some work
+            x := 0
+            while x < 100 {
+                x := x + 1
+            }
+            t_ms2 := performance_now()
+            t_us2 := time_us()
+            t_ns2 := time_ns()
+        "#;
+
+        let interp = run_code(code);
+        // Verify all three precision levels advance
+        if let (Some(Value::Number(t_ms)), Some(Value::Number(t_ms2))) = 
+            (interp.env.get("t_ms"), interp.env.get("t_ms2")) {
+            assert!(t_ms2 >= t_ms, "Millisecond timer should advance");
+        }
+        if let (Some(Value::Number(t_us)), Some(Value::Number(t_us2))) = 
+            (interp.env.get("t_us"), interp.env.get("t_us2")) {
+            assert!(t_us2 >= t_us, "Microsecond timer should advance");
+        }
+        if let (Some(Value::Number(t_ns)), Some(Value::Number(t_ns2))) = 
+            (interp.env.get("t_ns"), interp.env.get("t_ns2")) {
+            assert!(t_ns2 >= t_ns, "Nanosecond timer should advance");
+        }
+    }
+
+    #[test]
+    fn test_format_duration() {
+        let code = r#"
+            # Test various duration values
+            d1 := format_duration(5000.0)     # 5 seconds
+            d2 := format_duration(123.45)     # milliseconds
+            d3 := format_duration(0.567)      # microseconds
+            d4 := format_duration(0.0001)     # nanoseconds
+        "#;
+
+        let interp = run_code(code);
+        
+        // Check seconds formatting
+        if let Some(Value::Str(s)) = interp.env.get("d1") {
+            assert!(s.contains("s"), "Should format as seconds: {}", s);
+            assert!(s.contains("5.00"), "Should show 5.00s: {}", s);
+        }
+        
+        // Check milliseconds formatting
+        if let Some(Value::Str(s)) = interp.env.get("d2") {
+            assert!(s.contains("ms"), "Should format as milliseconds: {}", s);
+        }
+        
+        // Check microseconds formatting
+        if let Some(Value::Str(s)) = interp.env.get("d3") {
+            assert!(s.contains("μs") || s.contains("us"), "Should format as microseconds: {}", s);
+        }
+        
+        // Check nanoseconds formatting
+        if let Some(Value::Str(s)) = interp.env.get("d4") {
+            assert!(s.contains("ns"), "Should format as nanoseconds: {}", s);
+        }
+    }
+
+    #[test]
+    fn test_elapsed_function() {
+        let code = r#"
+            start := 100.0
+            end := 250.5
+            diff := elapsed(start, end)
+        "#;
+
+        let interp = run_code(code);
+        if let Some(Value::Number(diff)) = interp.env.get("diff") {
+            assert_eq!(diff, 150.5, "elapsed should calculate difference correctly");
+        } else {
+            panic!("Expected elapsed to return a number");
         }
     }
 }
