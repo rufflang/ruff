@@ -537,6 +537,10 @@ impl Interpreter {
         self.env.define("parse_int".to_string(), Value::NativeFunction("parse_int".to_string()));
         self.env
             .define("parse_float".to_string(), Value::NativeFunction("parse_float".to_string()));
+        self.env.define("to_int".to_string(), Value::NativeFunction("to_int".to_string()));
+        self.env.define("to_float".to_string(), Value::NativeFunction("to_float".to_string()));
+        self.env.define("to_string".to_string(), Value::NativeFunction("to_string".to_string()));
+        self.env.define("to_bool".to_string(), Value::NativeFunction("to_bool".to_string()));
 
         // Type introspection functions
         self.env.define("type".to_string(), Value::NativeFunction("type".to_string()));
@@ -1708,6 +1712,94 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("parse_float requires a string argument".to_string())
+                }
+            }
+
+            // Type conversion functions
+            "to_int" => {
+                // to_int(value) - converts value to integer
+                // Supports: Int, Float (truncate), String (parse), Bool (1/0)
+                if let Some(val) = arg_values.get(0) {
+                    match val {
+                        Value::Int(n) => Value::Int(*n),
+                        Value::Float(f) => Value::Int(f.trunc() as i64),
+                        Value::Str(s) => match s.trim().parse::<i64>() {
+                            Ok(n) => Value::Int(n),
+                            Err(_) => Value::Error(format!("Cannot convert '{}' to int", s)),
+                        },
+                        Value::Bool(b) => Value::Int(if *b { 1 } else { 0 }),
+                        _ => Value::Error(format!("Cannot convert {} to int", 
+                            match val {
+                                Value::Array(_) => "array",
+                                Value::Dict(_) => "dict",
+                                Value::Null => "null",
+                                _ => "value",
+                            }
+                        )),
+                    }
+                } else {
+                    Value::Error("to_int() requires one argument".to_string())
+                }
+            }
+
+            "to_float" => {
+                // to_float(value) - converts value to float
+                // Supports: Int, Float, String (parse), Bool (1.0/0.0)
+                if let Some(val) = arg_values.get(0) {
+                    match val {
+                        Value::Int(n) => Value::Float(*n as f64),
+                        Value::Float(f) => Value::Float(*f),
+                        Value::Str(s) => match s.trim().parse::<f64>() {
+                            Ok(n) => Value::Float(n),
+                            Err(_) => Value::Error(format!("Cannot convert '{}' to float", s)),
+                        },
+                        Value::Bool(b) => Value::Float(if *b { 1.0 } else { 0.0 }),
+                        _ => Value::Error(format!("Cannot convert {} to float", 
+                            match val {
+                                Value::Array(_) => "array",
+                                Value::Dict(_) => "dict",
+                                Value::Null => "null",
+                                _ => "value",
+                            }
+                        )),
+                    }
+                } else {
+                    Value::Error("to_float() requires one argument".to_string())
+                }
+            }
+
+            "to_string" => {
+                // to_string(value) - converts any value to string representation
+                if let Some(val) = arg_values.get(0) {
+                    Value::Str(Interpreter::stringify_value(val))
+                } else {
+                    Value::Error("to_string() requires one argument".to_string())
+                }
+            }
+
+            "to_bool" => {
+                // to_bool(value) - converts value to boolean
+                // Int: 0 = false, non-zero = true
+                // Float: 0.0 = false, non-zero = true
+                // String: empty/"false"/"0" = false, otherwise = true
+                // Null: false
+                // Collections: empty = false, non-empty = true
+                if let Some(val) = arg_values.get(0) {
+                    match val {
+                        Value::Bool(b) => Value::Bool(*b),
+                        Value::Int(n) => Value::Bool(*n != 0),
+                        Value::Float(f) => Value::Bool(*f != 0.0),
+                        Value::Str(s) => {
+                            let s_lower = s.to_lowercase();
+                            Value::Bool(!s.is_empty() && s_lower != "false" && s_lower != "0")
+                        }
+                        Value::Null => Value::Bool(false),
+                        Value::Array(arr) => Value::Bool(!arr.is_empty()),
+                        Value::Dict(dict) => Value::Bool(!dict.is_empty()),
+                        _ => Value::Bool(true), // Most other values are truthy
+                    }
+                } else {
+                    Value::Error("to_bool() requires one argument".to_string())
                 }
             }
 
@@ -8498,5 +8590,242 @@ mod tests {
 
         assert!(matches!(interp.env.get("is_numeric"), Some(Value::Bool(true))));
         assert!(matches!(interp.env.get("is_collection"), Some(Value::Bool(false))));
+    }
+
+    // Type conversion function tests
+
+    #[test]
+    fn test_to_int_from_float() {
+        let code = r#"
+            result1 := to_int(3.14)
+            result2 := to_int(9.99)
+            result3 := to_int(0.5)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Int(3))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Int(9))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Int(0))));
+    }
+
+    #[test]
+    fn test_to_int_from_string() {
+        let code = r#"
+            result1 := to_int("42")
+            result2 := to_int("123")
+            result3 := to_int("  999  ")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Int(42))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Int(123))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Int(999))));
+    }
+
+    #[test]
+    fn test_to_int_from_bool() {
+        let code = r#"
+            result1 := to_int(true)
+            result2 := to_int(false)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Int(1))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Int(0))));
+    }
+
+    #[test]
+    fn test_to_int_from_int() {
+        let code = r#"
+            result := to_int(42)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Int(42))));
+    }
+
+    #[test]
+    fn test_to_float_from_int() {
+        let code = r#"
+            result1 := to_float(42)
+            result2 := to_float(10)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 10.0).abs() < 0.001));
+    }
+
+    #[test]
+    fn test_to_float_from_string() {
+        let code = r#"
+            result1 := to_float("3.14")
+            result2 := to_float("2.5")
+            result3 := to_float("  42.0  ")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 3.14).abs() < 0.001));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 2.5).abs() < 0.001));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001));
+    }
+
+    #[test]
+    fn test_to_float_from_bool() {
+        let code = r#"
+            result1 := to_float(true)
+            result2 := to_float(false)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 1.0).abs() < 0.001));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if f.abs() < 0.001));
+    }
+
+    #[test]
+    fn test_to_string_from_int() {
+        let code = r#"
+            result := to_string(42)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "42"));
+    }
+
+    #[test]
+    fn test_to_string_from_float() {
+        let code = r#"
+            result := to_string(3.14)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "3.14"));
+    }
+
+    #[test]
+    fn test_to_string_from_bool() {
+        let code = r#"
+            result1 := to_string(true)
+            result2 := to_string(false)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Str(s)) if s == "true"));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Str(s)) if s == "false"));
+    }
+
+    #[test]
+    fn test_to_string_from_array() {
+        let code = r#"
+            result := to_string([1, 2, 3])
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "[1, 2, 3]"));
+    }
+
+    #[test]
+    fn test_to_bool_from_int() {
+        let code = r#"
+            result1 := to_bool(0)
+            result2 := to_bool(1)
+            result3 := to_bool(42)
+            # Note: Negative literals have a parser bug, using subtraction instead
+            neg := 0 - 1
+            result4 := to_bool(neg)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result4"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_to_bool_from_float() {
+        let code = r#"
+            result1 := to_bool(0.0)
+            result2 := to_bool(1.5)
+            neg := 0.0 - 3.14
+            result3 := to_bool(neg)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_to_bool_from_string() {
+        let code = r#"
+            result1 := to_bool("")
+            result2 := to_bool("hello")
+            result3 := to_bool("false")
+            result4 := to_bool("0")
+            result5 := to_bool("FALSE")
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result4"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result5"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_to_bool_from_collections() {
+        let code = r#"
+            result1 := to_bool([])
+            result2 := to_bool([1, 2])
+            result3 := to_bool({})
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result1"), Some(Value::Bool(false))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_to_bool_from_null() {
+        let code = r#"
+            result := to_bool(null)
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn test_type_conversion_chaining() {
+        let code = r#"
+            # Chain conversions
+            x := to_int(to_float(to_string(42)))
+            y := to_bool(to_int("1"))
+        "#;
+
+        let interp = run_code(code);
+
+        assert!(matches!(interp.env.get("x"), Some(Value::Int(42))));
+        assert!(matches!(interp.env.get("y"), Some(Value::Bool(true))));
     }
 }
