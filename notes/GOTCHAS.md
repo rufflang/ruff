@@ -57,6 +57,16 @@ If you are new to the project, read this first.
 
 ## AST & Type System
 
+### Type checker doesn't know about runtime-registered native functions
+- **Problem:** Type checker gives "function not found" errors for valid native functions like env_or()
+- **Rule:** Type checker (src/type_checker.rs) and runtime function registry (src/interpreter.rs) are separate. Type checker only knows about functions explicitly added to its symbol table.
+- **Why:** Type checking happens before interpretation. Native functions registered at runtime aren't visible during type checking phase.
+- **Symptom:** "Function 'env_or' not found in scope" errors even though function exists and works
+- **Solution:** For now, type checking is optional (run with `--skip-type-check`). Future work: sync type checker with native function signatures or make it aware of runtime registry.
+- **Workaround:** Use `--skip-type-check` flag or ignore type checker errors for known-good native functions
+
+(Discovered during: 2026-01-25_21-30_env-helpers-implementation.md)
+
 ### Pattern enum replaced simple name strings in Stmt::Let
 - **Problem:** Tests fail with "no field 'name'" after AST changes
 - **Rule:** `Stmt::Let` uses `pattern: Pattern`, not `name: String`. Patterns can be complex (arrays, dicts, nested).
@@ -77,6 +87,49 @@ If you are new to the project, read this first.
 ---
 
 ## Runtime / Evaluator
+
+### ErrorObject has specific field structure, not a generic HashMap
+- **Problem:** Creating ErrorObject with made-up fields like "details" causes runtime failures
+- **Rule:** ErrorObject has exactly 4 fields: `message` (String), `stack` (Array), `line` (Number), `cause` (Value/null)
+- **Why:** ErrorObject is a specific struct in interpreter.rs (~line 340), not a flexible dict. Wrong fields are silently ignored or cause errors.
+- **Symptom:** Errors without proper fields may not display correctly or fail pattern matching in try/except
+- **Solution:** Search for "ErrorObject {" in interpreter.rs to see the exact structure before creating error objects
+- **Pattern:** `Value::Struct("ErrorObject".to_string(), HashMap::from([("message", Value::String(...)), ("stack", Value::Array(vec![])), ("line", Value::Number(0.0)), ("cause", Value::Null)]))`
+
+(Discovered during: 2026-01-25_21-30_env-helpers-implementation.md)
+
+### Native functions must set return_value for try/except to work
+- **Problem:** Native functions returning ErrorObject didn't trigger try/except blocks
+- **Rule:** When a native function returns ErrorObject or Error, the Call expression handler must set `self.return_value = Some(result.clone())` 
+- **Why:** TryExcept statement checks `self.return_value.is_some()` to detect errors (~line 5590). User functions set this automatically, but native functions returned early without setting it.
+- **Symptom:** Try/except blocks silently ignore errors from native functions, continuing as if nothing happened
+- **Fix:** In interpreter.rs Call expression handler, after calling native function, check if result is ErrorObject/Error and set return_value before returning
+- **Code location:** src/interpreter.rs Call expression evaluation (~line 3800-3900)
+
+(Discovered during: 2026-01-25_21-30_env-helpers-implementation.md)
+
+### Dictionary field access with dot notation returns 0, not the value
+- **Problem:** `dict.field` syntax doesn't work for dictionary access, returns 0 or wrong value
+- **Rule:** Dictionaries require bracket notation `dict["key"]`. Dot notation `object.field` is ONLY for Structs.
+- **Why:** FieldAccess expression checks if value is a Struct and looks up the field. For non-Structs, it returns Number(0) as fallback.
+- **Symptom:** Silent failure - no error, just wrong value (0)
+- **Solution:** Use bracket notation for dictionaries: `config["host"]`, `db["port"]`, etc.
+- **Context:** Created example using dict.field pattern, spent time debugging why values were 0
+
+(Discovered during: 2026-01-25_21-30_env-helpers-implementation.md)
+
+### args() returns ALL arguments including ruff command - must filter
+- **Problem:** args() was returning `["ruff", "run", "script.ruff", "actual", "args"]` 
+- **Rule:** args() should only return user-provided arguments, not the ruff command/subcommand/script
+- **Why:** Users expect argv-style behavior where args() contains only their arguments, not the interpreter invocation
+- **Solution:** Smart filtering logic that detects:
+  - First arg contains "ruff" → skip it
+  - Next arg is "run" or "test" → skip it  
+  - Next arg ends with ".ruff" → skip it
+  - Everything after that → user arguments
+- **Code location:** src/builtins.rs get_args() function
+
+(Discovered during: 2026-01-25_21-30_env-helpers-implementation.md)
 
 ### Rest elements must consume ALL remaining values
 - **Problem:** Rest patterns like `[a, ...rest, b]` or `[...rest1, ...rest2]` are ambiguous
