@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Array Utilities** 🔢 - Essential array manipulation and analysis functions (P1 feature):
+  - **sort(array)** - Sort array in ascending order:
+    - Works with numbers (Int and Float) and strings
+    - Returns new sorted array (original unchanged)
+    - Mixed Int/Float arrays sorted numerically
+    - Example: `sort([3, 1, 4, 1, 5])` → `[1, 1, 3, 4, 5]`
+  - **reverse(array)** - Reverse array order:
+    - Returns new array with elements in reverse order
+    - Example: `reverse([1, 2, 3])` → `[3, 2, 1]`
+  - **unique(array)** - Remove duplicate elements:
+    - Preserves order of first occurrence
+    - Works with any value types
+    - Example: `unique([1, 2, 1, 3, 2])` → `[1, 2, 3]`
+  - **sum(array)** - Calculate sum of numeric elements:
+    - Returns Int if all elements are Int, Float if any Float present
+    - Skips non-numeric values
+    - Empty array returns 0
+    - Example: `sum([1, 2, 3, 4, 5])` → `15`
+  - **any(array, predicate)** - Check if any element satisfies condition:
+    - Returns `true` if predicate returns truthy for any element
+    - Returns `false` for empty array
+    - Example: `any([1, 2, 3], func(x) { return x > 2 })` → `true`
+  - **all(array, predicate)** - Check if all elements satisfy condition:
+    - Returns `true` if predicate returns truthy for all elements
+    - Returns `true` for empty array (vacuous truth)
+    - Example: `all([1, 2, 3], func(x) { return x > 0 })` → `true`
+  - **Comprehensive Testing**: 18 new tests covering all functions, edge cases, and chaining
+  - **Example**:
+    ```ruff
+    scores := [85, 92, 78, 92, 88, 95, 78, 90]
+    
+    # Sort and get unique values
+    unique_scores := sort(unique(scores))  # [78, 85, 88, 90, 92, 95]
+    
+    # Calculate statistics
+    total := sum(scores)           # 698
+    average := total / len(scores) # 87.25
+    
+    # Check conditions
+    has_excellent := any(scores, func(s) { return s >= 90 })  # true
+    all_passing := all(scores, func(s) { return s >= 60 })    # true
+    
+    # Chain operations
+    top_scores := reverse(sort(unique(scores)))  # [95, 92, 90, 88, 85, 78]
+    ```
+
 - **File Operations** 📁 - Essential file manipulation functions for common operations (P1 feature):
   - **file_size(path)** - Get file size in bytes:
     - Returns integer byte count (e.g., `file_size("document.pdf")` → `1024000`)
