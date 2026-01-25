@@ -42,19 +42,6 @@ This roadmap outlines planned features and improvements for future versions of t
 
 **Essential Built-in Functions** (High Priority):
 
-✅ **Command-line argument parsing** - COMPLETED in v0.8.0:
-```ruff
-parser := arg_parser()
-parser.add_argument("--verbose", "-v", type="bool", help="Enable verbose output")
-parser.add_argument("--config", type="string", required=true)
-args := parser.parse()
-```
-
-✅ **Environment variable helpers** - COMPLETED in v0.8.0:
-db_host := env_or("DB_HOST", "localhost")  # Get with default
-db_port := env_int("DB_PORT")  # Parse as int
-api_key := env_required("API_KEY")  # Error if missing
-
 # Compression & Archives
 archive := zip_create("backup.zip")
 zip_add_file(archive, "data.txt")
@@ -86,55 +73,7 @@ result := pipe_commands([
 
 ---
 
-### 24. Enhanced Collection Methods (P2)
-
-**Status**: ✅ Complete (v0.8.0)  
-**Estimated Effort**: Medium (1-2 weeks)
-
-**Why Important**: Complete the collections API to match Python/JavaScript/Rust expectations
-
-**Implementation**: All methods implemented and tested
-
-**Array Methods**:
-```ruff
-# Advanced transformations
-chunk(arr, n)         # [[1,2,3,4,5]].chunk(2) → [[1,2], [3,4], [5]]
-flatten(arr)          # [[1,2], [3,4]] → [1,2,3,4]
-zip(arr1, arr2)       # zip([1,2], [3,4]) → [[1,3], [2,4]]
-enumerate(arr)        # ["a", "b"] → [[0, "a"], [1, "b"]]
-take(arr, n)          # First n elements
-skip(arr, n)          # Skip n elements
-windows(arr, n)       # Sliding window: [1,2,3,4].windows(2) → [[1,2], [2,3], [3,4]]
-```
-
-**Dict Methods**:
-```ruff
-# Advanced operations
-invert(dict)          # {a:1, b:2} → {1:a, 2:b}
-update(dict1, dict2)  # Merge dict2 into dict1 (returns new)
-get_default(dict, key, default)  # Get value or return default if missing
-```
-
-**String Methods**:
-```ruff
-# Case and formatting
-pad_left(str, width, char)     # "5".pad_left(3, "0") → "005"
-pad_right(str, width, char)    # "a".pad_right(3, "-") → "a--"
-lines(str)                     # Split on any newline \n, \r\n, \r
-words(str)                     # Split on whitespace
-str_reverse(str)               # "hello" → "olleh"
-slugify(str)                   # "Hello World!" → "hello-world"
-truncate(str, len, suffix)     # "Hello World".truncate(8, "...") → "Hello..."
-to_camel_case(str)             # "hello_world" → "helloWorld"
-to_snake_case(str)             # "helloWorld" → "hello_world"
-to_kebab_case(str)             # "helloWorld" → "hello-world"
-```
-
-**Note**: Some advanced methods like `filter_map`, `partition`, `map_values`, and `map_keys` are deferred to future releases as they require higher-order function support enhancements.
-
----
-
-## VM Performance Optimization (P1)
+### 24. VM Performance Optimization (P1)
 
 **Status**: In Progress  
 **Estimated Effort**: Medium (2-3 weeks)
