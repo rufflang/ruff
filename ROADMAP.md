@@ -37,31 +37,42 @@ Implemented both timing functions with high-precision support. See CHANGELOG for
 
 ### 🔥 NEXT TO IMPLEMENT (Top Priority)
 
-These are the immediate next items after Type Checker Updates completion:
+These are the immediate next items after Type Conversion Functions completion:
 
-#### 14. Type Conversion Functions (P0)
+#### 15. File Operations (P1)
 
 **Status**: Planned  
-**Estimated Effort**: Small (2-3 hours)  
-**Priority**: HIGH - Needed with integer types
+**Estimated Effort**: Small (3-4 hours)
+**Priority**: HIGH - Common operations for practical scripts
+
+**Current Gap**: Can read/write but missing common operations
 
 **Features**:
 ```ruff
-# Convert between types
-to_int(3.14)          # 3 (truncate)
-to_int("42")          # 42
-to_float(5)           # 5.0
-to_float("3.14")      # 3.14
-to_string(42)         # "42"
-to_bool(1)            # true
-to_bool(0)            # false
+size := file_size("document.pdf")     # 1024000 bytes
+delete_file("temp.txt")               # Remove file
+rename_file("old.txt", "new.txt")     # Rename
+copy_file("source.txt", "dest.txt")   # Copy
 ```
 
-**Implementation**: Add conversion functions to `builtins.rs`, handle edge cases
+**Implementation**: Add to `interpreter.rs` using `std::fs` methods
+
+---
+
+**Alternative Next Priority**: Array Utilities (P1) - sort, reverse, unique, sum, any, all
 
 ---
 
 ### ✅ COMPLETED FEATURES
+
+#### 14. Type Conversion Functions (P0)
+
+**Status**: ✅ Complete (see CHANGELOG)  
+**Completed**: January 25, 2026
+
+Implemented four type conversion functions: `to_int()`, `to_float()`, `to_string()`, `to_bool()`. Handles all major type conversions with intuitive semantics. Added 17 comprehensive tests. See CHANGELOG for complete feature details and examples.
+
+---
 
 #### 13. Type Checker Updates for Int/Float (P0)
 
@@ -101,25 +112,9 @@ Implemented complete runtime type introspection system with `type()` function an
 
 ### 🔜 PLANNED FEATURES
 
-#### 14. Type Conversion Functions (P0)
+**Note**: All P0 (Critical) features for v0.7.0 are now complete! 🎉
 
-**Status**: Planned  
-**Estimated Effort**: Small (2-3 hours)  
-**Priority**: HIGH - Needed with integer types
-
-**Features**:
-```ruff
-# Convert between types
-to_int(3.14)          # 3 (truncate)
-to_int("42")          # 42
-to_float(5)           # 5.0
-to_float("3.14")      # 3.14
-to_string(42)         # "42"
-to_bool(1)            # true
-to_bool(0)            # false
-```
-
-**Implementation**: Add conversion functions to `builtins.rs`, handle edge cases
+The features below are planned for future versions.
 
 ---
 
