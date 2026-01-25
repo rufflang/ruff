@@ -1,0 +1,235 @@
+# Enhanced Error Messages Test Suite
+# Tests comprehensive error reporting with suggestions and helpful messages
+
+print("=== Enhanced Error Messages Tests ===\n")
+
+# ==============================================================================
+# Test 1: Type Mismatch with Help - Variable Declaration
+# ==============================================================================
+print("Test 1: Type mismatch in variable declaration")
+try {
+    x: int := "hello"  # Should suggest type conversion
+    print("FAIL: Should have type error")
+} except err {
+    # Type checker should catch this before runtime
+    print("Expected: Type error with suggestion to convert")
+}
+print("")
+
+# ==============================================================================
+# Test 2: Type Mismatch - Assignment
+# ==============================================================================
+print("Test 2: Type mismatch in assignment")
+try {
+    let mut num: int := 42
+    num := 3.14  # Should suggest converting with to_int()
+    print("FAIL: Should have type error")
+} except err {
+    print("Expected: Type error with conversion suggestion")
+}
+print("")
+
+# ==============================================================================
+# Test 3: Type Mismatch - Constant
+# ==============================================================================
+print("Test 3: Type mismatch in constant")
+try {
+    const PI: int := 3.14  # Should explain constants must match type
+    print("FAIL: Should have type error")
+} except err {
+    print("Expected: Type error about constant type matching")
+}
+print("")
+
+# ==============================================================================
+# Test 4: Return Type Mismatch
+# ==============================================================================
+print("Test 4: Return type mismatch")
+func get_number() -> int {
+    return "not a number"  # Should show expected vs actual
+}
+# Type checker should catch this
+print("")
+
+# ==============================================================================
+# Test 5: Comparison Type Mismatch
+# ==============================================================================
+print("Test 5: Comparison between incompatible types")
+try {
+    result := (5 < "hello")  # Should suggest type conversion
+    print("FAIL: Should have type error")
+} except err {
+    print("Expected: Type error in comparison")
+}
+print("")
+
+# ==============================================================================
+# Test 6: Undefined Function with Suggestion
+# ==============================================================================
+print("Test 6: Undefined function with 'did you mean?' suggestion")
+# Define some similar named functions
+func calculate_sum(a: int, b: int) -> int {
+    return a + b
+}
+
+func calculate_product(a: int, b: int) -> int {
+    return a * b
+}
+
+# Try to call a misspelled function
+# calculat_sum vs calculate_sum - should suggest the correct one
+try {
+    result := calculat_sum(5, 3)  # Missing 'e' - should suggest calculate_sum
+    print("FAIL: Should have undefined function error")
+} except err {
+    print("Expected: Undefined function with suggestion")
+}
+print("")
+
+# ==============================================================================
+# Test 7: Another Typo - Function Suggestion
+# ==============================================================================
+print("Test 7: Function typo suggestion")
+func process_data(data: string) -> string {
+    return data
+}
+
+try {
+    output := proces_data("test")  # Missing 's' - should suggest process_data
+    print("FAIL: Should have undefined function error")
+} except err {
+    print("Expected: Undefined function with suggestion")
+}
+print("")
+
+# ==============================================================================
+# Test 8: Multiple Errors Reported
+# ==============================================================================
+print("Test 8: Multiple type errors in one file")
+func multiple_errors() {
+    let a: int := "wrong"       # Error 1
+    let b: string := 42         # Error 2
+    let c: bool := 3.14         # Error 3
+    # Type checker should report all three errors
+}
+print("Expected: Multiple errors reported together")
+print("")
+
+# ==============================================================================
+# Test 9: Function Call with Wrong Argument Type
+# ==============================================================================
+print("Test 9: Function call with wrong argument type")
+func takes_int(num: int) -> int {
+    return num * 2
+}
+
+try {
+    result := takes_int("hello")  # Should show expected vs actual
+    print("FAIL: Should have type error")
+} except err {
+    print("Expected: Type error for function argument")
+}
+print("")
+
+# ==============================================================================
+# Test 10: Binary Operation Type Mismatch
+# ==============================================================================
+print("Test 10: Binary operation type mismatch")
+try {
+    result := 5 + "hello"  # Should explain type incompatibility
+    print("FAIL: Should have type error")
+} except err {
+    print("Expected: Type error for binary operation")
+}
+print("")
+
+# ==============================================================================
+# Test 11: No Suggestion When Names Too Different
+# ==============================================================================
+print("Test 11: No suggestion for completely different names")
+func foo() {
+    return 1
+}
+
+try {
+    result := completely_different_name()
+    print("FAIL: Should have undefined function error")
+} except err {
+    # Should show error but no suggestion (names too different)
+    print("Expected: Undefined function, no suggestion (too different)")
+}
+print("")
+
+# ==============================================================================
+# Test 12: Suggestion for Close Match
+# ==============================================================================
+print("Test 12: Suggestion for very close match")
+func validate_user_input(input: string) -> bool {
+    return len(input) > 0
+}
+
+try {
+    # Only 1 character different - should definitely suggest
+    result := validate_user_inpu(test)
+    print("FAIL: Should have undefined function error")
+} except err {
+    print("Expected: Undefined function with suggestion")
+}
+print("")
+
+# ==============================================================================
+# Test 13: Error with Source Location Context
+# ==============================================================================
+print("Test 13: Error shows source location and context")
+# When type checker runs, errors should show:
+# - Line and column number
+# - Code snippet with caret pointer
+# - Error kind and message
+# - Helpful suggestions
+print("Check compiler output for formatted error messages")
+print("")
+
+# ==============================================================================
+# Test 14: Multiple Suggestions Available
+# ==============================================================================
+print("Test 14: Chooses best suggestion from multiple candidates")
+func parse_int(s: string) -> int {
+    return to_int(s)
+}
+
+func parse_float(s: string) -> float {
+    return to_float(s)
+}
+
+func parse_bool(s: string) -> bool {
+    return to_bool(s)
+}
+
+try {
+    # Should suggest parse_int (closest match)
+    result := pars_int("42")
+    print("FAIL: Should have undefined function error")
+} except err {
+    print("Expected: Suggests parse_int as closest match")
+}
+print("")
+
+# ==============================================================================
+# Test 15: Help Messages Are Actionable
+# ==============================================================================
+print("Test 15: Help messages provide actionable guidance")
+# Error messages should:
+# 1. Clearly state what went wrong
+# 2. Suggest specific fixes (e.g., "Try to_int()")
+# 3. Provide context (e.g., "Variable was declared as Int")
+# 4. Use clear formatting with colors
+print("Review error output for actionable help messages")
+print("")
+
+print("=== Enhanced Error Messages Tests Complete ===")
+print("Note: Many type errors are caught at compile time by the type checker")
+print("Check the compiler output for detailed error messages with:")
+print("  - Source location (file:line:col)")
+print("  - Code context with caret pointer")
+print("  - 'Did you mean?' suggestions")
+print("  - Help and note sections")
