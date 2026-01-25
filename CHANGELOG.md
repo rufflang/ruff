@@ -85,6 +85,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Status**: Production-ready, all tests passing
   - **Roadmap Progress**: Completes first major milestone of v0.8.0 stdlib expansion
 
+  - **Operating System Functions** (OS Module):
+    - **`os_getcwd()`**: Get current working directory
+    - **`os_chdir(path)`**: Change current working directory
+    - **`os_rmdir(path)`**: Remove empty directory
+    - **`os_environ()`**: Get all environment variables as dictionary
+    - **Cross-platform**: Works on Unix and Windows systems
+    - **Error Handling**: Returns Error objects for permission issues or invalid paths
+    - **Use Cases**: Directory navigation, workspace management, environment inspection
+    - **Example**:
+      ```ruff
+      # Save and restore directory
+      let original_dir := os_getcwd()
+      os_chdir("temp_workspace")
+      # Do work...
+      os_chdir(original_dir)
+      
+      # List all environment variables
+      let env_vars := os_environ()
+      print("PATH: " + env_vars["PATH"])
+      ```
+  
+  - **Path Manipulation Functions** (Path Module):
+    - **`path_join(component1, component2, ...)`**: Join path components (cross-platform separator handling)
+    - **`path_absolute(path)`**: Get absolute path (resolves relative paths and symlinks)
+    - **`path_is_dir(path)`**: Check if path is a directory
+    - **`path_is_file(path)`**: Check if path is a file
+    - **`path_extension(path)`**: Extract file extension (without dot)
+    - **Platform-agnostic**: Automatically handles `/` vs `\` separators
+    - **Error Handling**: path_absolute returns Error for non-existent paths
+    - **Use Cases**: File organization, path building, type checking, extension filtering
+    - **Example**:
+      ```ruff
+      # Build cross-platform paths
+      let config_path := path_join("home", "user", "config.json")
+      let abs_config := path_absolute(config_path)
+      
+      # Filter by file type
+      let files := list_dir(".")
+      for file in files {
+        if path_is_file(file) && path_extension(file) == "py" {
+          print("Python file: " + file)
+        }
+      }
+      ```
+  
+  - **Tests**: Comprehensive test suite in `tests/stdlib_os_path_test.ruff` with 52 tests covering all functions, error handling, integration scenarios, and edge cases
+  - **Examples**: Detailed demonstration files:
+    - `examples/stdlib_os.ruff` - 6 examples covering directory navigation, environment variables, workspace organization, configuration management, and temp directory handling
+    - `examples/stdlib_path.ruff` - 9 examples demonstrating path joining, file inspection, extension extraction, filtering, absolute path resolution, file organization, and cross-platform handling
+  - **Status**: Production-ready, all tests passing
+  - **Roadmap Progress**: Completes second major milestone of v0.8.0 stdlib expansion
+
 - **Showcase Projects** 🎨 - Six comprehensive real-world projects demonstrating Ruff capabilities:
   - **`project_log_analyzer.ruff`** - Advanced log file analysis with statistics, IP extraction, HTTP status codes, and regex filtering
   - **`project_task_manager.ruff`** - Full CLI task management system with JSON persistence, priorities, due dates, and visual progress tracking

@@ -13,11 +13,13 @@
 ### Recently Completed in v0.8.0 ✅
 
 * **Standard Library Expansion** 📦
-  - Comprehensive compression, hashing, and process management functions
+  - Comprehensive compression, hashing, process management, OS interaction, and path manipulation functions
   - **Compression**: Create and extract ZIP archives (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)
   - **Hashing**: SHA-256, MD5 for data integrity (`sha256`, `md5`, `md5_file`)
   - **Password Security**: Bcrypt password hashing (`hash_password`, `verify_password`)
   - **Process Management**: Execute commands and pipe operations (`spawn_process`, `pipe_commands`)
+  - **OS Module**: Operating system interaction (`os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ`)
+  - **Path Module**: Cross-platform path manipulation (`path_join`, `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension`)
   - Example:
     ```ruff
     # Create backup archive
@@ -42,9 +44,22 @@
         ["grep", "ERROR"],
         ["wc", "-l"]
     ])
+    
+    # Directory navigation
+    let original := os_getcwd()
+    os_chdir("workspace")
+    # Do work...
+    os_chdir(original)
+    
+    # Cross-platform path handling
+    let config := path_join("home", "user", "config.json")
+    let abs_path := path_absolute(config)
+    if path_is_file(abs_path) && path_extension(abs_path) == "json" {
+        # Process config file
+    }
     ```
-  - See `examples/stdlib_compression.ruff`, `examples/stdlib_crypto.ruff`, `examples/stdlib_process.ruff`
-  - All functions tested with comprehensive test suite in `tests/stdlib_test.ruff`
+  - See `examples/stdlib_compression.ruff`, `examples/stdlib_crypto.ruff`, `examples/stdlib_process.ruff`, `examples/stdlib_os.ruff`, `examples/stdlib_path.ruff`
+  - All functions tested with comprehensive test suites in `tests/stdlib_test.ruff` and `tests/stdlib_os_path_test.ruff`
 
 * **Showcase Projects** 🎨
   - Six comprehensive real-world projects demonstrating Ruff capabilities

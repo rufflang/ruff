@@ -30,21 +30,21 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 23. Standard Library Expansion (P1)
 
-**Status**: In Progress (Milestone 1 Complete: Compression, Hashing, Process Management)  
-**Estimated Effort**: Large (3 months total, ~2 months remaining)
+**Status**: In Progress (Milestones 1-2 Complete: Compression, Hashing, Process, OS, Path)  
+**Estimated Effort**: Large (3 months total, ~1.5 months remaining)
 
 **Completed Features** ✅:
 - ✅ **Compression & Archives**: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
 - ✅ **Hashing**: `sha256`, `md5`, `md5_file` for data integrity and content verification
 - ✅ **Password Hashing**: `hash_password`, `verify_password` using bcrypt
 - ✅ **Process Management**: `spawn_process`, `pipe_commands` for system automation
-- ✅ **Tests**: Comprehensive test suite in `tests/stdlib_test.ruff`
-- ✅ **Examples**: Three detailed example files demonstrating real-world usage
-- ✅ **Documentation**: CHANGELOG updated with full API documentation
+- ✅ **OS Module**: `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ` for operating system interaction
+- ✅ **Path Module**: `path_join`, `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension` for path manipulation
+- ✅ **Tests**: Comprehensive test suites in `tests/stdlib_test.ruff` and `tests/stdlib_os_path_test.ruff` (52 additional tests)
+- ✅ **Examples**: Five detailed example files demonstrating real-world usage
+- ✅ **Documentation**: CHANGELOG updated with full API documentation for all modules
 
 **Remaining Core Modules** (Next Priority):
-- `os` - Operating system interface (getcwd, chdir, mkdir, environ) - **PLANNED**
-- `path` - Path manipulation (join, absolute, exists, is_dir) - **PLANNED**
 - `io` - Buffered I/O and binary operations - **PLANNED**
 - `net` - TCP/UDP sockets beyond HTTP - **PLANNED**
 - `crypto` - Encryption (AES, RSA) beyond hashing - **PLANNED**
@@ -68,6 +68,30 @@ valid := verify_password(input, password)
 
 # Process management ✅
 result := spawn_process(["python", "script.py"])
+print(result.stdout)  # Access output
+print(result.exitcode)  # Check exit code
+
+# Process with pipes ✅
+result := pipe_commands([
+    ["cat", "data.txt"],
+    ["grep", "error"],
+    ["wc", "-l"]
+])
+
+# Operating System ✅
+cwd := os_getcwd()  # Get current directory
+os_chdir("workspace")  # Change directory
+os_rmdir("temp")  # Remove empty directory
+env := os_environ()  # Get all environment variables
+print(env["PATH"])
+
+# Path Manipulation ✅
+config := path_join("home", "user", "config.json")  # Join paths
+abs_path := path_absolute("../file.txt")  # Get absolute path
+is_dir := path_is_dir("folder")  # Check if directory
+is_file := path_is_file("data.txt")  # Check if file
+ext := path_extension("document.pdf")  # Get extension: "pdf"
+```
 print(result.stdout)  # Access output
 print(result.exitcode)  # Check exit code
 
