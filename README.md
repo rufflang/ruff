@@ -12,6 +12,23 @@
 
 ### Recently Completed in v0.8.0 ✅
 
+* **VM Native Function Integration** 🚀
+  - All 180+ built-in functions now work in bytecode VM mode
+  - Zero code duplication: VM delegates to interpreter implementation
+  - Complete support for math, string, array, dict, file I/O, HTTP, database, compression, crypto, process management, OS, path, and more
+  - Test suite validates all function categories work correctly
+  - Example:
+    ```ruff
+    # All these work in VM mode (run with --vm flag):
+    print("Math:", sqrt(144), pow(2, 10))
+    let data := http_get("api.example.com/data")
+    let parsed := parse_json(data.body)
+    let hash := sha256(to_json(parsed))
+    write_file("output.txt", hash)
+    ```
+  - Known limitation: VM loop execution needs fixing before performance benchmarks can run
+  - See `tests/vm_native_functions_test.ruff` for comprehensive test coverage
+
 * **Standard Library Expansion** 📦
   - Comprehensive compression, hashing, process management, OS interaction, and path manipulation functions
   - **Compression**: Create and extract ZIP archives (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)
