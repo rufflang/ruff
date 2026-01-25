@@ -8914,4 +8914,275 @@ mod tests {
         assert!(matches!(interp.env.get("x"), Some(Value::Int(42))));
         assert!(matches!(interp.env.get("y"), Some(Value::Bool(true))));
     }
+
+    #[test]
+    fn test_file_size() {
+        use std::fs;
+
+        // Create a temporary test file
+        let test_file = "test_file_size_temp.txt";
+        let content = "Hello, World! This is a test.";
+        fs::write(test_file, content).unwrap();
+
+        let code = format!(
+            r#"
+            size := file_size("{}")
+        "#,
+            test_file
+        );
+
+        let interp = run_code(&code);
+
+        // Clean up
+        let _ = fs::remove_file(test_file);
+
+        if let Some(Value::Int(size)) = interp.env.get("size") {
+            assert_eq!(size, content.len() as i64);
+        } else {
+            panic!("Expected size to be an integer");
+        }
+    }
+
+    #[test]
+    fn test_file_size_nonexistent() {
+        let code = r#"
+            result := file_size("/tmp/file_that_does_not_exist_ruff_test_12345.txt")
+        "#;
+
+        let interp = run_code(code);
+
+        // Should return an error
+        if let Some(Value::Error(err)) = interp.env.get("result") {
+            assert!(err.contains("Cannot get file size"));
+        } else {
+            panic!("Expected an error for nonexistent file");
+        }
+    }
+
+    #[test]
+    fn test_delete_file() {
+        use std::fs;
+
+        // Create a temporary test file
+        let test_file = "test_delete_file_temp.txt";
+        fs::write(test_file, "Delete me").unwrap();
+
+        let code = format!(
+            r#"
+            result := delete_file("{}")
+        "#,
+            test_file
+        );
+
+        let interp = run_code(&code);
+
+        // Verify file was deleted
+        assert!(!std::path::Path::new(test_file).exists());
+
+        // Check result
+        if let Some(Value::Bool(result)) = interp.env.get("result") {
+            assert_eq!(result, true);
+        } else {
+            panic!("Expected result to be true");
+        }
+    }
+
+    #[test]
+    fn test_delete_file_nonexistent() {
+        let code = r#"
+            result := delete_file("/tmp/file_that_does_not_exist_ruff_test_delete_67890.txt")
+        "#;
+
+        let interp = run_code(code);
+
+        // Should return an error
+        if let Some(Value::Error(err)) = interp.env.get("result") {
+            assert!(err.contains("Cannot delete file"));
+        } else {
+            panic!("Expected an error for nonexistent file");
+        }
+    }
+
+    #[test]
+    fn test_rename_file() {
+        use std::fs;
+
+        // Create a temporary test file
+        let old_name = "test_rename_old_temp.txt";
+        let new_name = "test_rename_new_temp.txt";
+        let content = "Rename me";
+        fs::write(old_name, content).unwrap();
+
+        let code = format!(
+            r#"
+            result := rename_file("{}", "{}")
+        "#,
+            old_name, new_name
+        );
+
+        let interp = run_code(&code);
+
+        // Verify old file doesn't exist and new file does
+        assert!(!std::path::Path::new(old_name).exists());
+        assert!(std::path::Path::new(new_name).exists());
+
+        // Check content is preserved
+        let new_content = fs::read_to_string(new_name).unwrap();
+        assert_eq!(new_content, content);
+
+        // Clean up
+        let _ = fs::remove_file(new_name);
+
+        // Check result
+        if let Some(Value::Bool(result)) = interp.env.get("result") {
+            assert_eq!(result, true);
+        } else {
+            panic!("Expected result to be true");
+        }
+    }
+
+    #[test]
+    fn test_rename_file_nonexistent() {
+        let code = r#"
+            result := rename_file("/tmp/old_file_nonexistent_ruff_test.txt", "/tmp/new_file.txt")
+        "#;
+
+        let interp = run_code(code);
+
+        // Should return an error
+        if let Some(Value::Error(err)) = interp.env.get("result") {
+            assert!(err.contains("Cannot rename file"));
+        } else {
+            panic!("Expected an error for nonexistent file");
+        }
+    }
+
+    #[test]
+    fn test_copy_file() {
+        use std::fs;
+
+        // Create a temporary test file
+        let source = "test_copy_source_temp.txt";
+        let dest = "test_copy_dest_temp.txt";
+        let content = "Copy me";
+        fs::write(source, content).unwrap();
+
+        let code = format!(
+            r#"
+            result := copy_file("{}", "{}")
+        "#,
+            source, dest
+        );
+
+        let interp = run_code(&code);
+
+        // Verify both files exist
+        assert!(std::path::Path::new(source).exists());
+        assert!(std::path::Path::new(dest).exists());
+
+        // Check content is the same
+        let source_content = fs::read_to_string(source).unwrap();
+        let dest_content = fs::read_to_string(dest).unwrap();
+        assert_eq!(source_content, dest_content);
+        assert_eq!(dest_content, content);
+
+        // Clean up
+        let _ = fs::remove_file(source);
+        let _ = fs::remove_file(dest);
+
+        // Check result
+        if let Some(Value::Bool(result)) = interp.env.get("result") {
+            assert_eq!(result, true);
+        } else {
+            panic!("Expected result to be true");
+        }
+    }
+
+    #[test]
+    fn test_copy_file_nonexistent() {
+        let code = r#"
+            result := copy_file("/tmp/source_file_nonexistent_ruff_test.txt", "/tmp/dest_file.txt")
+        "#;
+
+        let interp = run_code(code);
+
+        // Should return an error
+        if let Some(Value::Error(err)) = interp.env.get("result") {
+            assert!(err.contains("Cannot copy file"));
+        } else {
+            panic!("Expected an error for nonexistent file");
+        }
+    }
+
+    #[test]
+    fn test_file_operations_integration() {
+        use std::fs;
+
+        // Create a test file and perform multiple operations
+        let original = "test_integration_original.txt";
+        let renamed = "test_integration_renamed.txt";
+        let copied = "test_integration_copied.txt";
+        let content = "Integration test content";
+
+        fs::write(original, content).unwrap();
+
+        let code = format!(
+            r#"
+            # Get original file size
+            size1 := file_size("{}")
+            
+            # Rename the file
+            rename_result := rename_file("{}", "{}")
+            
+            # Get size after rename
+            size2 := file_size("{}")
+            
+            # Copy the renamed file
+            copy_result := copy_file("{}", "{}")
+            
+            # Get size of copied file
+            size3 := file_size("{}")
+            
+            # Delete the original (renamed) file
+            delete1 := delete_file("{}")
+            
+            # Delete the copied file
+            delete2 := delete_file("{}")
+        "#,
+            original, original, renamed, renamed, renamed, copied, copied, renamed, copied
+        );
+
+        let interp = run_code(&code);
+
+        // All sizes should be equal
+        let expected_size = content.len() as i64;
+        if let Some(Value::Int(size)) = interp.env.get("size1") {
+            assert_eq!(size, expected_size);
+        } else {
+            panic!("Expected size1 to be an integer");
+        }
+
+        if let Some(Value::Int(size)) = interp.env.get("size2") {
+            assert_eq!(size, expected_size);
+        } else {
+            panic!("Expected size2 to be an integer");
+        }
+
+        if let Some(Value::Int(size)) = interp.env.get("size3") {
+            assert_eq!(size, expected_size);
+        } else {
+            panic!("Expected size3 to be an integer");
+        }
+
+        // All operations should succeed
+        assert!(matches!(interp.env.get("rename_result"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("copy_result"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("delete1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("delete2"), Some(Value::Bool(true))));
+
+        // Verify no files remain
+        assert!(!std::path::Path::new(original).exists());
+        assert!(!std::path::Path::new(renamed).exists());
+        assert!(!std::path::Path::new(copied).exists());
+    }
 }
