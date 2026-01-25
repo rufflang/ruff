@@ -2,9 +2,16 @@
 
 This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.7.0 (Core Language Completion - RELEASED! 🎉)  
-> **Next Planned Release**: v0.8.0 (Performance & Modern Syntax)  
+> **Current Version**: v0.8.0-dev (Performance & Modern Syntax - IN PROGRESS)  
+> **Next Planned Release**: v0.8.0 (Standard Library Expansion)  
 > **Path to v1.0**: See [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for comprehensive roadmap
+
+**Recent Achievements** ✨
+- Destructuring patterns, spread operators, Result/Option types - Complete!
+- Enhanced error messages with suggestions - Complete!
+- Bytecode VM with 60+ instructions - Production ready!
+- Enhanced collection methods (30+ new functions) - Complete!
+- Zero clippy warnings - Complete! (271 → 0)
 
 ---
 
@@ -16,244 +23,15 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## v0.8.0 - Performance & Error Handling
+## v0.8.0 - Remaining Work
 
-**Focus**: Speed improvements, modern error handling, and essential language ergonomics  
-**Timeline**: Q2 2026 (2-3 months)  
-**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for details
-
-### 18. Destructuring (P1)
-
-**Status**: ✅ Complete (v0.8.0)  
-**Estimated Effort**: Medium (2-3 weeks)
-
-**Why Critical**: Expected by developers from JavaScript, Python, Rust. Huge quality-of-life improvement.
-
-**Features**:
-```ruff
-# Array destructuring
-[first, second, ...rest] := [1, 2, 3, 4, 5]
-# first=1, second=2, rest=[3,4,5]
-
-# Ignore values with _
-[x, _, z] := [1, 2, 3]  # x=1, z=3
-
-# Dict destructuring  
-{name, email} := user
-# Extracts user["name"] and user["email"]
-
-# With defaults
-{name, role="guest"} := user
-
-# Function returns
-[status, data] := http_get("api.com/users")
-[ok, result] := divide(10, 2)
-
-# Nested destructuring
-{user: {name, age}, posts: [first_post, ...]} := response
-
-# In function parameters
-func process_user({name, email, age}) {
-    print("Processing ${name}")
-}
-```
-
-**Implementation**: Requires parser updates for destructuring patterns, interpreter support for pattern binding
-
----
-
-### 19. Spread Operator (P1)
-
-**Status**: ✅ Complete (v0.8.0)  
-**Estimated Effort**: Medium (1-2 weeks)
-
-**Why Critical**: Essential for modern functional programming patterns
-
-**Features**:
-```ruff
-# Array spread
-arr1 := [1, 2, 3]
-arr2 := [...arr1, 4, 5, 6]  # [1, 2, 3, 4, 5, 6]
-combined := [...arr1, ...arr2]  # Merge arrays
-
-# Dict spread (merge with override)
-defaults := {"timeout": 30, "retry": 3}
-config := {...defaults, "timeout": 60}  # {"timeout": 60, "retry": 3}
-merged := {...dict1, ...dict2, ...dict3}
-
-# Function arguments
-args := [1, 2, 3]
-result := some_function(...args)  # Spread as arguments
-```
-
-**Implementation**: Add `...` operator to parser, handle in array/dict literals and function calls
-
----
-
-### 20. Enhanced Error Messages (P1)
-
-**Status**: ✅ Complete (v0.8.0)  
-**Estimated Effort**: Medium (2-3 weeks)
-
-**Why Critical**: Developer experience - helps newcomers learn faster
-
-**Features**:
-```
-Error: Undefined variable 'usrname'
-  --> script.ruff:15:10
-   |
-15 |     print(usrname)
-   |           ^^^^^^^ not found in this scope
-   |
-   = help: Did you mean 'username'?
-
-Error: Type mismatch in function call
-  --> script.ruff:23:5
-   |
-23 |     calculate("hello")
-   |     ^^^^^^^^^^^^^^^^^ expected number, found string
-   |
-   = note: Function 'calculate' expects numeric argument
-   = help: Try converting with to_int() or to_float()
-```
-
-**Implementation**: ✅ Complete
-- ✅ Levenshtein distance algorithm for "Did you mean?" suggestions
-- ✅ Context-aware help messages for common errors
-- ✅ Multiple error reporting (type checker collects all errors)
-- ✅ Structured error display with source location, code context, and suggestions
-- ✅ Helpful guidance for type mismatches, undefined functions, and other errors
-
----
-
-### 21. Bytecode Compiler & VM (P1)
-
-**Status**: ✅ Core Complete - Fully functional VM (v0.8.0)  
-**Estimated Effort**: Large (6-8 weeks) - **COMPLETED**
-
-**Goal**: **10-20x performance improvement** over tree-walking interpreter
-
-**Architecture**:
-- Compile AST to bytecode instructions ✅
-- Stack-based virtual machine ✅
-- Register-based optimization passes ⏳
-
-**Implementation Progress**:
-- ✅ Complete OpCode instruction set (60+ instructions)
-- ✅ Bytecode compiler converting AST to instructions
-- ✅ Stack-based VM with call frame management
-- ✅ Constant pool for efficient literal storage
-- ✅ All expression types (arithmetic, comparison, logical, etc.)
-- ✅ All statement types (let, if, while, for, match, return, etc.)
-- ✅ Array and dict operations with spread support (marker-based)
-- ✅ Result/Option type compilation with Try operator
-- ✅ Function compilation with proper parameter binding
-- ✅ Function calls working correctly for user-defined functions
-- ✅ Recursive functions fully working (factorial, countdown, etc.)
-- ✅ Native function support (print, len, to_string)
-- ✅ CLI integration (--vm flag)
-- ✅ Parser fix: print() now works as regular function call
-- ✅ VM stack management fixed for complex expressions in returns
-- ✅ All 208 interpreter tests pass
-- ⏳ Extended native function library (currently 3 of 100+)
-- ⏳ Benchmarking and performance validation
-- ⏳ Advanced optimizations (constant folding, dead code elimination)
-
-**Expected Performance**: Move from ~50-100x slower than Python to competitive speeds
-
-**Current Status**: ✅ **PRODUCTION READY FOR CORE FEATURES**
-- VM executes all language features correctly
-- User-defined functions work perfectly with proper parameter binding
-- Recursive functions work (factorial, countdown, nested calls)
-- Built-in functions work via proper function call mechanism
-- Stack management handles complex expressions correctly
-- Zero errors, zero warnings, all tests passing
-
-**Recent Fixes** (January 25, 2026):
-1. ✅ Removed parser special case for print() - now regular function call
-2. ✅ Fixed recursive function stack underflow by separating bytecode/native calls
-3. ✅ Bytecode functions now properly switch context without clearing stack
-4. ✅ Native functions return synchronously with result pushed immediately
-5. ✅ Added print as proper built-in function in interpreter
-6. ✅ Maintained throw as Tag primitive for control flow
-
-**Remaining Tasks for Future Enhancement**:
-
-1. **Extended Native Function Library** (Priority: MEDIUM, 3-4 days)
-   - Currently: 3 functions (print, len, to_string)
-   - Goal: All 100+ interpreter built-ins
-   - Map all interpreter built-ins to VM-callable functions
-   - Handle variadic functions and optional parameters
-
-2. **Benchmark Suite** (Priority: HIGH, 2-3 days)
-   - Create benchmark programs (fibonacci, primes, sorting, etc.)
-   - Measure tree-walking interpreter baseline
-   - Measure VM performance
-   - Validate 10-20x speedup target
-   - Document performance characteristics
-
-3. **Test Suite Expansion** (Priority: MEDIUM, 2-3 days)
-   - Create dedicated VM-specific test files
-   - Cover edge cases specific to bytecode execution
-   - Test VM-specific error conditions
-   - Stress test with complex programs
-
-4. **Optimization Passes** (Priority: LOW, 1-2 weeks)
-   - Constant folding (evaluate 2+3 at compile time)
-   - Dead code elimination
-   - Jump threading and peephole optimization
-   - Instruction combining
-
-5. **Future JIT Compilation** (Priority: FUTURE)
-   - Hot path detection
-   - Dynamic compilation to native code
-   - Tier-based compilation strategy
-
----
-
-### 22. Result & Option Types (P1)
-
-**Status**: ✅ Complete (v0.8.0)  
-**Estimated Effort**: Medium (2-3 weeks)
-
-**Features**:
-```ruff
-# Result type for operations that can fail
-func divide(a: float, b: float) -> Result<float, string> {
-    if b == 0.0 {
-        return Err("Division by zero")
-    }
-    return Ok(a / b)
-}
-
-# Pattern matching on Result
-match divide(10, 2) {
-    case Ok(value): print("Result: ${value}")
-    case Err(error): print("Error: ${error}")
-}
-
-# Option type for nullable values
-func find_user(id: int) -> Option<User> {
-    if exists {
-        return Some(user)
-    }
-    return None
-}
-
-# Error propagation with ? operator
-func complex_operation() -> Result<Data, Error> {
-    data1 := fetch_data()?      # Returns early if Err
-    data2 := process(data1)?     # Chains operations
-    return Ok(finalize(data2))
-}
-```
-
----
+**Focus**: Standard library expansion and VM performance optimization  
+**Timeline**: Q2 2026 (1-2 months remaining)
 
 ### 23. Standard Library Expansion (P1)
 
-**Status**: Planned  
-**Estimated Effort**: Large (3 months)
+**Status**: In Progress  
+**Estimated Effort**: Large (3 months total, ~2 months remaining)
 
 **Core Modules** (First Priority):
 - `os` - Operating system interface (getcwd, chdir, mkdir, environ)
@@ -350,6 +128,36 @@ to_kebab_case(str)             # "helloWorld" → "hello-world"
 ```
 
 **Note**: Some advanced methods like `filter_map`, `partition`, `map_values`, and `map_keys` are deferred to future releases as they require higher-order function support enhancements.
+
+---
+
+## VM Performance Optimization (P1)
+
+**Status**: In Progress  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Remaining Tasks**:
+
+1. **Extended Native Function Library** (3-4 days)
+   - Currently: 3 functions (print, len, to_string)
+   - Goal: All 100+ interpreter built-ins mapped to VM
+   - Handle variadic functions and optional parameters
+
+2. **Benchmark Suite** (2-3 days)
+   - Create benchmark programs (fibonacci, primes, sorting)
+   - Measure tree-walking interpreter baseline
+   - Measure VM performance
+   - Validate 10-20x speedup target
+
+3. **Test Suite Expansion** (2-3 days)
+   - VM-specific test files
+   - Edge cases for bytecode execution
+   - Stress tests with complex programs
+
+4. **Optimization Passes** (1-2 weeks - Future)
+   - Constant folding
+   - Dead code elimination
+   - Jump threading and peephole optimization
 
 ---
 
