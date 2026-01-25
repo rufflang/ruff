@@ -334,7 +334,7 @@ impl std::fmt::Debug for Value {
             }
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
             Value::BytecodeFunction { chunk, captured } => {
-                let name = chunk.name.as_ref().map(|s| s.as_str()).unwrap_or("<lambda>");
+                let name = chunk.name.as_deref().unwrap_or("<lambda>");
                 write!(f, "BytecodeFunction({}, {} instructions, {} captured)", 
                     name, chunk.instructions.len(), captured.len())
             }
@@ -448,7 +448,7 @@ impl Environment {
         // Search from innermost to outermost scope
         for scope in self.scopes.iter_mut().rev() {
             if scope.contains_key(&name) {
-                scope.insert(name, value);
+                scope.insert(name.clone(), value.clone());
                 return;
             }
         }
@@ -1175,9 +1175,8 @@ impl Interpreter {
         let mut params = HashMap::new();
 
         for (pattern_part, path_part) in pattern_parts.iter().zip(path_parts.iter()) {
-            if pattern_part.starts_with(':') {
+            if let Some(param_name) = pattern_part.strip_prefix(':') {
                 // This is a path parameter - extract it
-                let param_name = &pattern_part[1..]; // Remove leading ':'
                 params.insert(param_name.to_string(), path_part.to_string());
             } else if *pattern_part != *path_part {
                 // Static segment doesn't match
@@ -1340,7 +1339,7 @@ impl Interpreter {
             "print" => {
                 let output_parts: Vec<String> = arg_values
                     .iter()
-                    .map(|val| Interpreter::stringify_value(val))
+                    .map(Interpreter::stringify_value)
                     .collect();
                 self.write_output(&output_parts.join(" "));
                 Value::Null
@@ -2669,7 +2668,7 @@ impl Interpreter {
                 // debug(...args) - prints debug output for all arguments
                 let debug_parts: Vec<String> = arg_values
                     .iter()
-                    .map(|v| builtins::format_debug_value(v))
+                    .map(builtins::format_debug_value)
                     .collect();
                 println!("[DEBUG] {}", debug_parts.join(" "));
                 Value::Null
@@ -2808,11 +2807,9 @@ impl Interpreter {
                     match std::fs::read_dir(path) {
                         Ok(entries) => {
                             let mut files = Vec::new();
-                            for entry in entries {
-                                if let Ok(entry) = entry {
-                                    if let Some(name) = entry.file_name().to_str() {
-                                        files.push(Value::Str(name.to_string()));
-                                    }
+                            for entry in entries.flatten() {
+                                if let Some(name) = entry.file_name().to_str() {
+                                    files.push(Value::Str(name.to_string()));
                                 }
                             }
                             Value::Array(files)
@@ -4236,7 +4233,7 @@ impl Interpreter {
                     let mut unique_values = Vec::new();
                     for value in arr {
                         // Check if value already exists (simple comparison)
-                        let exists = unique_values.iter().any(|v| self.values_equal(v, value));
+                        let exists = unique_values.iter().any(|v| Self::values_equal(v, value));
                         if !exists {
                             unique_values.push(value.clone());
                         }
@@ -4252,7 +4249,7 @@ impl Interpreter {
                 if let (Some(Value::Set(mut set)), Some(item)) =
                     (arg_values.first().cloned(), arg_values.get(1).cloned())
                 {
-                    let exists = set.iter().any(|v| self.values_equal(v, &item));
+                    let exists = set.iter().any(|v| Self::values_equal(v, &item));
                     if !exists {
                         set.push(item);
                     }
@@ -4266,7 +4263,7 @@ impl Interpreter {
                 // set_has(set, item) - returns 1 if item exists, 0 otherwise
                 if let (Some(Value::Set(set)), Some(item)) = (arg_values.first(), arg_values.get(1))
                 {
-                    let exists = set.iter().any(|v| self.values_equal(v, item));
+                    let exists = set.iter().any(|v| Self::values_equal(v, item));
                     Value::Bool(exists)
                 } else {
                     Value::Bool(false)
@@ -4278,7 +4275,7 @@ impl Interpreter {
                 if let (Some(Value::Set(mut set)), Some(item)) =
                     (arg_values.first().cloned(), arg_values.get(1))
                 {
-                    set.retain(|v| !self.values_equal(v, item));
+                    set.retain(|v| !Self::values_equal(v, item));
                     Value::Set(set)
                 } else {
                     Value::Set(Vec::new())
@@ -4292,7 +4289,7 @@ impl Interpreter {
                 {
                     let mut result = set1.clone();
                     for item in set2 {
-                        let exists = result.iter().any(|v| self.values_equal(v, item));
+                        let exists = result.iter().any(|v| Self::values_equal(v, item));
                         if !exists {
                             result.push(item.clone());
                         }
@@ -4310,7 +4307,7 @@ impl Interpreter {
                 {
                     let result: Vec<Value> = set1
                         .iter()
-                        .filter(|v| set2.iter().any(|v2| self.values_equal(v, v2)))
+                        .filter(|v| set2.iter().any(|v2| Self::values_equal(v, v2)))
                         .cloned()
                         .collect();
                     Value::Set(result)
@@ -4326,7 +4323,7 @@ impl Interpreter {
                 {
                     let result: Vec<Value> = set1
                         .iter()
-                        .filter(|v| !set2.iter().any(|v2| self.values_equal(v, v2)))
+                        .filter(|v| !set2.iter().any(|v2| Self::values_equal(v, v2)))
                         .cloned()
                         .collect();
                     Value::Set(result)
@@ -4472,9 +4469,14 @@ impl Interpreter {
 
             "channel" => {
                 // channel() - creates a new channel for thread communication
+                // Note: Using Arc<Mutex<(Sender, Receiver)>> even though Receiver is not Sync
+                // This is necessary because both ends need to be stored together in Value::Channel
+                // The Mutex ensures only one thread accesses them at a time
                 use std::sync::mpsc;
                 let (sender, receiver) = mpsc::channel();
-                Value::Channel(Arc::new(Mutex::new((sender, receiver))))
+                #[allow(clippy::arc_with_non_send_sync)]
+                let channel = Arc::new(Mutex::new((sender, receiver)));
+                Value::Channel(channel)
             }
 
             "db_close" => {
@@ -4878,14 +4880,14 @@ impl Interpreter {
     }
 
     /// Helper method to check if two values are equal (for Set operations)
-    fn values_equal(&self, a: &Value, b: &Value) -> bool {
+    fn values_equal(a: &Value, b: &Value) -> bool {
         match (a, b) {
             (Value::Float(x), Value::Float(y)) => (x - y).abs() < f64::EPSILON,
             (Value::Str(x), Value::Str(y)) => x == y,
             (Value::Bool(x), Value::Bool(y)) => x == y,
             (Value::Null, Value::Null) => true,
             (Value::Array(x), Value::Array(y)) => {
-                x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| self.values_equal(a, b))
+                x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| Self::values_equal(a, b))
             }
             _ => false, // Different types or complex types not supported for equality
         }
@@ -4982,7 +4984,7 @@ impl Interpreter {
 
     /// Public wrapper for evaluating a single statement (for REPL use)
     /// Returns an error if execution fails
-    pub fn eval_stmt_repl(&mut self, stmt: &Stmt) -> Result<(), RuffError> {
+    pub fn eval_stmt_repl(&mut self, stmt: &Stmt) -> Result<(), Box<RuffError>> {
         self.eval_stmt(stmt);
 
         // Check if an error occurred during evaluation
@@ -4994,7 +4996,7 @@ impl Interpreter {
                         crate::errors::SourceLocation::unknown(),
                     );
                     self.return_value = None; // Clear error for next input
-                    return Err(err);
+                    return Err(Box::new(err));
                 }
                 Value::ErrorObject { message, .. } => {
                     let err = RuffError::runtime_error(
@@ -5002,7 +5004,7 @@ impl Interpreter {
                         crate::errors::SourceLocation::unknown(),
                     );
                     self.return_value = None; // Clear error for next input
-                    return Err(err);
+                    return Err(Box::new(err));
                 }
                 _ => {}
             }
@@ -5013,16 +5015,16 @@ impl Interpreter {
 
     /// Public wrapper for evaluating an expression (for REPL use)
     /// Returns the evaluated value or an error
-    pub fn eval_expr_repl(&mut self, expr: &Expr) -> Result<Value, RuffError> {
+    pub fn eval_expr_repl(&mut self, expr: &Expr) -> Result<Value, Box<RuffError>> {
         let value = self.eval_expr(expr);
 
         // Check if the value is an error
         match value {
             Value::Error(msg) => {
-                Err(RuffError::runtime_error(msg, crate::errors::SourceLocation::unknown()))
+                Err(Box::new(RuffError::runtime_error(msg, crate::errors::SourceLocation::unknown())))
             }
             Value::ErrorObject { message, .. } => {
-                Err(RuffError::runtime_error(message, crate::errors::SourceLocation::unknown()))
+                Err(Box::new(RuffError::runtime_error(message, crate::errors::SourceLocation::unknown())))
             }
             _ => Ok(value),
         }
@@ -5314,11 +5316,9 @@ impl Interpreter {
                                 self.env.pop_scope();
                                 return;
                             }
-                        } else {
-                            if pattern.as_str() == tag_str {
-                                self.eval_stmts(body);
-                                return;
-                            }
+                        } else if pattern.as_str() == tag_str {
+                            self.eval_stmts(body);
+                            return;
                         }
                     }
                     
@@ -6931,8 +6931,7 @@ impl Interpreter {
             self.env.scopes.iter().flat_map(|scope| scope.keys().cloned()).collect();
 
         for var_name in var_names {
-            if let Some(value) = self.env.get(&var_name) {
-                if let Value::Database { connection, db_type, in_transaction, .. } = value {
+            if let Some(Value::Database { connection, db_type, in_transaction, .. }) = self.env.get(&var_name) {
                     // Check if in transaction
                     let is_in_trans = {
                         let in_trans = in_transaction.lock().unwrap();
@@ -6965,7 +6964,6 @@ impl Interpreter {
                         let mut in_trans = in_transaction.lock().unwrap();
                         *in_trans = false;
                     }
-                }
             }
         }
     }
