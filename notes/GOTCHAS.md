@@ -141,6 +141,28 @@ If you are new to the project, read this first.
 
 ---
 
+## CLI & Arguments
+
+### Clap intercepts script arguments without trailing_var_arg
+- **Problem:** `ruff run script.ruff --flag value` fails because clap tries to parse `--flag` as a ruff option
+- **Rule:** Must use `trailing_var_arg = true` and `allow_hyphen_values = true` on `script_args` field in clap command definition
+- **Why:** Clap's default behavior is to parse all flags/options, even after positional arguments
+- **Solution:** Add `script_args: Vec<String>` with `#[arg(trailing_var_arg = true, allow_hyphen_values = true)]`
+- **Implication:** Enables natural CLI argument passing: `ruff run script.ruff --input file.txt --verbose`
+
+(Discovered during: 2026-01-25_23-15_arg-parser-implementation.md)
+
+### Optional arguments without defaults need explicit Null
+- **Problem:** When optional arguments aren't provided and have no default, accessing them in dict returns 0
+- **Rule:** Always add `Value::Null` for optional non-bool arguments without defaults in parse results
+- **Why:** Dictionary access for missing keys returns 0 (default behavior), which is confusing
+- **Solution:** In `parse_arguments()`, explicitly insert `Value::Null` for missing optional arguments
+- **Code location:** src/builtins.rs, parse_arguments() function
+
+(Discovered during: 2026-01-25_23-15_arg-parser-implementation.md)
+
+---
+
 ## Testing
 
 ### Each feature should have dedicated test file with 10-15 cases
