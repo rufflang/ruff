@@ -12,6 +12,35 @@
 
 ### Recently Completed in v0.8.0 ✅
 
+* **Showcase Projects** 🎨
+  - Six comprehensive real-world projects demonstrating Ruff capabilities
+  - Complete examples: log analyzer, task manager, API tester, data pipeline, web scraper, markdown converter
+  - Each project combines multiple features (arg_parser, file I/O, HTTP, JSON, regex, Result types)
+  - Production-ready templates for building CLI tools, data processing pipelines, and automation scripts
+  - See `examples/SHOWCASE_PROJECTS.md` for complete guide and usage examples
+
+* **Argument Parser** 🛠️
+  - Professional CLI argument parsing with `arg_parser()`
+  - Boolean flags, string/int/float options, required/optional arguments, defaults
+  - Short and long forms (`-v`, `--verbose`), automatic help generation
+  - Fluent API pattern with method chaining
+  - Example:
+    ```ruff
+    parser := arg_parser()
+    parser := parser.add_argument("--verbose", "short", "-v", "type", "bool", "help", "Enable verbose output")
+    parser := parser.add_argument("--config", "type", "string", "required", true)
+    args := parser.parse()
+    if args._verbose {
+        print("Verbose mode enabled")
+    }
+    ```
+  - See `examples/arg_parser_demo.ruff` and `tests/arg_parser.ruff` for complete examples
+
+* **Environment Variable Helpers** 🔧
+  - Advanced environment variable management: `env_or()`, `env_int()`, `env_float()`, `env_bool()`, `env_required()`, `env_set()`, `env_list()`
+  - Get with defaults, parse as types, require or error, set programmatically
+  - Example: `db_host := env_or("DB_HOST", "localhost")`
+
 * **Result & Option Types** 🎁
   - Robust error handling with `Result<T, E>` type
   - Null safety with `Option<T>` type
