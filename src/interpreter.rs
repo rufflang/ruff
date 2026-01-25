@@ -557,8 +557,12 @@ impl Interpreter {
         // Dict functions
         self.env.define("keys".to_string(), Value::NativeFunction("keys".to_string()));
         self.env.define("values".to_string(), Value::NativeFunction("values".to_string()));
+        self.env.define("items".to_string(), Value::NativeFunction("items".to_string()));
         self.env.define("has_key".to_string(), Value::NativeFunction("has_key".to_string()));
+        self.env.define("get".to_string(), Value::NativeFunction("get".to_string()));
         self.env.define("remove".to_string(), Value::NativeFunction("remove".to_string()));
+        self.env.define("clear".to_string(), Value::NativeFunction("clear".to_string()));
+        self.env.define("merge".to_string(), Value::NativeFunction("merge".to_string()));
 
         // I/O functions
         self.env.define("input".to_string(), Value::NativeFunction("input".to_string()));
@@ -1642,8 +1646,12 @@ impl Interpreter {
             }
 
             "clear" => {
-                // clear(arr) - returns empty array
-                Value::Array(builtins::array_clear())
+                // Polymorphic: clear(arr) for arrays, clear(dict) for dicts
+                match arg_values.get(0) {
+                    Some(Value::Array(_)) => Value::Array(builtins::array_clear()),
+                    Some(Value::Dict(_)) => Value::Dict(HashMap::new()),
+                    _ => Value::Array(vec![]),
+                }
             }
 
             // Array higher-order functions
@@ -1999,6 +2007,46 @@ impl Interpreter {
                     Value::Int(if dict.contains_key(key) { 1 } else { 0 })
                 } else {
                     Value::Int(0)
+                }
+            }
+
+            "items" => {
+                // items(dict) - returns array of [key, value] arrays
+                if let Some(Value::Dict(dict)) = arg_values.get(0) {
+                    let items: Vec<Value> = dict
+                        .iter()
+                        .map(|(k, v)| Value::Array(vec![Value::Str(k.clone()), v.clone()]))
+                        .collect();
+                    Value::Array(items)
+                } else {
+                    Value::Array(vec![])
+                }
+            }
+
+            "get" => {
+                // get(dict, key, default?) - returns value or default if key not found
+                if let (Some(Value::Dict(dict)), Some(Value::Str(key))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let default = arg_values.get(2).cloned().unwrap_or(Value::Null);
+                    dict.get(key).cloned().unwrap_or(default)
+                } else {
+                    Value::Null
+                }
+            }
+
+            "merge" => {
+                // merge(dict1, dict2) - returns new dict with dict2 merged into dict1
+                if let (Some(Value::Dict(dict1)), Some(Value::Dict(dict2))) =
+                    (arg_values.get(0), arg_values.get(1))
+                {
+                    let mut result = dict1.clone();
+                    for (k, v) in dict2.iter() {
+                        result.insert(k.clone(), v.clone());
+                    }
+                    Value::Dict(result)
+                } else {
+                    Value::Dict(HashMap::new())
                 }
             }
 
