@@ -9,6 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Type Conversion Functions** 🔄 - Convert between types with explicit conversion functions (P0 feature):
+  - **to_int(value)** - Convert to integer:
+    - From Float: Truncates decimal (e.g., `to_int(3.14)` → `3`)
+    - From String: Parses integer (e.g., `to_int("42")` → `42`)
+    - From Bool: `true` → `1`, `false` → `0`
+    - From Int: Returns as-is
+  - **to_float(value)** - Convert to floating-point:
+    - From Int: Converts to float (e.g., `to_float(42)` → `42.0`)
+    - From String: Parses float (e.g., `to_float("3.14")` → `3.14`)
+    - From Bool: `true` → `1.0`, `false` → `0.0`
+    - From Float: Returns as-is
+  - **to_string(value)** - Convert any value to string representation:
+    - Works with all types: Int, Float, Bool, Arrays, Dicts, etc.
+    - Uses same formatting as `print()` function
+    - Example: `to_string(42)` → `"42"`, `to_string([1, 2])` → `"[1, 2]"`
+  - **to_bool(value)** - Convert to boolean with intuitive truthiness:
+    - Int/Float: `0` and `0.0` → `false`, all other values → `true`
+    - String: Empty string, `"false"`, `"0"` → `false`, others → `true`
+    - Arrays/Dicts: Empty → `false`, non-empty → `true`
+    - Null: → `false`
+  - **Error Handling**: Invalid conversions (e.g., `to_int("abc")`) return error values
+  - **Comprehensive Testing**: 17 new tests covering all conversion scenarios
+  - **Example**:
+    ```ruff
+    # Numeric conversions
+    x := to_int(3.14)         # 3 (truncate)
+    y := to_float(42)         # 42.0
+    
+    # String parsing
+    age := to_int("25")       # 25
+    price := to_float("9.99") # 9.99
+    
+    # String formatting
+    msg := to_string(42)      # "42"
+    
+    # Boolean conversion
+    is_active := to_bool(1)   # true
+    is_empty := to_bool("")   # false
+    has_items := to_bool([1]) # true
+    
+    # Chaining conversions
+    result := to_int(to_float(to_string(42)))  # 42
+    ```
+
 - **Type Checker Int/Float Support** 🎯 - Enhanced static type checking for integer and float types:
   - **Type Promotion**: Type checker now allows `Int` → `Float` promotion
     - Functions expecting `Float` accept `Int` arguments (e.g., `abs(5)` is valid)
