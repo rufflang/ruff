@@ -44,6 +44,10 @@ enum Commands {
         /// Use bytecode VM instead of tree-walking interpreter
         #[arg(long)]
         vm: bool,
+        
+        /// Arguments to pass to the script
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        script_args: Vec<String>,
     },
 
     /// Launch interactive Ruff REPL
@@ -61,7 +65,20 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { file, vm } => {
+        Commands::Run { file, vm, script_args } => {
+            // Store script arguments in environment for args() function to retrieve
+            // We need to prepend the script filename so the filtering logic works correctly
+            if !script_args.is_empty() {
+                // Create a modified args list: [script_name, ...script_args]
+                let mut full_args: Vec<String> = std::env::args().take(3).collect(); // ruff, run, script_name
+                full_args.extend(script_args);
+                
+                // Clear current args and set new ones
+                // Note: This is a workaround since we can't directly modify env::args()
+                // Instead, we'll pass these to the interpreter through the environment
+                std::env::set_var("RUFF_SCRIPT_ARGS", full_args[3..].join("\x1f")); // Use unit separator
+            }
+            
             let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
             let filename = file.to_string_lossy().to_string();
             let tokens = lexer::tokenize(&code);

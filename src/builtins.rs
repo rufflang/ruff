@@ -983,6 +983,12 @@ pub fn env_list() -> HashMap<String, String> {
 
 /// Get command-line arguments
 pub fn get_args() -> Vec<String> {
+    // Check if arguments were explicitly set via RUFF_SCRIPT_ARGS environment variable
+    // This is used when arguments are passed via clap's trailing_var_arg
+    if let Ok(args_str) = env::var("RUFF_SCRIPT_ARGS") {
+        return args_str.split('\x1f').map(String::from).collect();
+    }
+    
     let all_args: Vec<String> = env::args().collect();
     
     // Filter out the ruff executable, subcommand, and script file
@@ -1613,6 +1619,205 @@ pub fn format_debug_value(value: &Value) -> String {
             }
         }
     }
+}
+
+/// Command-line argument parser
+/// Represents an argument definition
+#[derive(Debug, Clone)]
+pub struct ArgumentDef {
+    pub long_name: String,        // e.g., "--verbose"
+    pub short_name: Option<String>, // e.g., "-v"
+    pub arg_type: String,         // "bool", "string", "int", "float"
+    pub required: bool,
+    pub help: String,
+    pub default: Option<String>,
+}
+
+/// Parse command-line arguments based on defined arguments
+/// Returns a HashMap of argument names to values
+pub fn parse_arguments(
+    arg_defs: &[ArgumentDef],
+    args: &[String],
+) -> Result<HashMap<String, Value>, String> {
+    let mut result = HashMap::new();
+    let mut i = 0;
+    let mut positional_args: Vec<String> = Vec::new();
+
+    // Track which arguments were found
+    let mut found_args = std::collections::HashSet::new();
+
+    while i < args.len() {
+        let arg = &args[i];
+
+        if arg.starts_with("--") || arg.starts_with('-') {
+            // This is a flag or option
+            let mut found = false;
+
+            for def in arg_defs {
+                let matches_long = arg == &def.long_name;
+                let matches_short = def.short_name.as_ref().map_or(false, |s| arg == s);
+
+                if matches_long || matches_short {
+                    found = true;
+                    let key = def.long_name.trim_start_matches("--").to_string();
+                    found_args.insert(key.clone());
+
+                    match def.arg_type.as_str() {
+                        "bool" => {
+                            // Flags don't consume next argument
+                            result.insert(key, Value::Bool(true));
+                        }
+                        "string" => {
+                            // Consume next argument as string value
+                            if i + 1 < args.len() {
+                                i += 1;
+                                result.insert(key, Value::Str(args[i].clone()));
+                            } else {
+                                return Err(format!(
+                                    "Argument {} requires a value",
+                                    def.long_name
+                                ));
+                            }
+                        }
+                        "int" => {
+                            // Consume next argument and parse as int
+                            if i + 1 < args.len() {
+                                i += 1;
+                                match args[i].parse::<i64>() {
+                                    Ok(val) => {
+                                        result.insert(key, Value::Int(val));
+                                    }
+                                    Err(_) => {
+                                        return Err(format!(
+                                            "Argument {} requires an integer value, got: {}",
+                                            def.long_name, args[i]
+                                        ));
+                                    }
+                                }
+                            } else {
+                                return Err(format!(
+                                    "Argument {} requires a value",
+                                    def.long_name
+                                ));
+                            }
+                        }
+                        "float" => {
+                            // Consume next argument and parse as float
+                            if i + 1 < args.len() {
+                                i += 1;
+                                match args[i].parse::<f64>() {
+                                    Ok(val) => {
+                                        result.insert(key, Value::Float(val));
+                                    }
+                                    Err(_) => {
+                                        return Err(format!(
+                                            "Argument {} requires a float value, got: {}",
+                                            def.long_name, args[i]
+                                        ));
+                                    }
+                                }
+                            } else {
+                                return Err(format!(
+                                    "Argument {} requires a value",
+                                    def.long_name
+                                ));
+                            }
+                        }
+                        _ => {
+                            return Err(format!("Unknown argument type: {}", def.arg_type));
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if !found {
+                return Err(format!("Unknown argument: {}", arg));
+            }
+        } else {
+            // Positional argument
+            positional_args.push(arg.clone());
+        }
+
+        i += 1;
+    }
+
+    // Check for required arguments
+    for def in arg_defs {
+        let key = def.long_name.trim_start_matches("--").to_string();
+        if def.required && !found_args.contains(&key) {
+            return Err(format!("Required argument {} is missing", def.long_name));
+        }
+
+        // Apply defaults for missing optional arguments
+        if !def.required && !found_args.contains(&key) {
+            if let Some(default_val) = &def.default {
+                let value = match def.arg_type.as_str() {
+                    "bool" => Value::Bool(default_val == "true"),
+                    "string" => Value::Str(default_val.clone()),
+                    "int" => Value::Int(default_val.parse().unwrap_or(0)),
+                    "float" => Value::Float(default_val.parse().unwrap_or(0.0)),
+                    _ => Value::Str(default_val.clone()),
+                };
+                result.insert(key, value);
+            } else if def.arg_type == "bool" {
+                // Bool flags default to false if not provided
+                result.insert(key, Value::Bool(false));
+            } else {
+                // For non-bool optional arguments without defaults, use Null
+                result.insert(key, Value::Null);
+            }
+        }
+    }
+
+    // Store positional arguments if any
+    if !positional_args.is_empty() {
+        result.insert(
+            "_positional".to_string(),
+            Value::Array(positional_args.into_iter().map(Value::Str).collect()),
+        );
+    }
+
+    Ok(result)
+}
+
+/// Generate help text from argument definitions
+pub fn generate_help(arg_defs: &[ArgumentDef], app_name: &str, description: &str) -> String {
+    let mut help = format!("{}\n\n{}\n\nOptions:\n", app_name, description);
+
+    for def in arg_defs {
+        let mut line = String::new();
+
+        // Short and long names
+        if let Some(short) = &def.short_name {
+            line.push_str(&format!("  {}, {}", short, def.long_name));
+        } else {
+            line.push_str(&format!("      {}", def.long_name));
+        }
+
+        // Type and required
+        if def.arg_type != "bool" {
+            line.push_str(&format!(" <{}>", def.arg_type));
+        }
+        if def.required {
+            line.push_str(" (required)");
+        }
+
+        // Default value
+        if let Some(default) = &def.default {
+            line.push_str(&format!(" [default: {}]", default));
+        }
+
+        help.push_str(&line);
+        help.push('\n');
+
+        // Help text
+        if !def.help.is_empty() {
+            help.push_str(&format!("        {}\n", def.help));
+        }
+    }
+
+    help
 }
 
 #[cfg(test)]

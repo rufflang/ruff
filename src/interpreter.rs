@@ -747,6 +747,7 @@ impl Interpreter {
         self.env.define("env_set".to_string(), Value::NativeFunction("env_set".to_string()));
         self.env.define("env_list".to_string(), Value::NativeFunction("env_list".to_string()));
         self.env.define("args".to_string(), Value::NativeFunction("args".to_string()));
+        self.env.define("arg_parser".to_string(), Value::NativeFunction("arg_parser".to_string()));
         self.env.define("exit".to_string(), Value::NativeFunction("exit".to_string()));
         self.env.define("sleep".to_string(), Value::NativeFunction("sleep".to_string()));
         self.env.define("execute".to_string(), Value::NativeFunction("execute".to_string()));
@@ -3279,6 +3280,19 @@ impl Interpreter {
                 let args = builtins::get_args();
                 let values: Vec<Value> = args.into_iter().map(Value::Str).collect();
                 Value::Array(values)
+            }
+
+            "arg_parser" => {
+                // arg_parser() - creates a new argument parser
+                // Returns a struct with empty argument definitions
+                let mut fields = HashMap::new();
+                fields.insert("_args".to_string(), Value::Array(Vec::new())); // Empty arg defs
+                fields.insert("_app_name".to_string(), Value::Str(String::new()));
+                fields.insert("_description".to_string(), Value::Str(String::new()));
+                Value::Struct {
+                    name: "ArgParser".to_string(),
+                    fields,
+                }
             }
 
             "exit" => {
@@ -6418,6 +6432,236 @@ impl Interpreter {
                                 }
                             }
                             _ => return Value::Error(format!("Channel has no method '{}'", field)),
+                        }
+                    }
+
+                    // Handle ArgParser methods
+                    if let Value::Struct { name, fields } = &obj_val {
+                        if name == "ArgParser" {
+                            match field.as_str() {
+                                "add_argument" => {
+                                    // parser.add_argument(long, short, type, required, help, default)
+                                    // Extract arguments
+                                    let mut long_name = String::new();
+                                    let mut short_name: Option<String> = None;
+                                    let mut arg_type = String::from("string");
+                                    let mut required = false;
+                                    let mut help = String::new();
+                                    let mut default: Option<String> = None;
+
+                                    // First argument is always the long name
+                                    if !args.is_empty() {
+                                        if let Value::Str(s) = self.eval_expr(&args[0]) {
+                                            long_name = s;
+                                        }
+                                    }
+
+                                    // Process remaining keyword-style arguments
+                                    // In Ruff, these come as alternating key-value pairs
+                                    let mut i = 1;
+                                    while i < args.len() {
+                                        if let Value::Str(key) = self.eval_expr(&args[i]) {
+                                            if i + 1 < args.len() {
+                                                let value = self.eval_expr(&args[i + 1]);
+                                                match key.as_str() {
+                                                    "short" => {
+                                                        if let Value::Str(s) = value {
+                                                            short_name = Some(s);
+                                                        }
+                                                    }
+                                                    "type" => {
+                                                        if let Value::Str(s) = value {
+                                                            arg_type = s;
+                                                        }
+                                                    }
+                                                    "required" => {
+                                                        if let Value::Bool(b) = value {
+                                                            required = b;
+                                                        }
+                                                    }
+                                                    "help" => {
+                                                        if let Value::Str(s) = value {
+                                                            help = s;
+                                                        }
+                                                    }
+                                                    "default" => {
+                                                        if let Value::Str(s) = value {
+                                                            default = Some(s);
+                                                        }
+                                                    }
+                                                    _ => {}
+                                                }
+                                                i += 2;
+                                            } else {
+                                                i += 1;
+                                            }
+                                        } else {
+                                            i += 1;
+                                        }
+                                    }
+
+                                    // Create argument definition
+                                    let mut arg_def = HashMap::new();
+                                    arg_def.insert("long".to_string(), Value::Str(long_name));
+                                    if let Some(short) = short_name {
+                                        arg_def.insert("short".to_string(), Value::Str(short));
+                                    }
+                                    arg_def.insert("type".to_string(), Value::Str(arg_type));
+                                    arg_def.insert("required".to_string(), Value::Bool(required));
+                                    arg_def.insert("help".to_string(), Value::Str(help));
+                                    if let Some(def) = default {
+                                        arg_def.insert("default".to_string(), Value::Str(def));
+                                    }
+
+                                    // Add to the parser's argument list
+                                    let mut new_fields = fields.clone();
+                                    if let Some(Value::Array(mut arg_list)) =
+                                        new_fields.get("_args").cloned()
+                                    {
+                                        arg_list.push(Value::Dict(arg_def));
+                                        new_fields.insert("_args".to_string(), Value::Array(arg_list));
+                                    }
+
+                                    return Value::Struct {
+                                        name: "ArgParser".to_string(),
+                                        fields: new_fields,
+                                    };
+                                }
+                                "parse" => {
+                                    // parser.parse() - parse command-line arguments
+                                    // Convert stored argument definitions to ArgumentDef structs
+                                    let mut arg_defs = Vec::new();
+
+                                    if let Some(Value::Array(arg_list)) = fields.get("_args") {
+                                        for arg_val in arg_list {
+                                            if let Value::Dict(arg_dict) = arg_val {
+                                                let long_name = match arg_dict.get("long") {
+                                                    Some(Value::Str(s)) => s.clone(),
+                                                    _ => continue,
+                                                };
+
+                                                let short_name = match arg_dict.get("short") {
+                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    _ => None,
+                                                };
+
+                                                let arg_type = match arg_dict.get("type") {
+                                                    Some(Value::Str(s)) => s.clone(),
+                                                    _ => "string".to_string(),
+                                                };
+
+                                                let required = match arg_dict.get("required") {
+                                                    Some(Value::Bool(b)) => *b,
+                                                    _ => false,
+                                                };
+
+                                                let help = match arg_dict.get("help") {
+                                                    Some(Value::Str(s)) => s.clone(),
+                                                    _ => String::new(),
+                                                };
+
+                                                let default = match arg_dict.get("default") {
+                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    _ => None,
+                                                };
+
+                                                arg_defs.push(builtins::ArgumentDef {
+                                                    long_name,
+                                                    short_name,
+                                                    arg_type,
+                                                    required,
+                                                    help,
+                                                    default,
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    // Get command-line arguments
+                                    let cli_args = builtins::get_args();
+
+                                    // Parse arguments
+                                    match builtins::parse_arguments(&arg_defs, &cli_args) {
+                                        Ok(parsed) => return Value::Dict(parsed),
+                                        Err(msg) => {
+                                            return Value::ErrorObject {
+                                                message: msg,
+                                                stack: Vec::new(),
+                                                line: None,
+                                                cause: None,
+                                            }
+                                        }
+                                    }
+                                }
+                                "help" => {
+                                    // parser.help() - generate help text
+                                    let mut arg_defs = Vec::new();
+
+                                    if let Some(Value::Array(arg_list)) = fields.get("_args") {
+                                        for arg_val in arg_list {
+                                            if let Value::Dict(arg_dict) = arg_val {
+                                                let long_name = match arg_dict.get("long") {
+                                                    Some(Value::Str(s)) => s.clone(),
+                                                    _ => continue,
+                                                };
+
+                                                let short_name = match arg_dict.get("short") {
+                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    _ => None,
+                                                };
+
+                                                let arg_type = match arg_dict.get("type") {
+                                                    Some(Value::Str(s)) => s.clone(),
+                                                    _ => "string".to_string(),
+                                                };
+
+                                                let required = match arg_dict.get("required") {
+                                                    Some(Value::Bool(b)) => *b,
+                                                    _ => false,
+                                                };
+
+                                                let help = match arg_dict.get("help") {
+                                                    Some(Value::Str(s)) => s.clone(),
+                                                    _ => String::new(),
+                                                };
+
+                                                let default = match arg_dict.get("default") {
+                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    _ => None,
+                                                };
+
+                                                arg_defs.push(builtins::ArgumentDef {
+                                                    long_name,
+                                                    short_name,
+                                                    arg_type,
+                                                    required,
+                                                    help,
+                                                    default,
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    let app_name = match fields.get("_app_name") {
+                                        Some(Value::Str(s)) => s.clone(),
+                                        _ => "program".to_string(),
+                                    };
+
+                                    let description = match fields.get("_description") {
+                                        Some(Value::Str(s)) => s.clone(),
+                                        _ => String::new(),
+                                    };
+
+                                    let help_text = builtins::generate_help(&arg_defs, &app_name, &description);
+                                    return Value::Str(help_text);
+                                }
+                                _ => {
+                                    return Value::Error(format!(
+                                        "ArgParser has no method '{}'",
+                                        field
+                                    ))
+                                }
+                            }
                         }
                     }
 
