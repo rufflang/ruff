@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Complete Timing Suite** ⏱️ - Robust benchmarking and performance measurement:
+  - **High-Precision Timers**:
+    - `time_us()` - Returns microseconds since program start (1/1,000 millisecond precision)
+    - `time_ns()` - Returns nanoseconds since program start (1/1,000,000 millisecond precision)
+    - Ideal for measuring very fast operations and CPU-level performance analysis
+  - **Duration Helpers**:
+    - `format_duration(ms)` - Automatically formats milliseconds to human-readable strings
+      - Examples: `5.00s`, `123.45ms`, `567.89μs`, `123ns`
+      - Automatically chooses the best unit for readability
+    - `elapsed(start, end)` - Calculate time difference between two timestamps
+  - **Use Cases**:
+    - Benchmark algorithm performance with microsecond precision
+    - Compare multiple implementation approaches
+    - Profile code execution at different precision levels
+    - Generate readable performance reports
+  - **Example**:
+    ```ruff
+    # Microsecond precision benchmarking
+    start := time_us()
+    # ... fast operation ...
+    end := time_us()
+    print("Took: " + format_duration((end - start) / 1000.0))
+    
+    # Nanosecond precision for ultra-fast operations
+    start_ns := time_ns()
+    x := x + 1  # Single operation
+    end_ns := time_ns()
+    print("Single add: " + (end_ns - start_ns) + "ns")
+    ```
+  - See `examples/benchmark_demo.ruff` for comprehensive examples
+
 - **Timing Functions** ⏱️:
   - `current_timestamp()` - Returns current timestamp in milliseconds since UNIX epoch (January 1, 1970)
     - Returns a large number like `1769313715178` (milliseconds)
