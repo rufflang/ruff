@@ -1591,6 +1591,7 @@ pub fn format_debug_value(value: &Value) -> String {
             let name = chunk.name.as_ref().map(|s| s.as_str()).unwrap_or("<lambda>");
             format!("BytecodeFunction({})", name)
         }
+        Value::ArrayMarker => "ArrayMarker".to_string(),
         Value::Struct { name, .. } => format!("Struct({})", name),
         Value::StructDef { name, .. } => format!("StructDef({})", name),
         Value::Tagged { tag, fields } => {

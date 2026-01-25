@@ -120,8 +120,12 @@ pub enum OpCode {
     
     // === Collection Operations ===
     /// Create an array from N values on stack
-    /// Operand: number of elements
+    /// Operand: number of elements (excluding spread expansions)
+    /// Note: SpreadArray operations expand before this, so actual count may differ
     MakeArray(usize),
+    
+    /// Push a marker value onto the stack (for dynamic collection)
+    PushArrayMarker,
     
     /// Create a dict from 2N values on stack (key1, val1, key2, val2, ...)
     /// Operand: number of key-value pairs
