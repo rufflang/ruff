@@ -1330,29 +1330,34 @@ impl TypeChecker {
         self.recursion_depth += 1;
 
         match stmt {
-            Stmt::Let { name, value, type_annotation, .. } => {
+            Stmt::Let { pattern, value, type_annotation, .. } => {
                 let inferred_type = self.infer_expr(value);
 
-                // If type annotation is provided, check compatibility
-                if let Some(annotated_type) = type_annotation {
-                    if let Some(inferred) = &inferred_type {
-                        if !annotated_type.matches(inferred) {
-                            self.errors.push(RuffError::new(
-                                ErrorKind::TypeError,
-                                format!(
-									"Type mismatch: variable '{}' declared as {:?} but assigned {:?}",
-									name, annotated_type, inferred
-								),
-                                SourceLocation::unknown(),
-                            ));
+                // For simple identifier patterns, check type compatibility
+                if let crate::ast::Pattern::Identifier(name) = pattern {
+                    // If type annotation is provided, check compatibility
+                    if let Some(annotated_type) = type_annotation {
+                        if let Some(inferred) = &inferred_type {
+                            if !annotated_type.matches(inferred) {
+                                self.errors.push(RuffError::new(
+                                    ErrorKind::TypeError,
+                                    format!(
+                                        "Type mismatch: variable '{}' declared as {:?} but assigned {:?}",
+                                        name, annotated_type, inferred
+                                    ),
+                                    SourceLocation::unknown(),
+                                ));
+                            }
                         }
+                        // Store the annotated type
+                        self.variables.insert(name.clone(), Some(annotated_type.clone()));
+                    } else {
+                        // Store the inferred type
+                        self.variables.insert(name.clone(), inferred_type);
                     }
-                    // Store the annotated type
-                    self.variables.insert(name.clone(), Some(annotated_type.clone()));
-                } else {
-                    // Store the inferred type
-                    self.variables.insert(name.clone(), inferred_type);
                 }
+                // For destructuring patterns, we skip type checking for now
+                // TODO: Implement proper type checking for destructuring patterns
             }
 
             Stmt::Const { name, value, type_annotation } => {
@@ -1770,18 +1775,34 @@ impl TypeChecker {
             }
 
             Expr::ArrayLiteral(elements) => {
+                use crate::ast::ArrayElement;
                 // Type check all elements
                 for elem in elements {
-                    self.infer_expr(elem);
+                    match elem {
+                        ArrayElement::Single(expr) => {
+                            self.infer_expr(expr);
+                        }
+                        ArrayElement::Spread(expr) => {
+                            self.infer_expr(expr);
+                        }
+                    }
                 }
                 None // TODO: Return Array<T> type when generic types are implemented
             }
 
             Expr::DictLiteral(pairs) => {
+                use crate::ast::DictElement;
                 // Type check all keys and values
-                for (key, value) in pairs {
-                    self.infer_expr(key);
-                    self.infer_expr(value);
+                for elem in pairs {
+                    match elem {
+                        DictElement::Pair(key, value) => {
+                            self.infer_expr(key);
+                            self.infer_expr(value);
+                        }
+                        DictElement::Spread(expr) => {
+                            self.infer_expr(expr);
+                        }
+                    }
                 }
                 None // TODO: Return Dict<K, V> type when generic types are implemented
             }
@@ -1820,6 +1841,12 @@ impl TypeChecker {
                 let _ = return_type;
                 None
             }
+
+            Expr::Spread(expr) => {
+                // Type check the spread expression
+                self.infer_expr(expr);
+                None
+            }
         };
 
         self.recursion_depth -= 1;
@@ -1847,7 +1874,7 @@ mod tests {
     fn test_simple_type_inference() {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
-            name: "x".to_string(),
+            pattern: crate::ast::Pattern::Identifier("x".to_string()),
             value: Expr::Int(42),
             mutable: false,
             type_annotation: Some(TypeAnnotation::Int),
@@ -1861,7 +1888,7 @@ mod tests {
     fn test_type_mismatch() {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
-            name: "x".to_string(),
+            pattern: crate::ast::Pattern::Identifier("x".to_string()),
             value: Expr::String("hello".to_string()),
             mutable: false,
             type_annotation: Some(TypeAnnotation::Int),
@@ -1874,7 +1901,7 @@ mod tests {
     fn test_int_literal_inference() {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
-            name: "count".to_string(),
+            pattern: crate::ast::Pattern::Identifier("count".to_string()),
             value: Expr::Int(42),
             mutable: false,
             type_annotation: None,
@@ -1889,7 +1916,7 @@ mod tests {
     fn test_float_literal_inference() {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
-            name: "pi".to_string(),
+            pattern: crate::ast::Pattern::Identifier("pi".to_string()),
             value: Expr::Float(3.14),
             mutable: false,
             type_annotation: None,
@@ -1952,7 +1979,7 @@ mod tests {
     fn test_int_to_float_promotion_in_assignment() {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
-            name: "x".to_string(),
+            pattern: crate::ast::Pattern::Identifier("x".to_string()),
             value: Expr::Int(42),
             mutable: false,
             type_annotation: Some(TypeAnnotation::Float),
@@ -1966,7 +1993,7 @@ mod tests {
     fn test_float_to_int_no_promotion() {
         let mut checker = TypeChecker::new();
         let stmts = vec![Stmt::Let {
-            name: "x".to_string(),
+            pattern: crate::ast::Pattern::Identifier("x".to_string()),
             value: Expr::Float(42.5),
             mutable: false,
             type_annotation: Some(TypeAnnotation::Int),

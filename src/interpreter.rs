@@ -4456,6 +4456,85 @@ impl Interpreter {
         }
     }
 
+    /// Binds a pattern to a value, defining variables as needed
+    fn bind_pattern(&mut self, pattern: &crate::ast::Pattern, value: Value) {
+        use crate::ast::Pattern;
+        
+        match pattern {
+            Pattern::Identifier(name) => {
+                self.env.define(name.clone(), value);
+            }
+            Pattern::Ignore => {
+                // Do nothing - value is discarded
+            }
+            Pattern::Array { elements, rest } => {
+                // Extract array elements
+                if let Value::Array(arr) = value {
+                    let mut i = 0;
+                    let arr_len = arr.len();
+                    
+                    // Bind each pattern element
+                    for pattern_elem in elements {
+                        if i < arr_len {
+                            self.bind_pattern(pattern_elem, arr[i].clone());
+                            i += 1;
+                        } else {
+                            // Not enough elements - bind to null
+                            self.bind_pattern(pattern_elem, Value::Null);
+                        }
+                    }
+                    
+                    // Bind rest elements if present
+                    if let Some(rest_name) = rest {
+                        let rest_values: Vec<Value> = if i < arr_len {
+                            arr[i..].to_vec()
+                        } else {
+                            vec![]
+                        };
+                        self.env.define(rest_name.clone(), Value::Array(rest_values));
+                    }
+                } else {
+                    // Not an array - bind all patterns to null
+                    for pattern_elem in elements {
+                        self.bind_pattern(pattern_elem, Value::Null);
+                    }
+                    if let Some(rest_name) = rest {
+                        self.env.define(rest_name.clone(), Value::Array(vec![]));
+                    }
+                }
+            }
+            Pattern::Dict { keys, rest } => {
+                // Extract dict values
+                if let Value::Dict(dict) = value {
+                    // Bind each key
+                    for key in keys {
+                        let val = dict.get(key).cloned().unwrap_or(Value::Null);
+                        self.env.define(key.clone(), val);
+                    }
+                    
+                    // Bind rest elements if present
+                    if let Some(rest_name) = rest {
+                        let mut rest_dict = std::collections::HashMap::new();
+                        for (k, v) in dict.iter() {
+                            if !keys.contains(k) {
+                                rest_dict.insert(k.clone(), v.clone());
+                            }
+                        }
+                        self.env.define(rest_name.clone(), Value::Dict(rest_dict));
+                    }
+                } else {
+                    // Not a dict - bind all to null
+                    for key in keys {
+                        self.env.define(key.clone(), Value::Null);
+                    }
+                    if let Some(rest_name) = rest {
+                        self.env.define(rest_name.clone(), Value::Dict(std::collections::HashMap::new()));
+                    }
+                }
+            }
+        }
+    }
+
     /// Evaluates a list of statements sequentially, stopping on return/error
     pub fn eval_stmts(&mut self, stmts: &[Stmt]) {
         for stmt in stmts {
@@ -4563,13 +4642,13 @@ impl Interpreter {
                 // Restore parent environment
                 self.env.pop_scope();
             }
-            Stmt::Let { name, value, mutable: _, type_annotation: _ } => {
+            Stmt::Let { pattern, value, mutable: _, type_annotation: _ } => {
                 let val = self.eval_expr(&value);
                 // If expression evaluation resulted in an error, propagate it
                 if matches!(val, Value::Error(_)) {
                     self.return_value = Some(val.clone());
                 }
-                self.env.define(name.clone(), val);
+                self.bind_pattern(pattern, val);
             }
             Stmt::Const { name, value, type_annotation: _ } => {
                 let val = self.eval_expr(&value);
@@ -6148,21 +6227,56 @@ impl Interpreter {
                 }
             }
             Expr::ArrayLiteral(elements) => {
-                let values: Vec<Value> = elements.iter().map(|e| self.eval_expr(e)).collect();
+                use crate::ast::ArrayElement;
+                let mut values = Vec::new();
+                
+                for elem in elements {
+                    match elem {
+                        ArrayElement::Single(expr) => {
+                            values.push(self.eval_expr(expr));
+                        }
+                        ArrayElement::Spread(expr) => {
+                            // Evaluate spread expression and merge its elements
+                            let spread_val = self.eval_expr(expr);
+                            if let Value::Array(arr) = spread_val {
+                                values.extend(arr);
+                            }
+                            // If not an array, ignore the spread
+                        }
+                    }
+                }
+                
                 Value::Array(values)
             }
             Expr::DictLiteral(pairs) => {
+                use crate::ast::DictElement;
                 let mut map = HashMap::new();
-                for (key_expr, val_expr) in pairs {
-                    let key = match self.eval_expr(key_expr) {
-                        Value::Str(s) => s,
-                        Value::Int(n) => n.to_string(),
-                        Value::Float(n) => n.to_string(),
-                        _ => continue,
-                    };
-                    let value = self.eval_expr(val_expr);
-                    map.insert(key, value);
+                
+                for elem in pairs {
+                    match elem {
+                        DictElement::Pair(key_expr, val_expr) => {
+                            let key = match self.eval_expr(key_expr) {
+                                Value::Str(s) => s,
+                                Value::Int(n) => n.to_string(),
+                                Value::Float(n) => n.to_string(),
+                                _ => continue,
+                            };
+                            let value = self.eval_expr(val_expr);
+                            map.insert(key, value);
+                        }
+                        DictElement::Spread(expr) => {
+                            // Evaluate spread expression and merge its entries
+                            let spread_val = self.eval_expr(expr);
+                            if let Value::Dict(dict) = spread_val {
+                                for (k, v) in dict {
+                                    map.insert(k, v);
+                                }
+                            }
+                            // If not a dict, ignore the spread
+                        }
+                    }
                 }
+                
                 Value::Dict(map)
             }
             Expr::IndexAccess { object, index } => {
@@ -6197,6 +6311,11 @@ impl Interpreter {
                     }
                     _ => Value::Int(0),
                 }
+            }
+            Expr::Spread(_) => {
+                // Spread expressions should only appear inside array/dict literals
+                // If we reach here, it's a syntax error, but we'll return an error value
+                Value::Error("Spread operator (...) can only be used inside array or dict literals".to_string())
             }
         };
         result

@@ -97,6 +97,27 @@ impl Parser {
                 self.advance();
                 Some(Stmt::Continue)
             }
+            // Handle destructuring patterns: [a, b] := expr or {x, y} := expr
+            TokenKind::Punctuation('[') | TokenKind::Punctuation('{') => {
+                let saved_pos = self.pos;
+                // Try to parse as destructuring pattern
+                if let Some(pattern) = self.parse_pattern() {
+                    // Check if next token is :=
+                    if matches!(self.peek(), TokenKind::Operator(op) if op == ":=") {
+                        self.advance(); // consume :=
+                        let value = self.parse_expr()?;
+                        return Some(Stmt::Let { 
+                            pattern, 
+                            value, 
+                            mutable: false, 
+                            type_annotation: None 
+                        });
+                    }
+                }
+                // Not a destructuring pattern, restore and parse as expression
+                self.pos = saved_pos;
+                self.parse_expr().map(Stmt::ExprStmt)
+            }
             TokenKind::Identifier(_) => {
                 // Check for variable assignment (name := expr or expr[...] := expr)
                 // We need to look ahead and parse an expression to see if it's followed by :=
@@ -200,17 +221,132 @@ impl Parser {
             _ => false, // Plain identifier (e.g., val := ...)
         };
 
-        let name = match self.advance() {
-            TokenKind::Identifier(n) => n.clone(),
-            _ => return None,
-        };
+        // Parse pattern (identifier, array destructuring, or dict destructuring)
+        let pattern = self.parse_pattern()?;
 
         // Parse optional type annotation (: type)
         let type_annotation = self.parse_type_annotation();
 
         self.advance(); // :=
         let value = self.parse_expr()?;
-        Some(Stmt::Let { name, value, mutable: is_mut, type_annotation })
+        Some(Stmt::Let { pattern, value, mutable: is_mut, type_annotation })
+    }
+
+    /// Parse a destructuring pattern
+    fn parse_pattern(&mut self) -> Option<crate::ast::Pattern> {
+        use crate::ast::Pattern;
+        
+        match self.peek() {
+            // Array destructuring: [a, b, ...rest]
+            TokenKind::Punctuation('[') => {
+                self.advance(); // [
+                let mut elements = Vec::new();
+                let mut rest = None;
+                
+                loop {
+                    match self.peek() {
+                        TokenKind::Punctuation(']') => {
+                            self.advance();
+                            break;
+                        }
+                        TokenKind::Operator(op) if op == "..." => {
+                            // Rest element: ...rest
+                            self.advance(); // ...
+                            if let TokenKind::Identifier(name) = self.advance() {
+                                rest = Some(name.clone());
+                            }
+                            // After rest element, expect closing bracket
+                            if matches!(self.peek(), TokenKind::Punctuation(']')) {
+                                self.advance();
+                                break;
+                            }
+                        }
+                        TokenKind::Identifier(name) if name == "_" => {
+                            // Ignore placeholder
+                            self.advance();
+                            elements.push(Pattern::Ignore);
+                        }
+                        _ => {
+                            // Regular pattern (can be nested)
+                            let pattern = self.parse_pattern()?;
+                            elements.push(pattern);
+                        }
+                    }
+                    
+                    // Check for comma or closing bracket
+                    match self.peek() {
+                        TokenKind::Punctuation(',') => {
+                            self.advance();
+                        }
+                        TokenKind::Punctuation(']') => {
+                            self.advance();
+                            break;
+                        }
+                        _ => break,
+                    }
+                }
+                
+                Some(Pattern::Array { elements, rest })
+            }
+            // Dict destructuring: {name, email, ...rest}
+            TokenKind::Punctuation('{') => {
+                self.advance(); // {
+                let mut keys = Vec::new();
+                let mut rest = None;
+                
+                loop {
+                    match self.peek() {
+                        TokenKind::Punctuation('}') => {
+                            self.advance();
+                            break;
+                        }
+                        TokenKind::Operator(op) if op == "..." => {
+                            // Rest element: ...rest
+                            self.advance(); // ...
+                            if let TokenKind::Identifier(name) = self.advance() {
+                                rest = Some(name.clone());
+                            }
+                            // After rest element, expect closing brace
+                            if matches!(self.peek(), TokenKind::Punctuation('}')) {
+                                self.advance();
+                                break;
+                            }
+                        }
+                        TokenKind::Identifier(key) => {
+                            keys.push(key.clone());
+                            self.advance();
+                        }
+                        _ => break,
+                    }
+                    
+                    // Check for comma or closing brace
+                    match self.peek() {
+                        TokenKind::Punctuation(',') => {
+                            self.advance();
+                        }
+                        TokenKind::Punctuation('}') => {
+                            self.advance();
+                            break;
+                        }
+                        _ => break,
+                    }
+                }
+                
+                Some(Pattern::Dict { keys, rest })
+            }
+            // Ignore placeholder: _
+            TokenKind::Identifier(name) if name == "_" => {
+                self.advance();
+                Some(Pattern::Ignore)
+            }
+            // Simple identifier pattern
+            TokenKind::Identifier(name) => {
+                let name = name.clone();
+                self.advance();
+                Some(Pattern::Identifier(name))
+            }
+            _ => None,
+        }
     }
 
     fn parse_const(&mut self) -> Option<Stmt> {
@@ -1037,9 +1173,14 @@ impl Parser {
         while !matches!(self.peek(), TokenKind::Punctuation(']'))
             && !matches!(self.peek(), TokenKind::Eof)
         {
-            // Use parse_comparison to avoid infinite recursion through parse_call
-            if let Some(elem) = self.parse_comparison() {
-                elements.push(elem);
+            // Check for spread operator: ...expr
+            if matches!(self.peek(), TokenKind::Operator(op) if op == "...") {
+                self.advance(); // consume ...
+                if let Some(expr) = self.parse_comparison() {
+                    elements.push(crate::ast::ArrayElement::Spread(expr));
+                }
+            } else if let Some(elem) = self.parse_comparison() {
+                elements.push(crate::ast::ArrayElement::Single(elem));
             }
 
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
@@ -1063,6 +1204,20 @@ impl Parser {
         while !matches!(self.peek(), TokenKind::Punctuation('}'))
             && !matches!(self.peek(), TokenKind::Eof)
         {
+            // Check for spread operator: ...expr
+            if matches!(self.peek(), TokenKind::Operator(op) if op == "...") {
+                self.advance(); // consume ...
+                if let Some(expr) = self.parse_comparison() {
+                    pairs.push(crate::ast::DictElement::Spread(expr));
+                }
+                
+                if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                    self.advance();
+                } else if !matches!(self.peek(), TokenKind::Punctuation('}')) {
+                    break;
+                }
+                continue;
+            }
             // Parse key - use parse_comparison to avoid recursion
             let key = self.parse_comparison()?;
 
@@ -1074,7 +1229,7 @@ impl Parser {
 
             // Parse value - use parse_comparison to avoid recursion
             let value = self.parse_comparison()?;
-            pairs.push((key, value));
+            pairs.push(crate::ast::DictElement::Pair(key, value));
 
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
                 self.advance();

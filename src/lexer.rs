@@ -460,7 +460,31 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     tokens.push(Token { kind: TokenKind::Operator("&".into()), line, column: col });
                 }
             }
-            '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' | '.' => {
+            '.' => {
+                chars.next();
+                col += 1;
+                // Check for ... (spread operator)
+                if chars.peek() == Some(&'.') {
+                    chars.next();
+                    col += 1;
+                    if chars.peek() == Some(&'.') {
+                        chars.next();
+                        col += 1;
+                        tokens.push(Token {
+                            kind: TokenKind::Operator("...".into()),
+                            line,
+                            column: col,
+                        });
+                    } else {
+                        // Two dots (..) - treat as two separate dots for now
+                        tokens.push(Token { kind: TokenKind::Punctuation('.'), line, column: col - 1 });
+                        tokens.push(Token { kind: TokenKind::Punctuation('.'), line, column: col });
+                    }
+                } else {
+                    tokens.push(Token { kind: TokenKind::Punctuation('.'), line, column: col });
+                }
+            }
+            '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' => {
                 tokens.push(Token { kind: TokenKind::Punctuation(c), line, column: col });
                 chars.next();
                 col += 1;
