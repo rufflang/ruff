@@ -71,7 +71,12 @@
   - **NEW**: Enhanced error handling (v0.4.0) with error properties, custom error types, and stack traces
 
 * **Data Types**
-  - Numbers (f64)
+  - **NEW**: Integers (i64) and Floats (f64) - Separate types (v0.7.0)
+    - Integer literals: `42`, `-10`, `0`
+    - Float literals: `3.14`, `-2.5`, `0.0`
+    - Type preservation: `5 + 3` → `8` (int), `5.0 + 3.0` → `8.0` (float)
+    - Integer division truncates: `10 / 3` → `3`
+    - Mixed operations promote to float: `5 + 2.5` → `7.5`
   - Strings with escape sequences
   - **NEW**: String interpolation with `${}` (v0.3.0): `"Hello, ${name}!"`
   - Booleans: `true`, `false` (v0.3.0)
