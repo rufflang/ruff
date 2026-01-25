@@ -4891,7 +4891,7 @@ impl Interpreter {
 
                 if is_result_or_option {
                     // Match against Result or Option
-                    for (pattern, body) in &cases_clone {
+                    for (i, (pattern, body)) in cases_clone.iter().enumerate() {
                         if let Some(open_paren) = pattern.find('(') {
                             let (enum_tag, param_var) = pattern.split_at(open_paren);
                             let param_var = param_var.trim_matches(&['(', ')'][..]);
@@ -4905,9 +4905,11 @@ impl Interpreter {
                                 self.env.pop_scope();
                                 return;
                             }
-                        } else if pattern.as_str() == tag_str {
-                            self.eval_stmts(body);
-                            return;
+                        } else {
+                            if pattern.as_str() == tag_str {
+                                self.eval_stmts(body);
+                                return;
+                            }
                         }
                     }
                     
