@@ -1085,7 +1085,7 @@ impl Interpreter {
                         }
 
                         // Bind the other operand as the first parameter
-                        if let Some(param_name) = params.get(0) {
+                        if let Some(param_name) = params.first() {
                             self.env.define(param_name.clone(), other.clone());
                         }
                     }
@@ -1275,7 +1275,7 @@ impl Interpreter {
                     self.env.push_scope();
 
                     // Bind request parameter
-                    if let Some(param) = params.get(0) {
+                    if let Some(param) = params.first() {
                         self.env.define(param.clone(), req_obj);
                     }
 
@@ -1348,7 +1348,7 @@ impl Interpreter {
             
             // Math functions - single argument
             "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" | "log" | "exp" => {
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     let x = match val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -1375,7 +1375,7 @@ impl Interpreter {
 
             // Math functions - two arguments
             "pow" | "min" | "max" => {
-                if let (Some(val_a), Some(val_b)) = (arg_values.get(0), arg_values.get(1)) {
+                if let (Some(val_a), Some(val_b)) = (arg_values.first(), arg_values.get(1)) {
                     let a = match val_a {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -1399,7 +1399,7 @@ impl Interpreter {
             }
 
             // len() - works on strings, arrays, dicts, sets, queues, and stacks
-            "len" => match arg_values.get(0) {
+            "len" => match arg_values.first() {
                 Some(Value::Str(s)) => Value::Int(builtins::str_len(s) as i64),
                 Some(Value::Array(arr)) => Value::Int(arr.len() as i64),
                 Some(Value::Dict(dict)) => Value::Int(dict.len() as i64),
@@ -1411,7 +1411,7 @@ impl Interpreter {
             },
 
             "to_upper" | "upper" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::to_upper(s))
                 } else {
                     Value::Str(String::new())
@@ -1419,7 +1419,7 @@ impl Interpreter {
             }
 
             "to_lower" | "lower" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::to_lower(s))
                 } else {
                     Value::Str(String::new())
@@ -1427,7 +1427,7 @@ impl Interpreter {
             }
 
             "capitalize" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::capitalize(s))
                 } else {
                     Value::Str(String::new())
@@ -1435,7 +1435,7 @@ impl Interpreter {
             }
 
             "trim" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::trim(s))
                 } else {
                     Value::Str(String::new())
@@ -1443,7 +1443,7 @@ impl Interpreter {
             }
 
             "trim_start" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::trim_start(s))
                 } else {
                     Value::Str(String::new())
@@ -1451,7 +1451,7 @@ impl Interpreter {
             }
 
             "trim_end" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::trim_end(s))
                 } else {
                     Value::Str(String::new())
@@ -1459,7 +1459,7 @@ impl Interpreter {
             }
 
             "char_at" => {
-                if let (Some(Value::Str(s)), Some(index_val)) = (arg_values.get(0), arg_values.get(1)) {
+                if let (Some(Value::Str(s)), Some(index_val)) = (arg_values.first(), arg_values.get(1)) {
                     let index = match index_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -1472,7 +1472,7 @@ impl Interpreter {
             }
 
             "is_empty" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Bool(builtins::is_empty(s))
                 } else {
                     Value::Bool(true)
@@ -1480,7 +1480,7 @@ impl Interpreter {
             }
 
             "count_chars" => {
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Int(builtins::count_chars(s))
                 } else {
                     Value::Int(0)
@@ -1490,7 +1490,7 @@ impl Interpreter {
             // String functions - two arguments
             "contains" => {
                 // Polymorphic: works with strings and arrays
-                match (arg_values.get(0), arg_values.get(1)) {
+                match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Str(s)), Some(Value::Str(substr))) => {
                         Value::Int(if builtins::contains(s, substr) { 1 } else { 0 })
                     }
@@ -1503,7 +1503,7 @@ impl Interpreter {
 
             "substring" => {
                 if let (Some(Value::Str(s)), Some(start_val), Some(end_val)) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     let start = match start_val {
                         Value::Int(n) => *n as f64,
@@ -1524,7 +1524,7 @@ impl Interpreter {
             // String functions - three arguments
             "replace_str" | "replace" => {
                 if let (Some(Value::Str(s)), Some(Value::Str(old)), Some(Value::Str(new))) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     Value::Str(builtins::replace(s, old, new))
                 } else {
@@ -1535,7 +1535,7 @@ impl Interpreter {
             // String function: starts_with(str, prefix) - returns bool
             "starts_with" => {
                 if let (Some(Value::Str(s)), Some(Value::Str(prefix))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     Value::Bool(builtins::starts_with(s, prefix))
                 } else {
@@ -1546,7 +1546,7 @@ impl Interpreter {
             // String function: ends_with(str, suffix) - returns bool
             "ends_with" => {
                 if let (Some(Value::Str(s)), Some(Value::Str(suffix))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     Value::Bool(builtins::ends_with(s, suffix))
                 } else {
@@ -1557,7 +1557,7 @@ impl Interpreter {
             // String function: index_of(str, substr) - returns number (index or -1)
             "index_of" => {
                 // Polymorphic: works with strings and arrays
-                match (arg_values.get(0), arg_values.get(1)) {
+                match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Str(s)), Some(Value::Str(substr))) => {
                         Value::Int(builtins::index_of(s, substr) as i64)
                     }
@@ -1571,7 +1571,7 @@ impl Interpreter {
             // String function: repeat(str, count) - returns string
             "repeat" => {
                 if let (Some(Value::Str(s)), Some(count_val)) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let count = match count_val {
                         Value::Int(n) => *n as f64,
@@ -1587,7 +1587,7 @@ impl Interpreter {
             // String function: split(str, delimiter) - returns array of strings
             "split" => {
                 if let (Some(Value::Str(s)), Some(Value::Str(delimiter))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let parts = builtins::split(s, delimiter);
                     let values: Vec<Value> = parts.into_iter().map(Value::Str).collect();
@@ -1600,7 +1600,7 @@ impl Interpreter {
             // String function: join(array, separator) - returns string
             "join" => {
                 if let (Some(Value::Array(arr)), Some(Value::Str(separator))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     // Convert array elements to strings
                     let strings: Vec<String> = arr
@@ -1623,7 +1623,7 @@ impl Interpreter {
             "pad_left" => {
                 // pad_left(str, width, char) - pad string on left
                 if let (Some(Value::Str(s)), Some(width_val), Some(Value::Str(pad_char))) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     let width = match width_val {
                         Value::Int(n) => *n,
@@ -1639,7 +1639,7 @@ impl Interpreter {
             "pad_right" => {
                 // pad_right(str, width, char) - pad string on right
                 if let (Some(Value::Str(s)), Some(width_val), Some(Value::Str(pad_char))) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     let width = match width_val {
                         Value::Int(n) => *n,
@@ -1654,7 +1654,7 @@ impl Interpreter {
 
             "lines" => {
                 // lines(str) - split string into lines
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     let lines = builtins::str_lines(s);
                     Value::Array(lines.into_iter().map(Value::Str).collect())
                 } else {
@@ -1664,7 +1664,7 @@ impl Interpreter {
 
             "words" => {
                 // words(str) - split string into words
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     let words = builtins::str_words(s);
                     Value::Array(words.into_iter().map(Value::Str).collect())
                 } else {
@@ -1674,7 +1674,7 @@ impl Interpreter {
 
             "str_reverse" => {
                 // str_reverse(str) - reverse a string
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::str_reverse(s))
                 } else {
                     Value::Error("str_reverse() requires a string argument".to_string())
@@ -1683,7 +1683,7 @@ impl Interpreter {
 
             "slugify" => {
                 // slugify(str) - convert to URL-friendly slug
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::str_slugify(s))
                 } else {
                     Value::Error("slugify() requires a string argument".to_string())
@@ -1693,7 +1693,7 @@ impl Interpreter {
             "truncate" => {
                 // truncate(str, len, suffix) - truncate string with suffix
                 if let (Some(Value::Str(s)), Some(len_val), Some(Value::Str(suffix))) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     let max_len = match len_val {
                         Value::Int(n) => *n,
@@ -1708,7 +1708,7 @@ impl Interpreter {
 
             "to_camel_case" => {
                 // to_camel_case(str) - convert to camelCase
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::str_to_camel_case(s))
                 } else {
                     Value::Error("to_camel_case() requires a string argument".to_string())
@@ -1717,7 +1717,7 @@ impl Interpreter {
 
             "to_snake_case" => {
                 // to_snake_case(str) - convert to snake_case
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::str_to_snake_case(s))
                 } else {
                     Value::Error("to_snake_case() requires a string argument".to_string())
@@ -1726,7 +1726,7 @@ impl Interpreter {
 
             "to_kebab_case" => {
                 // to_kebab_case(str) - convert to kebab-case
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     Value::Str(builtins::str_to_kebab_case(s))
                 } else {
                     Value::Error("to_kebab_case() requires a string argument".to_string())
@@ -1736,7 +1736,7 @@ impl Interpreter {
             // Array functions
             "push" | "append" => {
                 // push(arr, item) - returns the modified array (note: doesn't modify original due to value semantics)
-                if let Some(Value::Array(mut arr)) = arg_values.get(0).cloned() {
+                if let Some(Value::Array(mut arr)) = arg_values.first().cloned() {
                     if let Some(item) = arg_values.get(1).cloned() {
                         arr.push(item);
                         Value::Array(arr)
@@ -1750,7 +1750,7 @@ impl Interpreter {
 
             "pop" => {
                 // pop(arr) - returns [modified_array, popped_value] or [arr, 0] if empty
-                if let Some(Value::Array(mut arr)) = arg_values.get(0).cloned() {
+                if let Some(Value::Array(mut arr)) = arg_values.first().cloned() {
                     let popped = arr.pop().unwrap_or(Value::Int(0));
                     // Return both the modified array and the popped value as a 2-element array
                     Value::Array(vec![Value::Array(arr), popped])
@@ -1762,7 +1762,7 @@ impl Interpreter {
             "slice" => {
                 // slice(arr, start, end) - returns subarray from start (inclusive) to end (exclusive)
                 if let (Some(Value::Array(arr)), Some(Value::Int(start)), Some(Value::Int(end))) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     let start_idx = (*start as usize).max(0).min(arr.len());
                     let end_idx = (*end as usize).max(start_idx).min(arr.len());
@@ -1775,7 +1775,7 @@ impl Interpreter {
             "concat" => {
                 // concat(arr1, arr2) - returns new array with arr2 appended to arr1
                 if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let mut result = arr1.clone();
                     result.extend(arr2.clone());
@@ -1788,7 +1788,7 @@ impl Interpreter {
             "insert" => {
                 // insert(arr, index, item) - inserts item at index
                 if let (Some(Value::Array(arr)), Some(index_val), Some(item)) =
-                    (arg_values.get(0).cloned(), arg_values.get(1), arg_values.get(2).cloned())
+                    (arg_values.first().cloned(), arg_values.get(1), arg_values.get(2).cloned())
                 {
                     let index = match index_val {
                         Value::Int(n) => *n,
@@ -1807,7 +1807,7 @@ impl Interpreter {
 
             "remove" => {
                 // Polymorphic: remove(arr, item) for arrays, remove(dict, key) for dicts
-                match (arg_values.get(0).cloned(), arg_values.get(1)) {
+                match (arg_values.first().cloned(), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(item)) => {
                         // remove(arr, item) - removes first occurrence of item
                         Value::Array(builtins::array_remove(arr, item))
@@ -1824,7 +1824,7 @@ impl Interpreter {
             "remove_at" => {
                 // remove_at(arr, index) - returns [modified_array, removed_item]
                 if let (Some(Value::Array(arr)), Some(index_val)) =
-                    (arg_values.get(0).cloned(), arg_values.get(1))
+                    (arg_values.first().cloned(), arg_values.get(1))
                 {
                     let index = match index_val {
                         Value::Int(n) => *n,
@@ -1843,7 +1843,7 @@ impl Interpreter {
 
             "clear" => {
                 // Polymorphic: clear(arr) for arrays, clear(dict) for dicts
-                match arg_values.get(0) {
+                match arg_values.first() {
                     Some(Value::Array(_)) => Value::Array(builtins::array_clear()),
                     Some(Value::Dict(_)) => Value::Dict(HashMap::new()),
                     _ => Value::Array(vec![]),
@@ -1860,7 +1860,7 @@ impl Interpreter {
                     );
                 }
 
-                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                let (array, func) = match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
@@ -1885,7 +1885,7 @@ impl Interpreter {
                     );
                 }
 
-                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                let (array, func) = match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
@@ -1924,7 +1924,7 @@ impl Interpreter {
                 }
 
                 let (array, initial, func) =
-                    match (arg_values.get(0), arg_values.get(1), arg_values.get(2)) {
+                    match (arg_values.first(), arg_values.get(1), arg_values.get(2)) {
                         (
                             Some(Value::Array(arr)),
                             Some(init),
@@ -1955,7 +1955,7 @@ impl Interpreter {
                     );
                 }
 
-                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                let (array, func) = match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
@@ -1986,7 +1986,7 @@ impl Interpreter {
             "sort" => {
                 // sort(array) - returns sorted array (ascending order)
                 // Works with numbers and strings
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut sorted = arr.clone();
                     sorted.sort_by(|a, b| {
                         match (a, b) {
@@ -2012,7 +2012,7 @@ impl Interpreter {
 
             "reverse" => {
                 // reverse(array) - returns reversed array
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut reversed = arr.clone();
                     reversed.reverse();
                     Value::Array(reversed)
@@ -2023,7 +2023,7 @@ impl Interpreter {
 
             "unique" => {
                 // unique(array) - returns array with duplicates removed (preserves order)
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut seen = std::collections::HashSet::new();
                     let mut result = Vec::new();
                     
@@ -2042,7 +2042,7 @@ impl Interpreter {
 
             "sum" => {
                 // sum(array) - returns sum of numeric elements
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut int_sum: i64 = 0;
                     let mut float_sum: f64 = 0.0;
                     let mut has_float = false;
@@ -2086,7 +2086,7 @@ impl Interpreter {
                     );
                 }
 
-                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                let (array, func) = match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
@@ -2120,7 +2120,7 @@ impl Interpreter {
                     );
                 }
 
-                let (array, func) = match (arg_values.get(0), arg_values.get(1)) {
+                let (array, func) = match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                         (arr.clone(), func.clone())
                     }
@@ -2150,7 +2150,7 @@ impl Interpreter {
             "chunk" => {
                 // chunk(array, size) - split array into chunks of specified size
                 if let (Some(Value::Array(arr)), Some(size_val)) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let size = match size_val {
                         Value::Int(n) => *n,
@@ -2165,7 +2165,7 @@ impl Interpreter {
 
             "flatten" => {
                 // flatten(array) - flatten nested arrays by one level
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     Value::Array(builtins::array_flatten(arr))
                 } else {
                     Value::Error("flatten() requires an array argument".to_string())
@@ -2175,7 +2175,7 @@ impl Interpreter {
             "zip" => {
                 // zip(array1, array2) - zip two arrays together
                 if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     Value::Array(builtins::array_zip(arr1, arr2))
                 } else {
@@ -2185,7 +2185,7 @@ impl Interpreter {
 
             "enumerate" => {
                 // enumerate(array) - add index to each element
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     Value::Array(builtins::array_enumerate(arr))
                 } else {
                     Value::Error("enumerate() requires an array argument".to_string())
@@ -2195,7 +2195,7 @@ impl Interpreter {
             "take" => {
                 // take(array, n) - take first n elements
                 if let (Some(Value::Array(arr)), Some(n_val)) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let n = match n_val {
                         Value::Int(n) => *n,
@@ -2211,7 +2211,7 @@ impl Interpreter {
             "skip" => {
                 // skip(array, n) - skip first n elements
                 if let (Some(Value::Array(arr)), Some(n_val)) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let n = match n_val {
                         Value::Int(n) => *n,
@@ -2227,7 +2227,7 @@ impl Interpreter {
             "windows" => {
                 // windows(array, size) - create sliding windows
                 if let (Some(Value::Array(arr)), Some(size_val)) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let size = match size_val {
                         Value::Int(n) => *n,
@@ -2271,7 +2271,7 @@ impl Interpreter {
             // Dict functions
             "keys" => {
                 // keys(dict) - returns array of all keys
-                if let Some(Value::Dict(dict)) = arg_values.get(0) {
+                if let Some(Value::Dict(dict)) = arg_values.first() {
                     let keys: Vec<Value> = dict.keys().map(|k| Value::Str(k.clone())).collect();
                     Value::Array(keys)
                 } else {
@@ -2281,7 +2281,7 @@ impl Interpreter {
 
             "values" => {
                 // values(dict) - returns array of all values
-                if let Some(Value::Dict(dict)) = arg_values.get(0) {
+                if let Some(Value::Dict(dict)) = arg_values.first() {
                     let vals: Vec<Value> = dict.values().cloned().collect();
                     Value::Array(vals)
                 } else {
@@ -2292,7 +2292,7 @@ impl Interpreter {
             "has_key" => {
                 // has_key(dict, key) - returns 1 if key exists, 0 otherwise
                 if let (Some(Value::Dict(dict)), Some(Value::Str(key))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     Value::Int(if dict.contains_key(key) { 1 } else { 0 })
                 } else {
@@ -2302,7 +2302,7 @@ impl Interpreter {
 
             "items" => {
                 // items(dict) - returns array of [key, value] arrays
-                if let Some(Value::Dict(dict)) = arg_values.get(0) {
+                if let Some(Value::Dict(dict)) = arg_values.first() {
                     let items: Vec<Value> = dict
                         .iter()
                         .map(|(k, v)| Value::Array(vec![Value::Str(k.clone()), v.clone()]))
@@ -2316,7 +2316,7 @@ impl Interpreter {
             "get" => {
                 // get(dict, key, default?) - returns value or default if key not found
                 if let (Some(Value::Dict(dict)), Some(Value::Str(key))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let default = arg_values.get(2).cloned().unwrap_or(Value::Null);
                     dict.get(key).cloned().unwrap_or(default)
@@ -2328,7 +2328,7 @@ impl Interpreter {
             "merge" => {
                 // merge(dict1, dict2) - returns new dict with dict2 merged into dict1
                 if let (Some(Value::Dict(dict1)), Some(Value::Dict(dict2))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let mut result = dict1.clone();
                     for (k, v) in dict2.iter() {
@@ -2343,7 +2343,7 @@ impl Interpreter {
             // Advanced dict methods
             "invert" => {
                 // invert(dict) - swap keys and values
-                if let Some(Value::Dict(dict)) = arg_values.get(0) {
+                if let Some(Value::Dict(dict)) = arg_values.first() {
                     Value::Dict(builtins::dict_invert(dict))
                 } else {
                     Value::Error("invert() requires a dict argument".to_string())
@@ -2354,7 +2354,7 @@ impl Interpreter {
                 // update(dict1, dict2) - modify dict1 in place (returns updated dict1)
                 // Note: Due to value semantics, this returns a new dict like merge
                 if let (Some(Value::Dict(dict1)), Some(Value::Dict(dict2))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let mut result = dict1.clone();
                     for (k, v) in dict2.iter() {
@@ -2369,7 +2369,7 @@ impl Interpreter {
             "get_default" => {
                 // get_default(dict, key, default_value) - get value or return default if missing
                 if let (Some(Value::Dict(dict)), Some(Value::Str(key)), Some(default_val)) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     if let Some(value) = dict.get(key) {
                         value.clone()
@@ -2387,7 +2387,7 @@ impl Interpreter {
                 // input(prompt) - reads a line from stdin and returns it as a string
                 use std::io::{self, Write};
 
-                let prompt = if let Some(Value::Str(s)) = arg_values.get(0) {
+                let prompt = if let Some(Value::Str(s)) = arg_values.first() {
                     s.clone()
                 } else {
                     String::new()
@@ -2412,7 +2412,7 @@ impl Interpreter {
             // Type conversion functions
             "parse_int" => {
                 // parse_int(str) - converts string to integer (as f64), returns error on failure
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     match s.trim().parse::<i64>() {
                         Ok(n) => Value::Int(n as i64),
                         Err(_) => Value::Error(format!("Cannot parse '{}' as integer", s)),
@@ -2424,7 +2424,7 @@ impl Interpreter {
 
             "parse_float" => {
                 // parse_float(str) - converts string to float, returns error on failure
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     match s.trim().parse::<f64>() {
                         Ok(n) => Value::Float(n),
                         Err(_) => Value::Error(format!("Cannot parse '{}' as float", s)),
@@ -2438,7 +2438,7 @@ impl Interpreter {
             "to_int" => {
                 // to_int(value) - converts value to integer
                 // Supports: Int, Float (truncate), String (parse), Bool (1/0)
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     match val {
                         Value::Int(n) => Value::Int(*n),
                         Value::Float(f) => Value::Int(f.trunc() as i64),
@@ -2465,7 +2465,7 @@ impl Interpreter {
             "to_float" => {
                 // to_float(value) - converts value to float
                 // Supports: Int, Float, String (parse), Bool (1.0/0.0)
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     match val {
                         Value::Int(n) => Value::Float(*n as f64),
                         Value::Float(f) => Value::Float(*f),
@@ -2491,7 +2491,7 @@ impl Interpreter {
 
             "to_string" => {
                 // to_string(value) - converts any value to string representation
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Str(Interpreter::stringify_value(val))
                 } else {
                     Value::Error("to_string() requires one argument".to_string())
@@ -2505,7 +2505,7 @@ impl Interpreter {
                 // String: empty/"false"/"0" = false, otherwise = true
                 // Null: false
                 // Collections: empty = false, non-empty = true
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     match val {
                         Value::Bool(b) => Value::Bool(*b),
                         Value::Int(n) => Value::Bool(*n != 0),
@@ -2527,7 +2527,7 @@ impl Interpreter {
             // Type introspection functions
             "type" => {
                 // type(value) - returns the type name of a value as a string
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     let type_name = match val {
                         Value::Int(_) => "int",
                         Value::Float(_) => "float",
@@ -2567,7 +2567,7 @@ impl Interpreter {
 
             "is_int" => {
                 // is_int(value) - returns true if value is an integer
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Int(_)))
                 } else {
                     Value::Bool(false)
@@ -2576,7 +2576,7 @@ impl Interpreter {
 
             "is_float" => {
                 // is_float(value) - returns true if value is a float
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Float(_)))
                 } else {
                     Value::Bool(false)
@@ -2585,7 +2585,7 @@ impl Interpreter {
 
             "is_string" => {
                 // is_string(value) - returns true if value is a string
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Str(_)))
                 } else {
                     Value::Bool(false)
@@ -2594,7 +2594,7 @@ impl Interpreter {
 
             "is_array" => {
                 // is_array(value) - returns true if value is an array
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Array(_)))
                 } else {
                     Value::Bool(false)
@@ -2603,7 +2603,7 @@ impl Interpreter {
 
             "is_dict" => {
                 // is_dict(value) - returns true if value is a dict
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Dict(_)))
                 } else {
                     Value::Bool(false)
@@ -2612,7 +2612,7 @@ impl Interpreter {
 
             "is_bool" => {
                 // is_bool(value) - returns true if value is a boolean
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Bool(_)))
                 } else {
                     Value::Bool(false)
@@ -2621,7 +2621,7 @@ impl Interpreter {
 
             "is_null" => {
                 // is_null(value) - returns true if value is null
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Null))
                 } else {
                     Value::Bool(false)
@@ -2630,7 +2630,7 @@ impl Interpreter {
 
             "is_function" => {
                 // is_function(value) - returns true if value is a function
-                if let Some(val) = arg_values.get(0) {
+                if let Some(val) = arg_values.first() {
                     Value::Bool(matches!(val, Value::Function(_, _, _) | Value::NativeFunction(_)))
                 } else {
                     Value::Bool(false)
@@ -2644,7 +2644,7 @@ impl Interpreter {
                     return Value::Error("assert requires at least 1 argument: condition".to_string());
                 }
                 
-                let condition = match arg_values.get(0) {
+                let condition = match arg_values.first() {
                     Some(Value::Bool(b)) => *b,
                     Some(Value::Int(n)) => *n != 0,
                     Some(Value::Float(n)) => *n != 0.0,
@@ -2678,7 +2678,7 @@ impl Interpreter {
             // File I/O functions
             "read_file" => {
                 // read_file(path) - reads entire file as string
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::read_to_string(path) {
                         Ok(content) => Value::Str(content),
                         Err(e) => Value::Error(format!("Cannot read file '{}': {}", path, e)),
@@ -2696,7 +2696,7 @@ impl Interpreter {
                     );
                 }
                 if let (Some(Value::Str(path)), Some(Value::Str(content))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match std::fs::write(path, content) {
                         Ok(_) => Value::Bool(true),
@@ -2709,7 +2709,7 @@ impl Interpreter {
 
             "read_binary_file" => {
                 // read_binary_file(path) - reads entire file as byte array
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::read(path) {
                         Ok(bytes) => Value::Bytes(bytes),
                         Err(e) => {
@@ -2729,7 +2729,7 @@ impl Interpreter {
                     );
                 }
                 if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match std::fs::write(path, bytes) {
                         Ok(_) => Value::Bool(true),
@@ -2755,7 +2755,7 @@ impl Interpreter {
                     );
                 }
                 if let (Some(Value::Str(path)), Some(Value::Str(content))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match OpenOptions::new().create(true).append(true).open(path) {
                         Ok(mut file) => match file.write_all(content.as_bytes()) {
@@ -2775,7 +2775,7 @@ impl Interpreter {
                 // file_exists(path) - checks if file exists
                 use std::path::Path;
 
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     if Path::new(path).exists() {
                         Value::Bool(true)
                     } else {
@@ -2788,7 +2788,7 @@ impl Interpreter {
 
             "read_lines" => {
                 // read_lines(path) - reads file and returns array of lines
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::read_to_string(path) {
                         Ok(content) => {
                             let lines: Vec<Value> =
@@ -2804,7 +2804,7 @@ impl Interpreter {
 
             "list_dir" => {
                 // list_dir(path) - lists files in directory
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::read_dir(path) {
                         Ok(entries) => {
                             let mut files = Vec::new();
@@ -2826,7 +2826,7 @@ impl Interpreter {
 
             "create_dir" => {
                 // create_dir(path) - creates directory (including parents)
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::create_dir_all(path) {
                         Ok(_) => Value::Bool(true),
                         Err(e) => {
@@ -2840,7 +2840,7 @@ impl Interpreter {
 
             "file_size" => {
                 // file_size(path) - returns file size in bytes
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::metadata(path) {
                         Ok(metadata) => Value::Int(metadata.len() as i64),
                         Err(e) => Value::Error(format!("Cannot get file size for '{}': {}", path, e)),
@@ -2852,7 +2852,7 @@ impl Interpreter {
 
             "delete_file" => {
                 // delete_file(path) - removes file
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::remove_file(path) {
                         Ok(_) => Value::Bool(true),
                         Err(e) => Value::Error(format!("Cannot delete file '{}': {}", path, e)),
@@ -2870,7 +2870,7 @@ impl Interpreter {
                     );
                 }
                 if let (Some(Value::Str(old_path)), Some(Value::Str(new_path))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match std::fs::rename(old_path, new_path) {
                         Ok(_) => Value::Bool(true),
@@ -2892,7 +2892,7 @@ impl Interpreter {
                     );
                 }
                 if let (Some(Value::Str(source)), Some(Value::Str(dest))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match std::fs::copy(source, dest) {
                         Ok(_) => Value::Bool(true),
@@ -2909,7 +2909,7 @@ impl Interpreter {
             // JSON functions
             "parse_json" => {
                 // parse_json(json_string) - parses JSON string to Ruff value
-                if let Some(Value::Str(json_str)) = arg_values.get(0) {
+                if let Some(Value::Str(json_str)) = arg_values.first() {
                     match builtins::parse_json(json_str) {
                         Ok(value) => value,
                         Err(e) => Value::Error(e),
@@ -2921,7 +2921,7 @@ impl Interpreter {
 
             "to_json" => {
                 // to_json(value) - converts Ruff value to JSON string
-                if let Some(value) = arg_values.get(0) {
+                if let Some(value) = arg_values.first() {
                     match builtins::to_json(value) {
                         Ok(json_str) => Value::Str(json_str),
                         Err(e) => Value::Error(e),
@@ -2934,7 +2934,7 @@ impl Interpreter {
             // TOML functions
             "parse_toml" => {
                 // parse_toml(toml_string) - parses TOML string to Ruff value
-                if let Some(Value::Str(toml_str)) = arg_values.get(0) {
+                if let Some(Value::Str(toml_str)) = arg_values.first() {
                     match builtins::parse_toml(toml_str) {
                         Ok(value) => value,
                         Err(e) => Value::Error(e),
@@ -2946,7 +2946,7 @@ impl Interpreter {
 
             "to_toml" => {
                 // to_toml(value) - converts Ruff value to TOML string
-                if let Some(value) = arg_values.get(0) {
+                if let Some(value) = arg_values.first() {
                     match builtins::to_toml(value) {
                         Ok(toml_str) => Value::Str(toml_str),
                         Err(e) => Value::Error(e),
@@ -2959,7 +2959,7 @@ impl Interpreter {
             // YAML functions
             "parse_yaml" => {
                 // parse_yaml(yaml_string) - parses YAML string to Ruff value
-                if let Some(Value::Str(yaml_str)) = arg_values.get(0) {
+                if let Some(Value::Str(yaml_str)) = arg_values.first() {
                     match builtins::parse_yaml(yaml_str) {
                         Ok(value) => value,
                         Err(e) => Value::Error(e),
@@ -2971,7 +2971,7 @@ impl Interpreter {
 
             "to_yaml" => {
                 // to_yaml(value) - converts Ruff value to YAML string
-                if let Some(value) = arg_values.get(0) {
+                if let Some(value) = arg_values.first() {
                     match builtins::to_yaml(value) {
                         Ok(yaml_str) => Value::Str(yaml_str),
                         Err(e) => Value::Error(e),
@@ -2984,7 +2984,7 @@ impl Interpreter {
             // CSV functions
             "parse_csv" => {
                 // parse_csv(csv_string) - parses CSV string to Ruff array of dictionaries
-                if let Some(Value::Str(csv_str)) = arg_values.get(0) {
+                if let Some(Value::Str(csv_str)) = arg_values.first() {
                     match builtins::parse_csv(csv_str) {
                         Ok(value) => value,
                         Err(e) => Value::Error(e),
@@ -2996,7 +2996,7 @@ impl Interpreter {
 
             "to_csv" => {
                 // to_csv(array_of_dicts) - converts Ruff array of dictionaries to CSV string
-                if let Some(value) = arg_values.get(0) {
+                if let Some(value) = arg_values.first() {
                     match builtins::to_csv(value) {
                         Ok(csv_str) => Value::Str(csv_str),
                         Err(e) => Value::Error(e),
@@ -3009,7 +3009,7 @@ impl Interpreter {
             // Base64 functions
             "encode_base64" => {
                 // encode_base64(bytes_or_string) - encodes bytes or string to base64 string
-                match arg_values.get(0) {
+                match arg_values.first() {
                     Some(Value::Bytes(bytes)) => Value::Str(builtins::encode_base64(bytes)),
                     Some(Value::Str(s)) => Value::Str(builtins::encode_base64(s.as_bytes())),
                     _ => Value::Error(
@@ -3020,7 +3020,7 @@ impl Interpreter {
 
             "decode_base64" => {
                 // decode_base64(string) - decodes base64 string to bytes
-                if let Some(Value::Str(s)) = arg_values.get(0) {
+                if let Some(Value::Str(s)) = arg_values.first() {
                     match builtins::decode_base64(s) {
                         Ok(bytes) => Value::Bytes(bytes),
                         Err(e) => Value::Error(e),
@@ -3038,7 +3038,7 @@ impl Interpreter {
 
             "random_int" => {
                 // random_int(min, max) - returns random integer between min and max (inclusive)
-                if let (Some(min_val), Some(max_val)) = (arg_values.get(0), arg_values.get(1)) {
+                if let (Some(min_val), Some(max_val)) = (arg_values.first(), arg_values.get(1)) {
                     let min = match min_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -3063,7 +3063,7 @@ impl Interpreter {
 
             "random_choice" => {
                 // random_choice(array) - returns random element from array
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     builtins::random_choice(arr)
                 } else {
                     Value::Error("random_choice requires an array argument".to_string())
@@ -3098,7 +3098,7 @@ impl Interpreter {
 
             "format_duration" => {
                 // format_duration(ms) - formats milliseconds to human-readable string
-                if let Some(ms_val) = arg_values.get(0) {
+                if let Some(ms_val) = arg_values.first() {
                     let ms = match ms_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -3118,7 +3118,7 @@ impl Interpreter {
 
             "elapsed" => {
                 // elapsed(start, end) - calculates time difference
-                if let (Some(start_val), Some(end_val)) = (arg_values.get(0), arg_values.get(1)) {
+                if let (Some(start_val), Some(end_val)) = (arg_values.first(), arg_values.get(1)) {
                     let start = match start_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -3138,7 +3138,7 @@ impl Interpreter {
             "format_date" => {
                 // format_date(timestamp, format_string) - formats timestamp to string
                 if let (Some(ts_val), Some(Value::Str(format))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let timestamp = match ts_val {
                         Value::Int(n) => *n as f64,
@@ -3160,7 +3160,7 @@ impl Interpreter {
             "parse_date" => {
                 // parse_date(date_string, format) - parses date string to timestamp
                 if let (Some(Value::Str(date_str)), Some(Value::Str(format))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     Value::Float(builtins::parse_date(date_str, format))
                 } else {
@@ -3171,7 +3171,7 @@ impl Interpreter {
             // System operation functions
             "env" => {
                 // env(var_name) - gets environment variable value
-                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                if let Some(Value::Str(var_name)) = arg_values.first() {
                     Value::Str(builtins::get_env(var_name))
                 } else {
                     Value::Error("env requires a string argument (variable name)".to_string())
@@ -3180,7 +3180,7 @@ impl Interpreter {
 
             "env_or" => {
                 // env_or(var_name, default) - gets environment variable or returns default
-                match (arg_values.get(0), arg_values.get(1)) {
+                match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Str(var_name)), Some(Value::Str(default))) => {
                         Value::Str(builtins::env_or(var_name, default))
                     }
@@ -3190,7 +3190,7 @@ impl Interpreter {
 
             "env_int" => {
                 // env_int(var_name) - gets environment variable and parses as integer
-                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                if let Some(Value::Str(var_name)) = arg_values.first() {
                     match builtins::env_int(var_name) {
                         Ok(val) => Value::Int(val),
                         Err(msg) => Value::ErrorObject {
@@ -3207,7 +3207,7 @@ impl Interpreter {
 
             "env_float" => {
                 // env_float(var_name) - gets environment variable and parses as float
-                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                if let Some(Value::Str(var_name)) = arg_values.first() {
                     match builtins::env_float(var_name) {
                         Ok(val) => Value::Float(val),
                         Err(msg) => Value::ErrorObject {
@@ -3224,7 +3224,7 @@ impl Interpreter {
 
             "env_bool" => {
                 // env_bool(var_name) - gets environment variable and parses as boolean
-                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                if let Some(Value::Str(var_name)) = arg_values.first() {
                     match builtins::env_bool(var_name) {
                         Ok(val) => Value::Bool(val),
                         Err(msg) => Value::ErrorObject {
@@ -3241,7 +3241,7 @@ impl Interpreter {
 
             "env_required" => {
                 // env_required(var_name) - gets required environment variable or errors
-                if let Some(Value::Str(var_name)) = arg_values.get(0) {
+                if let Some(Value::Str(var_name)) = arg_values.first() {
                     match builtins::env_required(var_name) {
                         Ok(val) => Value::Str(val),
                         Err(msg) => Value::ErrorObject {
@@ -3258,7 +3258,7 @@ impl Interpreter {
 
             "env_set" => {
                 // env_set(var_name, value) - sets environment variable
-                match (arg_values.get(0), arg_values.get(1)) {
+                match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Str(var_name)), Some(Value::Str(value))) => {
                         builtins::env_set(var_name, value);
                         Value::Null
@@ -3286,7 +3286,7 @@ impl Interpreter {
 
             "exit" => {
                 // exit(code) - exits program with given code
-                if let Some(Value::Int(code)) = arg_values.get(0) {
+                if let Some(Value::Int(code)) = arg_values.first() {
                     std::process::exit(*code as i32);
                 } else {
                     std::process::exit(0);
@@ -3295,7 +3295,7 @@ impl Interpreter {
 
             "sleep" => {
                 // sleep(milliseconds) - sleeps for given milliseconds
-                if let Some(ms_val) = arg_values.get(0) {
+                if let Some(ms_val) = arg_values.first() {
                     let ms = match ms_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -3310,7 +3310,7 @@ impl Interpreter {
 
             "execute" => {
                 // execute(command) - executes shell command and returns output
-                if let Some(Value::Str(command)) = arg_values.get(0) {
+                if let Some(Value::Str(command)) = arg_values.first() {
                     Value::Str(builtins::execute_command(command))
                 } else {
                     Value::Error("execute requires a string argument (command)".to_string())
@@ -3337,7 +3337,7 @@ impl Interpreter {
 
             "dirname" => {
                 // dirname(path) - returns directory name from path
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     Value::Str(builtins::dirname(path))
                 } else {
                     Value::Error("dirname requires a string argument (path)".to_string())
@@ -3346,7 +3346,7 @@ impl Interpreter {
 
             "basename" => {
                 // basename(path) - returns base filename from path
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     Value::Str(builtins::basename(path))
                 } else {
                     Value::Error("basename requires a string argument (path)".to_string())
@@ -3355,7 +3355,7 @@ impl Interpreter {
 
             "path_exists" => {
                 // path_exists(path) - checks if path exists
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     Value::Bool(builtins::path_exists(path))
                 } else {
                     Value::Error("path_exists requires a string argument (path)".to_string())
@@ -3366,7 +3366,7 @@ impl Interpreter {
             "regex_match" => {
                 // regex_match(text, pattern) - checks if text matches regex pattern
                 if let (Some(Value::Str(text)), Some(Value::Str(pattern))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     Value::Bool(builtins::regex_match(text, pattern))
                 } else {
@@ -3379,7 +3379,7 @@ impl Interpreter {
             "regex_find_all" => {
                 // regex_find_all(text, pattern) - finds all matches of pattern in text
                 if let (Some(Value::Str(text)), Some(Value::Str(pattern))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let matches = builtins::regex_find_all(text, pattern);
                     let values: Vec<Value> = matches.into_iter().map(Value::Str).collect();
@@ -3397,7 +3397,7 @@ impl Interpreter {
                     Some(Value::Str(text)),
                     Some(Value::Str(pattern)),
                     Some(Value::Str(replacement)),
-                ) = (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                ) = (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     Value::Str(builtins::regex_replace(text, pattern, replacement))
                 } else {
@@ -3408,7 +3408,7 @@ impl Interpreter {
             "regex_split" => {
                 // regex_split(text, pattern) - splits text by pattern
                 if let (Some(Value::Str(text)), Some(Value::Str(pattern))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let parts = builtins::regex_split(text, pattern);
                     let values: Vec<Value> = parts.into_iter().map(Value::Str).collect();
@@ -3422,7 +3422,7 @@ impl Interpreter {
 
             "http_get" => {
                 // http_get(url) - make GET request
-                if let Some(Value::Str(url)) = arg_values.get(0) {
+                if let Some(Value::Str(url)) = arg_values.first() {
                     match builtins::http_get(url) {
                         Ok(result_map) => Value::Dict(result_map),
                         Err(e) => Value::Error(e),
@@ -3435,7 +3435,7 @@ impl Interpreter {
             "http_post" => {
                 // http_post(url, body_json) - make POST request with JSON body
                 if let (Some(Value::Str(url)), Some(Value::Str(body))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match builtins::http_post(url, body) {
                         Ok(result_map) => Value::Dict(result_map),
@@ -3449,7 +3449,7 @@ impl Interpreter {
             "http_put" => {
                 // http_put(url, body_json) - make PUT request with JSON body
                 if let (Some(Value::Str(url)), Some(Value::Str(body))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match builtins::http_put(url, body) {
                         Ok(result_map) => Value::Dict(result_map),
@@ -3462,7 +3462,7 @@ impl Interpreter {
 
             "http_delete" => {
                 // http_delete(url) - make DELETE request
-                if let Some(Value::Str(url)) = arg_values.get(0) {
+                if let Some(Value::Str(url)) = arg_values.first() {
                     match builtins::http_delete(url) {
                         Ok(result_map) => Value::Dict(result_map),
                         Err(e) => Value::Error(e),
@@ -3474,7 +3474,7 @@ impl Interpreter {
 
             "http_get_binary" => {
                 // http_get_binary(url) - make GET request and return binary data
-                if let Some(Value::Str(url)) = arg_values.get(0) {
+                if let Some(Value::Str(url)) = arg_values.first() {
                     match builtins::http_get_binary(url) {
                         Ok(bytes) => Value::Bytes(bytes),
                         Err(e) => Value::Error(e),
@@ -3487,7 +3487,7 @@ impl Interpreter {
             "parallel_http" => {
                 // parallel_http(urls_array) - make parallel GET requests
                 // Returns array of response dicts in same order as input URLs
-                if let Some(Value::Array(urls)) = arg_values.get(0) {
+                if let Some(Value::Array(urls)) = arg_values.first() {
                     // Extract URLs as strings
                     let url_strings: Vec<String> = urls
                         .iter()
@@ -3536,7 +3536,7 @@ impl Interpreter {
             "jwt_encode" => {
                 // jwt_encode(payload_dict, secret_key) - encode JWT token
                 if let (Some(Value::Dict(payload)), Some(Value::Str(secret))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match builtins::jwt_encode(payload, secret) {
                         Ok(token) => Value::Str(token),
@@ -3553,7 +3553,7 @@ impl Interpreter {
             "jwt_decode" => {
                 // jwt_decode(token, secret_key) - decode JWT token
                 if let (Some(Value::Str(token)), Some(Value::Str(secret))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     match builtins::jwt_decode(token, secret) {
                         Ok(payload) => Value::Dict(payload),
@@ -3573,7 +3573,7 @@ impl Interpreter {
                     Some(Value::Str(redirect_uri)),
                     Some(Value::Str(auth_url)),
                     Some(Value::Str(scope)),
-                ) = (arg_values.get(0), arg_values.get(1), arg_values.get(2), arg_values.get(3))
+                ) = (arg_values.first(), arg_values.get(1), arg_values.get(2), arg_values.get(3))
                 {
                     Value::Str(builtins::oauth2_auth_url(client_id, redirect_uri, auth_url, scope))
                 } else {
@@ -3590,7 +3590,7 @@ impl Interpreter {
                     Some(Value::Str(token_url)),
                     Some(Value::Str(redirect_uri)),
                 ) = (
-                    arg_values.get(0),
+                    arg_values.first(),
                     arg_values.get(1),
                     arg_values.get(2),
                     arg_values.get(3),
@@ -3613,7 +3613,7 @@ impl Interpreter {
 
             "http_get_stream" => {
                 // http_get_stream(url) - make GET request and return binary data for streaming
-                if let Some(Value::Str(url)) = arg_values.get(0) {
+                if let Some(Value::Str(url)) = arg_values.first() {
                     match builtins::http_get_stream(url) {
                         Ok(bytes) => Value::Bytes(bytes),
                         Err(e) => Value::Error(e),
@@ -3625,7 +3625,7 @@ impl Interpreter {
 
             "http_server" => {
                 // http_server(port) - create HTTP server
-                if let Some(Value::Int(port)) = arg_values.get(0) {
+                if let Some(Value::Int(port)) = arg_values.first() {
                     Value::HttpServer { port: *port as u16, routes: Vec::new() }
                 } else {
                     Value::Error("http_server requires a port number".to_string())
@@ -3635,7 +3635,7 @@ impl Interpreter {
             "set_header" => {
                 // set_header(response, key, value) - add a header to HTTP response
                 if let (Some(response), Some(Value::Str(key)), Some(Value::Str(value))) =
-                    (arg_values.get(0), arg_values.get(1), arg_values.get(2))
+                    (arg_values.first(), arg_values.get(1), arg_values.get(2))
                 {
                     if let Value::HttpResponse { status, body, headers } = response {
                         let mut new_headers = headers.clone();
@@ -3660,7 +3660,7 @@ impl Interpreter {
             "set_headers" => {
                 // set_headers(response, headers_dict) - set multiple headers at once
                 if let (Some(response), Some(Value::Dict(headers_dict))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     if let Value::HttpResponse { status, body, headers } = response {
                         let mut new_headers = headers.clone();
@@ -3687,7 +3687,7 @@ impl Interpreter {
             "http_response" => {
                 // http_response(status, body) - create HTTP response
                 if let (Some(Value::Int(status)), Some(Value::Str(body))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     Value::HttpResponse {
                         status: *status as u16,
@@ -3702,7 +3702,7 @@ impl Interpreter {
             "json_response" => {
                 // json_response(status, data) - create JSON HTTP response
                 if let (Some(Value::Int(status)), Some(data)) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     // Convert data to JSON string
                     let json_body = builtins::to_json(data).unwrap_or_else(|_| "{}".to_string());
@@ -3718,7 +3718,7 @@ impl Interpreter {
             "html_response" => {
                 // html_response(status, html) - create HTML HTTP response
                 if let (Some(Value::Int(status)), Some(Value::Str(html))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let mut headers = HashMap::new();
                     headers
@@ -3732,7 +3732,7 @@ impl Interpreter {
 
             "redirect_response" => {
                 // redirect_response(url) or redirect_response(url, headers_dict) - create HTTP 302 redirect response
-                if let Some(Value::Str(url)) = arg_values.get(0) {
+                if let Some(Value::Str(url)) = arg_values.first() {
                     let mut headers = HashMap::new();
                     headers.insert("Location".to_string(), url.clone());
 
@@ -3765,7 +3765,7 @@ impl Interpreter {
                 // - db_connect("mysql", "mysql://user:pass@localhost:3306/myapp") [coming soon]
 
                 if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let db_type_lower = db_type.to_lowercase();
 
@@ -3825,7 +3825,7 @@ impl Interpreter {
             "db_execute" => {
                 // db_execute(db, sql, params) - execute SQL (INSERT, UPDATE, DELETE, CREATE)
                 // params is an array of values to bind
-                if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
+                if let Some(Value::Database { connection, db_type, .. }) = arg_values.first() {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
 
@@ -3961,7 +3961,7 @@ impl Interpreter {
 
             "db_query" => {
                 // db_query(db, sql, params) - query and return results as array of dicts
-                if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
+                if let Some(Value::Database { connection, db_type, .. }) = arg_values.first() {
                     if let Some(Value::Str(sql)) = arg_values.get(1) {
                         let params = arg_values.get(2);
 
@@ -4232,7 +4232,7 @@ impl Interpreter {
             // Collection constructors and methods
             "Set" => {
                 // Set(array) - creates a Set from an array, removing duplicates
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut unique_values = Vec::new();
                     for value in arr {
                         // Check if value already exists (simple comparison)
@@ -4250,7 +4250,7 @@ impl Interpreter {
             "set_add" => {
                 // set_add(set, item) - adds item if not present, returns modified set
                 if let (Some(Value::Set(mut set)), Some(item)) =
-                    (arg_values.get(0).cloned(), arg_values.get(1).cloned())
+                    (arg_values.first().cloned(), arg_values.get(1).cloned())
                 {
                     let exists = set.iter().any(|v| self.values_equal(v, &item));
                     if !exists {
@@ -4264,7 +4264,7 @@ impl Interpreter {
 
             "set_has" => {
                 // set_has(set, item) - returns 1 if item exists, 0 otherwise
-                if let (Some(Value::Set(set)), Some(item)) = (arg_values.get(0), arg_values.get(1))
+                if let (Some(Value::Set(set)), Some(item)) = (arg_values.first(), arg_values.get(1))
                 {
                     let exists = set.iter().any(|v| self.values_equal(v, item));
                     Value::Bool(exists)
@@ -4276,7 +4276,7 @@ impl Interpreter {
             "set_remove" => {
                 // set_remove(set, item) - removes item if present, returns modified set
                 if let (Some(Value::Set(mut set)), Some(item)) =
-                    (arg_values.get(0).cloned(), arg_values.get(1))
+                    (arg_values.first().cloned(), arg_values.get(1))
                 {
                     set.retain(|v| !self.values_equal(v, item));
                     Value::Set(set)
@@ -4288,7 +4288,7 @@ impl Interpreter {
             "set_union" => {
                 // set_union(set1, set2) - returns new set with all unique elements from both sets
                 if let (Some(Value::Set(set1)), Some(Value::Set(set2))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let mut result = set1.clone();
                     for item in set2 {
@@ -4306,7 +4306,7 @@ impl Interpreter {
             "set_intersect" => {
                 // set_intersect(set1, set2) - returns new set with elements in both sets
                 if let (Some(Value::Set(set1)), Some(Value::Set(set2))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let result: Vec<Value> = set1
                         .iter()
@@ -4322,7 +4322,7 @@ impl Interpreter {
             "set_difference" => {
                 // set_difference(set1, set2) - returns new set with elements in set1 but not in set2
                 if let (Some(Value::Set(set1)), Some(Value::Set(set2))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let result: Vec<Value> = set1
                         .iter()
@@ -4337,7 +4337,7 @@ impl Interpreter {
 
             "set_to_array" => {
                 // set_to_array(set) - converts set to array
-                if let Some(Value::Set(set)) = arg_values.get(0) {
+                if let Some(Value::Set(set)) = arg_values.first() {
                     Value::Array(set.clone())
                 } else {
                     Value::Array(Vec::new())
@@ -4346,7 +4346,7 @@ impl Interpreter {
 
             "Queue" => {
                 // Queue() - creates an empty queue, or Queue(array) - creates queue from array
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut queue = VecDeque::new();
                     for item in arr {
                         queue.push_back(item.clone());
@@ -4360,7 +4360,7 @@ impl Interpreter {
             "queue_enqueue" => {
                 // queue_enqueue(queue, item) - adds item to back of queue, returns modified queue
                 if let (Some(Value::Queue(mut queue)), Some(item)) =
-                    (arg_values.get(0).cloned(), arg_values.get(1).cloned())
+                    (arg_values.first().cloned(), arg_values.get(1).cloned())
                 {
                     queue.push_back(item);
                     Value::Queue(queue)
@@ -4371,7 +4371,7 @@ impl Interpreter {
 
             "queue_dequeue" => {
                 // queue_dequeue(queue) - removes and returns [modified_queue, item] or [queue, null] if empty
-                if let Some(Value::Queue(mut queue)) = arg_values.get(0).cloned() {
+                if let Some(Value::Queue(mut queue)) = arg_values.first().cloned() {
                     if let Some(item) = queue.pop_front() {
                         Value::Array(vec![Value::Queue(queue), item])
                     } else {
@@ -4384,7 +4384,7 @@ impl Interpreter {
 
             "queue_peek" => {
                 // queue_peek(queue) - returns front item without removing, or null if empty
-                if let Some(Value::Queue(queue)) = arg_values.get(0) {
+                if let Some(Value::Queue(queue)) = arg_values.first() {
                     queue.front().cloned().unwrap_or(Value::Null)
                 } else {
                     Value::Null
@@ -4393,7 +4393,7 @@ impl Interpreter {
 
             "queue_is_empty" => {
                 // queue_is_empty(queue) - returns true if queue is empty
-                if let Some(Value::Queue(queue)) = arg_values.get(0) {
+                if let Some(Value::Queue(queue)) = arg_values.first() {
                     Value::Bool(queue.is_empty())
                 } else {
                     Value::Bool(true)
@@ -4402,7 +4402,7 @@ impl Interpreter {
 
             "queue_to_array" => {
                 // queue_to_array(queue) - converts queue to array
-                if let Some(Value::Queue(queue)) = arg_values.get(0) {
+                if let Some(Value::Queue(queue)) = arg_values.first() {
                     Value::Array(queue.iter().cloned().collect())
                 } else {
                     Value::Array(Vec::new())
@@ -4411,7 +4411,7 @@ impl Interpreter {
 
             "Stack" => {
                 // Stack() - creates an empty stack, or Stack(array) - creates stack from array
-                if let Some(Value::Array(arr)) = arg_values.get(0) {
+                if let Some(Value::Array(arr)) = arg_values.first() {
                     Value::Stack(arr.clone())
                 } else {
                     Value::Stack(Vec::new())
@@ -4421,7 +4421,7 @@ impl Interpreter {
             "stack_push" => {
                 // stack_push(stack, item) - pushes item onto top of stack, returns modified stack
                 if let (Some(Value::Stack(mut stack)), Some(item)) =
-                    (arg_values.get(0).cloned(), arg_values.get(1).cloned())
+                    (arg_values.first().cloned(), arg_values.get(1).cloned())
                 {
                     stack.push(item);
                     Value::Stack(stack)
@@ -4432,7 +4432,7 @@ impl Interpreter {
 
             "stack_pop" => {
                 // stack_pop(stack) - removes and returns [modified_stack, item] or [stack, null] if empty
-                if let Some(Value::Stack(mut stack)) = arg_values.get(0).cloned() {
+                if let Some(Value::Stack(mut stack)) = arg_values.first().cloned() {
                     if let Some(item) = stack.pop() {
                         Value::Array(vec![Value::Stack(stack), item])
                     } else {
@@ -4445,7 +4445,7 @@ impl Interpreter {
 
             "stack_peek" => {
                 // stack_peek(stack) - returns top item without removing, or null if empty
-                if let Some(Value::Stack(stack)) = arg_values.get(0) {
+                if let Some(Value::Stack(stack)) = arg_values.first() {
                     stack.last().cloned().unwrap_or(Value::Null)
                 } else {
                     Value::Null
@@ -4454,7 +4454,7 @@ impl Interpreter {
 
             "stack_is_empty" => {
                 // stack_is_empty(stack) - returns true if stack is empty
-                if let Some(Value::Stack(stack)) = arg_values.get(0) {
+                if let Some(Value::Stack(stack)) = arg_values.first() {
                     Value::Bool(stack.is_empty())
                 } else {
                     Value::Bool(true)
@@ -4463,7 +4463,7 @@ impl Interpreter {
 
             "stack_to_array" => {
                 // stack_to_array(stack) - converts stack to array
-                if let Some(Value::Stack(stack)) = arg_values.get(0) {
+                if let Some(Value::Stack(stack)) = arg_values.first() {
                     Value::Array(stack.clone())
                 } else {
                     Value::Array(Vec::new())
@@ -4481,7 +4481,7 @@ impl Interpreter {
                 // db_close(db) - close database connection
                 // In Rust, the connection is automatically closed when dropped
                 // This is more for semantic clarity in user code
-                if let Some(Value::Database { .. }) = arg_values.get(0) {
+                if let Some(Value::Database { .. }) = arg_values.first() {
                     Value::Bool(true)
                 } else {
                     Value::Error("db_close requires a database connection".to_string())
@@ -4492,7 +4492,7 @@ impl Interpreter {
                 // db_pool(db_type, connection_string, config) - create connection pool
                 // config is a dict with optional: min_connections, max_connections, connection_timeout
                 if let (Some(Value::Str(db_type)), Some(Value::Str(conn_str))) =
-                    (arg_values.get(0), arg_values.get(1))
+                    (arg_values.first(), arg_values.get(1))
                 {
                     let config = if let Some(Value::Dict(cfg)) = arg_values.get(2) {
                         cfg.clone()
@@ -4511,7 +4511,7 @@ impl Interpreter {
 
             "db_pool_acquire" => {
                 // db_pool_acquire(pool) - acquire a connection from the pool
-                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                     let pool_lock = pool.lock().unwrap();
                     match pool_lock.acquire() {
                         Ok(connection) => Value::Database {
@@ -4529,7 +4529,7 @@ impl Interpreter {
 
             "db_pool_release" => {
                 // db_pool_release(pool, connection) - release a connection back to the pool
-                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                     if let Some(Value::Database { connection, .. }) = arg_values.get(1) {
                         let pool_lock = pool.lock().unwrap();
                         pool_lock.release(connection.clone());
@@ -4549,7 +4549,7 @@ impl Interpreter {
 
             "db_pool_stats" => {
                 // db_pool_stats(pool) - get pool statistics
-                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                     let pool_lock = pool.lock().unwrap();
                     let stats = pool_lock.stats();
 
@@ -4566,7 +4566,7 @@ impl Interpreter {
 
             "db_pool_close" => {
                 // db_pool_close(pool) - close all connections in the pool
-                if let Some(Value::DatabasePool { pool }) = arg_values.get(0) {
+                if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                     let pool_lock = pool.lock().unwrap();
                     pool_lock.close();
                     Value::Bool(true)
@@ -4652,7 +4652,7 @@ impl Interpreter {
 
             "db_commit" => {
                 // db_commit(db) - commit database transaction
-                match arg_values.get(0).cloned() {
+                match arg_values.first().cloned() {
                     Some(Value::Database { connection, db_type, in_transaction, .. }) => {
                         // Check if in transaction
                         let is_in_trans = {
@@ -4723,7 +4723,7 @@ impl Interpreter {
 
             "db_rollback" => {
                 // db_rollback(db) - rollback database transaction
-                match arg_values.get(0).cloned() {
+                match arg_values.first().cloned() {
                     Some(Value::Database { connection, db_type, in_transaction, .. }) => {
                         // Check if in transaction
                         let is_in_trans = {
@@ -4798,7 +4798,7 @@ impl Interpreter {
             "db_last_insert_id" => {
                 // db_last_insert_id(db) - get the ID of the last inserted row
                 // Useful after INSERT statements to get the auto-generated ID
-                if let Some(Value::Database { connection, db_type, .. }) = arg_values.get(0) {
+                if let Some(Value::Database { connection, db_type, .. }) = arg_values.first() {
                     match (connection, db_type.as_str()) {
                         (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
                             let conn = conn_arc.lock().unwrap();
@@ -4852,7 +4852,7 @@ impl Interpreter {
             // Image processing functions
             "load_image" => {
                 // load_image(path) - loads an image from file
-                if let Some(Value::Str(path)) = arg_values.get(0) {
+                if let Some(Value::Str(path)) = arg_values.first() {
                     match image::open(path) {
                         Ok(img) => {
                             // Detect format from path extension
@@ -5682,7 +5682,7 @@ impl Interpreter {
 
                     // built-in throw
                     Expr::Tag(name, args) if name == "throw" => {
-                        if let Some(arg) = args.get(0) {
+                        if let Some(arg) = args.first() {
                             let val = self.eval_expr(arg);
                             match val {
                                 Value::Str(s) => {
