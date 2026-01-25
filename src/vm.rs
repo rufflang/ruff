@@ -622,23 +622,45 @@ impl VM {
     }
     
     /// Call a function
-    fn call_function(&mut self, function: Value, _args: Vec<Value>) -> Result<Value, String> {
+    fn call_function(&mut self, function: Value, args: Vec<Value>) -> Result<Value, String> {
         match function {
-            Value::BytecodeFunction { chunk, .. } => {
-                // Create new call frame
+            Value::BytecodeFunction { chunk, captured } => {
+                // Create new call frame with parameters bound
+                let mut locals = HashMap::new();
+                
+                // Bind arguments to parameter names
+                let param_names = &chunk.params;
+                
+                // Check argument count
+                if args.len() != param_names.len() {
+                    return Err(format!(
+                        "Function {} expects {} arguments, got {}",
+                        chunk.name.as_deref().unwrap_or("<lambda>"),
+                        param_names.len(),
+                        args.len()
+                    ));
+                }
+                
+                // Bind each argument to its corresponding parameter name
+                for (param_name, arg_value) in param_names.iter().zip(args.iter()) {
+                    locals.insert(param_name.clone(), arg_value.clone());
+                }
+                
+                // Add captured variables from closure
+                for (name, value) in captured {
+                    locals.insert(name, value);
+                }
+                
                 let frame = CallFrame {
                     return_ip: self.ip,
                     stack_offset: self.stack.len(),
-                    locals: HashMap::new(),
+                    locals,
                     prev_chunk: Some(self.chunk.clone()),
                 };
                 
                 self.call_frames.push(frame);
                 
-                // Set up function parameters
-                // TODO: Bind parameters properly
-                
-                // Execute function
+                // Execute function by setting the new chunk and resetting IP
                 let _prev_chunk = std::mem::replace(&mut self.chunk, chunk);
                 let _prev_ip = std::mem::replace(&mut self.ip, 0);
                 
