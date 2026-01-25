@@ -12,6 +12,29 @@
 
 ### In Development (v0.8.0)
 
+* **Enhanced Error Messages** (NEW! 🎯)
+  - Developer-friendly error reporting with contextual information
+  - "Did you mean?" suggestions for typos using Levenshtein distance
+  - Helpful guidance for fixing common errors
+  - Multiple errors reported together (no more one-at-a-time fixing!)
+  - Example error output:
+    ```
+    Type Error: Type mismatch: variable 'x' declared as Int but assigned String
+      --> script.ruff:5:10
+       |
+     5 | let x: int := "hello"
+       |               ^^^^^^^
+       |
+       = help: Try removing the type annotation or converting the value to the correct type
+    
+    Undefined Function: Undefined function 'calculat_sum'
+      --> script.ruff:10:5
+       |
+       = Did you mean 'calculate_sum'?
+       = note: Function must be defined before it is called
+    ```
+  - See `tests/simple_error_test.ruff` and `tests/enhanced_errors.ruff`
+
 * **Destructuring Patterns** (NEW! 🎉)
   - Array destructuring: `[a, b, c] := [1, 2, 3]`
   - Dict destructuring: `{name, email} := user`
