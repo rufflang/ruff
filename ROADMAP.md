@@ -128,7 +128,7 @@ Error: Type mismatch in function call
 
 ### 21. Bytecode Compiler & VM (P1)
 
-**Status**: 🚧 In Progress (Foundation Complete - v0.8.0)  
+**Status**: 🚧 Partial Implementation - Core complete, needs parser fixes (v0.8.0)  
 **Estimated Effort**: Large (6-8 weeks)
 
 **Goal**: **10-20x performance improvement** over tree-walking interpreter
@@ -145,44 +145,51 @@ Error: Type mismatch in function call
 - ✅ Constant pool for efficient literal storage
 - ✅ All expression types (arithmetic, comparison, logical, etc.)
 - ✅ All statement types (let, if, while, for, match, return, etc.)
-- ✅ Array and dict operations with spread support
+- ✅ Array and dict operations with spread support (marker-based)
 - ✅ Result/Option type compilation with Try operator
-- ✅ Basic function compilation and closure creation
-- ⏳ Function call mechanism refinement needed
-- ⏳ CLI integration (--vm flag)
+- ✅ Function compilation with proper parameter binding
+- ✅ Function calls working correctly for user-defined functions
+- ✅ Basic native function support (print, len, to_string)
+- ✅ CLI integration (--vm flag)
+- ⏳ Built-in function parsing issue (parser treats some calls as arrays)
 - ⏳ Benchmarking and performance validation
 - ⏳ Advanced optimizations (constant folding, dead code elimination)
 
 **Expected Performance**: Move from ~50-100x slower than Python to competitive speeds
 
-**Remaining Tasks for Next Sessions**:
+**Current Status**:
+- VM executes basic programs successfully
+- User-defined functions work with proper parameter binding
+- Built-in functions partially working (parser issue)
+- Need to fix function call parsing for complete support
+- Ready for testing and benchmarking once parser fix is complete
 
-1. **Function Call Parameter Binding** (Priority: HIGH, 1-2 days)
-   - Implement proper parameter binding in `call_function` method
-   - Support multiple parameters and default values
-   - Handle variadic arguments and spread syntax
-   - Test nested function calls
+**Remaining Tasks for Future Sessions**:
 
-2. **CLI Integration** (Priority: HIGH, 1 day)
-   - Add `--vm` flag to toggle bytecode execution
-   - Modify `Run` command to optionally use compiler + VM
-   - Add performance timing comparison mode
-   - Test with existing example files
+1. **Fix Built-in Function Parsing** (Priority: HIGH, 2-3 days)
+   - Investigate why `print("hello")` parses as array instead of call
+   - Fix parser to properly recognize built-in function calls
+   - Ensure all built-in functions can be called from bytecode
 
-3. **Benchmark Suite** (Priority: MEDIUM, 2-3 days)
+2. **Comprehensive Native Function Integration** (Priority: HIGH, 3-4 days)
+   - Integrate full built-in function library with VM
+   - Map all interpreter built-ins to VM-callable functions
+   - Handle variadic functions and optional parameters
+
+3. **Benchmark Suite** (Priority: HIGH, 2-3 days)
    - Create benchmark programs (fibonacci, primes, sorting, etc.)
    - Measure tree-walking interpreter baseline
    - Measure VM performance
    - Validate 10-20x speedup target
    - Document performance characteristics
 
-4. **Advanced Pattern Matching** (Priority: MEDIUM, 2-3 days)
-   - Implement array destructuring in bytecode
-   - Implement dict destructuring in bytecode
-   - Test complex patterns with nested structures
-   - Ensure match statement covers all cases
+4. **Test Suite** (Priority: MEDIUM, 2-3 days)
+   - Create dedicated VM test files
+   - Cover all opcode types
+   - Test edge cases and error conditions
+   - Verify equivalence with tree-walking interpreter
 
-5. **Optimization Passes** (Priority: LOW, 1 week)
+5. **Optimization Passes** (Priority: LOW, 1-2 weeks)
    - Constant folding (evaluate 2+3 at compile time)
    - Dead code elimination
    - Jump threading and peephole optimization
