@@ -1581,15 +1581,15 @@ pub fn format_debug_value(value: &Value) -> String {
         }
         Value::Bytes(bytes) => format!("Bytes({} bytes)", bytes.len()),
         Value::Set(set) => {
-            let items: Vec<String> = set.iter().map(|v| format_debug_value(v)).collect();
+            let items: Vec<String> = set.iter().map(format_debug_value).collect();
             format!("Set{{{}}}", items.join(", "))
         }
         Value::Queue(queue) => {
-            let items: Vec<String> = queue.iter().map(|v| format_debug_value(v)).collect();
+            let items: Vec<String> = queue.iter().map(format_debug_value).collect();
             format!("Queue[{}]", items.join(", "))
         }
         Value::Stack(stack) => {
-            let items: Vec<String> = stack.iter().map(|v| format_debug_value(v)).collect();
+            let items: Vec<String> = stack.iter().map(format_debug_value).collect();
             format!("Stack[{}]", items.join(", "))
         }
         Value::Return(val) => format!("Return({})", format_debug_value(val)),

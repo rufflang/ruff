@@ -761,7 +761,7 @@ impl VM {
             Value::Bool(b) => b.to_string(),
             Value::Null => "null".to_string(),
             Value::Array(arr) => {
-                let items: Vec<String> = arr.iter().map(|v| Self::value_to_string(v)).collect();
+                let items: Vec<String> = arr.iter().map(Self::value_to_string).collect();
                 format!("[{}]", items.join(", "))
             }
             Value::Dict(dict) => {

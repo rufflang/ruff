@@ -6878,7 +6878,7 @@ impl Interpreter {
                     tag.clone()
                 } else {
                     let args: Vec<String> =
-                        fields.values().map(|v| Interpreter::stringify_value(v)).collect();
+                        fields.values().map(Interpreter::stringify_value).collect();
                     format!("{}({})", tag, args.join(","))
                 }
             }
@@ -6891,7 +6891,7 @@ impl Interpreter {
             }
             Value::Array(elements) => {
                 let elem_strs: Vec<String> =
-                    elements.iter().map(|v| Interpreter::stringify_value(v)).collect();
+                    elements.iter().map(Interpreter::stringify_value).collect();
                 format!("[{}]", elem_strs.join(", "))
             }
             Value::Dict(map) => {
