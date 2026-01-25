@@ -9750,4 +9750,159 @@ mod tests {
         assert!(matches!(interp.env.get("has_large"), Some(Value::Bool(true))));
         assert!(matches!(interp.env.get("all_positive"), Some(Value::Bool(true))));
     }
+
+    #[test]
+    fn test_assert_success() {
+        let code = r#"
+            result := assert(true)
+            result2 := assert(5 > 3)
+            result3 := assert(1, "Non-zero is truthy")
+        "#;
+
+        let interp = run_code(code);
+
+        // All assertions should pass and return true
+        assert!(matches!(interp.env.get("result"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("result3"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_assert_failure_with_default_message() {
+        let code = r#"
+            result := assert(false)
+        "#;
+
+        let interp = run_code(code);
+
+        // Assert should fail and return error
+        if let Some(Value::Error(msg)) = interp.env.get("result") {
+            assert_eq!(msg, "Assertion failed");
+        } else {
+            panic!("Expected assertion to fail with error");
+        }
+    }
+
+    #[test]
+    fn test_assert_failure_with_custom_message() {
+        let code = r#"
+            result := assert(5 < 3, "Five must be greater than three")
+        "#;
+
+        let interp = run_code(code);
+
+        // Assert should fail with custom message
+        if let Some(Value::Error(msg)) = interp.env.get("result") {
+            assert_eq!(msg, "Five must be greater than three");
+        } else {
+            panic!("Expected assertion to fail with custom message");
+        }
+    }
+
+    #[test]
+    fn test_assert_with_truthy_values() {
+        let code = r#"
+            r1 := assert(1)
+            r2 := assert(3.14)
+            r3 := assert("hello")
+            r4 := assert([1, 2, 3])
+        "#;
+
+        let interp = run_code(code);
+
+        // Non-zero numbers and non-null values should pass
+        assert!(matches!(interp.env.get("r1"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r2"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r3"), Some(Value::Bool(true))));
+        assert!(matches!(interp.env.get("r4"), Some(Value::Bool(true))));
+    }
+
+    #[test]
+    fn test_assert_with_falsy_values() {
+        let code = r#"
+            r1 := assert(0, "Zero is falsy")
+        "#;
+
+        let interp = run_code(code);
+
+        // Zero should fail
+        assert!(matches!(interp.env.get("r1"), Some(Value::Error(_))));
+    }
+
+    #[test]
+    fn test_assert_with_boolean_false() {
+        let code = r#"
+            result := assert(false, "Boolean false should fail")
+        "#;
+
+        let interp = run_code(code);
+
+        // Should fail
+        assert!(matches!(interp.env.get("result"), Some(Value::Error(_))));
+    }
+
+    #[test]
+    fn test_assert_in_function() {
+        let code = r#"
+            func safe_divide(a, b) {
+                if b == 0 {
+                    return assert(false, "Division by zero not allowed")
+                }
+                return a / b
+            }
+            
+            result1 := safe_divide(10, 2)
+            result2 := safe_divide(10, 0)
+        "#;
+
+        let interp = run_code(code);
+
+        // First call should succeed  
+        assert!(matches!(
+            interp.env.get("result1"),
+            Some(Value::Int(_)) | Some(Value::Float(_))
+        ));
+
+        // Second call should return error
+        assert!(matches!(interp.env.get("result2"), Some(Value::Error(_))));
+    }
+
+    #[test]
+    fn test_debug_simple_values() {
+        // This test just verifies debug doesn't crash - actual output is printed to stdout
+        let code = r#"
+            debug(42)
+            debug("hello")
+            debug(true)
+            debug(null)
+        "#;
+
+        let _interp = run_code(code);
+        // If we get here without panic, debug works
+    }
+
+    #[test]
+    fn test_debug_complex_values() {
+        // Test debug with arrays, dicts, and multiple arguments
+        let code = r#"
+            debug([1, 2, 3])
+            debug({"name": "Alice", "age": 25})
+            debug("User:", 123, "logged in at", 1706140800.0)
+        "#;
+
+        let _interp = run_code(code);
+        // If we get here without panic, debug works
+    }
+
+    #[test]
+    fn test_debug_returns_null() {
+        let code = r#"
+            result := debug("test")
+        "#;
+
+        let interp = run_code(code);
+
+        // Debug should return null
+        assert!(matches!(interp.env.get("result"), Some(Value::Null)));
+    }
 }
