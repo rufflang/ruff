@@ -36,3 +36,6 @@ zip = "0.5"
 sha2 = "0.10"
 md-5 = "0.10"
 bcrypt = "0.15"
+aes-gcm = "0.10"
+rsa = { version = "0.9", features = ["sha2"] }
+pkcs8 = "0.10"
