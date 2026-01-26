@@ -15,7 +15,1027 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ---
 
-## v0.9.0 - Developer Experience
+## v0.9.0 - Codebase Refactoring & Architecture Improvements
+
+**Focus**: Technical debt cleanup and architectural improvements before expanding features  
+**Timeline**: Q2 2026 (2-3 months)  
+**Priority**: Foundation work to improve maintainability and scalability
+
+> **Context**: After implementing async/await (#25), several architectural patterns and technical debt items became apparent. This release focuses on cleaning up the codebase foundation before continuing with developer experience features.
+
+---
+
+### 27. Modularize interpreter.rs (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Problem**: Current `interpreter.rs` is 14,811 lines in a single file, making it difficult to navigate, understand, and maintain.
+
+**Proposed Structure**:
+```
+src/interpreter/
+├── mod.rs              (core Interpreter struct, ~2000 lines)
+├── value.rs            (Value enum and Display impl, ~500 lines)
+├── builtins.rs         (register_builtins + native functions, ~4000 lines)
+├── collections.rs      (array/dict/set operations, ~2000 lines)
+├── control_flow.rs     (loops, conditionals, match, ~1000 lines)
+├── functions.rs        (function calls, closures, generators, ~1500 lines)
+├── operators.rs        (binary/unary operations, ~800 lines)
+├── io.rs               (file I/O, HTTP, networking, ~2000 lines)
+└── environment.rs      (Environment struct, ~500 lines)
+```
+
+**Benefits**:
+- Easier code navigation and search
+- Better parallelization for code reviews
+- Reduced mental load when working on features
+- Faster compilation (parallel module builds)
+- Clearer separation of concerns
+- Easier onboarding for contributors
+
+**Implementation Notes**:
+- Use `pub(crate)` visibility for internal APIs
+- Keep public API surface unchanged
+- Add module-level documentation
+- Maintain existing test suite compatibility
+
+---
+
+### 28. Complete VM Integration + JIT Compilation (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Very Large (3-4 months total)
+
+**Why Critical**: To compete with Go and other modern languages, Ruff needs near-native performance. Tree-walking interpreters are 100-500x slower than compiled languages. This is essential for v1.0 adoption.
+
+**Performance Targets**:
+- Current (tree-walking): ~100-500x slower than Go
+- After bytecode VM: ~10-50x slower than Go  
+- After JIT compilation: ~2-10x slower than Go
+- Goal: Performance competitive with Go for I/O-bound workloads
+
+**Current Problem**: 
+- Bytecode compiler and VM exist (`src/vm.rs`, `src/bytecode.rs`, `src/compiler.rs`) but aren't actively used
+- Two execution paths creating confusion and maintenance burden
+- Code marked with `#[allow(dead_code)]` throughout
+
+**Decision**: Complete VM Integration + JIT (Option 1 Extended)
+
+This is a long task spanning multiple months, but it's fundamental to making Ruff production-ready. Performance is non-negotiable for v1.0 release.
+
+---
+
+#### Phase 1: Complete Bytecode VM Integration (6-8 weeks)
+
+**Objectives**:
+1. Make bytecode VM the **primary execution path**
+2. Remove tree-walking interpreter (or keep as fallback/debug mode)
+3. Optimize instruction set for common operations
+4. Complete all missing VM features
+
+**Tasks**:
+- **Week 1-2: VM Instruction Set Design**
+  - Audit existing bytecode instructions
+  - Add missing instructions for all language features
+  - Design efficient encoding (stack-based vs register-based)
+  - Document instruction semantics
+  
+- **Week 3-4: Compiler Completion**
+  - Complete AST → bytecode compilation for all nodes
+  - Implement constant folding optimization
+  - Add jump optimization (eliminate dead code)
+  - Handle all expression and statement types
+  
+- **Week 5-6: VM Feature Parity**
+  - Implement closures in VM
+  - Support generators and async/await in bytecode
+  - Handle exceptions and error propagation
+  - Support all built-in functions
+  
+- **Week 7-8: Integration & Testing**
+  - Switch default execution mode to VM
+  - Run full test suite against VM
+  - Fix edge cases and bugs
+  - Performance benchmarking baseline
+
+**Expected Performance Gain**: 10-50x faster than tree-walking interpreter
+
+---
+
+#### Phase 2: Basic Optimizations (2-3 weeks)
+
+**Objectives**:
+1. Low-hanging fruit optimizations before JIT
+2. Improve bytecode quality
+3. Optimize hot paths
+
+**Optimizations**:
+- **Constant Folding**: Evaluate constant expressions at compile time
+  ```ruff
+  x := 2 + 3 * 4  # Compile to: x := 14
+  ```
+
+- **Dead Code Elimination**: Remove unreachable code
+  ```ruff
+  if false {
+      expensive_operation()  # Remove at compile time
+  }
+  ```
+
+- **Peephole Optimization**: Replace instruction sequences with faster equivalents
+  ```
+  PUSH constant
+  POP               # Eliminate redundant push/pop
+  
+  JUMP label
+  JUMP label        # Eliminate double jump
+  ```
+
+- **Inline Caching**: Cache type information for polymorphic operations
+  - First call: check type and cache
+  - Subsequent calls: use cached fast path
+
+- **Common Subexpression Elimination**: Avoid redundant calculations
+
+**Expected Additional Gain**: 2-3x faster than naive bytecode VM
+
+---
+
+#### Phase 3: JIT Compilation Infrastructure (4-6 weeks)
+
+**Objectives**:
+1. Detect hot code paths at runtime
+2. Compile bytecode to native machine code
+3. Seamlessly switch between interpreted and compiled code
+
+**Architecture Decision - Two Options**:
+
+**Option A: LLVM Backend** (Recommended)
+- Use existing LLVM infrastructure
+- Mature optimization pipeline
+- Good debugging tools
+- Cross-platform support
+- Dependency: `inkwell` crate (LLVM bindings)
+- Examples: Julia, Swift, Rust compiler
+
+**Option B: Cranelift Backend** (Lighter weight)
+- Faster compilation than LLVM
+- Pure Rust implementation
+- Simpler integration
+- Less aggressive optimizations
+- Dependency: `cranelift` crate
+- Examples: Wasmtime, Lucet
+
+**Recommendation**: Start with **Cranelift** for faster iteration, consider LLVM later for maximum performance.
+
+**Implementation**:
+
+- **Week 1-2: JIT Infrastructure**
+  - Hot path detection (count bytecode loop iterations)
+  - Threshold-based compilation triggers
+  - Code cache management
+  - Deoptimization support (fall back to interpreter)
+
+- **Week 3-4: Bytecode → Native Compiler**
+  - Translate bytecode instructions to Cranelift IR
+  - Handle calling conventions
+  - Implement stack management
+  - Generate native machine code
+
+- **Week 5-6: Integration & Optimization**
+  - Inline small functions (avoid call overhead)
+  - Register allocation optimization
+  - Dead store elimination
+  - Loop unrolling for small loops
+  - SIMD vectorization for arrays
+
+**Expected Performance Gain**: 5-10x faster than optimized bytecode VM
+
+---
+
+#### Phase 4: Advanced JIT Optimizations (2-3 weeks)
+
+**Objectives**:
+1. Squeeze out maximum performance
+2. Implement type specialization
+3. Optimize memory access patterns
+
+**Optimizations**:
+
+- **Type Specialization**: Generate optimized code for common types
+  ```ruff
+  func add(a, b) { return a + b }
+  
+  # JIT generates specialized versions:
+  add_int_int(a: i64, b: i64) -> i64    # Fast path for integers
+  add_float_float(a: f64, b: f64) -> f64  # Fast path for floats
+  add_generic(a: Value, b: Value) -> Value  # Fallback
+  ```
+
+- **Escape Analysis**: Allocate objects on stack when they don't escape
+  ```ruff
+  func process() {
+      point := {x: 10, y: 20}  # Doesn't escape → stack allocation
+      return point.x + point.y  # Returns primitive, point dies
+  }
+  ```
+
+- **Guard Insertion**: Optimize for common case, check assumptions
+  ```ruff
+  # Assume x is always Int, guard against other types
+  if type(x) == Int {
+      # Fast path: compiled native code
+      result := x * 2
+  } else {
+      # Slow path: deoptimize to interpreter
+      deoptimize_and_retry()
+  }
+  ```
+
+- **Loop-Invariant Code Motion**: Move repeated calculations out of loops
+  ```ruff
+  for i in range(1000) {
+      result := expensive_constant() * i  # Move expensive_constant() outside loop
+  }
+  ```
+
+- **Method Inlining**: Inline small method calls
+  ```ruff
+  # Instead of call overhead:
+  result := obj.get_value()
+  
+  # JIT inlines to:
+  result := obj.field_value  # Direct field access
+  ```
+
+**Expected Additional Gain**: 2-3x faster, bringing total to **20-50x faster than tree-walking interpreter**
+
+---
+
+#### Phase 5: Benchmarking & Tuning (1-2 weeks)
+
+**Objectives**:
+1. Validate performance improvements
+2. Identify remaining bottlenecks
+3. Compare against other languages
+
+**Benchmark Suite**:
+```bash
+# Create comprehensive benchmarks
+ruff benchmark --compare go,python,ruby,node
+
+Benchmarks:
+  - Fibonacci (recursion)
+  - Array operations (map, filter, reduce)
+  - HTTP server throughput
+  - JSON parsing
+  - String manipulation
+  - Concurrent execution (async/await)
+  - Mathematical computations
+  - File I/O
+  
+Results:
+  Ruff:   1000 req/sec  (baseline)
+  Go:     2000 req/sec  (2.0x faster)
+  Node:   900 req/sec   (0.9x faster)
+  Python: 500 req/sec   (0.5x faster)
+  Ruby:   400 req/sec   (0.4x faster)
+```
+
+**Profiling Tools**:
+- CPU profiling (identify hot functions)
+- Memory profiling (find allocations)
+- JIT compilation statistics (hit rates)
+- Instruction cache analysis
+
+**Tuning**:
+- Adjust JIT thresholds based on workload
+- Optimize frequently-used built-in functions
+- Reduce memory allocations in hot paths
+- Improve instruction cache locality
+
+---
+
+## Implementation Strategy
+
+**Integration with v0.9.0**:
+- This work happens **during** v0.9.0 (parallel with modularization)
+- Modularize interpreter.rs **first** (makes VM work easier)
+- VM integration happens after code is organized
+
+**Milestones**:
+
+| Timeline | Milestone | Performance Target |
+|----------|-----------|-------------------|
+| Month 1 | Complete bytecode VM | 10-50x faster than tree-walking |
+| Month 2 | Basic optimizations | 20-100x faster than tree-walking |
+| Month 3 | JIT infrastructure + Cranelift integration | 100-200x faster than tree-walking |
+| Month 4 | Advanced optimizations + tuning | 200-500x faster than tree-walking |
+
+**Success Criteria**:
+- ✅ All tests pass with VM as primary execution path
+- ✅ Zero regressions in language features
+- ✅ Performance within 2-5x of Go for I/O-bound workloads
+- ✅ Performance within 5-10x of Go for CPU-bound workloads
+- ✅ JIT compilation success rate > 95% for hot paths
+- ✅ Comprehensive benchmark suite demonstrating improvements
+
+**Dependencies**:
+```toml
+[dependencies]
+cranelift = "0.100"  # JIT compilation
+cranelift-module = "0.100"
+cranelift-jit = "0.100"
+target-lexicon = "0.12"  # Platform detection
+```
+
+**Notes**:
+- This is a **long task** (3-4 months), but absolutely essential for v1.0
+- Performance is **non-negotiable** for production adoption
+- Many modern languages (Julia, LuaJIT, PyPy) prove JIT viability
+- Without this, Ruff will be "just another slow scripting language"
+- With this, Ruff can compete with Go/Node.js for real workloads
+
+---
+
+### 29. Fix LeakyFunctionBody Pattern (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (1-2 weeks)
+
+**Problem**: Current workaround intentionally leaks memory to avoid stack overflow during drop:
+```rust
+/// Wrapper type for function bodies that prevents deep recursion during drop.
+pub struct LeakyFunctionBody(ManuallyDrop<Arc<Vec<Stmt>>>);
+```
+
+**Root Cause**: Recursive drop implementations traverse deeply nested AST structures where `Stmt` contains more `Vec<Stmt>`.
+
+**Proposed Solutions**:
+
+1. **Iterative Drop Traversal** (Recommended)
+   - Implement custom Drop using iteration instead of recursion
+   - Use work queue to traverse AST nodes
+   - Example pattern:
+     ```rust
+     impl Drop for FunctionBody {
+         fn drop(&mut self) {
+             let mut stack = vec![self.0.clone()];
+             while let Some(node) = stack.pop() {
+                 // Add child nodes to stack
+                 // Drop happens when Arc count reaches 0
+             }
+         }
+     }
+     ```
+
+2. **Arena Allocation**
+   - Use `typed-arena` or similar crate
+   - Allocate AST nodes in arena
+   - Drop entire arena at once
+   - Benefits: Faster allocation, no drop recursion
+   - Trade-off: Different memory model
+
+3. **Flatten Statement Structures**
+   - Reduce nesting depth in AST
+   - Use indices instead of nested Vec
+   - More complex parsing, simpler runtime
+
+**Impact**: Eliminates memory leaks, cleaner architecture, better long-term maintenance.
+
+---
+
+### 30. Separate AST from Runtime Values (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Large (3-4 weeks)
+
+**Problem**: Current mixing of compile-time AST and runtime values:
+```rust
+// AST node
+pub enum Stmt {
+    FuncDef { body: Vec<Stmt>, ... }
+}
+
+// Runtime value contains raw AST!
+pub enum Value {
+    Function(Vec<String>, LeakyFunctionBody, ...) // Contains Vec<Stmt>
+}
+```
+
+**Proposed Separation**:
+```rust
+// AST stays pure (compile-time only)
+pub enum Stmt { ... }
+
+// Runtime uses compiled intermediate representation
+pub enum Value {
+    Function(Vec<String>, CompiledBody, ...)
+}
+
+struct CompiledBody {
+    instructions: Vec<Instruction>, // IR or bytecode
+    constants: Vec<Value>,
+    locals_count: usize,
+}
+```
+
+**Benefits**:
+- Clear separation of compile-time vs runtime
+- Enables optimization passes on IR
+- No LeakyFunctionBody workaround needed
+- Natural path to bytecode VM
+- Faster function calls (pre-compiled)
+
+**Implementation Phases**:
+1. Define IR (intermediate representation) format
+2. Add compilation pass: AST → IR
+3. Update interpreter to execute IR
+4. Remove AST from runtime values
+5. Optimize IR execution
+
+---
+
+### 31. Unified Type System Documentation (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Small (3-5 days)
+
+**Problem**: Unclear relationship between type constructs:
+- `Value::Tagged` - enum variants with fields
+- `Value::Struct` - runtime struct instances
+- `Value::StructDef` - struct definitions with methods
+- `Value::Enum` - exists but marked as dead code
+
+**Deliverables**:
+
+1. **Create `docs/type-system.md`**:
+   - Philosophy: structural, nominal, or duck typing?
+   - What types exist in Ruff?
+   - How do Tagged, Struct, StructDef relate?
+   - When to use each construct?
+   - Examples of defining and using types
+   - Type checking strategy (if any)
+
+2. **Code Cleanup**:
+   - Remove unused `Value::Enum` or implement it
+   - Add documentation comments to type variants
+   - Clarify naming (rename if needed)
+   - Add examples in comments
+
+3. **User Documentation**:
+   - Add type system section to README
+   - Document in language guide
+   - Provide migration examples
+
+---
+
+### 32. Improve Error Context & Source Locations (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Current Issues**:
+- Line numbers incomplete throughout codebase
+- Stack traces don't always show source locations
+- Hard to trace runtime errors back to source code
+- Error messages lack context
+
+**Proposed Solution**:
+
+1. **Add SourceLocation to AST Nodes**:
+   ```rust
+   pub struct SourceLocation {
+       file: Rc<String>,
+       line: usize,
+       column: usize,
+       length: usize,
+   }
+   
+   pub struct Expr {
+       kind: ExprKind,
+       loc: SourceLocation,
+   }
+   
+   pub struct Stmt {
+       kind: StmtKind,
+       loc: SourceLocation,
+   }
+   ```
+
+2. **Maintain Call Stack**:
+   ```rust
+   pub struct CallFrame {
+       function_name: String,
+       location: SourceLocation,
+   }
+   
+   pub struct Interpreter {
+       call_stack: Vec<CallFrame>,
+       // ... existing fields
+   }
+   ```
+
+3. **Enhanced Error Messages**:
+   ```rust
+   Error at file.ruff:42:15
+     40 | func calculate(x, y) {
+     41 |     let result := x / y
+     42 |     return result + z  // Error: undefined variable 'z'
+        |                     ^
+     43 | }
+   
+   Call stack:
+     at calculate (file.ruff:42:15)
+     at main (file.ruff:10:5)
+   ```
+
+4. **Error Chaining**:
+   ```rust
+   pub struct RuntimeError {
+       message: String,
+       location: SourceLocation,
+       caused_by: Option<Box<RuntimeError>>,
+   }
+   ```
+
+**Benefits**:
+- Dramatically better debugging experience
+- Easier to identify and fix errors
+- Professional error reporting
+- Better user experience
+
+---
+
+### 33. Trait-Based Value Operations (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Medium (2-3 weeks)
+
+**Problem**: Every operation on `Value` requires matching on 30+ variants, leading to massive code duplication.
+
+**Current Pattern** (repeated hundreds of times):
+```rust
+match value {
+    Value::Int(n) => { /* handle int */ }
+    Value::Float(f) => { /* handle float */ }
+    Value::Str(s) => { /* handle string */ }
+    Value::Bool(b) => { /* handle bool */ }
+    // ... 30+ more variants
+    _ => Value::Error("unsupported type")
+}
+```
+
+**Proposed Trait-Based Approach**:
+```rust
+pub trait ValueOps {
+    fn add(&self, other: &Value) -> Result<Value, RuntimeError>;
+    fn subtract(&self, other: &Value) -> Result<Value, RuntimeError>;
+    fn multiply(&self, other: &Value) -> Result<Value, RuntimeError>;
+    fn divide(&self, other: &Value) -> Result<Value, RuntimeError>;
+    fn to_string(&self) -> String;
+    fn to_bool(&self) -> bool;
+    fn is_truthy(&self) -> bool;
+    fn equals(&self, other: &Value) -> bool;
+    fn compare(&self, other: &Value) -> Option<Ordering>;
+}
+
+impl ValueOps for Value {
+    fn add(&self, other: &Value) -> Result<Value, RuntimeError> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a + b)),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+            (Value::Str(a), Value::Str(b)) => Ok(Value::Str(format!("{}{}", a, b))),
+            // ... centralized logic
+            _ => Err(RuntimeError::type_error("Cannot add these types"))
+        }
+    }
+    
+    // ... other operations
+}
+
+// Usage in interpreter
+let result = left_value.add(&right_value)?;
+```
+
+**Benefits**:
+- Single source of truth for each operation
+- Easier to add new operations
+- Better testability (test traits independently)
+- Reduced code duplication (~3000 lines saved)
+- Easier to maintain type coercion rules
+- Clear API surface
+
+**Implementation Strategy**:
+1. Define ValueOps trait with all operations
+2. Implement trait for Value enum
+3. Update interpreter to use trait methods
+4. Remove duplicated match statements
+5. Add comprehensive trait tests
+
+---
+
+### 34. Architecture Documentation (P1)
+
+**Status**: Planned  
+**Estimated Effort**: Small (1 week)
+
+**Missing Documentation**:
+1. **Architecture Overview**: How does the interpreter work?
+2. **Contribution Guide**: How to add new features?
+3. **Memory Model**: What's the ownership/borrowing story?
+4. **Concurrency Model**: How do threads/async work?
+5. **Extension API**: Can users add native functions?
+
+**Deliverables**:
+
+1. **`docs/ARCHITECTURE.md`**:
+   - High-level system overview
+   - Data flow: source → tokens → AST → execution
+   - Component responsibilities
+   - Key design decisions and trade-offs
+   - Diagrams (ASCII art or Mermaid)
+
+2. **`CONTRIBUTING.md`**:
+   - How to set up development environment
+   - How to add a new built-in function
+   - How to add a new language feature
+   - Code style guidelines
+   - Testing requirements
+   - PR submission process
+
+3. **`docs/CONCURRENCY.md`**:
+   - Threading model (Arc<Mutex<>>)
+   - Async/await architecture
+   - Channel implementation
+   - spawn block mechanics
+   - Generator state management
+
+4. **`docs/MEMORY.md`**:
+   - Value ownership model
+   - Environment lifetime management
+   - Closure capture semantics
+   - Garbage collection strategy (Arc/Drop)
+
+5. **`docs/EXTENDING.md`**:
+   - How to add native functions
+   - How to create bindings to Rust libraries
+   - Plugin system (if applicable)
+   - FFI considerations
+
+**Target Audience**:
+- New contributors
+- External developers integrating Ruff
+- Future maintainers
+- Security researchers
+
+---
+
+## Implementation Priority
+
+**Phase 1 (Month 1): Foundation**
+1. ✅ Modularize interpreter.rs → Easier navigation
+2. ✅ Architecture documentation → Knowledge sharing
+3. ✅ Improve error context → Better DX
+
+**Phase 2 (Month 2): Cleanup**
+1. ✅ VM integration decision → Remove confusion
+2. ✅ Fix LeakyFunctionBody → No memory leaks
+3. ✅ Type system documentation → Clarify design
+
+**Phase 3 (Month 3): Optimization**
+1. ✅ Trait-based value operations → Less duplication
+2. ✅ Separate AST from runtime → Better architecture
+3. ✅ Contributing guide → Open to community
+
+**Success Criteria**:
+- Reduced onboarding time for new contributors
+- Cleaner codebase with better organization
+- Zero intentional memory leaks
+- Comprehensive documentation
+- Faster iteration on new features
+
+---
+
+## Rationale
+
+This release prioritizes **technical debt cleanup** over **new features** because:
+
+1. **Foundation First**: Adding more features to poorly organized code compounds problems
+2. **Async/Await Lessons**: Recent refactor showed cost of architectural decisions
+3. **Scaling Preparation**: Clean architecture needed before expanding team/features
+4. **Maintainability**: 14K line files don't scale well
+5. **Community Growth**: Good documentation attracts contributors
+
+**Note**: This may seem like "boring" work, but it's essential for long-term project health. Think of it as paying down technical debt before taking on more feature debt.
+
+---
+
+## v0.10.0 - Optional Static Typing (Exploratory)
+
+**Status**: Research & Design Phase  
+**Timeline**: TBD (After v0.9.0 completion)  
+**Priority**: Exploratory - Not committed for v1.0
+
+> **Context**: Static typing could unlock significant performance improvements (approaching Go-level speed for typed code) while maintaining Ruff's dynamic nature. This is an exploratory investigation into gradual typing systems.
+
+**Key Question**: Should Ruff adopt optional static typing like TypeScript, Python (type hints), or Dart?
+
+---
+
+### 35. Optional Type Annotations (Exploratory)
+
+**Status**: Design Phase  
+**Estimated Effort**: Medium (2-3 weeks for basic implementation)
+
+**Motivation**:
+- Enable 10-50x performance improvements for typed code paths
+- Better IDE support (autocomplete, refactoring, go-to-definition)
+- Catch bugs at compile time without sacrificing dynamism
+- Competitive performance with Go for typed workloads
+
+**Design Philosophy**: **Gradual Typing**
+- Types are **optional**, not mandatory
+- Dynamic code continues to work unchanged
+- Types enable optimizations but don't change semantics
+- Progressive enhancement: add types where they matter
+
+---
+
+#### Stage 1: Type Annotations (Documentation Only)
+
+**Goal**: Add syntax for type annotations without runtime checking
+
+**Syntax**:
+```ruff
+# Function parameter and return types
+func calculate(x: int, y: float) -> float {
+    return x * y
+}
+
+# Variable type annotations
+let name: string := "Alice"
+let age: int := 30
+let scores: Array<int> := [95, 87, 92]
+
+# Dict with typed keys/values
+let user: Dict<string, any> := {
+    "name": "Alice",
+    "age": 30,
+    "email": "alice@example.com"
+}
+
+# Optional types (nullable)
+func find_user(id: int) -> User | null {
+    if user_exists(id) {
+        return fetch_user(id)
+    }
+    return null
+}
+
+# Union types
+func process(value: int | string | bool) {
+    # Handle multiple types
+}
+
+# Generic types (future)
+func first<T>(arr: Array<T>) -> T | null {
+    if len(arr) > 0 {
+        return arr[0]
+    }
+    return null
+}
+```
+
+**Implementation**:
+1. Extend lexer for `:` and `->` type syntax
+2. Parse type annotations in AST
+3. Store type information (but don't enforce)
+4. LSP can use for hover/autocomplete
+
+**Benefits**:
+- Documentation in code
+- IDE tooling improvements
+- Zero runtime cost
+- Foundation for later stages
+
+---
+
+#### Stage 2: Optional Runtime Type Checking
+
+**Goal**: Add opt-in runtime type validation
+
+**Syntax**:
+```ruff
+# Enable type checking for specific function
+@type_check
+func calculate(x: int, y: float) -> float {
+    return x * y  # Types validated at runtime
+}
+
+calculate(5, 3.14)       # ✅ OK
+calculate("5", 3.14)     # ❌ TypeError: expected int, got string
+
+# File-level type checking
+@strict_types
+
+func add(a: int, b: int) -> int {
+    return a + b
+}
+
+func greet(name: string) {
+    print("Hello, ${name}!")
+}
+
+# All functions in file are type-checked
+```
+
+**Configuration**:
+```toml
+# ruff.toml
+[type_checking]
+mode = "optional"  # "off", "optional", "strict"
+check_returns = true
+check_parameters = true
+allow_implicit_any = true
+```
+
+**Error Messages**:
+```
+TypeError at file.ruff:42:15
+  Expected: int
+  Got: string
+  
+  41 | func calculate(x: int, y: float) -> float {
+  42 |     return x * y
+       |            ^ type mismatch
+  43 | }
+  
+  Hint: Ensure all parameters match their type annotations
+```
+
+**Benefits**:
+- Catch bugs before production
+- Validate API contracts
+- Progressive type adoption
+- Still allows dynamic code
+
+---
+
+#### Stage 3: JIT Optimization for Typed Code
+
+**Goal**: Generate fast native code for type-annotated functions
+
+**Performance Gains**:
+```ruff
+# Dynamic (current):
+func sum_array(arr) {
+    total := 0
+    for n in arr {
+        total := total + n
+    }
+    return total
+}
+# Performance: Baseline (100% time)
+
+# Typed (optimized by JIT):
+func sum_array(arr: Array<int>) -> int {
+    total: int := 0
+    for n: int in arr {
+        total := total + n  # Direct CPU add, no boxing
+    }
+    return total
+}
+# Performance: 10-50x faster (2-10% of baseline time)
+```
+
+**JIT Optimizations Enabled by Types**:
+1. **Unboxed arithmetic**: Direct CPU operations instead of Value enum
+2. **Inline caching**: Skip type checks after first call
+3. **Specialized code paths**: Generate int-specific, float-specific versions
+4. **Stack allocation**: Allocate primitives on stack, not heap
+5. **SIMD vectorization**: Process arrays in parallel with vector instructions
+
+**Performance Comparison**:
+
+| Code | Speed vs Go | Speed vs Dynamic Ruff |
+|------|-------------|----------------------|
+| Dynamic Ruff | 2-10x slower | 1x (baseline) |
+| Typed Ruff (JIT) | 1-2x slower | 10-50x faster |
+| Go | 1x (baseline) | 10-50x faster |
+
+**Example - Real-World Impact**:
+```ruff
+# JSON parsing benchmark
+func parse_json_dynamic(text: string) {
+    # Current implementation: ~500 req/sec
+}
+
+func parse_json_typed(text: string) -> Dict<string, any> {
+    # With types + JIT: ~2000 req/sec (4x faster)
+}
+
+# Go equivalent: ~3000 req/sec (1.5x faster than typed Ruff)
+```
+
+---
+
+### Design Decisions to Explore
+
+**1. Type Inference**
+- Should `x := 5` infer `x: int`?
+- How much inference vs explicit annotations?
+- Balance between convenience and clarity
+
+**2. Structural vs Nominal Typing**
+```ruff
+# Structural (like TypeScript):
+type Point := { x: int, y: int }
+let p := { x: 10, y: 20 }  # Matches Point automatically
+
+# Nominal (like Java):
+struct Point { x: int, y: int }
+let p := Point { x: 10, y: 20 }  # Must explicitly construct
+```
+
+**3. Type System Complexity**
+- Generics (Array<T>, Dict<K, V>)?
+- Union types (int | string)?
+- Intersection types?
+- Dependent types?
+
+**4. Gradual Typing Semantics**
+- What happens at dynamic/typed boundary?
+- Runtime casts vs compile-time errors?
+- Performance implications of type guards?
+
+**5. Compatibility**
+- Can typed and untyped code interoperate seamlessly?
+- What's the migration story for existing code?
+- Breaking changes acceptable?
+
+---
+
+### Research Questions
+
+**Before committing to implementation**:
+
+1. ✅ Performance analysis: Will types actually enable 10x+ speedups?
+2. ✅ User research: Do Ruff users want types?
+3. ✅ Ecosystem survey: How do Python, PHP, Ruby handle gradual typing?
+4. ✅ Complexity cost: Does type system add too much language complexity?
+5. ✅ Tooling requirements: What LSP/compiler changes are needed?
+6. ✅ Backward compatibility: Can we add types without breaking existing code?
+
+**Prototype Goals**:
+- Implement Stage 1 (annotations only)
+- Test with real-world Ruff codebases
+- Measure developer ergonomics
+- Decide: proceed to Stage 2/3 or abandon
+
+---
+
+### Success Criteria (If Pursued)
+
+**User Experience**:
+- ✅ Types feel natural, not bolted-on
+- ✅ Dynamic code still simple and pleasant
+- ✅ Migration path is gradual, not disruptive
+- ✅ Error messages are helpful, not cryptic
+
+**Performance**:
+- ✅ Typed code approaches Go performance (1-2x slower)
+- ✅ Zero overhead for untyped code
+- ✅ JIT compilation success rate > 90%
+
+**Tooling**:
+- ✅ VS Code autocomplete works well
+- ✅ Type errors caught by LSP before runtime
+- ✅ Refactoring tools leverage type information
+
+**Ecosystem**:
+- ✅ Standard library has type annotations
+- ✅ Third-party packages adopt types
+- ✅ Documentation generator uses type info
+
+---
+
+### Timeline (If Approved)
+
+| Version | Milestone | Effort |
+|---------|-----------|--------|
+| v0.10.0 | Stage 1: Type annotations (parser only) | 2-3 weeks |
+| v0.11.0 | Stage 2: Runtime type checking | 3-4 weeks |
+| v0.12.0 | Stage 3: JIT optimization for typed code | 4-6 weeks |
+
+**Total**: 2-3 months of work **if** research validates the approach.
+
+**Status**: 🔬 **EXPLORATORY** - Not yet approved for v1.0 roadmap.
+
+---
+
+## v0.11.0 - Developer Experience
 
 **Focus**: World-class tooling for productivity  
 **Timeline**: Q3 2026 (3 months)  
@@ -397,7 +1417,7 @@ replayer := http_replay("fixtures/api_response.json")
 
 ---
 
-## Future Versions (v1.1.0+)
+## Future Versions (v1.0.0+)
 
 ### 27. Generic Types (P2)
 
