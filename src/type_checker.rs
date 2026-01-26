@@ -1575,7 +1575,7 @@ impl TypeChecker {
                 }
             }
 
-            Stmt::FuncDef { name: _, params, param_types, return_type, body } => {
+            Stmt::FuncDef { name: _, params, param_types, return_type, body, is_generator: _ } => {
                 // Enter function scope
                 let saved_return_type = self.current_function_return.clone();
                 self.current_function_return = return_type.clone();
@@ -2043,7 +2043,7 @@ impl TypeChecker {
                 None // TODO: Return element type based on container type
             }
 
-            Expr::Function { params: _, param_types, return_type, body } => {
+            Expr::Function { params: _, param_types, return_type, body, is_generator: _ } => {
                 // Type check function expression (anonymous function)
                 // Enter function scope
                 self.push_scope();
@@ -2112,6 +2112,26 @@ impl TypeChecker {
                         None
                     }
                 }
+            }
+
+            Expr::Yield(value_expr) => {
+                // Yield expressions can return any type
+                if let Some(expr) = value_expr {
+                    self.infer_expr(expr)
+                } else {
+                    Some(TypeAnnotation::Any)
+                }
+            }
+
+            Expr::MethodCall { object, method: _, args } => {
+                // Type check the object and arguments
+                self.infer_expr(object);
+                for arg in args {
+                    self.infer_expr(arg);
+                }
+                // For now, we don't know the return type of methods
+                // TODO: Implement method type inference
+                Some(TypeAnnotation::Any)
             }
 
             Expr::Spread(expr) => {

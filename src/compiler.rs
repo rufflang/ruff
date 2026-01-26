@@ -678,6 +678,16 @@ impl Compiler {
                 Ok(())
             }
 
+            Expr::Yield(_value_expr) => {
+                // Yield expressions are not yet supported in bytecode compiler
+                Err("Generators and yield expressions are not yet supported in bytecode mode. Use interpreter mode instead.".to_string())
+            }
+
+            Expr::MethodCall { .. } => {
+                // Method calls (iterator chaining) are not yet supported in bytecode compiler
+                Err("Method calls and iterator chaining are not yet supported in bytecode mode. Use interpreter mode instead.".to_string())
+            }
+
             Expr::Spread(_) => {
                 Err("Spread operator cannot be compiled as standalone expression".to_string())
             }

@@ -347,6 +347,24 @@ pub enum Value {
         is_some: bool,
         value: Box<Value>,
     },
+    /// Generator definition (before being called)
+    GeneratorDef(Vec<String>, LeakyFunctionBody), // params, body
+    /// Generator instance with state (after being called/instantiated)
+    Generator {
+        params: Vec<String>,
+        body: LeakyFunctionBody,
+        env: Rc<RefCell<Environment>>, // Generator's execution environment
+        pc: usize,                      // Program counter - which statement to resume at
+        is_exhausted: bool,             // Whether the generator has finished
+    },
+    /// Iterator instance - wraps a collection or generator
+    Iterator {
+        source: Box<Value>,     // The underlying source (Array, Generator, etc.)
+        index: usize,           // Current position in iteration
+        transformer: Option<Box<Value>>, // Optional transformer function (for map, filter, etc.)
+        filter_fn: Option<Box<Value>>,   // Optional filter function
+        take_count: Option<usize>,       // Optional limit on items
+    },
 }
 
 // Manual Debug impl since NativeFunction doesn't need detailed output
@@ -445,6 +463,15 @@ impl std::fmt::Debug for Value {
                 } else {
                     write!(f, "None")
                 }
+            }
+            Value::GeneratorDef(params, body) => {
+                write!(f, "GeneratorDef({:?}, {} stmts)", params, body.get().len())
+            }
+            Value::Generator { params, is_exhausted, pc, .. } => {
+                write!(f, "Generator({:?}, pc={}, exhausted={})", params, pc, is_exhausted)
+            }
+            Value::Iterator { source, index, .. } => {
+                write!(f, "Iterator(source={:?}, index={})", source, index)
             }
         }
     }
@@ -3123,6 +3150,9 @@ impl Interpreter {
                         Value::Error(_) | Value::ErrorObject { .. } => "error",
                         Value::Result { .. } => "result",
                         Value::Option { .. } => "option",
+                        Value::GeneratorDef(_, _) => "generatordef",
+                        Value::Generator { .. } => "generator",
+                        Value::Iterator { .. } => "iterator",
                     };
                     Value::Str(type_name.to_string())
                 } else {
@@ -7905,15 +7935,25 @@ impl Interpreter {
                     self.return_value = Some(val);
                 }
             }
-            Stmt::FuncDef { name, params, param_types: _, return_type: _, body } => {
+            Stmt::FuncDef { name, params, param_types: _, return_type: _, body, is_generator } => {
                 // Regular functions don't capture environment - they use the environment at call time
                 // Only lambda expressions (closures) should capture environment
-                let func = Value::Function(
-                    params.clone(),
-                    LeakyFunctionBody::new(body.clone()),
-                    None, // No captured environment for regular function definitions
-                );
-                self.env.define(name.clone(), func);
+                
+                // If it's a generator, create a generator value instead
+                if *is_generator {
+                    let gen = Value::GeneratorDef(
+                        params.clone(),
+                        LeakyFunctionBody::new(body.clone()),
+                    );
+                    self.env.define(name.clone(), gen);
+                } else {
+                    let func = Value::Function(
+                        params.clone(),
+                        LeakyFunctionBody::new(body.clone()),
+                        None, // No captured environment for regular function definitions
+                    );
+                    self.env.define(name.clone(), func);
+                }
             }
             Stmt::EnumDef { name, variants } => {
                 for variant in variants {
@@ -8461,14 +8501,24 @@ impl Interpreter {
                         param_types: _,
                         return_type: _,
                         body,
+                        is_generator,
                     } = method_stmt
                     {
-                        let func = Value::Function(
-                            params.clone(),
-                            LeakyFunctionBody::new(body.clone()),
-                            Some(Rc::new(RefCell::new(self.env.clone()))),
-                        );
-                        method_map.insert(method_name.clone(), func);
+                        if *is_generator {
+                            // Generators not supported as methods yet
+                            let gen = Value::GeneratorDef(
+                                params.clone(),
+                                LeakyFunctionBody::new(body.clone()),
+                            );
+                            method_map.insert(method_name.clone(), gen);
+                        } else {
+                            let func = Value::Function(
+                                params.clone(),
+                                LeakyFunctionBody::new(body.clone()),
+                                Some(Rc::new(RefCell::new(self.env.clone()))),
+                            );
+                            method_map.insert(method_name.clone(), func);
+                        }
                     }
                 }
 
@@ -8510,13 +8560,20 @@ impl Interpreter {
                     self.env.get(name).unwrap_or(Value::Str(name.clone()))
                 }
             }
-            Expr::Function { params, param_types: _, return_type: _, body } => {
+            Expr::Function { params, param_types: _, return_type: _, body, is_generator } => {
                 // Anonymous function expression - return as a value with captured environment
-                Value::Function(
-                    params.clone(),
-                    LeakyFunctionBody::new(body.clone()),
-                    Some(Rc::new(RefCell::new(self.env.clone()))),
-                )
+                if *is_generator {
+                    Value::GeneratorDef(
+                        params.clone(),
+                        LeakyFunctionBody::new(body.clone()),
+                    )
+                } else {
+                    Value::Function(
+                        params.clone(),
+                        LeakyFunctionBody::new(body.clone()),
+                        Some(Rc::new(RefCell::new(self.env.clone()))),
+                    )
+                }
             }
             Expr::UnaryOp { op, operand } => {
                 let val = self.eval_expr(operand);
@@ -9772,6 +9829,26 @@ impl Interpreter {
                     }
                 }
             }
+            Expr::Yield(value_expr) => {
+                // Yield expression - should only be used inside generators
+                // For now, return the yielded value wrapped in a special marker
+                // The generator execution logic will handle this properly
+                let yielded = if let Some(expr) = value_expr {
+                    self.eval_expr(expr)
+                } else {
+                    Value::Null
+                };
+                // Use a Return value to signal yield - generators will intercept this
+                Value::Return(Box::new(yielded))
+            }
+            Expr::MethodCall { object, method, args } => {
+                // Method call on an expression - used for iterator chaining
+                let obj_value = self.eval_expr(object);
+                let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
+                
+                // Call the method on the object
+                self.call_method(obj_value, method, arg_values)
+            }
             Expr::Spread(_) => {
                 // Spread expressions should only appear inside array/dict literals
                 // If we reach here, it's a syntax error, but we'll return an error value
@@ -9782,6 +9859,200 @@ impl Interpreter {
             }
         };
         result
+    }
+
+    /// Call a method on a value (used for iterator chaining and other method calls)
+    fn call_method(&mut self, obj: Value, method: &str, args: Vec<Value>) -> Value {
+        match method {
+            // Iterator methods
+            "filter" if args.len() == 1 => {
+                // Create an iterator with a filter function
+                match &obj {
+                    Value::Iterator { source, index, transformer, filter_fn: existing_filter, take_count } => {
+                        // Chain filters if there's already one
+                        let new_filter = if existing_filter.is_some() {
+                            // TODO: Combine filters
+                            Some(Box::new(args[0].clone()))
+                        } else {
+                            Some(Box::new(args[0].clone()))
+                        };
+                        Value::Iterator {
+                            source: source.clone(),
+                            index: *index,
+                            transformer: transformer.clone(),
+                            filter_fn: new_filter,
+                            take_count: *take_count,
+                        }
+                    }
+                    Value::Array(_) => {
+                        // Convert array to iterator with filter
+                        Value::Iterator {
+                            source: Box::new(obj),
+                            index: 0,
+                            transformer: None,
+                            filter_fn: Some(Box::new(args[0].clone())),
+                            take_count: None,
+                        }
+                    }
+                    _ => Value::Error("filter() can only be called on iterators or arrays".to_string()),
+                }
+            }
+            "map" if args.len() == 1 => {
+                // Create an iterator with a transformer function
+                match &obj {
+                    Value::Iterator { source, index, transformer: existing_transformer, filter_fn, take_count } => {
+                        // Chain transformers if there's already one
+                        let new_transformer = if existing_transformer.is_some() {
+                            // TODO: Combine transformers
+                            Some(Box::new(args[0].clone()))
+                        } else {
+                            Some(Box::new(args[0].clone()))
+                        };
+                        Value::Iterator {
+                            source: source.clone(),
+                            index: *index,
+                            transformer: new_transformer,
+                            filter_fn: filter_fn.clone(),
+                            take_count: *take_count,
+                        }
+                    }
+                    Value::Array(_) => {
+                        // Convert array to iterator with map
+                        Value::Iterator {
+                            source: Box::new(obj),
+                            index: 0,
+                            transformer: Some(Box::new(args[0].clone())),
+                            filter_fn: None,
+                            take_count: None,
+                        }
+                    }
+                    _ => Value::Error("map() can only be called on iterators or arrays".to_string()),
+                }
+            }
+            "take" if args.len() == 1 => {
+                // Limit the number of items
+                if let Value::Int(n) = args[0] {
+                    match &obj {
+                        Value::Iterator { source, index, transformer, filter_fn, take_count: _ } => {
+                            Value::Iterator {
+                                source: source.clone(),
+                                index: *index,
+                                transformer: transformer.clone(),
+                                filter_fn: filter_fn.clone(),
+                                take_count: Some(n as usize),
+                            }
+                        }
+                        Value::Array(_) => {
+                            Value::Iterator {
+                                source: Box::new(obj),
+                                index: 0,
+                                transformer: None,
+                                filter_fn: None,
+                                take_count: Some(n as usize),
+                            }
+                        }
+                        _ => Value::Error("take() can only be called on iterators or arrays".to_string()),
+                    }
+                } else {
+                    Value::Error("take() requires an integer argument".to_string())
+                }
+            }
+            "collect" if args.is_empty() => {
+                // Collect iterator into an array
+                self.collect_iterator(obj)
+            }
+            "next" if args.is_empty() => {
+                // Get next value from iterator
+                self.iterator_next(obj)
+            }
+            _ => {
+                // Check if it's a struct method
+                match &obj {
+                    Value::Struct { name: _, fields } => {
+                        // Look for method in struct definition
+                        // For now, return error
+                        Value::Error(format!("Unknown method: {}", method))
+                    }
+                    _ => Value::Error(format!("Unknown method: {}", method)),
+                }
+            }
+        }
+    }
+
+    /// Collect all values from an iterator into an array
+    fn collect_iterator(&mut self, iterator: Value) -> Value {
+        let mut result = Vec::new();
+        let iter = iterator;
+        
+        loop {
+            let next_val = self.iterator_next(iter.clone());
+            match next_val {
+                Value::Option { is_some, value } => {
+                    if is_some {
+                        result.push(*value);
+                        // Update iterator state (this is a simplified version)
+                        // In a real implementation, we'd need to properly track state
+                    } else {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+        
+        Value::Array(result)
+    }
+
+    /// Get the next value from an iterator
+    fn iterator_next(&mut self, mut iterator: Value) -> Value {
+        match &mut iterator {
+            Value::Iterator { source, index, transformer, filter_fn, take_count } => {
+                // Check if we've reached the take limit
+                if let Some(limit) = take_count {
+                    if *index >= *limit {
+                        return Value::Option { is_some: false, value: Box::new(Value::Null) };
+                    }
+                }
+
+                // Get next item from source
+                match source.as_ref() {
+                    Value::Array(items) => {
+                        // Find next item that passes filter
+                        while *index < items.len() {
+                            let mut item = items[*index].clone();
+                            *index += 1;
+
+                            // Apply filter if present
+                            if let Some(filter) = filter_fn {
+                                let args_vec = vec![item.clone()];
+                                let filter_result = self.call_user_function(filter.as_ref(), &args_vec);
+                                match filter_result {
+                                    Value::Bool(true) => {
+                                        // Item passes filter
+                                    }
+                                    _ => {
+                                        // Item filtered out, continue to next
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            // Apply transformer if present
+                            if let Some(trans) = transformer {
+                                let args_vec = vec![item];
+                                item = self.call_user_function(trans.as_ref(), &args_vec);
+                            }
+
+                            return Value::Option { is_some: true, value: Box::new(item) };
+                        }
+                        // No more items
+                        Value::Option { is_some: false, value: Box::new(Value::Null) }
+                    }
+                    _ => Value::Error("Invalid iterator source".to_string()),
+                }
+            }
+            _ => Value::Error("next() can only be called on iterators".to_string()),
+        }
     }
 
     /// Converts a runtime value to a string for display
