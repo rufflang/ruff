@@ -1575,7 +1575,7 @@ impl TypeChecker {
                 }
             }
 
-            Stmt::FuncDef { name: _, params, param_types, return_type, body, is_generator: _ } => {
+            Stmt::FuncDef { name: _, params, param_types, return_type, body, is_generator: _, is_async: _ } => {
                 // Enter function scope
                 let saved_return_type = self.current_function_return.clone();
                 self.current_function_return = return_type.clone();
@@ -2043,7 +2043,7 @@ impl TypeChecker {
                 None // TODO: Return element type based on container type
             }
 
-            Expr::Function { params: _, param_types, return_type, body, is_generator: _ } => {
+            Expr::Function { params: _, param_types, return_type, body, is_generator: _, is_async: _ } => {
                 // Type check function expression (anonymous function)
                 // Enter function scope
                 self.push_scope();
@@ -2138,6 +2138,14 @@ impl TypeChecker {
                 // Type check the spread expression
                 self.infer_expr(expr);
                 None
+            }
+
+            Expr::Await(promise_expr) => {
+                // Type check the promise expression
+                self.infer_expr(promise_expr);
+                // TODO: If we know it's a Promise<T>, return T
+                // For now, return Any
+                Some(TypeAnnotation::Any)
             }
         };
 

@@ -365,6 +365,18 @@ pub enum Value {
         filter_fn: Option<Box<Value>>,   // Optional filter function
         take_count: Option<usize>,       // Optional limit on items
     },
+    /// Promise - represents async computation result
+    Promise {
+        state: PromiseState,
+    },
+}
+
+/// State of a Promise
+#[derive(Debug, Clone)]
+pub enum PromiseState {
+    Pending,
+    Resolved(Box<Value>),
+    Rejected(String),
 }
 
 // Manual Debug impl since NativeFunction doesn't need detailed output
@@ -472,6 +484,13 @@ impl std::fmt::Debug for Value {
             }
             Value::Iterator { source, index, .. } => {
                 write!(f, "Iterator(source={:?}, index={})", source, index)
+            }
+            Value::Promise { state } => {
+                match state {
+                    PromiseState::Pending => write!(f, "Promise(Pending)"),
+                    PromiseState::Resolved(_) => write!(f, "Promise(Resolved)"),
+                    PromiseState::Rejected(err) => write!(f, "Promise(Rejected: {})", err),
+                }
             }
         }
     }
@@ -3175,6 +3194,7 @@ impl Interpreter {
                         Value::GeneratorDef(_, _) => "generatordef",
                         Value::Generator { .. } => "generator",
                         Value::Iterator { .. } => "iterator",
+                        Value::Promise { .. } => "promise",
                     };
                     Value::Str(type_name.to_string())
                 } else {
@@ -7957,7 +7977,7 @@ impl Interpreter {
                     self.return_value = Some(val);
                 }
             }
-            Stmt::FuncDef { name, params, param_types: _, return_type: _, body, is_generator } => {
+            Stmt::FuncDef { name, params, param_types: _, return_type: _, body, is_generator, is_async: _ } => {
                 // Regular functions don't capture environment - they use the environment at call time
                 // Only lambda expressions (closures) should capture environment
                 
@@ -8579,6 +8599,7 @@ impl Interpreter {
                         return_type: _,
                         body,
                         is_generator,
+                        is_async: _,
                     } = method_stmt
                     {
                         if *is_generator {
@@ -8637,7 +8658,7 @@ impl Interpreter {
                     self.env.get(name).unwrap_or(Value::Str(name.clone()))
                 }
             }
-            Expr::Function { params, param_types: _, return_type: _, body, is_generator } => {
+            Expr::Function { params, param_types: _, return_type: _, body, is_generator, is_async: _ } => {
                 // Anonymous function expression - return as a value with captured environment
                 if *is_generator {
                     Value::GeneratorDef(
@@ -9965,6 +9986,26 @@ impl Interpreter {
                 };
                 // Use a Return value to signal yield - generators will intercept this
                 Value::Return(Box::new(yielded))
+            }
+            Expr::Await(promise_expr) => {
+                // Await expression - wait for a promise to resolve
+                // For now, just evaluate the expression directly
+                // TODO: Implement proper async/await with promise handling
+                let promise_value = self.eval_expr(promise_expr);
+                
+                // If it's a promise, wait for it to resolve
+                match promise_value {
+                    Value::Promise { state, .. } => {
+                        // TODO: Actually wait for promise resolution
+                        // For now, return an error if promise is pending
+                        match state {
+                            PromiseState::Resolved(value) => *value,
+                            PromiseState::Rejected(error) => Value::Error(format!("Promise rejected: {}", error)),
+                            PromiseState::Pending => Value::Error("Cannot await pending promise in synchronous context".to_string()),
+                        }
+                    }
+                    other => other, // If it's not a promise, just return the value
+                }
             }
             Expr::MethodCall { object, method, args } => {
                 // Method call on an expression - used for iterator chaining

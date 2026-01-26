@@ -68,7 +68,17 @@ impl Parser {
         match self.peek() {
             TokenKind::Keyword(k) if k == "let" || k == "mut" => self.parse_let(),
             TokenKind::Keyword(k) if k == "const" => self.parse_const(),
-            TokenKind::Keyword(k) if k == "func" => self.parse_func(),
+            TokenKind::Keyword(k) if k == "async" => {
+                // async func or async function expression
+                self.advance(); // consume 'async'
+                if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
+                    self.parse_func_with_async(true)
+                } else {
+                    // Error: async must be followed by func
+                    None
+                }
+            }
+            TokenKind::Keyword(k) if k == "func" => self.parse_func_with_async(false),
             TokenKind::Keyword(k) if k == "enum" => self.parse_enum(),
             TokenKind::Keyword(k) if k == "struct" => self.parse_struct(),
             TokenKind::Keyword(k) if k == "import" || k == "from" => self.parse_import(),
@@ -183,9 +193,16 @@ impl Parser {
         while !matches!(self.peek(), TokenKind::Punctuation('}'))
             && !matches!(self.peek(), TokenKind::Eof)
         {
-            // Check if this is a method definition
+            // Check if this is a method definition (async func or func)
+            let is_async = if matches!(self.peek(), TokenKind::Keyword(k) if k == "async") {
+                self.advance(); // consume 'async'
+                true
+            } else {
+                false
+            };
+            
             if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
-                if let Some(method) = self.parse_func() {
+                if let Some(method) = self.parse_func_with_async(is_async) {
                     methods.push(method);
                 }
             } else if let TokenKind::Identifier(field_name) = self.peek() {
@@ -368,7 +385,7 @@ impl Parser {
         Some(Stmt::Const { name, value, type_annotation })
     }
 
-    fn parse_func(&mut self) -> Option<Stmt> {
+    fn parse_func_with_async(&mut self, is_async: bool) -> Option<Stmt> {
         self.advance(); // func
         
         // Check for generator syntax: func*
@@ -455,11 +472,11 @@ impl Parser {
             }
         }
         self.advance(); // }
-        Some(Stmt::FuncDef { name, param_types, return_type, params, body, is_generator })
+        Some(Stmt::FuncDef { name, param_types, return_type, params, body, is_generator, is_async })
     }
 
     /// Parse a function expression (anonymous function)
-    fn parse_func_expr(&mut self) -> Option<Expr> {
+    fn parse_func_expr_with_async(&mut self, is_async: bool) -> Option<Expr> {
         self.advance(); // func
         
         // Check for generator syntax: func*
@@ -526,7 +543,7 @@ impl Parser {
             }
         }
         self.advance(); // }
-        Some(Expr::Function { params, param_types, return_type, body, is_generator })
+        Some(Expr::Function { params, param_types, return_type, body, is_generator, is_async })
     }
 
     fn parse_match(&mut self) -> Option<Stmt> {
@@ -1246,7 +1263,16 @@ impl Parser {
         match self.peek() {
             TokenKind::Punctuation('[') => self.parse_array_literal(),
             TokenKind::Punctuation('{') => self.parse_dict_literal(),
-            TokenKind::Keyword(k) if k == "func" => self.parse_func_expr(),
+            TokenKind::Keyword(k) if k == "async" => {
+                // async function expression
+                self.advance(); // consume 'async'
+                if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
+                    self.parse_func_expr_with_async(true)
+                } else {
+                    None
+                }
+            }
+            TokenKind::Keyword(k) if k == "func" => self.parse_func_expr_with_async(false),
             TokenKind::Keyword(k) if k == "yield" => {
                 self.advance(); // consume yield
                 // yield can have an optional value
@@ -1256,6 +1282,12 @@ impl Parser {
                     None
                 };
                 Some(Expr::Yield(value))
+            }
+            TokenKind::Keyword(k) if k == "await" => {
+                self.advance(); // consume await
+                // await requires an expression (the promise to wait for)
+                let promise_expr = Box::new(self.parse_expr()?);
+                Some(Expr::Await(promise_expr))
             }
             TokenKind::Keyword(k) if k == "null" => {
                 self.advance();

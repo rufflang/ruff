@@ -1633,6 +1633,14 @@ pub fn format_debug_value(value: &Value) -> String {
             format!("Generator({:?}, exhausted: {})", params, is_exhausted)
         }
         Value::Iterator { source, .. } => format!("Iterator(source: {:?})", source),
+        Value::Promise { state } => {
+            use crate::interpreter::PromiseState;
+            match state {
+                PromiseState::Pending => "Promise(Pending)".to_string(),
+                PromiseState::Resolved(value) => format!("Promise(Resolved: {})", format_debug_value(value)),
+                PromiseState::Rejected(err) => format!("Promise(Rejected: {})", err),
+            }
+        }
     }
 }
 
