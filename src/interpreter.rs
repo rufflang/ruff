@@ -845,6 +845,7 @@ impl Interpreter {
         self.env.define("to_float".to_string(), Value::NativeFunction("to_float".to_string()));
         self.env.define("to_string".to_string(), Value::NativeFunction("to_string".to_string()));
         self.env.define("to_bool".to_string(), Value::NativeFunction("to_bool".to_string()));
+        self.env.define("bytes".to_string(), Value::NativeFunction("bytes".to_string()));
 
         // Type introspection functions
         self.env.define("type".to_string(), Value::NativeFunction("type".to_string()));
@@ -2793,6 +2794,29 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("to_bool() requires one argument".to_string())
+                }
+            }
+
+            "bytes" => {
+                // bytes(array) - converts array of integers (0-255) to bytes
+                if let Some(Value::Array(arr)) = arg_values.first() {
+                    let mut byte_vec = Vec::new();
+                    for val in arr {
+                        match val {
+                            Value::Int(n) => {
+                                if *n < 0 || *n > 255 {
+                                    return Value::Error(format!("bytes() requires integers in range 0-255, got {}", n));
+                                }
+                                byte_vec.push(*n as u8);
+                            }
+                            _ => {
+                                return Value::Error("bytes() requires an array of integers".to_string());
+                            }
+                        }
+                    }
+                    Value::Bytes(byte_vec)
+                } else {
+                    Value::Error("bytes() requires an array argument".to_string())
                 }
             }
 
