@@ -1664,6 +1664,23 @@ impl TypeChecker {
                 self.pop_scope();
             }
 
+            Stmt::Test { body, .. } | Stmt::TestSetup { body } | 
+            Stmt::TestTeardown { body } => {
+                // Check test body in a new scope
+                self.push_scope();
+                for s in body {
+                    self.check_stmt(s);
+                }
+                self.pop_scope();
+            }
+
+            Stmt::TestGroup { tests, .. } => {
+                // Check all test statements in the group
+                for s in tests {
+                    self.check_stmt(s);
+                }
+            }
+
             Stmt::Match { value, cases, default } => {
                 self.infer_expr(value);
                 for (_, case_body) in cases {

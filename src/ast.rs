@@ -301,6 +301,24 @@ pub enum Stmt {
     Spawn {
         body: Vec<Stmt>,
     },
+    /// Test statement: define a test case
+    Test {
+        name: String,
+        body: Vec<Stmt>,
+    },
+    /// Test setup: run before each test
+    TestSetup {
+        body: Vec<Stmt>,
+    },
+    /// Test teardown: run after each test
+    TestTeardown {
+        body: Vec<Stmt>,
+    },
+    /// Test group: group related tests
+    TestGroup {
+        name: String,
+        tests: Vec<Stmt>, // Should contain Test statements
+    },
 }
 
 impl Stmt {
