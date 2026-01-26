@@ -103,8 +103,7 @@ fn main() {
 
             if vm {
                 // Use bytecode compiler and VM
-                use std::cell::RefCell;
-                use std::rc::Rc;
+                use std::sync::{Arc, Mutex};
 
                 let mut compiler = compiler::Compiler::new();
                 match compiler.compile(&stmts) {
@@ -113,14 +112,14 @@ fn main() {
 
                         // Set up global environment with built-in functions
                         // We need to populate it with NativeFunction values for all built-ins
-                        let env = Rc::new(RefCell::new(interpreter::Environment::new()));
+                        let env = Arc::new(Mutex::new(interpreter::Environment::new()));
 
                         // Register all built-in functions as NativeFunction values
                         // Get the complete list from the interpreter
                         let builtins = interpreter::Interpreter::get_builtin_names();
 
                         for builtin_name in builtins {
-                            env.borrow_mut().set(
+                            env.lock().unwrap().set(
                                 builtin_name.to_string(),
                                 interpreter::Value::NativeFunction(builtin_name.to_string()),
                             );

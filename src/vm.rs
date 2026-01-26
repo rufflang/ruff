@@ -6,9 +6,8 @@
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{Environment, Interpreter, Value};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// Virtual Machine for executing bytecode
 #[allow(dead_code)] // VM not yet integrated into execution path
@@ -19,8 +18,8 @@ pub struct VM {
     /// Call frames for function calls
     call_frames: Vec<CallFrame>,
 
-    /// Global environment (must be RefCell for interior mutability)
-    globals: Rc<RefCell<Environment>>,
+    /// Global environment (must be Mutex for interior mutability)
+    globals: Arc<Mutex<Environment>>,
 
     /// Current instruction pointer
     ip: usize,
@@ -55,7 +54,7 @@ impl VM {
         Self {
             stack: Vec::new(),
             call_frames: Vec::new(),
-            globals: Rc::new(RefCell::new(Environment::new())),
+            globals: Arc::new(Mutex::new(Environment::new())),
             ip: 0,
             chunk: BytecodeChunk::new(),
             interpreter: Interpreter::new(),
@@ -63,7 +62,7 @@ impl VM {
     }
 
     /// Set the global environment (for accessing built-in functions)
-    pub fn set_globals(&mut self, env: Rc<RefCell<Environment>>) {
+    pub fn set_globals(&mut self, env: Arc<Mutex<Environment>>) {
         self.globals = env.clone();
         // Also set the interpreter's environment so it can resolve native functions
         self.interpreter.set_env(env);
@@ -100,7 +99,7 @@ impl VM {
                     };
 
                     let value = value
-                        .or_else(|| self.globals.borrow().get(&name))
+                        .or_else(|| self.globals.lock().unwrap().get(&name))
                         .ok_or_else(|| format!("Undefined variable: {}", name))?;
 
                     self.stack.push(value);
@@ -109,7 +108,7 @@ impl VM {
                 OpCode::LoadGlobal(name) => {
                     let value = self
                         .globals
-                        .borrow()
+                        .lock().unwrap()
                         .get(&name)
                         .ok_or_else(|| format!("Undefined global: {}", name))?;
                     self.stack.push(value);
@@ -122,14 +121,14 @@ impl VM {
                         frame.locals.insert(name, value);
                     } else {
                         // Store in global
-                        self.globals.borrow_mut().set(name, value);
+                        self.globals.lock().unwrap().set(name, value);
                     }
                 }
 
                 OpCode::StoreGlobal(name) => {
                     let value = self.stack.last().ok_or("Stack underflow")?.clone();
 
-                    self.globals.borrow_mut().set(name, value);
+                    self.globals.lock().unwrap().set(name, value);
                 }
 
                 OpCode::Pop => {

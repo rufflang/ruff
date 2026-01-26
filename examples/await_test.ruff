@@ -1,0 +1,7 @@
+// Test with await
+async func test() {
+    return 5;
+}
+
+let p = test();
+let r = await p;
