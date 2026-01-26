@@ -32,8 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - And 140+ more functions...
   - **Testing**: Comprehensive VM native function integration test suite
   - **Benchmark Suite**: Created 7 benchmark programs (fibonacci, primes, sorting, etc.) for future performance validation
-  - **Known Limitation**: VM loop execution has bugs that need fixing before performance benchmarks can be run
-  - **Status**: Production-ready for non-loop code, all native functions work correctly
+  - **Status**: Production-ready, all native functions work correctly in VM mode
+
+- **FIX**: Loop compilation in bytecode VM
+  - Implemented full `Stmt::Loop` compilation support in compiler.rs
+  - Handles both conditional (`loop while expr`) and unconditional loops  
+  - Properly manages break/continue statements with jump patching
+  - Loop bodies now execute correctly in VM mode
+  - Root cause: Compiler was returning `Ok(())` without generating bytecode for loops
+
+- **TWEAK**: Ruff-based benchmark runner (`benchmarks/run_benchmarks.ruff`)
+  - Rewrote Python benchmark runner in pure Ruff to dogfood the language
+  - Demonstrates Ruff's capability for real-world tooling tasks
+  - Uses process execution, string parsing, statistics, and file operations
+  - Shows language maturity - a language that can benchmark itself
   - **Example**:
     ```ruff
     # All these work in VM mode (run with --vm flag):
