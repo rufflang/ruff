@@ -278,14 +278,30 @@ struct RangeIter {
 
 ### 27. Built-in Testing Framework (P1)
 
-**Status**: Planned  
-**Estimated Effort**: Medium (2-3 weeks)
+**Status**: 🚧 In Progress (~40% Complete - Foundation Implemented)  
+**Estimated Effort**: Medium (2-3 weeks total, ~4 days remaining)
 
 **Why Critical**: Every modern language needs testing built-in, not as afterthought
 
+**Completed** ✅:
+- **Test Syntax Support**: `test`, `test_setup`, `test_teardown`, `test_group` keywords
+- **AST Integration**: Full AST support for all test statement types
+- **Parser Implementation**: Complete parsing for test blocks and groups
+- **Assertion Functions**: `assert_equal()`, `assert_true()`, `assert_false()`, `assert_contains()`
+- **Type Checking**: Test bodies validated in isolated scopes
+- **Documentation**: Session notes with implementation details
+
+**Remaining Work** 📋:
+- Test runner/collector system (collects and executes tests from AST)
+- CLI integration (`ruff test` command with flags)
+- Error propagation improvements (assertions currently return Error values)
+- Comprehensive test suite (15-20 test cases)
+- Example file (testing_demo.ruff)
+- Full documentation updates (CHANGELOG, README)
+
 **Features**:
 ```ruff
-# Test blocks with built-in assertions
+# Test blocks with built-in assertions (SYNTAX WORKS, RUNNER PENDING)
 test "array operations work correctly" {
     arr := [1, 2, 3]
     arr2 := push(arr, 4)
@@ -300,7 +316,7 @@ test "http requests return 200" {
     assert_true(len(response.body) > 0)
 }
 
-# Setup/teardown
+# Setup/teardown (SYNTAX WORKS, RUNNER PENDING)
 test_setup {
     db := db_connect("sqlite", ":memory:")
     db_execute(db, "CREATE TABLE users (id INTEGER, name TEXT)", [])
@@ -310,7 +326,7 @@ test_teardown {
     db_close(db)
 }
 
-# Test groups
+# Test groups (SYNTAX WORKS, RUNNER PENDING)
 test_group "database operations" {
     test "insert works" { ... }
     test "query works" { ... }
@@ -318,14 +334,16 @@ test_group "database operations" {
 }
 ```
 
-**CLI**:
+**CLI** (Planned):
 ```bash
 ruff test file.ruff              # Run all tests
 ruff test file.ruff --verbose    # Show details
 ruff test --watch                # Run on file changes
 ```
 
-**Implementation**: Add `test` keyword, assertion functions, test runner in CLI
+**Current Capabilities**: Test syntax parses correctly, assertions work as functions, test code coexists with regular code.
+
+**See**: [notes/2026-01-25_testing-framework-foundation.md](notes/2026-01-25_testing-framework-foundation.md) for implementation details
 
 ---
 
