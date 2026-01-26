@@ -30,26 +30,28 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 23. Standard Library Expansion (P1)
 
-**Status**: In Progress (Milestones 1-2 Complete: Compression, Hashing, Process, OS, Path)  
-**Estimated Effort**: Large (3 months total, ~1.5 months remaining)
+**Status**: In Progress (Milestones 1-3 Complete: Compression, Hashing, Process, OS, Path, Network, Crypto)  
+**Estimated Effort**: Large (3 months total, ~1 month remaining)
 
 **Completed Features** ✅:
 - ✅ **Compression & Archives**: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
 - ✅ **Hashing**: `sha256`, `md5`, `md5_file` for data integrity and content verification
 - ✅ **Password Hashing**: `hash_password`, `verify_password` using bcrypt
+- ✅ **Crypto Module**: `aes_encrypt`, `aes_decrypt`, `aes_encrypt_bytes`, `aes_decrypt_bytes`, `rsa_generate_keypair`, `rsa_encrypt`, `rsa_decrypt`, `rsa_sign`, `rsa_verify` for AES-256-GCM and RSA encryption
 - ✅ **Process Management**: `spawn_process`, `pipe_commands` for system automation
 - ✅ **OS Module**: `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ` for operating system interaction
 - ✅ **Path Module**: `path_join`, `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension` for path manipulation
 - ✅ **IO Module**: `io_read_bytes`, `io_write_bytes`, `io_append_bytes`, `io_read_at`, `io_write_at`, `io_seek_read`, `io_file_metadata`, `io_truncate`, `io_copy_range` for advanced binary I/O
-- ✅ **Tests**: Comprehensive test suites in `tests/stdlib_test.ruff`, `tests/stdlib_os_path_test.ruff`, and `tests/stdlib_io_test.ruff` (109 total tests)
-- ✅ **Examples**: Eight detailed example files demonstrating real-world usage
+- ✅ **Tests**: Comprehensive test suites in `tests/stdlib_test.ruff`, `tests/stdlib_os_path_test.ruff`, `tests/stdlib_io_test.ruff`, and `tests/stdlib_crypto_test.ruff` (139 total tests)
+- ✅ **Examples**: Ten detailed example files demonstrating real-world usage
 - ✅ **Documentation**: CHANGELOG updated with full API documentation for all modules
 
 **Completed Core Modules** ✅:
 - ✅ `net` - TCP/UDP sockets (11 functions, 11 tests, 3 examples) - **COMPLETE**
+- ✅ `crypto` - Encryption (AES-256-GCM, RSA) with 9 functions, 30 tests, 2 examples - **COMPLETE**
 
-**Remaining Core Modules** (Next Priority):
-- `crypto` - Encryption (AES, RSA) beyond hashing - **PLANNED**
+**Remaining Core Modules** (Future Milestones):
+- Advanced crypto features (elliptic curve, key exchange) - **FUTURE**
 
 **Essential Built-in Functions** (Already Implemented):
 

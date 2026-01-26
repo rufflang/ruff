@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Crypto Module** 🔐 - Advanced encryption and digital signature support (P1 feature):
+  - **AES-256-GCM Symmetric Encryption**:
+    - `aes_encrypt(plaintext, key)` - Encrypt string with AES-256-GCM, returns base64-encoded ciphertext
+    - `aes_decrypt(ciphertext, key)` - Decrypt AES-256-GCM ciphertext, returns plaintext string
+    - `aes_encrypt_bytes(data, key)` - Encrypt arbitrary bytes with AES-256-GCM
+    - `aes_decrypt_bytes(ciphertext, key)` - Decrypt bytes encrypted with AES-256-GCM
+    - Automatic key derivation via SHA-256 (supports any password length)
+    - Random nonce generation per encryption (ensures unique ciphertext)
+    - Authentication tag for integrity verification (GCM mode)
+  - **RSA Asymmetric Encryption**:
+    - `rsa_generate_keypair(bits)` - Generate RSA keypair (2048 or 4096 bits), returns dict with "public" and "private" PEM-encoded keys
+    - `rsa_encrypt(plaintext, public_key_pem)` - Encrypt with RSA public key using OAEP padding
+    - `rsa_decrypt(ciphertext, private_key_pem)` - Decrypt with RSA private key
+    - Non-deterministic encryption (random padding for each encryption)
+    - Supports up to 190 bytes plaintext (2048-bit key) or 446 bytes (4096-bit key)
+  - **RSA Digital Signatures**:
+    - `rsa_sign(message, private_key_pem)` - Sign message with RSA private key, returns base64 signature
+    - `rsa_verify(message, signature, public_key_pem)` - Verify signature with RSA public key, returns boolean
+    - PKCS#1 v1.5 signature scheme with SHA-256 hashing
+    - Provides authentication, integrity, and non-repudiation
+  - **Security Features**:
+    - Industry-standard cryptographic primitives (AES-GCM, RSA-OAEP, PKCS#1 v1.5)
+    - Proper error handling for invalid keys, corrupted data, and wrong passwords
+    - PEM format for key storage and exchange
+    - Hybrid encryption support (combine RSA + AES for large messages)
+  - **Examples**:
+    - `examples/crypto_aes_example.ruff` - File encryption with AES-256-GCM
+    - `examples/crypto_rsa_example.ruff` - Secure messaging with RSA (Alice-Bob scenario)
+  - **Test Suite**: `tests/stdlib_crypto_test.ruff` with 30 comprehensive tests covering encryption, decryption, signing, verification, error handling, and edge cases
+  - **Use Cases**: Secure file storage, encrypted communications, password protection, data integrity verification, digital signatures, hybrid encryption systems
+
 - **Built-in Testing Framework** 🧪 - Comprehensive testing support with assertion functions (P2 feature):
   - **Test Syntax**: `test "name" { ... }`, `test_setup { ... }`, `test_teardown { ... }`, `test_group "name" { ... }`
   - **Assertion Functions**:
