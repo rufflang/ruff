@@ -35,14 +35,12 @@ use rsa::{
 use rusqlite::Connection as SqliteConnection;
 use sha2::Sha256 as RsaSha256;
 use sha2::{Digest as Sha2Digest, Sha256};
-use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use std::mem::ManuallyDrop;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
@@ -263,8 +261,8 @@ pub enum Value {
     Bool(bool),
     Null,           // Null value for optional chaining and null coalescing
     Bytes(Vec<u8>), // Binary data for files, HTTP downloads, etc.
-    Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
-    AsyncFunction(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // async params, body, captured_env
+    Function(Vec<String>, LeakyFunctionBody, Option<Arc<Mutex<Environment>>>), // params, body, captured_env
+    AsyncFunction(Vec<String>, LeakyFunctionBody, Option<Arc<Mutex<Environment>>>), // async params, body, captured_env
     NativeFunction(String), // Name of the native function
     #[allow(dead_code)] // BytecodeFunction not yet used - VM integration incomplete
     BytecodeFunction {
@@ -354,7 +352,7 @@ pub enum Value {
     Generator {
         params: Vec<String>,
         body: LeakyFunctionBody,
-        env: Rc<RefCell<Environment>>, // Generator's execution environment
+        env: Arc<Mutex<Environment>>, // Generator's execution environment
         pc: usize,                      // Program counter - which statement to resume at
         is_exhausted: bool,             // Whether the generator has finished
     },
@@ -618,10 +616,10 @@ impl Interpreter {
     }
 
     /// Set the environment (used by VM to share environment)
-    pub fn set_env(&mut self, env: Rc<RefCell<Environment>>) {
-        // We need to extract the environment from the RefCell
-        let borrowed_env = env.borrow();
-        self.env = borrowed_env.clone();
+    pub fn set_env(&mut self, env: Arc<Mutex<Environment>>) {
+        // We need to extract the environment from the Mutex
+        let locked_env = env.lock().unwrap();
+        self.env = locked_env.clone();
     }
 
     /// Get all built-in function names (for VM initialization)
@@ -1538,7 +1536,7 @@ impl Interpreter {
                 Value::Generator {
                     params: params.clone(),
                     body: body.clone(),
-                    env: Rc::new(RefCell::new(gen_env)),
+                    env: Arc::new(Mutex::new(gen_env)),
                     pc: 0,
                     is_exhausted: false,
                 }
@@ -1554,8 +1552,8 @@ impl Interpreter {
                     // Save current environment
                     let saved_env = self.env.clone();
 
-                    // Use the captured environment (which is shared via Rc<RefCell<>>)
-                    self.env = closure_env_ref.borrow().clone();
+                    // Use the captured environment (which is shared via Arc<Mutex<>>)
+                    self.env = closure_env_ref.lock().unwrap().clone();
                     self.env.push_scope();
 
                     // Bind parameters to arguments
@@ -1588,7 +1586,7 @@ impl Interpreter {
                     self.env.pop_scope();
 
                     // Update the captured environment with the modified state
-                    *closure_env_ref.borrow_mut() = self.env.clone();
+                    *closure_env_ref.lock().unwrap() = self.env.clone();
 
                     // Restore the saved environment
                     self.env = saved_env;
@@ -8631,7 +8629,7 @@ impl Interpreter {
                             let func = Value::Function(
                                 params.clone(),
                                 LeakyFunctionBody::new(body.clone()),
-                                Some(Rc::new(RefCell::new(self.env.clone()))),
+                                Some(Arc::new(Mutex::new(self.env.clone()))),
                             );
                             method_map.insert(method_name.clone(), func);
                         }
@@ -8687,13 +8685,13 @@ impl Interpreter {
                     Value::AsyncFunction(
                         params.clone(),
                         LeakyFunctionBody::new(body.clone()),
-                        Some(Rc::new(RefCell::new(self.env.clone()))),
+                        Some(Arc::new(Mutex::new(self.env.clone()))),
                     )
                 } else {
                     Value::Function(
                         params.clone(),
                         LeakyFunctionBody::new(body.clone()),
-                        Some(Rc::new(RefCell::new(self.env.clone()))),
+                        Some(Arc::new(Mutex::new(self.env.clone()))),
                     )
                 }
             }
@@ -8761,7 +8759,7 @@ impl Interpreter {
                                 // Store current environment
                                 let current = self.env.clone();
                                 // Set interpreter's environment to the closure's captured environment
-                                self.env = closure_env.borrow().clone();
+                                self.env = closure_env.lock().unwrap().clone();
                                 Some(current)
                             } else {
                                 None
@@ -9624,7 +9622,7 @@ impl Interpreter {
                             let saved_env = self.env.clone();
 
                             // Use the captured environment
-                            self.env = closure_env_ref.borrow().clone();
+                            self.env = closure_env_ref.lock().unwrap().clone();
                             self.env.push_scope();
 
                             for (i, param) in params.iter().enumerate() {
@@ -9653,7 +9651,7 @@ impl Interpreter {
 
                             self.env.pop_scope();
                             // Update the captured environment
-                            *closure_env_ref.borrow_mut() = self.env.clone();
+                            *closure_env_ref.lock().unwrap() = self.env.clone();
                             self.env = saved_env;
                             self.call_stack.pop();
 
@@ -9692,10 +9690,56 @@ impl Interpreter {
                             result
                         }
                     }
-                    Value::AsyncFunction(_params, _body, _captured_env) => {
-                        // Async functions are not yet fully implemented due to Send trait requirements
-                        // TODO: Implement proper async execution with SendableValue or Arc<Mutex<>>
-                        Value::Error("Async/await runtime is not yet implemented. Syntax is supported but execution is blocked by Rust Send trait requirements. See notes/2026-01-26_async-await-partial-implementation.md".to_string())
+                    Value::AsyncFunction(params, body, captured_env) => {
+                        // Evaluate arguments
+                        let args_vec: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
+                        
+                        // Clone what we need for the thread
+                        let params = params.clone();
+                        let body = body.clone();
+                        let base_env = if let Some(ref env_ref) = captured_env {
+                            env_ref.lock().unwrap().clone()
+                        } else {
+                            self.env.clone()
+                        };
+                        
+                        // Create a channel for the result
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        
+                        // Spawn a thread to execute the async function
+                        std::thread::spawn(move || {
+                            let mut async_interpreter = Interpreter::new();
+                            async_interpreter.register_builtins(); // Register built-in functions
+                            async_interpreter.env = base_env;
+                            async_interpreter.env.push_scope();
+                            
+                            // Bind parameters
+                            for (i, param) in params.iter().enumerate() {
+                                if let Some(arg) = args_vec.get(i) {
+                                    async_interpreter.env.define(param.clone(), arg.clone());
+                                }
+                            }
+                            
+                            // Execute the async function body
+                            async_interpreter.eval_stmts(body.get());
+                            
+                            // Get the return value
+                            let result = if let Some(Value::Return(val)) = async_interpreter.return_value {
+                                *val
+                            } else {
+                                Value::Int(0)
+                            };
+                            
+                            // Send the result back
+                            let _ = tx.send(Ok(result));
+                        });
+                        
+                        // Return a Promise containing the receiver
+                        Value::Promise {
+                            receiver: Arc::new(Mutex::new(rx)),
+                            is_polled: Arc::new(Mutex::new(false)),
+                            cached_result: Arc::new(Mutex::new(None)),
+                        }
                     }
                     Value::GeneratorDef(ref params, ref body) => {
                         // Calling a generator function creates a Generator instance
@@ -9716,7 +9760,7 @@ impl Interpreter {
                         Value::Generator {
                             params: params.clone(),
                             body: body.clone(),
-                            env: Rc::new(RefCell::new(gen_env)),
+                            env: Arc::new(Mutex::new(gen_env)),
                             pc: 0,
                             is_exhausted: false,
                         }
@@ -9743,7 +9787,7 @@ impl Interpreter {
                                 let saved_env = self.env.clone();
 
                                 // Use the captured environment
-                                self.env = closure_env_ref.borrow().clone();
+                                self.env = closure_env_ref.lock().unwrap().clone();
                                 self.env.push_scope();
 
                                 for (i, param) in params.iter().enumerate() {
@@ -9773,7 +9817,7 @@ impl Interpreter {
 
                                 self.env.pop_scope();
                                 // Update the captured environment
-                                *closure_env_ref.borrow_mut() = self.env.clone();
+                                *closure_env_ref.lock().unwrap() = self.env.clone();
                                 self.env = saved_env;
                                 self.call_stack.pop();
 
@@ -9832,7 +9876,7 @@ impl Interpreter {
                             return Value::Generator {
                                 params: params.clone(),
                                 body: body.clone(),
-                                env: Rc::new(RefCell::new(gen_env)),
+                                env: Arc::new(Mutex::new(gen_env)),
                                 pc: 0,
                                 is_exhausted: false,
                             };
@@ -10024,42 +10068,56 @@ impl Interpreter {
                 match promise_value {
                     Value::Promise { receiver, is_polled, cached_result } => {
                         // Check if we've already polled this promise
+                        {
+                            let polled = is_polled.lock().unwrap();
+                            let cached = cached_result.lock().unwrap();
+                            
+                            if *polled {
+                                // Use cached result
+                                return match cached.as_ref() {
+                                    Some(Ok(val)) => val.clone(),
+                                    Some(Err(err)) => Value::Error(format!("Promise rejected: {}", err)),
+                                    None => Value::Error("Promise polled but no result cached".to_string()),
+                                };
+                            }
+                            // Locks dropped here
+                        }
+                        
+                        // Poll the promise - locks are released before blocking recv()
+                        let result = {
+                            let recv = receiver.lock().unwrap();
+                            recv.recv()
+                        };
+                        
+                        // Now update the cache with the result
                         let mut polled = is_polled.lock().unwrap();
                         let mut cached = cached_result.lock().unwrap();
                         
-                        if *polled {
-                            // Use cached result
-                            match cached.as_ref() {
-                                Some(Ok(val)) => val.clone(),
-                                Some(Err(err)) => Value::Error(format!("Promise rejected: {}", err)),
-                                None => Value::Error("Promise polled but no result cached".to_string()),
+                        match result {
+                            Ok(Ok(value)) => {
+                                // Cache the successful result
+                                *cached = Some(Ok(value.clone()));
+                                *polled = true;
+                                value
                             }
-                        } else {
-                            // Poll the promise
-                            let recv = receiver.lock().unwrap();
-                            match recv.recv() {
-                                Ok(Ok(value)) => {
-                                    // Cache the successful result
-                                    *cached = Some(Ok(value.clone()));
-                                    *polled = true;
-                                    value
-                                }
-                                Ok(Err(error)) => {
-                                    // Cache the error
-                                    *cached = Some(Err(error.clone()));
-                                    *polled = true;
-                                    Value::Error(format!("Promise rejected: {}", error))
-                                }
-                                Err(_) => {
-                                    // Channel closed without sending - this shouldn't happen
-                                    *cached = Some(Err("Promise never resolved".to_string()));
-                                    *polled = true;
-                                    Value::Error("Promise never resolved (channel closed)".to_string())
-                                }
+                            Ok(Err(error)) => {
+                                // Cache the error
+                                *cached = Some(Err(error.clone()));
+                                *polled = true;
+                                Value::Error(format!("Promise rejected: {}", error))
+                            }
+                            Err(_) => {
+                                // Channel closed without sending - this shouldn't happen
+                                *cached = Some(Err("Promise never resolved".to_string()));
+                                *polled = true;
+                                Value::Error("Promise never resolved (channel closed)".to_string())
                             }
                         }
                     }
-                    other => other, // If it's not a promise, just return the value
+                    _ => {
+                        // Not a promise - just return the value
+                        promise_value
+                    }
                 }
             }
             Expr::MethodCall { object, method, args } => {
@@ -10334,7 +10392,7 @@ impl Interpreter {
                 let saved_return_value = self.return_value.take();
                 
                 // Use the generator's environment
-                self.env = env.borrow().clone();
+                self.env = env.lock().unwrap().clone();
 
                 let stmts = body.get();
                 let mut yielded_value = None;
@@ -10369,7 +10427,7 @@ impl Interpreter {
                 }
 
                 // Save the generator's environment state
-                *env.borrow_mut() = self.env.clone();
+                *env.lock().unwrap() = self.env.clone();
 
                 // If we finished all statements without explicit return/yield, generator is exhausted
                 if *pc >= stmts.len() {
