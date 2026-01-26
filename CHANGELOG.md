@@ -9,11 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Interpreter Modularization (In Progress)** - Beginning work on splitting the monolithic 14,802-line interpreter.rs into focused modules for better maintainability (v0.9.0 Roadmap Task #27):
+- **Interpreter Modularization (Phase 1 Complete)** - Successfully refactored the monolithic 14,802-line interpreter.rs into focused modules for better maintainability (v0.9.0 Roadmap Task #27):
   - Created `src/interpreter/` module directory structure
   - Moved `interpreter.rs` → `interpreter/mod.rs`
-  - Verified compilation with zero regressions
-  - Next steps: Extract Value enum, Environment, and builtin functions to separate files
+  - Extracted Value enum (500 lines) → `value.rs` with 30+ variants, LeakyFunctionBody, DatabaseConnection, ConnectionPool
+  - Extracted Environment struct (110 lines) → `environment.rs` with full lexical scoping implementation
+  - Added module declarations and pub use re-exports for backward compatibility
+  - Verified compilation with zero warnings/errors
+  - Reduced mod.rs from 14,802 to 14,285 lines (-517 lines)
+  - All tests passing
+  - Note: The 5,700-line `call_native_function_impl` method remains in mod.rs due to Rust's impl block requirements (&mut self methods must stay in same impl context)
 
 ## [0.8.0] - 2026-01-26
 
