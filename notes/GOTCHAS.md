@@ -395,11 +395,88 @@ If you are new to the project, read this first.
 
 ## Quick Reference: Adding a New Value Variant
 
-1. Add variant to `Value` enum in `src/interpreter.rs`
+1. Add variant to `Value` enum in `src/interpreter/value.rs` (updated path as of 2026-01-26)
 2. Update `Debug` impl for Value (same file, ~line 328)
 3. Update `format_debug_value()` in `src/builtins.rs` (~line 1550)
-4. Update `type()` function match in `src/interpreter.rs` (~line 2800)
+4. Update `type()` function match in `src/interpreter/mod.rs` in `call_native_function_impl()` (~line 2800)
 5. If user-creatable, add constructor function
 6. If stateful resource, use `Arc<Mutex<T>>` pattern
 7. Test with `cargo build` to catch any missed matches
+
+---
+
+## Codebase Architecture & Module Design
+
+### Methods with &mut self must stay in the same impl block
+
+- **Problem:** Large functions like `call_native_function_impl` (5,700 lines) cannot be easily extracted to separate modules
+- **Rule:** Rust requires all methods accessing `&mut self` to be in the same `impl` block. You cannot split an impl across files without trait-based refactoring.
+- **Why:** The 5,700-line `call_native_function_impl` in `src/interpreter/mod.rs` is a dispatch table that accesses `self.env`, `self.output`, and calls dozens of other interpreter methods (`self.eval_expr()`, `self.call_user_function()`, etc.)
+- **Symptom:** Attempting to move this function to a separate module results in "cannot find value `self` in this scope" errors
+- **Solution:** Keep the function in mod.rs. It's well-organized with category comments (I/O, math, strings, collections, file I/O, HTTP, database, crypto, image processing, networking).
+- **Implication:** Don't try to modularize this function without a complete architectural redesign using traits. A 5,700-line method is acceptable if it's well-organized internally.
+
+(Discovered during: 2026-01-26_14-30_interpreter-modularization-gotchas.md)
+
+### pub use re-exports are essential for refactoring
+
+- **Problem:** Moving types to submodules breaks import paths for downstream code
+- **Rule:** When extracting types to submodules, always add `pub use submodule::Type;` in the parent module
+- **Why:** This preserves the original import path (`interpreter::Value` still works even though Value is now in `interpreter::value::Value`)
+- **Example:**
+  ```rust
+  // In src/interpreter/mod.rs:
+  pub mod value;
+  pub mod environment;
+  
+  pub use value::Value;
+  pub use environment::Environment;
+  ```
+- **Implication:** Zero breaking changes possible even when reorganizing internal module structure. All external crates continue to work without modification.
+
+(Discovered during: 2026-01-26_14-30_interpreter-modularization-gotchas.md)
+
+### Circular type dependencies work between sibling modules
+
+- **Problem:** `Value` enum needs `Environment` (for Function variants), and `Environment` needs `Value` (for variable storage)
+- **Rule:** Use `use super::other_module::Type` in both files. Rust's compiler resolves circular type references between sibling modules.
+- **Example:**
+  ```rust
+  // In src/interpreter/value.rs:
+  use super::environment::Environment;
+  
+  // In src/interpreter/environment.rs:
+  use super::value::Value;
+  ```
+- **Why:** Both are just type definitions, not circular initialization. The compiler builds the dependency graph from separate files.
+- **Implication:** Don't fear circular type dependencies in the AST or runtime — they're safe and idiomatic in this pattern.
+
+(Discovered during: 2026-01-26_14-30_interpreter-modularization-gotchas.md)
+
+### Line count is not a success metric for refactoring
+
+- **Problem:** Thinking "big file = bad design" leads to artificial splitting of tightly coupled code
+- **Rule:** Modularize when there are independently meaningful units with minimal coupling. Don't split tightly coupled code just to reduce line counts.
+- **Why:** A 5,700-line dispatch function is fine if it's well-organized internally (clear comments, logical categories). Shared mutable state (`&mut self`) is a signal to keep code together.
+- **Example:** After extracting Value (500 lines) and Environment (110 lines), remaining mod.rs functions all need `&mut self` and make heavy cross-calls. Further extraction would require trait-based refactoring with questionable value.
+- **Implication:** The interpreter's `call_native_function_impl` should stay in one place — it's a single logical dispatch point. Evaluate by structure and maintainability, not arbitrary line limits.
+
+(Discovered during: 2026-01-26_14-30_interpreter-modularization-gotchas.md)
+
+---
+
+## Module Structure (as of 2026-01-26)
+
+The interpreter has been modularized into:
+
+```
+src/interpreter/
+├── mod.rs              (~14,285 lines - core Interpreter + call_native_function_impl)
+├── value.rs            (~500 lines - Value enum with 30+ variants)
+└── environment.rs      (~110 lines - Environment with lexical scoping)
+```
+
+- Use `interpreter::Value` and `interpreter::Environment` in external code (pub use re-exports)
+- Use `use super::value::Value` within interpreter/ modules
+- Value and Environment form a circular type dependency (intentional and safe)
 
