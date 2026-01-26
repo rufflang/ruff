@@ -145,6 +145,7 @@ pub enum Expr {
         param_types: Vec<Option<TypeAnnotation>>,
         return_type: Option<TypeAnnotation>,
         body: Vec<Stmt>,
+        is_generator: bool, // true if func* syntax
     },
     UnaryOp {
         op: String,
@@ -193,6 +194,16 @@ pub enum Expr {
     None,           // None
     /// Try operator for error propagation: expr?
     Try(Box<Expr>),
+    /// Yield expression: yield value
+    /// Used in generator functions to yield values
+    Yield(Option<Box<Expr>>),
+    /// Method call on expression: expr.method(args)
+    /// Used for iterator chaining: range(10).filter(...).map(...)
+    MethodCall {
+        object: Box<Expr>,
+        method: String,
+        args: Vec<Expr>,
+    },
 }
 
 /// Array element can be a regular expression or a spread
@@ -244,6 +255,7 @@ pub enum Stmt {
         param_types: Vec<Option<TypeAnnotation>>,
         return_type: Option<TypeAnnotation>,
         body: Vec<Stmt>,
+        is_generator: bool, // true if func* syntax
     },
     EnumDef {
         name: String,

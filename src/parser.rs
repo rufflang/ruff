@@ -370,6 +370,15 @@ impl Parser {
 
     fn parse_func(&mut self) -> Option<Stmt> {
         self.advance(); // func
+        
+        // Check for generator syntax: func*
+        let is_generator = if matches!(self.peek(), TokenKind::Operator(op) if op == "*") {
+            self.advance(); // consume *
+            true
+        } else {
+            false
+        };
+        
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
@@ -446,12 +455,21 @@ impl Parser {
             }
         }
         self.advance(); // }
-        Some(Stmt::FuncDef { name, param_types, return_type, params, body })
+        Some(Stmt::FuncDef { name, param_types, return_type, params, body, is_generator })
     }
 
     /// Parse a function expression (anonymous function)
     fn parse_func_expr(&mut self) -> Option<Expr> {
         self.advance(); // func
+        
+        // Check for generator syntax: func*
+        let is_generator = if matches!(self.peek(), TokenKind::Operator(op) if op == "*") {
+            self.advance(); // consume *
+            true
+        } else {
+            false
+        };
+        
         self.advance(); // (
         let mut params = Vec::new();
         let mut param_types = Vec::new();
@@ -508,7 +526,7 @@ impl Parser {
             }
         }
         self.advance(); // }
-        Some(Expr::Function { params, param_types, return_type, body })
+        Some(Expr::Function { params, param_types, return_type, body, is_generator })
     }
 
     fn parse_match(&mut self) -> Option<Stmt> {
@@ -1073,13 +1091,37 @@ impl Parser {
                     self.advance(); // )
                     expr = Expr::Call { function: Box::new(expr), args };
                 }
-                // Handle field access
+                // Handle field access and method calls
                 TokenKind::Punctuation('.') => {
                     self.advance(); // .
                     if let TokenKind::Identifier(field) = self.peek() {
                         let field_name = field.clone();
                         self.advance();
-                        expr = Expr::FieldAccess { object: Box::new(expr), field: field_name };
+                        
+                        // Check if this is a method call (field access followed by ())
+                        if matches!(self.peek(), TokenKind::Punctuation('(')) {
+                            self.advance(); // (
+                            let mut args = Vec::new();
+                            while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                                if let Some(arg) = self.parse_expr() {
+                                    args.push(arg);
+                                }
+                                if matches!(self.peek(), TokenKind::Punctuation(',')) {
+                                    self.advance();
+                                } else {
+                                    break;
+                                }
+                            }
+                            self.advance(); // )
+                            expr = Expr::MethodCall {
+                                object: Box::new(expr),
+                                method: field_name,
+                                args,
+                            };
+                        } else {
+                            // Just a field access
+                            expr = Expr::FieldAccess { object: Box::new(expr), field: field_name };
+                        }
                     } else {
                         break;
                     }
@@ -1204,6 +1246,16 @@ impl Parser {
             TokenKind::Punctuation('[') => self.parse_array_literal(),
             TokenKind::Punctuation('{') => self.parse_dict_literal(),
             TokenKind::Keyword(k) if k == "func" => self.parse_func_expr(),
+            TokenKind::Keyword(k) if k == "yield" => {
+                self.advance(); // consume yield
+                // yield can have an optional value
+                let value = if !matches!(self.peek(), TokenKind::Punctuation(';') | TokenKind::Punctuation('}')) {
+                    Some(Box::new(self.parse_expr()?))
+                } else {
+                    None
+                };
+                Some(Expr::Yield(value))
+            }
             TokenKind::Keyword(k) if k == "null" => {
                 self.advance();
                 Some(Expr::Identifier("null".to_string()))

@@ -1628,6 +1628,11 @@ pub fn format_debug_value(value: &Value) -> String {
                 "None".to_string()
             }
         }
+        Value::GeneratorDef(params, _) => format!("GeneratorDef({:?})", params),
+        Value::Generator { params, is_exhausted, .. } => {
+            format!("Generator({:?}, exhausted: {})", params, is_exhausted)
+        }
+        Value::Iterator { source, .. } => format!("Iterator(source: {:?})", source),
     }
 }
 

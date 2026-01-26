@@ -4,7 +4,7 @@
 // Converts source code text into a stream of tokens for parsing.
 //
 // Supports:
-// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except, int, float, string, bool, import, export, from, spawn, test, test_setup, test_teardown, test_group
+// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except, int, float, string, bool, import, export, from, spawn, test, test_setup, test_teardown, test_group, yield
 // - Identifiers and numbers
 // - String literals with escape sequences
 // - Operators: +, -, *, /, =, ==, <, >, <=, >=, ->, :=, ::
@@ -238,7 +238,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     | "continue" | "try" | "except" | "int" | "float" | "string" | "bool"
                     | "import" | "export" | "from" | "struct" | "impl" | "self" | "null"
                     | "spawn" | "Result" | "Option" | "test" | "test_setup" | "test_teardown"
-                    | "test_group" => TokenKind::Keyword(ident),
+                    | "test_group" | "yield" => TokenKind::Keyword(ident),
                     "true" => TokenKind::Bool(true),
                     "false" => TokenKind::Bool(false),
                     // Ok, Err, Some, None are not keywords - they're just identifiers with special meaning in expressions
