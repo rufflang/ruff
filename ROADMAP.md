@@ -80,14 +80,35 @@ async for chunk in stream_large_file("data.csv") {
 
 ### 26. Iterators & Generators (P1)
 
-**Status**: Planned  
-**Estimated Effort**: Large (3-4 weeks)
+**Status**: Partially Complete (Iterators ✅, Generators ⏳)  
+**Estimated Effort**: Large (3-4 weeks)  
+**Progress**: Iterator methods fully working, generator syntax parsed but execution incomplete
 
 **Why Important**: Lazy evaluation, memory efficiency, and functional programming patterns
 
-**Features**:
+**Completed Features** ✅:
 ```ruff
-# Generator functions with yield
+# Iterator chaining (WORKING!)
+result := [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    .filter(func(n) { return n % 2 == 0 })  # Even numbers
+    .map(func(n) { return n * n })          # Square them
+    .take(5)                                # First 5
+    .collect()  # [4, 16, 36, 64, 100]
+
+# Lazy evaluation (no intermediate arrays!)
+numbers := [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+first_even := numbers
+    .filter(func(n) { return n % 2 == 0 })
+    .take(1)  # Only checks until first match
+    .collect()
+
+# Method chaining on arrays
+scores.filter(passing).map(curve).take(5).collect()
+```
+
+**In Progress** ⏳ (Generator execution needs completion):
+```ruff
+# Generator functions with yield (syntax works, execution incomplete)
 func* fibonacci() {
     let a := 0
     let b := 1
@@ -97,41 +118,17 @@ func* fibonacci() {
     }
 }
 
-# Use with for-in
-for num in fibonacci().take(10) {
-    print(num)  # First 10 Fibonacci numbers
-}
-
-# Iterator chaining (like Rust)
-result := range(100)
-    .filter(func(n) { return n % 2 == 0 })  # Even numbers
-    .map(func(n) { return n * n })          # Square them
-    .take(5)                                # First 5
-    .collect()  # [0, 4, 16, 36, 64]
-
-# Lazy evaluation (no intermediate arrays!)
-first_match := range(1000000)
-    .filter(func(n) { return n % 37 == 0 })
-    .take(1)  # Only checks until first match
-
-# Custom iterators
-struct RangeIter {
-    current: int,
-    end: int,
-    step: int,
-    
-    func next(self) {
-        if self.current >= self.end {
-            return None  # Iterator exhausted
-        }
-        value := self.current
-        self.current := self.current + self.step
-        return Some(value)
-    }
-}
+# Generators need: yield suspension, resume from PC, iteration protocol
 ```
 
-**Implementation**: Iterator protocol with `next()` method, generator syntax `func*` and `yield` keyword
+**Remaining Work**:
+- [ ] Generator execution with yield suspension/resumption
+- [ ] Generator state management (PC tracking, environment preservation)
+- [ ] Make generators iterable (work with for-in loops)
+- [ ] Custom iterator protocol with next() method
+- [ ] Range iterator (modify range() to return iterator instead of array)
+
+**See**: CHANGELOG.md for implementation details and examples
 
 ---
 

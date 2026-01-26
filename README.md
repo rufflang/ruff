@@ -12,6 +12,31 @@
 
 ### Recently Completed in v0.8.0 ✅
 
+* **Iterators & Method Chaining** 🔄
+  - Lazy evaluation with iterator methods: `.filter()`, `.map()`, `.take()`, `.collect()`
+  - Method chaining for data processing pipelines without intermediate arrays
+  - Memory-efficient iteration over collections
+  - Example:
+    ```ruff
+    # Filter, transform, and limit in one expression
+    numbers := [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    result := numbers
+        .filter(func(n) { return n % 2 == 0 })  # Even numbers only
+        .map(func(n) { return n * n })          # Square them
+        .take(5)                                 # First 5 results
+        .collect()                               # Execute and collect
+    # Result: [4, 16, 36, 64, 100]
+    
+    # Practical use case: data processing pipeline  
+    passing_curved := scores
+        .filter(func(s) { return s >= 60 })     # Filter passing
+        .map(func(s) { return s + 5 })           # Apply curve
+        .take(5)                                  # Top 5
+        .collect()
+    ```
+  - See `examples/iterators_comprehensive.ruff` for 8 different usage patterns
+  - Note: Generator functions (`func*` with `yield`) partially implemented (syntax works, execution in progress)
+
 * **Built-in Testing Framework** 🧪
   - Native testing support with `test`, `test_setup`, `test_teardown`, and `test_group` syntax
   - Four assertion functions for comprehensive test coverage:
