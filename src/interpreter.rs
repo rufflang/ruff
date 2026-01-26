@@ -372,14 +372,6 @@ pub enum Value {
     },
 }
 
-/// State of a Promise - for internal tracking only
-#[derive(Debug, Clone)]
-pub enum PromiseState {
-    Pending,
-    Resolved(Box<Value>),
-    Rejected(String),
-}
-
 // Manual Debug impl since NativeFunction doesn't need detailed output
 impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
