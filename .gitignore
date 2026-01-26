@@ -83,6 +83,13 @@ Icon?
 # === WORKSPACE ===
 /tmp/
 
+# === TEST ARTIFACTS ===
+# Prevent test files from polluting root directory
+/extracted/
+/extracted_dir/
+/organize_test/
+/test_dir/
+test_roadmap_spec.ruff
 
 # === DATABASES ===
 *.db
