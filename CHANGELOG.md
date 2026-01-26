@@ -5,7 +5,55 @@ All notable changes to the Ruff programming language will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v0.8.0
+## [Unreleased]
+
+## [0.8.0] - 2026-01-26
+
+### Added
+
+- **Async/Await** ⚡ - Full asynchronous programming support with Promise-based concurrency (P1 feature - COMPLETE):
+  - **Async Functions**: Declare functions with `async func` syntax
+  - **Await Expression**: Pause execution with `await promise_value` until Promise resolves
+  - **Promise Type**: New built-in type for representing asynchronous operations
+  - **Thread-Based Runtime**: Async functions execute in separate threads for true concurrency
+  - **Channel Communication**: Promises use mpsc channels for thread-safe result passing
+  - **Thread-Safe Architecture**: Complete Arc<Mutex<>> refactor replacing Rc<RefCell<>> throughout codebase
+  - **Features**:
+    - Async function declarations create Promises automatically
+    - Await expressions properly block and retrieve results
+    - Error handling with try/except in async contexts
+    - Compatible with existing concurrency (spawn blocks, channels)
+    - Generator compatibility maintained
+  - **Examples**:
+    ```ruff
+    # Async function declaration
+    async func fetch_data(id) {
+        let result := simulate_api_call(id)
+        return result
+    }
+    
+    # Await the result
+    let promise := fetch_data(42)
+    let data := await promise
+    print("Data: ${data}")
+    
+    # Concurrent execution
+    let p1 := process_file("file1.txt")
+    let p2 := process_file("file2.txt")
+    let p3 := process_file("file3.txt")
+    
+    # Wait for all to complete
+    let r1 := await p1
+    let r2 := await p2
+    let r3 := await p3
+    ```
+  - **Architecture Changes**:
+    - Migrated entire environment handling from Rc<RefCell<>> to Arc<Mutex<>> for Send trait compliance
+    - Updated Value::Function, Value::AsyncFunction, Value::Generator to use Arc<Mutex<Environment>>
+    - All .borrow()/.borrow_mut() calls replaced with .lock().unwrap()
+    - Proper mutex scope management to prevent deadlocks
+  - See `examples/async_*.ruff` for comprehensive usage examples
+  - See `notes/2026-01-26_async-await-complete.md` for full implementation details
 
 ### Fixed
 
