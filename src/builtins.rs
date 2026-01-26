@@ -1574,6 +1574,7 @@ pub fn format_debug_value(value: &Value) -> String {
             format!("Dict{{{}}}", items.join(", "))
         }
         Value::Function(_, _, _) => "Function".to_string(),
+        Value::AsyncFunction(_, _, _) => "AsyncFunction".to_string(),
         Value::NativeFunction(name) => format!("NativeFunction({})", name),
         Value::BytecodeFunction { chunk, .. } => {
             let name = chunk.name.as_deref().unwrap_or("<lambda>");
@@ -1633,12 +1634,12 @@ pub fn format_debug_value(value: &Value) -> String {
             format!("Generator({:?}, exhausted: {})", params, is_exhausted)
         }
         Value::Iterator { source, .. } => format!("Iterator(source: {:?})", source),
-        Value::Promise { state } => {
-            use crate::interpreter::PromiseState;
-            match state {
-                PromiseState::Pending => "Promise(Pending)".to_string(),
-                PromiseState::Resolved(value) => format!("Promise(Resolved: {})", format_debug_value(value)),
-                PromiseState::Rejected(err) => format!("Promise(Rejected: {})", err),
+        Value::Promise { cached_result, .. } => {
+            let result = cached_result.lock().unwrap();
+            match &*result {
+                None => "Promise(Pending)".to_string(),
+                Some(Ok(value)) => format!("Promise(Resolved: {})", format_debug_value(value)),
+                Some(Err(err)) => format!("Promise(Rejected: {})", err),
             }
         }
     }

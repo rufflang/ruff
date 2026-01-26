@@ -264,6 +264,7 @@ pub enum Value {
     Null,           // Null value for optional chaining and null coalescing
     Bytes(Vec<u8>), // Binary data for files, HTTP downloads, etc.
     Function(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // params, body, captured_env
+    AsyncFunction(Vec<String>, LeakyFunctionBody, Option<Rc<RefCell<Environment>>>), // async params, body, captured_env
     NativeFunction(String), // Name of the native function
     #[allow(dead_code)] // BytecodeFunction not yet used - VM integration incomplete
     BytecodeFunction {
@@ -367,11 +368,13 @@ pub enum Value {
     },
     /// Promise - represents async computation result
     Promise {
-        state: PromiseState,
+        receiver: Arc<Mutex<std::sync::mpsc::Receiver<Result<Value, String>>>>,
+        is_polled: Arc<Mutex<bool>>, // Track if we've already received the result
+        cached_result: Arc<Mutex<Option<Result<Value, String>>>>, // Cache the result after first poll
     },
 }
 
-/// State of a Promise
+/// State of a Promise - for internal tracking only
 #[derive(Debug, Clone)]
 pub enum PromiseState {
     Pending,
@@ -395,6 +398,10 @@ impl std::fmt::Debug for Value {
             Value::Function(params, body, captured_env) => {
                 let env_info = if captured_env.is_some() { " +closure" } else { "" };
                 write!(f, "Function({:?}, {} stmts{})", params, body.get().len(), env_info)
+            }
+            Value::AsyncFunction(params, body, captured_env) => {
+                let env_info = if captured_env.is_some() { " +closure" } else { "" };
+                write!(f, "AsyncFunction({:?}, {} stmts{})", params, body.get().len(), env_info)
             }
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
             Value::BytecodeFunction { chunk, captured } => {
@@ -485,11 +492,12 @@ impl std::fmt::Debug for Value {
             Value::Iterator { source, index, .. } => {
                 write!(f, "Iterator(source={:?}, index={})", source, index)
             }
-            Value::Promise { state } => {
-                match state {
-                    PromiseState::Pending => write!(f, "Promise(Pending)"),
-                    PromiseState::Resolved(_) => write!(f, "Promise(Resolved)"),
-                    PromiseState::Rejected(err) => write!(f, "Promise(Rejected: {})", err),
+            Value::Promise { cached_result, .. } => {
+                let result = cached_result.lock().unwrap();
+                match &*result {
+                    None => write!(f, "Promise(Pending)"),
+                    Some(Ok(_)) => write!(f, "Promise(Resolved)"),
+                    Some(Err(err)) => write!(f, "Promise(Rejected: {})", err),
                 }
             }
         }
@@ -3169,6 +3177,7 @@ impl Interpreter {
                         Value::Queue(_) => "queue",
                         Value::Stack(_) => "stack",
                         Value::Function(_, _, _) => "function",
+                        Value::AsyncFunction(_, _, _) => "asyncfunction",
                         Value::NativeFunction(_) => "function",
                         Value::BytecodeFunction { .. } => "function",
                         Value::ArrayMarker => "arraymarker", // Internal VM marker
@@ -7977,7 +7986,7 @@ impl Interpreter {
                     self.return_value = Some(val);
                 }
             }
-            Stmt::FuncDef { name, params, param_types: _, return_type: _, body, is_generator, is_async: _ } => {
+            Stmt::FuncDef { name, params, param_types: _, return_type: _, body, is_generator, is_async } => {
                 // Regular functions don't capture environment - they use the environment at call time
                 // Only lambda expressions (closures) should capture environment
                 
@@ -7988,6 +7997,15 @@ impl Interpreter {
                         LeakyFunctionBody::new(body.clone()),
                     );
                     self.env.define(name.clone(), gen);
+                } else if *is_async {
+                    // Async functions are marked with a flag
+                    // When called, they return a Promise and execute in background
+                    let func = Value::AsyncFunction(
+                        params.clone(),
+                        LeakyFunctionBody::new(body.clone()),
+                        None, // No captured environment for function definitions
+                    );
+                    self.env.define(name.clone(), func);
                 } else {
                     let func = Value::Function(
                         params.clone(),
@@ -8658,12 +8676,18 @@ impl Interpreter {
                     self.env.get(name).unwrap_or(Value::Str(name.clone()))
                 }
             }
-            Expr::Function { params, param_types: _, return_type: _, body, is_generator, is_async: _ } => {
+            Expr::Function { params, param_types: _, return_type: _, body, is_generator, is_async } => {
                 // Anonymous function expression - return as a value with captured environment
                 if *is_generator {
                     Value::GeneratorDef(
                         params.clone(),
                         LeakyFunctionBody::new(body.clone()),
+                    )
+                } else if *is_async {
+                    Value::AsyncFunction(
+                        params.clone(),
+                        LeakyFunctionBody::new(body.clone()),
+                        Some(Rc::new(RefCell::new(self.env.clone()))),
                     )
                 } else {
                     Value::Function(
@@ -9668,6 +9692,11 @@ impl Interpreter {
                             result
                         }
                     }
+                    Value::AsyncFunction(_params, _body, _captured_env) => {
+                        // Async functions are not yet fully implemented due to Send trait requirements
+                        // TODO: Implement proper async execution with SendableValue or Arc<Mutex<>>
+                        Value::Error("Async/await runtime is not yet implemented. Syntax is supported but execution is blocked by Rust Send trait requirements. See notes/2026-01-26_async-await-partial-implementation.md".to_string())
+                    }
                     Value::GeneratorDef(ref params, ref body) => {
                         // Calling a generator function creates a Generator instance
                         let args_vec: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
@@ -9989,19 +10018,45 @@ impl Interpreter {
             }
             Expr::Await(promise_expr) => {
                 // Await expression - wait for a promise to resolve
-                // For now, just evaluate the expression directly
-                // TODO: Implement proper async/await with promise handling
                 let promise_value = self.eval_expr(promise_expr);
                 
                 // If it's a promise, wait for it to resolve
                 match promise_value {
-                    Value::Promise { state, .. } => {
-                        // TODO: Actually wait for promise resolution
-                        // For now, return an error if promise is pending
-                        match state {
-                            PromiseState::Resolved(value) => *value,
-                            PromiseState::Rejected(error) => Value::Error(format!("Promise rejected: {}", error)),
-                            PromiseState::Pending => Value::Error("Cannot await pending promise in synchronous context".to_string()),
+                    Value::Promise { receiver, is_polled, cached_result } => {
+                        // Check if we've already polled this promise
+                        let mut polled = is_polled.lock().unwrap();
+                        let mut cached = cached_result.lock().unwrap();
+                        
+                        if *polled {
+                            // Use cached result
+                            match cached.as_ref() {
+                                Some(Ok(val)) => val.clone(),
+                                Some(Err(err)) => Value::Error(format!("Promise rejected: {}", err)),
+                                None => Value::Error("Promise polled but no result cached".to_string()),
+                            }
+                        } else {
+                            // Poll the promise
+                            let recv = receiver.lock().unwrap();
+                            match recv.recv() {
+                                Ok(Ok(value)) => {
+                                    // Cache the successful result
+                                    *cached = Some(Ok(value.clone()));
+                                    *polled = true;
+                                    value
+                                }
+                                Ok(Err(error)) => {
+                                    // Cache the error
+                                    *cached = Some(Err(error.clone()));
+                                    *polled = true;
+                                    Value::Error(format!("Promise rejected: {}", error))
+                                }
+                                Err(_) => {
+                                    // Channel closed without sending - this shouldn't happen
+                                    *cached = Some(Err("Promise never resolved".to_string()));
+                                    *polled = true;
+                                    Value::Error("Promise never resolved (channel closed)".to_string())
+                                }
+                            }
                         }
                     }
                     other => other, // If it's not a promise, just return the value
