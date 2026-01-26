@@ -103,16 +103,6 @@ print(meta["size"], meta["modified"], meta["readonly"])
 io_truncate("log.txt", 1000)  # Shrink to 1KB
 io_append_bytes("data.bin", new_chunk)  # Append binary data
 ```
-print(result.stdout)  # Access output
-print(result.exitcode)  # Check exit code
-
-# Process with pipes ✅
-result := pipe_commands([
-    ["cat", "data.txt"],
-    ["grep", "error"],
-    ["wc", "-l"]
-])
-```
 
 **See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) Section 3.1 for complete module list
 
@@ -143,7 +133,6 @@ result := pipe_commands([
    - Handles break/continue with proper jump patching
    - All VM tests pass including loops
 
-**Future Work** (Optional Performance Tuning):
 **Future Work** (Optional Performance Tuning):
 
 1. **Performance Measurement** (1 day - when needed)
