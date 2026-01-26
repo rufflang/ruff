@@ -6,14 +6,6 @@ This roadmap outlines planned features and improvements for future versions of t
 > **Next Planned Release**: v0.8.0 (Standard Library Expansion)  
 > **Path to v1.0**: See [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for comprehensive roadmap
 
-**Recent Achievements** ✨
-- Destructuring patterns, spread operators, Result/Option types - Complete!
-- Enhanced error messages with suggestions - Complete!
-- Bytecode VM with 60+ instructions - Production ready!
-- Enhanced collection methods (30+ new functions) - Complete!
-- Zero clippy warnings - Complete! (271 → 0)
-
----
 
 ## Priority Levels
 
@@ -28,160 +20,7 @@ This roadmap outlines planned features and improvements for future versions of t
 **Focus**: Standard library expansion and VM performance optimization  
 **Timeline**: Q2 2026 (1-2 months remaining)
 
-### 23. Standard Library Expansion (P1)
 
-**Status**: In Progress (Milestones 1-3 Complete: Compression, Hashing, Process, OS, Path, Network, Crypto)  
-**Estimated Effort**: Large (3 months total, ~1 month remaining)
-
-**Completed Features** ✅:
-- ✅ **Compression & Archives**: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
-- ✅ **Hashing**: `sha256`, `md5`, `md5_file` for data integrity and content verification
-- ✅ **Password Hashing**: `hash_password`, `verify_password` using bcrypt
-- ✅ **Crypto Module**: `aes_encrypt`, `aes_decrypt`, `aes_encrypt_bytes`, `aes_decrypt_bytes`, `rsa_generate_keypair`, `rsa_encrypt`, `rsa_decrypt`, `rsa_sign`, `rsa_verify` for AES-256-GCM and RSA encryption
-- ✅ **Process Management**: `spawn_process`, `pipe_commands` for system automation
-- ✅ **OS Module**: `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ` for operating system interaction
-- ✅ **Path Module**: `path_join`, `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension` for path manipulation
-- ✅ **IO Module**: `io_read_bytes`, `io_write_bytes`, `io_append_bytes`, `io_read_at`, `io_write_at`, `io_seek_read`, `io_file_metadata`, `io_truncate`, `io_copy_range` for advanced binary I/O
-- ✅ **Tests**: Comprehensive test suites in `tests/stdlib_test.ruff`, `tests/stdlib_os_path_test.ruff`, `tests/stdlib_io_test.ruff`, and `tests/stdlib_crypto_test.ruff` (139 total tests)
-- ✅ **Examples**: Ten detailed example files demonstrating real-world usage
-- ✅ **Documentation**: CHANGELOG updated with full API documentation for all modules
-
-**Completed Core Modules** ✅:
-- ✅ `net` - TCP/UDP sockets (11 functions, 11 tests, 3 examples) - **COMPLETE**
-- ✅ `crypto` - Encryption (AES-256-GCM, RSA) with 9 functions, 30 tests, 2 examples - **COMPLETE**
-
-**Remaining Core Modules** (Future Milestones):
-- Advanced crypto features (elliptic curve, key exchange) - **FUTURE**
-
-**Essential Built-in Functions** (Already Implemented):
-
-```ruff
-# Compression & Archives ✅
-archive := zip_create("backup.zip")
-zip_add_file(archive, "data.txt")
-zip_add_dir(archive, "documents/")
-zip_close(archive)
-
-files := unzip("archive.zip", "output/")
-
-# Hashing & Crypto ✅
-sha := sha256("my data")  # SHA-256 hash
-md5hash := md5_file("document.pdf")  # MD5 of file
-password := hash_password("secret123")  # bcrypt
-valid := verify_password(input, password)
-
-# Process management ✅
-result := spawn_process(["python", "script.py"])
-print(result.stdout)  # Access output
-print(result.exitcode)  # Check exit code
-
-# Process with pipes ✅
-result := pipe_commands([
-    ["cat", "data.txt"],
-    ["grep", "error"],
-    ["wc", "-l"]
-])
-
-# Operating System ✅
-cwd := os_getcwd()  # Get current directory
-os_chdir("workspace")  # Change directory
-os_rmdir("temp")  # Remove empty directory
-env := os_environ()  # Get all environment variables
-print(env["PATH"])
-
-# Path Manipulation ✅
-config := path_join("home", "user", "config.json")  # Join paths
-abs_path := path_absolute("../file.txt")  # Get absolute path
-is_dir := path_is_dir("folder")  # Check if directory
-is_file := path_is_file("data.txt")  # Check if file
-ext := path_extension("document.pdf")  # Get extension: "pdf"
-
-# IO Module - Advanced Binary I/O ✅
-header := io_read_bytes("image.png", 8)  # Read first 8 bytes
-io_write_at("config.bin", new_data, 22)  # Patch at offset 22
-io_copy_range("large.dat", "section.dat", 1000, 500)  # Extract range
-
-meta := io_file_metadata("file.pdf")  # Get comprehensive info
-print(meta["size"], meta["modified"], meta["readonly"])
-
-io_truncate("log.txt", 1000)  # Shrink to 1KB
-io_append_bytes("data.bin", new_chunk)  # Append binary data
-
-# Network - TCP/UDP Sockets ✅
-# TCP Server
-listener := tcp_listen("127.0.0.1", 8080)
-client := tcp_accept(listener)
-tcp_send(client, "Welcome!\n")
-data := tcp_receive(client, 1024)
-tcp_close(client)
-
-# TCP Client
-stream := tcp_connect("127.0.0.1", 8080)
-tcp_send(stream, "Hello, Server!\n")
-response := tcp_receive(stream, 1024)
-tcp_close(stream)
-
-# UDP Communication
-server := udp_bind("127.0.0.1", 9000)
-result := udp_receive_from(server, 1024)
-print("From ${result["from"]}: ${result["data"]}")
-
-client := udp_bind("127.0.0.1", 9001)
-udp_send_to(client, "Hello!", "127.0.0.1", 9000)
-```
-
-**See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) Section 3.1 for complete module list
-
----
-
-### 24. VM Performance Optimization (P1)
-
-**Status**: ✅ **COMPLETE** - VM Ready for Production Use  
-**Estimated Effort**: Medium (2-3 weeks) - ✅ 100% complete
-
-**Completed** ✅:
-
-1. **Extended Native Function Library** (COMPLETE)
-   - Previously: 3 functions (print, len, to_string)
-   - Now: ALL 180+ built-in functions supported
-   - Implementation: VM delegates to interpreter via `call_native_function_impl`
-   - Architecture: Zero code duplication, automatic function registration
-   - Test coverage: Comprehensive VM native function integration test passes
-
-2. **Benchmark Suite** (COMPLETE)
-   - Created 7 benchmark programs: fibonacci, primes, sorting, strings, dict_ops, nested_loops, higher_order
-   - Ruff-based runner script for automated benchmarking (dogfooding!)
-   - Ready to measure performance
-
-3. **Loop Compilation** (COMPLETE)
-   - Fixed VM control flow - loop bodies now execute correctly
-   - Implemented full `Stmt::Loop` bytecode compilation
-   - Handles break/continue with proper jump patching
-   - All VM tests pass including loops
-
-**Future Work** (Optional Performance Tuning):
-
-1. **Performance Measurement** (1 day - when needed)
-   - Run benchmark suite with interpreter
-   - Run benchmark suite with VM
-   - Validate 10-20x speedup target
-   - Document actual performance gains
-
-2. **Optimization Passes** (1-2 weeks - Future)
-   - Constant folding
-   - Dead code elimination
-   - Jump threading and peephole optimization
-   - Register allocation improvements
-
-**Current Status Summary**:
-- ✅ Native functions: Complete and working (180+ functions)
-- ✅ Loop compilation: Fixed and working
-- ✅ Benchmarks: Created and ready (7 programs + Ruff runner)
-- ✅ VM test suite: Comprehensive coverage, all passing
-- 📋 Performance measurement: Optional (benchmarks ready to run)
-- 📋 Advanced optimizations: Future work (not blocking)
-
----
 
 ### 25. Async/Await (P1)
 
@@ -302,82 +141,6 @@ struct RangeIter {
 **Timeline**: Q3 2026 (3 months)  
 **See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) Pillar 4
 
-### 27. Built-in Testing Framework (P1)
-
-**Status**: ✅ Complete (Implemented in v0.8.0)  
-**Effort**: Medium (2-3 weeks) - Completed 2026-01-25
-
-**Why Critical**: Every modern language needs testing built-in, not as afterthought
-
-**Implementation** ✅:
-- **Test Syntax Support**: `test "name" { ... }`, `test_setup { ... }`, `test_teardown { ... }`, `test_group "name" { ... }`
-- **AST & Parser**: Complete lexer, AST, and parser support for test statements
-- **Assertion Functions**:
-  - `assert_equal(actual, expected)` - Compares Int, Float, Str, Bool, Null, Array, Dict
-  - `assert_true(value)` - Asserts boolean is true
-  - `assert_false(value)` - Asserts boolean is false
-  - `assert_contains(collection, item)` - Checks array/string/dict membership
-- **Test Runner**: `TestRunner` struct that collects and executes tests
-  - Isolated test environments (fresh interpreter per test)
-  - Setup/teardown support (runs before/after each test)
-  - Pass/fail/error tracking with timing
-  - Colored output with ✓/✗ indicators
-- **CLI Integration**: `ruff test-run <file>` command
-  - `--verbose` flag for detailed per-test output
-  - Exit codes (0 for success, 1 for failures)
-- **Type Checking**: Test bodies validated in isolated scopes
-- **Compiler**: Test statements as no-ops in bytecode compilation
-- **Test Suite**: 25 comprehensive tests in `tests/testing_framework.ruff`
-- **Examples**: 27 tests demonstrating best practices in `examples/testing_demo.ruff`
-- **Documentation**: Complete CHANGELOG entry with API details
-
-**Features**:
-```ruff
-# Test blocks with built-in assertions
-test "array operations work correctly" {
-    arr := [1, 2, 3]
-    arr2 := push(arr, 4)
-    assert_equal(arr2, [1, 2, 3, 4])
-    assert_true(contains(arr2, 3))
-    assert_false(contains(arr2, 99))
-}
-
-test "http requests return 200" {
-    response := http_get("example.com")
-    assert_equal(response.status, 200)
-    assert_true(len(response.body) > 0)
-}
-
-# Setup/teardown (SYNTAX WORKS, RUNNER PENDING)
-test_setup {
-    db := db_connect("sqlite", ":memory:")
-    db_execute(db, "CREATE TABLE users (id INTEGER, name TEXT)", [])
-}
-
-test_teardown {
-    db_close(db)
-}
-
-# Test groups (SYNTAX WORKS, RUNNER PENDING)
-test_group "database operations" {
-    test "insert works" { ... }
-    test "query works" { ... }
-    test "delete works" { ... }
-}
-```
-
-**CLI** (Planned):
-```bash
-ruff test file.ruff              # Run all tests
-ruff test file.ruff --verbose    # Show details
-ruff test --watch                # Run on file changes
-```
-
-**Current Capabilities**: Test syntax parses correctly, assertions work as functions, test code coexists with regular code.
-
-**See**: [notes/2026-01-25_testing-framework-foundation.md](notes/2026-01-25_testing-framework-foundation.md) for implementation details
-
----
 
 ### 28. REPL Improvements (P2)
 
@@ -749,14 +512,6 @@ replayer := http_replay("fixtures/api_response.json")
 **Goal**: Production-ready language competitive with other popular languages
 
 **Milestones**:
-- ✅ Complete core features (v0.7.0)
-- ✅ 10-20x performance improvement (v0.8.0)
-- ✅ World-class tooling (v0.9.0)
-- ✅ Comprehensive documentation
-- ✅ Production example projects
-- ✅ Security audit
-- ✅ Package registry with 50+ packages
-- ✅ Community of 1000+ users
 
 **See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for complete v1.0 roadmap
 
@@ -1225,12 +980,6 @@ ruff build --target wasm script.ruff  # Compile to WASM
 
 ### Code Quality Standards:
 
-- ✅ Zero compiler warnings
-- ✅ All tests must pass
-- ✅ Document public APIs
-- ✅ Add examples for new features
-- ✅ Follow existing code style
-- ✅ Update CHANGELOG and README
 
 ---
 
