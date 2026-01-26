@@ -7079,6 +7079,12 @@ impl Interpreter {
                 });
                 // Don't wait for the thread to finish - it runs in the background
             }
+            Stmt::Test { .. } | Stmt::TestSetup { .. } | 
+            Stmt::TestTeardown { .. } | Stmt::TestGroup { .. } => {
+                // Test statements are collected and executed by the test runner
+                // When running normally (not in test mode), they are no-ops
+                // This allows test files to be syntax-checked without running tests
+            }
             Stmt::StructDef { name, fields, methods } => {
                 // Extract field names
                 let field_names: Vec<String> =

@@ -402,7 +402,9 @@ impl Compiler {
             
             Stmt::Import { .. } | Stmt::EnumDef { .. } | Stmt::Const { .. } | 
             Stmt::TryExcept { .. } | Stmt::Block(_) | 
-            Stmt::Export { .. } | Stmt::Spawn { .. } => {
+            Stmt::Export { .. } | Stmt::Spawn { .. } | 
+            Stmt::Test { .. } | Stmt::TestSetup { .. } | 
+            Stmt::TestTeardown { .. } | Stmt::TestGroup { .. } => {
                 // These are handled at parse/runtime for now
                 Ok(())
             }

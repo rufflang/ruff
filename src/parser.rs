@@ -89,6 +89,10 @@ impl Parser {
             TokenKind::Keyword(k) if k == "while" => self.parse_while(),
             TokenKind::Keyword(k) if k == "for" => self.parse_for(),
             TokenKind::Keyword(k) if k == "spawn" => self.parse_spawn(),
+            TokenKind::Keyword(k) if k == "test" => self.parse_test(),
+            TokenKind::Keyword(k) if k == "test_setup" => self.parse_test_setup(),
+            TokenKind::Keyword(k) if k == "test_teardown" => self.parse_test_teardown(),
+            TokenKind::Keyword(k) if k == "test_group" => self.parse_test_group(),
             TokenKind::Keyword(k) if k == "break" => {
                 self.advance();
                 Some(Stmt::Break)
@@ -674,6 +678,76 @@ impl Parser {
         }
         self.advance(); // }
         Some(Stmt::Spawn { body })
+    }
+
+    fn parse_test(&mut self) -> Option<Stmt> {
+        self.advance(); // test
+        // Expect string literal for test name
+        let name = match self.advance() {
+            TokenKind::String(s) => s.clone(),
+            _ => return None,
+        };
+        self.advance(); // {
+        let mut body = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                body.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        Some(Stmt::Test { name, body })
+    }
+
+    fn parse_test_setup(&mut self) -> Option<Stmt> {
+        self.advance(); // test_setup
+        self.advance(); // {
+        let mut body = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                body.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        Some(Stmt::TestSetup { body })
+    }
+
+    fn parse_test_teardown(&mut self) -> Option<Stmt> {
+        self.advance(); // test_teardown
+        self.advance(); // {
+        let mut body = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                body.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        Some(Stmt::TestTeardown { body })
+    }
+
+    fn parse_test_group(&mut self) -> Option<Stmt> {
+        self.advance(); // test_group
+        // Expect string literal for group name
+        let name = match self.advance() {
+            TokenKind::String(s) => s.clone(),
+            _ => return None,
+        };
+        self.advance(); // {
+        let mut tests = Vec::new();
+        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+            if let Some(stmt) = self.parse_stmt() {
+                tests.push(stmt);
+            } else {
+                break;
+            }
+        }
+        self.advance(); // }
+        Some(Stmt::TestGroup { name, tests })
     }
 
     fn parse_try_except(&mut self) -> Option<Stmt> {
