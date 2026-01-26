@@ -27,10 +27,15 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 27. Modularize interpreter.rs (P1)
 
-**Status**: Planned  
+**Status**: In Progress (Started January 26, 2026)  
 **Estimated Effort**: Medium (2-3 weeks)
 
 **Problem**: Current `interpreter.rs` is 14,811 lines in a single file, making it difficult to navigate, understand, and maintain.
+
+**Progress**:
+- ✅ Created `src/interpreter/` module directory structure
+- ✅ Moved `interpreter.rs` → `interpreter/mod.rs` (compiles successfully)
+- 🚧 Next: Extract Value enum, Environment, and helper types to focused modules
 
 **Proposed Structure**:
 ```

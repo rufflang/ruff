@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Interpreter Modularization (In Progress)** - Beginning work on splitting the monolithic 14,802-line interpreter.rs into focused modules for better maintainability (v0.9.0 Roadmap Task #27):
+  - Created `src/interpreter/` module directory structure
+  - Moved `interpreter.rs` → `interpreter/mod.rs`
+  - Verified compilation with zero regressions
+  - Next steps: Extract Value enum, Environment, and builtin functions to separate files
+
 ## [0.8.0] - 2026-01-26
 
 ### Added
