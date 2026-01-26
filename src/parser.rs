@@ -665,9 +665,10 @@ impl Parser {
             _ => return None,
         };
         self.advance(); // in
-                        // Use parse_primary to get just the identifier without postfix operations
-                        // This prevents "for i in arr { }" from being parsed as struct instantiation
-        let iterable = self.parse_primary()?;
+        // Use parse_call to parse the iterable expression
+        // This allows function calls like: for x in generator_func() { ... }
+        // but avoids struct instantiation syntax
+        let iterable = self.parse_call()?;
         self.advance(); // {
         let mut body = Vec::new();
         while !matches!(self.peek(), TokenKind::Punctuation('}')) {
