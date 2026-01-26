@@ -316,6 +316,7 @@ pub enum Stmt {
     },
     /// Test group: group related tests
     TestGroup {
+        #[allow(dead_code)] // Used by test runner for organization (not yet fully implemented)
         name: String,
         tests: Vec<Stmt>, // Should contain Test statements
     },

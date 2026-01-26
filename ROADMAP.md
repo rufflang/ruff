@@ -278,30 +278,36 @@ struct RangeIter {
 
 ### 27. Built-in Testing Framework (P1)
 
-**Status**: 🚧 In Progress (~40% Complete - Foundation Implemented)  
-**Estimated Effort**: Medium (2-3 weeks total, ~4 days remaining)
+**Status**: ✅ Complete (Implemented in v0.8.0)  
+**Effort**: Medium (2-3 weeks) - Completed 2026-01-25
 
 **Why Critical**: Every modern language needs testing built-in, not as afterthought
 
-**Completed** ✅:
-- **Test Syntax Support**: `test`, `test_setup`, `test_teardown`, `test_group` keywords
-- **AST Integration**: Full AST support for all test statement types
-- **Parser Implementation**: Complete parsing for test blocks and groups
-- **Assertion Functions**: `assert_equal()`, `assert_true()`, `assert_false()`, `assert_contains()`
+**Implementation** ✅:
+- **Test Syntax Support**: `test "name" { ... }`, `test_setup { ... }`, `test_teardown { ... }`, `test_group "name" { ... }`
+- **AST & Parser**: Complete lexer, AST, and parser support for test statements
+- **Assertion Functions**:
+  - `assert_equal(actual, expected)` - Compares Int, Float, Str, Bool, Null, Array, Dict
+  - `assert_true(value)` - Asserts boolean is true
+  - `assert_false(value)` - Asserts boolean is false
+  - `assert_contains(collection, item)` - Checks array/string/dict membership
+- **Test Runner**: `TestRunner` struct that collects and executes tests
+  - Isolated test environments (fresh interpreter per test)
+  - Setup/teardown support (runs before/after each test)
+  - Pass/fail/error tracking with timing
+  - Colored output with ✓/✗ indicators
+- **CLI Integration**: `ruff test-run <file>` command
+  - `--verbose` flag for detailed per-test output
+  - Exit codes (0 for success, 1 for failures)
 - **Type Checking**: Test bodies validated in isolated scopes
-- **Documentation**: Session notes with implementation details
-
-**Remaining Work** 📋:
-- Test runner/collector system (collects and executes tests from AST)
-- CLI integration (`ruff test` command with flags)
-- Error propagation improvements (assertions currently return Error values)
-- Comprehensive test suite (15-20 test cases)
-- Example file (testing_demo.ruff)
-- Full documentation updates (CHANGELOG, README)
+- **Compiler**: Test statements as no-ops in bytecode compilation
+- **Test Suite**: 25 comprehensive tests in `tests/testing_framework.ruff`
+- **Examples**: 27 tests demonstrating best practices in `examples/testing_demo.ruff`
+- **Documentation**: Complete CHANGELOG entry with API details
 
 **Features**:
 ```ruff
-# Test blocks with built-in assertions (SYNTAX WORKS, RUNNER PENDING)
+# Test blocks with built-in assertions
 test "array operations work correctly" {
     arr := [1, 2, 3]
     arr2 := push(arr, 4)

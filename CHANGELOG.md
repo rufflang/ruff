@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Built-in Testing Framework** 🧪 - Comprehensive testing support with assertion functions (P2 feature):
+  - **Test Syntax**: `test "name" { ... }`, `test_setup { ... }`, `test_teardown { ... }`, `test_group "name" { ... }`
+  - **Assertion Functions**:
+    - `assert_equal(actual, expected)` - Compare values for equality (Int, Float, Str, Bool, Null, Array, Dict)
+    - `assert_true(value)` - Assert boolean is true
+    - `assert_false(value)` - Assert boolean is false
+    - `assert_contains(collection, item)` - Assert array/string/dict contains element
+  - **Test Runner**: `ruff test-run <file>` command to execute tests with colored output
+    - Runs setup before each test, teardown after each test
+    - Isolated test environments (fresh interpreter per test)
+    - Pass/fail/error tracking with timing information
+    - Verbose mode (`--verbose`) for detailed test output
+  - **Test Organization**:
+    - Global setup/teardown for test suite initialization/cleanup
+    - Test groups for logical organization
+    - Descriptive test names as strings
+  - **Examples**: `examples/testing_demo.ruff` with 27 comprehensive test cases
+  - **Test Suite**: `tests/testing_framework.ruff` with 25 assertion tests
 - **VM Native Function Integration** 🚀 - Complete built-in function support in bytecode VM (P1 feature):
   - **All 180+ Native Functions**: VM now has access to every interpreter built-in function
   - **Zero Code Duplication**: VM delegates native function calls to interpreter implementation

@@ -12,6 +12,44 @@
 
 ### Recently Completed in v0.8.0 ✅
 
+* **Built-in Testing Framework** 🧪
+  - Native testing support with `test`, `test_setup`, `test_teardown`, and `test_group` syntax
+  - Four assertion functions for comprehensive test coverage:
+    - `assert_equal(actual, expected)` - Compare values (Int, Float, Str, Bool, Null, Array, Dict)
+    - `assert_true(value)` - Assert boolean is true
+    - `assert_false(value)` - Assert boolean is false
+    - `assert_contains(collection, item)` - Check array/string/dict membership
+  - Isolated test environments with setup/teardown support
+  - Test runner with colored output and timing information
+  - CLI command: `ruff test-run <file> [--verbose]`
+  - Example:
+    ```ruff
+    test_setup {
+        # Runs before each test
+        test_data := []
+    }
+    
+    test "array operations work correctly" {
+        numbers := [1, 2, 3, 4, 5]
+        assert_equal(len(numbers), 5)
+        assert_contains(numbers, 3)
+        assert_true(len(numbers) > 0)
+    }
+    
+    test "string operations" {
+        text := "Hello, Ruff!"
+        assert_equal(len(text), 12)
+        assert_false(len(text) == 0)
+    }
+    
+    test_teardown {
+        # Cleanup after each test
+        test_data := []
+    }
+    ```
+  - See `examples/testing_demo.ruff` for 27 test examples and best practices
+  - Comprehensive test suite in `tests/testing_framework.ruff` with 25 tests
+
 * **VM Native Function Integration** 🚀
   - All 180+ built-in functions now work in bytecode VM mode
   - Zero code duplication: VM delegates to interpreter implementation
