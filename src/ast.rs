@@ -118,12 +118,14 @@ impl TypeAnnotation {
             (TypeAnnotation::Union(types), other) | (other, TypeAnnotation::Union(types)) => {
                 types.iter().any(|t| t.matches(other))
             }
-            (TypeAnnotation::Result { ok_type: ok1, err_type: err1 }, TypeAnnotation::Result { ok_type: ok2, err_type: err2 }) => {
-                ok1.matches(ok2) && err1.matches(err2)
-            }
-            (TypeAnnotation::Option { inner_type: t1 }, TypeAnnotation::Option { inner_type: t2 }) => {
-                t1.matches(t2)
-            }
+            (
+                TypeAnnotation::Result { ok_type: ok1, err_type: err1 },
+                TypeAnnotation::Result { ok_type: ok2, err_type: err2 },
+            ) => ok1.matches(ok2) && err1.matches(err2),
+            (
+                TypeAnnotation::Option { inner_type: t1 },
+                TypeAnnotation::Option { inner_type: t2 },
+            ) => t1.matches(t2),
             _ => false,
         }
     }
@@ -184,11 +186,11 @@ pub enum Expr {
     #[allow(dead_code)]
     Spread(Box<Expr>),
     /// Result type constructors
-    Ok(Box<Expr>),   // Ok(value)
-    Err(Box<Expr>),  // Err(error)
+    Ok(Box<Expr>), // Ok(value)
+    Err(Box<Expr>), // Err(error)
     /// Option type constructors
     Some(Box<Expr>), // Some(value)
-    None,            // None
+    None,           // None
     /// Try operator for error propagation: expr?
     Try(Box<Expr>),
 }

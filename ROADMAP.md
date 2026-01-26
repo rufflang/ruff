@@ -45,8 +45,10 @@ This roadmap outlines planned features and improvements for future versions of t
 - ✅ **Examples**: Eight detailed example files demonstrating real-world usage
 - ✅ **Documentation**: CHANGELOG updated with full API documentation for all modules
 
+**Completed Core Modules** ✅:
+- ✅ `net` - TCP/UDP sockets (11 functions, 11 tests, 3 examples) - **COMPLETE**
+
 **Remaining Core Modules** (Next Priority):
-- `net` - TCP/UDP sockets beyond HTTP - **PLANNED**
 - `crypto` - Encryption (AES, RSA) beyond hashing - **PLANNED**
 
 **Essential Built-in Functions** (Already Implemented):
@@ -102,6 +104,28 @@ print(meta["size"], meta["modified"], meta["readonly"])
 
 io_truncate("log.txt", 1000)  # Shrink to 1KB
 io_append_bytes("data.bin", new_chunk)  # Append binary data
+
+# Network - TCP/UDP Sockets ✅
+# TCP Server
+listener := tcp_listen("127.0.0.1", 8080)
+client := tcp_accept(listener)
+tcp_send(client, "Welcome!\n")
+data := tcp_receive(client, 1024)
+tcp_close(client)
+
+# TCP Client
+stream := tcp_connect("127.0.0.1", 8080)
+tcp_send(stream, "Hello, Server!\n")
+response := tcp_receive(stream, 1024)
+tcp_close(stream)
+
+# UDP Communication
+server := udp_bind("127.0.0.1", 9000)
+result := udp_receive_from(server, 1024)
+print("From ${result["from"]}: ${result["data"]}")
+
+client := udp_bind("127.0.0.1", 9001)
+udp_send_to(client, "Hello!", "127.0.0.1", 9000)
 ```
 
 **See**: [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) Section 3.1 for complete module list

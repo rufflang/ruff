@@ -116,7 +116,11 @@ impl ModuleLoader {
     }
 
     /// Gets a specific symbol from a module
-    pub fn get_symbol(&mut self, module_name: &str, symbol_name: &str) -> Result<Value, Box<RuffError>> {
+    pub fn get_symbol(
+        &mut self,
+        module_name: &str,
+        symbol_name: &str,
+    ) -> Result<Value, Box<RuffError>> {
         let module = self.load_module(module_name)?;
 
         module.exports.get(symbol_name).cloned().ok_or_else(|| {
