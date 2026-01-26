@@ -232,7 +232,7 @@
 ### In Development (v0.8.0 Continued)
 
 * **Standard Library Expansion**
-  - Core modules: os ✅, path ✅, io ✅, net ✅, crypto (in progress)
+  - Core modules: os ✅, path ✅, io ✅, net ✅, crypto ✅
   - Command-line argument parsing ✅
   - Process management and piping ✅
   - Compression and archiving ✅
