@@ -36,6 +36,24 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-25_14-30_destructuring-spread-implementation.md)
 
+### Method Call vs Field Access Requires Lookahead
+
+- **Problem:** `obj.method()` and `obj.field` both start with same tokens (`.` + identifier)
+- **Rule:** Parser checks for `(` after identifier to distinguish method call from field access
+- **Location:** `src/parser.rs` in `parse_call()` function (~line 1094)
+- **Implication:** Method syntax requires one-token lookahead; no backtracking available
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
+
+### Generator Syntax Uses `*` Operator Token
+
+- **Problem:** `func*` generator syntax reuses multiplication operator
+- **Rule:** Parser checks for `*` immediately after `func` keyword, before parsing function name
+- **Why:** Avoids adding new token type; mirrors JavaScript generator syntax
+- **Location:** `src/parser.rs` in `parse_func()` and `parse_func_expr()`
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
+
 ### Patterns can start with punctuation, not just identifiers
 - **Problem:** Parser fails to recognize `[a, b] := ...` or `{x, y} := ...` syntax
 - **Rule:** `parse_stmt()` must check for `TokenKind::Punctuation('[')` and `'{'` in addition to identifiers when detecting pattern-based assignments
@@ -83,6 +101,15 @@ If you are new to the project, read this first.
 - **Implication:** Don't try to flatten pattern binding. Keep it recursive and it will handle arbitrarily nested patterns automatically.
 
 (Discovered during: 2026-01-25_14-30_destructuring-spread-implementation.md)
+
+### is_generator Field Required in Two Places
+
+- **Problem:** Generator functions need tracking in both definitions and expressions
+- **Rule:** Both `Stmt::FuncDef` and `Expr::Function` have `is_generator: bool` field
+- **Why:** Functions can be declared (`func* foo()`) or used as expressions (`let f := func*() {}`)
+- **Prevention:** When adding function-related features, check both AST nodes
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
 
 ---
 
@@ -139,6 +166,40 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-25_14-30_destructuring-spread-implementation.md)
 
+### Iterator State Must Be Mutable During Collection
+
+- **Problem:** Iterator operations hang in infinite loop
+- **Symptom:** `collect()` never completes, program times out
+- **Root cause:** Iterator's `index` field must be mutated in place, not on a clone
+- **Rule:** `collect_iterator()` takes `mut iterator: Value` and mutates index through pattern matching
+- **Why:** Cloning iterator creates new copy with same index → same element read forever
+- **Prevention:** Iterator operations that consume the iterator (like collect) MUST mutate the iterator state. Iterator methods that create new iterators (filter, map, take) create new Iterator values with copied state.
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
+
+### Iterator Chaining Has Composition Limits
+
+- **Problem:** Chaining multiple filters or multiple maps doesn't work as expected
+- **Symptom:** `array.filter(a).map(b).filter(c).collect()` - second filter sees original array, not mapped values
+- **Root cause:** Iterator wraps original source, transformers don't compose into pipeline
+- **Workaround:** Use `.collect()` between operations: `array.filter(a).collect().map(b).filter(c).collect()`
+- **Future improvement:** Make transformers/filters compose, or make source be previous iterator
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
+
+### Generator Execution Requires Statement-Level Control
+
+- **Problem:** Generator syntax parses but calling generators doesn't work
+- **Root cause:** Yield is not like return - requires:
+  1. Program counter (PC) to track which statement to resume from
+  2. Statement-level execution (not just expression evaluation)
+  3. Environment preservation between yield/resume
+  4. Converting yield's Return value to iterator protocol
+- **Rule:** Don't implement generators with just expression evaluation - need dedicated state machine
+- **Estimated effort:** 1-2 weeks for proper implementation
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
+
 ---
 
 ## CLI & Arguments
@@ -188,17 +249,27 @@ If you are new to the project, read this first.
 
 ## Value Enum & Type System
 
-### Adding new Value variants requires updating multiple locations
-- **Problem:** New enum variants cause "non-exhaustive patterns" errors in unexpected places
-- **Rule:** When adding a Value variant, search for existing variants (e.g., `Value::ZipArchive`) and update:
-  1. Debug impl for Value in `src/interpreter.rs` (around line 328)
-  2. `format_debug_value()` in `src/builtins.rs` (around line 1550)
-  3. `type()` function's match in `src/interpreter.rs` (around line 2800)
-- **Why:** Rust's exhaustive pattern matching catches most cases, but Debug impls and helper functions may not trigger immediate errors
-- **Symptom:** Compiler error "non-exhaustive patterns" in unexpected files like builtins.rs
-- **Prevention:** Search codebase for a recent Value variant to find all match statements
+### Adding Value Enum Variants Triggers Exhaustive Match Errors
 
-(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+- **Problem:** Compilation fails in multiple files when adding new Value type
+- **Locations:** 
+  - `src/interpreter.rs` - `type()` introspection (~line 3119), Debug impl (~line 460)
+  - `src/builtins.rs` - `format_debug_value()` (~line 1561)
+  - All pattern matches on Value enum
+- **Rule:** Search codebase for `match.*Value` to find all locations needing updates
+- **Why:** Rust exhaustive pattern matching - compiler forces handling of all variants
+- **Prevention:** Use compiler errors as checklist; each error shows one location to update
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
+
+### call_user_function Only Handles Specific Value Types
+
+- **Problem:** Calling non-function values silently returns Int(0)
+- **Location:** `src/interpreter.rs` ~line 1495
+- **Rule:** Pattern match handles Function, GeneratorDef, falls through to `_ => Value::Int(0)` for others
+- **Implication:** NativeFunction, StructDef methods, and other callables handled elsewhere
+
+(Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
 
 ### User-creatable types need constructor functions
 - **Problem:** Internal Value types (like Bytes) can't be created from Ruff code without a constructor
