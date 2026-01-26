@@ -355,8 +355,53 @@ impl Compiler {
                 Ok(())
             }
             
+            Stmt::Loop { condition, body } => {
+                let loop_start = self.chunk.instructions.len();
+                self.loop_starts.push(loop_start);
+                self.loop_ends.push(Vec::new());
+                
+                // If there's a condition, check it
+                if let Some(cond_expr) = condition {
+                    self.compile_expr(cond_expr)?;
+                    
+                    // Jump to end if condition is false
+                    let end_jump = self.chunk.emit(OpCode::JumpIfFalse(0));
+                    self.chunk.emit(OpCode::Pop); // Pop condition
+                    
+                    // Compile body
+                    for stmt in body {
+                        self.compile_stmt(stmt)?;
+                    }
+                    
+                    // Jump back to start
+                    self.chunk.emit(OpCode::JumpBack(loop_start));
+                    
+                    // Patch end jump
+                    self.chunk.patch_jump(end_jump);
+                    self.chunk.emit(OpCode::Pop); // Pop condition
+                } else {
+                    // Unconditional loop
+                    for stmt in body {
+                        self.compile_stmt(stmt)?;
+                    }
+                    
+                    // Jump back to start
+                    self.chunk.emit(OpCode::JumpBack(loop_start));
+                }
+                
+                // Patch all break statements
+                if let Some(breaks) = self.loop_ends.pop() {
+                    for break_jump in breaks {
+                        self.chunk.patch_jump(break_jump);
+                    }
+                }
+                self.loop_starts.pop();
+                
+                Ok(())
+            }
+            
             Stmt::Import { .. } | Stmt::EnumDef { .. } | Stmt::Const { .. } | 
-            Stmt::Loop { .. } | Stmt::TryExcept { .. } | Stmt::Block(_) | 
+            Stmt::TryExcept { .. } | Stmt::Block(_) | 
             Stmt::Export { .. } | Stmt::Spawn { .. } => {
                 // These are handled at parse/runtime for now
                 Ok(())
