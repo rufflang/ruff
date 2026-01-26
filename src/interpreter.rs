@@ -1494,6 +1494,28 @@ impl Interpreter {
     /// Used by higher-order functions like map, filter, reduce
     fn call_user_function(&mut self, func: &Value, args: &[Value]) -> Value {
         match func {
+            Value::GeneratorDef(params, body) => {
+                // Calling a generator function returns a Generator instance
+                // Create a new environment for the generator
+                let mut gen_env = self.env.clone();
+                gen_env.push_scope();
+                
+                // Bind parameters to arguments
+                for (i, param) in params.iter().enumerate() {
+                    if let Some(arg) = args.get(i) {
+                        gen_env.define(param.clone(), arg.clone());
+                    }
+                }
+                
+                // Return a Generator instance
+                Value::Generator {
+                    params: params.clone(),
+                    body: body.clone(),
+                    env: Rc::new(RefCell::new(gen_env)),
+                    pc: 0,
+                    is_exhausted: false,
+                }
+            }
             Value::Function(params, body, captured_env) => {
                 // Push function name to call stack
                 let func_name = format!("<function with {} params>", params.len());
@@ -9968,7 +9990,7 @@ impl Interpreter {
             _ => {
                 // Check if it's a struct method
                 match &obj {
-                    Value::Struct { name: _, fields } => {
+                    Value::Struct { name: _, fields: _ } => {
                         // Look for method in struct definition
                         // For now, return error
                         Value::Error(format!("Unknown method: {}", method))
@@ -9980,27 +10002,79 @@ impl Interpreter {
     }
 
     /// Collect all values from an iterator into an array
-    fn collect_iterator(&mut self, iterator: Value) -> Value {
+    fn collect_iterator(&mut self, mut iterator: Value) -> Value {
         let mut result = Vec::new();
-        let iter = iterator;
         
         loop {
-            let next_val = self.iterator_next(iter.clone());
-            match next_val {
-                Value::Option { is_some, value } => {
-                    if is_some {
-                        result.push(*value);
-                        // Update iterator state (this is a simplified version)
-                        // In a real implementation, we'd need to properly track state
-                    } else {
-                        break;
+            match &mut iterator {
+                Value::Iterator { source, index, transformer, filter_fn, take_count } => {
+                    // Check if we've reached the take limit
+                    if let Some(limit) = take_count {
+                        if result.len() >= *limit {
+                            return Value::Array(result);
+                        }
+                    }
+
+                    // Get next item from source
+                    match source.as_ref() {
+                        Value::Array(items) => {
+                            // Find next item that passes filter
+                            loop {
+                                if *index >= items.len() {
+                                    // No more items
+                                    return Value::Array(result);
+                                }
+                                
+                                let mut item = items[*index].clone();
+                                *index += 1;
+
+                                // Apply filter if present
+                                if let Some(filter) = filter_fn {
+                                    let args_vec = vec![item.clone()];
+                                    let filter_result = self.call_user_function(filter.as_ref(), &args_vec);
+                                    match filter_result {
+                                        Value::Bool(true) => {
+                                            // Item passes filter - continue processing
+                                        }
+                                        _ => {
+                                            // Item filtered out, try next
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                // Apply transformer if present
+                                if let Some(trans) = transformer {
+                                    let args_vec = vec![item];
+                                    item = self.call_user_function(trans.as_ref(), &args_vec);
+                                }
+
+                                result.push(item);
+                                
+                                // Check take limit after adding
+                                if let Some(limit) = take_count {
+                                    if result.len() >= *limit {
+                                        return Value::Array(result);
+                                    }
+                                }
+                                
+                                break; // Found one item, continue outer loop
+                            }
+                        }
+                        Value::Generator { .. } => {
+                            // TODO: Implement generator iteration
+                            return Value::Error("Generator iteration not yet implemented".to_string());
+                        }
+                        _ => {
+                            return Value::Error("Invalid iterator source".to_string());
+                        }
                     }
                 }
-                _ => break,
+                _ => {
+                    return Value::Error("collect() can only be called on iterators".to_string());
+                }
             }
         }
-        
-        Value::Array(result)
     }
 
     /// Get the next value from an iterator
