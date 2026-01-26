@@ -7,8 +7,8 @@ print("=" * 60)
 print("")
 
 # Note: Run this file with both modes:
-# ruff run benchmarks/run_all.ruff        (interpreter mode)
-# ruff run --vm benchmarks/run_all.ruff   (VM mode)
+# ruff run examples/benchmarks/run_all.ruff        (interpreter mode)
+# ruff run --vm examples/benchmarks/run_all.ruff   (VM mode)
 
 print("Running benchmarks...")
 print("(Run this with and without --vm flag to compare)")

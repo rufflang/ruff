@@ -23,7 +23,7 @@ def run_benchmark(file, vm_mode=False):
     cmd = ["./target/debug/ruff", "run"]
     if vm_mode:
         cmd.append("--vm")
-    cmd.append(f"benchmarks/{file}")
+    cmd.append(f"examples/benchmarks/{file}")
     
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = result.stdout
