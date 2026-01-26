@@ -40,7 +40,7 @@ func run_benchmark(file, vm_mode) {
     if vm_mode {
         cmd := cmd + "--vm "
     }
-    cmd := cmd + "benchmarks/" + file
+    cmd := cmd + "examples/benchmarks/" + file
     
     let output := execute(cmd)
     return extract_time(output)

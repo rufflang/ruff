@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Loop bodies now execute correctly in VM mode
   - Root cause: Compiler was returning `Ok(())` without generating bytecode for loops
 
-- **TWEAK**: Ruff-based benchmark runner (`benchmarks/run_benchmarks.ruff`)
+- **TWEAK**: Ruff-based benchmark runner (`examples/benchmarks/run_benchmarks.ruff`)
   - Rewrote Python benchmark runner in pure Ruff to dogfood the language
   - Demonstrates Ruff's capability for real-world tooling tasks
   - Uses process execution, string parsing, statistics, and file operations
