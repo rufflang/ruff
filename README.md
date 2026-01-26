@@ -34,8 +34,30 @@
         .take(5)                                  # Top 5
         .collect()
     ```
+  - Generator functions with `func*` and `yield` for lazy sequence generation:
+    ```ruff
+    func* fibonacci() {
+        let a := 0
+        let b := 1
+        loop {
+            yield a
+            let temp := a
+            a := b
+            b := temp + b
+        }
+    }
+    
+    # Get first 10 fibonacci numbers
+    count := 0
+    for n in fibonacci() {
+        print(n)
+        count := count + 1
+        if count >= 10 {
+            break
+        }
+    }
+    ```
   - See `examples/iterators_comprehensive.ruff` for 8 different usage patterns
-  - Note: Generator functions (`func*` with `yield`) partially implemented (syntax works, execution in progress)
 
 * **Built-in Testing Framework** 🧪
   - Native testing support with `test`, `test_setup`, `test_teardown`, and `test_group` syntax
@@ -263,15 +285,10 @@
   - Compression and archiving ✅
   - Extended native function library for VM ✅
 
-* **Async/Await** (Future)
+* **Async/Await** (Future - v0.9.0+)
   - Modern async/await syntax
   - Concurrent execution with Promise.all/race
   - Async iteration
-
-* **Iterators & Generators** (Future)
-  - Generator functions with `yield`
-  - Lazy evaluation and iterator chaining
-  - Custom iterator protocol
 
 ### Implemented Features (v0.7.0 and earlier)
 
