@@ -59,6 +59,16 @@ enum Commands {
         #[arg(long)]
         update: bool,
     },
+
+    /// Run tests defined with the test framework
+    TestRun {
+        /// Path to the .ruff file containing tests
+        file: PathBuf,
+        
+        /// Print detailed output for each test
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 fn main() {
@@ -168,6 +178,34 @@ fn main() {
         Commands::Test { update } => {
             use std::path::Path;
             parser::Parser::run_all_tests(Path::new("tests"), update);
+        }
+
+        Commands::TestRun { file, verbose } => {
+            let code = fs::read_to_string(&file).expect("Failed to read test file");
+            let tokens = lexer::tokenize(&code);
+            let mut parser = parser::Parser::new(tokens);
+            let stmts = parser.parse();
+            
+            // Create base interpreter with standard library loaded
+            let base_interp = interpreter::Interpreter::new();
+            
+            // Create test runner and collect tests
+            let mut runner = interpreter::TestRunner::new();
+            runner.collect_tests(&stmts);
+            
+            if runner.tests.is_empty() {
+                println!("No tests found in {}", file.display());
+                std::process::exit(1);
+            }
+            
+            // Run all tests
+            let report = runner.run_all(&base_interp);
+            
+            // Print results
+            report.print(verbose);
+            
+            // Exit with appropriate code
+            std::process::exit(report.exit_code());
         }
     }
 }
