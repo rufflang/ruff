@@ -19,10 +19,14 @@
 // Module structure
 mod value;
 mod environment;
+mod control_flow;
 
 // Re-exports for backward compatibility
 pub use value::{Value, LeakyFunctionBody, DatabaseConnection, ConnectionPool};
 pub use environment::Environment;
+
+// Internal-only imports
+use control_flow::ControlFlow;
 
 use crate::ast::{Expr, Stmt};
 use crate::builtins;
@@ -49,14 +53,6 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
-
-/// Control flow signals for loop statements
-#[derive(Debug, Clone, PartialEq)]
-enum ControlFlow {
-    None,
-    Break,
-    Continue,
-}
 
 /// Main interpreter that executes Ruff programs
 pub struct Interpreter {
