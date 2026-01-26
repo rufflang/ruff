@@ -313,6 +313,21 @@ pub enum Value {
         writer: Arc<Mutex<Option<ZipWriter<File>>>>,
         path: String,
     },
+    /// TCP listener for accepting incoming connections
+    TcpListener {
+        listener: Arc<Mutex<std::net::TcpListener>>,
+        addr: String,
+    },
+    /// TCP stream for bidirectional communication
+    TcpStream {
+        stream: Arc<Mutex<std::net::TcpStream>>,
+        peer_addr: String,
+    },
+    /// UDP socket for datagram communication
+    UdpSocket {
+        socket: Arc<Mutex<std::net::UdpSocket>>,
+        addr: String,
+    },
     /// Result type: Ok(value) or Err(error)
     Result {
         is_ok: bool,
@@ -393,6 +408,15 @@ impl std::fmt::Debug for Value {
             }
             Value::ZipArchive { path, .. } => {
                 write!(f, "ZipArchive(path={})", path)
+            }
+            Value::TcpListener { addr, .. } => {
+                write!(f, "TcpListener(addr={})", addr)
+            }
+            Value::TcpStream { peer_addr, .. } => {
+                write!(f, "TcpStream(peer={})", peer_addr)
+            }
+            Value::UdpSocket { addr, .. } => {
+                write!(f, "UdpSocket(addr={})", addr)
             }
             Value::Result { is_ok, value } => {
                 if *is_ok {
@@ -1148,6 +1172,19 @@ impl Interpreter {
         // Process management functions
         self.env.define("spawn_process".to_string(), Value::NativeFunction("spawn_process".to_string()));
         self.env.define("pipe_commands".to_string(), Value::NativeFunction("pipe_commands".to_string()));
+
+        // Network functions (TCP/UDP)
+        self.env.define("tcp_listen".to_string(), Value::NativeFunction("tcp_listen".to_string()));
+        self.env.define("tcp_accept".to_string(), Value::NativeFunction("tcp_accept".to_string()));
+        self.env.define("tcp_connect".to_string(), Value::NativeFunction("tcp_connect".to_string()));
+        self.env.define("tcp_send".to_string(), Value::NativeFunction("tcp_send".to_string()));
+        self.env.define("tcp_receive".to_string(), Value::NativeFunction("tcp_receive".to_string()));
+        self.env.define("tcp_close".to_string(), Value::NativeFunction("tcp_close".to_string()));
+        self.env.define("tcp_set_nonblocking".to_string(), Value::NativeFunction("tcp_set_nonblocking".to_string()));
+        self.env.define("udp_bind".to_string(), Value::NativeFunction("udp_bind".to_string()));
+        self.env.define("udp_send_to".to_string(), Value::NativeFunction("udp_send_to".to_string()));
+        self.env.define("udp_receive_from".to_string(), Value::NativeFunction("udp_receive_from".to_string()));
+        self.env.define("udp_close".to_string(), Value::NativeFunction("udp_close".to_string()));
     }
 
     /// Sets the source file and content for error reporting
@@ -2790,6 +2827,9 @@ impl Interpreter {
                         Value::DatabasePool { .. } => "databasepool",
                         Value::Image { .. } => "image",
                         Value::ZipArchive { .. } => "ziparchive",
+                        Value::TcpListener { .. } => "tcplistener",
+                        Value::TcpStream { .. } => "tcpstream",
+                        Value::UdpSocket { .. } => "udpsocket",
                         Value::Return(_) => "return",
                         Value::Error(_) | Value::ErrorObject { .. } => "error",
                         Value::Result { .. } => "result",
@@ -6292,6 +6332,304 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("pipe_commands requires an array of command arrays".to_string())
+                }
+            }
+
+            // Network functions - TCP/UDP sockets
+            "tcp_listen" => {
+                // tcp_listen(host, port) - creates a TCP listener
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(host)), Some(Value::Int(port))) => {
+                        let addr = format!("{}:{}", host, port);
+                        match std::net::TcpListener::bind(&addr) {
+                            Ok(listener) => {
+                                // Set non-blocking by default for accept operations
+                                let _ = listener.set_nonblocking(false);
+                                Value::TcpListener {
+                                    listener: Arc::new(Mutex::new(listener)),
+                                    addr: addr.clone(),
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to bind TCP listener on '{}': {}", addr, e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("tcp_listen requires (string_host, int_port) arguments".to_string()),
+                }
+            }
+
+            "tcp_accept" => {
+                // tcp_accept(listener) - accepts an incoming connection
+                if let Some(Value::TcpListener { listener, .. }) = arg_values.first() {
+                    let listener_guard = listener.lock().unwrap();
+                    match listener_guard.accept() {
+                        Ok((stream, peer_addr)) => {
+                            Value::TcpStream {
+                                stream: Arc::new(Mutex::new(stream)),
+                                peer_addr: peer_addr.to_string(),
+                            }
+                        }
+                        Err(e) => Value::ErrorObject {
+                            message: format!("Failed to accept connection: {}", e),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("tcp_accept requires a TcpListener argument".to_string())
+                }
+            }
+
+            "tcp_connect" => {
+                // tcp_connect(host, port) - connects to a TCP server
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(host)), Some(Value::Int(port))) => {
+                        let addr = format!("{}:{}", host, port);
+                        match std::net::TcpStream::connect(&addr) {
+                            Ok(stream) => {
+                                Value::TcpStream {
+                                    stream: Arc::new(Mutex::new(stream)),
+                                    peer_addr: addr.clone(),
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to connect to '{}': {}", addr, e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("tcp_connect requires (string_host, int_port) arguments".to_string()),
+                }
+            }
+
+            "tcp_send" => {
+                // tcp_send(stream, data) - sends data over TCP connection
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::TcpStream { stream, .. }), Some(Value::Str(data))) => {
+                        let mut stream_guard = stream.lock().unwrap();
+                        match stream_guard.write_all(data.as_bytes()) {
+                            Ok(_) => {
+                                match stream_guard.flush() {
+                                    Ok(_) => Value::Int(data.len() as i64),
+                                    Err(e) => Value::ErrorObject {
+                                        message: format!("Failed to flush TCP stream: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to send data over TCP: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    (Some(Value::TcpStream { stream, .. }), Some(Value::Bytes(data))) => {
+                        let mut stream_guard = stream.lock().unwrap();
+                        match stream_guard.write_all(data) {
+                            Ok(_) => {
+                                match stream_guard.flush() {
+                                    Ok(_) => Value::Int(data.len() as i64),
+                                    Err(e) => Value::ErrorObject {
+                                        message: format!("Failed to flush TCP stream: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to send data over TCP: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("tcp_send requires (TcpStream, string_or_bytes_data) arguments".to_string()),
+                }
+            }
+
+            "tcp_receive" => {
+                // tcp_receive(stream, size) - receives data from TCP connection
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::TcpStream { stream, .. }), Some(Value::Int(size))) => {
+                        if *size <= 0 {
+                            return Value::Error("tcp_receive size must be positive".to_string());
+                        }
+                        let mut stream_guard = stream.lock().unwrap();
+                        let mut buffer = vec![0u8; *size as usize];
+                        match stream_guard.read(&mut buffer) {
+                            Ok(n) => {
+                                buffer.truncate(n);
+                                match String::from_utf8(buffer.clone()) {
+                                    Ok(s) => Value::Str(s),
+                                    Err(_) => Value::Bytes(buffer), // Return bytes if not valid UTF-8
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to receive data from TCP: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("tcp_receive requires (TcpStream, int_size) arguments".to_string()),
+                }
+            }
+
+            "tcp_close" => {
+                // tcp_close(stream_or_listener) - closes TCP stream or listener
+                match arg_values.first() {
+                    Some(Value::TcpStream { .. }) | Some(Value::TcpListener { .. }) => {
+                        // Dropping the value will close the socket
+                        Value::Bool(true)
+                    }
+                    _ => Value::Error("tcp_close requires a TcpStream or TcpListener argument".to_string()),
+                }
+            }
+
+            "tcp_set_nonblocking" => {
+                // tcp_set_nonblocking(stream_or_listener, bool) - sets non-blocking mode
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::TcpStream { stream, .. }), Some(Value::Bool(nonblocking))) => {
+                        let stream_guard = stream.lock().unwrap();
+                        match stream_guard.set_nonblocking(*nonblocking) {
+                            Ok(_) => Value::Bool(true),
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to set TCP stream non-blocking mode: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    (Some(Value::TcpListener { listener, .. }), Some(Value::Bool(nonblocking))) => {
+                        let listener_guard = listener.lock().unwrap();
+                        match listener_guard.set_nonblocking(*nonblocking) {
+                            Ok(_) => Value::Bool(true),
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to set TCP listener non-blocking mode: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("tcp_set_nonblocking requires (TcpStream/TcpListener, bool) arguments".to_string()),
+                }
+            }
+
+            "udp_bind" => {
+                // udp_bind(host, port) - creates a UDP socket bound to an address
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(host)), Some(Value::Int(port))) => {
+                        let addr = format!("{}:{}", host, port);
+                        match std::net::UdpSocket::bind(&addr) {
+                            Ok(socket) => {
+                                Value::UdpSocket {
+                                    socket: Arc::new(Mutex::new(socket)),
+                                    addr: addr.clone(),
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to bind UDP socket on '{}': {}", addr, e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("udp_bind requires (string_host, int_port) arguments".to_string()),
+                }
+            }
+
+            "udp_send_to" => {
+                // udp_send_to(socket, data, host, port) - sends a datagram to an address
+                match (arg_values.first(), arg_values.get(1), arg_values.get(2), arg_values.get(3)) {
+                    (Some(Value::UdpSocket { socket, .. }), Some(Value::Str(data)), Some(Value::Str(host)), Some(Value::Int(port))) => {
+                        let addr = format!("{}:{}", host, port);
+                        let socket_guard = socket.lock().unwrap();
+                        match socket_guard.send_to(data.as_bytes(), &addr) {
+                            Ok(n) => Value::Int(n as i64),
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to send UDP datagram to '{}': {}", addr, e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    (Some(Value::UdpSocket { socket, .. }), Some(Value::Bytes(data)), Some(Value::Str(host)), Some(Value::Int(port))) => {
+                        let addr = format!("{}:{}", host, port);
+                        let socket_guard = socket.lock().unwrap();
+                        match socket_guard.send_to(data, &addr) {
+                            Ok(n) => Value::Int(n as i64),
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to send UDP datagram to '{}': {}", addr, e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("udp_send_to requires (UdpSocket, string_or_bytes_data, string_host, int_port) arguments".to_string()),
+                }
+            }
+
+            "udp_receive_from" => {
+                // udp_receive_from(socket, size) - receives a datagram, returns dict with data and sender
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::UdpSocket { socket, .. }), Some(Value::Int(size))) => {
+                        if *size <= 0 {
+                            return Value::Error("udp_receive_from size must be positive".to_string());
+                        }
+                        let socket_guard = socket.lock().unwrap();
+                        let mut buffer = vec![0u8; *size as usize];
+                        match socket_guard.recv_from(&mut buffer) {
+                            Ok((n, src_addr)) => {
+                                buffer.truncate(n);
+                                let data_value = match String::from_utf8(buffer.clone()) {
+                                    Ok(s) => Value::Str(s),
+                                    Err(_) => Value::Bytes(buffer),
+                                };
+                                
+                                let mut result = HashMap::new();
+                                result.insert("data".to_string(), data_value);
+                                result.insert("from".to_string(), Value::Str(src_addr.to_string()));
+                                result.insert("size".to_string(), Value::Int(n as i64));
+                                Value::Dict(result)
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to receive UDP datagram: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error("udp_receive_from requires (UdpSocket, int_size) arguments".to_string()),
+                }
+            }
+
+            "udp_close" => {
+                // udp_close(socket) - closes UDP socket
+                if let Some(Value::UdpSocket { .. }) = arg_values.first() {
+                    // Dropping the value will close the socket
+                    Value::Bool(true)
+                } else {
+                    Value::Error("udp_close requires a UdpSocket argument".to_string())
                 }
             }
 

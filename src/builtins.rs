@@ -1605,6 +1605,9 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::DatabasePool { .. } => "DatabasePool".to_string(),
         Value::Image { format, .. } => format!("Image(format: {})", format),
         Value::ZipArchive { path, .. } => format!("ZipArchive(path: {})", path),
+        Value::TcpListener { addr, .. } => format!("TcpListener(addr: {})", addr),
+        Value::TcpStream { peer_addr, .. } => format!("TcpStream(peer: {})", peer_addr),
+        Value::UdpSocket { addr, .. } => format!("UdpSocket(addr: {})", addr),
         Value::Result { is_ok, value } => {
             if *is_ok {
                 format!("Ok({})", format_debug_value(value))
