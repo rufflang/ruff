@@ -183,3 +183,152 @@ If you are new to the project, read this first.
 - The runtime guarantees **lexical scoping with Environment chains** (variable lookup walks parent scopes)
 - Do NOT assume **single-character lookahead is sufficient** for lexing (multi-char operators like `...` need explicit peek-ahead)
 - Do NOT assume **all syntax starts with identifiers** (patterns can start with punctuation like `[` and `{`)
+
+---
+
+## Value Enum & Type System
+
+### Adding new Value variants requires updating multiple locations
+- **Problem:** New enum variants cause "non-exhaustive patterns" errors in unexpected places
+- **Rule:** When adding a Value variant, search for existing variants (e.g., `Value::ZipArchive`) and update:
+  1. Debug impl for Value in `src/interpreter.rs` (around line 328)
+  2. `format_debug_value()` in `src/builtins.rs` (around line 1550)
+  3. `type()` function's match in `src/interpreter.rs` (around line 2800)
+- **Why:** Rust's exhaustive pattern matching catches most cases, but Debug impls and helper functions may not trigger immediate errors
+- **Symptom:** Compiler error "non-exhaustive patterns" in unexpected files like builtins.rs
+- **Prevention:** Search codebase for a recent Value variant to find all match statements
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+### User-creatable types need constructor functions
+- **Problem:** Internal Value types (like Bytes) can't be created from Ruff code without a constructor
+- **Rule:** If users need to create instances of a Value type, provide a native constructor function
+- **Example:** `bytes(array)` converts `[72, 101, 108, 108, 111]` to binary data
+- **Why:** Not all Value types should be directly constructible, but common ones (especially for I/O) need constructors
+- **Implication:** When adding new Value variants for resources, consider if user code needs a way to create them
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+---
+
+## Native Function Implementation
+
+### Native functions require two-part registration
+- **Problem:** Function exists but isn't callable from Ruff code
+- **Rule:** Native functions must be:
+  1. Registered in `Interpreter::new()` via `self.env.define("name", Value::NativeFunction("name"))`
+  2. Implemented in `call_native_function_impl()` match statement
+- **Why:** Registration binds the name in the environment; implementation provides the logic
+- **Implication:** Function name strings must match exactly in both places. Search for similar functions to find the right location.
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+### Use ErrorObject, not Error for new code
+- **Problem:** Legacy `Value::Error(String)` still exists for backward compatibility
+- **Rule:** New code should use `Value::ErrorObject { message, stack, line, cause }`
+- **Why:** ErrorObject provides stack traces and better debugging; Error is deprecated pattern
+- **Example:** 
+  ```rust
+  Value::ErrorObject {
+      message: format!("Failed to bind on '{}': {}", addr, e),
+      stack: Vec::new(),
+      line: None,
+      cause: None,
+  }
+  ```
+- **Implication:** When writing error-returning functions, always use ErrorObject unless maintaining backward compatibility
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+---
+
+## I/O & Network Programming
+
+### Network functions should handle both string and binary data
+- **Problem:** Binary protocols fail if only string handling implemented
+- **Rule:** Network send/receive functions must check for both `Value::Str` and `Value::Bytes`
+- **Pattern:**
+  ```rust
+  match data {
+      Value::Str(s) => stream.write_all(s.as_bytes()),
+      Value::Bytes(b) => stream.write_all(b),
+      _ => return Error(...)
+  }
+  ```
+- **Why:** Network protocols often require binary data (headers, serialization, raw protocols)
+- **Implication:** Any I/O function that transmits data should support both text and binary
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+### Auto-detect string vs bytes in receive operations
+- **Problem:** Unknown if received data is UTF-8 text or binary
+- **Rule:** Try UTF-8 decode first, fall back to Bytes if invalid
+- **Pattern:**
+  ```rust
+  match String::from_utf8(buffer) {
+      Ok(s) => Value::Str(s),
+      Err(_) => Value::Bytes(buffer),
+  }
+  ```
+- **Why:** Provides best user experience - text is string, binary stays binary
+- **Implication:** Receiving functions should be smart about data types rather than forcing users to handle conversion
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+### Connectionless protocols must return sender information
+- **Problem:** UDP receiver doesn't know who sent the datagram
+- **Rule:** Functions like `udp_receive_from()` should return a dictionary with data + metadata
+- **Pattern:** Return `{ "data": Value, "from": String, "size": Int }`
+- **Why:** Enables bidirectional communication without separate connection establishment
+- **Implication:** Don't just return the data - include context needed for protocols to function
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+---
+
+## Resource Management
+
+### Stateful resources use Arc<Mutex<>> pattern
+- **Problem:** Value enum must be Clone, but resources like sockets/files aren't
+- **Rule:** Wrap stateful resources in `Arc<Mutex<T>>` within Value variants
+- **Example:** `TcpStream { stream: Arc<Mutex<std::net::TcpStream>>, peer_addr: String }`
+- **Why:** Allows Value to be cloned while sharing single underlying resource
+- **Pattern also used for:** Database, HttpServer, Image, ZipArchive, Channel
+- **Implication:** All resource-based Value types should follow this pattern for consistency
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+### Close functions rely on RAII, not explicit cleanup
+- **Problem:** "Close" functions don't actually close the resource
+- **Rule:** Dropping the Value closes the resource via Rust's RAII; close functions just return success
+- **Why:** Rust automatically closes resources when Arc refcount reaches zero
+- **Implication:** Users can call close() for clarity, but it's not strictly necessary. The function exists for API completeness.
+- **Pattern:** `tcp_close()`, `udp_close()`, `db_close()` all just return `Value::Bool(true)`
+
+(Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+---
+
+## Quick Reference: Adding a New Built-in Function
+
+1. Register in `Interpreter::new()`: `self.env.define("func_name", Value::NativeFunction("func_name"))`
+2. Implement in `call_native_function_impl()` match statement
+3. Use `ErrorObject` for errors, not `Error`
+4. Handle both string and binary data if I/O related
+5. Update type checker (separate task, not blocking)
+6. Write tests in `tests/` directory
+7. Add example in `examples/` if user-facing
+8. Document in CHANGELOG.md
+
+---
+
+## Quick Reference: Adding a New Value Variant
+
+1. Add variant to `Value` enum in `src/interpreter.rs`
+2. Update `Debug` impl for Value (same file, ~line 328)
+3. Update `format_debug_value()` in `src/builtins.rs` (~line 1550)
+4. Update `type()` function match in `src/interpreter.rs` (~line 2800)
+5. If user-creatable, add constructor function
+6. If stateful resource, use `Arc<Mutex<T>>` pattern
+7. Test with `cargo build` to catch any missed matches
+
