@@ -676,6 +676,9 @@ impl Interpreter {
             // Concurrency functions
             "channel",
             
+            // Testing assertion functions
+            "assert_equal", "assert_true", "assert_false", "assert_contains",
+            
             // Image processing functions
             "load_image",
             
@@ -1118,6 +1121,12 @@ impl Interpreter {
 
         // Concurrency functions
         self.env.define("channel".to_string(), Value::NativeFunction("channel".to_string()));
+
+        // Testing assertion functions
+        self.env.define("assert_equal".to_string(), Value::NativeFunction("assert_equal".to_string()));
+        self.env.define("assert_true".to_string(), Value::NativeFunction("assert_true".to_string()));
+        self.env.define("assert_false".to_string(), Value::NativeFunction("assert_false".to_string()));
+        self.env.define("assert_contains".to_string(), Value::NativeFunction("assert_contains".to_string()));
 
         // Image processing functions
         self.env.define("load_image".to_string(), Value::NativeFunction("load_image".to_string()));
@@ -5228,6 +5237,91 @@ impl Interpreter {
                 #[allow(clippy::arc_with_non_send_sync)]
                 let channel = Arc::new(Mutex::new((sender, receiver)));
                 Value::Channel(channel)
+            }
+
+            "assert_equal" => {
+                // assert_equal(actual, expected) - assert that two values are equal
+                if arg_values.len() < 2 {
+                    return Value::Error("assert_equal requires 2 arguments: actual, expected".to_string());
+                }
+                let actual = &arg_values[0];
+                let expected = &arg_values[1];
+                
+                if Self::values_equal(actual, expected) {
+                    Value::Bool(true)
+                } else {
+                    // Create detailed error message
+                    let msg = format!(
+                        "Assertion failed: expected {:?}, got {:?}",
+                        expected, actual
+                    );
+                    Value::Error(msg)
+                }
+            }
+
+            "assert_true" => {
+                // assert_true(value) - assert that value is true
+                if let Some(Value::Bool(val)) = arg_values.first() {
+                    if *val {
+                        Value::Bool(true)
+                    } else {
+                        Value::Error("Assertion failed: expected true, got false".to_string())
+                    }
+                } else {
+                    Value::Error("assert_true requires a boolean argument".to_string())
+                }
+            }
+
+            "assert_false" => {
+                // assert_false(value) - assert that value is false
+                if let Some(Value::Bool(val)) = arg_values.first() {
+                    if !*val {
+                        Value::Bool(true)
+                    } else {
+                        Value::Error("Assertion failed: expected false, got true".to_string())
+                    }
+                } else {
+                    Value::Error("assert_false requires a boolean argument".to_string())
+                }
+            }
+
+            "assert_contains" => {
+                // assert_contains(collection, item) - assert that collection contains item
+                if arg_values.len() < 2 {
+                    return Value::Error("assert_contains requires 2 arguments: collection, item".to_string());
+                }
+                
+                let collection = &arg_values[0];
+                let item = &arg_values[1];
+                
+                let contains = match collection {
+                    Value::Array(arr) => arr.iter().any(|v| Self::values_equal(v, item)),
+                    Value::Str(s) => {
+                        if let Value::Str(needle) = item {
+                            s.contains(needle)
+                        } else {
+                            false
+                        }
+                    }
+                    Value::Dict(map) => {
+                        if let Value::Str(key) = item {
+                            map.contains_key(key)
+                        } else {
+                            false
+                        }
+                    }
+                    _ => return Value::Error("assert_contains requires an array, string, or dict as first argument".to_string()),
+                };
+                
+                if contains {
+                    Value::Bool(true)
+                } else {
+                    let msg = format!(
+                        "Assertion failed: {:?} does not contain {:?}",
+                        collection, item
+                    );
+                    Value::Error(msg)
+                }
             }
 
             "db_close" => {
