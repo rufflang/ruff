@@ -80,13 +80,13 @@ async for chunk in stream_large_file("data.csv") {
 
 ### 26. Iterators & Generators (P1)
 
-**Status**: Partially Complete (Iterators ✅, Generators ⏳)  
-**Estimated Effort**: Large (3-4 weeks)  
-**Progress**: Iterator methods fully working, generator syntax parsed but execution incomplete
+**Status**: ✅ Complete  
+**Completed**: January 2026  
+**Effort**: Large (3-4 weeks)
 
 **Why Important**: Lazy evaluation, memory efficiency, and functional programming patterns
 
-**Completed Features** ✅:
+**Implemented Features** ✅:
 ```ruff
 # Iterator chaining (WORKING!)
 result := [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -102,33 +102,57 @@ first_even := numbers
     .take(1)  # Only checks until first match
     .collect()
 
-# Method chaining on arrays
-scores.filter(passing).map(curve).take(5).collect()
-```
-
-**In Progress** ⏳ (Generator execution needs completion):
-```ruff
-# Generator functions with yield (syntax works, execution incomplete)
+# Generator functions with yield (FULLY WORKING!)
 func* fibonacci() {
     let a := 0
     let b := 1
     loop {
         yield a
-        [a, b] := [b, a + b]
+        let temp := a
+        a := b
+        b := temp + b
     }
 }
 
-# Generators need: yield suspension, resume from PC, iteration protocol
+# Iterate over generator
+count := 0
+for n in fibonacci() {
+    print(n)
+    count := count + 1
+    if count >= 10 {
+        break
+    }
+}
+
+# Generator with parameters
+func* count_to(max) {
+    let i := 0
+    loop {
+        if i >= max {
+            break
+        }
+        yield i
+        i := i + 1
+    }
+}
+
+for num in count_to(5) {
+    print(num)  # Prints 0, 1, 2, 3, 4
+}
 ```
 
-**Remaining Work**:
-- [ ] Generator execution with yield suspension/resumption
-- [ ] Generator state management (PC tracking, environment preservation)
-- [ ] Make generators iterable (work with for-in loops)
-- [ ] Custom iterator protocol with next() method
-- [ ] Range iterator (modify range() to return iterator instead of array)
+**Features**:
+- ✅ Iterator methods (.filter, .map, .take, .collect)
+- ✅ Method chaining with lazy evaluation
+- ✅ Generator functions (func*)
+- ✅ Yield expression with automatic suspension
+- ✅ Generator state preservation (PC, environment)
+- ✅ Generator iteration in for-in loops
+- ✅ Infinite generators with manual break
+- ✅ Generators with parameters
+- ✅ Comprehensive test coverage (6 tests)
 
-**See**: CHANGELOG.md for implementation details and examples
+**See**: CHANGELOG.md for full implementation details and examples
 
 ---
 

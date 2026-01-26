@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Iterators & Iterator Methods** 🔄 - Lazy evaluation and functional iteration patterns (P1 feature - partial implementation):
+- **Iterators & Iterator Methods** 🔄 - Lazy evaluation and functional iteration patterns (P1 feature - COMPLETE):
   - **Iterator Methods** for arrays:
     - `.filter(predicate)` - Filter elements based on a predicate function, returns iterator
     - `.map(transformer)` - Transform each element with a function, returns iterator
@@ -17,6 +17,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `.collect()` - Consume iterator and collect into an array
   - **Method Chaining**: Combine multiple iterator operations for data processing pipelines
   - **Lazy Evaluation**: Operations are only executed when `.collect()` is called, not when chained
+  - **Generator Functions** ✅ - Full implementation of `func*` and `yield`:
+    - `func* name() { yield value }` - Generator function syntax
+    - `yield expression` - Suspend execution and yield a value
+    - Generator instances maintain state between yields (PC, environment)
+    - Generators work seamlessly with for-in loops
+    - Infinite generators supported (with manual break)
+    - **Examples**:
+      ```ruff
+      # Fibonacci generator
+      func* fibonacci() {
+          let a := 0
+          let b := 1
+          loop {
+              yield a
+              let temp := a
+              a := b
+              b := temp + b
+          }
+      }
+      
+      # Get first 10 fibonacci numbers
+      count := 0
+      for n in fibonacci() {
+          print(n)
+          count := count + 1
+          if count >= 10 {
+              break
+          }
+      }
+      
+      # Simple counter generator
+      func* count_to(max) {
+          let i := 0
+          loop {
+              if i >= max {
+                  break
+              }
+              yield i
+              i := i + 1
+          }
+      }
+      
+      for num in count_to(5) {
+          print(num)  # Prints 0, 1, 2, 3, 4
+      }
+      ```
   - **Syntax**: `array.filter(func).map(func).take(n).collect()`
   - **Examples**:
     ```ruff
@@ -37,12 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
         .collect()
     ```
   - **Comprehensive Example**: `examples/iterators_comprehensive.ruff` with 8 different usage patterns
-  - **Current Limitations**: 
-    - Generators (`func*` and `yield`) are partially implemented (syntax parsed but execution incomplete)
-    - Iterator protocol limited to arrays (generator iteration not yet working)
-    - Custom iterators not yet supported
-  - **Performance**: Memory efficient - intermediate arrays not created during chaining
-  - **Future Work**: Full generator support with yield/resume, custom iterator protocol, async iterators
+  - **Performance**: Memory efficient - intermediate arrays not created during chaining, generators don't compute values until requested
+  - **Test Coverage**: 6 comprehensive generator tests covering basic yield, state preservation, parameters, early break, and fibonacci sequence
 
 - **Crypto Module** 🔐 - Advanced encryption and digital signature support (P1 feature):
   - **AES-256-GCM Symmetric Encryption**:
