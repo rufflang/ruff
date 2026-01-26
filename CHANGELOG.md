@@ -184,6 +184,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Status**: Production-ready, all tests passing
   - **Roadmap Progress**: Completes second major milestone of v0.8.0 stdlib expansion
 
+  - **IO Module - Advanced Binary I/O Operations**:
+    - **`io_read_bytes(path, count)`**: Read specific number of bytes from start of file
+    - **`io_write_bytes(path, bytes)`**: Write binary data to file (alias for write_binary_file for consistency)
+    - **`io_append_bytes(path, bytes)`**: Append binary data to end of file
+    - **`io_read_at(path, offset, count)`**: Read bytes from specific offset in file
+    - **`io_write_at(path, bytes, offset)`**: Write bytes at specific offset in file (in-place updates)
+    - **`io_seek_read(path, offset)`**: Read from offset to end of file
+    - **`io_file_metadata(path)`**: Get comprehensive file/directory metadata
+      - Returns dict with: `size`, `is_file`, `is_dir`, `readonly`, `modified`, `created`, `accessed` (Unix timestamps)
+    - **`io_truncate(path, size)`**: Truncate or extend file to specified size
+    - **`io_copy_range(source, dest, offset, count)`**: Copy specific byte range between files efficiently
+    - **Performance**: Zero-copy operations for range copying, offset-based access avoids loading entire files
+    - **Error Handling**: Returns Error objects for I/O failures, permission issues, or invalid offsets
+    - **Use Cases**: 
+      - Log file analysis (read last N bytes)
+      - Binary file format detection (read headers/magic numbers)
+      - In-place file patching (update without rewriting)
+      - Efficient data extraction from large files
+      - Incremental file building (streaming assembly)
+      - Database-like random access to records
+      - File size management and cleanup
+    - **Example**:
+      ```ruff
+      # Read file header to detect format
+      let header := io_read_bytes("image.png", 8)
+      
+      # Patch binary config at specific offset
+      let new_value := decode_base64(encode_base64("0xFFFF"))
+      io_write_at("config.bin", new_value, 22)
+      
+      # Extract section from large file efficiently
+      io_copy_range("dataset.bin", "section.bin", 1000, 500)
+      
+      # Read recent log entries without loading entire file
+      let meta := io_file_metadata("app.log")
+      let last_1kb := io_seek_read("app.log", meta["size"] - 1024)
+      
+      # Get comprehensive file info
+      let info := io_file_metadata("document.pdf")
+      print("Size: ${info["size"]} bytes, Modified: ${info["modified"]}")
+      ```
+  - **Tests**: Comprehensive test suite in `tests/stdlib_io_test.ruff` with 20 test cases (37 assertions) covering:
+    - Basic read/write/append operations with various byte counts
+    - Offset-based reading and writing with boundary conditions
+    - File metadata retrieval for files and directories
+    - File truncation (both shrinking and extending)
+    - Byte range copying between files
+    - Edge cases: empty files, reading past EOF, non-existent paths, etc.
+  - **Examples**: Detailed demonstration in `examples/io_module_demo.ruff` with 9 real-world scenarios:
+    - Log file analysis (read last N bytes)
+    - Binary file format detection (magic numbers)
+    - Configuration patching (update at offset)
+    - Data extraction (copy specific ranges)
+    - Incremental file assembly (append chunks)
+    - File metadata inspection
+    - Size management (truncation)
+    - Structured data access (fixed-size records)
+    - Efficient file manipulation
+  - **Status**: Production-ready, all tests passing (100% pass rate)
+  - **Roadmap Progress**: Completes third major milestone of v0.8.0 stdlib expansion
+
 - **Showcase Projects** 🎨 - Six comprehensive real-world projects demonstrating Ruff capabilities:
   - **`project_log_analyzer.ruff`** - Advanced log file analysis with statistics, IP extraction, HTTP status codes, and regex filtering
   - **`project_task_manager.ruff`** - Full CLI task management system with JSON persistence, priorities, due dates, and visual progress tracking
