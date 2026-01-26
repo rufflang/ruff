@@ -596,6 +596,11 @@ impl Interpreter {
             // Binary file I/O functions
             "read_binary_file", "write_binary_file",
             
+            // IO module functions (advanced binary operations)
+            "io_read_bytes", "io_write_bytes", "io_append_bytes",
+            "io_read_at", "io_write_at", "io_seek_read",
+            "io_file_metadata", "io_truncate", "io_copy_range",
+            
             // JSON functions
             "parse_json", "to_json",
             
@@ -854,6 +859,17 @@ impl Interpreter {
             "write_binary_file".to_string(),
             Value::NativeFunction("write_binary_file".to_string()),
         );
+
+        // IO module functions (advanced binary operations)
+        self.env.define("io_read_bytes".to_string(), Value::NativeFunction("io_read_bytes".to_string()));
+        self.env.define("io_write_bytes".to_string(), Value::NativeFunction("io_write_bytes".to_string()));
+        self.env.define("io_append_bytes".to_string(), Value::NativeFunction("io_append_bytes".to_string()));
+        self.env.define("io_read_at".to_string(), Value::NativeFunction("io_read_at".to_string()));
+        self.env.define("io_write_at".to_string(), Value::NativeFunction("io_write_at".to_string()));
+        self.env.define("io_seek_read".to_string(), Value::NativeFunction("io_seek_read".to_string()));
+        self.env.define("io_file_metadata".to_string(), Value::NativeFunction("io_file_metadata".to_string()));
+        self.env.define("io_truncate".to_string(), Value::NativeFunction("io_truncate".to_string()));
+        self.env.define("io_copy_range".to_string(), Value::NativeFunction("io_copy_range".to_string()));
 
         // JSON functions
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
@@ -3112,6 +3128,408 @@ impl Interpreter {
                     }
                 } else {
                     Value::Error("copy_file requires string arguments".to_string())
+                }
+            }
+
+            // IO module functions (advanced binary operations)
+            "io_read_bytes" => {
+                // io_read_bytes(path, count) - reads specified number of bytes from file
+                use std::fs::File;
+                use std::io::Read;
+
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "io_read_bytes requires two arguments: path and count".to_string(),
+                    );
+                }
+                
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(path)), Some(Value::Int(count))) => {
+                        let count_usize = if *count < 0 {
+                            return Value::Error("io_read_bytes count must be non-negative".to_string());
+                        } else {
+                            *count as usize
+                        };
+
+                        match File::open(path) {
+                            Ok(mut file) => {
+                                let mut buffer = vec![0u8; count_usize];
+                                match file.read(&mut buffer) {
+                                    Ok(n) => {
+                                        buffer.truncate(n);
+                                        Value::Bytes(buffer)
+                                    }
+                                    Err(e) => Value::Error(format!(
+                                        "Cannot read {} bytes from '{}': {}",
+                                        count, path, e
+                                    )),
+                                }
+                            }
+                            Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                        }
+                    }
+                    (Some(Value::Str(path)), Some(Value::Float(count))) => {
+                        let count_i64 = *count as i64;
+                        if count_i64 < 0 {
+                            return Value::Error("io_read_bytes count must be non-negative".to_string());
+                        }
+                        let count_usize = count_i64 as usize;
+
+                        match File::open(path) {
+                            Ok(mut file) => {
+                                let mut buffer = vec![0u8; count_usize];
+                                match file.read(&mut buffer) {
+                                    Ok(n) => {
+                                        buffer.truncate(n);
+                                        Value::Bytes(buffer)
+                                    }
+                                    Err(e) => Value::Error(format!(
+                                        "Cannot read {} bytes from '{}': {}",
+                                        count, path, e
+                                    )),
+                                }
+                            }
+                            Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                        }
+                    }
+                    _ => Value::Error("io_read_bytes requires path (string) and count (int) arguments".to_string()),
+                }
+            }
+
+            "io_write_bytes" => {
+                // io_write_bytes(path, bytes) - writes byte array to file (alias for write_binary_file)
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "io_write_bytes requires two arguments: path and bytes".to_string(),
+                    );
+                }
+                if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
+                    (arg_values.first(), arg_values.get(1))
+                {
+                    match std::fs::write(path, bytes) {
+                        Ok(_) => Value::Bool(true),
+                        Err(e) => {
+                            Value::Error(format!("Cannot write bytes to file '{}': {}", path, e))
+                        }
+                    }
+                } else {
+                    Value::Error(
+                        "io_write_bytes requires path (string) and bytes arguments".to_string(),
+                    )
+                }
+            }
+
+            "io_append_bytes" => {
+                // io_append_bytes(path, bytes) - appends byte array to file
+                use std::fs::OpenOptions;
+                use std::io::Write;
+
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "io_append_bytes requires two arguments: path and bytes".to_string(),
+                    );
+                }
+                if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
+                    (arg_values.first(), arg_values.get(1))
+                {
+                    match OpenOptions::new().create(true).append(true).open(path) {
+                        Ok(mut file) => match file.write_all(bytes) {
+                            Ok(_) => Value::Bool(true),
+                            Err(e) => {
+                                Value::Error(format!("Cannot append bytes to file '{}': {}", path, e))
+                            }
+                        },
+                        Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("io_append_bytes requires path (string) and bytes arguments".to_string())
+                }
+            }
+
+            "io_read_at" => {
+                // io_read_at(path, offset, count) - reads bytes from file at specific offset
+                use std::fs::File;
+                use std::io::{Read, Seek, SeekFrom};
+
+                if arg_values.len() < 3 {
+                    return Value::Error(
+                        "io_read_at requires three arguments: path, offset, and count".to_string(),
+                    );
+                }
+
+                match (arg_values.first(), arg_values.get(1), arg_values.get(2)) {
+                    (Some(Value::Str(path)), Some(offset_val), Some(count_val)) => {
+                        let offset = match offset_val {
+                            Value::Int(n) if *n >= 0 => *n as u64,
+                            Value::Float(n) if *n >= 0.0 => *n as u64,
+                            _ => return Value::Error("io_read_at offset must be non-negative".to_string()),
+                        };
+
+                        let count = match count_val {
+                            Value::Int(n) if *n >= 0 => *n as usize,
+                            Value::Float(n) if *n >= 0.0 => *n as usize,
+                            _ => return Value::Error("io_read_at count must be non-negative".to_string()),
+                        };
+
+                        match File::open(path) {
+                            Ok(mut file) => {
+                                if let Err(e) = file.seek(SeekFrom::Start(offset)) {
+                                    return Value::Error(format!(
+                                        "Cannot seek to offset {} in '{}': {}",
+                                        offset, path, e
+                                    ));
+                                }
+
+                                let mut buffer = vec![0u8; count];
+                                match file.read(&mut buffer) {
+                                    Ok(n) => {
+                                        buffer.truncate(n);
+                                        Value::Bytes(buffer)
+                                    }
+                                    Err(e) => Value::Error(format!(
+                                        "Cannot read {} bytes at offset {} from '{}': {}",
+                                        count, offset, path, e
+                                    )),
+                                }
+                            }
+                            Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                        }
+                    }
+                    _ => Value::Error("io_read_at requires path (string), offset (int), and count (int) arguments".to_string()),
+                }
+            }
+
+            "io_write_at" => {
+                // io_write_at(path, bytes, offset) - writes bytes to file at specific offset
+                use std::fs::OpenOptions;
+                use std::io::{Seek, SeekFrom, Write};
+
+                if arg_values.len() < 3 {
+                    return Value::Error(
+                        "io_write_at requires three arguments: path, bytes, and offset".to_string(),
+                    );
+                }
+
+                match (arg_values.first(), arg_values.get(1), arg_values.get(2)) {
+                    (Some(Value::Str(path)), Some(Value::Bytes(bytes)), Some(offset_val)) => {
+                        let offset = match offset_val {
+                            Value::Int(n) if *n >= 0 => *n as u64,
+                            Value::Float(n) if *n >= 0.0 => *n as u64,
+                            _ => return Value::Error("io_write_at offset must be non-negative".to_string()),
+                        };
+
+                        match OpenOptions::new().write(true).open(path) {
+                            Ok(mut file) => {
+                                if let Err(e) = file.seek(SeekFrom::Start(offset)) {
+                                    return Value::Error(format!(
+                                        "Cannot seek to offset {} in '{}': {}",
+                                        offset, path, e
+                                    ));
+                                }
+
+                                match file.write_all(bytes) {
+                                    Ok(_) => Value::Bool(true),
+                                    Err(e) => Value::Error(format!(
+                                        "Cannot write bytes at offset {} to '{}': {}",
+                                        offset, path, e
+                                    )),
+                                }
+                            }
+                            Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                        }
+                    }
+                    _ => Value::Error("io_write_at requires path (string), bytes, and offset (int) arguments".to_string()),
+                }
+            }
+
+            "io_seek_read" => {
+                // io_seek_read(path, offset) - reads from offset to end of file
+                use std::fs::File;
+                use std::io::{Read, Seek, SeekFrom};
+
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "io_seek_read requires two arguments: path and offset".to_string(),
+                    );
+                }
+
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(path)), Some(offset_val)) => {
+                        let offset = match offset_val {
+                            Value::Int(n) if *n >= 0 => *n as u64,
+                            Value::Float(n) if *n >= 0.0 => *n as u64,
+                            _ => return Value::Error("io_seek_read offset must be non-negative".to_string()),
+                        };
+
+                        match File::open(path) {
+                            Ok(mut file) => {
+                                if let Err(e) = file.seek(SeekFrom::Start(offset)) {
+                                    return Value::Error(format!(
+                                        "Cannot seek to offset {} in '{}': {}",
+                                        offset, path, e
+                                    ));
+                                }
+
+                                let mut buffer = Vec::new();
+                                match file.read_to_end(&mut buffer) {
+                                    Ok(_) => Value::Bytes(buffer),
+                                    Err(e) => Value::Error(format!(
+                                        "Cannot read from offset {} in '{}': {}",
+                                        offset, path, e
+                                    )),
+                                }
+                            }
+                            Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                        }
+                    }
+                    _ => Value::Error("io_seek_read requires path (string) and offset (int) arguments".to_string()),
+                }
+            }
+
+            "io_file_metadata" => {
+                // io_file_metadata(path) - returns dict with comprehensive file metadata
+                use std::time::UNIX_EPOCH;
+
+                if let Some(Value::Str(path)) = arg_values.first() {
+                    match std::fs::metadata(path) {
+                        Ok(metadata) => {
+                            let mut map = std::collections::HashMap::new();
+                            
+                            map.insert("size".to_string(), Value::Int(metadata.len() as i64));
+                            map.insert("is_file".to_string(), Value::Bool(metadata.is_file()));
+                            map.insert("is_dir".to_string(), Value::Bool(metadata.is_dir()));
+                            map.insert("readonly".to_string(), Value::Bool(metadata.permissions().readonly()));
+
+                            // Modified time
+                            if let Ok(modified) = metadata.modified() {
+                                if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
+                                    map.insert("modified".to_string(), Value::Int(duration.as_secs() as i64));
+                                }
+                            }
+
+                            // Created time (may not be available on all platforms)
+                            if let Ok(created) = metadata.created() {
+                                if let Ok(duration) = created.duration_since(UNIX_EPOCH) {
+                                    map.insert("created".to_string(), Value::Int(duration.as_secs() as i64));
+                                }
+                            }
+
+                            // Accessed time
+                            if let Ok(accessed) = metadata.accessed() {
+                                if let Ok(duration) = accessed.duration_since(UNIX_EPOCH) {
+                                    map.insert("accessed".to_string(), Value::Int(duration.as_secs() as i64));
+                                }
+                            }
+
+                            Value::Dict(map)
+                        }
+                        Err(e) => Value::Error(format!("Cannot get metadata for '{}': {}", path, e)),
+                    }
+                } else {
+                    Value::Error("io_file_metadata requires a string path argument".to_string())
+                }
+            }
+
+            "io_truncate" => {
+                // io_truncate(path, size) - truncates or extends file to specified size
+                use std::fs::OpenOptions;
+
+                if arg_values.len() < 2 {
+                    return Value::Error(
+                        "io_truncate requires two arguments: path and size".to_string(),
+                    );
+                }
+
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(path)), Some(size_val)) => {
+                        let size = match size_val {
+                            Value::Int(n) if *n >= 0 => *n as u64,
+                            Value::Float(n) if *n >= 0.0 => *n as u64,
+                            _ => return Value::Error("io_truncate size must be non-negative".to_string()),
+                        };
+
+                        match OpenOptions::new().write(true).open(path) {
+                            Ok(file) => {
+                                match file.set_len(size) {
+                                    Ok(_) => Value::Bool(true),
+                                    Err(e) => Value::Error(format!(
+                                        "Cannot truncate file '{}' to {} bytes: {}",
+                                        path, size, e
+                                    )),
+                                }
+                            }
+                            Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                        }
+                    }
+                    _ => Value::Error("io_truncate requires path (string) and size (int) arguments".to_string()),
+                }
+            }
+
+            "io_copy_range" => {
+                // io_copy_range(source, dest, offset, count) - copies specific byte range from source to dest
+                use std::fs::File;
+                use std::io::{Read, Seek, SeekFrom, Write};
+
+                if arg_values.len() < 4 {
+                    return Value::Error(
+                        "io_copy_range requires four arguments: source, dest, offset, and count".to_string(),
+                    );
+                }
+
+                match (arg_values.first(), arg_values.get(1), arg_values.get(2), arg_values.get(3)) {
+                    (Some(Value::Str(source)), Some(Value::Str(dest)), Some(offset_val), Some(count_val)) => {
+                        let offset = match offset_val {
+                            Value::Int(n) if *n >= 0 => *n as u64,
+                            Value::Float(n) if *n >= 0.0 => *n as u64,
+                            _ => return Value::Error("io_copy_range offset must be non-negative".to_string()),
+                        };
+
+                        let count = match count_val {
+                            Value::Int(n) if *n >= 0 => *n as usize,
+                            Value::Float(n) if *n >= 0.0 => *n as usize,
+                            _ => return Value::Error("io_copy_range count must be non-negative".to_string()),
+                        };
+
+                        // Open source file and seek to offset
+                        match File::open(source) {
+                            Ok(mut src_file) => {
+                                if let Err(e) = src_file.seek(SeekFrom::Start(offset)) {
+                                    return Value::Error(format!(
+                                        "Cannot seek to offset {} in '{}': {}",
+                                        offset, source, e
+                                    ));
+                                }
+
+                                // Read the specified number of bytes
+                                let mut buffer = vec![0u8; count];
+                                match src_file.read(&mut buffer) {
+                                    Ok(n) => {
+                                        buffer.truncate(n);
+
+                                        // Write to destination file
+                                        match File::create(dest) {
+                                            Ok(mut dest_file) => {
+                                                match dest_file.write_all(&buffer) {
+                                                    Ok(_) => Value::Bool(true),
+                                                    Err(e) => Value::Error(format!(
+                                                        "Cannot write to '{}': {}",
+                                                        dest, e
+                                                    )),
+                                                }
+                                            }
+                                            Err(e) => Value::Error(format!("Cannot create file '{}': {}", dest, e)),
+                                        }
+                                    }
+                                    Err(e) => Value::Error(format!(
+                                        "Cannot read from '{}': {}",
+                                        source, e
+                                    )),
+                                }
+                            }
+                            Err(e) => Value::Error(format!("Cannot open source file '{}': {}", source, e)),
+                        }
+                    }
+                    _ => Value::Error("io_copy_range requires source (string), dest (string), offset (int), and count (int) arguments".to_string()),
                 }
             }
 
