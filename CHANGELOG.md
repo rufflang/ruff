@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - v0.8.0
 
+### Fixed
+
+- **Generator Loop Execution** 🔧 - Critical fix for yields inside loop statements:
+  - Fixed PC (program counter) tracking to support yields inside loops
+  - Previous implementation advanced PC before statement execution, causing loops with yields to execute only once
+  - Now PC only advances when statement completes without yielding
+  - Enables fibonacci(), counter(), and range() generator patterns with loops
+  - All ROADMAP examples now work correctly
+
 ### Added
 
 - **Iterators & Iterator Methods** 🔄 - Lazy evaluation and functional iteration patterns (P1 feature - COMPLETE):

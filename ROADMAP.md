@@ -150,7 +150,8 @@ for num in count_to(5) {
 - ✅ Generator iteration in for-in loops
 - ✅ Infinite generators with manual break
 - ✅ Generators with parameters
-- ✅ Comprehensive test coverage (6 tests)
+- ✅ Yields inside loop statements (fibonacci, counter, range patterns)
+- ✅ Comprehensive test coverage (24 tests)
 
 **See**: CHANGELOG.md for full implementation details and examples
 
