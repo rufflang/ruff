@@ -10246,7 +10246,6 @@ impl Interpreter {
                 // Execute statements starting from PC until yield or end
                 while *pc < stmts.len() {
                     let current_pc = *pc;
-                    *pc += 1; // Advance PC before executing (in case of yield)
 
                     self.eval_stmt(&stmts[current_pc]);
 
@@ -10255,6 +10254,8 @@ impl Interpreter {
                         match ret_val {
                             Value::Return(inner) => {
                                 // This is a yield - extract the value and suspend
+                                // DO NOT advance PC - we want to resume at the same statement
+                                // (important for loops with yields inside)
                                 yielded_value = Some(inner.as_ref().clone());
                                 self.return_value = None;
                                 break;
@@ -10265,6 +10266,9 @@ impl Interpreter {
                                 break;
                             }
                         }
+                    } else {
+                        // Statement completed without yield - advance to next statement
+                        *pc += 1;
                     }
                 }
 
