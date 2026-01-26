@@ -20,11 +20,20 @@ use crate::ast::{Expr, Stmt};
 use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Nonce,
+};
 use image::DynamicImage;
 use md5::Md5;
 use mysql_async::{prelude::*, Conn as MysqlConn, Opts as MysqlOpts};
 use postgres::{Client as PostgresClient, NoTls};
+use rsa::{
+    pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
+    Oaep, RsaPrivateKey, RsaPublicKey,
+};
 use rusqlite::Connection as SqliteConnection;
+use sha2::Sha256 as RsaSha256;
 use sha2::{Digest as Sha2Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -846,6 +855,16 @@ impl Interpreter {
             "md5_file",
             "hash_password",
             "verify_password",
+            // Crypto functions
+            "aes_encrypt",
+            "aes_decrypt",
+            "aes_encrypt_bytes",
+            "aes_decrypt_bytes",
+            "rsa_generate_keypair",
+            "rsa_encrypt",
+            "rsa_decrypt",
+            "rsa_sign",
+            "rsa_verify",
             // Process management functions
             "spawn_process",
             "pipe_commands",
@@ -1359,6 +1378,30 @@ impl Interpreter {
             "verify_password".to_string(),
             Value::NativeFunction("verify_password".to_string()),
         );
+
+        // Crypto functions (AES/RSA encryption)
+        self.env
+            .define("aes_encrypt".to_string(), Value::NativeFunction("aes_encrypt".to_string()));
+        self.env
+            .define("aes_decrypt".to_string(), Value::NativeFunction("aes_decrypt".to_string()));
+        self.env.define(
+            "aes_encrypt_bytes".to_string(),
+            Value::NativeFunction("aes_encrypt_bytes".to_string()),
+        );
+        self.env.define(
+            "aes_decrypt_bytes".to_string(),
+            Value::NativeFunction("aes_decrypt_bytes".to_string()),
+        );
+        self.env.define(
+            "rsa_generate_keypair".to_string(),
+            Value::NativeFunction("rsa_generate_keypair".to_string()),
+        );
+        self.env
+            .define("rsa_encrypt".to_string(), Value::NativeFunction("rsa_encrypt".to_string()));
+        self.env
+            .define("rsa_decrypt".to_string(), Value::NativeFunction("rsa_decrypt".to_string()));
+        self.env.define("rsa_sign".to_string(), Value::NativeFunction("rsa_sign".to_string()));
+        self.env.define("rsa_verify".to_string(), Value::NativeFunction("rsa_verify".to_string()));
 
         // Process management functions
         self.env.define(
@@ -6453,6 +6496,488 @@ impl Interpreter {
                     }
                     _ => Value::Error(
                         "verify_password requires (string_password, string_hash) arguments"
+                            .to_string(),
+                    ),
+                }
+            }
+
+            // Crypto functions (AES/RSA encryption)
+            "aes_encrypt" => {
+                // aes_encrypt(plaintext, key) - encrypts plaintext with AES-256-GCM
+                // key should be 32 bytes (will be SHA-256 hashed if not)
+                // returns base64-encoded ciphertext
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(plaintext)), Some(Value::Str(key))) => {
+                        // Derive a 32-byte key from the password using SHA-256
+                        let mut hasher = Sha256::new();
+                        hasher.update(key.as_bytes());
+                        let key_bytes = hasher.finalize();
+
+                        // Generate a random nonce (12 bytes for GCM)
+                        let nonce_bytes: [u8; 12] = rand::random();
+                        let nonce = Nonce::from_slice(&nonce_bytes);
+
+                        // Create cipher and encrypt
+                        match Aes256Gcm::new_from_slice(&key_bytes) {
+                            Ok(cipher) => match cipher.encrypt(nonce, plaintext.as_bytes()) {
+                                Ok(ciphertext) => {
+                                    // Prepend nonce to ciphertext (needed for decryption)
+                                    let mut result = nonce_bytes.to_vec();
+                                    result.extend_from_slice(&ciphertext);
+
+                                    // Return as base64
+                                    Value::Str(base64::Engine::encode(
+                                        &base64::engine::general_purpose::STANDARD,
+                                        result,
+                                    ))
+                                }
+                                Err(e) => Value::ErrorObject {
+                                    message: format!("AES encryption failed: {}", e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            },
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to create AES cipher: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error(
+                        "aes_encrypt requires (plaintext_string, key_string) arguments".to_string(),
+                    ),
+                }
+            }
+
+            "aes_decrypt" => {
+                // aes_decrypt(ciphertext, key) - decrypts AES-256-GCM ciphertext
+                // ciphertext should be base64-encoded
+                // returns plaintext string
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
+                        // Derive the same 32-byte key
+                        let mut hasher = Sha256::new();
+                        hasher.update(key.as_bytes());
+                        let key_bytes = hasher.finalize();
+
+                        // Decode from base64
+                        match base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD,
+                            ciphertext_b64,
+                        ) {
+                            Ok(data) => {
+                                if data.len() < 12 {
+                                    return Value::Error(
+                                        "Invalid ciphertext: too short".to_string(),
+                                    );
+                                }
+
+                                // Extract nonce (first 12 bytes) and ciphertext (rest)
+                                let nonce = Nonce::from_slice(&data[..12]);
+                                let ciphertext = &data[12..];
+
+                                // Create cipher and decrypt
+                                match Aes256Gcm::new_from_slice(&key_bytes) {
+                                    Ok(cipher) => match cipher.decrypt(nonce, ciphertext) {
+                                        Ok(plaintext) => match String::from_utf8(plaintext) {
+                                            Ok(s) => Value::Str(s),
+                                            Err(e) => Value::ErrorObject {
+                                                message: format!(
+                                                    "Decrypted data is not valid UTF-8: {}",
+                                                    e
+                                                ),
+                                                stack: Vec::new(),
+                                                line: None,
+                                                cause: None,
+                                            },
+                                        },
+                                        Err(e) => Value::ErrorObject {
+                                            message: format!("AES decryption failed: {}", e),
+                                            stack: Vec::new(),
+                                            line: None,
+                                            cause: None,
+                                        },
+                                    },
+                                    Err(e) => Value::ErrorObject {
+                                        message: format!("Failed to create AES cipher: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Invalid base64 ciphertext: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error(
+                        "aes_decrypt requires (ciphertext_string, key_string) arguments"
+                            .to_string(),
+                    ),
+                }
+            }
+
+            "aes_encrypt_bytes" => {
+                // aes_encrypt_bytes(data, key) - encrypts bytes with AES-256-GCM
+                // data should be a string (treated as bytes)
+                // returns base64-encoded ciphertext
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(data)), Some(Value::Str(key))) => {
+                        let mut hasher = Sha256::new();
+                        hasher.update(key.as_bytes());
+                        let key_bytes = hasher.finalize();
+
+                        let nonce_bytes: [u8; 12] = rand::random();
+                        let nonce = Nonce::from_slice(&nonce_bytes);
+
+                        match Aes256Gcm::new_from_slice(&key_bytes) {
+                            Ok(cipher) => match cipher.encrypt(nonce, data.as_bytes()) {
+                                Ok(ciphertext) => {
+                                    let mut result = nonce_bytes.to_vec();
+                                    result.extend_from_slice(&ciphertext);
+                                    Value::Str(base64::Engine::encode(
+                                        &base64::engine::general_purpose::STANDARD,
+                                        result,
+                                    ))
+                                }
+                                Err(e) => Value::ErrorObject {
+                                    message: format!("AES encryption failed: {}", e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            },
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Failed to create AES cipher: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error(
+                        "aes_encrypt_bytes requires (data_string, key_string) arguments"
+                            .to_string(),
+                    ),
+                }
+            }
+
+            "aes_decrypt_bytes" => {
+                // aes_decrypt_bytes(ciphertext, key) - decrypts AES-256-GCM bytes
+                // returns decrypted string
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
+                        let mut hasher = Sha256::new();
+                        hasher.update(key.as_bytes());
+                        let key_bytes = hasher.finalize();
+
+                        match base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD,
+                            ciphertext_b64,
+                        ) {
+                            Ok(data) => {
+                                if data.len() < 12 {
+                                    return Value::Error(
+                                        "Invalid ciphertext: too short".to_string(),
+                                    );
+                                }
+
+                                let nonce = Nonce::from_slice(&data[..12]);
+                                let ciphertext = &data[12..];
+
+                                match Aes256Gcm::new_from_slice(&key_bytes) {
+                                    Ok(cipher) => match cipher.decrypt(nonce, ciphertext) {
+                                        Ok(plaintext) => match String::from_utf8(plaintext.clone())
+                                        {
+                                            Ok(s) => Value::Str(s),
+                                            Err(_) => {
+                                                // Return raw bytes as base64 if not UTF-8
+                                                Value::Str(base64::Engine::encode(
+                                                    &base64::engine::general_purpose::STANDARD,
+                                                    &plaintext,
+                                                ))
+                                            }
+                                        },
+                                        Err(e) => Value::ErrorObject {
+                                            message: format!("AES decryption failed: {}", e),
+                                            stack: Vec::new(),
+                                            line: None,
+                                            cause: None,
+                                        },
+                                    },
+                                    Err(e) => Value::ErrorObject {
+                                        message: format!("Failed to create AES cipher: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Invalid base64 ciphertext: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error(
+                        "aes_decrypt_bytes requires (ciphertext_string, key_string) arguments"
+                            .to_string(),
+                    ),
+                }
+            }
+
+            "rsa_generate_keypair" => {
+                // rsa_generate_keypair(bits) - generates RSA keypair
+                // bits should be 2048 or 4096
+                // returns dict with "public" and "private" keys in PEM format
+                if let Some(Value::Int(bits)) = arg_values.first() {
+                    let bits_usize = *bits as usize;
+
+                    if bits_usize != 2048 && bits_usize != 4096 {
+                        return Value::Error("RSA key size must be 2048 or 4096 bits".to_string());
+                    }
+
+                    let mut rng = rand::thread_rng();
+                    match RsaPrivateKey::new(&mut rng, bits_usize) {
+                        Ok(private_key) => {
+                            let public_key = RsaPublicKey::from(&private_key);
+
+                            // Encode to PEM format
+                            let private_pem = match private_key.to_pkcs8_pem(LineEnding::LF) {
+                                Ok(pem) => pem.to_string(),
+                                Err(e) => {
+                                    return Value::ErrorObject {
+                                        message: format!("Failed to encode private key: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    }
+                                }
+                            };
+
+                            let public_pem = match public_key.to_public_key_pem(LineEnding::LF) {
+                                Ok(pem) => pem,
+                                Err(e) => {
+                                    return Value::ErrorObject {
+                                        message: format!("Failed to encode public key: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    }
+                                }
+                            };
+
+                            let mut keypair = HashMap::new();
+                            keypair.insert("private".to_string(), Value::Str(private_pem));
+                            keypair.insert("public".to_string(), Value::Str(public_pem));
+                            Value::Dict(keypair)
+                        }
+                        Err(e) => Value::ErrorObject {
+                            message: format!("Failed to generate RSA keypair: {}", e),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error(
+                        "rsa_generate_keypair requires an integer (2048 or 4096)".to_string(),
+                    )
+                }
+            }
+
+            "rsa_encrypt" => {
+                // rsa_encrypt(plaintext, public_key_pem) - encrypts with RSA public key
+                // returns base64-encoded ciphertext
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(plaintext)), Some(Value::Str(public_key_pem))) => {
+                        match RsaPublicKey::from_public_key_pem(public_key_pem) {
+                            Ok(public_key) => {
+                                let mut rng = rand::thread_rng();
+                                let padding = Oaep::new::<RsaSha256>();
+
+                                match public_key.encrypt(&mut rng, padding, plaintext.as_bytes()) {
+                                    Ok(ciphertext) => Value::Str(base64::Engine::encode(
+                                        &base64::engine::general_purpose::STANDARD,
+                                        ciphertext,
+                                    )),
+                                    Err(e) => Value::ErrorObject {
+                                        message: format!("RSA encryption failed: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Invalid RSA public key: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error(
+                        "rsa_encrypt requires (plaintext_string, public_key_pem) arguments"
+                            .to_string(),
+                    ),
+                }
+            }
+
+            "rsa_decrypt" => {
+                // rsa_decrypt(ciphertext, private_key_pem) - decrypts with RSA private key
+                // ciphertext should be base64-encoded
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(ciphertext_b64)), Some(Value::Str(private_key_pem))) => {
+                        match RsaPrivateKey::from_pkcs8_pem(private_key_pem) {
+                            Ok(private_key) => {
+                                match base64::Engine::decode(
+                                    &base64::engine::general_purpose::STANDARD,
+                                    ciphertext_b64,
+                                ) {
+                                    Ok(ciphertext) => {
+                                        let padding = Oaep::new::<RsaSha256>();
+
+                                        match private_key.decrypt(padding, &ciphertext) {
+                                            Ok(plaintext) => match String::from_utf8(plaintext) {
+                                                Ok(s) => Value::Str(s),
+                                                Err(e) => Value::ErrorObject {
+                                                    message: format!(
+                                                        "Decrypted data is not valid UTF-8: {}",
+                                                        e
+                                                    ),
+                                                    stack: Vec::new(),
+                                                    line: None,
+                                                    cause: None,
+                                                },
+                                            },
+                                            Err(e) => Value::ErrorObject {
+                                                message: format!("RSA decryption failed: {}", e),
+                                                stack: Vec::new(),
+                                                line: None,
+                                                cause: None,
+                                            },
+                                        }
+                                    }
+                                    Err(e) => Value::ErrorObject {
+                                        message: format!("Invalid base64 ciphertext: {}", e),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Invalid RSA private key: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error(
+                        "rsa_decrypt requires (ciphertext_string, private_key_pem) arguments"
+                            .to_string(),
+                    ),
+                }
+            }
+
+            "rsa_sign" => {
+                // rsa_sign(message, private_key_pem) - signs message with RSA private key
+                // returns base64-encoded signature
+                match (arg_values.first(), arg_values.get(1)) {
+                    (Some(Value::Str(message)), Some(Value::Str(private_key_pem))) => {
+                        match RsaPrivateKey::from_pkcs8_pem(private_key_pem) {
+                            Ok(private_key) => {
+                                use rsa::pkcs1v15::SigningKey;
+                                use rsa::signature::{SignatureEncoding, Signer};
+
+                                let signing_key = SigningKey::<RsaSha256>::new(private_key);
+                                let signature = signing_key.sign(message.as_bytes());
+
+                                Value::Str(base64::Engine::encode(
+                                    &base64::engine::general_purpose::STANDARD,
+                                    signature.to_bytes(),
+                                ))
+                            }
+                            Err(e) => Value::ErrorObject {
+                                message: format!("Invalid RSA private key: {}", e),
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            },
+                        }
+                    }
+                    _ => Value::Error(
+                        "rsa_sign requires (message_string, private_key_pem) arguments".to_string(),
+                    ),
+                }
+            }
+
+            "rsa_verify" => {
+                // rsa_verify(message, signature, public_key_pem) - verifies RSA signature
+                // signature should be base64-encoded
+                // returns boolean
+                match (arg_values.first(), arg_values.get(1), arg_values.get(2)) {
+                    (
+                        Some(Value::Str(message)),
+                        Some(Value::Str(signature_b64)),
+                        Some(Value::Str(public_key_pem)),
+                    ) => match RsaPublicKey::from_public_key_pem(public_key_pem) {
+                        Ok(public_key) => {
+                            match base64::Engine::decode(
+                                &base64::engine::general_purpose::STANDARD,
+                                signature_b64,
+                            ) {
+                                Ok(signature_bytes) => {
+                                    use rsa::pkcs1v15::{Signature, VerifyingKey};
+                                    use rsa::signature::Verifier;
+
+                                    let verifying_key = VerifyingKey::<RsaSha256>::new(public_key);
+
+                                    match Signature::try_from(signature_bytes.as_slice()) {
+                                        Ok(signature) => {
+                                            match verifying_key
+                                                .verify(message.as_bytes(), &signature)
+                                            {
+                                                Ok(_) => Value::Bool(true),
+                                                Err(_) => Value::Bool(false),
+                                            }
+                                        }
+                                        Err(e) => Value::ErrorObject {
+                                            message: format!("Invalid signature format: {}", e),
+                                            stack: Vec::new(),
+                                            line: None,
+                                            cause: None,
+                                        },
+                                    }
+                                }
+                                Err(e) => Value::ErrorObject {
+                                    message: format!("Invalid base64 signature: {}", e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            }
+                        }
+                        Err(e) => Value::ErrorObject {
+                            message: format!("Invalid RSA public key: {}", e),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    },
+                    _ => Value::Error(
+                        "rsa_verify requires (message, signature, public_key_pem) arguments"
                             .to_string(),
                     ),
                 }
