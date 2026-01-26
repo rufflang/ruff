@@ -27,7 +27,7 @@ This roadmap outlines planned features and improvements for future versions of t
 
 ### 27. Modularize interpreter.rs (P1)
 
-**Status**: Phase 1 Complete (Started January 26, 2026)  
+**Status**: Phase 2 Complete (January 26, 2026)  
 **Estimated Effort**: Medium (2-3 weeks)
 
 **Problem**: Current `interpreter.rs` was 14,802 lines in a single file, making it difficult to navigate, understand, and maintain.
@@ -42,12 +42,24 @@ This roadmap outlines planned features and improvements for future versions of t
 - ✅ Committed and pushed changes (commit 07a5505)
 - ✅ Reduced mod.rs from 14,802 to 14,285 lines (-517 lines)
 
+**Progress** (Phase 2 - January 26, 2026):
+- ✅ Extracted ControlFlow enum (22 lines) → `control_flow.rs` for break/continue signals
+- ✅ Extracted test framework (230 lines) → `test_runner.rs` with TestRunner, TestCase, TestResult, TestReport
+- ✅ Maintained zero compilation warnings (1 expected unused import warning for public re-exports)
+- ✅ All functionality preserved, tests still passing
+- ✅ Committed changes (commits b69af53, 7cdbda9)
+- ✅ Reduced mod.rs from 14,285 to 14,071 lines (additional -214 lines)
+- ✅ **Total reduction: -731 lines from original 14,802**
+
 **Current Structure**:
 ```
 src/interpreter/
-├── mod.rs              (core Interpreter + call_native_function_impl, ~14,285 lines)
-├── value.rs            (Value enum, 30+ variants, DB/image types, ~500 lines)
-├── environment.rs      (Environment with lexical scoping, ~110 lines)
+├── mod.rs              (core Interpreter + call_native_function_impl, ~14,071 lines)
+├── value.rs            (Value enum, 30+ variants, DB/image types, ~497 lines)
+├── environment.rs      (Environment with lexical scoping, ~109 lines)
+├── control_flow.rs     (ControlFlow enum for loops, ~22 lines)
+├── test_runner.rs      (Test framework infrastructure, ~230 lines)
+├── legacy_full.rs      (Backup of original monolithic file, ~14,754 lines)
 ```
 
 **Key Design Decision**: The 5,700-line `call_native_function_impl` method (lines 1407-7112 in mod.rs) must remain in the impl block due to Rust's requirement that methods with `&mut self` stay in the same impl context. This function is well-organized with clear category comments for:
@@ -61,7 +73,7 @@ src/interpreter/
 - Crypto (hashing, AES/RSA encryption, JWT)
 - Image processing, compression, networking
 
-This is not extractable without significant refactoring of the interpreter's core architecture.
+Similarly, the ~564-line `register_builtins` method (lines 400-964) remains in the impl block as it directly mutates `self.env`. While it could technically be extracted with refactoring, the benefit is minimal compared to the effort.
 
 **Benefits Achieved**:
 - Easier code navigation and search
@@ -70,13 +82,20 @@ This is not extractable without significant refactoring of the interpreter's cor
 - Faster compilation (parallel module builds)
 - Clearer separation of concerns
 - Easier onboarding for contributors
+- ~5% reduction in mod.rs size (731 lines extracted)
 
 **Implementation Notes**:
 - Use `pub(crate)` visibility for internal APIs
 - Keep public API surface unchanged via pub use re-exports
 - Add module-level documentation
 - Maintain existing test suite compatibility
-- All tests passing, zero compilation warnings
+- All tests passing, minimal warnings
+
+**Next Steps** (Future Phases):
+- Consider extracting helper functions that don't need &mut self
+- Document common patterns in call_native_function_impl for future maintainers
+- Add module-level docs explaining the architecture
+- Monitor if further modularization becomes necessary as features grow
 
 ---
 
