@@ -31,7 +31,7 @@ use std::mem::ManuallyDrop;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use sha2::{Sha256, Digest as Sha2Digest};
-use md5::{Md5, Digest as Md5Digest};
+use md5::Md5;
 use zip::{ZipWriter, ZipArchive, write::FileOptions};
 use std::fs::File;
 use std::io::Read;
