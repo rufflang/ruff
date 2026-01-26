@@ -21,21 +21,21 @@ use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
 use image::DynamicImage;
+use md5::Md5;
 use mysql_async::{prelude::*, Conn as MysqlConn, Opts as MysqlOpts};
 use postgres::{Client as PostgresClient, NoTls};
 use rusqlite::Connection as SqliteConnection;
+use sha2::{Digest as Sha2Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
-use std::io::Write;
-use std::mem::ManuallyDrop;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-use sha2::{Sha256, Digest as Sha2Digest};
-use md5::Md5;
-use zip::{ZipWriter, ZipArchive, write::FileOptions};
 use std::fs::File;
 use std::io::Read;
+use std::io::Write;
+use std::mem::ManuallyDrop;
 use std::path::Path;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
 ///
@@ -261,7 +261,7 @@ pub enum Value {
         chunk: crate::bytecode::BytecodeChunk,
         captured: HashMap<String, Value>,
     }, // Compiled bytecode function
-    ArrayMarker, // Internal marker for dynamic array construction in VM
+    ArrayMarker,            // Internal marker for dynamic array construction in VM
     Return(Box<Value>),
     Error(String), // Legacy simple error for backward compatibility
     ErrorObject {
@@ -360,8 +360,13 @@ impl std::fmt::Debug for Value {
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
             Value::BytecodeFunction { chunk, captured } => {
                 let name = chunk.name.as_deref().unwrap_or("<lambda>");
-                write!(f, "BytecodeFunction({}, {} instructions, {} captured)", 
-                    name, chunk.instructions.len(), captured.len())
+                write!(
+                    f,
+                    "BytecodeFunction({}, {} instructions, {} captured)",
+                    name,
+                    chunk.instructions.len(),
+                    captured.len()
+                )
             }
             Value::ArrayMarker => write!(f, "ArrayMarker"),
             Value::Return(v) => write!(f, "Return({:?})", v),
@@ -562,158 +567,288 @@ impl Interpreter {
         vec![
             // I/O functions
             "print",
-            
             // Math functions
-            "abs", "sqrt", "pow", "floor", "ceil", "round", "min", "max",
-            "sin", "cos", "tan", "log", "exp",
-            
+            "abs",
+            "sqrt",
+            "pow",
+            "floor",
+            "ceil",
+            "round",
+            "min",
+            "max",
+            "sin",
+            "cos",
+            "tan",
+            "log",
+            "exp",
             // String functions
-            "len", "substring", "to_upper", "upper", "to_lower", "lower",
-            "capitalize", "trim", "trim_start", "trim_end", "contains",
-            "replace_str", "replace", "split", "join", "starts_with", "ends_with",
-            "pad_left", "pad_right", "lines", "words", "str_reverse", "slugify",
-            "truncate", "to_camel_case", "to_snake_case", "to_kebab_case",
-            
+            "len",
+            "substring",
+            "to_upper",
+            "upper",
+            "to_lower",
+            "lower",
+            "capitalize",
+            "trim",
+            "trim_start",
+            "trim_end",
+            "contains",
+            "replace_str",
+            "replace",
+            "split",
+            "join",
+            "starts_with",
+            "ends_with",
+            "pad_left",
+            "pad_right",
+            "lines",
+            "words",
+            "str_reverse",
+            "slugify",
+            "truncate",
+            "to_camel_case",
+            "to_snake_case",
+            "to_kebab_case",
             // Array functions
-            "push", "append", "pop", "insert", "remove", "remove_at", "clear",
-            "slice", "concat",
-            
+            "push",
+            "append",
+            "pop",
+            "insert",
+            "remove",
+            "remove_at",
+            "clear",
+            "slice",
+            "concat",
             // Array higher-order functions
-            "map", "filter", "reduce", "find",
-            
+            "map",
+            "filter",
+            "reduce",
+            "find",
             // Array utility functions
-            "sort", "reverse", "unique", "sum", "any", "all",
-            
+            "sort",
+            "reverse",
+            "unique",
+            "sum",
+            "any",
+            "all",
             // Advanced array methods
-            "chunk", "flatten", "zip", "enumerate", "take", "skip", "windows",
-            
+            "chunk",
+            "flatten",
+            "zip",
+            "enumerate",
+            "take",
+            "skip",
+            "windows",
             // Array generation functions
             "range",
-            
             // String formatting functions
             "format",
-            
             // Dict functions
-            "keys", "values", "items", "has_key", "get", "remove", "clear", "merge",
-            
+            "keys",
+            "values",
+            "items",
+            "has_key",
+            "get",
+            "remove",
+            "clear",
+            "merge",
             // Advanced dict methods
-            "invert", "update", "get_default",
-            
+            "invert",
+            "update",
+            "get_default",
             // I/O functions
             "input",
-            
             // Type conversion functions
-            "parse_int", "parse_float", "to_int", "to_float", "to_string", "to_bool",
-            
+            "parse_int",
+            "parse_float",
+            "to_int",
+            "to_float",
+            "to_string",
+            "to_bool",
             // Type checking functions
-            "type", "is_int", "is_float", "is_string", "is_bool", "is_array",
-            "is_dict", "is_null", "is_function",
-            
+            "type",
+            "is_int",
+            "is_float",
+            "is_string",
+            "is_bool",
+            "is_array",
+            "is_dict",
+            "is_null",
+            "is_function",
             // Assert & Debug functions
-            "assert", "debug",
-            
+            "assert",
+            "debug",
             // File I/O functions
-            "read_file", "write_file", "append_file", "file_exists",
-            "read_lines", "list_dir", "create_dir", "file_size", "delete_file",
-            "rename_file", "copy_file",
-            
+            "read_file",
+            "write_file",
+            "append_file",
+            "file_exists",
+            "read_lines",
+            "list_dir",
+            "create_dir",
+            "file_size",
+            "delete_file",
+            "rename_file",
+            "copy_file",
             // Binary file I/O functions
-            "read_binary_file", "write_binary_file",
-            
+            "read_binary_file",
+            "write_binary_file",
             // IO module functions (advanced binary operations)
-            "io_read_bytes", "io_write_bytes", "io_append_bytes",
-            "io_read_at", "io_write_at", "io_seek_read",
-            "io_file_metadata", "io_truncate", "io_copy_range",
-            
+            "io_read_bytes",
+            "io_write_bytes",
+            "io_append_bytes",
+            "io_read_at",
+            "io_write_at",
+            "io_seek_read",
+            "io_file_metadata",
+            "io_truncate",
+            "io_copy_range",
             // JSON functions
-            "parse_json", "to_json",
-            
+            "parse_json",
+            "to_json",
             // TOML functions
-            "parse_toml", "to_toml",
-            
+            "parse_toml",
+            "to_toml",
             // YAML functions
-            "parse_yaml", "to_yaml",
-            
+            "parse_yaml",
+            "to_yaml",
             // CSV functions
-            "parse_csv", "to_csv",
-            
+            "parse_csv",
+            "to_csv",
             // Base64 encoding/decoding functions
-            "encode_base64", "decode_base64",
-            
+            "encode_base64",
+            "decode_base64",
             // Random functions
-            "random", "random_int", "random_choice",
-            
+            "random",
+            "random_int",
+            "random_choice",
             // Date/Time functions
-            "now", "current_timestamp", "performance_now", "time_us", "time_ns",
-            "format_duration", "elapsed", "format_date", "parse_date",
-            
+            "now",
+            "current_timestamp",
+            "performance_now",
+            "time_us",
+            "time_ns",
+            "format_duration",
+            "elapsed",
+            "format_date",
+            "parse_date",
             // System operation functions
-            "env", "env_or", "env_int", "env_float", "env_bool", "env_required",
-            "env_set", "env_list", "args", "arg_parser", "exit", "sleep", "execute",
-            
+            "env",
+            "env_or",
+            "env_int",
+            "env_float",
+            "env_bool",
+            "env_required",
+            "env_set",
+            "env_list",
+            "args",
+            "arg_parser",
+            "exit",
+            "sleep",
+            "execute",
             // OS module functions
-            "os_getcwd", "os_chdir", "os_rmdir", "os_environ",
-            
+            "os_getcwd",
+            "os_chdir",
+            "os_rmdir",
+            "os_environ",
             // Path operation functions
-            "join_path", "dirname", "basename", "path_exists", "path_join",
-            "path_absolute", "path_is_dir", "path_is_file", "path_extension",
-            
+            "join_path",
+            "dirname",
+            "basename",
+            "path_exists",
+            "path_join",
+            "path_absolute",
+            "path_is_dir",
+            "path_is_file",
+            "path_extension",
             // Regular expression functions
-            "regex_match", "regex_find_all", "regex_replace", "regex_split",
-            
+            "regex_match",
+            "regex_find_all",
+            "regex_replace",
+            "regex_split",
             // HTTP client functions
-            "http_get", "http_post", "http_put", "http_delete", "http_get_binary",
-            
+            "http_get",
+            "http_post",
+            "http_put",
+            "http_delete",
+            "http_get_binary",
             // Concurrent HTTP functions
             "parallel_http",
-            
             // JWT authentication functions
-            "jwt_encode", "jwt_decode",
-            
+            "jwt_encode",
+            "jwt_decode",
             // OAuth2 helper functions
-            "oauth2_auth_url", "oauth2_get_token",
-            
+            "oauth2_auth_url",
+            "oauth2_get_token",
             // HTTP streaming functions
             "http_get_stream",
-            
             // HTTP server functions
-            "http_server", "http_response", "json_response", "html_response",
-            "redirect_response", "set_header", "set_headers",
-            
+            "http_server",
+            "http_response",
+            "json_response",
+            "html_response",
+            "redirect_response",
+            "set_header",
+            "set_headers",
             // Database functions
-            "db_connect", "db_execute", "db_query", "db_close", "db_begin",
-            "db_commit", "db_rollback", "db_last_insert_id",
-            
+            "db_connect",
+            "db_execute",
+            "db_query",
+            "db_close",
+            "db_begin",
+            "db_commit",
+            "db_rollback",
+            "db_last_insert_id",
             // Collection constructors and methods
             // Set
-            "Set", "set_add", "set_has", "set_remove", "set_union", "set_intersect",
-            "set_difference", "set_to_array",
-            
+            "Set",
+            "set_add",
+            "set_has",
+            "set_remove",
+            "set_union",
+            "set_intersect",
+            "set_difference",
+            "set_to_array",
             // Queue
-            "Queue", "queue_enqueue", "queue_dequeue", "queue_peek", "queue_size",
-            "queue_is_empty", "queue_to_array",
-            
+            "Queue",
+            "queue_enqueue",
+            "queue_dequeue",
+            "queue_peek",
+            "queue_size",
+            "queue_is_empty",
+            "queue_to_array",
             // Stack
-            "Stack", "stack_push", "stack_pop", "stack_peek", "stack_size",
-            "stack_is_empty", "stack_to_array",
-            
+            "Stack",
+            "stack_push",
+            "stack_pop",
+            "stack_peek",
+            "stack_size",
+            "stack_is_empty",
+            "stack_to_array",
             // Concurrency functions
             "channel",
-            
             // Testing assertion functions
-            "assert_equal", "assert_true", "assert_false", "assert_contains",
-            
+            "assert_equal",
+            "assert_true",
+            "assert_false",
+            "assert_contains",
             // Image processing functions
             "load_image",
-            
             // Compression & Archive functions
-            "zip_create", "zip_add_file", "zip_add_dir", "zip_close", "unzip",
-            
+            "zip_create",
+            "zip_add_file",
+            "zip_add_dir",
+            "zip_close",
+            "unzip",
             // Hashing & Cryptography functions
-            "sha256", "md5", "md5_file", "hash_password", "verify_password",
-            
+            "sha256",
+            "md5",
+            "md5_file",
+            "hash_password",
+            "verify_password",
             // Process management functions
-            "spawn_process", "pipe_commands",
+            "spawn_process",
+            "pipe_commands",
         ]
     }
 
@@ -721,7 +856,7 @@ impl Interpreter {
     fn register_builtins(&mut self) {
         // I/O functions
         self.env.define("print".to_string(), Value::NativeFunction("print".to_string()));
-        
+
         // Math constants
         self.env.define("PI".to_string(), Value::Float(std::f64::consts::PI));
         self.env.define("E".to_string(), Value::Float(std::f64::consts::E));
@@ -765,19 +900,30 @@ impl Interpreter {
         self.env.define("repeat".to_string(), Value::NativeFunction("repeat".to_string()));
         self.env.define("char_at".to_string(), Value::NativeFunction("char_at".to_string()));
         self.env.define("is_empty".to_string(), Value::NativeFunction("is_empty".to_string()));
-        self.env.define("count_chars".to_string(), Value::NativeFunction("count_chars".to_string()));
+        self.env
+            .define("count_chars".to_string(), Value::NativeFunction("count_chars".to_string()));
 
         // Advanced string methods
         self.env.define("pad_left".to_string(), Value::NativeFunction("pad_left".to_string()));
         self.env.define("pad_right".to_string(), Value::NativeFunction("pad_right".to_string()));
         self.env.define("lines".to_string(), Value::NativeFunction("lines".to_string()));
         self.env.define("words".to_string(), Value::NativeFunction("words".to_string()));
-        self.env.define("str_reverse".to_string(), Value::NativeFunction("str_reverse".to_string()));
+        self.env
+            .define("str_reverse".to_string(), Value::NativeFunction("str_reverse".to_string()));
         self.env.define("slugify".to_string(), Value::NativeFunction("slugify".to_string()));
         self.env.define("truncate".to_string(), Value::NativeFunction("truncate".to_string()));
-        self.env.define("to_camel_case".to_string(), Value::NativeFunction("to_camel_case".to_string()));
-        self.env.define("to_snake_case".to_string(), Value::NativeFunction("to_snake_case".to_string()));
-        self.env.define("to_kebab_case".to_string(), Value::NativeFunction("to_kebab_case".to_string()));
+        self.env.define(
+            "to_camel_case".to_string(),
+            Value::NativeFunction("to_camel_case".to_string()),
+        );
+        self.env.define(
+            "to_snake_case".to_string(),
+            Value::NativeFunction("to_snake_case".to_string()),
+        );
+        self.env.define(
+            "to_kebab_case".to_string(),
+            Value::NativeFunction("to_kebab_case".to_string()),
+        );
 
         // Array functions
         self.env.define("push".to_string(), Value::NativeFunction("push".to_string()));
@@ -832,7 +978,8 @@ impl Interpreter {
         // Advanced dict methods
         self.env.define("invert".to_string(), Value::NativeFunction("invert".to_string()));
         self.env.define("update".to_string(), Value::NativeFunction("update".to_string()));
-        self.env.define("get_default".to_string(), Value::NativeFunction("get_default".to_string()));
+        self.env
+            .define("get_default".to_string(), Value::NativeFunction("get_default".to_string()));
 
         // I/O functions
         self.env.define("input".to_string(), Value::NativeFunction("input".to_string()));
@@ -874,8 +1021,10 @@ impl Interpreter {
         self.env.define("list_dir".to_string(), Value::NativeFunction("list_dir".to_string()));
         self.env.define("create_dir".to_string(), Value::NativeFunction("create_dir".to_string()));
         self.env.define("file_size".to_string(), Value::NativeFunction("file_size".to_string()));
-        self.env.define("delete_file".to_string(), Value::NativeFunction("delete_file".to_string()));
-        self.env.define("rename_file".to_string(), Value::NativeFunction("rename_file".to_string()));
+        self.env
+            .define("delete_file".to_string(), Value::NativeFunction("delete_file".to_string()));
+        self.env
+            .define("rename_file".to_string(), Value::NativeFunction("rename_file".to_string()));
         self.env.define("copy_file".to_string(), Value::NativeFunction("copy_file".to_string()));
 
         // Binary file I/O functions
@@ -889,15 +1038,33 @@ impl Interpreter {
         );
 
         // IO module functions (advanced binary operations)
-        self.env.define("io_read_bytes".to_string(), Value::NativeFunction("io_read_bytes".to_string()));
-        self.env.define("io_write_bytes".to_string(), Value::NativeFunction("io_write_bytes".to_string()));
-        self.env.define("io_append_bytes".to_string(), Value::NativeFunction("io_append_bytes".to_string()));
+        self.env.define(
+            "io_read_bytes".to_string(),
+            Value::NativeFunction("io_read_bytes".to_string()),
+        );
+        self.env.define(
+            "io_write_bytes".to_string(),
+            Value::NativeFunction("io_write_bytes".to_string()),
+        );
+        self.env.define(
+            "io_append_bytes".to_string(),
+            Value::NativeFunction("io_append_bytes".to_string()),
+        );
         self.env.define("io_read_at".to_string(), Value::NativeFunction("io_read_at".to_string()));
-        self.env.define("io_write_at".to_string(), Value::NativeFunction("io_write_at".to_string()));
-        self.env.define("io_seek_read".to_string(), Value::NativeFunction("io_seek_read".to_string()));
-        self.env.define("io_file_metadata".to_string(), Value::NativeFunction("io_file_metadata".to_string()));
-        self.env.define("io_truncate".to_string(), Value::NativeFunction("io_truncate".to_string()));
-        self.env.define("io_copy_range".to_string(), Value::NativeFunction("io_copy_range".to_string()));
+        self.env
+            .define("io_write_at".to_string(), Value::NativeFunction("io_write_at".to_string()));
+        self.env
+            .define("io_seek_read".to_string(), Value::NativeFunction("io_seek_read".to_string()));
+        self.env.define(
+            "io_file_metadata".to_string(),
+            Value::NativeFunction("io_file_metadata".to_string()),
+        );
+        self.env
+            .define("io_truncate".to_string(), Value::NativeFunction("io_truncate".to_string()));
+        self.env.define(
+            "io_copy_range".to_string(),
+            Value::NativeFunction("io_copy_range".to_string()),
+        );
 
         // JSON functions
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
@@ -960,7 +1127,8 @@ impl Interpreter {
         self.env.define("env_int".to_string(), Value::NativeFunction("env_int".to_string()));
         self.env.define("env_float".to_string(), Value::NativeFunction("env_float".to_string()));
         self.env.define("env_bool".to_string(), Value::NativeFunction("env_bool".to_string()));
-        self.env.define("env_required".to_string(), Value::NativeFunction("env_required".to_string()));
+        self.env
+            .define("env_required".to_string(), Value::NativeFunction("env_required".to_string()));
         self.env.define("env_set".to_string(), Value::NativeFunction("env_set".to_string()));
         self.env.define("env_list".to_string(), Value::NativeFunction("env_list".to_string()));
         self.env.define("args".to_string(), Value::NativeFunction("args".to_string()));
@@ -968,7 +1136,7 @@ impl Interpreter {
         self.env.define("exit".to_string(), Value::NativeFunction("exit".to_string()));
         self.env.define("sleep".to_string(), Value::NativeFunction("sleep".to_string()));
         self.env.define("execute".to_string(), Value::NativeFunction("execute".to_string()));
-        
+
         // OS module functions
         self.env.define("os_getcwd".to_string(), Value::NativeFunction("os_getcwd".to_string()));
         self.env.define("os_chdir".to_string(), Value::NativeFunction("os_chdir".to_string()));
@@ -982,10 +1150,18 @@ impl Interpreter {
         self.env
             .define("path_exists".to_string(), Value::NativeFunction("path_exists".to_string()));
         self.env.define("path_join".to_string(), Value::NativeFunction("path_join".to_string()));
-        self.env.define("path_absolute".to_string(), Value::NativeFunction("path_absolute".to_string()));
-        self.env.define("path_is_dir".to_string(), Value::NativeFunction("path_is_dir".to_string()));
-        self.env.define("path_is_file".to_string(), Value::NativeFunction("path_is_file".to_string()));
-        self.env.define("path_extension".to_string(), Value::NativeFunction("path_extension".to_string()));
+        self.env.define(
+            "path_absolute".to_string(),
+            Value::NativeFunction("path_absolute".to_string()),
+        );
+        self.env
+            .define("path_is_dir".to_string(), Value::NativeFunction("path_is_dir".to_string()));
+        self.env
+            .define("path_is_file".to_string(), Value::NativeFunction("path_is_file".to_string()));
+        self.env.define(
+            "path_extension".to_string(),
+            Value::NativeFunction("path_extension".to_string()),
+        );
 
         // Regular expression functions
         self.env
@@ -1148,18 +1324,26 @@ impl Interpreter {
         self.env.define("channel".to_string(), Value::NativeFunction("channel".to_string()));
 
         // Testing assertion functions
-        self.env.define("assert_equal".to_string(), Value::NativeFunction("assert_equal".to_string()));
-        self.env.define("assert_true".to_string(), Value::NativeFunction("assert_true".to_string()));
-        self.env.define("assert_false".to_string(), Value::NativeFunction("assert_false".to_string()));
-        self.env.define("assert_contains".to_string(), Value::NativeFunction("assert_contains".to_string()));
+        self.env
+            .define("assert_equal".to_string(), Value::NativeFunction("assert_equal".to_string()));
+        self.env
+            .define("assert_true".to_string(), Value::NativeFunction("assert_true".to_string()));
+        self.env
+            .define("assert_false".to_string(), Value::NativeFunction("assert_false".to_string()));
+        self.env.define(
+            "assert_contains".to_string(),
+            Value::NativeFunction("assert_contains".to_string()),
+        );
 
         // Image processing functions
         self.env.define("load_image".to_string(), Value::NativeFunction("load_image".to_string()));
 
         // Compression & Archive functions
         self.env.define("zip_create".to_string(), Value::NativeFunction("zip_create".to_string()));
-        self.env.define("zip_add_file".to_string(), Value::NativeFunction("zip_add_file".to_string()));
-        self.env.define("zip_add_dir".to_string(), Value::NativeFunction("zip_add_dir".to_string()));
+        self.env
+            .define("zip_add_file".to_string(), Value::NativeFunction("zip_add_file".to_string()));
+        self.env
+            .define("zip_add_dir".to_string(), Value::NativeFunction("zip_add_dir".to_string()));
         self.env.define("zip_close".to_string(), Value::NativeFunction("zip_close".to_string()));
         self.env.define("unzip".to_string(), Value::NativeFunction("unzip".to_string()));
 
@@ -1167,24 +1351,45 @@ impl Interpreter {
         self.env.define("sha256".to_string(), Value::NativeFunction("sha256".to_string()));
         self.env.define("md5".to_string(), Value::NativeFunction("md5".to_string()));
         self.env.define("md5_file".to_string(), Value::NativeFunction("md5_file".to_string()));
-        self.env.define("hash_password".to_string(), Value::NativeFunction("hash_password".to_string()));
-        self.env.define("verify_password".to_string(), Value::NativeFunction("verify_password".to_string()));
+        self.env.define(
+            "hash_password".to_string(),
+            Value::NativeFunction("hash_password".to_string()),
+        );
+        self.env.define(
+            "verify_password".to_string(),
+            Value::NativeFunction("verify_password".to_string()),
+        );
 
         // Process management functions
-        self.env.define("spawn_process".to_string(), Value::NativeFunction("spawn_process".to_string()));
-        self.env.define("pipe_commands".to_string(), Value::NativeFunction("pipe_commands".to_string()));
+        self.env.define(
+            "spawn_process".to_string(),
+            Value::NativeFunction("spawn_process".to_string()),
+        );
+        self.env.define(
+            "pipe_commands".to_string(),
+            Value::NativeFunction("pipe_commands".to_string()),
+        );
 
         // Network functions (TCP/UDP)
         self.env.define("tcp_listen".to_string(), Value::NativeFunction("tcp_listen".to_string()));
         self.env.define("tcp_accept".to_string(), Value::NativeFunction("tcp_accept".to_string()));
-        self.env.define("tcp_connect".to_string(), Value::NativeFunction("tcp_connect".to_string()));
+        self.env
+            .define("tcp_connect".to_string(), Value::NativeFunction("tcp_connect".to_string()));
         self.env.define("tcp_send".to_string(), Value::NativeFunction("tcp_send".to_string()));
-        self.env.define("tcp_receive".to_string(), Value::NativeFunction("tcp_receive".to_string()));
+        self.env
+            .define("tcp_receive".to_string(), Value::NativeFunction("tcp_receive".to_string()));
         self.env.define("tcp_close".to_string(), Value::NativeFunction("tcp_close".to_string()));
-        self.env.define("tcp_set_nonblocking".to_string(), Value::NativeFunction("tcp_set_nonblocking".to_string()));
+        self.env.define(
+            "tcp_set_nonblocking".to_string(),
+            Value::NativeFunction("tcp_set_nonblocking".to_string()),
+        );
         self.env.define("udp_bind".to_string(), Value::NativeFunction("udp_bind".to_string()));
-        self.env.define("udp_send_to".to_string(), Value::NativeFunction("udp_send_to".to_string()));
-        self.env.define("udp_receive_from".to_string(), Value::NativeFunction("udp_receive_from".to_string()));
+        self.env
+            .define("udp_send_to".to_string(), Value::NativeFunction("udp_send_to".to_string()));
+        self.env.define(
+            "udp_receive_from".to_string(),
+            Value::NativeFunction("udp_receive_from".to_string()),
+        );
         self.env.define("udp_close".to_string(), Value::NativeFunction("udp_close".to_string()));
     }
 
@@ -1599,7 +1804,7 @@ impl Interpreter {
     fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
         // Evaluate all arguments
         let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
-        
+
         // Delegate to the implementation that works with Values
         self.call_native_function_impl(name, &arg_values)
     }
@@ -1611,14 +1816,12 @@ impl Interpreter {
         let result = match name {
             // I/O functions
             "print" => {
-                let output_parts: Vec<String> = arg_values
-                    .iter()
-                    .map(Interpreter::stringify_value)
-                    .collect();
+                let output_parts: Vec<String> =
+                    arg_values.iter().map(Interpreter::stringify_value).collect();
                 self.write_output(&output_parts.join(" "));
                 Value::Null
             }
-            
+
             // Math functions - single argument
             "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" | "log" | "exp" => {
                 if let Some(val) = arg_values.first() {
@@ -1732,7 +1935,9 @@ impl Interpreter {
             }
 
             "char_at" => {
-                if let (Some(Value::Str(s)), Some(index_val)) = (arg_values.first(), arg_values.get(1)) {
+                if let (Some(Value::Str(s)), Some(index_val)) =
+                    (arg_values.first(), arg_values.get(1))
+                {
                     let index = match index_val {
                         Value::Int(n) => *n as f64,
                         Value::Float(n) => *n,
@@ -1921,7 +2126,9 @@ impl Interpreter {
                     };
                     Value::Str(builtins::str_pad_right(s, width, pad_char))
                 } else {
-                    Value::Error("pad_right() requires 3 arguments: string, width, char".to_string())
+                    Value::Error(
+                        "pad_right() requires 3 arguments: string, width, char".to_string(),
+                    )
                 }
             }
 
@@ -1975,7 +2182,9 @@ impl Interpreter {
                     };
                     Value::Str(builtins::str_truncate(s, max_len, suffix))
                 } else {
-                    Value::Error("truncate() requires 3 arguments: string, length, suffix".to_string())
+                    Value::Error(
+                        "truncate() requires 3 arguments: string, length, suffix".to_string(),
+                    )
                 }
             }
 
@@ -2068,13 +2277,15 @@ impl Interpreter {
                         Value::Float(n) => *n as i64,
                         _ => return Value::Error("insert() index must be a number".to_string()),
                     };
-                    
+
                     match builtins::array_insert(arr, index, item) {
                         Ok(new_arr) => Value::Array(new_arr),
                         Err(e) => Value::Error(e),
                     }
                 } else {
-                    Value::Error("insert() requires 3 arguments: array, index, and item".to_string())
+                    Value::Error(
+                        "insert() requires 3 arguments: array, index, and item".to_string(),
+                    )
                 }
             }
 
@@ -2104,9 +2315,11 @@ impl Interpreter {
                         Value::Float(n) => *n as i64,
                         _ => return Value::Error("remove_at() index must be a number".to_string()),
                     };
-                    
+
                     match builtins::array_remove_at(arr, index) {
-                        Ok((new_arr, removed)) => Value::Array(vec![Value::Array(new_arr), removed]),
+                        Ok((new_arr, removed)) => {
+                            Value::Array(vec![Value::Array(new_arr), removed])
+                        }
                         Err(e) => Value::Error(e),
                     }
                 } else {
@@ -2261,21 +2474,19 @@ impl Interpreter {
                 // Works with numbers and strings
                 if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut sorted = arr.clone();
-                    sorted.sort_by(|a, b| {
-                        match (a, b) {
-                            (Value::Int(x), Value::Int(y)) => x.cmp(y),
-                            (Value::Float(x), Value::Float(y)) => {
-                                x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
-                            }
-                            (Value::Int(x), Value::Float(y)) => {
-                                (*x as f64).partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
-                            }
-                            (Value::Float(x), Value::Int(y)) => {
-                                x.partial_cmp(&(*y as f64)).unwrap_or(std::cmp::Ordering::Equal)
-                            }
-                            (Value::Str(x), Value::Str(y)) => x.cmp(y),
-                            _ => std::cmp::Ordering::Equal,
+                    sorted.sort_by(|a, b| match (a, b) {
+                        (Value::Int(x), Value::Int(y)) => x.cmp(y),
+                        (Value::Float(x), Value::Float(y)) => {
+                            x.partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
                         }
+                        (Value::Int(x), Value::Float(y)) => {
+                            (*x as f64).partial_cmp(y).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                        (Value::Float(x), Value::Int(y)) => {
+                            x.partial_cmp(&(*y as f64)).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                        (Value::Str(x), Value::Str(y)) => x.cmp(y),
+                        _ => std::cmp::Ordering::Equal,
                     });
                     Value::Array(sorted)
                 } else {
@@ -2299,7 +2510,7 @@ impl Interpreter {
                 if let Some(Value::Array(arr)) = arg_values.first() {
                     let mut seen = std::collections::HashSet::new();
                     let mut result = Vec::new();
-                    
+
                     for element in arr {
                         // Create a string representation for comparison
                         let key = format!("{:?}", element);
@@ -2526,14 +2737,18 @@ impl Interpreter {
             "format" => {
                 // format(template, ...args)
                 if arg_values.is_empty() {
-                    return Value::Error("format() requires at least 1 argument (template)".to_string());
+                    return Value::Error(
+                        "format() requires at least 1 argument (template)".to_string(),
+                    );
                 }
-                
+
                 let template = match &arg_values[0] {
                     Value::Str(s) => s,
-                    _ => return Value::Error("format() first argument must be a string".to_string()),
+                    _ => {
+                        return Value::Error("format() first argument must be a string".to_string())
+                    }
                 };
-                
+
                 let format_args = &arg_values[1..];
                 match builtins::format_string(template, format_args) {
                     Ok(s) => Value::Str(s),
@@ -2651,7 +2866,9 @@ impl Interpreter {
                         default_val.clone()
                     }
                 } else {
-                    Value::Error("get_default() requires 3 arguments: dict, key, default_value".to_string())
+                    Value::Error(
+                        "get_default() requires 3 arguments: dict, key, default_value".to_string(),
+                    )
                 }
             }
 
@@ -2805,12 +3022,17 @@ impl Interpreter {
                         match val {
                             Value::Int(n) => {
                                 if *n < 0 || *n > 255 {
-                                    return Value::Error(format!("bytes() requires integers in range 0-255, got {}", n));
+                                    return Value::Error(format!(
+                                        "bytes() requires integers in range 0-255, got {}",
+                                        n
+                                    ));
                                 }
                                 byte_vec.push(*n as u8);
                             }
                             _ => {
-                                return Value::Error("bytes() requires an array of integers".to_string());
+                                return Value::Error(
+                                    "bytes() requires an array of integers".to_string(),
+                                );
                             }
                         }
                     }
@@ -2941,9 +3163,11 @@ impl Interpreter {
             "assert" => {
                 // assert(condition, message?) - throws error if condition is false
                 if arg_values.is_empty() {
-                    return Value::Error("assert requires at least 1 argument: condition".to_string());
+                    return Value::Error(
+                        "assert requires at least 1 argument: condition".to_string(),
+                    );
                 }
-                
+
                 let condition = match arg_values.first() {
                     Some(Value::Bool(b)) => *b,
                     Some(Value::Int(n)) => *n != 0,
@@ -2967,10 +3191,8 @@ impl Interpreter {
 
             "debug" => {
                 // debug(...args) - prints debug output for all arguments
-                let debug_parts: Vec<String> = arg_values
-                    .iter()
-                    .map(builtins::format_debug_value)
-                    .collect();
+                let debug_parts: Vec<String> =
+                    arg_values.iter().map(builtins::format_debug_value).collect();
                 println!("[DEBUG] {}", debug_parts.join(" "));
                 Value::Null
             }
@@ -3141,7 +3363,9 @@ impl Interpreter {
                 if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::metadata(path) {
                         Ok(metadata) => Value::Int(metadata.len() as i64),
-                        Err(e) => Value::Error(format!("Cannot get file size for '{}': {}", path, e)),
+                        Err(e) => {
+                            Value::Error(format!("Cannot get file size for '{}': {}", path, e))
+                        }
                     }
                 } else {
                     Value::Error("file_size requires a string path argument".to_string())
@@ -3215,11 +3439,13 @@ impl Interpreter {
                         "io_read_bytes requires two arguments: path and count".to_string(),
                     );
                 }
-                
+
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Str(path)), Some(Value::Int(count))) => {
                         let count_usize = if *count < 0 {
-                            return Value::Error("io_read_bytes count must be non-negative".to_string());
+                            return Value::Error(
+                                "io_read_bytes count must be non-negative".to_string(),
+                            );
                         } else {
                             *count as usize
                         };
@@ -3244,7 +3470,9 @@ impl Interpreter {
                     (Some(Value::Str(path)), Some(Value::Float(count))) => {
                         let count_i64 = *count as i64;
                         if count_i64 < 0 {
-                            return Value::Error("io_read_bytes count must be non-negative".to_string());
+                            return Value::Error(
+                                "io_read_bytes count must be non-negative".to_string(),
+                            );
                         }
                         let count_usize = count_i64 as usize;
 
@@ -3265,7 +3493,10 @@ impl Interpreter {
                             Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
                         }
                     }
-                    _ => Value::Error("io_read_bytes requires path (string) and count (int) arguments".to_string()),
+                    _ => Value::Error(
+                        "io_read_bytes requires path (string) and count (int) arguments"
+                            .to_string(),
+                    ),
                 }
             }
 
@@ -3308,14 +3539,17 @@ impl Interpreter {
                     match OpenOptions::new().create(true).append(true).open(path) {
                         Ok(mut file) => match file.write_all(bytes) {
                             Ok(_) => Value::Bool(true),
-                            Err(e) => {
-                                Value::Error(format!("Cannot append bytes to file '{}': {}", path, e))
-                            }
+                            Err(e) => Value::Error(format!(
+                                "Cannot append bytes to file '{}': {}",
+                                path, e
+                            )),
                         },
                         Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
                     }
                 } else {
-                    Value::Error("io_append_bytes requires path (string) and bytes arguments".to_string())
+                    Value::Error(
+                        "io_append_bytes requires path (string) and bytes arguments".to_string(),
+                    )
                 }
             }
 
@@ -3388,7 +3622,11 @@ impl Interpreter {
                         let offset = match offset_val {
                             Value::Int(n) if *n >= 0 => *n as u64,
                             Value::Float(n) if *n >= 0.0 => *n as u64,
-                            _ => return Value::Error("io_write_at offset must be non-negative".to_string()),
+                            _ => {
+                                return Value::Error(
+                                    "io_write_at offset must be non-negative".to_string(),
+                                )
+                            }
                         };
 
                         match OpenOptions::new().write(true).open(path) {
@@ -3411,7 +3649,10 @@ impl Interpreter {
                             Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
                         }
                     }
-                    _ => Value::Error("io_write_at requires path (string), bytes, and offset (int) arguments".to_string()),
+                    _ => Value::Error(
+                        "io_write_at requires path (string), bytes, and offset (int) arguments"
+                            .to_string(),
+                    ),
                 }
             }
 
@@ -3431,7 +3672,11 @@ impl Interpreter {
                         let offset = match offset_val {
                             Value::Int(n) if *n >= 0 => *n as u64,
                             Value::Float(n) if *n >= 0.0 => *n as u64,
-                            _ => return Value::Error("io_seek_read offset must be non-negative".to_string()),
+                            _ => {
+                                return Value::Error(
+                                    "io_seek_read offset must be non-negative".to_string(),
+                                )
+                            }
                         };
 
                         match File::open(path) {
@@ -3455,7 +3700,10 @@ impl Interpreter {
                             Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
                         }
                     }
-                    _ => Value::Error("io_seek_read requires path (string) and offset (int) arguments".to_string()),
+                    _ => Value::Error(
+                        "io_seek_read requires path (string) and offset (int) arguments"
+                            .to_string(),
+                    ),
                 }
             }
 
@@ -3467,36 +3715,50 @@ impl Interpreter {
                     match std::fs::metadata(path) {
                         Ok(metadata) => {
                             let mut map = std::collections::HashMap::new();
-                            
+
                             map.insert("size".to_string(), Value::Int(metadata.len() as i64));
                             map.insert("is_file".to_string(), Value::Bool(metadata.is_file()));
                             map.insert("is_dir".to_string(), Value::Bool(metadata.is_dir()));
-                            map.insert("readonly".to_string(), Value::Bool(metadata.permissions().readonly()));
+                            map.insert(
+                                "readonly".to_string(),
+                                Value::Bool(metadata.permissions().readonly()),
+                            );
 
                             // Modified time
                             if let Ok(modified) = metadata.modified() {
                                 if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
-                                    map.insert("modified".to_string(), Value::Int(duration.as_secs() as i64));
+                                    map.insert(
+                                        "modified".to_string(),
+                                        Value::Int(duration.as_secs() as i64),
+                                    );
                                 }
                             }
 
                             // Created time (may not be available on all platforms)
                             if let Ok(created) = metadata.created() {
                                 if let Ok(duration) = created.duration_since(UNIX_EPOCH) {
-                                    map.insert("created".to_string(), Value::Int(duration.as_secs() as i64));
+                                    map.insert(
+                                        "created".to_string(),
+                                        Value::Int(duration.as_secs() as i64),
+                                    );
                                 }
                             }
 
                             // Accessed time
                             if let Ok(accessed) = metadata.accessed() {
                                 if let Ok(duration) = accessed.duration_since(UNIX_EPOCH) {
-                                    map.insert("accessed".to_string(), Value::Int(duration.as_secs() as i64));
+                                    map.insert(
+                                        "accessed".to_string(),
+                                        Value::Int(duration.as_secs() as i64),
+                                    );
                                 }
                             }
 
                             Value::Dict(map)
                         }
-                        Err(e) => Value::Error(format!("Cannot get metadata for '{}': {}", path, e)),
+                        Err(e) => {
+                            Value::Error(format!("Cannot get metadata for '{}': {}", path, e))
+                        }
                     }
                 } else {
                     Value::Error("io_file_metadata requires a string path argument".to_string())
@@ -3518,23 +3780,27 @@ impl Interpreter {
                         let size = match size_val {
                             Value::Int(n) if *n >= 0 => *n as u64,
                             Value::Float(n) if *n >= 0.0 => *n as u64,
-                            _ => return Value::Error("io_truncate size must be non-negative".to_string()),
+                            _ => {
+                                return Value::Error(
+                                    "io_truncate size must be non-negative".to_string(),
+                                )
+                            }
                         };
 
                         match OpenOptions::new().write(true).open(path) {
-                            Ok(file) => {
-                                match file.set_len(size) {
-                                    Ok(_) => Value::Bool(true),
-                                    Err(e) => Value::Error(format!(
-                                        "Cannot truncate file '{}' to {} bytes: {}",
-                                        path, size, e
-                                    )),
-                                }
-                            }
+                            Ok(file) => match file.set_len(size) {
+                                Ok(_) => Value::Bool(true),
+                                Err(e) => Value::Error(format!(
+                                    "Cannot truncate file '{}' to {} bytes: {}",
+                                    path, size, e
+                                )),
+                            },
                             Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
                         }
                     }
-                    _ => Value::Error("io_truncate requires path (string) and size (int) arguments".to_string()),
+                    _ => Value::Error(
+                        "io_truncate requires path (string) and size (int) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -3545,7 +3811,8 @@ impl Interpreter {
 
                 if arg_values.len() < 4 {
                     return Value::Error(
-                        "io_copy_range requires four arguments: source, dest, offset, and count".to_string(),
+                        "io_copy_range requires four arguments: source, dest, offset, and count"
+                            .to_string(),
                     );
                 }
 
@@ -3884,7 +4151,10 @@ impl Interpreter {
                     (Some(Value::Str(var_name)), Some(Value::Str(default))) => {
                         Value::Str(builtins::env_or(var_name, default))
                     }
-                    _ => Value::Error("env_or requires two string arguments (variable name, default value)".to_string())
+                    _ => Value::Error(
+                        "env_or requires two string arguments (variable name, default value)"
+                            .to_string(),
+                    ),
                 }
             }
 
@@ -3952,7 +4222,9 @@ impl Interpreter {
                         },
                     }
                 } else {
-                    Value::Error("env_required requires a string argument (variable name)".to_string())
+                    Value::Error(
+                        "env_required requires a string argument (variable name)".to_string(),
+                    )
                 }
             }
 
@@ -3963,7 +4235,9 @@ impl Interpreter {
                         builtins::env_set(var_name, value);
                         Value::Null
                     }
-                    _ => Value::Error("env_set requires two string arguments (variable name, value)".to_string())
+                    _ => Value::Error(
+                        "env_set requires two string arguments (variable name, value)".to_string(),
+                    ),
                 }
             }
 
@@ -3991,10 +4265,7 @@ impl Interpreter {
                 fields.insert("_args".to_string(), Value::Array(Vec::new())); // Empty arg defs
                 fields.insert("_app_name".to_string(), Value::Str(String::new()));
                 fields.insert("_description".to_string(), Value::Str(String::new()));
-                Value::Struct {
-                    name: "ArgParser".to_string(),
-                    fields,
-                }
+                Value::Struct { name: "ArgParser".to_string(), fields }
             }
 
             "exit" => {
@@ -4046,7 +4317,9 @@ impl Interpreter {
                     use std::env;
                     match env::set_current_dir(path) {
                         Ok(_) => Value::Bool(true),
-                        Err(e) => Value::Error(format!("Cannot change directory to '{}': {}", path, e)),
+                        Err(e) => {
+                            Value::Error(format!("Cannot change directory to '{}': {}", path, e))
+                        }
                     }
                 } else {
                     Value::Error("os_chdir requires a string argument (path)".to_string())
@@ -4058,7 +4331,9 @@ impl Interpreter {
                 if let Some(Value::Str(path)) = arg_values.first() {
                     match std::fs::remove_dir(path) {
                         Ok(_) => Value::Bool(true),
-                        Err(e) => Value::Error(format!("Cannot remove directory '{}': {}", path, e)),
+                        Err(e) => {
+                            Value::Error(format!("Cannot remove directory '{}': {}", path, e))
+                        }
                     }
                 } else {
                     Value::Error("os_rmdir requires a string argument (path)".to_string())
@@ -4143,7 +4418,9 @@ impl Interpreter {
                     use std::path::Path;
                     match std::fs::canonicalize(Path::new(path)) {
                         Ok(abs_path) => Value::Str(abs_path.to_string_lossy().to_string()),
-                        Err(e) => Value::Error(format!("Cannot get absolute path for '{}': {}", path, e)),
+                        Err(e) => {
+                            Value::Error(format!("Cannot get absolute path for '{}': {}", path, e))
+                        }
                     }
                 } else {
                     Value::Error("path_absolute requires a string argument (path)".to_string())
@@ -5306,19 +5583,19 @@ impl Interpreter {
             "assert_equal" => {
                 // assert_equal(actual, expected) - assert that two values are equal
                 if arg_values.len() < 2 {
-                    return Value::Error("assert_equal requires 2 arguments: actual, expected".to_string());
+                    return Value::Error(
+                        "assert_equal requires 2 arguments: actual, expected".to_string(),
+                    );
                 }
                 let actual = &arg_values[0];
                 let expected = &arg_values[1];
-                
+
                 if Self::values_equal(actual, expected) {
                     Value::Bool(true)
                 } else {
                     // Create detailed error message
-                    let msg = format!(
-                        "Assertion failed: expected {:?}, got {:?}",
-                        expected, actual
-                    );
+                    let msg =
+                        format!("Assertion failed: expected {:?}, got {:?}", expected, actual);
                     Value::Error(msg)
                 }
             }
@@ -5352,38 +5629,42 @@ impl Interpreter {
             "assert_contains" => {
                 // assert_contains(collection, item) - assert that collection contains item
                 if arg_values.len() < 2 {
-                    return Value::Error("assert_contains requires 2 arguments: collection, item".to_string());
+                    return Value::Error(
+                        "assert_contains requires 2 arguments: collection, item".to_string(),
+                    );
                 }
-                
+
                 let collection = &arg_values[0];
                 let item = &arg_values[1];
-                
-                let contains = match collection {
-                    Value::Array(arr) => arr.iter().any(|v| Self::values_equal(v, item)),
-                    Value::Str(s) => {
-                        if let Value::Str(needle) = item {
-                            s.contains(needle)
-                        } else {
-                            false
+
+                let contains =
+                    match collection {
+                        Value::Array(arr) => arr.iter().any(|v| Self::values_equal(v, item)),
+                        Value::Str(s) => {
+                            if let Value::Str(needle) = item {
+                                s.contains(needle)
+                            } else {
+                                false
+                            }
                         }
-                    }
-                    Value::Dict(map) => {
-                        if let Value::Str(key) = item {
-                            map.contains_key(key)
-                        } else {
-                            false
+                        Value::Dict(map) => {
+                            if let Value::Str(key) = item {
+                                map.contains_key(key)
+                            } else {
+                                false
+                            }
                         }
-                    }
-                    _ => return Value::Error("assert_contains requires an array, string, or dict as first argument".to_string()),
-                };
-                
+                        _ => return Value::Error(
+                            "assert_contains requires an array, string, or dict as first argument"
+                                .to_string(),
+                        ),
+                    };
+
                 if contains {
                     Value::Bool(true)
                 } else {
-                    let msg = format!(
-                        "Assertion failed: {:?} does not contain {:?}",
-                        collection, item
-                    );
+                    let msg =
+                        format!("Assertion failed: {:?} does not contain {:?}", collection, item);
                     Value::Error(msg)
                 }
             }
@@ -5820,25 +6101,29 @@ impl Interpreter {
                                         .file_name()
                                         .and_then(|n| n.to_str())
                                         .unwrap_or(source_path);
-                                    
+
                                     // Add file to zip
                                     let options = FileOptions::default()
                                         .compression_method(zip::CompressionMethod::Deflated);
-                                    
+
                                     match zip_writer.start_file(file_name, options) {
-                                        Ok(_) => {
-                                            match zip_writer.write_all(&contents) {
-                                                Ok(_) => Value::Bool(true),
-                                                Err(e) => Value::ErrorObject {
-                                                    message: format!("Failed to write file to zip: {}", e),
-                                                    stack: Vec::new(),
-                                                    line: None,
-                                                    cause: None,
-                                                },
-                                            }
-                                        }
+                                        Ok(_) => match zip_writer.write_all(&contents) {
+                                            Ok(_) => Value::Bool(true),
+                                            Err(e) => Value::ErrorObject {
+                                                message: format!(
+                                                    "Failed to write file to zip: {}",
+                                                    e
+                                                ),
+                                                stack: Vec::new(),
+                                                line: None,
+                                                cause: None,
+                                            },
+                                        },
                                         Err(e) => Value::ErrorObject {
-                                            message: format!("Failed to start zip entry '{}': {}", file_name, e),
+                                            message: format!(
+                                                "Failed to start zip entry '{}': {}",
+                                                file_name, e
+                                            ),
                                             stack: Vec::new(),
                                             line: None,
                                             cause: None,
@@ -5846,7 +6131,10 @@ impl Interpreter {
                                     }
                                 }
                                 Err(e) => Value::ErrorObject {
-                                    message: format!("Failed to read source file '{}': {}", source_path, e),
+                                    message: format!(
+                                        "Failed to read source file '{}': {}",
+                                        source_path, e
+                                    ),
                                     stack: Vec::new(),
                                     line: None,
                                     cause: None,
@@ -5856,7 +6144,9 @@ impl Interpreter {
                             Value::Error("Zip archive has been closed".to_string())
                         }
                     }
-                    _ => Value::Error("zip_add_file requires (ZipArchive, string_path) arguments".to_string()),
+                    _ => Value::Error(
+                        "zip_add_file requires (ZipArchive, string_path) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -5876,7 +6166,8 @@ impl Interpreter {
                                     .map_err(|e| format!("Failed to read directory: {}", e))?;
 
                                 for entry in entries {
-                                    let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+                                    let entry = entry
+                                        .map_err(|e| format!("Failed to read entry: {}", e))?;
                                     let path = entry.path();
                                     let name = entry.file_name();
                                     let name_str = name.to_string_lossy();
@@ -5889,20 +6180,24 @@ impl Interpreter {
                                     if path.is_dir() {
                                         // Add directory entry
                                         let options = FileOptions::default();
-                                        zip.add_directory(&zip_path, options)
-                                            .map_err(|e| format!("Failed to add directory '{}': {}", zip_path, e))?;
+                                        zip.add_directory(&zip_path, options).map_err(|e| {
+                                            format!("Failed to add directory '{}': {}", zip_path, e)
+                                        })?;
                                         // Recurse into subdirectory
                                         add_dir_recursive(zip, &path, &zip_path)?;
                                     } else {
                                         // Add file
-                                        let contents = std::fs::read(&path)
-                                            .map_err(|e| format!("Failed to read '{}': {}", path.display(), e))?;
+                                        let contents = std::fs::read(&path).map_err(|e| {
+                                            format!("Failed to read '{}': {}", path.display(), e)
+                                        })?;
                                         let options = FileOptions::default()
                                             .compression_method(zip::CompressionMethod::Deflated);
-                                        zip.start_file(&zip_path, options)
-                                            .map_err(|e| format!("Failed to start file '{}': {}", zip_path, e))?;
-                                        zip.write_all(&contents)
-                                            .map_err(|e| format!("Failed to write file '{}': {}", zip_path, e))?;
+                                        zip.start_file(&zip_path, options).map_err(|e| {
+                                            format!("Failed to start file '{}': {}", zip_path, e)
+                                        })?;
+                                        zip.write_all(&contents).map_err(|e| {
+                                            format!("Failed to write file '{}': {}", zip_path, e)
+                                        })?;
                                     }
                                 }
                                 Ok(())
@@ -5922,7 +6217,9 @@ impl Interpreter {
                             Value::Error("Zip archive has been closed".to_string())
                         }
                     }
-                    _ => Value::Error("zip_add_dir requires (ZipArchive, string_path) arguments".to_string()),
+                    _ => Value::Error(
+                        "zip_add_dir requires (ZipArchive, string_path) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -5959,7 +6256,10 @@ impl Interpreter {
                                         // Create output directory if it doesn't exist
                                         if let Err(e) = std::fs::create_dir_all(output_dir) {
                                             return Value::ErrorObject {
-                                                message: format!("Failed to create output directory '{}': {}", output_dir, e),
+                                                message: format!(
+                                                    "Failed to create output directory '{}': {}",
+                                                    output_dir, e
+                                                ),
                                                 stack: Vec::new(),
                                                 line: None,
                                                 cause: None,
@@ -5972,10 +6272,13 @@ impl Interpreter {
                                         for i in 0..archive.len() {
                                             match archive.by_index(i) {
                                                 Ok(mut file) => {
-                                                    let outpath = Path::new(output_dir).join(file.name());
-                                                    
+                                                    let outpath =
+                                                        Path::new(output_dir).join(file.name());
+
                                                     if file.is_dir() {
-                                                        if let Err(e) = std::fs::create_dir_all(&outpath) {
+                                                        if let Err(e) =
+                                                            std::fs::create_dir_all(&outpath)
+                                                        {
                                                             return Value::ErrorObject {
                                                                 message: format!("Failed to create directory '{}': {}", outpath.display(), e),
                                                                 stack: Vec::new(),
@@ -5986,7 +6289,9 @@ impl Interpreter {
                                                     } else {
                                                         // Create parent directories if needed
                                                         if let Some(parent) = outpath.parent() {
-                                                            if let Err(e) = std::fs::create_dir_all(parent) {
+                                                            if let Err(e) =
+                                                                std::fs::create_dir_all(parent)
+                                                            {
                                                                 return Value::ErrorObject {
                                                                     message: format!("Failed to create parent directory for '{}': {}", outpath.display(), e),
                                                                     stack: Vec::new(),
@@ -5999,7 +6304,10 @@ impl Interpreter {
                                                         // Extract file
                                                         match File::create(&outpath) {
                                                             Ok(mut outfile) => {
-                                                                if let Err(e) = std::io::copy(&mut file, &mut outfile) {
+                                                                if let Err(e) = std::io::copy(
+                                                                    &mut file,
+                                                                    &mut outfile,
+                                                                ) {
                                                                     return Value::ErrorObject {
                                                                         message: format!("Failed to extract file '{}': {}", file.name(), e),
                                                                         stack: Vec::new(),
@@ -6007,7 +6315,11 @@ impl Interpreter {
                                                                         cause: None,
                                                                     };
                                                                 }
-                                                                extracted_files.push(Value::Str(outpath.to_string_lossy().to_string()));
+                                                                extracted_files.push(Value::Str(
+                                                                    outpath
+                                                                        .to_string_lossy()
+                                                                        .to_string(),
+                                                                ));
                                                             }
                                                             Err(e) => {
                                                                 return Value::ErrorObject {
@@ -6022,7 +6334,10 @@ impl Interpreter {
                                                 }
                                                 Err(e) => {
                                                     return Value::ErrorObject {
-                                                        message: format!("Failed to read zip entry {}: {}", i, e),
+                                                        message: format!(
+                                                            "Failed to read zip entry {}: {}",
+                                                            i, e
+                                                        ),
                                                         stack: Vec::new(),
                                                         line: None,
                                                         cause: None,
@@ -6034,7 +6349,10 @@ impl Interpreter {
                                         Value::Array(extracted_files)
                                     }
                                     Err(e) => Value::ErrorObject {
-                                        message: format!("Failed to open zip archive '{}': {}", zip_path, e),
+                                        message: format!(
+                                            "Failed to open zip archive '{}': {}",
+                                            zip_path, e
+                                        ),
                                         stack: Vec::new(),
                                         line: None,
                                         cause: None,
@@ -6049,7 +6367,9 @@ impl Interpreter {
                             },
                         }
                     }
-                    _ => Value::Error("unzip requires (string_zip_path, string_output_dir) arguments".to_string()),
+                    _ => Value::Error(
+                        "unzip requires (string_zip_path, string_output_dir) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -6131,7 +6451,10 @@ impl Interpreter {
                             },
                         }
                     }
-                    _ => Value::Error("verify_password requires (string_password, string_hash) arguments".to_string()),
+                    _ => Value::Error(
+                        "verify_password requires (string_password, string_hash) arguments"
+                            .to_string(),
+                    ),
                 }
             }
 
@@ -6140,7 +6463,10 @@ impl Interpreter {
                 // spawn_process(command_array) - spawns a process and returns a handle
                 if let Some(Value::Array(args)) = arg_values.first() {
                     if args.is_empty() {
-                        return Value::Error("spawn_process requires a non-empty array of command arguments".to_string());
+                        return Value::Error(
+                            "spawn_process requires a non-empty array of command arguments"
+                                .to_string(),
+                        );
                     }
 
                     // Extract command and arguments
@@ -6149,7 +6475,9 @@ impl Interpreter {
                         if let Value::Str(s) = arg {
                             cmd_parts.push(s.clone());
                         } else {
-                            return Value::Error("spawn_process requires an array of strings".to_string());
+                            return Value::Error(
+                                "spawn_process requires an array of strings".to_string(),
+                            );
                         }
                     }
 
@@ -6187,15 +6515,18 @@ impl Interpreter {
 
                                     // Return process result as a struct
                                     let mut fields = HashMap::new();
-                                    fields.insert("exitcode".to_string(), Value::Int(status.code().unwrap_or(-1) as i64));
+                                    fields.insert(
+                                        "exitcode".to_string(),
+                                        Value::Int(status.code().unwrap_or(-1) as i64),
+                                    );
                                     fields.insert("stdout".to_string(), Value::Str(stdout));
                                     fields.insert("stderr".to_string(), Value::Str(stderr));
-                                    fields.insert("success".to_string(), Value::Bool(status.success()));
+                                    fields.insert(
+                                        "success".to_string(),
+                                        Value::Bool(status.success()),
+                                    );
 
-                                    Value::Struct {
-                                        name: "ProcessResult".to_string(),
-                                        fields,
-                                    }
+                                    Value::Struct { name: "ProcessResult".to_string(), fields }
                                 }
                                 Err(e) => Value::ErrorObject {
                                     message: format!("Failed to wait for process: {}", e),
@@ -6222,7 +6553,9 @@ impl Interpreter {
                 // commands_array is an array of arrays: [["cat", "file.txt"], ["grep", "error"], ["wc", "-l"]]
                 if let Some(Value::Array(commands)) = arg_values.first() {
                     if commands.is_empty() {
-                        return Value::Error("pipe_commands requires a non-empty array of commands".to_string());
+                        return Value::Error(
+                            "pipe_commands requires a non-empty array of commands".to_string(),
+                        );
                     }
 
                     // Parse all commands
@@ -6234,15 +6567,21 @@ impl Interpreter {
                                 if let Value::Str(s) = arg {
                                     cmd_parts.push(s.clone());
                                 } else {
-                                    return Value::Error("Each command must be an array of strings".to_string());
+                                    return Value::Error(
+                                        "Each command must be an array of strings".to_string(),
+                                    );
                                 }
                             }
                             if cmd_parts.is_empty() {
-                                return Value::Error("Each command array must not be empty".to_string());
+                                return Value::Error(
+                                    "Each command array must not be empty".to_string(),
+                                );
                             }
                             parsed_commands.push(cmd_parts);
                         } else {
-                            return Value::Error("pipe_commands requires an array of command arrays".to_string());
+                            return Value::Error(
+                                "pipe_commands requires an array of command arrays".to_string(),
+                            );
                         }
                     }
 
@@ -6286,7 +6625,8 @@ impl Interpreter {
                                 match child.wait() {
                                     Ok(status) => {
                                         if !status.success() {
-                                            let stderr = if let Some(mut err) = child.stderr.take() {
+                                            let stderr = if let Some(mut err) = child.stderr.take()
+                                            {
                                                 let mut buffer = String::new();
                                                 let _ = err.read_to_string(&mut buffer);
                                                 buffer
@@ -6295,10 +6635,12 @@ impl Interpreter {
                                             };
 
                                             return Value::ErrorObject {
-                                                message: format!("Command '{}' failed with exit code {}: {}", 
-                                                    cmd_parts.join(" "), 
+                                                message: format!(
+                                                    "Command '{}' failed with exit code {}: {}",
+                                                    cmd_parts.join(" "),
                                                     status.code().unwrap_or(-1),
-                                                    stderr),
+                                                    stderr
+                                                ),
                                                 stack: Vec::new(),
                                                 line: None,
                                                 cause: None,
@@ -6310,7 +6652,10 @@ impl Interpreter {
                                             let mut buffer = Vec::new();
                                             if let Err(e) = stdout.read_to_end(&mut buffer) {
                                                 return Value::ErrorObject {
-                                                    message: format!("Failed to read output from '{}': {}", program, e),
+                                                    message: format!(
+                                                        "Failed to read output from '{}': {}",
+                                                        program, e
+                                                    ),
                                                     stack: Vec::new(),
                                                     line: None,
                                                     cause: None,
@@ -6321,7 +6666,10 @@ impl Interpreter {
                                     }
                                     Err(e) => {
                                         return Value::ErrorObject {
-                                            message: format!("Failed to wait for process '{}': {}", program, e),
+                                            message: format!(
+                                                "Failed to wait for process '{}': {}",
+                                                program, e
+                                            ),
                                             stack: Vec::new(),
                                             line: None,
                                             cause: None,
@@ -6331,7 +6679,10 @@ impl Interpreter {
                             }
                             Err(e) => {
                                 return Value::ErrorObject {
-                                    message: format!("Failed to spawn process '{}': {}", program, e),
+                                    message: format!(
+                                        "Failed to spawn process '{}': {}",
+                                        program, e
+                                    ),
                                     stack: Vec::new(),
                                     line: None,
                                     cause: None,
@@ -6375,14 +6726,19 @@ impl Interpreter {
                                 }
                             }
                             Err(e) => Value::ErrorObject {
-                                message: format!("Failed to bind TCP listener on '{}': {}", addr, e),
+                                message: format!(
+                                    "Failed to bind TCP listener on '{}': {}",
+                                    addr, e
+                                ),
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,
                             },
                         }
                     }
-                    _ => Value::Error("tcp_listen requires (string_host, int_port) arguments".to_string()),
+                    _ => Value::Error(
+                        "tcp_listen requires (string_host, int_port) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -6391,12 +6747,10 @@ impl Interpreter {
                 if let Some(Value::TcpListener { listener, .. }) = arg_values.first() {
                     let listener_guard = listener.lock().unwrap();
                     match listener_guard.accept() {
-                        Ok((stream, peer_addr)) => {
-                            Value::TcpStream {
-                                stream: Arc::new(Mutex::new(stream)),
-                                peer_addr: peer_addr.to_string(),
-                            }
-                        }
+                        Ok((stream, peer_addr)) => Value::TcpStream {
+                            stream: Arc::new(Mutex::new(stream)),
+                            peer_addr: peer_addr.to_string(),
+                        },
                         Err(e) => Value::ErrorObject {
                             message: format!("Failed to accept connection: {}", e),
                             stack: Vec::new(),
@@ -6415,12 +6769,10 @@ impl Interpreter {
                     (Some(Value::Str(host)), Some(Value::Int(port))) => {
                         let addr = format!("{}:{}", host, port);
                         match std::net::TcpStream::connect(&addr) {
-                            Ok(stream) => {
-                                Value::TcpStream {
-                                    stream: Arc::new(Mutex::new(stream)),
-                                    peer_addr: addr.clone(),
-                                }
-                            }
+                            Ok(stream) => Value::TcpStream {
+                                stream: Arc::new(Mutex::new(stream)),
+                                peer_addr: addr.clone(),
+                            },
                             Err(e) => Value::ErrorObject {
                                 message: format!("Failed to connect to '{}': {}", addr, e),
                                 stack: Vec::new(),
@@ -6429,7 +6781,9 @@ impl Interpreter {
                             },
                         }
                     }
-                    _ => Value::Error("tcp_connect requires (string_host, int_port) arguments".to_string()),
+                    _ => Value::Error(
+                        "tcp_connect requires (string_host, int_port) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -6439,17 +6793,15 @@ impl Interpreter {
                     (Some(Value::TcpStream { stream, .. }), Some(Value::Str(data))) => {
                         let mut stream_guard = stream.lock().unwrap();
                         match stream_guard.write_all(data.as_bytes()) {
-                            Ok(_) => {
-                                match stream_guard.flush() {
-                                    Ok(_) => Value::Int(data.len() as i64),
-                                    Err(e) => Value::ErrorObject {
-                                        message: format!("Failed to flush TCP stream: {}", e),
-                                        stack: Vec::new(),
-                                        line: None,
-                                        cause: None,
-                                    },
-                                }
-                            }
+                            Ok(_) => match stream_guard.flush() {
+                                Ok(_) => Value::Int(data.len() as i64),
+                                Err(e) => Value::ErrorObject {
+                                    message: format!("Failed to flush TCP stream: {}", e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            },
                             Err(e) => Value::ErrorObject {
                                 message: format!("Failed to send data over TCP: {}", e),
                                 stack: Vec::new(),
@@ -6461,17 +6813,15 @@ impl Interpreter {
                     (Some(Value::TcpStream { stream, .. }), Some(Value::Bytes(data))) => {
                         let mut stream_guard = stream.lock().unwrap();
                         match stream_guard.write_all(data) {
-                            Ok(_) => {
-                                match stream_guard.flush() {
-                                    Ok(_) => Value::Int(data.len() as i64),
-                                    Err(e) => Value::ErrorObject {
-                                        message: format!("Failed to flush TCP stream: {}", e),
-                                        stack: Vec::new(),
-                                        line: None,
-                                        cause: None,
-                                    },
-                                }
-                            }
+                            Ok(_) => match stream_guard.flush() {
+                                Ok(_) => Value::Int(data.len() as i64),
+                                Err(e) => Value::ErrorObject {
+                                    message: format!("Failed to flush TCP stream: {}", e),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            },
                             Err(e) => Value::ErrorObject {
                                 message: format!("Failed to send data over TCP: {}", e),
                                 stack: Vec::new(),
@@ -6480,7 +6830,9 @@ impl Interpreter {
                             },
                         }
                     }
-                    _ => Value::Error("tcp_send requires (TcpStream, string_or_bytes_data) arguments".to_string()),
+                    _ => Value::Error(
+                        "tcp_send requires (TcpStream, string_or_bytes_data) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -6509,7 +6861,9 @@ impl Interpreter {
                             },
                         }
                     }
-                    _ => Value::Error("tcp_receive requires (TcpStream, int_size) arguments".to_string()),
+                    _ => Value::Error(
+                        "tcp_receive requires (TcpStream, int_size) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -6520,7 +6874,9 @@ impl Interpreter {
                         // Dropping the value will close the socket
                         Value::Bool(true)
                     }
-                    _ => Value::Error("tcp_close requires a TcpStream or TcpListener argument".to_string()),
+                    _ => Value::Error(
+                        "tcp_close requires a TcpStream or TcpListener argument".to_string(),
+                    ),
                 }
             }
 
@@ -6532,7 +6888,10 @@ impl Interpreter {
                         match stream_guard.set_nonblocking(*nonblocking) {
                             Ok(_) => Value::Bool(true),
                             Err(e) => Value::ErrorObject {
-                                message: format!("Failed to set TCP stream non-blocking mode: {}", e),
+                                message: format!(
+                                    "Failed to set TCP stream non-blocking mode: {}",
+                                    e
+                                ),
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,
@@ -6544,14 +6903,20 @@ impl Interpreter {
                         match listener_guard.set_nonblocking(*nonblocking) {
                             Ok(_) => Value::Bool(true),
                             Err(e) => Value::ErrorObject {
-                                message: format!("Failed to set TCP listener non-blocking mode: {}", e),
+                                message: format!(
+                                    "Failed to set TCP listener non-blocking mode: {}",
+                                    e
+                                ),
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,
                             },
                         }
                     }
-                    _ => Value::Error("tcp_set_nonblocking requires (TcpStream/TcpListener, bool) arguments".to_string()),
+                    _ => Value::Error(
+                        "tcp_set_nonblocking requires (TcpStream/TcpListener, bool) arguments"
+                            .to_string(),
+                    ),
                 }
             }
 
@@ -6561,12 +6926,10 @@ impl Interpreter {
                     (Some(Value::Str(host)), Some(Value::Int(port))) => {
                         let addr = format!("{}:{}", host, port);
                         match std::net::UdpSocket::bind(&addr) {
-                            Ok(socket) => {
-                                Value::UdpSocket {
-                                    socket: Arc::new(Mutex::new(socket)),
-                                    addr: addr.clone(),
-                                }
-                            }
+                            Ok(socket) => Value::UdpSocket {
+                                socket: Arc::new(Mutex::new(socket)),
+                                addr: addr.clone(),
+                            },
                             Err(e) => Value::ErrorObject {
                                 message: format!("Failed to bind UDP socket on '{}': {}", addr, e),
                                 stack: Vec::new(),
@@ -6575,7 +6938,9 @@ impl Interpreter {
                             },
                         }
                     }
-                    _ => Value::Error("udp_bind requires (string_host, int_port) arguments".to_string()),
+                    _ => Value::Error(
+                        "udp_bind requires (string_host, int_port) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -6617,7 +6982,9 @@ impl Interpreter {
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::UdpSocket { socket, .. }), Some(Value::Int(size))) => {
                         if *size <= 0 {
-                            return Value::Error("udp_receive_from size must be positive".to_string());
+                            return Value::Error(
+                                "udp_receive_from size must be positive".to_string(),
+                            );
                         }
                         let socket_guard = socket.lock().unwrap();
                         let mut buffer = vec![0u8; *size as usize];
@@ -6628,7 +6995,7 @@ impl Interpreter {
                                     Ok(s) => Value::Str(s),
                                     Err(_) => Value::Bytes(buffer),
                                 };
-                                
+
                                 let mut result = HashMap::new();
                                 result.insert("data".to_string(), data_value);
                                 result.insert("from".to_string(), Value::Str(src_addr.to_string()));
@@ -6643,7 +7010,9 @@ impl Interpreter {
                             },
                         }
                     }
-                    _ => Value::Error("udp_receive_from requires (UdpSocket, int_size) arguments".to_string()),
+                    _ => Value::Error(
+                        "udp_receive_from requires (UdpSocket, int_size) arguments".to_string(),
+                    ),
                 }
             }
 
@@ -6679,9 +7048,7 @@ impl Interpreter {
                 if x.len() != y.len() {
                     return false;
                 }
-                x.iter().all(|(key, val)| {
-                    y.get(key).map_or(false, |v| Self::values_equal(val, v))
-                })
+                x.iter().all(|(key, val)| y.get(key).map_or(false, |v| Self::values_equal(val, v)))
             }
             _ => false, // Different types or complex types not supported for equality
         }
@@ -6690,7 +7057,7 @@ impl Interpreter {
     /// Binds a pattern to a value, defining variables as needed
     fn bind_pattern(&mut self, pattern: &crate::ast::Pattern, value: Value) {
         use crate::ast::Pattern;
-        
+
         match pattern {
             Pattern::Identifier(name) => {
                 self.env.define(name.clone(), value);
@@ -6703,7 +7070,7 @@ impl Interpreter {
                 if let Value::Array(arr) = value {
                     let mut i = 0;
                     let arr_len = arr.len();
-                    
+
                     // Bind each pattern element
                     for pattern_elem in elements {
                         if i < arr_len {
@@ -6714,14 +7081,11 @@ impl Interpreter {
                             self.bind_pattern(pattern_elem, Value::Null);
                         }
                     }
-                    
+
                     // Bind rest elements if present
                     if let Some(rest_name) = rest {
-                        let rest_values: Vec<Value> = if i < arr_len {
-                            arr[i..].to_vec()
-                        } else {
-                            vec![]
-                        };
+                        let rest_values: Vec<Value> =
+                            if i < arr_len { arr[i..].to_vec() } else { vec![] };
                         self.env.define(rest_name.clone(), Value::Array(rest_values));
                     }
                 } else {
@@ -6742,7 +7106,7 @@ impl Interpreter {
                         let val = dict.get(key).cloned().unwrap_or(Value::Null);
                         self.env.define(key.clone(), val);
                     }
-                    
+
                     // Bind rest elements if present
                     if let Some(rest_name) = rest {
                         let mut rest_dict = std::collections::HashMap::new();
@@ -6759,7 +7123,10 @@ impl Interpreter {
                         self.env.define(key.clone(), Value::Null);
                     }
                     if let Some(rest_name) = rest {
-                        self.env.define(rest_name.clone(), Value::Dict(std::collections::HashMap::new()));
+                        self.env.define(
+                            rest_name.clone(),
+                            Value::Dict(std::collections::HashMap::new()),
+                        );
                     }
                 }
             }
@@ -6814,12 +7181,14 @@ impl Interpreter {
 
         // Check if the value is an error
         match value {
-            Value::Error(msg) => {
-                Err(Box::new(RuffError::runtime_error(msg, crate::errors::SourceLocation::unknown())))
-            }
-            Value::ErrorObject { message, .. } => {
-                Err(Box::new(RuffError::runtime_error(message, crate::errors::SourceLocation::unknown())))
-            }
+            Value::Error(msg) => Err(Box::new(RuffError::runtime_error(
+                msg,
+                crate::errors::SourceLocation::unknown(),
+            ))),
+            Value::ErrorObject { message, .. } => Err(Box::new(RuffError::runtime_error(
+                message,
+                crate::errors::SourceLocation::unknown(),
+            ))),
             _ => Ok(value),
         }
     }
@@ -7091,7 +7460,7 @@ impl Interpreter {
                         let val = if *is_some { Some((**value).clone()) } else { None };
                         (true, tag.to_string(), val)
                     }
-                    _ => (false, String::new(), None)
+                    _ => (false, String::new(), None),
                 };
 
                 if is_result_or_option {
@@ -7115,7 +7484,7 @@ impl Interpreter {
                             return;
                         }
                     }
-                    
+
                     if let Some(default_body) = default_clone {
                         self.eval_stmts(&default_body);
                     }
@@ -7545,8 +7914,10 @@ impl Interpreter {
                 });
                 // Don't wait for the thread to finish - it runs in the background
             }
-            Stmt::Test { .. } | Stmt::TestSetup { .. } | 
-            Stmt::TestTeardown { .. } | Stmt::TestGroup { .. } => {
+            Stmt::Test { .. }
+            | Stmt::TestSetup { .. }
+            | Stmt::TestTeardown { .. }
+            | Stmt::TestGroup { .. } => {
                 // Test statements are collected and executed by the test runner
                 // When running normally (not in test mode), they are no-ops
                 // This allows test files to be syntax-checked without running tests
@@ -8305,7 +8676,8 @@ impl Interpreter {
                                         new_fields.get("_args").cloned()
                                     {
                                         arg_list.push(Value::Dict(arg_def));
-                                        new_fields.insert("_args".to_string(), Value::Array(arg_list));
+                                        new_fields
+                                            .insert("_args".to_string(), Value::Array(arg_list));
                                     }
 
                                     return Value::Struct {
@@ -8438,7 +8810,8 @@ impl Interpreter {
                                         _ => String::new(),
                                     };
 
-                                    let help_text = builtins::generate_help(&arg_defs, &app_name, &description);
+                                    let help_text =
+                                        builtins::generate_help(&arg_defs, &app_name, &description);
                                     return Value::Str(help_text);
                                 }
                                 _ => {
@@ -8534,7 +8907,7 @@ impl Interpreter {
                                 self.return_value = Some(res.clone());
                                 res
                             }
-                            _ => res
+                            _ => res,
                         }
                     }
                     Value::Function(params, body, captured_env) => {
@@ -8754,7 +9127,7 @@ impl Interpreter {
             Expr::ArrayLiteral(elements) => {
                 use crate::ast::ArrayElement;
                 let mut values = Vec::new();
-                
+
                 for elem in elements {
                     match elem {
                         ArrayElement::Single(expr) => {
@@ -8770,13 +9143,13 @@ impl Interpreter {
                         }
                     }
                 }
-                
+
                 Value::Array(values)
             }
             Expr::DictLiteral(pairs) => {
                 use crate::ast::DictElement;
                 let mut map = HashMap::new();
-                
+
                 for elem in pairs {
                     match elem {
                         DictElement::Pair(key_expr, val_expr) => {
@@ -8801,7 +9174,7 @@ impl Interpreter {
                         }
                     }
                 }
-                
+
                 Value::Dict(map)
             }
             Expr::IndexAccess { object, index } => {
@@ -8839,31 +9212,17 @@ impl Interpreter {
             }
             Expr::Ok(value_expr) => {
                 let value = self.eval_expr(value_expr);
-                Value::Result {
-                    is_ok: true,
-                    value: Box::new(value),
-                }
+                Value::Result { is_ok: true, value: Box::new(value) }
             }
             Expr::Err(error_expr) => {
                 let error = self.eval_expr(error_expr);
-                Value::Result {
-                    is_ok: false,
-                    value: Box::new(error),
-                }
+                Value::Result { is_ok: false, value: Box::new(error) }
             }
             Expr::Some(value_expr) => {
                 let value = self.eval_expr(value_expr);
-                Value::Option {
-                    is_some: true,
-                    value: Box::new(value),
-                }
+                Value::Option { is_some: true, value: Box::new(value) }
             }
-            Expr::None => {
-                Value::Option {
-                    is_some: false,
-                    value: Box::new(Value::Null),
-                }
-            }
+            Expr::None => Value::Option { is_some: false, value: Box::new(Value::Null) },
             Expr::Try(expr) => {
                 let value = self.eval_expr(expr);
                 match value {
@@ -8882,14 +9241,19 @@ impl Interpreter {
                     }
                     _ => {
                         // ? operator only works on Result values
-                        Value::Error("Try operator (?) can only be used on Result values".to_string())
+                        Value::Error(
+                            "Try operator (?) can only be used on Result values".to_string(),
+                        )
                     }
                 }
             }
             Expr::Spread(_) => {
                 // Spread expressions should only appear inside array/dict literals
                 // If we reach here, it's a syntax error, but we'll return an error value
-                Value::Error("Spread operator (...) can only be used inside array or dict literals".to_string())
+                Value::Error(
+                    "Spread operator (...) can only be used inside array or dict literals"
+                        .to_string(),
+                )
             }
         };
         result
@@ -8961,39 +9325,41 @@ impl Interpreter {
             self.env.scopes.iter().flat_map(|scope| scope.keys().cloned()).collect();
 
         for var_name in var_names {
-            if let Some(Value::Database { connection, db_type, in_transaction, .. }) = self.env.get(&var_name) {
-                    // Check if in transaction
-                    let is_in_trans = {
-                        let in_trans = in_transaction.lock().unwrap();
-                        *in_trans
-                    };
+            if let Some(Value::Database { connection, db_type, in_transaction, .. }) =
+                self.env.get(&var_name)
+            {
+                // Check if in transaction
+                let is_in_trans = {
+                    let in_trans = in_transaction.lock().unwrap();
+                    *in_trans
+                };
 
-                    if is_in_trans {
-                        // Rollback the transaction
-                        match (connection, db_type.as_str()) {
-                            (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
-                                let conn = conn_arc.lock().unwrap();
-                                let _ = conn.execute("ROLLBACK", []);
-                            }
-                            (DatabaseConnection::Postgres(client_arc), "postgres") => {
-                                let mut client = client_arc.lock().unwrap();
-                                let _ = client.execute("ROLLBACK", &[]);
-                            }
-                            (DatabaseConnection::Mysql(conn_arc), "mysql") => {
-                                let mut conn = conn_arc.lock().unwrap();
-                                if let Ok(runtime) = tokio::runtime::Runtime::new() {
-                                    let _ = runtime.block_on(async {
-                                        conn.exec_drop("ROLLBACK", mysql_async::Params::Empty).await
-                                    });
-                                }
-                            }
-                            _ => {}
+                if is_in_trans {
+                    // Rollback the transaction
+                    match (connection, db_type.as_str()) {
+                        (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
+                            let conn = conn_arc.lock().unwrap();
+                            let _ = conn.execute("ROLLBACK", []);
                         }
-
-                        // Update transaction flag
-                        let mut in_trans = in_transaction.lock().unwrap();
-                        *in_trans = false;
+                        (DatabaseConnection::Postgres(client_arc), "postgres") => {
+                            let mut client = client_arc.lock().unwrap();
+                            let _ = client.execute("ROLLBACK", &[]);
+                        }
+                        (DatabaseConnection::Mysql(conn_arc), "mysql") => {
+                            let mut conn = conn_arc.lock().unwrap();
+                            if let Ok(runtime) = tokio::runtime::Runtime::new() {
+                                let _ = runtime.block_on(async {
+                                    conn.exec_drop("ROLLBACK", mysql_async::Params::Empty).await
+                                });
+                            }
+                        }
+                        _ => {}
                     }
+
+                    // Update transaction flag
+                    let mut in_trans = in_transaction.lock().unwrap();
+                    *in_trans = false;
+                }
             }
         }
     }
@@ -12770,11 +13136,8 @@ mod tests {
 
         let interp = run_code(code);
 
-        // First call should succeed  
-        assert!(matches!(
-            interp.env.get("result1"),
-            Some(Value::Int(_)) | Some(Value::Float(_))
-        ));
+        // First call should succeed
+        assert!(matches!(interp.env.get("result1"), Some(Value::Int(_)) | Some(Value::Float(_))));
 
         // Second call should return error
         assert!(matches!(interp.env.get("result2"), Some(Value::Error(_))));
@@ -12844,12 +13207,7 @@ pub struct TestResult {
 
 impl TestRunner {
     pub fn new() -> Self {
-        TestRunner {
-            tests: Vec::new(),
-            setup: None,
-            teardown: None,
-            results: Vec::new(),
-        }
+        TestRunner { tests: Vec::new(), setup: None, teardown: None, results: Vec::new() }
     }
 
     /// Collect all test statements from the AST
@@ -12857,10 +13215,7 @@ impl TestRunner {
         for stmt in stmts {
             match stmt {
                 Stmt::Test { name, body } => {
-                    self.tests.push(TestCase {
-                        name: name.clone(),
-                        body: body.clone(),
-                    });
+                    self.tests.push(TestCase { name: name.clone(), body: body.clone() });
                 }
                 Stmt::TestSetup { body } => {
                     self.setup = Some(body.clone());
@@ -12880,7 +13235,7 @@ impl TestRunner {
     /// Run all collected tests
     pub fn run_all(&mut self, base_interp: &Interpreter) -> TestReport {
         let start_time = std::time::Instant::now();
-        
+
         for test in &self.tests {
             let result = self.run_single_test(&test.name, &test.body, base_interp);
             self.results.push(result);
@@ -12898,17 +13253,17 @@ impl TestRunner {
 
     fn run_single_test(&self, name: &str, body: &[Stmt], base_interp: &Interpreter) -> TestResult {
         let start_time = std::time::Instant::now();
-        
+
         // Create fresh interpreter for this test
         let mut test_interp = Interpreter::new();
-        
+
         // Copy environment from base interpreter (for imports, etc.)
         test_interp.env = base_interp.env.clone();
-        
+
         // Run setup if present
         if let Some(setup_stmts) = &self.setup {
             test_interp.eval_stmts(setup_stmts);
-            
+
             // Check for errors in setup
             if let Some(Value::Error(msg)) = &test_interp.return_value {
                 return TestResult {
@@ -12918,15 +13273,15 @@ impl TestRunner {
                     duration_ms: start_time.elapsed().as_millis(),
                 };
             }
-            
+
             // Clear return value after setup
             test_interp.return_value = None;
         }
-        
+
         // Run test body
         for stmt in body {
             test_interp.eval_stmt(stmt);
-            
+
             // Check if any statement returned an Error (failed assertion)
             if let Some(ref val) = test_interp.return_value {
                 match val {
@@ -12951,17 +13306,17 @@ impl TestRunner {
                     _ => {}
                 }
             }
-            
+
             // Clear return value for next statement
             test_interp.return_value = None;
         }
-        
+
         // Run teardown if present
         if let Some(teardown_stmts) = &self.teardown {
             test_interp.eval_stmts(teardown_stmts);
             // We don't fail the test if teardown fails, but we could log it
         }
-        
+
         let duration = start_time.elapsed();
         TestResult {
             name: name.to_string(),
@@ -12985,23 +13340,25 @@ impl TestReport {
     /// Print the test report to stdout
     pub fn print(&self, verbose: bool) {
         use colored::Colorize;
-        
+
         println!("\n{}", "=".repeat(60));
         println!("{}", "Test Results".bold());
         println!("{}", "=".repeat(60));
-        
+
         if verbose {
             for result in &self.results {
                 if result.passed {
-                    println!("  {} {} ({}ms)", 
-                        "✓".green().bold(), 
-                        result.name.green(), 
+                    println!(
+                        "  {} {} ({}ms)",
+                        "✓".green().bold(),
+                        result.name.green(),
                         result.duration_ms
                     );
                 } else {
-                    println!("  {} {} ({}ms)", 
-                        "✗".red().bold(), 
-                        result.name.red(), 
+                    println!(
+                        "  {} {} ({}ms)",
+                        "✗".red().bold(),
+                        result.name.red(),
                         result.duration_ms
                     );
                     if let Some(msg) = &result.message {
@@ -13011,25 +13368,29 @@ impl TestReport {
             }
             println!();
         }
-        
-        println!("Tests: {} total, {} passed, {} failed", 
-            self.total, 
-            self.passed.to_string().green().bold(), 
+
+        println!(
+            "Tests: {} total, {} passed, {} failed",
+            self.total,
+            self.passed.to_string().green().bold(),
             self.failed.to_string().red().bold()
         );
         println!("Time:  {}ms", self.duration_ms);
         println!("{}", "=".repeat(60));
-        
+
         if self.failed == 0 {
             println!("\n{}", "All tests passed! ✨".green().bold());
         } else {
             println!("\n{}", format!("{} test(s) failed", self.failed).red().bold());
         }
     }
-    
+
     /// Get exit code (0 for success, 1 for failure)
     pub fn exit_code(&self) -> i32 {
-        if self.failed == 0 { 0 } else { 1 }
+        if self.failed == 0 {
+            0
+        } else {
+            1
+        }
     }
 }
-

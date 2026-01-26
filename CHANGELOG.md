@@ -198,6 +198,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tests**: Comprehensive test suite in `tests/stdlib_os_path_test.ruff` with 52 tests covering all functions, error handling, integration scenarios, and edge cases
   - **Examples**: Detailed demonstration files:
     - `examples/stdlib_os.ruff` - 6 examples covering directory navigation, environment variables, workspace organization, configuration management, and temp directory handling
+
+  - **Network Module (TCP/UDP Sockets)** 🌐 - Complete socket programming support (P1 feature):
+    - **TCP Functions**:
+      - **`tcp_listen(host, port)`**: Create a TCP listener bound to address
+      - **`tcp_accept(listener)`**: Accept incoming TCP connection, returns TcpStream
+      - **`tcp_connect(host, port)`**: Connect to TCP server, returns TcpStream
+      - **`tcp_send(stream, data)`**: Send string or bytes over TCP connection
+      - **`tcp_receive(stream, size)`**: Receive up to size bytes from TCP connection
+      - **`tcp_close(stream_or_listener)`**: Close TCP stream or listener
+      - **`tcp_set_nonblocking(stream_or_listener, bool)`**: Configure non-blocking mode
+    - **UDP Functions**:
+      - **`udp_bind(host, port)`**: Create UDP socket bound to address
+      - **`udp_send_to(socket, data, host, port)`**: Send datagram to specified address
+      - **`udp_receive_from(socket, size)`**: Receive datagram, returns dict with `data`, `from`, and `size` fields
+      - **`udp_close(socket)`**: Close UDP socket
+    - **New Value Types**: TcpListener, TcpStream, UdpSocket
+    - **Binary Data Support**: Both TCP and UDP support string and binary (bytes) data
+    - **Error Handling**: ErrorObject for connection failures, bind errors, I/O errors
+    - **Use Cases**: Network servers, client applications, real-time communication, file transfer, game networking
+    - **Example - TCP Echo Server**:
+      ```ruff
+      listener := tcp_listen("127.0.0.1", 8080)
+      loop {
+          client := tcp_accept(listener)
+          tcp_send(client, "Welcome!\n")
+          
+          data := tcp_receive(client, 1024)
+          tcp_send(client, "Echo: ${data}")
+          tcp_close(client)
+      }
+      ```
+    - **Example - UDP Communication**:
+      ```ruff
+      # Server
+      server := udp_bind("127.0.0.1", 9000)
+      result := udp_receive_from(server, 1024)
+      print("Received: ${result["data"]} from ${result["from"]}")
+      
+      # Client
+      client := udp_bind("127.0.0.1", 9001)
+      udp_send_to(client, "Hello, Server!", "127.0.0.1", 9000)
+      ```
+    - **Helper Function**:
+      - **`bytes(array)`**: Convert array of integers (0-255) to bytes for binary data transmission
+    - **Tests**: Complete test suite in `tests/net_test.ruff` with 11 tests covering:
+      - TCP client-server communication
+      - UDP datagram transmission
+      - Binary data handling
+      - Socket configuration
+      - Type checking
+      - Error scenarios
+    - **Examples**: Three demonstration files showing real-world usage:
+      - `examples/tcp_echo_server.ruff` - Multi-client echo server with connection handling
+      - `examples/tcp_client.ruff` - TCP client connecting to echo server
+      - `examples/udp_echo.ruff` - UDP bidirectional communication example
+    - **Status**: Production-ready, all tests passing
+    - **Performance**: Uses Rust's std::net for efficient, non-blocking I/O
+    - **Roadmap Progress**: Completes network module milestone for v0.8.0
     - `examples/stdlib_path.ruff` - 9 examples demonstrating path joining, file inspection, extension extraction, filtering, absolute path resolution, file organization, and cross-platform handling
   - **Status**: Production-ready, all tests passing
   - **Roadmap Progress**: Completes second major milestone of v0.8.0 stdlib expansion

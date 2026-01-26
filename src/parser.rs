@@ -110,11 +110,11 @@ impl Parser {
                     if matches!(self.peek(), TokenKind::Operator(op) if op == ":=") {
                         self.advance(); // consume :=
                         let value = self.parse_expr()?;
-                        return Some(Stmt::Let { 
-                            pattern, 
-                            value, 
-                            mutable: false, 
-                            type_annotation: None 
+                        return Some(Stmt::Let {
+                            pattern,
+                            value,
+                            mutable: false,
+                            type_annotation: None,
                         });
                     }
                 }
@@ -239,14 +239,14 @@ impl Parser {
     /// Parse a destructuring pattern
     fn parse_pattern(&mut self) -> Option<crate::ast::Pattern> {
         use crate::ast::Pattern;
-        
+
         match self.peek() {
             // Array destructuring: [a, b, ...rest]
             TokenKind::Punctuation('[') => {
                 self.advance(); // [
                 let mut elements = Vec::new();
                 let mut rest = None;
-                
+
                 loop {
                     match self.peek() {
                         TokenKind::Punctuation(']') => {
@@ -276,7 +276,7 @@ impl Parser {
                             elements.push(pattern);
                         }
                     }
-                    
+
                     // Check for comma or closing bracket
                     match self.peek() {
                         TokenKind::Punctuation(',') => {
@@ -289,7 +289,7 @@ impl Parser {
                         _ => break,
                     }
                 }
-                
+
                 Some(Pattern::Array { elements, rest })
             }
             // Dict destructuring: {name, email, ...rest}
@@ -297,7 +297,7 @@ impl Parser {
                 self.advance(); // {
                 let mut keys = Vec::new();
                 let mut rest = None;
-                
+
                 loop {
                     match self.peek() {
                         TokenKind::Punctuation('}') => {
@@ -322,7 +322,7 @@ impl Parser {
                         }
                         _ => break,
                     }
-                    
+
                     // Check for comma or closing brace
                     match self.peek() {
                         TokenKind::Punctuation(',') => {
@@ -335,7 +335,7 @@ impl Parser {
                         _ => break,
                     }
                 }
-                
+
                 Some(Pattern::Dict { keys, rest })
             }
             // Ignore placeholder: _
@@ -525,9 +525,7 @@ impl Parser {
 
                     // Parse pattern which might be Base::Variant or Base::Variant(var)
                     let pat = match self.advance() {
-                        TokenKind::Identifier(s) => {
-                            s.clone()
-                        }
+                        TokenKind::Identifier(s) => s.clone(),
                         _tok => {
                             return None;
                         }
@@ -682,7 +680,7 @@ impl Parser {
 
     fn parse_test(&mut self) -> Option<Stmt> {
         self.advance(); // test
-        // Expect string literal for test name
+                        // Expect string literal for test name
         let name = match self.advance() {
             TokenKind::String(s) => s.clone(),
             _ => return None,
@@ -732,7 +730,7 @@ impl Parser {
 
     fn parse_test_group(&mut self) -> Option<Stmt> {
         self.advance(); // test_group
-        // Expect string literal for group name
+                        // Expect string literal for group name
         let name = match self.advance() {
             TokenKind::String(s) => s.clone(),
             _ => return None,
@@ -906,7 +904,10 @@ impl Parser {
         // Check for throw - still uses Tag since it's a control-flow primitive
         if let TokenKind::Identifier(name) = self.peek() {
             let name_clone = name.clone();
-            if name_clone.as_str() == "throw" && self.tokens.get(self.pos + 1).map(|t| &t.kind) == Some(&TokenKind::Punctuation('(')) {
+            if name_clone.as_str() == "throw"
+                && self.tokens.get(self.pos + 1).map(|t| &t.kind)
+                    == Some(&TokenKind::Punctuation('('))
+            {
                 self.advance(); // name
                 self.advance(); // (
                 let mut args = Vec::new();
@@ -1336,7 +1337,7 @@ impl Parser {
                 if let Some(expr) = self.parse_comparison() {
                     pairs.push(crate::ast::DictElement::Spread(expr));
                 }
-                
+
                 if matches!(self.peek(), TokenKind::Punctuation(',')) {
                     self.advance();
                 } else if !matches!(self.peek(), TokenKind::Punctuation('}')) {
@@ -1444,26 +1445,26 @@ impl Parser {
             }
             TokenKind::Keyword(k) if k == "Result" => {
                 self.advance(); // consume Result
-                // Expect Result<T, E> syntax
+                                // Expect Result<T, E> syntax
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
                     panic!("Expected '<' after Result");
                 }
                 self.advance(); // consume <
-                
+
                 let ok_type = self.parse_type_annotation_inner()?;
-                
+
                 if !matches!(self.peek(), TokenKind::Punctuation(',')) {
                     panic!("Expected ',' in Result<T, E> type");
                 }
                 self.advance(); // consume ,
-                
+
                 let err_type = self.parse_type_annotation_inner()?;
-                
+
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
                     panic!("Expected '>' to close Result type");
                 }
                 self.advance(); // consume >
-                
+
                 Some(TypeAnnotation::Result {
                     ok_type: Box::new(ok_type),
                     err_type: Box::new(err_type),
@@ -1471,22 +1472,20 @@ impl Parser {
             }
             TokenKind::Keyword(k) if k == "Option" => {
                 self.advance(); // consume Option
-                // Expect Option<T> syntax
+                                // Expect Option<T> syntax
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
                     panic!("Expected '<' after Option");
                 }
                 self.advance(); // consume <
-                
+
                 let inner_type = self.parse_type_annotation_inner()?;
-                
+
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
                     panic!("Expected '>' to close Option type");
                 }
                 self.advance(); // consume >
-                
-                Some(TypeAnnotation::Option {
-                    inner_type: Box::new(inner_type),
-                })
+
+                Some(TypeAnnotation::Option { inner_type: Box::new(inner_type) })
             }
             _ => {
                 // Invalid type, backtrack
@@ -1499,7 +1498,7 @@ impl Parser {
     /// Parse a type annotation without consuming a leading colon (used inside generics)
     fn parse_type_annotation_inner(&mut self) -> Option<crate::ast::TypeAnnotation> {
         use crate::ast::TypeAnnotation;
-        
+
         match self.peek() {
             TokenKind::Keyword(k) if k == "int" => {
                 self.advance();
@@ -1523,21 +1522,21 @@ impl Parser {
                     panic!("Expected '<' after Result");
                 }
                 self.advance();
-                
+
                 let ok_type = self.parse_type_annotation_inner()?;
-                
+
                 if !matches!(self.peek(), TokenKind::Punctuation(',')) {
                     panic!("Expected ',' in Result<T, E> type");
                 }
                 self.advance();
-                
+
                 let err_type = self.parse_type_annotation_inner()?;
-                
+
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
                     panic!("Expected '>' to close Result type");
                 }
                 self.advance();
-                
+
                 Some(TypeAnnotation::Result {
                     ok_type: Box::new(ok_type),
                     err_type: Box::new(err_type),
@@ -1549,17 +1548,15 @@ impl Parser {
                     panic!("Expected '<' after Option");
                 }
                 self.advance();
-                
+
                 let inner_type = self.parse_type_annotation_inner()?;
-                
+
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
                     panic!("Expected '>' to close Option type");
                 }
                 self.advance();
-                
-                Some(TypeAnnotation::Option {
-                    inner_type: Box::new(inner_type),
-                })
+
+                Some(TypeAnnotation::Option { inner_type: Box::new(inner_type) })
             }
             _ => None,
         }

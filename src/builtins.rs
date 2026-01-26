@@ -122,11 +122,11 @@ pub fn range(args: &[Value]) -> Result<Vec<Value>, String> {
                 Value::Float(f) => *f as i64,
                 _ => return Err("range() requires numeric arguments".to_string()),
             };
-            
+
             if stop < 0 {
                 return Ok(vec![]);
             }
-            
+
             Ok((0..stop).map(Value::Int).collect())
         }
         2 => {
@@ -141,11 +141,11 @@ pub fn range(args: &[Value]) -> Result<Vec<Value>, String> {
                 Value::Float(f) => *f as i64,
                 _ => return Err("range() requires numeric arguments".to_string()),
             };
-            
+
             if start >= stop {
                 return Ok(vec![]);
             }
-            
+
             Ok((start..stop).map(Value::Int).collect())
         }
         3 => {
@@ -165,11 +165,11 @@ pub fn range(args: &[Value]) -> Result<Vec<Value>, String> {
                 Value::Float(f) => *f as i64,
                 _ => return Err("range() requires numeric arguments".to_string()),
             };
-            
+
             if step == 0 {
                 return Err("range() step cannot be zero".to_string());
             }
-            
+
             let mut result = Vec::new();
             if step > 0 {
                 let mut current = start;
@@ -184,7 +184,7 @@ pub fn range(args: &[Value]) -> Result<Vec<Value>, String> {
                     current += step;
                 }
             }
-            
+
             Ok(result)
         }
         _ => Err("range() requires 1, 2, or 3 arguments".to_string()),
@@ -292,11 +292,11 @@ pub fn str_pad_left(s: &str, width: i64, pad_char: &str) -> String {
     let pad_char = pad_char.chars().next().unwrap_or(' ');
     let current_len = s.chars().count();
     let target_width = width as usize;
-    
+
     if current_len >= target_width {
         return s.to_string();
     }
-    
+
     let pad_count = target_width - current_len;
     format!("{}{}", pad_char.to_string().repeat(pad_count), s)
 }
@@ -306,11 +306,11 @@ pub fn str_pad_right(s: &str, width: i64, pad_char: &str) -> String {
     let pad_char = pad_char.chars().next().unwrap_or(' ');
     let current_len = s.chars().count();
     let target_width = width as usize;
-    
+
     if current_len >= target_width {
         return s.to_string();
     }
-    
+
     let pad_count = target_width - current_len;
     format!("{}{}", s, pad_char.to_string().repeat(pad_count))
 }
@@ -340,7 +340,7 @@ pub fn str_slugify(s: &str) -> String {
             } else if c.is_whitespace() || c == '_' {
                 '-'
             } else {
-                ' '  // Will be filtered out
+                ' ' // Will be filtered out
             }
         })
         .collect::<String>()
@@ -356,26 +356,27 @@ pub fn str_slugify(s: &str) -> String {
 pub fn str_truncate(s: &str, max_len: i64, suffix: &str) -> String {
     let len = s.chars().count();
     let max_len = max_len as usize;
-    
+
     if len <= max_len {
         return s.to_string();
     }
-    
+
     let suffix_len = suffix.chars().count();
     let truncate_at = max_len.saturating_sub(suffix_len);
-    
+
     let truncated: String = s.chars().take(truncate_at).collect();
     format!("{}{}", truncated, suffix)
 }
 
 /// Convert string to camelCase
 pub fn str_to_camel_case(s: &str) -> String {
-    let words: Vec<&str> = s.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
-    
+    let words: Vec<&str> =
+        s.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+
     if words.is_empty() {
         return String::new();
     }
-    
+
     let mut result = words[0].to_lowercase();
     for word in &words[1..] {
         let mut chars = word.chars();
@@ -384,7 +385,7 @@ pub fn str_to_camel_case(s: &str) -> String {
             result.push_str(&chars.as_str().to_lowercase());
         }
     }
-    
+
     result
 }
 
@@ -392,7 +393,7 @@ pub fn str_to_camel_case(s: &str) -> String {
 pub fn str_to_snake_case(s: &str) -> String {
     let mut result = String::new();
     let mut prev_was_upper = false;
-    
+
     for (i, c) in s.chars().enumerate() {
         if c.is_uppercase() {
             if i > 0 && !prev_was_upper {
@@ -413,7 +414,7 @@ pub fn str_to_snake_case(s: &str) -> String {
             prev_was_upper = false;
         }
     }
-    
+
     result.trim_matches('_').to_string()
 }
 
@@ -429,7 +430,7 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
     let mut result = String::new();
     let mut arg_index = 0;
     let mut chars = template.chars().peekable();
-    
+
     while let Some(ch) = chars.next() {
         if ch == '%' {
             if let Some(&next_ch) = chars.peek() {
@@ -439,11 +440,14 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
                     chars.next();
                 } else if next_ch == 's' || next_ch == 'd' || next_ch == 'f' {
                     chars.next();
-                    
+
                     if arg_index >= args.len() {
-                        return Err(format!("format() missing argument for placeholder %{}", next_ch));
+                        return Err(format!(
+                            "format() missing argument for placeholder %{}",
+                            next_ch
+                        ));
                     }
-                    
+
                     let formatted = match next_ch {
                         's' => {
                             // %s - string
@@ -464,7 +468,12 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
                                 Value::Int(n) => n.to_string(),
                                 Value::Float(f) => (*f as i64).to_string(),
                                 Value::Bool(b) => if *b { "1" } else { "0" }.to_string(),
-                                _ => return Err(format!("format() %d requires numeric argument, got {:?}", args[arg_index])),
+                                _ => {
+                                    return Err(format!(
+                                        "format() %d requires numeric argument, got {:?}",
+                                        args[arg_index]
+                                    ))
+                                }
                             }
                         }
                         'f' => {
@@ -472,12 +481,17 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
                             match &args[arg_index] {
                                 Value::Float(f) => f.to_string(),
                                 Value::Int(n) => (*n as f64).to_string(),
-                                _ => return Err(format!("format() %f requires numeric argument, got {:?}", args[arg_index])),
+                                _ => {
+                                    return Err(format!(
+                                        "format() %f requires numeric argument, got {:?}",
+                                        args[arg_index]
+                                    ))
+                                }
                             }
                         }
                         _ => unreachable!(),
                     };
-                    
+
                     result.push_str(&formatted);
                     arg_index += 1;
                 } else {
@@ -490,7 +504,7 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
             result.push(ch);
         }
     }
-    
+
     Ok(result)
 }
 
@@ -937,8 +951,9 @@ pub fn env_or(var_name: &str, default: &str) -> String {
 /// Get environment variable and parse as integer
 pub fn env_int(var_name: &str) -> Result<i64, String> {
     match env::var(var_name) {
-        Ok(val) => val.parse::<i64>()
-            .map_err(|_| format!("Environment variable '{}' value '{}' is not a valid integer", var_name, val)),
+        Ok(val) => val.parse::<i64>().map_err(|_| {
+            format!("Environment variable '{}' value '{}' is not a valid integer", var_name, val)
+        }),
         Err(_) => Err(format!("Environment variable '{}' not found", var_name)),
     }
 }
@@ -946,8 +961,9 @@ pub fn env_int(var_name: &str) -> Result<i64, String> {
 /// Get environment variable and parse as float
 pub fn env_float(var_name: &str) -> Result<f64, String> {
     match env::var(var_name) {
-        Ok(val) => val.parse::<f64>()
-            .map_err(|_| format!("Environment variable '{}' value '{}' is not a valid float", var_name, val)),
+        Ok(val) => val.parse::<f64>().map_err(|_| {
+            format!("Environment variable '{}' value '{}' is not a valid float", var_name, val)
+        }),
         Err(_) => Err(format!("Environment variable '{}' not found", var_name)),
     }
 }
@@ -988,16 +1004,16 @@ pub fn get_args() -> Vec<String> {
     if let Ok(args_str) = env::var("RUFF_SCRIPT_ARGS") {
         return args_str.split('\x1f').map(String::from).collect();
     }
-    
+
     let all_args: Vec<String> = env::args().collect();
-    
+
     // Filter out the ruff executable, subcommand, and script file
     // Example: ["ruff", "run", "script.ruff", "arg1", "arg2"] -> ["arg1", "arg2"]
     // Example: ["ruff", "script.ruff", "arg1"] -> ["arg1"]
-    
+
     // Skip executable name
     let mut iter = all_args.iter().skip(1);
-    
+
     // Check for subcommand (run, repl, etc.)
     if let Some(first) = iter.next() {
         if first == "run" || first == "check" || first == "format" {
@@ -1097,11 +1113,15 @@ pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
 pub fn array_insert(arr: Vec<Value>, index: i64, item: Value) -> Result<Vec<Value>, String> {
     let idx = index as usize;
     let mut new_arr = arr;
-    
+
     if idx > new_arr.len() {
-        return Err(format!("insert() index {} out of bounds for array of length {}", idx, new_arr.len()));
+        return Err(format!(
+            "insert() index {} out of bounds for array of length {}",
+            idx,
+            new_arr.len()
+        ));
     }
-    
+
     new_arr.insert(idx, item);
     Ok(new_arr)
 }
@@ -1110,17 +1130,15 @@ pub fn array_insert(arr: Vec<Value>, index: i64, item: Value) -> Result<Vec<Valu
 pub fn array_remove(arr: Vec<Value>, item: &Value) -> Vec<Value> {
     let mut new_arr = arr;
     // Find position manually since Value doesn't implement PartialEq
-    let pos = new_arr.iter().position(|x| {
-        match (x, item) {
-            (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::Str(a), Value::Str(b)) => a == b,
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Null, Value::Null) => true,
-            _ => false,
-        }
+    let pos = new_arr.iter().position(|x| match (x, item) {
+        (Value::Int(a), Value::Int(b)) => a == b,
+        (Value::Float(a), Value::Float(b)) => a == b,
+        (Value::Str(a), Value::Str(b)) => a == b,
+        (Value::Bool(a), Value::Bool(b)) => a == b,
+        (Value::Null, Value::Null) => true,
+        _ => false,
     });
-    
+
     if let Some(idx) = pos {
         new_arr.remove(idx);
     }
@@ -1131,11 +1149,15 @@ pub fn array_remove(arr: Vec<Value>, item: &Value) -> Vec<Value> {
 pub fn array_remove_at(arr: Vec<Value>, index: i64) -> Result<(Vec<Value>, Value), String> {
     let idx = index as usize;
     let mut new_arr = arr;
-    
+
     if idx >= new_arr.len() {
-        return Err(format!("remove_at() index {} out of bounds for array of length {}", idx, new_arr.len()));
+        return Err(format!(
+            "remove_at() index {} out of bounds for array of length {}",
+            idx,
+            new_arr.len()
+        ));
     }
-    
+
     let removed = new_arr.remove(idx);
     Ok((new_arr, removed))
 }
@@ -1147,31 +1169,27 @@ pub fn array_clear() -> Vec<Value> {
 
 /// Find the index of the first occurrence of an item
 pub fn array_index_of(arr: &[Value], item: &Value) -> i64 {
-    let pos = arr.iter().position(|x| {
-        match (x, item) {
-            (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::Str(a), Value::Str(b)) => a == b,
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Null, Value::Null) => true,
-            _ => false,
-        }
+    let pos = arr.iter().position(|x| match (x, item) {
+        (Value::Int(a), Value::Int(b)) => a == b,
+        (Value::Float(a), Value::Float(b)) => a == b,
+        (Value::Str(a), Value::Str(b)) => a == b,
+        (Value::Bool(a), Value::Bool(b)) => a == b,
+        (Value::Null, Value::Null) => true,
+        _ => false,
     });
-    
+
     pos.map(|i| i as i64).unwrap_or(-1)
 }
 
 /// Check if an array contains an item
 pub fn array_contains(arr: &[Value], item: &Value) -> bool {
-    arr.iter().any(|x| {
-        match (x, item) {
-            (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::Str(a), Value::Str(b)) => a == b,
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Null, Value::Null) => true,
-            _ => false,
-        }
+    arr.iter().any(|x| match (x, item) {
+        (Value::Int(a), Value::Int(b)) => a == b,
+        (Value::Float(a), Value::Float(b)) => a == b,
+        (Value::Str(a), Value::Str(b)) => a == b,
+        (Value::Bool(a), Value::Bool(b)) => a == b,
+        (Value::Null, Value::Null) => true,
+        _ => false,
     })
 }
 
@@ -1182,13 +1200,10 @@ pub fn array_chunk(arr: &[Value], chunk_size: i64) -> Vec<Value> {
     if chunk_size <= 0 {
         return vec![Value::Array(arr.to_vec())];
     }
-    
+
     let size = chunk_size as usize;
-    let chunks: Vec<Value> = arr
-        .chunks(size)
-        .map(|chunk| Value::Array(chunk.to_vec()))
-        .collect();
-    
+    let chunks: Vec<Value> = arr.chunks(size).map(|chunk| Value::Array(chunk.to_vec())).collect();
+
     chunks
 }
 
@@ -1196,24 +1211,21 @@ pub fn array_chunk(arr: &[Value], chunk_size: i64) -> Vec<Value> {
 /// [[1,2], [3,4]] → [1,2,3,4]
 pub fn array_flatten(arr: &[Value]) -> Vec<Value> {
     let mut result = Vec::new();
-    
+
     for item in arr {
         match item {
             Value::Array(inner) => result.extend(inner.clone()),
             other => result.push(other.clone()),
         }
     }
-    
+
     result
 }
 
 /// Zip two arrays together into array of pairs
 /// [1,2,3].zip([4,5,6]) → [[1,4], [2,5], [3,6]]
 pub fn array_zip(arr1: &[Value], arr2: &[Value]) -> Vec<Value> {
-    arr1.iter()
-        .zip(arr2.iter())
-        .map(|(a, b)| Value::Array(vec![a.clone(), b.clone()]))
-        .collect()
+    arr1.iter().zip(arr2.iter()).map(|(a, b)| Value::Array(vec![a.clone(), b.clone()])).collect()
 }
 
 /// Add index to each element
@@ -1230,7 +1242,7 @@ pub fn array_take(arr: &[Value], n: i64) -> Vec<Value> {
     if n <= 0 {
         return Vec::new();
     }
-    
+
     let count = (n as usize).min(arr.len());
     arr[..count].to_vec()
 }
@@ -1240,7 +1252,7 @@ pub fn array_skip(arr: &[Value], n: i64) -> Vec<Value> {
     if n <= 0 {
         return arr.to_vec();
     }
-    
+
     let skip_count = (n as usize).min(arr.len());
     arr[skip_count..].to_vec()
 }
@@ -1251,11 +1263,9 @@ pub fn array_windows(arr: &[Value], window_size: i64) -> Vec<Value> {
     if window_size <= 0 || arr.len() < window_size as usize {
         return Vec::new();
     }
-    
+
     let size = window_size as usize;
-    arr.windows(size)
-        .map(|window| Value::Array(window.to_vec()))
-        .collect()
+    arr.windows(size).map(|window| Value::Array(window.to_vec())).collect()
 }
 
 /// Advanced dict methods
@@ -1263,18 +1273,18 @@ pub fn array_windows(arr: &[Value], window_size: i64) -> Vec<Value> {
 /// Keys must convert to valid dict keys
 pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
     let mut result = HashMap::new();
-    
+
     for (key, value) in dict {
         let new_key = match value {
             Value::Str(s) => s.clone(),
             Value::Int(n) => n.to_string(),
             Value::Float(n) => n.to_string(),
             Value::Bool(b) => b.to_string(),
-            _ => continue,  // Skip non-primitive values
+            _ => continue, // Skip non-primitive values
         };
         result.insert(new_key, Value::Str(key.clone()));
     }
-    
+
     result
 }
 
@@ -1559,10 +1569,8 @@ pub fn format_debug_value(value: &Value) -> String {
             format!("Array[{}]", items.join(", "))
         }
         Value::Dict(dict) => {
-            let items: Vec<String> = dict
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_debug_value(v)))
-                .collect();
+            let items: Vec<String> =
+                dict.iter().map(|(k, v)| format!("{}: {}", k, format_debug_value(v))).collect();
             format!("Dict{{{}}}", items.join(", "))
         }
         Value::Function(_, _, _) => "Function".to_string(),
@@ -1575,10 +1583,8 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::Struct { name, .. } => format!("Struct({})", name),
         Value::StructDef { name, .. } => format!("StructDef({})", name),
         Value::Tagged { tag, fields } => {
-            let items: Vec<String> = fields
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_debug_value(v)))
-                .collect();
+            let items: Vec<String> =
+                fields.iter().map(|(k, v)| format!("{}: {}", k, format_debug_value(v))).collect();
             format!("{}{{ {} }}", tag, items.join(", "))
         }
         Value::Bytes(bytes) => format!("Bytes({} bytes)", bytes.len()),
@@ -1629,9 +1635,9 @@ pub fn format_debug_value(value: &Value) -> String {
 /// Represents an argument definition
 #[derive(Debug, Clone)]
 pub struct ArgumentDef {
-    pub long_name: String,        // e.g., "--verbose"
+    pub long_name: String,          // e.g., "--verbose"
     pub short_name: Option<String>, // e.g., "-v"
-    pub arg_type: String,         // "bool", "string", "int", "float"
+    pub arg_type: String,           // "bool", "string", "int", "float"
     pub required: bool,
     pub help: String,
     pub default: Option<String>,
@@ -1677,10 +1683,7 @@ pub fn parse_arguments(
                                 i += 1;
                                 result.insert(key, Value::Str(args[i].clone()));
                             } else {
-                                return Err(format!(
-                                    "Argument {} requires a value",
-                                    def.long_name
-                                ));
+                                return Err(format!("Argument {} requires a value", def.long_name));
                             }
                         }
                         "int" => {
@@ -1699,10 +1702,7 @@ pub fn parse_arguments(
                                     }
                                 }
                             } else {
-                                return Err(format!(
-                                    "Argument {} requires a value",
-                                    def.long_name
-                                ));
+                                return Err(format!("Argument {} requires a value", def.long_name));
                             }
                         }
                         "float" => {
@@ -1721,10 +1721,7 @@ pub fn parse_arguments(
                                     }
                                 }
                             } else {
-                                return Err(format!(
-                                    "Argument {} requires a value",
-                                    def.long_name
-                                ));
+                                return Err(format!("Argument {} requires a value", def.long_name));
                             }
                         }
                         _ => {

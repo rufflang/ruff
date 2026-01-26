@@ -40,11 +40,11 @@ enum Commands {
     Run {
         /// Path to the .ruff file
         file: PathBuf,
-        
+
         /// Use bytecode VM instead of tree-walking interpreter
         #[arg(long)]
         vm: bool,
-        
+
         /// Arguments to pass to the script
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         script_args: Vec<String>,
@@ -64,7 +64,7 @@ enum Commands {
     TestRun {
         /// Path to the .ruff file containing tests
         file: PathBuf,
-        
+
         /// Print detailed output for each test
         #[arg(short, long)]
         verbose: bool,
@@ -82,19 +82,20 @@ fn main() {
                 // Create a modified args list: [script_name, ...script_args]
                 let mut full_args: Vec<String> = std::env::args().take(3).collect(); // ruff, run, script_name
                 full_args.extend(script_args);
-                
+
                 // Clear current args and set new ones
                 // Note: This is a workaround since we can't directly modify env::args()
                 // Instead, we'll pass these to the interpreter through the environment
-                std::env::set_var("RUFF_SCRIPT_ARGS", full_args[3..].join("\x1f")); // Use unit separator
+                std::env::set_var("RUFF_SCRIPT_ARGS", full_args[3..].join("\x1f"));
+                // Use unit separator
             }
-            
+
             let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
             let filename = file.to_string_lossy().to_string();
             let tokens = lexer::tokenize(&code);
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
-            
+
             // Debug: print AST for inspection
             if vm && std::env::var("DEBUG_AST").is_ok() {
                 eprintln!("DEBUG AST: {:#?}", stmts);
@@ -102,31 +103,31 @@ fn main() {
 
             if vm {
                 // Use bytecode compiler and VM
-                use std::rc::Rc;
                 use std::cell::RefCell;
-                
+                use std::rc::Rc;
+
                 let mut compiler = compiler::Compiler::new();
                 match compiler.compile(&stmts) {
                     Ok(chunk) => {
                         let mut vm = vm::VM::new();
-                        
+
                         // Set up global environment with built-in functions
                         // We need to populate it with NativeFunction values for all built-ins
                         let env = Rc::new(RefCell::new(interpreter::Environment::new()));
-                        
+
                         // Register all built-in functions as NativeFunction values
                         // Get the complete list from the interpreter
                         let builtins = interpreter::Interpreter::get_builtin_names();
-                        
+
                         for builtin_name in builtins {
                             env.borrow_mut().set(
                                 builtin_name.to_string(),
-                                interpreter::Value::NativeFunction(builtin_name.to_string())
+                                interpreter::Value::NativeFunction(builtin_name.to_string()),
                             );
                         }
-                        
+
                         vm.set_globals(env);
-                        
+
                         match vm.execute(chunk) {
                             Ok(_result) => {
                                 // Success - program executed
@@ -185,25 +186,25 @@ fn main() {
             let tokens = lexer::tokenize(&code);
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
-            
+
             // Create base interpreter with standard library loaded
             let base_interp = interpreter::Interpreter::new();
-            
+
             // Create test runner and collect tests
             let mut runner = interpreter::TestRunner::new();
             runner.collect_tests(&stmts);
-            
+
             if runner.tests.is_empty() {
                 println!("No tests found in {}", file.display());
                 std::process::exit(1);
             }
-            
+
             // Run all tests
             let report = runner.run_all(&base_interp);
-            
+
             // Print results
             report.print(verbose);
-            
+
             // Exit with appropriate code
             std::process::exit(report.exit_code());
         }

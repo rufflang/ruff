@@ -479,7 +479,11 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                         });
                     } else {
                         // Two dots (..) - treat as two separate dots for now
-                        tokens.push(Token { kind: TokenKind::Punctuation('.'), line, column: col - 1 });
+                        tokens.push(Token {
+                            kind: TokenKind::Punctuation('.'),
+                            line,
+                            column: col - 1,
+                        });
                         tokens.push(Token { kind: TokenKind::Punctuation('.'), line, column: col });
                     }
                 } else {

@@ -82,10 +82,10 @@ pub struct RuffError {
 #[allow(dead_code)]
 impl RuffError {
     pub fn new(kind: ErrorKind, message: String, location: SourceLocation) -> Self {
-        Self { 
-            kind, 
-            message, 
-            location, 
+        Self {
+            kind,
+            message,
+            location,
             source_line: None,
             suggestion: None,
             help: None,
@@ -177,11 +177,21 @@ impl fmt::Display for RuffError {
 
         // Additional context sections
         if let Some(ref help) = self.help {
-            writeln!(f, "   {} {}", "=".bright_yellow(), format!("help: {}", help).bright_yellow())?;
+            writeln!(
+                f,
+                "   {} {}",
+                "=".bright_yellow(),
+                format!("help: {}", help).bright_yellow()
+            )?;
         }
 
         if let Some(ref suggestion) = self.suggestion {
-            writeln!(f, "   {} {}", "=".bright_green(), format!("Did you mean '{}'?", suggestion).bright_green())?;
+            writeln!(
+                f,
+                "   {} {}",
+                "=".bright_green(),
+                format!("Did you mean '{}'?", suggestion).bright_green()
+            )?;
         }
 
         if let Some(ref note) = self.note {
@@ -224,10 +234,10 @@ pub fn levenshtein_distance(s1: &str, s2: &str) -> usize {
             let cost = if s1_chars[i - 1] == s2_chars[j - 1] { 0 } else { 1 };
             matrix[i][j] = std::cmp::min(
                 std::cmp::min(
-                    matrix[i - 1][j] + 1,      // deletion
-                    matrix[i][j - 1] + 1,      // insertion
+                    matrix[i - 1][j] + 1, // deletion
+                    matrix[i][j - 1] + 1, // insertion
                 ),
-                matrix[i - 1][j - 1] + cost,   // substitution
+                matrix[i - 1][j - 1] + cost, // substitution
             );
         }
     }
@@ -247,7 +257,7 @@ pub fn find_closest_match<'a>(target: &str, candidates: &'a [String]) -> Option<
 
     for candidate in candidates {
         let distance = levenshtein_distance(target, candidate);
-        
+
         // Only consider reasonably close matches (distance <= 3)
         // and prefer shorter distances
         if distance <= 3 && distance < best_distance {

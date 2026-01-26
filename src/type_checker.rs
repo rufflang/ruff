@@ -524,7 +524,7 @@ impl TypeChecker {
             "chunk".to_string(),
             FunctionSignature {
                 param_types: vec![None, Some(TypeAnnotation::Int)], // Array and size
-                return_type: None,                                   // Returns array of arrays
+                return_type: None,                                  // Returns array of arrays
             },
         );
 
@@ -556,7 +556,7 @@ impl TypeChecker {
             "take".to_string(),
             FunctionSignature {
                 param_types: vec![None, Some(TypeAnnotation::Int)], // Array and count
-                return_type: None,                                   // Returns sub-array
+                return_type: None,                                  // Returns sub-array
             },
         );
 
@@ -564,7 +564,7 @@ impl TypeChecker {
             "skip".to_string(),
             FunctionSignature {
                 param_types: vec![None, Some(TypeAnnotation::Int)], // Array and count
-                return_type: None,                                   // Returns sub-array
+                return_type: None,                                  // Returns sub-array
             },
         );
 
@@ -572,7 +572,7 @@ impl TypeChecker {
             "windows".to_string(),
             FunctionSignature {
                 param_types: vec![None, Some(TypeAnnotation::Int)], // Array and window size
-                return_type: None,                                   // Returns array of arrays
+                return_type: None,                                  // Returns array of arrays
             },
         );
 
@@ -778,7 +778,16 @@ impl TypeChecker {
             },
         );
 
-        for name in &["is_int", "is_float", "is_string", "is_array", "is_dict", "is_bool", "is_null", "is_function"] {
+        for name in &[
+            "is_int",
+            "is_float",
+            "is_string",
+            "is_array",
+            "is_dict",
+            "is_bool",
+            "is_null",
+            "is_function",
+        ] {
             self.functions.insert(
                 name.to_string(),
                 FunctionSignature {
@@ -1523,7 +1532,7 @@ impl TypeChecker {
                                     SourceLocation::unknown(),
                                 )
                                 .with_help("Try removing the type annotation or converting the value to the correct type".to_string());
-                                
+
                                 self.errors.push(error);
                             }
                         }
@@ -1554,7 +1563,7 @@ impl TypeChecker {
                                 SourceLocation::unknown(),
                             )
                             .with_help("Constants must be initialized with a value matching their declared type".to_string());
-                            
+
                             self.errors.push(error);
                         }
                     }
@@ -1605,7 +1614,7 @@ impl TypeChecker {
                             )
                             .with_help("Make sure the return value matches the function's declared return type".to_string())
                             .with_note(format!("Function expects to return {:?}", expected));
-                            
+
                             self.errors.push(error);
                         }
                     }
@@ -1664,8 +1673,7 @@ impl TypeChecker {
                 self.pop_scope();
             }
 
-            Stmt::Test { body, .. } | Stmt::TestSetup { body } | 
-            Stmt::TestTeardown { body } => {
+            Stmt::Test { body, .. } | Stmt::TestSetup { body } | Stmt::TestTeardown { body } => {
                 // Check test body in a new scope
                 self.push_scope();
                 for s in body {
@@ -1728,7 +1736,7 @@ impl TypeChecker {
                                     )
                                     .with_help("Try converting the value with to_int(), to_float(), to_string(), or to_bool()".to_string())
                                     .with_note(format!("Variable '{}' was declared with type {:?}", name, expected));
-                                    
+
                                     self.errors.push(error);
                                 }
                             }
@@ -1857,7 +1865,7 @@ impl TypeChecker {
                                 )
                                 .with_help("Convert one value to match the type of the other".to_string())
                                 .with_note("Comparison operators require both operands to have compatible types".to_string());
-                                
+
                                 self.errors.push(error);
                             }
                         }
@@ -1910,7 +1918,7 @@ impl TypeChecker {
                     if let Some(sig) = sig {
                         // Skip type checking for variadic functions (empty param_types means variadic)
                         let is_variadic = sig.param_types.is_empty();
-                        
+
                         if !is_variadic {
                             // Check argument count - allow fewer args than params if trailing params are optional (None)
                             let min_required =
@@ -1957,20 +1965,22 @@ impl TypeChecker {
                     } else {
                         // Function not found - suggest similar functions
                         let available_functions = self.get_available_functions();
-                        let suggestion = crate::errors::find_closest_match(func_name, &available_functions);
-                        
+                        let suggestion =
+                            crate::errors::find_closest_match(func_name, &available_functions);
+
                         let mut error = RuffError::new(
                             ErrorKind::UndefinedFunction,
                             format!("Undefined function '{}'", func_name),
                             SourceLocation::unknown(),
                         );
-                        
+
                         if let Some(suggested) = suggestion {
                             error = error.with_suggestion(suggested.to_string());
                         }
-                        
-                        error = error.with_note("Function must be defined before it is called".to_string());
-                        
+
+                        error = error
+                            .with_note("Function must be defined before it is called".to_string());
+
                         self.errors.push(error);
                     }
                 }
@@ -2079,16 +2089,12 @@ impl TypeChecker {
 
             Expr::Some(value_expr) => {
                 let value_type = self.infer_expr(value_expr);
-                value_type.map(|t| TypeAnnotation::Option {
-                    inner_type: Box::new(t),
-                })
+                value_type.map(|t| TypeAnnotation::Option { inner_type: Box::new(t) })
             }
 
             Expr::None => {
                 // Option<Any> - we don't know the inner type without more context
-                Some(TypeAnnotation::Option {
-                    inner_type: Box::new(TypeAnnotation::Any),
-                })
+                Some(TypeAnnotation::Option { inner_type: Box::new(TypeAnnotation::Any) })
             }
 
             Expr::Try(expr) => {
