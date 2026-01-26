@@ -2,7 +2,7 @@
 
 **Ruff** is a purpose-built, correctness-first execution language designed for tooling, automation, and AI-assisted development.
 
-> **Status**: v0.8.0-dev (In Development) - Performance improvements and standard library expansion! Previous: v0.7.0 (Released January 2026) - **Core Language Complete!** 🎉
+> **Status**: v0.8.0 (Released January 2026) - **Async/Await & Modern Concurrency!** ⚡ Previous: v0.7.0 (January 2026) - Core Language Complete
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -11,6 +11,39 @@
 ## Project Status
 
 ### Recently Completed in v0.8.0 ✅
+
+* **Async/Await** ⚡
+  - Full asynchronous programming with Promise-based concurrency
+  - Async function syntax: `async func name() { ... }`
+  - Await expression: `result := await promise`
+  - Thread-based execution for true concurrency
+  - Example:
+    ```ruff
+    # Async function declaration
+    async func fetch_user(id) {
+        let data := simulate_api_call(id)
+        return {"id": id, "name": "User ${id}", "data": data}
+    }
+    
+    # Call async function and await result
+    let promise := fetch_user(42)
+    let user := await promise
+    print("Got user: ${user.name}")
+    
+    # Concurrent execution - start multiple async operations
+    let p1 := fetch_user(1)
+    let p2 := fetch_user(2)
+    let p3 := fetch_user(3)
+    
+    # Wait for all results
+    let u1 := await p1
+    let u2 := await p2
+    let u3 := await p3
+    print("Fetched ${u1.name}, ${u2.name}, ${u3.name}")
+    ```
+  - Thread-safe architecture: Complete Arc<Mutex<>> refactor throughout codebase
+  - Compatible with existing concurrency features (spawn blocks, channels)
+  - See `examples/async_comprehensive_demo.ruff` for 27 test scenarios
 
 * **Iterators & Method Chaining** 🔄
   - Lazy evaluation with iterator methods: `.filter()`, `.map()`, `.take()`, `.collect()`
