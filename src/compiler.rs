@@ -683,6 +683,11 @@ impl Compiler {
                 Err("Generators and yield expressions are not yet supported in bytecode mode. Use interpreter mode instead.".to_string())
             }
 
+            Expr::Await(_promise_expr) => {
+                // Await expressions are not yet supported in bytecode compiler
+                Err("Async/await is not yet supported in bytecode mode. Use interpreter mode instead.".to_string())
+            }
+
             Expr::MethodCall { .. } => {
                 // Method calls (iterator chaining) are not yet supported in bytecode compiler
                 Err("Method calls and iterator chaining are not yet supported in bytecode mode. Use interpreter mode instead.".to_string())

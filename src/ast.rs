@@ -146,6 +146,7 @@ pub enum Expr {
         return_type: Option<TypeAnnotation>,
         body: Vec<Stmt>,
         is_generator: bool, // true if func* syntax
+        is_async: bool,     // true if async func syntax
     },
     UnaryOp {
         op: String,
@@ -197,6 +198,9 @@ pub enum Expr {
     /// Yield expression: yield value
     /// Used in generator functions to yield values
     Yield(Option<Box<Expr>>),
+    /// Await expression: await promise
+    /// Used in async functions to wait for promises
+    Await(Box<Expr>),
     /// Method call on expression: expr.method(args)
     /// Used for iterator chaining: range(10).filter(...).map(...)
     MethodCall {
@@ -253,6 +257,7 @@ pub enum Stmt {
         name: String,
         params: Vec<String>,
         param_types: Vec<Option<TypeAnnotation>>,
+        is_async: bool,     // true if async func syntax
         return_type: Option<TypeAnnotation>,
         body: Vec<Stmt>,
         is_generator: bool, // true if func* syntax
