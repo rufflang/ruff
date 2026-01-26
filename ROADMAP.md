@@ -40,12 +40,12 @@ This roadmap outlines planned features and improvements for future versions of t
 - ✅ **Process Management**: `spawn_process`, `pipe_commands` for system automation
 - ✅ **OS Module**: `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ` for operating system interaction
 - ✅ **Path Module**: `path_join`, `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension` for path manipulation
-- ✅ **Tests**: Comprehensive test suites in `tests/stdlib_test.ruff` and `tests/stdlib_os_path_test.ruff` (52 additional tests)
-- ✅ **Examples**: Five detailed example files demonstrating real-world usage
+- ✅ **IO Module**: `io_read_bytes`, `io_write_bytes`, `io_append_bytes`, `io_read_at`, `io_write_at`, `io_seek_read`, `io_file_metadata`, `io_truncate`, `io_copy_range` for advanced binary I/O
+- ✅ **Tests**: Comprehensive test suites in `tests/stdlib_test.ruff`, `tests/stdlib_os_path_test.ruff`, and `tests/stdlib_io_test.ruff` (109 total tests)
+- ✅ **Examples**: Eight detailed example files demonstrating real-world usage
 - ✅ **Documentation**: CHANGELOG updated with full API documentation for all modules
 
 **Remaining Core Modules** (Next Priority):
-- `io` - Buffered I/O and binary operations - **PLANNED**
 - `net` - TCP/UDP sockets beyond HTTP - **PLANNED**
 - `crypto` - Encryption (AES, RSA) beyond hashing - **PLANNED**
 
@@ -91,6 +91,17 @@ abs_path := path_absolute("../file.txt")  # Get absolute path
 is_dir := path_is_dir("folder")  # Check if directory
 is_file := path_is_file("data.txt")  # Check if file
 ext := path_extension("document.pdf")  # Get extension: "pdf"
+
+# IO Module - Advanced Binary I/O ✅
+header := io_read_bytes("image.png", 8)  # Read first 8 bytes
+io_write_at("config.bin", new_data, 22)  # Patch at offset 22
+io_copy_range("large.dat", "section.dat", 1000, 500)  # Extract range
+
+meta := io_file_metadata("file.pdf")  # Get comprehensive info
+print(meta["size"], meta["modified"], meta["readonly"])
+
+io_truncate("log.txt", 1000)  # Shrink to 1KB
+io_append_bytes("data.bin", new_chunk)  # Append binary data
 ```
 print(result.stdout)  # Access output
 print(result.exitcode)  # Check exit code

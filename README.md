@@ -477,6 +477,7 @@
   - **Type Introspection** (v0.7.0): `type()`, `is_int()`, `is_float()`, `is_string()`, `is_array()`, `is_dict()`, `is_bool()`, `is_null()`, `is_function()` - Runtime type checking for defensive coding and validation
   - **Assert & Debug** (v0.7.0): `assert(condition, message?)`, `debug(...args)` - Runtime assertions and detailed debug output for testing and troubleshooting
   - **File I/O**: `read_file()`, `write_file()`, `append_file()`, `file_exists()`, `read_lines()`, `list_dir()`, `create_dir()`, `file_size()`, `delete_file()`, `rename_file()`, `copy_file()`
+  - **Advanced Binary I/O** (v0.8.0): `io_read_bytes()`, `io_write_bytes()`, `io_append_bytes()`, `io_read_at()`, `io_write_at()`, `io_seek_read()`, `io_file_metadata()`, `io_truncate()`, `io_copy_range()` - Efficient offset-based file operations, metadata access, and byte-range copying
   - **Error handling**: `throw()`
 
 * **Operators**
@@ -818,6 +819,45 @@ json_payload := {
     "image": encode_base64(image),
     "format": "png"
 }
+```
+
+### Advanced Binary I/O - IO Module (v0.8.0)
+
+Efficient binary file operations with offset-based access and metadata:
+
+```ruff
+# Read specific number of bytes
+header := io_read_bytes("image.png", 8)  # First 8 bytes for format detection
+
+# Offset-based reading and writing
+data := io_read_at("data.bin", 1000, 512)  # Read 512 bytes at offset 1000
+io_write_at("config.bin", patch_data, 22)  # Update at specific offset
+
+# Read from offset to end
+tail := io_seek_read("app.log", file_size - 1024)  # Last 1KB of logs
+
+# Append binary data efficiently
+io_append_bytes("stream.dat", new_chunk)
+
+# Copy byte ranges between files (zero-copy)
+io_copy_range("source.bin", "extract.bin", 5000, 2000)  # Copy 2KB from offset 5KB
+
+# Get comprehensive file metadata
+meta := io_file_metadata("document.pdf")
+print("Size: ${meta["size"]} bytes")
+print("Modified: ${meta["modified"]} (timestamp)")
+print("Type: ${meta["is_file"] ? "File" : "Directory"}")
+print("Read-only: ${meta["readonly"]}")
+
+# Manage file sizes
+io_truncate("log.txt", 10000)  # Shrink to 10KB
+
+# Use cases:
+# - Binary format detection (read headers without loading full file)
+# - Log analysis (read last N bytes)
+# - In-place patching (update config without rewriting)
+# - Efficient data extraction (copy ranges from large files)
+# - Stream processing (append chunks incrementally)
 ```
 
 **HTTP Headers** (v0.5.1):
