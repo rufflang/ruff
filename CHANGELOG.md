@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Iterators & Iterator Methods** 🔄 - Lazy evaluation and functional iteration patterns (P1 feature - partial implementation):
+  - **Iterator Methods** for arrays:
+    - `.filter(predicate)` - Filter elements based on a predicate function, returns iterator
+    - `.map(transformer)` - Transform each element with a function, returns iterator
+    - `.take(n)` - Limit iteration to first n elements, returns iterator
+    - `.collect()` - Consume iterator and collect into an array
+  - **Method Chaining**: Combine multiple iterator operations for data processing pipelines
+  - **Lazy Evaluation**: Operations are only executed when `.collect()` is called, not when chained
+  - **Syntax**: `array.filter(func).map(func).take(n).collect()`
+  - **Examples**:
+    ```ruff
+    # Filter even numbers and double them
+    numbers := [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    result := numbers
+        .filter(func(n) { return n % 2 == 0 })
+        .map(func(n) { return n * 2 })
+        .collect()
+    # Result: [4, 8, 12, 16, 20]
+    
+    # Process scores: filter passing, curve, take top 5
+    scores := [45, 67, 89, 23, 91, 56, 78, 34, 92, 88]
+    top_curved := scores
+        .filter(func(s) { return s >= 60 })
+        .map(func(s) { return s + 5 })
+        .take(5)
+        .collect()
+    ```
+  - **Comprehensive Example**: `examples/iterators_comprehensive.ruff` with 8 different usage patterns
+  - **Current Limitations**: 
+    - Generators (`func*` and `yield`) are partially implemented (syntax parsed but execution incomplete)
+    - Iterator protocol limited to arrays (generator iteration not yet working)
+    - Custom iterators not yet supported
+  - **Performance**: Memory efficient - intermediate arrays not created during chaining
+  - **Future Work**: Full generator support with yield/resume, custom iterator protocol, async iterators
+
 - **Crypto Module** 🔐 - Advanced encryption and digital signature support (P1 feature):
   - **AES-256-GCM Symmetric Encryption**:
     - `aes_encrypt(plaintext, key)` - Encrypt string with AES-256-GCM, returns base64-encoded ciphertext
