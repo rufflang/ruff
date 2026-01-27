@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Architecture Documentation (Task #34 - ✅ COMPLETE)**:
+  - **`docs/CONCURRENCY.md`**: Comprehensive concurrency documentation (893 lines)
+    - Threading model with Arc<Mutex<>> for shared state
+    - Async/await architecture (promises, await expressions)
+    - Channel implementation for message passing
+    - Spawn blocks for true parallel execution
+    - Generator state management (yield/resume)
+    - Concurrency patterns: fan-out/fan-in, pipeline, async map, worker pool
+    - Best practices and debugging tips
+  - **`docs/MEMORY.md`**: Comprehensive memory model documentation (913 lines)
+    - Value ownership model (cloning semantics, Arc reference counting)
+    - Environment lifetime management (scope stack, variable lookup)
+    - Closure capture semantics (environment capture, execution flow)
+    - Garbage collection strategy (Arc-based ref counting)
+    - LeakyFunctionBody issue explanation and workarounds
+    - Memory patterns and performance characteristics
+    - Best practices for minimizing memory overhead
+  - **`docs/EXTENDING.md`**: Extension API documentation (989 lines)
+    - Step-by-step guide to adding native functions
+    - Native function module system architecture
+    - Binding to Rust libraries (reqwest, image crates)
+    - Error handling patterns
+    - Testing strategies for native functions
+    - Advanced patterns: callbacks, variable arguments, polymorphic functions
+    - Real-world examples: math, string, array operations
+  - **README.md**: Added documentation section with links to all guides
+  - All documentation cross-referenced for easy navigation
+
 - **Phase 6: Performance Benchmarking & Tuning (v0.9.0 - ✅ COMPLETE)**:
   - **CPU & Memory Profiling Infrastructure** (`src/benchmarks/profiler.rs`): ✅
     - `Profiler`: Comprehensive profiling with CPU, memory, and JIT statistics

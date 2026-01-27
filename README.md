@@ -1505,6 +1505,19 @@ cargo run -- test --update
 
 ---
 
+## Documentation
+
+Comprehensive documentation is available for developers and contributors:
+
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture, data flow, and component responsibilities
+- **[CONCURRENCY.md](docs/CONCURRENCY.md)** - Threading model, async/await, channels, spawn blocks, and generators
+- **[MEMORY.md](docs/MEMORY.md)** - Value ownership, environment lifetime, closure capture, and garbage collection
+- **[EXTENDING.md](docs/EXTENDING.md)** - How to add native functions and bind to Rust libraries
+- **[PERFORMANCE.md](docs/PERFORMANCE.md)** - Performance optimization strategies and profiling workflows
+- **[VM_INSTRUCTIONS.md](docs/VM_INSTRUCTIONS.md)** - Bytecode VM instruction set reference
+
+---
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for detailed feature plans.
