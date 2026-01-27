@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Performance Benchmarking Infrastructure (v0.9.0 Phase 6 - 🚧 IN PROGRESS)**:
+  - **Benchmark Framework** (`src/benchmarks/`): Complete benchmarking infrastructure ✅
+    - `BenchmarkRunner`: Execute benchmarks in Interpreter/VM/JIT modes
+    - `Timer`: High-precision timing utilities with warmup support
+    - `Statistics`: Mean, median, stddev, min/max analysis
+    - `Reporter`: Formatted console output with colored results
+    - CLI integration via `ruff bench` command with iteration/warmup options
+  - **Micro-Benchmark Suite**: 8 comprehensive micro-benchmarks ✅
+    - `fib_recursive.ruff`: Recursive function calls (Fibonacci 20)
+    - `array_ops.ruff`: Higher-order functions (map/filter/reduce on 100 items)
+    - `string_ops.ruff`: String concatenation and manipulation (50 iterations)
+    - `math_ops.ruff`: Arithmetic operations and math functions (100 iterations)
+    - `struct_ops.ruff`: Struct creation and method calls (100 points)
+    - `dict_ops_simple.ruff`: HashMap operations (100 key-value pairs)
+    - `func_calls.ruff`: Function call overhead (1000 calls)
+    - `nested_loops_simple.ruff`: Nested loop performance (50x50 = 2500 iterations)
+  - **Usage**: `cargo run --release -- bench examples/benchmarks/ -i 10 -w 2`
+
 - **JIT Advanced Optimizations (v0.9.0 Phase 4E - ✅ 100% COMPLETE)** - Performance benchmarking & validation:
   - **Micro-Benchmark Test Suite**: 7 comprehensive performance tests ✅
     - `benchmark_specialized_vs_generic_addition` - Compilation time for 1000 adds

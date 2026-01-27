@@ -745,7 +745,43 @@ cargo run -- run examples/your_script.ruff
 
 # Use tree-walking interpreter for debugging (fallback mode)
 cargo run -- run examples/your_script.ruff --interpreter
+
+# Run performance benchmarks
+cargo run --release -- bench examples/benchmarks/
 ```
+
+### Performance Benchmarking
+
+Ruff includes a comprehensive benchmarking framework to measure execution performance:
+
+```bash
+# Run all benchmarks in a directory
+cargo run --release -- bench examples/benchmarks/
+
+# Run a specific benchmark file
+cargo run --release -- bench examples/benchmarks/fib_recursive.ruff
+
+# Customize iterations and warmup runs
+cargo run --release -- bench examples/benchmarks/ -i 20 -w 5
+
+# Available benchmarks:
+# - fib_recursive: Function call overhead & recursion
+# - array_ops: Higher-order functions (map/filter/reduce)
+# - string_ops: String concatenation and manipulation
+# - math_ops: Arithmetic and mathematical functions
+# - struct_ops: Struct creation and method calls
+# - dict_ops_simple: HashMap/dictionary operations
+# - func_calls: Function call overhead
+# - nested_loops_simple: Nested loop performance
+```
+
+The benchmark framework compares:
+- **Interpreter mode**: Tree-walking interpreter (baseline)
+- **VM mode**: Bytecode virtual machine
+- **JIT mode**: Cranelift native code compilation (future)
+
+Results include mean, median, min, max, and standard deviation for each mode.
+
 
 ### Bytecode VM (Default Execution Mode)
 

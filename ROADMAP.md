@@ -35,7 +35,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 **Timeline**: Q1-Q2 2026 (3-4 months total)  
 **Priority**: P1 - Essential for v1.0
 
-> **Progress**: ✅ Phase 1 Complete | ✅ Phase 2 Complete | ✅ Phase 3 Complete | ✅ Phase 4 Complete! | 🎯 Phase 5 or 6 next
+> **Progress**: ✅ Phase 1 Complete | ✅ Phase 2 Complete | ✅ Phase 3 Complete | ✅ Phase 4 Complete! | 🚧 Phase 6 In Progress (~40% done)
 
 ---
 
@@ -226,43 +226,60 @@ result := await timeout(fetch_data(), 5000)  # 5 second timeout
 
 ---
 
-#### Phase 6: Benchmarking & Tuning (1-2 weeks)
+#### Phase 6: Benchmarking & Tuning (1-2 weeks) - 🚧 IN PROGRESS (~40% complete)
+
+**Status**: Infrastructure and micro-benchmarks complete ✅ | Profiling and tuning remaining  
+**Completed Work**:
+- ✅ **Benchmark Framework** (`src/benchmarks/`): Complete infrastructure
+  - `BenchmarkRunner`: Multi-mode execution (Interpreter/VM/JIT)
+  - `Timer`: High-precision timing with warmup support
+  - `Statistics`: Comprehensive statistical analysis
+  - `Reporter`: Colored console output with comparison tables
+  - CLI: `ruff bench` command with `-i` (iterations) and `-w` (warmup) flags
+- ✅ **Micro-Benchmark Suite**: 8 comprehensive benchmarks
+  - Recursive functions (Fibonacci)
+  - Higher-order functions (map/filter/reduce)
+  - String manipulation
+  - Mathematical operations
+  - Struct operations and method calls
+  - HashMap/dictionary operations
+  - Function call overhead
+  - Nested loops
 
 **Objectives**:
-1. Validate performance improvements
-2. Identify remaining bottlenecks
-3. Compare against other languages
+1. ✅ Create benchmarking infrastructure
+2. ✅ Implement micro-benchmark suite
+3. ⏳ Add real-world benchmarks (JSON, file I/O, algorithms)
+4. ⏳ Integrate profiling tools (CPU, memory)
+5. ⏳ Identify and fix performance bottlenecks
+6. ⏳ Compare against other languages (Go, Python, Node.js)
 
-**Benchmark Suite**:
+**Usage**:
 ```bash
-# Create comprehensive benchmarks
-ruff benchmark --compare go,python,ruby,node
+# Run all benchmarks in directory
+cargo run --release -- bench examples/benchmarks/
 
-Benchmarks:
-  - Fibonacci (recursion)
-  - Array operations (map, filter, reduce)
-  - HTTP server throughput
-  - JSON parsing
-  - String manipulation
-  - Concurrent execution (async/await)
-  - Mathematical computations
-  - File I/O
-  
-Results:
-  Ruff:   1000 req/sec  (baseline)
-  Go:     2000 req/sec  (2.0x faster)
-  Node:   900 req/sec   (0.9x faster)
-  Python: 500 req/sec   (0.5x faster)
-  Ruby:   400 req/sec   (0.4x faster)
+# Run specific benchmark
+cargo run --release -- bench examples/benchmarks/fib_recursive.ruff
+
+# Custom iterations and warmup
+cargo run --release -- bench examples/benchmarks/ -i 20 -w 5
 ```
 
-**Profiling Tools**:
+**Remaining Work**:
+- Real-world benchmark programs (JSON parsing, file I/O, sorting algorithms)
+- CPU/memory profiling integration
+- Performance tuning based on profiling data
+- Cross-language comparison (Go/Python/Node.js equivalents)
+- Documentation and final report
+
+**Profiling Tools** (planned):
 - CPU profiling (identify hot functions)
 - Memory profiling (find allocations)
 - JIT compilation statistics (hit rates)
 - Instruction cache analysis
 
-**Tuning**:
+**Tuning** (planned):
 - Adjust JIT thresholds based on workload
 - Optimize frequently-used built-in functions
 - Reduce memory allocations in hot paths
