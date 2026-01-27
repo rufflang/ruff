@@ -7,6 +7,14 @@ use crate::interpreter::Value;
 
 pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
     let result = match name {
+        "len" => {
+            if let Some(Value::Str(s)) = args.first() {
+                Value::Int(builtins::str_len(s) as i64)
+            } else {
+                return None // Let collections module handle other types
+            }
+        }
+
         "to_upper" | "upper" => {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Str(builtins::to_upper(s))
