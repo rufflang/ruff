@@ -9,7 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **JIT Advanced Optimizations (v0.9.0 Phase 4C - ✅ 85% COMPLETE)** - Integration & execution:
+- **JIT Advanced Optimizations (v0.9.0 Phase 4D - ✅ 95% COMPLETE)** - Guard generation & validation:
+  - **Guard Generation at Function Entry**: Type validation protects specialized code ✅
+    - Guards inserted automatically when compiling with specialization
+    - Each specialized variable gets type check via `jit_check_type_int/float`
+    - All guards ANDed together (all must pass for optimization)
+    - Proper block sealing prevents Cranelift compilation errors
+  - **Conditional Branching**: Guards control execution path ✅
+    - Guards pass → branch to optimized function body
+    - Guards fail → return error code (-1) for deoptimization
+    - Entry block sealed after branching to success/failure blocks
+    - Guard success block becomes new entry for instruction translation
+  - **Deoptimization Foundation**: Infrastructure for runtime type changes ✅
+    - Return value -1 indicates guard failure
+    - Calling code can detect failures and fall back to interpreter
+    - Ready for Phase 4A's adaptive recompilation integration
+    - Future: VM detects failures and triggers recompilation
+  - **Comprehensive Guard Testing**: 28 total JIT tests (3 new guard tests) ✅
+    - test_guard_generation_with_specialization - Single variable guard
+    - test_compilation_without_guards_when_no_specialization - No guards when no profile
+    - test_multiple_specialized_variables_guards - Multiple guards ANDed together
+  - **Next Steps**:
+    - Performance benchmarking of guarded code (Phase 4E)
+    - Constant propagation and folding in JIT IR
+    - Loop unrolling optimizations
+    - Complete Phase 4 integration
+
+- **JIT Advanced Optimizations (v0.9.0 Phase 4C - ✅ 100% COMPLETE)** - Integration & execution:
   - **Specialized Method Integration**: Connected specialized methods to JIT compilation flow ✅
     - Modified `translate_instruction()` for Add/Sub/Mul/Div operations
     - Checks `self.specialization` context to determine optimization path

@@ -68,7 +68,7 @@
   - Run demo: `cargo run --example jit_simple_test` for 28-37K speedup
   - See `ROADMAP.md` Phase 3 for complete technical details
 
-* **JIT Advanced Optimizations (Phase 4 - 🚧 85% IN PROGRESS)**
+* **JIT Advanced Optimizations (Phase 4 - 🚧 95% IN PROGRESS)**
   - **Phase 4A (✅ Complete)**: Type profiling, adaptive recompilation, runtime helpers
   - **Phase 4B (✅ Complete)**: Type-specialized arithmetic operations
     - Int-specialized fast paths for Add/Sub/Mul/Div (pure i64 operations)
@@ -77,10 +77,14 @@
   - **Phase 4C (✅ Complete)**: Integration of specialized methods
     - Wired specialized methods into translate_instruction
     - Active specialization based on type profiles
-    - 25 JIT tests passing (3 new integration tests)
     - Generic fallback for non-specialized code
+  - **Phase 4D (✅ Complete)**: Guard generation & validation
+    - Guards at function entry validate type assumptions
+    - Conditional branching: guards pass → optimized, fail → return -1
+    - 28 JIT tests passing (3 new guard tests)
+    - Deoptimization foundation ready
   - **Target**: Additional 2-3x speedup through type specialization
-  - **Next**: Guard generation (Phase 4D), performance benchmarking, advanced optimizations
+  - **Next**: Performance benchmarking (Phase 4E), advanced optimizations
 
 ### In Progress for v0.9.0 🚧
 
