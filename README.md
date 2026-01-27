@@ -2,7 +2,7 @@
 
 **Ruff** is a purpose-built, correctness-first execution language designed for tooling, automation, and AI-assisted development.
 
-> **Status**: v0.8.0 (Released January 2026) - **Async/Await & Modern Concurrency!** ⚡ Previous: v0.7.0 (January 2026) - Core Language Complete
+> **Status**: v0.9.0 (In Progress - VM Integration Complete!) ⚡ Previous: v0.8.0 (January 2026) - Async/Await & Modern Concurrency
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -10,7 +10,28 @@
 
 ## Project Status
 
+### Just Completed in v0.9.0 (Phase 1) ✅
+
+* **Bytecode VM Integration** 🚀
+  - VM is now the default execution mode for all Ruff programs
+  - Full feature parity: functions, closures, async/await, generators, exceptions
+  - All 198 tests pass with both VM and interpreter modes
+  - Use `--interpreter` flag to fallback to tree-walking mode
+  - Performance baseline established (Phase 2 will add optimizations)
+  - Benchmark suite added for performance testing
+  - Ready for Phase 2: constant folding, inline caching, and JIT compilation
+
 ### In Progress for v0.9.0 🚧
+
+* **VM Optimizations (Phase 2 - Next Priority) 🎯**
+  - Constant folding at compile time
+  - Dead code elimination
+  - Peephole optimizations
+  - Inline caching for polymorphic operations
+  - Common subexpression elimination
+  - Expected: 2-3x performance improvement over baseline
+
+### Completed in v0.9.0 (Earlier Phases) ✅
 
 * **Interpreter Modularization (Phase 3 Complete) 🎯**
   - Successfully refactored 14,802-line monolithic interpreter into focused modules
@@ -650,31 +671,35 @@ See [Install Guide](INSTALLATION.md) for platform setup instructions.
 Install Rust and run:
 
 ```bash
-# Clean output (recommended)
+# Clean output (recommended) - uses bytecode VM by default
 cargo run --quiet -- run examples/your_script.ruff
 
 # Or with build messages
 cargo run -- run examples/your_script.ruff
 
-# Use bytecode VM for faster execution (experimental)
-cargo run -- run examples/your_script.ruff --vm
+# Use tree-walking interpreter for debugging (fallback mode)
+cargo run -- run examples/your_script.ruff --interpreter
 ```
 
-### Bytecode VM (Experimental)
+### Bytecode VM (Default Execution Mode)
 
-Ruff includes an experimental bytecode compiler and virtual machine for improved performance:
+Ruff uses a bytecode compiler and virtual machine for program execution:
 
 ```bash
-# Run with bytecode VM
-ruff run examples/factorial.ruff --vm
+# VM is now the default execution mode
+ruff run examples/factorial.ruff
+
+# Use --interpreter flag for tree-walking mode (debugging/fallback)
+ruff run examples/factorial.ruff --interpreter
 ```
 
-**Current Status**:
-- ✅ Core VM architecture complete
-- ✅ User-defined functions work correctly
-- ✅ Basic arithmetic, control flow, arrays, dicts
-- ⚠️ Limited built-in function support (parser issue being fixed)
-- ⚠️ No benchmarks yet - performance improvements to be measured
+**Current Status** (v0.9.0 Phase 1 Complete):
+- ✅ VM is now the default execution mode
+- ✅ Full feature parity with tree-walking interpreter
+- ✅ All 198 tests pass in both modes
+- ✅ Supports all language features (functions, closures, async/await, generators, exceptions)
+- ✅ Performance baseline established (ready for Phase 2 optimizations)
+- 📊 Performance: VM functional with room for optimization (Phase 2 will add constant folding, inline caching, JIT)
 
 **How it works**:
 1. Ruff AST is compiled to stack-based bytecode

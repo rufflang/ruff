@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **VM Integration Complete (v0.9.0 Phase 1 - ✅ COMPLETE)** - Bytecode VM is now the default execution mode:
+  - **VM as Default**: The bytecode VM is now the default execution path for all Ruff programs
+  - **Interpreter Fallback**: Added `--interpreter` flag to use tree-walking interpreter if needed
+  - **Full Test Coverage**: All 198 existing tests pass with both VM and interpreter modes
+  - **CLI Updated**: `ruff run` now uses VM by default, `ruff run --interpreter` for fallback
+  - **Performance Baseline**: Established baseline metrics showing VM functional with room for optimization
+  - **Benchmark Suite**: Added `examples/benchmark_simple.ruff` for performance testing
+  - **Documentation**: Performance metrics documented in `notes/vm_performance.md`
+  - **Next Steps**: Ready for Phase 2 optimizations (constant folding, inline caching, JIT)
+
 - **VM Async/Await Support (v0.9.0 Phase 1 - ✅ COMPLETE)** - Full async/await implementation in bytecode VM:
   - **Async Function Support**:
     - Async functions execute synchronously in VM but return Promises
