@@ -1,4 +1,6 @@
 // Simple test for random functions
+// Set seed for deterministic output
+set_random_seed(42)
 
 print("Testing random()...")
 r := random()

@@ -36,6 +36,24 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
+        // Random seed control (for deterministic testing)
+        "set_random_seed" => {
+            if let Some(Value::Int(seed)) = arg_values.first() {
+                builtins::set_random_seed(*seed as u64);
+                Value::Null
+            } else if let Some(Value::Float(seed)) = arg_values.first() {
+                builtins::set_random_seed(*seed as u64);
+                Value::Null
+            } else {
+                Value::Error("set_random_seed requires a number argument".to_string())
+            }
+        }
+
+        "clear_random_seed" => {
+            builtins::clear_random_seed();
+            Value::Null
+        }
+
         // Date/Time functions
         "now" => Value::Float(builtins::now()),
 

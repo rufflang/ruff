@@ -1,4 +1,6 @@
 // Test random number generation functions
+// Set seed for deterministic output
+set_random_seed(12345)
 
 print("Testing random functions...")
 

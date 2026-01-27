@@ -836,6 +836,23 @@ impl TypeChecker {
             },
         );
 
+        // Random seed control (for deterministic testing)
+        self.functions.insert(
+            "set_random_seed".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Int)], // Seed value
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "clear_random_seed".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: None,
+            },
+        );
+
         // Date/Time functions
         self.functions.insert(
             "now".to_string(),

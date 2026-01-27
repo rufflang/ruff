@@ -257,6 +257,8 @@ impl Interpreter {
             "random",
             "random_int",
             "random_choice",
+            "set_random_seed",
+            "clear_random_seed",
             // Date/Time functions
             "now",
             "current_timestamp",
@@ -643,6 +645,14 @@ impl Interpreter {
         self.env.define(
             "random_choice".to_string(),
             Value::NativeFunction("random_choice".to_string()),
+        );
+        self.env.define(
+            "set_random_seed".to_string(),
+            Value::NativeFunction("set_random_seed".to_string()),
+        );
+        self.env.define(
+            "clear_random_seed".to_string(),
+            Value::NativeFunction("clear_random_seed".to_string()),
         );
 
         // Date/Time functions

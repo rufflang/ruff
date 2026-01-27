@@ -8,15 +8,21 @@ use crate::interpreter::Value;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, TimeZone, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand::rngs::StdRng;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Global seeded RNG for deterministic testing
+/// When set, all random functions use this instead of thread_rng()
+static SEEDED_RNG: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Returns a HashMap of all built-in functions
 #[allow(dead_code)]
@@ -84,18 +90,42 @@ pub fn exp(x: f64) -> f64 {
 }
 
 /// Random number functions
+/// Set a seed for deterministic random number generation (for testing)
+pub fn set_random_seed(seed: u64) {
+    let rng = StdRng::seed_from_u64(seed);
+    *SEEDED_RNG.lock().unwrap() = Some(rng);
+}
+
+/// Clear the random seed, returning to true randomness
+pub fn clear_random_seed() {
+    *SEEDED_RNG.lock().unwrap() = None;
+}
+
 /// Generate a random float between 0.0 and 1.0
 pub fn random() -> f64 {
-    let mut rng = rand::thread_rng();
-    rng.gen::<f64>()
+    let mut seeded = SEEDED_RNG.lock().unwrap();
+    if let Some(ref mut rng) = *seeded {
+        rng.gen::<f64>()
+    } else {
+        drop(seeded); // Release lock before using thread_rng
+        let mut rng = rand::thread_rng();
+        rng.gen::<f64>()
+    }
 }
 
 /// Generate a random integer between min and max (inclusive)
 pub fn random_int(min: f64, max: f64) -> f64 {
-    let mut rng = rand::thread_rng();
     let min_i = min as i64;
     let max_i = max as i64;
-    rng.gen_range(min_i..=max_i) as f64
+    
+    let mut seeded = SEEDED_RNG.lock().unwrap();
+    if let Some(ref mut rng) = *seeded {
+        rng.gen_range(min_i..=max_i) as f64
+    } else {
+        drop(seeded); // Release lock before using thread_rng
+        let mut rng = rand::thread_rng();
+        rng.gen_range(min_i..=max_i) as f64
+    }
 }
 
 /// Select a random element from an array
@@ -103,8 +133,16 @@ pub fn random_choice(arr: &[Value]) -> Value {
     if arr.is_empty() {
         return Value::Int(0);
     }
-    let mut rng = rand::thread_rng();
-    let idx = rng.gen_range(0..arr.len());
+    
+    let mut seeded = SEEDED_RNG.lock().unwrap();
+    let idx = if let Some(ref mut rng) = *seeded {
+        rng.gen_range(0..arr.len())
+    } else {
+        drop(seeded); // Release lock before using thread_rng
+        let mut rng = rand::thread_rng();
+        rng.gen_range(0..arr.len())
+    };
+    
     arr[idx].clone()
 }
 
