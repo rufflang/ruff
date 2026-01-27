@@ -1230,22 +1230,90 @@ impl JitCompiler {
             translator.set_float_functions(load_var_float_func_ref, store_var_float_func_ref);
             translator.set_guard_functions(check_int_func_ref, check_float_func_ref);
             
+            // Initialize current block tracking
+            let mut current_block = entry_block;
+            
             // Set specialization info if available
             if let Some(spec) = self.type_profiles.get(&offset) {
                 translator.set_specialization(spec.clone());
+                
+                // Generate type guards at function entry for specialized variables
+                if !spec.specialized_types.is_empty() {
+                    // Create blocks for guard success and guard failure
+                    let guard_success_block = builder.create_block();
+                    let guard_failure_block = builder.create_block();
+                    
+                    // Check each specialized variable's type
+                    let mut all_guards_passed = None;
+                    for (var_hash, expected_type) in &spec.specialized_types {
+                        let hash_val = builder.ins().iconst(types::I64, *var_hash as i64);
+                        
+                        // Call appropriate type check function
+                        let check_result = match expected_type {
+                            ValueType::Int => {
+                                let call = builder.ins().call(check_int_func_ref, &[ctx_ptr, hash_val]);
+                                builder.inst_results(call)[0]
+                            }
+                            ValueType::Float => {
+                                let call = builder.ins().call(check_float_func_ref, &[ctx_ptr, hash_val]);
+                                builder.inst_results(call)[0]
+                            }
+                            _ => {
+                                // Other types not yet specialized, skip guard
+                                continue;
+                            }
+                        };
+                        
+                        // Check if result is 1 (type matches)
+                        let one = builder.ins().iconst(types::I64, 1);
+                        let guard_passed = builder.ins().icmp(IntCC::Equal, check_result, one);
+                        
+                        // Combine with previous guards (AND operation)
+                        all_guards_passed = Some(if let Some(prev) = all_guards_passed {
+                            builder.ins().band(prev, guard_passed)
+                        } else {
+                            guard_passed
+                        });
+                    }
+                    
+                    // Branch based on guard results
+                    if let Some(guards_passed) = all_guards_passed {
+                        // Branch: if guards_passed, go to success, else go to failure
+                        builder.ins().brif(guards_passed, guard_success_block, &[], guard_failure_block, &[]);
+                        
+                        // Seal entry block now that we've branched from it
+                        builder.seal_block(entry_block);
+                        
+                        // Guard failure block: return error code (-1)
+                        builder.switch_to_block(guard_failure_block);
+                        builder.seal_block(guard_failure_block);
+                        let error_code = builder.ins().iconst(types::I64, -1);
+                        builder.ins().return_(&[error_code]);
+                        
+                        // Guard success block: continue with function body
+                        // Switch to it but DON'T seal it yet - let normal sealing logic handle it
+                        builder.switch_to_block(guard_success_block);
+                        
+                        // Update current block for instruction translation
+                        current_block = guard_success_block;
+                        // Add guard_success_block as the new entry for instruction 0
+                        translator.blocks.insert(0, guard_success_block);
+                    }
+                }
             }
             
             // First pass: create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
             
-            // Add entry block to the map
-            translator.blocks.insert(0, entry_block);
+            // Add entry block to the map (will be guard_success_block if guards were generated)
+            if !translator.blocks.contains_key(&0) {
+                translator.blocks.insert(0, entry_block);
+            }
             
             // Track sealed blocks to avoid double-sealing
             let mut sealed_blocks = std::collections::HashSet::new();
             
             // Second pass: translate instructions
-            let mut current_block = entry_block;
             let mut block_terminated = false;
             
             for (pc, instruction) in chunk.instructions.iter().enumerate() {
@@ -2021,5 +2089,79 @@ mod tests {
         chunk.emit(OpCode::Div);
         chunk.emit(OpCode::Return);
         assert!(compiler.compile(&chunk, offset_div).is_ok());
+    }
+
+    #[test]
+    fn test_guard_generation_with_specialization() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 500;
+        let var_hash = 12345u64;
+        
+        // Build stable Int type profile
+        for _ in 0..70 {
+            compiler.record_type(offset, var_hash, &Value::Int(42));
+        }
+        
+        // Verify specialization was created
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Int));
+        
+        // Compile with guards
+        let mut chunk = BytecodeChunk::new();
+        let const_10 = chunk.add_constant(Constant::Int(10));
+        let const_20 = chunk.add_constant(Constant::Int(20));
+        chunk.emit(OpCode::LoadConst(const_10));
+        chunk.emit(OpCode::LoadConst(const_20));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, offset);
+        assert!(result.is_ok(), "Should compile with guards: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_compilation_without_guards_when_no_specialization() {
+        let mut compiler = JitCompiler::new().unwrap();
+        
+        // No profiling - no guards should be generated
+        let mut chunk = BytecodeChunk::new();
+        let const_5 = chunk.add_constant(Constant::Int(5));
+        let const_3 = chunk.add_constant(Constant::Int(3));
+        chunk.emit(OpCode::LoadConst(const_5));
+        chunk.emit(OpCode::LoadConst(const_3));
+        chunk.emit(OpCode::Mul);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, 600);
+        assert!(result.is_ok(), "Should compile without guards: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_multiple_specialized_variables_guards() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 700;
+        let var_hash_1 = 11111u64;
+        let var_hash_2 = 22222u64;
+        let var_hash_3 = 33333u64;
+        
+        // Build profiles for multiple variables
+        for _ in 0..70 {
+            compiler.record_type(offset, var_hash_1, &Value::Int(10));
+            compiler.record_type(offset, var_hash_2, &Value::Int(20));
+            compiler.record_type(offset, var_hash_3, &Value::Int(30));
+        }
+        
+        // Verify all specialized
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        assert_eq!(profile.specialized_types.len(), 3);
+        
+        // Compile - should generate guards for all 3 variables
+        let mut chunk = BytecodeChunk::new();
+        let const_100 = chunk.add_constant(Constant::Int(100));
+        chunk.emit(OpCode::LoadConst(const_100));
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, offset);
+        assert!(result.is_ok(), "Should compile with multiple guards: {:?}", result.err());
     }
 }
