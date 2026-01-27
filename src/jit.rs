@@ -6,8 +6,9 @@
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::Value;
 use cranelift::prelude::*;
+use cranelift::codegen::ir::FuncRef;
 use cranelift_jit::{JITBuilder, JITModule};
-use cranelift_module::{Linkage, Module};
+use cranelift_module::{Linkage, Module, FuncId};
 use std::collections::HashMap;
 
 /// JIT compilation threshold - number of executions before compiling
@@ -23,6 +24,8 @@ pub struct VMContext {
     pub locals_ptr: *mut HashMap<String, Value>,
     /// Pointer to global variables
     pub globals_ptr: *mut HashMap<String, Value>,
+    /// Pointer to variable name mapping (hash -> name) for JIT
+    pub var_names_ptr: *mut HashMap<u64, String>,
 }
 
 impl VMContext {
@@ -32,7 +35,27 @@ impl VMContext {
         locals: *mut HashMap<String, Value>,
         globals: *mut HashMap<String, Value>,
     ) -> Self {
-        Self { stack_ptr: stack, locals_ptr: locals, globals_ptr: globals }
+        Self { 
+            stack_ptr: stack, 
+            locals_ptr: locals, 
+            globals_ptr: globals,
+            var_names_ptr: std::ptr::null_mut(), // Will be set if needed
+        }
+    }
+    
+    /// Create with variable name mapping
+    pub fn with_var_names(
+        stack: *mut Vec<Value>,
+        locals: *mut HashMap<String, Value>,
+        globals: *mut HashMap<String, Value>,
+        var_names: *mut HashMap<u64, String>,
+    ) -> Self {
+        Self { 
+            stack_ptr: stack, 
+            locals_ptr: locals, 
+            globals_ptr: globals,
+            var_names_ptr: var_names,
+        }
     }
 }
 
@@ -72,18 +95,27 @@ pub unsafe extern "C" fn jit_stack_pop(ctx: *mut VMContext) -> i64 {
 }
 
 /// Load a variable from locals or globals (called from JIT code)
+/// name_hash: hash of the variable name (or 0 to use name_ptr/name_len)
+/// name_ptr/name_len: pointer and length of variable name string (if name_hash is 0)
 /// Returns the variable value as i64, or 0 if not found
 #[no_mangle]
-pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_ptr: *const u8, name_len: usize) -> i64 {
-    if ctx.is_null() || name_ptr.is_null() {
+pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, _name_len: usize) -> i64 {
+    if ctx.is_null() {
         return 0;
     }
     
     let ctx = &*ctx;
-    let name_bytes = std::slice::from_raw_parts(name_ptr, name_len);
-    let name = match std::str::from_utf8(name_bytes) {
-        Ok(s) => s,
-        Err(_) => return 0,
+    
+    // Try to resolve the name from hash
+    let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
+        let var_names = &*ctx.var_names_ptr;
+        if let Some(n) = var_names.get(&(name_hash as u64)) {
+            n.as_str()
+        } else {
+            return 0; // Hash not found
+        }
+    } else {
+        return 0; // No name provided
     };
     
     // Try locals first
@@ -106,17 +138,25 @@ pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_ptr: *const
 }
 
 /// Store a variable to locals (called from JIT code)
+/// name_hash: hash of the variable name
 #[no_mangle]
-pub unsafe extern "C" fn jit_store_variable(ctx: *mut VMContext, name_ptr: *const u8, name_len: usize, value: i64) {
-    if ctx.is_null() || name_ptr.is_null() {
+pub unsafe extern "C" fn jit_store_variable(ctx: *mut VMContext, name_hash: i64, _name_len: usize, value: i64) {
+    if ctx.is_null() {
         return;
     }
     
     let ctx = &mut *ctx;
-    let name_bytes = std::slice::from_raw_parts(name_ptr, name_len);
-    let name = match std::str::from_utf8(name_bytes) {
-        Ok(s) => s.to_string(),
-        Err(_) => return,
+    
+    // Try to resolve the name from hash
+    let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
+        let var_names = &*ctx.var_names_ptr;
+        if let Some(n) = var_names.get(&(name_hash as u64)) {
+            n.clone()
+        } else {
+            return; // Hash not found
+        }
+    } else {
+        return; // No name provided
     };
     
     // Store in locals
@@ -154,15 +194,30 @@ struct BytecodeTranslator {
     blocks: HashMap<usize, Block>,
     /// VMContext parameter passed to the function
     ctx_param: Option<cranelift::prelude::Value>,
+    /// External function references
+    load_var_func: Option<FuncRef>,
+    store_var_func: Option<FuncRef>,
 }
 
 impl BytecodeTranslator {
     fn new() -> Self {
-        Self { value_stack: Vec::new(), variables: HashMap::new(), blocks: HashMap::new(), ctx_param: None }
+        Self { 
+            value_stack: Vec::new(), 
+            variables: HashMap::new(), 
+            blocks: HashMap::new(), 
+            ctx_param: None,
+            load_var_func: None,
+            store_var_func: None,
+        }
     }
     
     fn set_context_param(&mut self, ctx: cranelift::prelude::Value) {
         self.ctx_param = Some(ctx);
+    }
+    
+    fn set_external_functions(&mut self, load_var: FuncRef, store_var: FuncRef) {
+        self.load_var_func = Some(load_var);
+        self.store_var_func = Some(store_var);
     }
 
     /// Pre-create blocks for all jump targets
@@ -432,33 +487,100 @@ impl BytecodeTranslator {
                 return Ok(true); // Terminates block
             }
 
-            // Variable operations - for now, we'll simulate with stack
-            // Full implementation would call runtime helpers
-            OpCode::LoadVar(_name) => {
-                // For now, load a dummy value (0) since we don't have variable context yet
-                // TODO: Call jit_load_variable runtime helper
-                let zero = builder.ins().iconst(types::I64, 0);
-                self.push_value(zero);
+            // Variable operations - call runtime helpers
+            OpCode::LoadVar(name) => {
+                if let (Some(ctx), Some(load_func)) = (self.ctx_param, self.load_var_func) {
+                    // For simplicity, we'll use a hash of the variable name
+                    // In a full implementation, we'd pass the string pointer
+                    let name_hash = {
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        name.hash(&mut hasher);
+                        hasher.finish() as i64
+                    };
+                    
+                    let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                    let zero = builder.ins().iconst(types::I64, 0); // name_len = 0 (use hash instead)
+                    
+                    // Call jit_load_variable(ctx, name_hash, 0)
+                    let call = builder.ins().call(load_func, &[ctx, name_hash_val, zero]);
+                    let result = builder.inst_results(call)[0];
+                    self.push_value(result);
+                } else {
+                    // Fallback: load 0 if context not available
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    self.push_value(zero);
+                }
             }
 
-            OpCode::StoreVar(_name) => {
-                // For now, just pop the value and discard
-                // TODO: Call jit_store_variable runtime helper
-                let _val = self.pop_value()?;
-                // In the future: call runtime helper to actually store
+            OpCode::StoreVar(name) => {
+                if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
+                    let value = self.pop_value()?;
+                    
+                    // Use hash of variable name
+                    let name_hash = {
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        name.hash(&mut hasher);
+                        hasher.finish() as i64
+                    };
+                    
+                    let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                    let zero = builder.ins().iconst(types::I64, 0); // name_len = 0
+                    
+                    // Call jit_store_variable(ctx, name_hash, 0, value)
+                    builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
+                } else {
+                    // Fallback: just pop the value
+                    let _val = self.pop_value()?;
+                }
             }
 
-            OpCode::LoadGlobal(_name) => {
-                // For now, load a dummy value (0)
-                // TODO: Call jit_load_variable runtime helper with globals
-                let zero = builder.ins().iconst(types::I64, 0);
-                self.push_value(zero);
+            OpCode::LoadGlobal(name) => {
+                // Same as LoadVar for now
+                if let (Some(ctx), Some(load_func)) = (self.ctx_param, self.load_var_func) {
+                    let name_hash = {
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        name.hash(&mut hasher);
+                        hasher.finish() as i64
+                    };
+                    
+                    let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    
+                    let call = builder.ins().call(load_func, &[ctx, name_hash_val, zero]);
+                    let result = builder.inst_results(call)[0];
+                    self.push_value(result);
+                } else {
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    self.push_value(zero);
+                }
             }
 
-            OpCode::StoreGlobal(_name) => {
-                // For now, just pop the value and discard
-                // TODO: Call jit_store_variable runtime helper with globals
-                let _val = self.pop_value()?;
+            OpCode::StoreGlobal(name) => {
+                // Same as StoreVar for now
+                if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
+                    let value = self.pop_value()?;
+                    
+                    let name_hash = {
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        name.hash(&mut hasher);
+                        hasher.finish() as i64
+                    };
+                    
+                    let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    
+                    builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
+                } else {
+                    let _val = self.pop_value()?;
+                }
             }
 
             // Unsupported operations fall back to interpreter
@@ -496,7 +618,13 @@ impl JitCompiler {
             .finish(settings::Flags::new(flag_builder))
             .map_err(|e| format!("Failed to create ISA: {}", e))?;
 
-        let builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
+        let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
+        
+        // Register runtime helper symbols so JIT can find them
+        builder.symbol("jit_load_variable", jit_load_variable as *const u8);
+        builder.symbol("jit_store_variable", jit_store_variable as *const u8);
+        builder.symbol("jit_stack_push", jit_stack_push as *const u8);
+        builder.symbol("jit_stack_pop", jit_stack_pop as *const u8);
 
         let module = JITModule::new(builder);
 
@@ -543,11 +671,41 @@ impl JitCompiler {
             .map_err(|e| format!("Failed to declare function: {}", e))?;
 
         self.ctx.func.signature = sig;
+        
+        // Declare external runtime helper functions
+        // jit_load_variable: fn(*mut VMContext, *const u8, usize) -> i64
+        let mut load_var_sig = self.module.make_signature();
+        load_var_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        load_var_sig.params.push(AbiParam::new(types::I64)); // name_ptr
+        load_var_sig.params.push(AbiParam::new(types::I64)); // name_len
+        load_var_sig.returns.push(AbiParam::new(types::I64)); // return value
+        
+        let load_var_func_id = self
+            .module
+            .declare_function("jit_load_variable", Linkage::Import, &load_var_sig)
+            .map_err(|e| format!("Failed to declare jit_load_variable: {}", e))?;
+        
+        // jit_store_variable: fn(*mut VMContext, *const u8, usize, i64)
+        let mut store_var_sig = self.module.make_signature();
+        store_var_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        store_var_sig.params.push(AbiParam::new(types::I64)); // name_ptr
+        store_var_sig.params.push(AbiParam::new(types::I64)); // name_len
+        store_var_sig.params.push(AbiParam::new(types::I64)); // value
+        // no return value
+        
+        let store_var_func_id = self
+            .module
+            .declare_function("jit_store_variable", Linkage::Import, &store_var_sig)
+            .map_err(|e| format!("Failed to declare jit_store_variable: {}", e))?;
 
         // Build the function with a fresh builder context
         {
             let mut builder_ctx = FunctionBuilderContext::new();
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut builder_ctx);
+            
+            // Import the external functions into this function's scope
+            let load_var_func_ref = self.module.declare_func_in_func(load_var_func_id, builder.func);
+            let store_var_func_ref = self.module.declare_func_in_func(store_var_func_id, builder.func);
 
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
@@ -558,6 +716,7 @@ impl JitCompiler {
             // Translate bytecode instructions to Cranelift IR
             let mut translator = BytecodeTranslator::new();
             translator.set_context_param(ctx_ptr);
+            translator.set_external_functions(load_var_func_ref, store_var_func_ref);
             
             // First pass: create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
@@ -895,5 +1054,75 @@ mod tests {
         assert!(result.is_ok(), "Should compile variable operations: {:?}", result.err());
         
         println!("✓ Variable operations compile successfully!");
+    }
+    
+    #[test]
+    fn test_execute_with_variables() {
+        use std::collections::HashMap;
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+
+        // x := 10; y := 20; result := x + y; return
+        let const_10 = chunk.add_constant(Constant::Int(10));
+        let const_20 = chunk.add_constant(Constant::Int(20));
+
+        chunk.emit(OpCode::LoadConst(const_10));
+        chunk.emit(OpCode::StoreVar("x".to_string()));
+        chunk.emit(OpCode::LoadConst(const_20));
+        chunk.emit(OpCode::StoreVar("y".to_string()));
+        chunk.emit(OpCode::LoadVar("x".to_string()));
+        chunk.emit(OpCode::LoadVar("y".to_string()));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+
+        let compiled_fn = compiler.compile(&chunk, 0).expect("Should compile");
+        
+        // Create actual variable storage
+        let mut locals: HashMap<String, Value> = HashMap::new();
+        let mut globals: HashMap<String, Value> = HashMap::new();
+        let mut var_names: HashMap<u64, String> = HashMap::new();
+        
+        // Register variable names with their hashes
+        for name in &["x", "y", "result"] {
+            let mut hasher = DefaultHasher::new();
+            name.hash(&mut hasher);
+            let hash = hasher.finish();
+            var_names.insert(hash, name.to_string());
+        }
+        
+        // Create context
+        let mut ctx = VMContext::with_var_names(
+            std::ptr::null_mut(),
+            &mut locals as *mut _,
+            &mut globals as *mut _,
+            &mut var_names as *mut _,
+        );
+        
+        // Execute compiled code
+        let result = unsafe { compiled_fn(&mut ctx as *mut VMContext) };
+        
+        assert_eq!(result, 0, "Should return success");
+        
+        // Check variables were stored
+        assert!(locals.contains_key("x"), "x should exist");
+        assert!(locals.contains_key("y"), "y should exist");
+        
+        // Check values
+        match locals.get("x") {
+            Some(Value::Int(10)) => {},
+            other => panic!("Expected x=10, got {:?}", other),
+        }
+        
+        match locals.get("y") {
+            Some(Value::Int(20)) => {},
+            other => panic!("Expected y=20, got {:?}", other),
+        }
+        
+        println!("✓ Variables work correctly in JIT code!");
+        println!("  x = {:?}", locals.get("x"));
+        println!("  y = {:?}", locals.get("y"));
     }
 }
