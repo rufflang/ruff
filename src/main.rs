@@ -10,6 +10,7 @@ mod bytecode;
 mod compiler;
 mod errors;
 mod interpreter;
+mod jit;
 mod lexer;
 mod module;
 mod optimizer;

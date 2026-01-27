@@ -6,6 +6,7 @@
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{Environment, Interpreter, Value};
+use crate::jit::JitCompiler;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -50,6 +51,12 @@ pub struct VM {
     /// Exception handler stack for try/catch blocks
     /// Tracks nested try blocks and their catch handlers
     exception_handlers: Vec<ExceptionHandlerFrame>,
+    
+    /// JIT compiler for hot code paths
+    jit_compiler: JitCompiler,
+    
+    /// JIT enabled flag (can be disabled for debugging)
+    jit_enabled: bool,
 }
 
 /// Exception handler frame for active try blocks
@@ -134,6 +141,12 @@ impl VM {
             interpreter: Interpreter::new(),
             upvalues: Vec::new(),
             exception_handlers: Vec::new(),
+            jit_compiler: JitCompiler::new().unwrap_or_else(|e| {
+                eprintln!("Warning: Failed to initialize JIT compiler: {}", e);
+                eprintln!("Falling back to interpreter-only mode");
+                JitCompiler::default()
+            }),
+            jit_enabled: true,
         }
     }
 
@@ -142,6 +155,17 @@ impl VM {
         self.globals = env.clone();
         // Also set the interpreter's environment so it can resolve native functions
         self.interpreter.set_env(env);
+    }
+    
+    /// Enable or disable JIT compilation
+    pub fn set_jit_enabled(&mut self, enabled: bool) {
+        self.jit_enabled = enabled;
+        self.jit_compiler.set_enabled(enabled);
+    }
+    
+    /// Get JIT compilation statistics
+    pub fn jit_stats(&self) -> crate::jit::JitStats {
+        self.jit_compiler.stats()
     }
 
     /// Execute a bytecode chunk
@@ -154,6 +178,32 @@ impl VM {
             if self.ip >= self.chunk.instructions.len() {
                 // Reached end of program
                 return Ok(Value::Null);
+            }
+            
+            // Check if we should JIT compile this hot path
+            if self.jit_enabled {
+                // For loops (backward jumps), check if we should compile
+                if let Some(OpCode::JumpBack(_)) = self.chunk.instructions.get(self.ip) {
+                    if self.jit_compiler.should_compile(self.ip) {
+                        // Try to compile this hot loop
+                        match self.jit_compiler.compile(&self.chunk, self.ip) {
+                            Ok(_compiled_fn) => {
+                                // Successfully compiled!
+                                // Note: For full JIT execution, we would call the compiled function here
+                                // For now, we just cache it and continue with bytecode interpretation
+                                if std::env::var("DEBUG_JIT").is_ok() {
+                                    eprintln!("JIT: Successfully compiled hot loop at offset {}", self.ip);
+                                }
+                            }
+                            Err(e) => {
+                                // Compilation failed - this is expected for complex code
+                                if std::env::var("DEBUG_JIT").is_ok() {
+                                    eprintln!("JIT: Could not compile at offset {}: {}", self.ip, e);
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             let instruction = self.chunk.instructions[self.ip].clone();
