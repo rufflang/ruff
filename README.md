@@ -68,6 +68,15 @@
   - Run demo: `cargo run --example jit_simple_test` for 28-37K speedup
   - See `ROADMAP.md` Phase 3 for complete technical details
 
+* **JIT Advanced Optimizations (Phase 4 - 🚧 75% IN PROGRESS)**
+  - **Phase 4A (✅ Complete)**: Type profiling, adaptive recompilation, runtime helpers
+  - **Phase 4B (🚧 75% Complete)**: Type-specialized arithmetic operations
+    - Int-specialized fast paths for Add/Sub/Mul/Div (pure i64 operations)
+    - Framework for Float specialization (deferred to Phase 4C)
+    - 22 JIT tests passing (5 new specialized operation tests)
+  - **Target**: Additional 2-3x speedup through type specialization
+  - **Next**: Connect specialized methods, guard insertion, constant propagation
+
 ### In Progress for v0.9.0 🚧
 
 ### Completed in v0.9.0 (Earlier Phases) ✅
