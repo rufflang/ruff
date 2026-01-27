@@ -71,18 +71,11 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
   - Handle all expression and statement types
   
 - **Week 5-6: VM Feature Parity**
-  - ✅ **Implement closures in VM** (Completed Jan 26, 2026 - commit 8b4db4e)
   - Support generators and async/await in bytecode
   - Handle exceptions and error propagation
-  - ✅ **Support all built-in functions** (Completed Jan 26, 2026 - commit 7f0bf0f, type checker + 50+ builtins)
   
 - **Week 7-8: Integration & Testing**
   - Switch default execution mode to VM
-  - ✅ **Run full test suite against VM** (Completed Jan 26, 2026 - 140/140 tests passing)
-  - ✅ **Fix edge cases and bugs** (Completed Jan 26, 2026 - commits 5f6c3d0, 002de4b)
-    - Seeded RNG for deterministic tests (`set_random_seed()`, `clear_random_seed()`)
-    - Deterministic dict/struct output (sorted keys in all display contexts)
-    - Type checker builtin registration (50+ missing functions added)
   - Performance benchmarking baseline
 
 **Expected Performance Gain**: 10-50x faster than tree-walking interpreter
