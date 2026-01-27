@@ -21,9 +21,6 @@ pub struct JitCompiler {
     /// Cranelift JIT module
     module: JITModule,
     
-    /// Builder context for function creation
-    builder_context: FunctionBuilderContext,
-    
     /// Code generation context
     ctx: codegen::Context,
     
@@ -270,7 +267,6 @@ impl JitCompiler {
         
         Ok(JitCompiler {
             module,
-            builder_context: FunctionBuilderContext::new(),
             ctx: codegen::Context::new(),
             execution_counts: HashMap::new(),
             compiled_cache: HashMap::new(),
@@ -311,9 +307,10 @@ impl JitCompiler {
         
         self.ctx.func.signature = sig;
         
-        // Build the function
+        // Build the function with a fresh builder context
         {
-            let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut self.builder_context);
+            let mut builder_ctx = FunctionBuilderContext::new();
+            let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut builder_ctx);
             
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
