@@ -5,6 +5,7 @@
 // subcommand (run, repl, or test).
 
 mod ast;
+mod benchmarks;
 mod builtins;
 mod bytecode;
 mod compiler;
@@ -70,6 +71,20 @@ enum Commands {
         /// Print detailed output for each test
         #[arg(short, long)]
         verbose: bool,
+    },
+
+    /// Run performance benchmarks
+    Bench {
+        /// Path to benchmark file or directory
+        path: Option<PathBuf>,
+
+        /// Number of iterations per benchmark (default: 10)
+        #[arg(short, long, default_value_t = 10)]
+        iterations: usize,
+
+        /// Number of warmup runs (default: 2)
+        #[arg(short, long, default_value_t = 2)]
+        warmup: usize,
     },
 }
 
@@ -208,6 +223,56 @@ fn main() {
 
             // Exit with appropriate code
             std::process::exit(report.exit_code());
+        }
+
+        Commands::Bench { path, iterations, warmup } => {
+            use benchmarks::{BenchmarkRunner, Reporter};
+
+            let runner = BenchmarkRunner::new()
+                .with_iterations(iterations)
+                .with_warmup(warmup);
+
+            Reporter::print_header("Ruff Performance Benchmarks");
+
+            let results = if let Some(p) = path {
+                if p.is_dir() {
+                    runner.run_directory(p)
+                } else if p.is_file() {
+                    vec![(
+                        p.file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("benchmark")
+                            .to_string(),
+                        runner.run_file(p),
+                    )]
+                } else {
+                    eprintln!("Error: Path does not exist: {}", p.display());
+                    std::process::exit(1);
+                }
+            } else {
+                // Default to benchmarks directory
+                let default_path = PathBuf::from("examples/benchmarks");
+                if default_path.exists() {
+                    runner.run_directory(default_path)
+                } else {
+                    eprintln!("Error: No benchmark directory found. Please specify a path.");
+                    std::process::exit(1);
+                }
+            };
+
+            // Print individual results
+            for (name, bench_results) in &results {
+                println!("\n{}", name);
+                for result in bench_results {
+                    Reporter::print_benchmark_result(result);
+                }
+            }
+
+            // Print comparison table
+            Reporter::print_comparison_table(&results);
+
+            // Print summary
+            Reporter::print_summary(&results);
         }
     }
 }

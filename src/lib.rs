@@ -4,6 +4,7 @@
 // Exposes modules for integration testing and external use.
 
 pub mod ast;
+pub mod benchmarks;
 pub mod builtins;
 pub mod bytecode;
 pub mod compiler;
