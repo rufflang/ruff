@@ -388,6 +388,7 @@ impl Interpreter {
             "channel",
             // Async operations
             "async_sleep",
+            "async_timeout",
             // Testing assertion functions
             "assert_equal",
             "assert_true",
@@ -904,6 +905,7 @@ impl Interpreter {
 
         // Async operations
         self.env.define("async_sleep".to_string(), Value::NativeFunction("async_sleep".to_string()));
+        self.env.define("async_timeout".to_string(), Value::NativeFunction("async_timeout".to_string()));
 
         // Testing assertion functions
         self.env

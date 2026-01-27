@@ -12,7 +12,6 @@
 // The runtime is initialized once on first use and shared across the interpreter.
 
 use once_cell::sync::Lazy;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
