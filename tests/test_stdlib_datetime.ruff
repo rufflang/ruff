@@ -4,7 +4,8 @@ print("Testing date/time functions...")
 
 // Test now() - get current timestamp
 timestamp := now()
-print("now() = " + timestamp)
+// Don't print actual timestamp - it changes each run
+// print("now() = " + timestamp)
 
 if timestamp > 1000000000.0 {
     print("✓ now() returns valid Unix timestamp")
@@ -14,7 +15,8 @@ if timestamp > 1000000000.0 {
 
 // Test format_date with various formats
 formatted1 := format_date(timestamp, "YYYY-MM-DD")
-print("format_date(now, 'YYYY-MM-DD') = " + formatted1)
+// Don't print actual date - it changes each run
+// print("format_date(now, 'YYYY-MM-DD') = " + formatted1)
 
 if len(formatted1) == 10 {
     print("✓ format_date with YYYY-MM-DD works")
@@ -23,7 +25,8 @@ if len(formatted1) == 10 {
 }
 
 formatted2 := format_date(timestamp, "YYYY-MM-DD HH:mm:ss")
-print("format_date(now, 'YYYY-MM-DD HH:mm:ss') = " + formatted2)
+// Don't print actual datetime - it changes each run
+// print("format_date(now, 'YYYY-MM-DD HH:mm:ss') = " + formatted2)
 
 if len(formatted2) == 19 {
     print("✓ format_date with full datetime works")
@@ -44,7 +47,8 @@ if known_formatted == "2022-01-01" {
 
 // Test parse_date
 parsed := parse_date("2026-01-23", "YYYY-MM-DD")
-print("parse_date('2026-01-23', 'YYYY-MM-DD') = " + parsed)
+// Don't print actual timestamp - it's a unix timestamp number
+// print("parse_date('2026-01-23', 'YYYY-MM-DD') = " + parsed)
 
 if parsed > 0.0 {
     print("✓ parse_date returns valid timestamp")
@@ -72,11 +76,19 @@ if date2 > date1 {
     print("✗ parse_date date ordering failed")
 }
 
-// Test formatting with custom patterns
+// Test formatting with custom patterns - don't print actual values (they change)
 custom1 := format_date(timestamp, "DD/MM/YYYY")
-print("Custom format DD/MM/YYYY: " + custom1)
+if len(custom1) == 10 {
+    print("✓ Custom format DD/MM/YYYY works")
+} else {
+    print("✗ Custom format DD/MM/YYYY failed")
+}
 
 custom2 := format_date(timestamp, "HH:mm")
-print("Custom format HH:mm: " + custom2)
+if len(custom2) == 5 {
+    print("✓ Custom format HH:mm works")
+} else {
+    print("✗ Custom format HH:mm failed")
+}
 
 print("Date/time function tests completed!")

@@ -500,7 +500,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         // Dict functions
         "keys" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
-                let keys: Vec<Value> = dict.keys().map(|k| Value::Str(k.clone())).collect();
+                let mut keys: Vec<String> = dict.keys().cloned().collect();
+                keys.sort();
+                let keys: Vec<Value> = keys.into_iter().map(|k| Value::Str(k)).collect();
                 Value::Array(keys)
             } else {
                 Value::Array(vec![])
@@ -509,7 +511,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "values" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
-                let vals: Vec<Value> = dict.values().cloned().collect();
+                let mut keys: Vec<&String> = dict.keys().collect();
+                keys.sort();
+                let vals: Vec<Value> = keys.iter().map(|k| dict.get(*k).unwrap().clone()).collect();
                 Value::Array(vals)
             } else {
                 Value::Array(vec![])
@@ -528,9 +532,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "items" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
-                let items: Vec<Value> = dict
+                let mut keys: Vec<&String> = dict.keys().collect();
+                keys.sort();
+                let items: Vec<Value> = keys
                     .iter()
-                    .map(|(k, v)| Value::Array(vec![Value::Str(k.clone()), v.clone()]))
+                    .map(|k| Value::Array(vec![Value::Str((*k).clone()), dict.get(*k).unwrap().clone()]))
                     .collect();
                 Value::Array(items)
             } else {

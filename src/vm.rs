@@ -990,9 +990,11 @@ impl VM {
                 format!("[{}]", items.join(", "))
             }
             Value::Dict(dict) => {
-                let items: Vec<String> = dict
+                let mut keys: Vec<&String> = dict.keys().collect();
+                keys.sort();
+                let items: Vec<String> = keys
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", k, Self::value_to_string(v)))
+                    .map(|k| format!("{}: {}", k, Self::value_to_string(dict.get(*k).unwrap())))
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }

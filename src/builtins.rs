@@ -1607,8 +1607,10 @@ pub fn format_debug_value(value: &Value) -> String {
             format!("Array[{}]", items.join(", "))
         }
         Value::Dict(dict) => {
+            let mut keys: Vec<&String> = dict.keys().collect();
+            keys.sort();
             let items: Vec<String> =
-                dict.iter().map(|(k, v)| format!("{}: {}", k, format_debug_value(v))).collect();
+                keys.iter().map(|k| format!("{}: {}", k, format_debug_value(dict.get(*k).unwrap()))).collect();
             format!("Dict{{{}}}", items.join(", "))
         }
         Value::Function(_, _, _) => "Function".to_string(),

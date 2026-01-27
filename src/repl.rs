@@ -331,14 +331,16 @@ impl Repl {
             }
             Value::Dict(map) => {
                 print!("{} {}", "=>".bright_blue(), "{".bright_white());
-                for (i, (key, val)) in map.iter().enumerate() {
+                let mut keys: Vec<&String> = map.keys().collect();
+                keys.sort();
+                for (i, key) in keys.iter().enumerate() {
                     if i > 0 {
                         print!(", ");
                     }
                     print!(
                         "{}: {}",
                         format!("\"{}\"", key).bright_yellow(),
-                        self.format_value_inline(val)
+                        self.format_value_inline(map.get(*key).unwrap())
                     );
                 }
                 println!("{}", "}".bright_white());

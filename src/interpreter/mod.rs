@@ -4335,9 +4335,11 @@ impl Interpreter {
                 }
             }
             Value::Struct { name, fields } => {
-                let field_strs: Vec<String> = fields
+                let mut keys: Vec<&String> = fields.keys().collect();
+                keys.sort();
+                let field_strs: Vec<String> = keys
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", k, Interpreter::stringify_value(v)))
+                    .map(|k| format!("{}: {}", k, Interpreter::stringify_value(fields.get(*k).unwrap())))
                     .collect();
                 format!("{} {{ {} }}", name, field_strs.join(", "))
             }
@@ -4347,9 +4349,11 @@ impl Interpreter {
                 format!("[{}]", elem_strs.join(", "))
             }
             Value::Dict(map) => {
-                let pair_strs: Vec<String> = map
+                let mut keys: Vec<&String> = map.keys().collect();
+                keys.sort();
+                let pair_strs: Vec<String> = keys
                     .iter()
-                    .map(|(k, v)| format!("\"{}\": {}", k, Interpreter::stringify_value(v)))
+                    .map(|k| format!("\"{}\": {}", k, Interpreter::stringify_value(map.get(*k).unwrap())))
                     .collect();
                 format!("{{{}}}", pair_strs.join(", "))
             }
