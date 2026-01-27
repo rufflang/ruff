@@ -41,9 +41,9 @@ enum Commands {
         /// Path to the .ruff file
         file: PathBuf,
 
-        /// Use bytecode VM instead of tree-walking interpreter
+        /// Use tree-walking interpreter instead of bytecode VM (default: VM)
         #[arg(long)]
-        vm: bool,
+        interpreter: bool,
 
         /// Arguments to pass to the script
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -75,7 +75,7 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { file, vm, script_args } => {
+        Commands::Run { file, interpreter, script_args } => {
             // Store script arguments in environment for args() function to retrieve
             // We need to prepend the script filename so the filtering logic works correctly
             if !script_args.is_empty() {
@@ -97,11 +97,11 @@ fn main() {
             let stmts = parser.parse();
 
             // Debug: print AST for inspection
-            if vm && std::env::var("DEBUG_AST").is_ok() {
+            if !interpreter && std::env::var("DEBUG_AST").is_ok() {
                 eprintln!("DEBUG AST: {:#?}", stmts);
             }
 
-            if vm {
+            if !interpreter {
                 // Use bytecode compiler and VM
                 use std::sync::{Arc, Mutex};
 
@@ -143,7 +143,7 @@ fn main() {
                     }
                 }
             } else {
-                // Use tree-walking interpreter (default)
+                // Use tree-walking interpreter (fallback mode)
                 // Type checking phase (optional - won't stop execution even if errors found)
                 let mut type_checker = type_checker::TypeChecker::new();
                 if let Err(errors) = type_checker.check(&stmts) {
