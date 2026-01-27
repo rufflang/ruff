@@ -468,6 +468,63 @@ If you are new to the project, read this first.
 
 ---
 
+## Async/Await & Concurrency
+
+### Tokio oneshot receivers are single-use and must be extracted from Arc<Mutex<>>
+
+- **Problem:** Cannot await tokio::oneshot::Receiver while holding mutex guard - causes type errors or deadlocks
+- **Root cause:** Oneshot receivers are consumed on await (moved, not borrowed), but they're stored in `Arc<Mutex<Receiver<T>>>` for thread safety
+- **Rule:** Extract receiver using `std::mem::replace()` with dummy closed channel BEFORE awaiting
+- **Pattern:**
+  ```rust
+  let actual_rx = {
+      let mut recv_guard = receiver.lock().unwrap();
+      let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+      drop(dummy_tx); // Close dummy immediately
+      std::mem::replace(&mut *recv_guard, dummy_rx)
+  };
+  // Now can await actual_rx without holding lock
+  let result = AsyncRuntime::block_on(actual_rx);
+  ```
+- **Why:** Oneshot channels are designed for single-use - send once, receive once. This matches Promise semantics perfectly (resolve once, cache result).
+- **Location:** `src/interpreter/mod.rs:3881-3950` (Await expression), `src/vm.rs:1000-1077` (VM Await opcode)
+- **Implication:** This pattern appears in both tree-walking interpreter and bytecode VM. Any code awaiting Promises must use this pattern.
+
+(Discovered during: 2026-01-27_20-54_phase5-tokio-async-runtime.md)
+
+### VM and Interpreter require SEPARATE builtin registration
+
+- **Problem:** Function works with `--interpreter` flag but fails with "Undefined global" in VM (default mode)
+- **Root cause:** VM uses compile-time constant `NATIVE_FUNCTIONS` array for name resolution, interpreter uses runtime `register_builtins()` method
+- **Rule:** ALWAYS update BOTH locations when adding a new native function:
+  1. `src/interpreter/mod.rs:~388` - Add to `NATIVE_FUNCTIONS` const array
+  2. `src/interpreter/mod.rs:~903` - Add to `register_builtins()` method
+- **Why:** VM compiler checks function names at compile time for optimization. Interpreter resolves at runtime.
+- **Testing:** Always test both modes: `cargo run -- run file.ruff` (VM default) and `cargo run -- run --interpreter file.ruff`
+- **Symptom:** Type checker may warn about undefined function, but more critically, VM will reject it at compile time
+- **Prevention:** Make it a checklist item when adding native functions - register in both places
+
+(Discovered during: 2026-01-27_20-54_phase5-tokio-async-runtime.md)
+
+### Value enum cannot derive PartialEq due to interior mutability
+
+- **Problem:** Cannot use `assert_eq!(value1, value2)` in tests - compiler error about missing PartialEq
+- **Root cause:** Value::Promise contains `Arc<Mutex<tokio::sync::oneshot::Receiver<...>>>` which doesn't implement PartialEq
+- **Rule:** Value enum intentionally CANNOT be compared for equality - use pattern matching instead
+- **Why:** Mutex provides interior mutability, channels have no meaningful equality semantics
+- **Test pattern:**
+  ```rust
+  match result {
+      Value::Int(42) => {}, // Success
+      _ => panic!("Expected Int(42)"),
+  }
+  ```
+- **Implication:** This is fundamental to Ruff's design - Values contain stateful resources (channels, mutexes, file handles) that don't have equality semantics
+
+(Discovered during: 2026-01-27_20-54_phase5-tokio-async-runtime.md)
+
+---
+
 ## Quick Reference: Adding a New Built-in Function
 
 1. Register in `Interpreter::new()`: `self.env.define("func_name", Value::NativeFunction("func_name"))`
