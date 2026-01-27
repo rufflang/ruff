@@ -386,6 +386,8 @@ impl Interpreter {
             "stack_to_array",
             // Concurrency functions
             "channel",
+            // Async operations
+            "async_sleep",
             // Testing assertion functions
             "assert_equal",
             "assert_true",
@@ -899,6 +901,9 @@ impl Interpreter {
 
         // Concurrency functions
         self.env.define("channel".to_string(), Value::NativeFunction("channel".to_string()));
+
+        // Async operations
+        self.env.define("async_sleep".to_string(), Value::NativeFunction("async_sleep".to_string()));
 
         // Testing assertion functions
         self.env

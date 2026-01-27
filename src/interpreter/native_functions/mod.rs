@@ -4,6 +4,7 @@
 // This module is part of Phase 3 modularization to split the massive
 // call_native_function_impl into manageable category-based modules.
 
+pub mod async_ops;
 pub mod collections;
 pub mod concurrency;
 pub mod crypto;
@@ -22,6 +23,10 @@ use super::{Interpreter, Value};
 
 /// Main dispatcher that routes native function calls to appropriate category modules
 pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Value {
+    // Try async operations first (high priority for async functions)
+    if let Some(result) = async_ops::handle(interp, name, arg_values) {
+        return result;
+    }
     // Try each category in order
     if let Some(result) = io::handle(interp, name, arg_values) {
         return result;
