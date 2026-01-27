@@ -38,9 +38,11 @@ pub struct JitCompiler {
 struct BytecodeTranslator {
     /// Stack simulation - maps stack depth to Cranelift values
     value_stack: Vec<cranelift::prelude::Value>,
-    /// Variable storage - maps variable names to Cranelift values
+    /// Variable storage - maps variable names to Cranelift values (reserved for future use)
+    #[allow(dead_code)]
     variables: HashMap<String, cranelift::prelude::Value>,
-    /// Blocks for control flow
+    /// Blocks for control flow (reserved for future use)
+    #[allow(dead_code)]
     blocks: HashMap<usize, Block>,
 }
 
@@ -288,6 +290,7 @@ impl JitCompiler {
     }
 
     /// Get compiled function from cache
+    #[allow(dead_code)] // Will be used when executing compiled code
     pub fn get_compiled(&self, offset: usize) -> Option<CompiledFn> {
         self.compiled_cache.get(&offset).copied()
     }
@@ -372,6 +375,7 @@ impl JitCompiler {
 
 /// JIT compilation statistics
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields accessed via Debug formatting and will be used in future performance monitoring
 pub struct JitStats {
     pub total_functions: usize,
     pub compiled_functions: usize,
