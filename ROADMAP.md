@@ -4,7 +4,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 > **Current Version**: v0.8.0 (Released January 2026)  
 > **Next Planned Release**: v0.9.0 (VM Integration & Performance)  
-> **Status**: 🚧 In Progress - JIT Compilation Phase 3 Started! (Jan 2026)
+> **Status**: 🚧 In Progress - JIT Compilation Phase 3 ~75% Complete! (Jan 2026)
 
 ---
 
@@ -132,9 +132,9 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 ---
 
-#### Phase 3: JIT Compilation Infrastructure (4-6 weeks) - 🚧 IN PROGRESS
+#### Phase 3: JIT Compilation Infrastructure (4-6 weeks) - 🚧 ~75% COMPLETE
 
-**Status**: ~60% Complete (January 2026)  
+**Status**: ~75% Complete (January 2026)  
 **Decision**: Using **Cranelift Backend** (lighter weight, faster iteration)
 
 **Completed Work**:
@@ -152,9 +152,13 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
   - Translate logical operations (And, Or, Not)
   - Translate stack operations (Pop, Dup)
   - Translate constant loading (Int, Bool)
-  - Translate control flow (Return, ReturnNone)
+  - **Control flow translation** (Jump, JumpIfFalse, JumpIfTrue, JumpBack)
+  - **Proper basic blocks**: Two-pass translation with pre-created blocks
+  - **Block sealing and termination**: Correct handling of control flow edges
+  - Return and ReturnNone instructions
   - Generate native machine code via Cranelift
   - Function signature translation (fn(*mut Value) -> i64)
+  - **Loop support**: Successfully compiles loops with backward jumps
 
 - ✅ **VM Integration** (COMPLETE)
   - JIT compiler instance added to VM
@@ -163,18 +167,20 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
   - Debug logging support (DEBUG_JIT environment variable)
   - All 198 tests pass with JIT enabled
 
-**Remaining Work**:
+- ✅ **Testing & Examples** (COMPLETE)
+  - 9 comprehensive JIT tests covering all functionality
+  - Test loop compilation with control flow
+  - `examples/jit_loop_test.ruff` - hot loop demonstration
+  - `examples/benchmark_jit.ruff` - performance benchmark
 
-- **Week 5-6: Full Execution & Optimization** (NEXT)
-  - Execute compiled native code (currently compiles but doesn't execute yet)
-  - Handle variable access in compiled code
-  - Implement proper stack/heap interaction
-  - Profile and measure actual performance gains
-  - Add more bytecode instruction support:
-    - Variable operations (LoadVar, StoreVar, LoadGlobal, StoreGlobal)
-    - Control flow (Jump, JumpIfFalse, JumpIfTrue, JumpBack)
-    - Function calls (Call, CallNative)
-    - Array/Dict operations
+**Remaining Work** (~25%):
+
+- **Week 5-6: Full Execution & Variable Support** (NEXT - ~2-3 days)
+  - Execute compiled native code (currently compiles but doesn't call it)
+  - Handle variable access in compiled code (LoadVar, StoreVar, LoadGlobal, StoreGlobal)
+  - Implement proper VM Value ↔ native int conversions
+  - Runtime context for variable lookups from JIT code
+  - Profile and measure actual performance gains (target: 5-10x speedup)
   - Optimization passes:
     - Inline small functions
     - Register allocation optimization

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **JIT Compilation Infrastructure (v0.9.0 Phase 3 - 🚧 IN PROGRESS)** - Just-In-Time compilation using Cranelift:
+- **JIT Compilation Infrastructure (v0.9.0 Phase 3 - 🚧 ~75% COMPLETE)** - Just-In-Time compilation using Cranelift:
   - **Cranelift Integration**: Added Cranelift JIT backend for native code compilation
   - **Hot Path Detection**: Automatic detection and compilation of hot loops (threshold: 100 executions)
   - **Bytecode Translation**: Translate bytecode instructions to Cranelift IR:
@@ -18,17 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Logical operations: And, Or, Not
     - Stack operations: Pop, Dup
     - Constant loading: Int and Bool constants
-    - Control flow: Return and ReturnNone
+    - **Control flow**: Jump, JumpIfFalse, JumpIfTrue, JumpBack (loops)
+    - **Proper basic blocks**: Two-pass translation with block creation and sealing
+    - Return and ReturnNone instructions
   - **Code Cache**: Compiled native functions cached for reuse
   - **VM Integration**: JIT compiler integrated into VM execution loop
   - **Enable/Disable**: JIT can be enabled or disabled at runtime via `VM::set_jit_enabled()`
   - **Statistics**: Get JIT stats via `VM::jit_stats()` (functions tracked, compiled, enabled status)
   - **Graceful Degradation**: Falls back to bytecode interpretation for unsupported operations
-  - **Test Suite**: 8 comprehensive tests for JIT infrastructure, translation, and compilation
-  - **Example**: Added `examples/jit_loop_test.ruff` demonstrating hot loop compilation
+  - **Test Suite**: 9 comprehensive tests including loop and control flow compilation
+  - **Examples**: `examples/jit_loop_test.ruff` and `examples/benchmark_jit.ruff`
   - **Performance Target**: Expected 5-10x speedup for compiled code (Phase 3 goal)
-  - **Status**: Infrastructure complete, bytecode translation functional, VM integration complete
-  - **Next Steps**: Full execution of compiled code, advanced optimizations (type specialization, inlining)
+  - **Status**: ~75% complete - control flow working, loops compile successfully
+  - **Next Steps**: Variable access in JIT code, execute compiled functions, full end-to-end execution
 
 - **VM Bytecode Optimizations (v0.9.0 Phase 2 - ✅ COMPLETE)** - Compiler optimizations for 2-3x performance improvement:
   - **Constant Folding**: Evaluates constant expressions at compile time
