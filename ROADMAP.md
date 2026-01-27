@@ -10,10 +10,14 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 ## 🎯 What's Next (Priority Order)
 
-1. **VM Generators & Async/Await** - Complete VM feature parity (Week 5-6 remaining)
-2. **VM Integration & Testing** - Make VM the default execution path (Week 7-8)
-3. **JIT Compilation** - Cranelift integration for 100-500x speedup (Phases 2-4)
-4. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values
+**IMMEDIATE NEXT**:
+1. **VM Generator Support** - Implement Yield/Resume/MakeGenerator opcodes for generators
+2. **VM Async/Await Support** - Implement Await/MakePromise opcodes for async functions
+
+**AFTER THAT**:
+3. **VM Integration & Testing** - Make VM the default execution path (Week 7-8)
+4. **JIT Compilation** - Cranelift integration for 100-500x speedup (Phases 2-4)
+5. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values (P2, non-blocking)
 
 ---
 
@@ -65,12 +69,26 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
 
 **Remaining Tasks**:
 
-- **⏳ Week 5-6: VM Feature Parity** (NEXT UP)
-  - [ ] Support generators in bytecode (Yield, ResumeGenerator, MakeGenerator opcodes)
-  - [ ] Support async/await in bytecode (Await, MakePromise opcodes)
-  - ✅ Exception handling complete (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
+- **🎯 Week 5-6: VM Feature Parity** (CURRENT PRIORITY - Pick One)
   
-- **⏳ Week 7-8: Integration & Testing** (AFTER WEEK 5-6)
+  **Option A: Generators First** (Recommended)
+  - [ ] Implement Yield opcode (save VM state, return value to caller)
+  - [ ] Implement ResumeGenerator opcode (restore VM state, continue execution)
+  - [ ] Implement MakeGenerator opcode (create generator from function)
+  - [ ] Add generator state tracking to VM (instruction pointer, stack snapshot)
+  - [ ] Test with existing generator examples (see examples/generators.ruff)
+  
+  **Option B: Async/Await First**
+  - [ ] Implement Await opcode (suspend until promise resolves)
+  - [ ] Implement MakePromise opcode (wrap value in promise)
+  - [ ] Integrate with async runtime (tokio or equivalent)
+  - [ ] Add promise state management to VM
+  - [ ] Test with existing async examples (see examples/async_*.ruff)
+  
+  **Already Complete**:
+  - ✅ Exception handling (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
+  
+- **⏳ Week 7-8: Integration & Testing** (AFTER WEEK 5-6 COMPLETE)
   - [ ] Switch default execution mode to VM
   - [ ] Add `--interpreter` flag for fallback mode
   - [ ] Run full test suite in VM mode (198+ tests)
