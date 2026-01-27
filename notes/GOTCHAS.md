@@ -567,3 +567,105 @@ If you are new to the project, read this first.
 
 ---
 
+## JIT Compilation (Cranelift)
+
+### Symbol registration must happen BEFORE JITModule::new()
+
+- **Problem:** "undefined symbol" errors at JIT execution time even with `#[no_mangle]` functions
+- **Rule:** Call `builder.symbol("name", ptr as *const u8)` BEFORE `JITModule::new(builder)`
+- **Why:** `JITBuilder` is consumed by `JITModule::new()`; symbol registration state is frozen
+- **Location:** `src/jit.rs` in `JitCompiler::new()` (~line 615-632)
+- **Implication:** All external symbols must be registered during JIT compiler initialization, not per-compilation
+- **Fix:**
+  ```rust
+  let mut builder = JITBuilder::new(cranelift_module::default_libcall_names())?;
+  builder.symbol("jit_load_variable", jit_load_variable as *const u8);
+  builder.symbol("jit_store_variable", jit_store_variable as *const u8);
+  let module = JITModule::new(builder);  // AFTER registration
+  ```
+
+(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+
+### External function signatures must EXACTLY match runtime
+
+- **Problem:** Segfaults, wrong values, or mysterious crashes when calling external functions
+- **Rule:** Cranelift `sig.params` must exactly match runtime function parameter types and order
+- **Why:** No type checking across FFI boundary; Cranelift generates raw function calls
+- **Example:**
+  ```rust
+  // Runtime: jit_load_variable(ctx: *mut VMContext, hash: u64) -> i64
+  // Cranelift declaration:
+  sig.params.push(AbiParam::new(pointer_type));  // *mut VMContext
+  sig.params.push(AbiParam::new(types::I64));    // hash u64
+  sig.returns.push(AbiParam::new(types::I64));   // return i64
+  ```
+- **Implication:** Document function signatures clearly; validate with end-to-end tests
+
+(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+
+### FuncRef is scoped to function being built
+
+- **Problem:** Cannot store `FuncRef` in struct before entering builder context
+- **Rule:** Store `FuncId` globally, obtain `FuncRef` per function with `declare_func_in_func()`
+- **Why:** `FuncRef` is tied to builder context and specific function definition
+- **Location:** `src/jit.rs` in `compile()` method (~line 700-702)
+- **Pattern:**
+  ```rust
+  // In compile(): Declare once
+  let func_id = module.declare_function("name", Linkage::Import, &sig)?;
+  
+  // In translate loop: Get per function
+  let func_ref = module.declare_func_in_func(func_id, builder.func);
+  self.store_var_func = Some(func_ref);  // Store in translator
+  ```
+- **Implication:** External function FuncRef must be obtained inside function builder scope
+
+(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+
+### Every basic block MUST have a terminator
+
+- **Problem:** Panic with "block has no terminator" during IR finalization
+- **Rule:** Every code path must end with `return`, `jump`, or `branch` instruction
+- **Why:** Cranelift IR requires explicit control flow; no implicit fall-through
+- **Location:** `src/jit.rs` in `translate_instruction()` (~line 253-620)
+- **Fix:** Ensure all branches end with terminator; add explicit `builder.ins().return_()` at function end
+- **Implication:** Check all code paths in control flow; empty blocks still need terminators
+
+(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+
+### Block sealing order matters for SSA
+
+- **Problem:** Panics with "unsealed block" or "block not filled" errors
+- **Rule:** Use two-pass translation - create all blocks first, then translate instructions, seal after adding terminator
+- **Why:** Cranelift requires all predecessors of a block known before sealing (SSA form)
+- **Pattern:**
+  ```rust
+  // Pass 1: Create all blocks
+  for _ in 0..num_blocks { builder.create_block(); }
+  
+  // Pass 2: Translate instructions
+  for instr in bytecode { translate_instruction(instr); }
+  
+  // Pass 3: Seal after terminators added
+  builder.seal_block(block);
+  ```
+- **Implication:** Cannot seal blocks until all jumps to them are generated
+
+(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+
+### Hash-based variable resolution has collision risk
+
+- **Problem:** Two different variable names could hash to same value
+- **Rule:** Using `DefaultHasher` acceptable for small variable counts; consider SHA256 for production
+- **Probability:** Negligible for realistic function sizes (< 1000 variables)
+- **Location:** `src/jit.rs` in `translate_instruction()` LoadVar/StoreVar cases (~line 489-558)
+- **Alternatives:**
+  - Cryptographic hash (zero collision risk)
+  - Variable name indices (requires stable mapping)
+  - Collision detection in var_names HashMap
+- **Implication:** Current solution sufficient; don't over-engineer unless profiling shows problem
+
+(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+
+---
+
