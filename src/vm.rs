@@ -65,6 +65,40 @@ struct ExceptionHandlerFrame {
     frame_offset: usize,
 }
 
+/// Generator state for suspended execution
+#[derive(Debug, Clone)]
+pub struct GeneratorState {
+    /// Instruction pointer where generator yielded
+    pub ip: usize,
+    
+    /// Stack snapshot at yield point
+    pub stack: Vec<Value>,
+    
+    /// Call frame stack at yield point (stored as separate values to avoid circular dependency)
+    pub call_frames_data: Vec<CallFrameData>,
+    
+    /// Bytecode chunk being executed
+    pub chunk: BytecodeChunk,
+    
+    /// Local variables at yield point
+    pub locals: HashMap<String, Value>,
+    
+    /// Captured variables at yield point
+    pub captured: HashMap<String, Arc<Mutex<Value>>>,
+    
+    /// Whether the generator has finished
+    pub is_exhausted: bool,
+}
+
+/// Serializable call frame data for generator state
+#[derive(Debug, Clone)]
+pub struct CallFrameData {
+    pub return_ip: usize,
+    pub stack_offset: usize,
+    pub locals: HashMap<String, Value>,
+    pub captured: HashMap<String, Arc<Mutex<Value>>>,
+}
+
 /// Call frame for function calls
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // CallFrame not yet used - nested calls incomplete
@@ -761,10 +795,107 @@ impl VM {
                 }
 
                 // Generator operations
-                OpCode::Yield | OpCode::ResumeGenerator | OpCode::MakeGenerator => {
-                    // Generators require more complex state management
-                    // For now, return an error - will implement in Week 5-6
-                    return Err("Generator operations not yet implemented in VM".to_string());
+                OpCode::MakeGenerator => {
+                    // Pop the function from stack and convert it to a generator
+                    let function = self.stack.pop().ok_or("Stack underflow in MakeGenerator")?;
+                    
+                    if let Value::BytecodeFunction { chunk, captured } = function {
+                        // Create initial generator state (not yet started)
+                        let state = GeneratorState {
+                            ip: 0,
+                            stack: Vec::new(),
+                            call_frames_data: Vec::new(),
+                            chunk: chunk.clone(),
+                            locals: HashMap::new(),
+                            captured: captured.clone(),
+                            is_exhausted: false,
+                        };
+                        
+                        let generator = Value::BytecodeGenerator {
+                            state: Arc::new(Mutex::new(state)),
+                        };
+                        
+                        self.stack.push(generator);
+                    } else {
+                        return Err("MakeGenerator requires a BytecodeFunction".to_string());
+                    }
+                }
+                
+                OpCode::Yield => {
+                    // Yield a value from the current generator execution
+                    // This should only be called within a generator function
+                    // The value to yield is on top of the stack
+                    let yielded_value = self.stack.pop().ok_or("Stack underflow in Yield")?;
+                    
+                    // Note: This opcode is a marker that indicates we should suspend
+                    // execution and return control to the caller. The actual state
+                    // saving happens in the generator call handling, not here.
+                    // For now, we'll return a special YieldValue to signal this.
+                    // The VM execution loop will need to detect this and handle it appropriately.
+                    
+                    // Push a special marker indicating a yield occurred
+                    self.stack.push(Value::Tagged {
+                        tag: "__yield__".to_string(),
+                        fields: HashMap::from([("value".to_string(), yielded_value)]),
+                    });
+                    
+                    // Return from this execution (the generator state will be saved externally)
+                    return Ok(Value::Tagged {
+                        tag: "__yield__".to_string(),
+                        fields: HashMap::from([("value".to_string(), 
+                            self.stack.pop().ok_or("Stack underflow")?)]),
+                    });
+                }
+                
+                OpCode::ResumeGenerator => {
+                    // Resume generator execution from where it yielded
+                    let generator = self.stack.pop().ok_or("Stack underflow in ResumeGenerator")?;
+                    
+                    if let Value::BytecodeGenerator { state } = generator {
+                        let mut gen_state = state.lock().unwrap();
+                        
+                        // Check if generator is exhausted
+                        if gen_state.is_exhausted {
+                            // Generator is done, return None
+                            self.stack.push(Value::Option {
+                                is_some: false,
+                                value: Box::new(Value::Null),
+                            });
+                            return Ok(Value::Null);
+                        }
+                        
+                        // Restore the generator state
+                        let saved_ip = self.ip;
+                        let saved_chunk = self.chunk.clone();
+                        let saved_stack = self.stack.clone();
+                        let saved_frames = self.call_frames.clone();
+                        
+                        // Restore generator's execution context
+                        self.ip = gen_state.ip;
+                        self.chunk = gen_state.chunk.clone();
+                        self.stack = gen_state.stack.clone();
+                        
+                        // Restore call frames from serialized data
+                        self.call_frames.clear();
+                        for frame_data in &gen_state.call_frames_data {
+                            self.call_frames.push(CallFrame {
+                                return_ip: frame_data.return_ip,
+                                stack_offset: frame_data.stack_offset,
+                                locals: frame_data.locals.clone(),
+                                captured: frame_data.captured.clone(),
+                                prev_chunk: None, // We'll handle this separately if needed
+                            });
+                        }
+                        
+                        // Drop the lock before continuing execution
+                        drop(gen_state);
+                        
+                        // Continue execution until next yield or return
+                        // This is handled by continuing the main loop
+                        // We'll detect yield/return and update the state accordingly
+                    } else {
+                        return Err("ResumeGenerator requires a BytecodeGenerator".to_string());
+                    }
                 }
 
                 // Async/await operations

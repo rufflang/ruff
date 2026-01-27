@@ -1620,6 +1620,10 @@ pub fn format_debug_value(value: &Value) -> String {
             let name = chunk.name.as_deref().unwrap_or("<lambda>");
             format!("BytecodeFunction({})", name)
         }
+        Value::BytecodeGenerator { state } => {
+            let gen_state = state.lock().unwrap();
+            format!("BytecodeGenerator(exhausted: {})", gen_state.is_exhausted)
+        }
         Value::ArrayMarker => "ArrayMarker".to_string(),
         Value::Struct { name, .. } => format!("Struct({})", name),
         Value::StructDef { name, .. } => format!("StructDef({})", name),

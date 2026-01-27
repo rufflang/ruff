@@ -153,6 +153,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::AsyncFunction(_, _, _) => "asyncfunction",
                     Value::NativeFunction(_) => "function",
                     Value::BytecodeFunction { .. } => "function",
+                    Value::BytecodeGenerator { .. } => "generator",
                     Value::ArrayMarker => "arraymarker",
                     Value::Struct { .. } => "struct",
                     Value::StructDef { .. } => "structdef",

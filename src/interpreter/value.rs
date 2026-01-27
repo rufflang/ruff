@@ -253,6 +253,11 @@ pub enum Value {
         /// Captured variables with shared mutable state
         captured: HashMap<String, Arc<Mutex<Value>>>,
     },
+    /// Bytecode generator instance with execution state (VM-based generators)
+    #[allow(dead_code)]
+    BytecodeGenerator {
+        state: Arc<Mutex<crate::vm::GeneratorState>>,
+    },
     /// Internal marker for dynamic array construction in VM
     ArrayMarker,
     /// Return value wrapper
@@ -405,6 +410,15 @@ impl std::fmt::Debug for Value {
                     name,
                     chunk.instructions.len(),
                     captured.len()
+                )
+            }
+            Value::BytecodeGenerator { state } => {
+                let state_lock = state.lock().unwrap();
+                write!(
+                    f,
+                    "BytecodeGenerator(ip={}, exhausted={})",
+                    state_lock.ip,
+                    state_lock.is_exhausted
                 )
             }
             Value::ArrayMarker => write!(f, "ArrayMarker"),
