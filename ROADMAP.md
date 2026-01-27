@@ -16,7 +16,8 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 **AFTER THAT**:
 3. **JIT Compilation** - Cranelift integration for 100-500x speedup (Phases 2-4)
-4. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values (P2, non-blocking)
+4. **True Async Runtime** - Tokio integration for concurrent I/O (Phase 5, P2 priority)
+5. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values (P2, non-blocking)
 
 ---
 
@@ -57,7 +58,16 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 - ✅ Function calls, closures, upvalues
 - ✅ Exception handling with proper unwinding (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
 - ✅ Generator support (MakeGenerator/Yield/ResumeGenerator with full instruction dispatch)
+- ✅ Async/await support (Await/MakePromise opcodes with Promise wrapping)
 - ✅ Native function integration (180+ functions)
+
+**Remaining Work**:
+- Phase 1: VM Integration & Testing (2 weeks)
+- Phase 2: Basic Optimizations (2-3 weeks)
+- Phase 3: JIT Compilation Infrastructure (4-6 weeks)
+- Phase 4: Advanced JIT Optimizations (2-3 weeks)
+- Phase 5: True Async Runtime Integration with Tokio (2-3 weeks) - Optional, P2 priority
+- Phase 6: Benchmarking & Tuning (1-2 weeks)
 
 ---
 
@@ -221,7 +231,70 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 ---
 
-#### Phase 5: Benchmarking & Tuning (1-2 weeks)
+#### Phase 5: True Async Runtime Integration (2-3 weeks) - ⏳ PLANNED
+
+**Status**: Not Started  
+**Priority**: P2 (Medium) - Quality of life improvement, not blocking v1.0  
+**Dependencies**: Phase 1-4 complete
+
+**Why This Matters**:
+Currently, async functions in the VM execute synchronously and wrap results in Promises. This works for most use cases but doesn't provide true concurrent I/O. Real-world applications need non-blocking async for:
+- Concurrent HTTP requests
+- Database connection pooling
+- WebSocket servers
+- File I/O without blocking
+- Multi-client network services
+
+**Objectives**: Integrate tokio runtime for true asynchronous execution
+
+**Implementation Plan**:
+
+- **Week 1: Tokio Integration**
+  - Add `tokio` dependency to Cargo.toml
+  - Create async runtime wrapper in VM
+  - Implement spawn/join primitives for async tasks
+  - Add async-aware event loop to VM execution
+  
+- **Week 2: Async Opcode Refactoring**
+  - Refactor `Await` opcode to use tokio's await mechanism
+  - Update `MakePromise` to create tokio futures
+  - Implement async native functions (async_http_get, async_file_read, etc.)
+  - Add task cancellation support
+  
+- **Week 3: Testing & Integration**
+  - Update existing async tests to verify concurrent execution
+  - Add concurrency tests (parallel HTTP requests, concurrent file I/O)
+  - Benchmark I/O-bound workloads (should see significant improvements)
+  - Update documentation with async best practices
+
+**New Async Features**:
+```ruff
+# Concurrent HTTP requests (actually runs in parallel)
+async func fetch_all(urls) {
+    promises := urls.map(|url| async_http_get(url))
+    results := await Promise.all(promises)  # Truly concurrent
+    return results
+}
+
+# Background task spawning
+task := spawn(async_long_running_operation())
+# Do other work...
+result := await task.join()
+
+# Async timeout support
+result := await timeout(fetch_data(), 5000)  # 5 second timeout
+```
+
+**Performance Benefits**:
+- I/O-bound workloads: 10-100x faster (depends on concurrency level)
+- CPU-bound workloads: No change (already fast with JIT)
+- Real-world mixed workloads: 5-20x faster
+
+**Alternative**: If tokio proves too heavy, consider `async-std` or custom lightweight runtime
+
+---
+
+#### Phase 6: Benchmarking & Tuning (1-2 weeks)
 
 **Objectives**:
 1. Validate performance improvements
