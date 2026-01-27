@@ -739,3 +739,38 @@ If you are new to the project, read this first.
 ---
 
 *Last updated: 2026-01-27 (Phase 4B - Type Specialization)*
+
+### Cannot recompile same bytecode offset twice in one JitCompiler
+
+- **Problem:** Test fails with "Duplicate definition of identifier: ruff_jit_XXX"
+- **Symptom:** Second call to `compiler.compile(&chunk, offset)` with same offset fails
+- **Reality:** Cranelift JITModule creates function names as `ruff_jit_{offset}`. Each name must be unique.
+- **Rule:** Each bytecode offset can only be compiled once per JitCompiler instance.
+- **Fix:** Use different offsets for each compilation:
+  ```rust
+  compiler.compile(&chunk1, 100);  // ruff_jit_100
+  compiler.compile(&chunk2, 200);  // ruff_jit_200 ✓
+  // NOT: compiler.compile(&chunk2, 100); // ERROR: duplicate
+  ```
+- **Why:** Cranelift's symbol table prevents duplicate function definitions
+- **Implication:** In tests compiling multiple chunks, use unique offsets or create new JitCompiler instances
+
+(Discovered during: 2026-01-27_11-02_phase4c-integration.md)
+
+### Specialization decisions happen at compile-time, not runtime
+
+- **Problem:** You might think specialization checks happen during code execution
+- **Reality:** `self.specialization.is_some()` is checked during **Cranelift IR generation** (compilation), not during native code execution
+- **Rule:** Specialization is a compilation strategy that produces different native code, not a runtime dispatch mechanism
+- **Why:** The whole point is zero runtime overhead - no type checks per operation
+- **Implication:**
+  - Once compiled with specialization, function always uses that path
+  - Type guards (Phase 4D) check assumptions at function **entry**, not per operation
+  - Guard failures trigger deoptimization and recompilation
+  - Can't dynamically switch between specialized/generic in same compiled function
+
+(Discovered during: 2026-01-27_11-02_phase4c-integration.md)
+
+---
+
+*Last updated: 2026-01-27 (Phase 4C - Specialized Method Integration)*
