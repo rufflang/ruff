@@ -271,6 +271,128 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
+        // Assert & Debug functions
+        "assert" => {
+            if arg_values.is_empty() {
+                return Some(Value::Error(
+                    "assert requires at least 1 argument: condition".to_string(),
+                ));
+            }
+
+            let condition = match arg_values.first() {
+                Some(Value::Bool(b)) => *b,
+                Some(Value::Int(n)) => *n != 0,
+                Some(Value::Float(n)) => *n != 0.0,
+                Some(Value::Null) => false,
+                Some(_) => true,
+                None => false,
+            };
+
+            let message = if let Some(Value::Str(msg)) = arg_values.get(1) {
+                Some(msg.as_str())
+            } else {
+                None
+            };
+
+            match builtins::assert_condition(condition, message) {
+                Ok(_) => Value::Bool(true),
+                Err(e) => Value::Error(e),
+            }
+        }
+
+        "debug" => {
+            let debug_parts: Vec<String> =
+                arg_values.iter().map(builtins::format_debug_value).collect();
+            println!("[DEBUG] {}", debug_parts.join(" "));
+            Value::Null
+        }
+
+        "assert_equal" => {
+            if arg_values.len() < 2 {
+                return Some(Value::Error(
+                    "assert_equal requires 2 arguments: actual, expected".to_string(),
+                ));
+            }
+            let actual = &arg_values[0];
+            let expected = &arg_values[1];
+
+            if Interpreter::values_equal(actual, expected) {
+                Value::Bool(true)
+            } else {
+                let msg = format!("Assertion failed: expected {:?}, got {:?}", expected, actual);
+                Value::Error(msg)
+            }
+        }
+
+        "assert_true" => {
+            if let Some(Value::Bool(val)) = arg_values.first() {
+                if *val {
+                    Value::Bool(true)
+                } else {
+                    Value::Error("Assertion failed: expected true, got false".to_string())
+                }
+            } else {
+                Value::Error("assert_true requires a boolean argument".to_string())
+            }
+        }
+
+        "assert_false" => {
+            if let Some(Value::Bool(val)) = arg_values.first() {
+                if !*val {
+                    Value::Bool(true)
+                } else {
+                    Value::Error("Assertion failed: expected false, got true".to_string())
+                }
+            } else {
+                Value::Error("assert_false requires a boolean argument".to_string())
+            }
+        }
+
+        "assert_contains" => {
+            if arg_values.len() < 2 {
+                return Some(Value::Error(
+                    "assert_contains requires 2 arguments: collection, item".to_string(),
+                ));
+            }
+
+            let collection = &arg_values[0];
+            let item = &arg_values[1];
+
+            let contains = match collection {
+                Value::Array(arr) => arr.iter().any(|v| Interpreter::values_equal(v, item)),
+                Value::Str(s) => {
+                    if let Value::Str(needle) = item {
+                        s.contains(needle)
+                    } else {
+                        false
+                    }
+                }
+                Value::Dict(map) => {
+                    if let Value::Str(key) = item {
+                        map.contains_key(key)
+                    } else {
+                        false
+                    }
+                }
+                _ => {
+                    return Some(Value::Error(
+                        "assert_contains requires an array, string, or dict as first argument"
+                            .to_string(),
+                    ))
+                }
+            };
+
+            if contains {
+                Value::Bool(true)
+            } else {
+                let msg = format!(
+                    "Assertion failed: {:?} does not contain {:?}",
+                    collection, item
+                );
+                Value::Error(msg)
+            }
+        }
+
         _ => return None,
     };
 
