@@ -4,20 +4,19 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 > **Current Version**: v0.8.0 (Released January 2026)  
 > **Next Planned Release**: v0.9.0 (VM Integration & Performance)  
-> **Status**: 🚧 In Progress - VM Exception Handling Complete (Jan 2026)
+> **Status**: 🚧 In Progress - Exception Handling & Generators Complete (Jan 2026)
 
 ---
 
 ## 🎯 What's Next (Priority Order)
 
 **IMMEDIATE NEXT**:
-1. **VM Generator Support** - Implement Yield/Resume/MakeGenerator opcodes for generators
-2. **VM Async/Await Support** - Implement Await/MakePromise opcodes for async functions
+1. **VM Async/Await Support** - Implement Await/MakePromise opcodes for async functions
+2. **VM Integration & Testing** - Make VM the default execution path (Week 7-8)
 
 **AFTER THAT**:
-3. **VM Integration & Testing** - Make VM the default execution path (Week 7-8)
-4. **JIT Compilation** - Cranelift integration for 100-500x speedup (Phases 2-4)
-5. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values (P2, non-blocking)
+3. **JIT Compilation** - Cranelift integration for 100-500x speedup (Phases 2-4)
+4. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values (P2, non-blocking)
 
 ---
 
@@ -35,13 +34,13 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 **Timeline**: Q1-Q2 2026 (3-4 months total)  
 **Priority**: P1 - Essential for v1.0
 
-> **Progress**: ✅ Exception handling complete | 🚧 Generators/async pending | ⏳ JIT planned
+> **Progress**: ✅ Exception handling complete | ✅ Generators complete | 🚧 Async/await next | ⏳ JIT planned
 
 ---
 
 ### 28. Complete VM Integration + JIT Compilation (P1)
 
-**Status**: Planned  
+**Status**: ~85% Complete  
 **Estimated Effort**: Very Large (3-4 months total)
 
 **Why Critical**: To compete with Go and other modern languages, Ruff needs near-native performance. Tree-walking interpreters are 100-500x slower than compiled languages. This is essential for v1.0 adoption.
@@ -52,68 +51,38 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 - After JIT compilation: ~2-10x slower than Go
 - Goal: Performance competitive with Go for I/O-bound workloads
 
-**Current Problem**: 
-- Bytecode compiler and VM exist (`src/vm.rs`, `src/bytecode.rs`, `src/compiler.rs`) but aren't actively used
-- Two execution paths creating confusion and maintenance burden
-- Code marked with `#[allow(dead_code)]` throughout
-
-**Decision**: Complete VM Integration + JIT (Option 1 Extended)
-
-This is a long task spanning multiple months, but it's fundamental to making Ruff production-ready. Performance is non-negotiable for v1.0 release.
+**Completed So Far**:
+- ✅ VM instruction set design (60+ opcodes)
+- ✅ Bytecode compiler for all AST nodes
+- ✅ Function calls, closures, upvalues
+- ✅ Exception handling with proper unwinding (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
+- ✅ Generator support (MakeGenerator/Yield/ResumeGenerator with full instruction dispatch)
+- ✅ Native function integration (180+ functions)
 
 ---
 
 #### Phase 1: Complete Bytecode VM Integration (6-8 weeks) - 🚧 IN PROGRESS
 
-**Status**: ~85% Complete (Weeks 1-4 done, exception handling done, generators COMPLETE, async/await pending)
+**Status**: ~85% Complete (exception handling ✅, generators ✅, async/await pending)
 
-**Remaining Tasks**:
+**🎯 Current Priority: Week 5-6 - Async/Await Support**
+  
+- [ ] Implement Await opcode (suspend until promise resolves)
+- [ ] Implement MakePromise opcode (wrap value in promise)
+- [ ] Integrate with async runtime (tokio or equivalent)
+- [ ] Add promise state management to VM
+- [ ] Test with existing async examples (see examples/async_*.ruff)
+- [ ] Add comprehensive async/await tests
 
-- **🎯 Week 5-6: VM Feature Parity** (CURRENT PRIORITY - Pick One)
+**Next: Week 7-8 - Integration & Testing**
   
-  **Option A: Generators First** (Recommended) - ✅ **100% COMPLETE**
-  - [x] Implement Yield opcode (save VM state, return value to caller)
-  - [x] Implement ResumeGenerator opcode (restore VM state, continue execution)  
-  - [x] Implement MakeGenerator opcode (create generator from function)
-  - [x] Add generator state tracking to VM (instruction pointer, stack snapshot)
-  - [x] Create helper method for generator.next() calls
-  - [x] Auto-create generators when calling generator functions (is_generator check)
-  - [x] Add comprehensive generator tests (tests/test_generators.ruff)
-  - [x] **COMPLETE**: Tree-walking interpreter generators fully working
-  - [x] **COMPLETE**: Full instruction dispatch in generator_next() (arithmetic, comparisons, control flow)
-  - [x] **COMPLETE**: VM bytecode generators ready for production
-  
-  **Option B: Async/Await Second** - 📋 NEXT PRIORITY
-  - [ ] Implement Await opcode (suspend until promise resolves)
-  - [ ] Implement MakePromise opcode (wrap value in promise)
-  - [ ] Integrate with async runtime (tokio or equivalent)
-  - [ ] Add promise state management to VM
-  - [ ] Test with existing async examples (see examples/async_*.ruff)
-  
-  **Already Complete**:
-  - ✅ Exception handling (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
-  - ✅ Generator opcodes and state structures (MakeGenerator/Yield/ResumeGenerator)
-  - ✅ BytecodeGenerator value type with state tracking
-  - ✅ Generator auto-creation on function calls
-  - ✅ generator_next() method with FULL instruction dispatch
-  - ✅ Tree-walking interpreter generator support (FULLY WORKING)
-  - ✅ **VM Bytecode Generator Support (FULLY WORKING)** 🎉
-  
-- **⏳ Week 7-8: Integration & Testing** (AFTER WEEK 5-6 COMPLETE)
-  - [ ] Switch default execution mode to VM
-  - [ ] Add `--interpreter` flag for fallback mode
-  - [ ] Run full test suite in VM mode (198+ tests)
-  - [ ] Performance benchmarking baseline
-  - [ ] Document performance characteristics
+- [ ] Switch default execution mode to VM
+- [ ] Add `--interpreter` flag for fallback mode
+- [ ] Run full test suite in VM mode (198+ tests)
+- [ ] Performance benchmarking baseline
+- [ ] Document performance characteristics
 
 **Expected Performance Gain**: 10-50x faster than tree-walking interpreter
-
-**Completed So Far**:
-- ✅ VM instruction set design (60+ opcodes)
-- ✅ Bytecode compiler for all AST nodes
-- ✅ Function calls, closures, upvalues
-- ✅ Exception handling with proper unwinding
-- ✅ Native function integration (180+ functions)
 
 ---
 
