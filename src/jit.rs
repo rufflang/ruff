@@ -10,9 +10,17 @@ use cranelift::codegen::ir::FuncRef;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, FuncId};
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 /// JIT compilation threshold - number of executions before compiling
 const JIT_THRESHOLD: usize = 100;
+
+/// Guard failure threshold - recompile if guard failures exceed this percentage
+const GUARD_FAILURE_THRESHOLD: f64 = 0.10; // 10%
+
+/// Minimum samples before type specialization
+const MIN_TYPE_SAMPLES: usize = 50;
 
 /// Runtime context passed to JIT-compiled functions
 /// This allows JIT code to access VM state (stack, variables, etc.)
@@ -61,6 +69,102 @@ impl VMContext {
 
 /// Compiled function type: takes VMContext pointer, returns status code
 type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
+
+/// Type profile for a variable or operation
+#[derive(Debug, Clone, Default)]
+pub struct TypeProfile {
+    /// Count of Int values observed
+    pub int_count: usize,
+    /// Count of Float values observed
+    pub float_count: usize,
+    /// Count of Bool values observed
+    pub bool_count: usize,
+    /// Count of other types observed
+    pub other_count: usize,
+}
+
+impl TypeProfile {
+    /// Record a type observation
+    pub fn record(&mut self, value: &Value) {
+        match value {
+            Value::Int(_) => self.int_count += 1,
+            Value::Float(_) => self.float_count += 1,
+            Value::Bool(_) => self.bool_count += 1,
+            _ => self.other_count += 1,
+        }
+    }
+    
+    /// Get total observations
+    pub fn total(&self) -> usize {
+        self.int_count + self.float_count + self.bool_count + self.other_count
+    }
+    
+    /// Get the dominant type (most frequently observed)
+    pub fn dominant_type(&self) -> Option<ValueType> {
+        if self.total() < MIN_TYPE_SAMPLES {
+            return None;
+        }
+        
+        let max_count = self.int_count.max(self.float_count).max(self.bool_count).max(self.other_count);
+        
+        if max_count == self.int_count && self.int_count as f64 / self.total() as f64 > 0.90 {
+            Some(ValueType::Int)
+        } else if max_count == self.float_count && self.float_count as f64 / self.total() as f64 > 0.90 {
+            Some(ValueType::Float)
+        } else if max_count == self.bool_count && self.bool_count as f64 / self.total() as f64 > 0.90 {
+            Some(ValueType::Bool)
+        } else {
+            None // Mixed types
+        }
+    }
+    
+    /// Check if this profile is stable enough for specialization
+    pub fn is_stable(&self) -> bool {
+        self.total() >= MIN_TYPE_SAMPLES && self.dominant_type().is_some()
+    }
+}
+
+/// Value types for specialization
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueType {
+    Int,
+    Float,
+    Bool,
+    Mixed,
+}
+
+/// Specialization strategy for a function
+#[derive(Debug, Clone)]
+pub struct SpecializationInfo {
+    /// Type profiles for each variable (by name hash)
+    pub variable_types: HashMap<u64, TypeProfile>,
+    /// Dominant types for specialization
+    pub specialized_types: HashMap<u64, ValueType>,
+    /// Guard success count
+    pub guard_successes: usize,
+    /// Guard failure count
+    pub guard_failures: usize,
+}
+
+impl SpecializationInfo {
+    fn new() -> Self {
+        Self {
+            variable_types: HashMap::new(),
+            specialized_types: HashMap::new(),
+            guard_successes: 0,
+            guard_failures: 0,
+        }
+    }
+    
+    /// Check if guards are failing too often
+    fn should_despecialize(&self) -> bool {
+        let total = self.guard_successes + self.guard_failures;
+        if total < MIN_TYPE_SAMPLES {
+            return false;
+        }
+        (self.guard_failures as f64 / total as f64) > GUARD_FAILURE_THRESHOLD
+    }
+}
 
 // Runtime helper functions that JIT code can call
 // These are marked #[no_mangle] so JIT code can find them by name
@@ -166,6 +270,154 @@ pub unsafe extern "C" fn jit_store_variable(ctx: *mut VMContext, name_hash: i64,
     }
 }
 
+/// Load a variable as float from locals or globals (called from JIT code)
+#[no_mangle]
+pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash: i64) -> f64 {
+    if ctx.is_null() {
+        return 0.0;
+    }
+    
+    let ctx = &*ctx;
+    
+    // Try to resolve the name from hash
+    let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
+        let var_names = &*ctx.var_names_ptr;
+        if let Some(n) = var_names.get(&(name_hash as u64)) {
+            n.as_str()
+        } else {
+            return 0.0; // Hash not found
+        }
+    } else {
+        return 0.0; // No name provided
+    };
+    
+    // Try locals first
+    if !ctx.locals_ptr.is_null() {
+        let locals = &*ctx.locals_ptr;
+        if let Some(Value::Float(val)) = locals.get(name) {
+            return *val;
+        }
+    }
+    
+    // Try globals
+    if !ctx.globals_ptr.is_null() {
+        let globals = &*ctx.globals_ptr;
+        if let Some(Value::Float(val)) = globals.get(name) {
+            return *val;
+        }
+    }
+    
+    0.0
+}
+
+/// Store a float variable to locals (called from JIT code)
+#[no_mangle]
+pub unsafe extern "C" fn jit_store_variable_float(ctx: *mut VMContext, name_hash: i64, value: f64) {
+    if ctx.is_null() {
+        return;
+    }
+    
+    let ctx = &mut *ctx;
+    
+    // Try to resolve the name from hash
+    let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
+        let var_names = &*ctx.var_names_ptr;
+        if let Some(n) = var_names.get(&(name_hash as u64)) {
+            n.clone()
+        } else {
+            return; // Hash not found
+        }
+    } else {
+        return; // No name provided
+    };
+    
+    // Store in locals
+    if !ctx.locals_ptr.is_null() {
+        let locals = &mut *ctx.locals_ptr;
+        locals.insert(name, Value::Float(value));
+    }
+}
+
+/// Check if a variable is an Int (called from JIT code for guards)
+/// Returns 1 if Int, 0 otherwise
+#[no_mangle]
+pub unsafe extern "C" fn jit_check_type_int(ctx: *mut VMContext, name_hash: i64) -> i64 {
+    if ctx.is_null() {
+        return 0;
+    }
+    
+    let ctx = &*ctx;
+    
+    let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
+        let var_names = &*ctx.var_names_ptr;
+        if let Some(n) = var_names.get(&(name_hash as u64)) {
+            n.as_str()
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    };
+    
+    // Check locals first
+    if !ctx.locals_ptr.is_null() {
+        let locals = &*ctx.locals_ptr;
+        if let Some(value) = locals.get(name) {
+            return if matches!(value, Value::Int(_)) { 1 } else { 0 };
+        }
+    }
+    
+    // Check globals
+    if !ctx.globals_ptr.is_null() {
+        let globals = &*ctx.globals_ptr;
+        if let Some(value) = globals.get(name) {
+            return if matches!(value, Value::Int(_)) { 1 } else { 0 };
+        }
+    }
+    
+    0
+}
+
+/// Check if a variable is a Float (called from JIT code for guards)
+/// Returns 1 if Float, 0 otherwise
+#[no_mangle]
+pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i64) -> i64 {
+    if ctx.is_null() {
+        return 0;
+    }
+    
+    let ctx = &*ctx;
+    
+    let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
+        let var_names = &*ctx.var_names_ptr;
+        if let Some(n) = var_names.get(&(name_hash as u64)) {
+            n.as_str()
+        } else {
+            return 0;
+        }
+    } else {
+        return 0;
+    };
+    
+    // Check locals first
+    if !ctx.locals_ptr.is_null() {
+        let locals = &*ctx.locals_ptr;
+        if let Some(value) = locals.get(name) {
+            return if matches!(value, Value::Float(_)) { 1 } else { 0 };
+        }
+    }
+    
+    // Check globals
+    if !ctx.globals_ptr.is_null() {
+        let globals = &*ctx.globals_ptr;
+        if let Some(value) = globals.get(name) {
+            return if matches!(value, Value::Float(_)) { 1 } else { 0 };
+        }
+    }
+    
+    0
+}
+
 /// JIT compiler for Ruff bytecode
 pub struct JitCompiler {
     /// Cranelift JIT module
@@ -182,6 +434,9 @@ pub struct JitCompiler {
 
     /// JIT enabled/disabled flag
     enabled: bool,
+    
+    /// Type profiling data for specialization
+    type_profiles: HashMap<usize, SpecializationInfo>,
 }
 
 /// Bytecode translator - converts bytecode to Cranelift IR
@@ -625,6 +880,10 @@ impl JitCompiler {
         builder.symbol("jit_store_variable", jit_store_variable as *const u8);
         builder.symbol("jit_stack_push", jit_stack_push as *const u8);
         builder.symbol("jit_stack_pop", jit_stack_pop as *const u8);
+        builder.symbol("jit_load_variable_float", jit_load_variable_float as *const u8);
+        builder.symbol("jit_store_variable_float", jit_store_variable_float as *const u8);
+        builder.symbol("jit_check_type_int", jit_check_type_int as *const u8);
+        builder.symbol("jit_check_type_float", jit_check_type_float as *const u8);
 
         let module = JITModule::new(builder);
 
@@ -634,6 +893,7 @@ impl JitCompiler {
             execution_counts: HashMap::new(),
             compiled_cache: HashMap::new(),
             enabled: true,
+            type_profiles: HashMap::new(),
         })
     }
 
@@ -808,6 +1068,48 @@ impl JitCompiler {
     /// Enable or disable JIT compilation
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
+    }
+    
+    /// Record a type observation for profiling
+    pub fn record_type(&mut self, offset: usize, var_hash: u64, value: &Value) {
+        let profile = self.type_profiles.entry(offset).or_insert_with(SpecializationInfo::new);
+        let type_profile = profile.variable_types.entry(var_hash).or_insert_with(TypeProfile::default);
+        type_profile.record(value);
+        
+        // Update specialization strategy if profile is stable
+        if type_profile.is_stable() {
+            if let Some(dominant_type) = type_profile.dominant_type() {
+                profile.specialized_types.insert(var_hash, dominant_type);
+            }
+        }
+    }
+    
+    /// Record a guard success
+    pub fn record_guard_success(&mut self, offset: usize) {
+        if let Some(profile) = self.type_profiles.get_mut(&offset) {
+            profile.guard_successes += 1;
+        }
+    }
+    
+    /// Record a guard failure
+    pub fn record_guard_failure(&mut self, offset: usize) {
+        if let Some(profile) = self.type_profiles.get_mut(&offset) {
+            profile.guard_failures += 1;
+            
+            // Check if we should recompile
+            if profile.should_despecialize() {
+                // Remove from cache to force recompilation with generic code
+                self.compiled_cache.remove(&offset);
+                profile.specialized_types.clear();
+                profile.guard_successes = 0;
+                profile.guard_failures = 0;
+            }
+        }
+    }
+    
+    /// Get specialization info for a function
+    pub fn get_specialization(&self, offset: usize) -> Option<&SpecializationInfo> {
+        self.type_profiles.get(&offset)
     }
 
     /// Get JIT statistics
@@ -1124,5 +1426,125 @@ mod tests {
         println!("✓ Variables work correctly in JIT code!");
         println!("  x = {:?}", locals.get("x"));
         println!("  y = {:?}", locals.get("y"));
+    }
+    
+    #[test]
+    fn test_type_profiling() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        
+        // Simulate profiling Int values
+        let var_hash = 12345u64;
+        for _ in 0..60 {
+            compiler.record_type(offset, var_hash, &Value::Int(42));
+        }
+        
+        // Check profile
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        let type_profile = profile.variable_types.get(&var_hash).expect("Type profile should exist");
+        
+        assert_eq!(type_profile.int_count, 60);
+        assert_eq!(type_profile.float_count, 0);
+        assert!(type_profile.is_stable(), "Profile should be stable");
+        assert_eq!(type_profile.dominant_type(), Some(ValueType::Int));
+        
+        // Check specialization was recorded
+        assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Int));
+    }
+    
+    #[test]
+    fn test_type_profiling_mixed_types() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        let var_hash = 12345u64;
+        
+        // Simulate mixed types (40 Int, 20 Float)
+        for _ in 0..40 {
+            compiler.record_type(offset, var_hash, &Value::Int(42));
+        }
+        for _ in 0..20 {
+            compiler.record_type(offset, var_hash, &Value::Float(3.14));
+        }
+        
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        let type_profile = profile.variable_types.get(&var_hash).expect("Type profile should exist");
+        
+        assert_eq!(type_profile.int_count, 40);
+        assert_eq!(type_profile.float_count, 20);
+        assert_eq!(type_profile.total(), 60);
+        
+        // Not stable enough for specialization (need >90% of one type)
+        assert!(type_profile.dominant_type().is_none(), "Mixed types shouldn't specialize");
+    }
+    
+    #[test]
+    fn test_guard_success_tracking() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        
+        // Initialize profile
+        compiler.record_type(offset, 12345, &Value::Int(1));
+        
+        // Record guard successes
+        for _ in 0..100 {
+            compiler.record_guard_success(offset);
+        }
+        
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        assert_eq!(profile.guard_successes, 100);
+        assert_eq!(profile.guard_failures, 0);
+        assert!(!profile.should_despecialize());
+    }
+    
+    #[test]
+    fn test_guard_failure_despecialization() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        
+        // Initialize profile and add to compiled cache
+        compiler.record_type(offset, 12345, &Value::Int(1));
+        compiler.compiled_cache.insert(offset, unsafe { std::mem::transmute(0usize) });
+        
+        // Record mostly successes, then failures
+        for _ in 0..90 {
+            compiler.record_guard_success(offset);
+        }
+        
+        // Add failures - when we hit 11 failures out of 101 total (10.9%), despec triggers
+        // After that, the counters reset and remaining failures get added to new counters
+        for _ in 0..20 {
+            compiler.record_guard_failure(offset);
+        }
+        
+        // Should have cleared cache (happened when threshold was crossed)
+        assert!(!compiler.compiled_cache.contains_key(&offset), "Should remove from cache");
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        assert_eq!(profile.specialized_types.len(), 0, "Should clear specializations");
+        
+        // Counters were reset when despec happened, then more failures were added
+        // So we should have some failures but not all 20
+        assert!(profile.guard_failures < 20 && profile.guard_failures > 0, 
+                "Should have some failures after reset: {}", profile.guard_failures);
+        assert_eq!(profile.guard_successes, 0, "Successes should be reset");
+    }
+    
+    #[test]
+    fn test_float_specialization_profile() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        let var_hash = 99999u64;
+        
+        // Profile float values
+        for _ in 0..60 {
+            compiler.record_type(offset, var_hash, &Value::Float(3.14));
+        }
+        
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        let type_profile = profile.variable_types.get(&var_hash).expect("Type profile should exist");
+        
+        assert_eq!(type_profile.float_count, 60);
+        assert!(type_profile.is_stable());
+        assert_eq!(type_profile.dominant_type(), Some(ValueType::Float));
+        assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Float));
     }
 }
