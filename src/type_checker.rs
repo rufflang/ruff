@@ -847,10 +847,7 @@ impl TypeChecker {
 
         self.functions.insert(
             "clear_random_seed".to_string(),
-            FunctionSignature {
-                param_types: vec![],
-                return_type: None,
-            },
+            FunctionSignature { param_types: vec![], return_type: None },
         );
 
         // Date/Time functions
@@ -1695,10 +1692,7 @@ impl TypeChecker {
         // OS & Path module functions
         self.functions.insert(
             "os_getcwd".to_string(),
-            FunctionSignature {
-                param_types: vec![],
-                return_type: Some(TypeAnnotation::String),
-            },
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::String) },
         );
 
         self.functions.insert(
@@ -1803,7 +1797,7 @@ impl TypeChecker {
             "io_read_bytes".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::Int)], // path, count
-                return_type: None, // bytes
+                return_type: None,                                                          // bytes
             },
         );
 
@@ -2011,7 +2005,15 @@ impl TypeChecker {
                 }
             }
 
-            Stmt::FuncDef { name: _, params, param_types, return_type, body, is_generator: _, is_async: _ } => {
+            Stmt::FuncDef {
+                name: _,
+                params,
+                param_types,
+                return_type,
+                body,
+                is_generator: _,
+                is_async: _,
+            } => {
                 // Enter function scope
                 let saved_return_type = self.current_function_return.clone();
                 self.current_function_return = return_type.clone();
@@ -2479,7 +2481,14 @@ impl TypeChecker {
                 None // TODO: Return element type based on container type
             }
 
-            Expr::Function { params: _, param_types, return_type, body, is_generator: _, is_async: _ } => {
+            Expr::Function {
+                params: _,
+                param_types,
+                return_type,
+                body,
+                is_generator: _,
+                is_async: _,
+            } => {
                 // Type check function expression (anonymous function)
                 // Enter function scope
                 self.push_scope();

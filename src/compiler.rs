@@ -23,7 +23,7 @@ pub struct Compiler {
 
     /// Local variables in current scope
     locals: Vec<Local>,
-    
+
     /// Parent compiler (for nested functions/closures)
     parent: Option<Box<Compiler>>,
 }
@@ -262,7 +262,7 @@ impl Compiler {
                 let mut func_compiler = Compiler::new();
                 func_compiler.chunk.name = Some(name.clone());
                 func_compiler.chunk.params = params.clone();
-                func_compiler.scope_depth = 1;  // Functions create a new scope (not global)
+                func_compiler.scope_depth = 1; // Functions create a new scope (not global)
 
                 // Add parameters as locals
                 for param in params {
@@ -272,7 +272,7 @@ impl Compiler {
                 // Analyze the function body to find free variables (captures)
                 let free_vars = Self::find_free_variables(body, params, &self.locals);
                 func_compiler.chunk.upvalues = free_vars.clone();
-                
+
                 // Add captured variables as locals so the compiler knows they exist
                 for upvalue_name in &free_vars {
                     func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 1 });
@@ -415,41 +415,41 @@ impl Compiler {
             Stmt::TryExcept { try_block, except_var, except_block } => {
                 // Set up exception handler
                 let try_start = self.chunk.instructions.len();
-                
+
                 // Emit BeginTry with placeholder catch address
                 let begin_try_index = self.chunk.emit(OpCode::BeginTry(0));
-                
+
                 // Compile try block
                 for stmt in try_block {
                     self.compile_stmt(stmt)?;
                 }
-                
+
                 // End try block
                 self.chunk.emit(OpCode::EndTry);
-                
+
                 // Jump over catch block if no exception
                 let end_jump = self.chunk.emit(OpCode::Jump(0));
-                
+
                 // Catch block starts here
                 let catch_start = self.chunk.instructions.len();
-                
+
                 // Patch BeginTry with actual catch address
                 self.chunk.set_jump_target(begin_try_index, catch_start);
-                
+
                 // Begin catch and bind exception to variable
                 self.chunk.emit(OpCode::BeginCatch(except_var.clone()));
-                
+
                 // Compile catch block
                 for stmt in except_block {
                     self.compile_stmt(stmt)?;
                 }
-                
+
                 // End catch block
                 self.chunk.emit(OpCode::EndCatch);
-                
+
                 // Patch the jump over catch block
                 self.chunk.patch_jump(end_jump);
-                
+
                 // Record exception handler in metadata
                 let try_end = catch_start - 1;
                 self.chunk.exception_handlers.push(crate::bytecode::ExceptionHandler {
@@ -458,7 +458,7 @@ impl Compiler {
                     catch_start,
                     exception_var: except_var.clone(),
                 });
-                
+
                 Ok(())
             }
 
@@ -466,16 +466,16 @@ impl Compiler {
                 // Enter new scope
                 self.chunk.emit(OpCode::PushScope);
                 self.scope_depth += 1;
-                
+
                 // Compile block statements
                 for stmt in statements {
                     self.compile_stmt(stmt)?;
                 }
-                
+
                 // Exit scope
                 self.scope_depth -= 1;
                 self.chunk.emit(OpCode::PopScope);
-                
+
                 Ok(())
             }
 
@@ -483,10 +483,10 @@ impl Compiler {
                 // Constants are like immutable variables at compile time
                 // Evaluate the value
                 self.compile_expr(value)?;
-                
+
                 // Store as global (constants are always global)
                 self.chunk.emit(OpCode::StoreGlobal(name.clone()));
-                
+
                 Ok(())
             }
 
@@ -506,26 +506,27 @@ impl Compiler {
                 // Spawn creates a background thread
                 // For now, compile as a lambda that gets executed asynchronously
                 // This is simplified - full implementation needs runtime support
-                
+
                 // Create function for spawn body
                 let mut spawn_compiler = Compiler::new();
                 spawn_compiler.chunk.name = Some("<spawn>".to_string());
                 spawn_compiler.scope_depth = 0;
-                
+
                 for stmt in body {
                     spawn_compiler.compile_stmt(stmt)?;
                 }
-                
+
                 spawn_compiler.chunk.emit(OpCode::ReturnNone);
-                
-                let func_index = self.chunk.add_constant(Constant::Function(Box::new(spawn_compiler.chunk)));
-                
+
+                let func_index =
+                    self.chunk.add_constant(Constant::Function(Box::new(spawn_compiler.chunk)));
+
                 // Load function and call it (runtime will handle thread spawning)
                 self.chunk.emit(OpCode::MakeClosure(func_index));
                 // TODO: Need a SpawnThread opcode for proper thread spawning
                 // For now this will just create a closure
                 self.chunk.emit(OpCode::Pop); // Pop the closure for now
-                
+
                 Ok(())
             }
 
@@ -702,7 +703,7 @@ impl Compiler {
                 let mut func_compiler = Compiler::new();
                 func_compiler.chunk.name = Some("<lambda>".to_string());
                 func_compiler.chunk.params = params.clone();
-                func_compiler.scope_depth = 1;  // Functions create a new scope (not global)
+                func_compiler.scope_depth = 1; // Functions create a new scope (not global)
 
                 // Add parameters as locals
                 for param in params {
@@ -712,7 +713,7 @@ impl Compiler {
                 // Analyze the function body to find free variables (captures)
                 let free_vars = Self::find_free_variables(body, params, &self.locals);
                 func_compiler.chunk.upvalues = free_vars.clone();
-                
+
                 // Add captured variables as locals so the compiler knows they exist
                 // They will be resolved from the closure's captured map at runtime
                 for upvalue_name in &free_vars {
@@ -782,13 +783,13 @@ impl Compiler {
                         return Err("throw() requires exactly one argument".to_string());
                     }
                     self.compile_expr(&values[0])?;
-                    
+
                     // Emit throw instruction
                     self.chunk.emit(OpCode::Throw);
-                    
+
                     return Ok(());
                 }
-                
+
                 // Compile tag values for other tags
                 for value in values {
                     self.compile_expr(value)?;
@@ -837,48 +838,48 @@ impl Compiler {
                     let none_index = self.chunk.add_constant(Constant::None);
                     self.chunk.emit(OpCode::LoadConst(none_index));
                 }
-                
+
                 // Emit yield instruction
                 // This saves the current state and returns to caller
                 self.chunk.emit(OpCode::Yield);
-                
+
                 // Mark the chunk as a generator
                 self.chunk.is_generator = true;
-                
+
                 Ok(())
             }
 
             Expr::Await(promise_expr) => {
                 // Compile the promise expression
                 self.compile_expr(promise_expr)?;
-                
+
                 // Emit await instruction
                 // This suspends execution until the promise resolves
                 self.chunk.emit(OpCode::Await);
-                
+
                 // Mark the chunk as async
                 self.chunk.is_async = true;
-                
+
                 Ok(())
             }
 
             Expr::MethodCall { object, method, args } => {
                 // Method calls are sugar for calling a method on an object
                 // Translate: obj.method(a, b) -> method(obj, a, b)
-                
+
                 // Compile the object (becomes first argument)
                 self.compile_expr(object)?;
-                
+
                 // Compile other arguments
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                
+
                 // Load the method (it's either a field or a built-in method)
                 // For built-in iterator methods (map, filter, etc.), use native calls
                 match method.as_str() {
-                    "map" | "filter" | "reduce" | "collect" | "take" | "skip" | 
-                    "zip" | "enumerate" | "chain" | "flatten" | "chunk" => {
+                    "map" | "filter" | "reduce" | "collect" | "take" | "skip" | "zip"
+                    | "enumerate" | "chain" | "flatten" | "chunk" => {
                         // These are native iterator functions
                         self.chunk.emit(OpCode::CallNative(method.clone(), args.len() + 1));
                     }
@@ -886,15 +887,15 @@ impl Compiler {
                         // General method call: load field then call
                         self.compile_expr(object)?;
                         self.chunk.emit(OpCode::FieldGet(method.clone()));
-                        
+
                         // Move function to top of stack (after arguments)
                         // Stack: [obj, arg1, arg2, ..., method]
                         // Need: [obj, arg1, arg2, ..., method] for Call
-                        
+
                         self.chunk.emit(OpCode::Call(args.len() + 1)); // +1 for object as first arg
                     }
                 }
-                
+
                 Ok(())
             }
 
@@ -977,15 +978,19 @@ impl Compiler {
     fn is_local(&self, name: &str) -> bool {
         self.locals.iter().any(|local| local.name == name)
     }
-    
+
     /// Find free variables in a function body
     /// Free variables are variables that are used but not defined locally (not params or let bindings)
-    fn find_free_variables(body: &[Stmt], params: &[String], _parent_locals: &[Local]) -> Vec<String> {
+    fn find_free_variables(
+        body: &[Stmt],
+        params: &[String],
+        _parent_locals: &[Local],
+    ) -> Vec<String> {
         use std::collections::HashSet;
-        
+
         let mut used_vars = HashSet::new();
         let mut defined_vars: HashSet<String> = params.iter().cloned().collect();
-        
+
         // Helper function to collect variable usage from expressions
         fn collect_expr_vars(expr: &Expr, used: &mut HashSet<String>) {
             match expr {
@@ -1070,9 +1075,13 @@ impl Compiler {
                 _ => {}
             }
         }
-        
+
         // Helper function to collect variable definitions and usage from statements
-        fn collect_stmt_vars(stmt: &Stmt, used: &mut HashSet<String>, defined: &mut HashSet<String>) {
+        fn collect_stmt_vars(
+            stmt: &Stmt,
+            used: &mut HashSet<String>,
+            defined: &mut HashSet<String>,
+        ) {
             match stmt {
                 Stmt::Let { pattern, value, .. } => {
                     collect_expr_vars(value, used);
@@ -1187,7 +1196,9 @@ impl Compiler {
                         collect_stmt_vars(s, used, defined);
                     }
                 }
-                Stmt::Test { body, .. } | Stmt::TestSetup { body } | Stmt::TestTeardown { body } => {
+                Stmt::Test { body, .. }
+                | Stmt::TestSetup { body }
+                | Stmt::TestTeardown { body } => {
                     for s in body {
                         collect_stmt_vars(s, used, defined);
                     }
@@ -1199,18 +1210,15 @@ impl Compiler {
                 }
             }
         }
-        
+
         // Collect all variable usage and definitions
         for stmt in body {
             collect_stmt_vars(stmt, &mut used_vars, &mut defined_vars);
         }
-        
+
         // Free variables are those used but not defined locally
-        let mut free_vars: Vec<String> = used_vars
-            .difference(&defined_vars)
-            .cloned()
-            .collect();
-        
+        let mut free_vars: Vec<String> = used_vars.difference(&defined_vars).cloned().collect();
+
         // Sort for deterministic output
         free_vars.sort();
         free_vars

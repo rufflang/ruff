@@ -11,7 +11,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Int(builtins::str_len(s) as i64)
             } else {
-                return None // Let collections module handle other types
+                return None; // Let collections module handle other types
             }
         }
 
@@ -133,8 +133,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
         }
 
         "starts_with" => {
-            if let (Some(Value::Str(s)), Some(Value::Str(prefix))) = (args.first(), args.get(1))
-            {
+            if let (Some(Value::Str(s)), Some(Value::Str(prefix))) = (args.first(), args.get(1)) {
                 Value::Bool(builtins::starts_with(s, prefix))
             } else {
                 Value::Bool(false)
@@ -142,8 +141,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
         }
 
         "ends_with" => {
-            if let (Some(Value::Str(s)), Some(Value::Str(suffix))) = (args.first(), args.get(1))
-            {
+            if let (Some(Value::Str(s)), Some(Value::Str(suffix))) = (args.first(), args.get(1)) {
                 Value::Bool(builtins::ends_with(s, suffix))
             } else {
                 Value::Bool(false)

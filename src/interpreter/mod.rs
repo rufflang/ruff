@@ -17,16 +17,16 @@
 // or error values for exception handling.
 
 // Module structure
-mod value;
-mod environment;
 mod control_flow;
-mod test_runner;
+mod environment;
 mod native_functions;
+mod test_runner;
+mod value;
 
 // Re-exports for backward compatibility
-pub use value::{Value, LeakyFunctionBody, DatabaseConnection, ConnectionPool};
 pub use environment::Environment;
-pub use test_runner::{TestRunner, TestCase, TestResult, TestReport};
+pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
+pub use value::{ConnectionPool, DatabaseConnection, LeakyFunctionBody, Value};
 
 // Internal-only imports
 use control_flow::ControlFlow;
@@ -1008,14 +1008,14 @@ impl Interpreter {
                 // Create a new environment for the generator
                 let mut gen_env = self.env.clone();
                 gen_env.push_scope();
-                
+
                 // Bind parameters to arguments
                 for (i, param) in params.iter().enumerate() {
                     if let Some(arg) = args.get(i) {
                         gen_env.define(param.clone(), arg.clone());
                     }
                 }
-                
+
                 // Return a Generator instance
                 Value::Generator {
                     params: params.clone(),
@@ -1766,16 +1766,22 @@ impl Interpreter {
                     self.return_value = Some(val);
                 }
             }
-            Stmt::FuncDef { name, params, param_types: _, return_type: _, body, is_generator, is_async } => {
+            Stmt::FuncDef {
+                name,
+                params,
+                param_types: _,
+                return_type: _,
+                body,
+                is_generator,
+                is_async,
+            } => {
                 // Regular functions don't capture environment - they use the environment at call time
                 // Only lambda expressions (closures) should capture environment
-                
+
                 // If it's a generator, create a generator value instead
                 if *is_generator {
-                    let gen = Value::GeneratorDef(
-                        params.clone(),
-                        LeakyFunctionBody::new(body.clone()),
-                    );
+                    let gen =
+                        Value::GeneratorDef(params.clone(), LeakyFunctionBody::new(body.clone()));
                     self.env.define(name.clone(), gen);
                 } else if *is_async {
                     // Async functions are marked with a flag
@@ -1974,7 +1980,7 @@ impl Interpreter {
             }
             Stmt::For { var, iterable, body } => {
                 let mut iterable_value = self.eval_expr(iterable);
-                
+
                 // If we got a GeneratorDef, call it to get a Generator instance
                 // This handles cases like: for x in generator_func() { ... }
                 if let Value::GeneratorDef(_, _) = &iterable_value {
@@ -2456,13 +2462,17 @@ impl Interpreter {
                     self.env.get(name).unwrap_or(Value::Str(name.clone()))
                 }
             }
-            Expr::Function { params, param_types: _, return_type: _, body, is_generator, is_async } => {
+            Expr::Function {
+                params,
+                param_types: _,
+                return_type: _,
+                body,
+                is_generator,
+                is_async,
+            } => {
                 // Anonymous function expression - return as a value with captured environment
                 if *is_generator {
-                    Value::GeneratorDef(
-                        params.clone(),
-                        LeakyFunctionBody::new(body.clone()),
-                    )
+                    Value::GeneratorDef(params.clone(), LeakyFunctionBody::new(body.clone()))
                 } else if *is_async {
                     Value::AsyncFunction(
                         params.clone(),
@@ -3474,8 +3484,9 @@ impl Interpreter {
                     }
                     Value::AsyncFunction(params, body, captured_env) => {
                         // Evaluate arguments
-                        let args_vec: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
-                        
+                        let args_vec: Vec<Value> =
+                            args.iter().map(|arg| self.eval_expr(arg)).collect();
+
                         // Clone what we need for the thread
                         let params = params.clone();
                         let body = body.clone();
@@ -3484,38 +3495,39 @@ impl Interpreter {
                         } else {
                             self.env.clone()
                         };
-                        
+
                         // Create a channel for the result
                         let (tx, rx) = std::sync::mpsc::channel();
-                        
+
                         // Spawn a thread to execute the async function
                         std::thread::spawn(move || {
                             let mut async_interpreter = Interpreter::new();
                             async_interpreter.register_builtins(); // Register built-in functions
                             async_interpreter.env = base_env;
                             async_interpreter.env.push_scope();
-                            
+
                             // Bind parameters
                             for (i, param) in params.iter().enumerate() {
                                 if let Some(arg) = args_vec.get(i) {
                                     async_interpreter.env.define(param.clone(), arg.clone());
                                 }
                             }
-                            
+
                             // Execute the async function body
                             async_interpreter.eval_stmts(body.get());
-                            
+
                             // Get the return value
-                            let result = if let Some(Value::Return(val)) = async_interpreter.return_value {
-                                *val
-                            } else {
-                                Value::Int(0)
-                            };
-                            
+                            let result =
+                                if let Some(Value::Return(val)) = async_interpreter.return_value {
+                                    *val
+                                } else {
+                                    Value::Int(0)
+                                };
+
                             // Send the result back
                             let _ = tx.send(Ok(result));
                         });
-                        
+
                         // Return a Promise containing the receiver
                         Value::Promise {
                             receiver: Arc::new(Mutex::new(rx)),
@@ -3525,19 +3537,20 @@ impl Interpreter {
                     }
                     Value::GeneratorDef(ref params, ref body) => {
                         // Calling a generator function creates a Generator instance
-                        let args_vec: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
-                        
+                        let args_vec: Vec<Value> =
+                            args.iter().map(|arg| self.eval_expr(arg)).collect();
+
                         // Create a new environment for the generator
                         let mut gen_env = self.env.clone();
                         gen_env.push_scope();
-                        
+
                         // Bind parameters to arguments
                         for (i, param) in params.iter().enumerate() {
                             if let Some(arg) = args_vec.get(i) {
                                 gen_env.define(param.clone(), arg.clone());
                             }
                         }
-                        
+
                         // Return a Generator instance
                         Value::Generator {
                             params: params.clone(),
@@ -3641,19 +3654,20 @@ impl Interpreter {
                         }
                         Value::GeneratorDef(ref params, ref body) => {
                             // Calling a generator function creates a Generator instance
-                            let args_vec: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
-                            
+                            let args_vec: Vec<Value> =
+                                args.iter().map(|arg| self.eval_expr(arg)).collect();
+
                             // Create a new environment for the generator
                             let mut gen_env = self.env.clone();
                             gen_env.push_scope();
-                            
+
                             // Bind parameters to arguments
                             for (i, param) in params.iter().enumerate() {
                                 if let Some(arg) = args_vec.get(i) {
                                     gen_env.define(param.clone(), arg.clone());
                                 }
                             }
-                            
+
                             // Return a Generator instance
                             return Value::Generator {
                                 params: params.clone(),
@@ -3834,18 +3848,15 @@ impl Interpreter {
                 // Yield expression - should only be used inside generators
                 // For now, return the yielded value wrapped in a special marker
                 // The generator execution logic will handle this properly
-                let yielded = if let Some(expr) = value_expr {
-                    self.eval_expr(expr)
-                } else {
-                    Value::Null
-                };
+                let yielded =
+                    if let Some(expr) = value_expr { self.eval_expr(expr) } else { Value::Null };
                 // Use a Return value to signal yield - generators will intercept this
                 Value::Return(Box::new(yielded))
             }
             Expr::Await(promise_expr) => {
                 // Await expression - wait for a promise to resolve
                 let promise_value = self.eval_expr(promise_expr);
-                
+
                 // If it's a promise, wait for it to resolve
                 match promise_value {
                     Value::Promise { receiver, is_polled, cached_result } => {
@@ -3853,28 +3864,32 @@ impl Interpreter {
                         {
                             let polled = is_polled.lock().unwrap();
                             let cached = cached_result.lock().unwrap();
-                            
+
                             if *polled {
                                 // Use cached result
                                 return match cached.as_ref() {
                                     Some(Ok(val)) => val.clone(),
-                                    Some(Err(err)) => Value::Error(format!("Promise rejected: {}", err)),
-                                    None => Value::Error("Promise polled but no result cached".to_string()),
+                                    Some(Err(err)) => {
+                                        Value::Error(format!("Promise rejected: {}", err))
+                                    }
+                                    None => Value::Error(
+                                        "Promise polled but no result cached".to_string(),
+                                    ),
                                 };
                             }
                             // Locks dropped here
                         }
-                        
+
                         // Poll the promise - locks are released before blocking recv()
                         let result = {
                             let recv = receiver.lock().unwrap();
                             recv.recv()
                         };
-                        
+
                         // Now update the cache with the result
                         let mut polled = is_polled.lock().unwrap();
                         let mut cached = cached_result.lock().unwrap();
-                        
+
                         match result {
                             Ok(Ok(value)) => {
                                 // Cache the successful result
@@ -3906,7 +3921,7 @@ impl Interpreter {
                 // Method call on an expression - used for iterator chaining
                 let obj_value = self.eval_expr(object);
                 let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
-                
+
                 // Call the method on the object
                 self.call_method(obj_value, method, arg_values)
             }
@@ -3929,7 +3944,13 @@ impl Interpreter {
             "filter" if args.len() == 1 => {
                 // Create an iterator with a filter function
                 match &obj {
-                    Value::Iterator { source, index, transformer, filter_fn: existing_filter, take_count } => {
+                    Value::Iterator {
+                        source,
+                        index,
+                        transformer,
+                        filter_fn: existing_filter,
+                        take_count,
+                    } => {
                         // Chain filters if there's already one
                         let new_filter = if existing_filter.is_some() {
                             // TODO: Combine filters
@@ -3955,13 +3976,21 @@ impl Interpreter {
                             take_count: None,
                         }
                     }
-                    _ => Value::Error("filter() can only be called on iterators or arrays".to_string()),
+                    _ => Value::Error(
+                        "filter() can only be called on iterators or arrays".to_string(),
+                    ),
                 }
             }
             "map" if args.len() == 1 => {
                 // Create an iterator with a transformer function
                 match &obj {
-                    Value::Iterator { source, index, transformer: existing_transformer, filter_fn, take_count } => {
+                    Value::Iterator {
+                        source,
+                        index,
+                        transformer: existing_transformer,
+                        filter_fn,
+                        take_count,
+                    } => {
                         // Chain transformers if there's already one
                         let new_transformer = if existing_transformer.is_some() {
                             // TODO: Combine transformers
@@ -3987,32 +4016,38 @@ impl Interpreter {
                             take_count: None,
                         }
                     }
-                    _ => Value::Error("map() can only be called on iterators or arrays".to_string()),
+                    _ => {
+                        Value::Error("map() can only be called on iterators or arrays".to_string())
+                    }
                 }
             }
             "take" if args.len() == 1 => {
                 // Limit the number of items
                 if let Value::Int(n) = args[0] {
                     match &obj {
-                        Value::Iterator { source, index, transformer, filter_fn, take_count: _ } => {
-                            Value::Iterator {
-                                source: source.clone(),
-                                index: *index,
-                                transformer: transformer.clone(),
-                                filter_fn: filter_fn.clone(),
-                                take_count: Some(n as usize),
-                            }
-                        }
-                        Value::Array(_) => {
-                            Value::Iterator {
-                                source: Box::new(obj),
-                                index: 0,
-                                transformer: None,
-                                filter_fn: None,
-                                take_count: Some(n as usize),
-                            }
-                        }
-                        _ => Value::Error("take() can only be called on iterators or arrays".to_string()),
+                        Value::Iterator {
+                            source,
+                            index,
+                            transformer,
+                            filter_fn,
+                            take_count: _,
+                        } => Value::Iterator {
+                            source: source.clone(),
+                            index: *index,
+                            transformer: transformer.clone(),
+                            filter_fn: filter_fn.clone(),
+                            take_count: Some(n as usize),
+                        },
+                        Value::Array(_) => Value::Iterator {
+                            source: Box::new(obj),
+                            index: 0,
+                            transformer: None,
+                            filter_fn: None,
+                            take_count: Some(n as usize),
+                        },
+                        _ => Value::Error(
+                            "take() can only be called on iterators or arrays".to_string(),
+                        ),
                     }
                 } else {
                     Value::Error("take() requires an integer argument".to_string())
@@ -4043,7 +4078,7 @@ impl Interpreter {
     /// Collect all values from an iterator into an array
     fn collect_iterator(&mut self, mut iterator: Value) -> Value {
         let mut result = Vec::new();
-        
+
         loop {
             match &mut iterator {
                 Value::Iterator { source, index, transformer, filter_fn, take_count } => {
@@ -4063,14 +4098,15 @@ impl Interpreter {
                                     // No more items
                                     return Value::Array(result);
                                 }
-                                
+
                                 let mut item = items[*index].clone();
                                 *index += 1;
 
                                 // Apply filter if present
                                 if let Some(filter) = filter_fn {
                                     let args_vec = vec![item.clone()];
-                                    let filter_result = self.call_user_function(filter.as_ref(), &args_vec);
+                                    let filter_result =
+                                        self.call_user_function(filter.as_ref(), &args_vec);
                                     match filter_result {
                                         Value::Bool(true) => {
                                             // Item passes filter - continue processing
@@ -4089,14 +4125,14 @@ impl Interpreter {
                                 }
 
                                 result.push(item);
-                                
+
                                 // Check take limit after adding
                                 if let Some(limit) = take_count {
                                     if result.len() >= *limit {
                                         return Value::Array(result);
                                     }
                                 }
-                                
+
                                 break; // Found one item, continue outer loop
                             }
                         }
@@ -4106,11 +4142,12 @@ impl Interpreter {
                             match next_option {
                                 Value::Option { is_some: true, value } => {
                                     let mut item = *value;
-                                    
+
                                     // Apply filter if present
                                     if let Some(filter) = filter_fn {
                                         let args_vec = vec![item.clone()];
-                                        let filter_result = self.call_user_function(filter.as_ref(), &args_vec);
+                                        let filter_result =
+                                            self.call_user_function(filter.as_ref(), &args_vec);
                                         match filter_result {
                                             Value::Bool(false) => {
                                                 // Item filtered out, try next iteration of outer loop
@@ -4119,15 +4156,15 @@ impl Interpreter {
                                             _ => {}
                                         }
                                     }
-                                    
+
                                     // Apply transformer if present
                                     if let Some(trans) = transformer {
                                         let args_vec = vec![item];
                                         item = self.call_user_function(trans.as_ref(), &args_vec);
                                     }
-                                    
+
                                     result.push(item);
-                                    
+
                                     // Check take limit after adding
                                     if let Some(limit) = take_count {
                                         if result.len() >= *limit {
@@ -4144,7 +4181,9 @@ impl Interpreter {
                                     return Value::Error(msg);
                                 }
                                 _ => {
-                                    return Value::Error("Unexpected value from generator".to_string());
+                                    return Value::Error(
+                                        "Unexpected value from generator".to_string(),
+                                    );
                                 }
                             }
                         }
@@ -4162,7 +4201,7 @@ impl Interpreter {
 
     /// Execute a generator until it yields a value or completes
     /// Returns Some(value) if yielded, None if exhausted
-     fn generator_next(&mut self, generator: &mut Value) -> Value {
+    fn generator_next(&mut self, generator: &mut Value) -> Value {
         match generator {
             Value::Generator { params: _, body, env, pc, is_exhausted } => {
                 if *is_exhausted {
@@ -4172,7 +4211,7 @@ impl Interpreter {
                 // Save current interpreter state
                 let saved_env = self.env.clone();
                 let saved_return_value = self.return_value.take();
-                
+
                 // Use the generator's environment
                 self.env = env.lock().unwrap().clone();
 
@@ -4253,7 +4292,8 @@ impl Interpreter {
                             // Apply filter if present
                             if let Some(filter) = filter_fn {
                                 let args_vec = vec![item.clone()];
-                                let filter_result = self.call_user_function(filter.as_ref(), &args_vec);
+                                let filter_result =
+                                    self.call_user_function(filter.as_ref(), &args_vec);
                                 match filter_result {
                                     Value::Bool(true) => {
                                         // Item passes filter
@@ -4279,32 +4319,36 @@ impl Interpreter {
                     Value::Generator { .. } => {
                         // Delegate to generator_next
                         let result = self.generator_next(source);
-                        
+
                         // Apply transformer if present and we got a value
                         match result {
                             Value::Option { is_some: true, value } => {
                                 let mut item = *value;
-                                
+
                                 // Apply filter if present
                                 if let Some(filter) = filter_fn {
                                     let args_vec = vec![item.clone()];
-                                    let filter_result = self.call_user_function(filter.as_ref(), &args_vec);
+                                    let filter_result =
+                                        self.call_user_function(filter.as_ref(), &args_vec);
                                     match filter_result {
                                         Value::Bool(false) => {
                                             // Item filtered out - need to get next one
                                             // For now, just return None (TODO: could recursively call)
-                                            return Value::Option { is_some: false, value: Box::new(Value::Null) };
+                                            return Value::Option {
+                                                is_some: false,
+                                                value: Box::new(Value::Null),
+                                            };
                                         }
                                         _ => {}
                                     }
                                 }
-                                
+
                                 // Apply transformer if present
                                 if let Some(trans) = transformer {
                                     let args_vec = vec![item];
                                     item = self.call_user_function(trans.as_ref(), &args_vec);
                                 }
-                                
+
                                 Value::Option { is_some: true, value: Box::new(item) }
                             }
                             other => other,
@@ -4339,7 +4383,9 @@ impl Interpreter {
                 keys.sort();
                 let field_strs: Vec<String> = keys
                     .iter()
-                    .map(|k| format!("{}: {}", k, Interpreter::stringify_value(fields.get(*k).unwrap())))
+                    .map(|k| {
+                        format!("{}: {}", k, Interpreter::stringify_value(fields.get(*k).unwrap()))
+                    })
                     .collect();
                 format!("{} {{ {} }}", name, field_strs.join(", "))
             }
@@ -4353,7 +4399,9 @@ impl Interpreter {
                 keys.sort();
                 let pair_strs: Vec<String> = keys
                     .iter()
-                    .map(|k| format!("\"{}\": {}", k, Interpreter::stringify_value(map.get(*k).unwrap())))
+                    .map(|k| {
+                        format!("\"{}\": {}", k, Interpreter::stringify_value(map.get(*k).unwrap()))
+                    })
                     .collect();
                 format!("{{{}}}", pair_strs.join(", "))
             }
@@ -4437,4 +4485,3 @@ impl Interpreter {
         }
     }
 }
-

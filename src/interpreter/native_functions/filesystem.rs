@@ -201,10 +201,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             {
                 match std::fs::copy(source, dest) {
                     Ok(_) => Value::Bool(true),
-                    Err(e) => Value::Error(format!(
-                        "Cannot copy file '{}' to '{}': {}",
-                        source, dest, e
-                    )),
+                    Err(e) => {
+                        Value::Error(format!("Cannot copy file '{}' to '{}': {}", source, dest, e))
+                    }
                 }
             } else {
                 Value::Error("copy_file requires string arguments".to_string())

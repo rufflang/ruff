@@ -257,7 +257,7 @@ pub enum Stmt {
         name: String,
         params: Vec<String>,
         param_types: Vec<Option<TypeAnnotation>>,
-        is_async: bool,     // true if async func syntax
+        is_async: bool, // true if async func syntax
         return_type: Option<TypeAnnotation>,
         body: Vec<Stmt>,
         is_generator: bool, // true if func* syntax

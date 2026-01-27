@@ -22,13 +22,17 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         // Polymorphic contains - handles both strings and arrays
         "contains" => match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Array(arr)), Some(item)) => Value::Bool(builtins::array_contains(arr, item)),
+            (Some(Value::Array(arr)), Some(item)) => {
+                Value::Bool(builtins::array_contains(arr, item))
+            }
             _ => return None, // Let strings module handle string case
         },
 
         // Polymorphic index_of - handles both strings and arrays
         "index_of" => match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Array(arr)), Some(item)) => Value::Int(builtins::array_index_of(arr, item)),
+            (Some(Value::Array(arr)), Some(item)) => {
+                Value::Int(builtins::array_index_of(arr, item))
+            }
             _ => return None, // Let strings module handle string case
         },
 
@@ -98,18 +102,16 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
         }
 
-        "remove" => {
-            match (arg_values.first().cloned(), arg_values.get(1)) {
-                (Some(Value::Array(arr)), Some(item)) => {
-                    Value::Array(builtins::array_remove(arr, item))
-                }
-                (Some(Value::Dict(mut dict)), Some(Value::Str(key))) => {
-                    let removed = dict.remove(key).unwrap_or(Value::Int(0));
-                    Value::Array(vec![Value::Dict(dict), removed])
-                }
-                _ => Value::Array(vec![]),
+        "remove" => match (arg_values.first().cloned(), arg_values.get(1)) {
+            (Some(Value::Array(arr)), Some(item)) => {
+                Value::Array(builtins::array_remove(arr, item))
             }
-        }
+            (Some(Value::Dict(mut dict)), Some(Value::Str(key))) => {
+                let removed = dict.remove(key).unwrap_or(Value::Int(0));
+                Value::Array(vec![Value::Dict(dict), removed])
+            }
+            _ => Value::Array(vec![]),
+        },
 
         "remove_at" => {
             if let (Some(Value::Array(arr)), Some(index_val)) =
@@ -118,7 +120,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let index = match index_val {
                     Value::Int(n) => *n,
                     Value::Float(n) => *n as i64,
-                    _ => return Some(Value::Error("remove_at() index must be a number".to_string())),
+                    _ => {
+                        return Some(Value::Error("remove_at() index must be a number".to_string()))
+                    }
                 };
 
                 match builtins::array_remove_at(arr, index) {
@@ -130,13 +134,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
         }
 
-        "clear" => {
-            match arg_values.first() {
-                Some(Value::Array(_)) => Value::Array(builtins::array_clear()),
-                Some(Value::Dict(_)) => Value::Dict(HashMap::new()),
-                _ => Value::Array(vec![]),
-            }
-        }
+        "clear" => match arg_values.first() {
+            Some(Value::Array(_)) => Value::Array(builtins::array_clear()),
+            Some(Value::Dict(_)) => Value::Dict(HashMap::new()),
+            _ => Value::Array(vec![]),
+        },
 
         // Array higher-order functions that need interpreter
         "map" => {
@@ -172,7 +174,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
                     (arr.clone(), func.clone())
                 }
-                _ => return Some(Value::Error("filter expects an array and a function".to_string())),
+                _ => {
+                    return Some(Value::Error("filter expects an array and a function".to_string()))
+                }
             };
 
             let mut result = Vec::new();
@@ -211,8 +215,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     ) => (arr.clone(), init.clone(), func.clone()),
                     _ => {
                         return Some(Value::Error(
-                            "reduce expects an array, an initial value, and a function"
-                                .to_string(),
+                            "reduce expects an array, an initial value, and a function".to_string(),
                         ))
                     }
                 };
@@ -448,8 +451,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "take" => {
-            if let (Some(Value::Array(arr)), Some(n_val)) =
-                (arg_values.first(), arg_values.get(1))
+            if let (Some(Value::Array(arr)), Some(n_val)) = (arg_values.first(), arg_values.get(1))
             {
                 let n = match n_val {
                     Value::Int(n) => *n,
@@ -463,8 +465,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "skip" => {
-            if let (Some(Value::Array(arr)), Some(n_val)) =
-                (arg_values.first(), arg_values.get(1))
+            if let (Some(Value::Array(arr)), Some(n_val)) = (arg_values.first(), arg_values.get(1))
             {
                 let n = match n_val {
                     Value::Int(n) => *n,
@@ -536,7 +537,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 keys.sort();
                 let items: Vec<Value> = keys
                     .iter()
-                    .map(|k| Value::Array(vec![Value::Str((*k).clone()), dict.get(*k).unwrap().clone()]))
+                    .map(|k| {
+                        Value::Array(vec![Value::Str((*k).clone()), dict.get(*k).unwrap().clone()])
+                    })
                     .collect();
                 Value::Array(items)
             } else {

@@ -200,7 +200,7 @@ impl Parser {
             } else {
                 false
             };
-            
+
             if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
                 if let Some(method) = self.parse_func_with_async(is_async) {
                     methods.push(method);
@@ -387,7 +387,7 @@ impl Parser {
 
     fn parse_func_with_async(&mut self, is_async: bool) -> Option<Stmt> {
         self.advance(); // func
-        
+
         // Check for generator syntax: func*
         let is_generator = if matches!(self.peek(), TokenKind::Operator(op) if op == "*") {
             self.advance(); // consume *
@@ -395,7 +395,7 @@ impl Parser {
         } else {
             false
         };
-        
+
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
             _ => return None,
@@ -478,7 +478,7 @@ impl Parser {
     /// Parse a function expression (anonymous function)
     fn parse_func_expr_with_async(&mut self, is_async: bool) -> Option<Expr> {
         self.advance(); // func
-        
+
         // Check for generator syntax: func*
         let is_generator = if matches!(self.peek(), TokenKind::Operator(op) if op == "*") {
             self.advance(); // consume *
@@ -486,7 +486,7 @@ impl Parser {
         } else {
             false
         };
-        
+
         self.advance(); // (
         let mut params = Vec::new();
         let mut param_types = Vec::new();
@@ -682,9 +682,9 @@ impl Parser {
             _ => return None,
         };
         self.advance(); // in
-        // Use parse_call to parse the iterable expression
-        // This allows function calls like: for x in generator_func() { ... }
-        // but avoids struct instantiation syntax
+                        // Use parse_call to parse the iterable expression
+                        // This allows function calls like: for x in generator_func() { ... }
+                        // but avoids struct instantiation syntax
         let iterable = self.parse_call()?;
         self.advance(); // {
         let mut body = Vec::new();
@@ -1115,7 +1115,7 @@ impl Parser {
                     if let TokenKind::Identifier(field) = self.peek() {
                         let field_name = field.clone();
                         self.advance();
-                        
+
                         // Check if this is a method call (field access followed by ())
                         if matches!(self.peek(), TokenKind::Punctuation('(')) {
                             self.advance(); // (
@@ -1275,8 +1275,11 @@ impl Parser {
             TokenKind::Keyword(k) if k == "func" => self.parse_func_expr_with_async(false),
             TokenKind::Keyword(k) if k == "yield" => {
                 self.advance(); // consume yield
-                // yield can have an optional value
-                let value = if !matches!(self.peek(), TokenKind::Punctuation(';') | TokenKind::Punctuation('}')) {
+                                // yield can have an optional value
+                let value = if !matches!(
+                    self.peek(),
+                    TokenKind::Punctuation(';') | TokenKind::Punctuation('}')
+                ) {
                     Some(Box::new(self.parse_expr()?))
                 } else {
                     None
@@ -1285,7 +1288,7 @@ impl Parser {
             }
             TokenKind::Keyword(k) if k == "await" => {
                 self.advance(); // consume await
-                // await requires an expression (the promise to wait for)
+                                // await requires an expression (the promise to wait for)
                 let promise_expr = Box::new(self.parse_expr()?);
                 Some(Expr::Await(promise_expr))
             }

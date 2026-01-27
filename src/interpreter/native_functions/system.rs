@@ -15,12 +15,20 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 let min = match min_val {
                     Value::Int(n) => *n as f64,
                     Value::Float(n) => *n,
-                    _ => return Some(Value::Error("random_int requires number arguments".to_string())),
+                    _ => {
+                        return Some(Value::Error(
+                            "random_int requires number arguments".to_string(),
+                        ))
+                    }
                 };
                 let max = match max_val {
                     Value::Int(n) => *n as f64,
                     Value::Float(n) => *n,
-                    _ => return Some(Value::Error("random_int requires number arguments".to_string())),
+                    _ => {
+                        return Some(Value::Error(
+                            "random_int requires number arguments".to_string(),
+                        ))
+                    }
                 };
                 Value::Int(builtins::random_int(min, max) as i64)
             } else {
@@ -89,12 +97,16 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 let start = match start_val {
                     Value::Int(n) => *n as f64,
                     Value::Float(n) => *n,
-                    _ => return Some(Value::Error("elapsed requires number arguments".to_string())),
+                    _ => {
+                        return Some(Value::Error("elapsed requires number arguments".to_string()))
+                    }
                 };
                 let end = match end_val {
                     Value::Int(n) => *n as f64,
                     Value::Float(n) => *n,
-                    _ => return Some(Value::Error("elapsed requires number arguments".to_string())),
+                    _ => {
+                        return Some(Value::Error("elapsed requires number arguments".to_string()))
+                    }
                 };
                 Value::Float(builtins::elapsed(start, end))
             } else {

@@ -386,10 +386,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             if contains {
                 Value::Bool(true)
             } else {
-                let msg = format!(
-                    "Assertion failed: {:?} does not contain {:?}",
-                    collection, item
-                );
+                let msg = format!("Assertion failed: {:?} does not contain {:?}", collection, item);
                 Value::Error(msg)
             }
         }

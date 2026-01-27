@@ -74,9 +74,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Err(e) => Value::Error(e),
                 }
             } else {
-                Value::Error(
-                    "jwt_decode requires a token string and secret key string".to_string(),
-                )
+                Value::Error("jwt_decode requires a token string and secret key string".to_string())
             }
         }
 
@@ -86,18 +84,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 Some(Value::Str(redirect_uri)),
                 Some(Value::Str(auth_url)),
                 Some(Value::Str(scope)),
-            ) = (
-                arg_values.first(),
-                arg_values.get(1),
-                arg_values.get(2),
-                arg_values.get(3),
-            ) {
-                Value::Str(builtins::oauth2_auth_url(
-                    client_id,
-                    redirect_uri,
-                    auth_url,
-                    scope,
-                ))
+            ) = (arg_values.first(), arg_values.get(1), arg_values.get(2), arg_values.get(3))
+            {
+                Value::Str(builtins::oauth2_auth_url(client_id, redirect_uri, auth_url, scope))
             } else {
                 Value::Error(
                     "oauth2_auth_url requires client_id, redirect_uri, auth_url, and scope strings"

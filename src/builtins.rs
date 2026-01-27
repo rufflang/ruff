@@ -8,8 +8,8 @@ use crate::interpreter::Value;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, TimeZone, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -117,7 +117,7 @@ pub fn random() -> f64 {
 pub fn random_int(min: f64, max: f64) -> f64 {
     let min_i = min as i64;
     let max_i = max as i64;
-    
+
     let mut seeded = SEEDED_RNG.lock().unwrap();
     if let Some(ref mut rng) = *seeded {
         rng.gen_range(min_i..=max_i) as f64
@@ -133,7 +133,7 @@ pub fn random_choice(arr: &[Value]) -> Value {
     if arr.is_empty() {
         return Value::Int(0);
     }
-    
+
     let mut seeded = SEEDED_RNG.lock().unwrap();
     let idx = if let Some(ref mut rng) = *seeded {
         rng.gen_range(0..arr.len())
@@ -142,7 +142,7 @@ pub fn random_choice(arr: &[Value]) -> Value {
         let mut rng = rand::thread_rng();
         rng.gen_range(0..arr.len())
     };
-    
+
     arr[idx].clone()
 }
 
@@ -1609,8 +1609,10 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::Dict(dict) => {
             let mut keys: Vec<&String> = dict.keys().collect();
             keys.sort();
-            let items: Vec<String> =
-                keys.iter().map(|k| format!("{}: {}", k, format_debug_value(dict.get(*k).unwrap()))).collect();
+            let items: Vec<String> = keys
+                .iter()
+                .map(|k| format!("{}: {}", k, format_debug_value(dict.get(*k).unwrap())))
+                .collect();
             format!("Dict{{{}}}", items.join(", "))
         }
         Value::Function(_, _, _) => "Function".to_string(),

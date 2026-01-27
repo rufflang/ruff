@@ -1527,8 +1527,97 @@ impl VM {
                     OpCode::Pop => {
                         self.stack.pop().ok_or("Stack underflow")?;
                     }
-                    // Add more instruction handlers as needed
-                    // For now, return error for unhandled instructions in generator context
+                    
+                    // Arithmetic operations
+                    OpCode::Add => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.binary_op(&left, "+", &right)?;
+                        self.stack.push(result);
+                    }
+                    OpCode::Sub => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.binary_op(&left, "-", &right)?;
+                        self.stack.push(result);
+                    }
+                    OpCode::Mul => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.binary_op(&left, "*", &right)?;
+                        self.stack.push(result);
+                    }
+                    OpCode::Div => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.binary_op(&left, "/", &right)?;
+                        self.stack.push(result);
+                    }
+                    OpCode::Mod => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.binary_op(&left, "%", &right)?;
+                        self.stack.push(result);
+                    }
+                    
+                    // Comparison operations
+                    OpCode::Equal => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        self.stack.push(Value::Bool(self.values_equal(&left, &right)));
+                    }
+                    OpCode::NotEqual => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        self.stack.push(Value::Bool(!self.values_equal(&left, &right)));
+                    }
+                    OpCode::LessThan => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.compare_op(&left, "<", &right)?;
+                        self.stack.push(result);
+                    }
+                    OpCode::GreaterThan => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.compare_op(&left, ">", &right)?;
+                        self.stack.push(result);
+                    }
+                    OpCode::LessEqual => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.compare_op(&left, "<=", &right)?;
+                        self.stack.push(result);
+                    }
+                    OpCode::GreaterEqual => {
+                        let right = self.stack.pop().ok_or("Stack underflow")?;
+                        let left = self.stack.pop().ok_or("Stack underflow")?;
+                        let result = self.compare_op(&left, ">=", &right)?;
+                        self.stack.push(result);
+                    }
+                    
+                    // Control flow
+                    OpCode::Jump(target) => {
+                        self.ip = target;
+                    }
+                    OpCode::JumpIfFalse(target) => {
+                        let condition = self.stack.last().ok_or("Stack underflow")?;
+                        if !self.is_truthy(condition) {
+                            self.ip = target;
+                        }
+                    }
+                    OpCode::JumpIfTrue(target) => {
+                        let condition = self.stack.last().ok_or("Stack underflow")?;
+                        if self.is_truthy(condition) {
+                            self.ip = target;
+                        }
+                    }
+                    OpCode::JumpBack(target) => {
+                        self.ip = target;
+                    }
+                    
+                    // For now, return error for other unhandled instructions
+                    // Full implementation would need to handle all opcodes
                     _ => {
                         return Err(format!("Instruction {:?} not yet handled in generator execution", instruction));
                     }

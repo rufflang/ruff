@@ -9,17 +9,17 @@
 // - Error handling
 // - Built-in functions
 
-use ruff::interpreter::{Interpreter, Value, Environment};
+use ruff::interpreter::{Environment, Interpreter, Value};
 use ruff::lexer::tokenize;
 use ruff::parser::Parser;
 
 fn run_code(code: &str) -> Interpreter {
-let tokens = tokenize(code);
-let mut parser = Parser::new(tokens);
-let program = parser.parse();
-let mut interp = Interpreter::new();
-interp.eval_stmts(&program);
-interp
+    let tokens = tokenize(code);
+    let mut parser = Parser::new(tokens);
+    let program = parser.parse();
+    let mut interp = Interpreter::new();
+    interp.eval_stmts(&program);
+    interp
 }
 #[test]
 fn test_field_assignment_struct() {
@@ -960,9 +960,7 @@ fn test_bool_comparison_results_in_if() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x is greater than 5")
-    );
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x is greater than 5"));
 }
 
 #[test]
@@ -1383,9 +1381,7 @@ fn test_string_interpolation_expressions() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "6 times 7 equals 42")
-    );
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "6 times 7 equals 42"));
 }
 
 #[test]
@@ -1399,9 +1395,7 @@ fn test_string_interpolation_multiple() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: John Doe, Age: 30")
-    );
+    assert!(matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: John Doe, Age: 30"));
 }
 
 #[test]
@@ -1456,9 +1450,7 @@ fn test_string_interpolation_function_call() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Double of 21 is 42")
-    );
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Double of 21 is 42"));
 }
 
 #[test]
@@ -1510,9 +1502,7 @@ fn test_string_interpolation_with_text_between() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x=10, y=20, sum=30")
-    );
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x=10, y=20, sum=30"));
 }
 
 #[test]
@@ -1719,9 +1709,7 @@ fn test_join_with_spaces() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("sentence"), Some(Value::Str(s)) if s == "hello world test")
-    );
+    assert!(matches!(interp.env.get("sentence"), Some(Value::Str(s)) if s == "hello world test"));
 }
 
 #[test]
@@ -1779,9 +1767,7 @@ fn test_error_properties_message() {
     "#;
 
     let interp = run_code(code);
-    assert!(
-        matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Test error message")
-    );
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Test error message"));
 }
 
 #[test]
@@ -1927,10 +1913,7 @@ fn test_error_without_catch_propagates() {
 
     let interp = run_code(code);
     // Error should be stored in return_value
-    assert!(matches!(
-        interp.return_value,
-        Some(Value::Error(_)) | Some(Value::ErrorObject { .. })
-    ));
+    assert!(matches!(interp.return_value, Some(Value::Error(_)) | Some(Value::ErrorObject { .. })));
 }
 
 #[test]
@@ -2845,12 +2828,8 @@ fn test_to_float_from_int() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001)
-    );
-    assert!(
-        matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 10.0).abs() < 0.001)
-    );
+    assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001));
+    assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 10.0).abs() < 0.001));
 }
 
 #[test]
@@ -2866,12 +2845,8 @@ fn test_to_float_from_string() {
     assert!(
         matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - std::f64::consts::PI).abs() < 0.01)
     );
-    assert!(
-        matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 2.5).abs() < 0.001)
-    );
-    assert!(
-        matches!(interp.env.get("result3"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001)
-    );
+    assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if (f - 2.5).abs() < 0.001));
+    assert!(matches!(interp.env.get("result3"), Some(Value::Float(f)) if (f - 42.0).abs() < 0.001));
 }
 
 #[test]
@@ -2883,9 +2858,7 @@ fn test_to_float_from_bool() {
 
     let interp = run_code(code);
 
-    assert!(
-        matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 1.0).abs() < 0.001)
-    );
+    assert!(matches!(interp.env.get("result1"), Some(Value::Float(f)) if (f - 1.0).abs() < 0.001));
     assert!(matches!(interp.env.get("result2"), Some(Value::Float(f)) if f.abs() < 0.001));
 }
 

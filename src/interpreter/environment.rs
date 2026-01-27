@@ -17,11 +17,11 @@ use std::collections::HashMap;
 /// ```ignore
 /// let mut env = Environment::new();
 /// env.define("x".to_string(), Value::Int(10));  // Global scope
-/// 
+///
 /// env.push_scope();                             // Enter function scope
 /// env.define("x".to_string(), Value::Int(20));  // Shadows outer x
 /// assert_eq!(env.get("x"), Some(&Value::Int(20)));
-/// 
+///
 /// env.pop_scope();                              // Exit function scope
 /// assert_eq!(env.get("x"), Some(&Value::Int(10)));  // Original x visible again
 /// ```
@@ -33,9 +33,7 @@ pub struct Environment {
 impl Environment {
     /// Create a new environment with a single global scope
     pub fn new() -> Self {
-        Environment {
-            scopes: vec![HashMap::new()],
-        }
+        Environment { scopes: vec![HashMap::new()] }
     }
 
     /// Push a new scope onto the stack (e.g., entering a function)

@@ -4,28 +4,24 @@
 // This module is part of Phase 3 modularization to split the massive
 // call_native_function_impl into manageable category-based modules.
 
-pub mod io;
-pub mod math;
-pub mod strings;
 pub mod collections;
-pub mod type_ops;
+pub mod concurrency;
+pub mod crypto;
+pub mod database;
 pub mod filesystem;
 pub mod http;
+pub mod io;
 pub mod json;
-pub mod crypto;
-pub mod system;
-pub mod concurrency;
-pub mod database;
+pub mod math;
 pub mod network;
+pub mod strings;
+pub mod system;
+pub mod type_ops;
 
 use super::{Interpreter, Value};
 
 /// Main dispatcher that routes native function calls to appropriate category modules
-pub fn call_native_function(
-    interp: &mut Interpreter,
-    name: &str,
-    arg_values: &[Value],
-) -> Value {
+pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Value {
     // Try each category in order
     if let Some(result) = io::handle(interp, name, arg_values) {
         return result;

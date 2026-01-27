@@ -188,7 +188,7 @@ impl ConnectionPool {
 
     fn create_connection(&self) -> Result<DatabaseConnection, String> {
         use postgres::NoTls;
-        
+
         match self.db_type.as_str() {
             "sqlite" => SqliteConnection::open(&self.connection_string)
                 .map(|conn| DatabaseConnection::Sqlite(Arc::new(Mutex::new(conn))))
@@ -224,10 +224,7 @@ impl ConnectionPool {
 #[derive(Clone)]
 pub enum Value {
     /// Tagged enum variant with named fields
-    Tagged {
-        tag: String,
-        fields: HashMap<String, Value>,
-    },
+    Tagged { tag: String, fields: HashMap<String, Value> },
     /// 64-bit signed integer
     Int(i64),
     /// 64-bit floating point number
@@ -255,9 +252,7 @@ pub enum Value {
     },
     /// Bytecode generator instance with execution state (VM-based generators)
     #[allow(dead_code)]
-    BytecodeGenerator {
-        state: Arc<Mutex<crate::vm::GeneratorState>>,
-    },
+    BytecodeGenerator { state: Arc<Mutex<crate::vm::GeneratorState>> },
     /// Internal marker for dynamic array construction in VM
     ArrayMarker,
     /// Return value wrapper
@@ -275,16 +270,9 @@ pub enum Value {
     #[allow(dead_code)]
     Enum(String),
     /// Struct instance with fields
-    Struct {
-        name: String,
-        fields: HashMap<String, Value>,
-    },
+    Struct { name: String, fields: HashMap<String, Value> },
     /// Struct definition with methods
-    StructDef {
-        name: String,
-        field_names: Vec<String>,
-        methods: HashMap<String, Value>,
-    },
+    StructDef { name: String, field_names: Vec<String>, methods: HashMap<String, Value> },
     /// Array of values
     Array(Vec<Value>),
     /// Dictionary (hash map) of string keys to values
@@ -303,11 +291,7 @@ pub enum Value {
         routes: Vec<(String, String, Value)>, // (method, path, handler)
     },
     /// HTTP response
-    HttpResponse {
-        status: u16,
-        body: String,
-        headers: HashMap<String, String>,
-    },
+    HttpResponse { status: u16, body: String, headers: HashMap<String, String> },
     /// Database connection
     Database {
         connection: DatabaseConnection,
@@ -316,44 +300,21 @@ pub enum Value {
         in_transaction: Arc<Mutex<bool>>,
     },
     /// Database connection pool
-    DatabasePool {
-        pool: Arc<Mutex<ConnectionPool>>,
-    },
+    DatabasePool { pool: Arc<Mutex<ConnectionPool>> },
     /// Image data
-    Image {
-        data: Arc<Mutex<DynamicImage>>,
-        format: String,
-    },
+    Image { data: Arc<Mutex<DynamicImage>>, format: String },
     /// Zip archive writer
-    ZipArchive {
-        writer: Arc<Mutex<Option<ZipWriter<File>>>>,
-        path: String,
-    },
+    ZipArchive { writer: Arc<Mutex<Option<ZipWriter<File>>>>, path: String },
     /// TCP listener for accepting connections
-    TcpListener {
-        listener: Arc<Mutex<std::net::TcpListener>>,
-        addr: String,
-    },
+    TcpListener { listener: Arc<Mutex<std::net::TcpListener>>, addr: String },
     /// TCP stream for bidirectional communication
-    TcpStream {
-        stream: Arc<Mutex<std::net::TcpStream>>,
-        peer_addr: String,
-    },
+    TcpStream { stream: Arc<Mutex<std::net::TcpStream>>, peer_addr: String },
     /// UDP socket for datagram communication
-    UdpSocket {
-        socket: Arc<Mutex<std::net::UdpSocket>>,
-        addr: String,
-    },
+    UdpSocket { socket: Arc<Mutex<std::net::UdpSocket>>, addr: String },
     /// Result type: Ok(value) or Err(error)
-    Result {
-        is_ok: bool,
-        value: Box<Value>,
-    },
+    Result { is_ok: bool, value: Box<Value> },
     /// Option type: Some(value) or None
-    Option {
-        is_some: bool,
-        value: Box<Value>,
-    },
+    Option { is_some: bool, value: Box<Value> },
     /// Generator definition (before being called)
     GeneratorDef(Vec<String>, LeakyFunctionBody),
     /// Generator instance with execution state
@@ -361,7 +322,7 @@ pub enum Value {
         params: Vec<String>,
         body: LeakyFunctionBody,
         env: Arc<Mutex<Environment>>,
-        pc: usize,        // Program counter
+        pc: usize, // Program counter
         is_exhausted: bool,
     },
     /// Iterator instance wrapping a collection or generator
@@ -417,8 +378,7 @@ impl std::fmt::Debug for Value {
                 write!(
                     f,
                     "BytecodeGenerator(ip={}, exhausted={})",
-                    state_lock.ip,
-                    state_lock.is_exhausted
+                    state_lock.ip, state_lock.is_exhausted
                 )
             }
             Value::ArrayMarker => write!(f, "ArrayMarker"),
