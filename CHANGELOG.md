@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **VM Generator Support Infrastructure (v0.9.0 Phase 1 - Partial)** - Initial structures and opcodes for generator support in bytecode VM:
+  - Added `GeneratorState` struct to track generator execution state (IP, stack, call frames, locals, captured variables)
+  - Added `CallFrameData` struct for serializable call frame storage in generator state
+  - Added `BytecodeGenerator` value variant with Arc<Mutex<GeneratorState>> for concurrent access
+  - Implemented `MakeGenerator` opcode to convert BytecodeFunction to generator object
+  - Implemented `Yield` opcode with special return value to signal suspension
+  - Implemented `ResumeGenerator` opcode to restore generator state and continue execution
+  - Updated type checking (type() function) to recognize BytecodeGenerator as "generator"
+  - Updated debug formatting for BytecodeGenerator values
+  - NOTE: Full generator execution flow requires additional refinement - opcodes are in place but execution loop needs completion
+
 - **VM Exception Handling Implementation (v0.9.0 Phase 1)** - Fully implemented exception handling in bytecode VM:
   - Added exception handler stack to VM for tracking nested try blocks
   - Implemented BeginTry/EndTry opcodes for exception handler setup/teardown
