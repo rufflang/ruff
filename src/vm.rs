@@ -603,6 +603,99 @@ impl VM {
                     // These are handled by call frames
                 }
 
+                // Iterator operations
+                OpCode::MakeIterator => {
+                    let collection = self.stack.pop().ok_or("Stack underflow")?;
+                    // Call interpreter's built-in iterator function
+                    let result = self.interpreter.call_native_function_impl("iter", &[collection]);
+                    self.stack.push(result);
+                }
+
+                OpCode::IteratorNext => {
+                    let iterator = self.stack.pop().ok_or("Stack underflow")?;
+                    // Call next() on the iterator
+                    let result = self.interpreter.call_native_function_impl("iterator_next", &[iterator.clone()]);
+                    self.stack.push(iterator); // Keep iterator on stack
+                    self.stack.push(result); // Push result (Some/None)
+                }
+
+                OpCode::IteratorHasNext => {
+                    let iterator = self.stack.last().ok_or("Stack underflow")?.clone();
+                    // Check if iterator has more values
+                    let has_next = match &iterator {
+                        Value::Iterator { index, source, .. } => {
+                            match source.as_ref() {
+                                Value::Array(arr) => *index < arr.len(),
+                                _ => false,
+                            }
+                        }
+                        _ => false,
+                    };
+                    self.stack.push(Value::Bool(has_next));
+                }
+
+                // Generator operations
+                OpCode::Yield | OpCode::ResumeGenerator | OpCode::MakeGenerator => {
+                    // Generators require more complex state management
+                    // For now, return an error - will implement in Week 5-6
+                    return Err("Generator operations not yet implemented in VM".to_string());
+                }
+
+                // Async/await operations
+                OpCode::Await | OpCode::MakePromise | OpCode::MarkAsync => {
+                    // Async operations require integration with the runtime
+                    // For now, return an error - will implement in Week 5-6
+                    return Err("Async/await operations not yet implemented in VM".to_string());
+                }
+
+                // Exception handling
+                OpCode::BeginTry(_) | OpCode::EndTry | OpCode::Throw |
+                OpCode::BeginCatch(_) | OpCode::EndCatch => {
+                    // Exception handling requires exception table lookup
+                    // For now, return an error - will implement in Week 5-6
+                    return Err("Exception handling not yet implemented in VM".to_string());
+                }
+
+                // Native function calls
+                OpCode::CallNative(name, arg_count) => {
+                    // Collect arguments from stack
+                    let mut args = Vec::new();
+                    for _ in 0..arg_count {
+                        args.push(self.stack.pop().ok_or("Stack underflow in CallNative")?);
+                    }
+                    args.reverse();
+
+                    // Call the native function through the interpreter
+                    let result = self.interpreter.call_native_function_impl(&name, &args);
+
+                    // Check if result is an error
+                    match &result {
+                        Value::Error(msg) => return Err(msg.clone()),
+                        Value::ErrorObject { .. } => return Err(format!("Error in native function {}", name)),
+                        _ => self.stack.push(result),
+                    }
+                }
+
+                // Closure & upvalue operations
+                OpCode::CaptureUpvalue(_) | OpCode::LoadUpvalue(_) |
+                OpCode::StoreUpvalue(_) | OpCode::CloseUpvalues(_) => {
+                    // Proper upvalue handling requires heap allocation
+                    // For now, return an error - will implement in Week 5-6
+                    return Err("Upvalue operations not yet implemented in VM".to_string());
+                }
+
+                // Channel operations
+                OpCode::MakeChannel | OpCode::ChannelSend | OpCode::ChannelRecv => {
+                    // Channels require concurrent runtime support
+                    // For now, return an error - will implement in Week 5-6
+                    return Err("Channel operations not yet implemented in VM".to_string());
+                }
+
+                // Debug operations
+                OpCode::DebugPrint(msg) => {
+                    eprintln!("DEBUG: {}", msg);
+                }
+
                 OpCode::Nop => {
                     // Do nothing
                 }
@@ -626,6 +719,29 @@ impl VM {
                 Ok(Value::BytecodeFunction { chunk: (**chunk).clone(), captured: HashMap::new() })
             }
             Constant::Pattern(_) => Err("Cannot convert pattern to value".to_string()),
+            Constant::Type(_) => Err("Cannot convert type annotation to value".to_string()),
+            Constant::Array(elements) => {
+                let mut array = Vec::new();
+                for elem in elements {
+                    array.push(self.constant_to_value(elem)?);
+                }
+                Ok(Value::Array(array))
+            }
+            Constant::Dict(pairs) => {
+                let mut dict = HashMap::new();
+                for (key_const, value_const) in pairs {
+                    let key = self.constant_to_value(key_const)?;
+                    let value = self.constant_to_value(value_const)?;
+                    
+                    // Key must be a string
+                    if let Value::Str(key_str) = key {
+                        dict.insert(key_str, value);
+                    } else {
+                        return Err("Dict constant keys must be strings".to_string());
+                    }
+                }
+                Ok(Value::Dict(dict))
+            }
         }
     }
 

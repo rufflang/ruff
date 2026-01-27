@@ -399,18 +399,131 @@ impl Compiler {
                 Ok(())
             }
 
+            Stmt::TryExcept { try_block, except_var, except_block } => {
+                // Set up exception handler
+                let try_start = self.chunk.instructions.len();
+                
+                // Emit BeginTry with placeholder catch address
+                let begin_try_index = self.chunk.emit(OpCode::BeginTry(0));
+                
+                // Compile try block
+                for stmt in try_block {
+                    self.compile_stmt(stmt)?;
+                }
+                
+                // End try block
+                self.chunk.emit(OpCode::EndTry);
+                
+                // Jump over catch block if no exception
+                let end_jump = self.chunk.emit(OpCode::Jump(0));
+                
+                // Catch block starts here
+                let catch_start = self.chunk.instructions.len();
+                
+                // Patch BeginTry with actual catch address
+                self.chunk.set_jump_target(begin_try_index, catch_start);
+                
+                // Begin catch and bind exception to variable
+                self.chunk.emit(OpCode::BeginCatch(except_var.clone()));
+                
+                // Compile catch block
+                for stmt in except_block {
+                    self.compile_stmt(stmt)?;
+                }
+                
+                // End catch block
+                self.chunk.emit(OpCode::EndCatch);
+                
+                // Patch the jump over catch block
+                self.chunk.patch_jump(end_jump);
+                
+                // Record exception handler in metadata
+                let try_end = catch_start - 1;
+                self.chunk.exception_handlers.push(crate::bytecode::ExceptionHandler {
+                    try_start,
+                    try_end,
+                    catch_start,
+                    exception_var: except_var.clone(),
+                });
+                
+                Ok(())
+            }
+
+            Stmt::Block(statements) => {
+                // Enter new scope
+                self.chunk.emit(OpCode::PushScope);
+                self.scope_depth += 1;
+                
+                // Compile block statements
+                for stmt in statements {
+                    self.compile_stmt(stmt)?;
+                }
+                
+                // Exit scope
+                self.scope_depth -= 1;
+                self.chunk.emit(OpCode::PopScope);
+                
+                Ok(())
+            }
+
+            Stmt::Const { name, value, .. } => {
+                // Constants are like immutable variables at compile time
+                // Evaluate the value
+                self.compile_expr(value)?;
+                
+                // Store as global (constants are always global)
+                self.chunk.emit(OpCode::StoreGlobal(name.clone()));
+                
+                Ok(())
+            }
+
+            Stmt::EnumDef { name: _, variants: _ } => {
+                // Enum definitions are handled at runtime for now
+                // They don't generate bytecode, just metadata
+                Ok(())
+            }
+
+            Stmt::Export { stmt } => {
+                // Export is just a marker - compile the inner statement
+                self.compile_stmt(stmt)?;
+                Ok(())
+            }
+
+            Stmt::Spawn { body } => {
+                // Spawn creates a background thread
+                // For now, compile as a lambda that gets executed asynchronously
+                // This is simplified - full implementation needs runtime support
+                
+                // Create function for spawn body
+                let mut spawn_compiler = Compiler::new();
+                spawn_compiler.chunk.name = Some("<spawn>".to_string());
+                spawn_compiler.scope_depth = 0;
+                
+                for stmt in body {
+                    spawn_compiler.compile_stmt(stmt)?;
+                }
+                
+                spawn_compiler.chunk.emit(OpCode::ReturnNone);
+                
+                let func_index = self.chunk.add_constant(Constant::Function(Box::new(spawn_compiler.chunk)));
+                
+                // Load function and call it (runtime will handle thread spawning)
+                self.chunk.emit(OpCode::MakeClosure(func_index));
+                // TODO: Need a SpawnThread opcode for proper thread spawning
+                // For now this will just create a closure
+                self.chunk.emit(OpCode::Pop); // Pop the closure for now
+                
+                Ok(())
+            }
+
             Stmt::Import { .. }
-            | Stmt::EnumDef { .. }
-            | Stmt::Const { .. }
-            | Stmt::TryExcept { .. }
-            | Stmt::Block(_)
-            | Stmt::Export { .. }
-            | Stmt::Spawn { .. }
             | Stmt::Test { .. }
             | Stmt::TestSetup { .. }
             | Stmt::TestTeardown { .. }
             | Stmt::TestGroup { .. } => {
                 // These are handled at parse/runtime for now
+                // Import requires module system
+                // Test statements are executed by test runner
                 Ok(())
             }
         }
@@ -678,19 +791,73 @@ impl Compiler {
                 Ok(())
             }
 
-            Expr::Yield(_value_expr) => {
-                // Yield expressions are not yet supported in bytecode compiler
-                Err("Generators and yield expressions are not yet supported in bytecode mode. Use interpreter mode instead.".to_string())
+            Expr::Yield(value_expr) => {
+                // Compile the value to yield (or None if no value)
+                if let Some(expr) = value_expr {
+                    self.compile_expr(expr)?;
+                } else {
+                    let none_index = self.chunk.add_constant(Constant::None);
+                    self.chunk.emit(OpCode::LoadConst(none_index));
+                }
+                
+                // Emit yield instruction
+                // This saves the current state and returns to caller
+                self.chunk.emit(OpCode::Yield);
+                
+                // Mark the chunk as a generator
+                self.chunk.is_generator = true;
+                
+                Ok(())
             }
 
-            Expr::Await(_promise_expr) => {
-                // Await expressions are not yet supported in bytecode compiler
-                Err("Async/await is not yet supported in bytecode mode. Use interpreter mode instead.".to_string())
+            Expr::Await(promise_expr) => {
+                // Compile the promise expression
+                self.compile_expr(promise_expr)?;
+                
+                // Emit await instruction
+                // This suspends execution until the promise resolves
+                self.chunk.emit(OpCode::Await);
+                
+                // Mark the chunk as async
+                self.chunk.is_async = true;
+                
+                Ok(())
             }
 
-            Expr::MethodCall { .. } => {
-                // Method calls (iterator chaining) are not yet supported in bytecode compiler
-                Err("Method calls and iterator chaining are not yet supported in bytecode mode. Use interpreter mode instead.".to_string())
+            Expr::MethodCall { object, method, args } => {
+                // Method calls are sugar for calling a method on an object
+                // Translate: obj.method(a, b) -> method(obj, a, b)
+                
+                // Compile the object (becomes first argument)
+                self.compile_expr(object)?;
+                
+                // Compile other arguments
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                
+                // Load the method (it's either a field or a built-in method)
+                // For built-in iterator methods (map, filter, etc.), use native calls
+                match method.as_str() {
+                    "map" | "filter" | "reduce" | "collect" | "take" | "skip" | 
+                    "zip" | "enumerate" | "chain" | "flatten" | "chunk" => {
+                        // These are native iterator functions
+                        self.chunk.emit(OpCode::CallNative(method.clone(), args.len() + 1));
+                    }
+                    _ => {
+                        // General method call: load field then call
+                        self.compile_expr(object)?;
+                        self.chunk.emit(OpCode::FieldGet(method.clone()));
+                        
+                        // Move function to top of stack (after arguments)
+                        // Stack: [obj, arg1, arg2, ..., method]
+                        // Need: [obj, arg1, arg2, ..., method] for Call
+                        
+                        self.chunk.emit(OpCode::Call(args.len() + 1)); // +1 for object as first arg
+                    }
+                }
+                
+                Ok(())
             }
 
             Expr::Spread(_) => {
