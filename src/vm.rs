@@ -404,11 +404,42 @@ impl VM {
 
                     // Check if this is a bytecode function or native function
                     match &function {
-                        Value::BytecodeFunction { .. } => {
-                            // Set up call frame and switch context
-                            // Return value will be pushed by Return opcode
-                            self.call_bytecode_function(function, args)?;
-                            // Don't push anything - Return will do it
+                        Value::BytecodeFunction { chunk, captured } => {
+                            // Check if this is a generator function
+                            if chunk.is_generator {
+                                // Generator functions don't execute immediately
+                                // Instead, create a generator instance
+                                let mut locals = HashMap::new();
+                                
+                                // Bind arguments to parameters
+                                for (i, param_name) in chunk.params.iter().enumerate() {
+                                    if let Some(arg) = args.get(i) {
+                                        locals.insert(param_name.clone(), arg.clone());
+                                    }
+                                }
+                                
+                                // Create generator state (not yet started, IP at 0)
+                                let gen_state = GeneratorState {
+                                    ip: 0,
+                                    stack: Vec::new(),
+                                    call_frames_data: Vec::new(),
+                                    chunk: chunk.clone(),
+                                    locals,
+                                    captured: captured.clone(),
+                                    is_exhausted: false,
+                                };
+                                
+                                let generator = Value::BytecodeGenerator {
+                                    state: Arc::new(Mutex::new(gen_state)),
+                                };
+                                
+                                self.stack.push(generator);
+                            } else {
+                                // Regular function - set up call frame and switch context
+                                // Return value will be pushed by Return opcode
+                                self.call_bytecode_function(function, args)?;
+                                // Don't push anything - Return will do it
+                            }
                         }
                         Value::NativeFunction(_) => {
                             // Native functions return synchronously
@@ -822,80 +853,18 @@ impl VM {
                 }
                 
                 OpCode::Yield => {
-                    // Yield a value from the current generator execution
-                    // This should only be called within a generator function
-                    // The value to yield is on top of the stack
-                    let yielded_value = self.stack.pop().ok_or("Stack underflow in Yield")?;
-                    
-                    // Note: This opcode is a marker that indicates we should suspend
-                    // execution and return control to the caller. The actual state
-                    // saving happens in the generator call handling, not here.
-                    // For now, we'll return a special YieldValue to signal this.
-                    // The VM execution loop will need to detect this and handle it appropriately.
-                    
-                    // Push a special marker indicating a yield occurred
-                    self.stack.push(Value::Tagged {
-                        tag: "__yield__".to_string(),
-                        fields: HashMap::from([("value".to_string(), yielded_value)]),
-                    });
-                    
-                    // Return from this execution (the generator state will be saved externally)
-                    return Ok(Value::Tagged {
-                        tag: "__yield__".to_string(),
-                        fields: HashMap::from([("value".to_string(), 
-                            self.stack.pop().ok_or("Stack underflow")?)]),
-                    });
+                    // Yield is handled specially in generator_next() method
+                    // This opcode serves as a marker for the generator execution loop
+                    // When we reach here in normal execution, it's an error
+                    return Err("Yield can only be used inside generator functions".to_string());
                 }
                 
                 OpCode::ResumeGenerator => {
-                    // Resume generator execution from where it yielded
+                    // Resume generator by calling generator_next()
+                    // This pops the generator from stack and pushes the result (Some(value) or None)
                     let generator = self.stack.pop().ok_or("Stack underflow in ResumeGenerator")?;
-                    
-                    if let Value::BytecodeGenerator { state } = generator {
-                        let mut gen_state = state.lock().unwrap();
-                        
-                        // Check if generator is exhausted
-                        if gen_state.is_exhausted {
-                            // Generator is done, return None
-                            self.stack.push(Value::Option {
-                                is_some: false,
-                                value: Box::new(Value::Null),
-                            });
-                            return Ok(Value::Null);
-                        }
-                        
-                        // Restore the generator state
-                        let saved_ip = self.ip;
-                        let saved_chunk = self.chunk.clone();
-                        let saved_stack = self.stack.clone();
-                        let saved_frames = self.call_frames.clone();
-                        
-                        // Restore generator's execution context
-                        self.ip = gen_state.ip;
-                        self.chunk = gen_state.chunk.clone();
-                        self.stack = gen_state.stack.clone();
-                        
-                        // Restore call frames from serialized data
-                        self.call_frames.clear();
-                        for frame_data in &gen_state.call_frames_data {
-                            self.call_frames.push(CallFrame {
-                                return_ip: frame_data.return_ip,
-                                stack_offset: frame_data.stack_offset,
-                                locals: frame_data.locals.clone(),
-                                captured: frame_data.captured.clone(),
-                                prev_chunk: None, // We'll handle this separately if needed
-                            });
-                        }
-                        
-                        // Drop the lock before continuing execution
-                        drop(gen_state);
-                        
-                        // Continue execution until next yield or return
-                        // This is handled by continuing the main loop
-                        // We'll detect yield/return and update the state accordingly
-                    } else {
-                        return Err("ResumeGenerator requires a BytecodeGenerator".to_string());
-                    }
+                    let result = self.generator_next(generator)?;
+                    self.stack.push(result);
                 }
 
                 // Async/await operations
@@ -1410,6 +1379,165 @@ impl VM {
                     Ok(false)
                 }
             }
+        }
+    }
+
+    /// Execute generator until next yield or completion
+    /// Returns Some(value) if yielded, None if exhausted
+    pub fn generator_next(&mut self, generator: Value) -> Result<Value, String> {
+        if let Value::BytecodeGenerator { state } = generator {
+            let mut gen_state = state.lock().unwrap();
+            
+            // Check if generator is exhausted
+            if gen_state.is_exhausted {
+                return Ok(Value::Option {
+                    is_some: false,
+                    value: Box::new(Value::Null),
+                });
+            }
+            
+            // Save current VM state
+            let saved_ip = self.ip;
+            let saved_chunk = self.chunk.clone();
+            let saved_stack = self.stack.clone();
+            let saved_frames = self.call_frames.clone();
+            
+            // Restore generator state
+            self.ip = gen_state.ip;
+            self.chunk = gen_state.chunk.clone();
+            self.stack = gen_state.stack.clone();
+            
+            // Restore call frames
+            self.call_frames.clear();
+            for frame_data in &gen_state.call_frames_data {
+                self.call_frames.push(CallFrame {
+                    return_ip: frame_data.return_ip,
+                    stack_offset: frame_data.stack_offset,
+                    locals: frame_data.locals.clone(),
+                    captured: frame_data.captured.clone(),
+                    prev_chunk: None,
+                });
+            }
+            
+            // Drop the lock before executing
+            drop(gen_state);
+            
+            // Execute until yield or completion
+            let result = loop {
+                if self.ip >= self.chunk.instructions.len() {
+                    // Generator completed without explicit return
+                    break Ok(Value::Option {
+                        is_some: false,
+                        value: Box::new(Value::Null),
+                    });
+                }
+                
+                let instruction = self.chunk.instructions[self.ip].clone();
+                self.ip += 1;
+                
+                // Check for Yield opcode
+                if matches!(instruction, OpCode::Yield) {
+                    // Get the yielded value
+                    let yielded_value = self.stack.pop().ok_or("Stack underflow in Yield")?;
+                    
+                    // Save current state back to generator
+                    let mut gen_state = state.lock().unwrap();
+                    gen_state.ip = self.ip;
+                    gen_state.stack = self.stack.clone();
+                    
+                    // Save call frames
+                    gen_state.call_frames_data.clear();
+                    for frame in &self.call_frames {
+                        gen_state.call_frames_data.push(CallFrameData {
+                            return_ip: frame.return_ip,
+                            stack_offset: frame.stack_offset,
+                            locals: frame.locals.clone(),
+                            captured: frame.captured.clone(),
+                        });
+                    }
+                    
+                    drop(gen_state);
+                    
+                    // Restore original VM state
+                    self.ip = saved_ip;
+                    self.chunk = saved_chunk;
+                    self.stack = saved_stack;
+                    self.call_frames = saved_frames;
+                    
+                    // Return the yielded value
+                    break Ok(Value::Option {
+                        is_some: true,
+                        value: Box::new(yielded_value),
+                    });
+                }
+                
+                // Check for Return opcodes (generator completed)
+                if matches!(instruction, OpCode::Return | OpCode::ReturnNone) {
+                    let mut gen_state = state.lock().unwrap();
+                    gen_state.is_exhausted = true;
+                    drop(gen_state);
+                    
+                    // Restore original VM state
+                    self.ip = saved_ip;
+                    self.chunk = saved_chunk;
+                    self.stack = saved_stack;
+                    self.call_frames = saved_frames;
+                    
+                    break Ok(Value::Option {
+                        is_some: false,
+                        value: Box::new(Value::Null),
+                    });
+                }
+                
+                // Execute the instruction normally (by backing up IP and calling execute on single instruction)
+                // This is inefficient but simple - a better approach would be to extract instruction execution
+                // For now, we'll manually handle key instructions
+                match instruction {
+                    OpCode::LoadConst(index) => {
+                        let constant = &self.chunk.constants[index];
+                        let value = self.constant_to_value(constant)?;
+                        self.stack.push(value);
+                    }
+                    OpCode::LoadVar(name) => {
+                        let value = if let Some(frame) = self.call_frames.last() {
+                            frame.captured.get(&name)
+                                .map(|r| r.lock().unwrap().clone())
+                                .or_else(|| frame.locals.get(&name).cloned())
+                        } else {
+                            None
+                        };
+                        
+                        let value = value
+                            .or_else(|| self.globals.lock().unwrap().get(&name))
+                            .ok_or_else(|| format!("Undefined variable: {}", name))?;
+                        self.stack.push(value);
+                    }
+                    OpCode::StoreVar(name) => {
+                        let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                        if let Some(frame) = self.call_frames.last_mut() {
+                            if let Some(captured_ref) = frame.captured.get(&name) {
+                                *captured_ref.lock().unwrap() = value;
+                            } else {
+                                frame.locals.insert(name, value);
+                            }
+                        } else {
+                            self.globals.lock().unwrap().define(name, value);
+                        }
+                    }
+                    OpCode::Pop => {
+                        self.stack.pop().ok_or("Stack underflow")?;
+                    }
+                    // Add more instruction handlers as needed
+                    // For now, return error for unhandled instructions in generator context
+                    _ => {
+                        return Err(format!("Instruction {:?} not yet handled in generator execution", instruction));
+                    }
+                }
+            };
+            
+            result
+        } else {
+            Err("generator_next() requires a BytecodeGenerator".to_string())
         }
     }
 }
