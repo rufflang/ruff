@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **VM Exception Handling Implementation (v0.9.0 Phase 1)** - Fully implemented exception handling in bytecode VM:
+  - Added exception handler stack to VM for tracking nested try blocks
+  - Implemented BeginTry/EndTry opcodes for exception handler setup/teardown
+  - Implemented Throw opcode with proper stack unwinding and call frame restoration
+  - Implemented BeginCatch/EndCatch opcodes for error binding to catch variables
+  - Added special handling for throw() in compiler to emit Throw opcode
+  - Fixed set_jump_target to handle BeginTry opcode patching
+  - Added comprehensive test suite (tests/test_exceptions_comprehensive.ruff) with 9 test scenarios:
+    - Simple throw/catch
+    - Exceptions from functions with proper unwinding
+    - Nested try blocks
+    - Exceptions across multiple function call levels
+    - Multiple sequential try blocks
+    - Normal execution path (no exception)
+    - Exceptions after partial execution
+    - Throw from catch blocks
+    - Access to error object properties (message, line, stack)
+  - All tests pass identically in both VM and interpreter modes
+  - Uncaught exceptions properly terminate program with error message
+  - Full parity with interpreter exception handling behavior
+
 ### Changed
 
 - **Interpreter Modularization (Phase 3 Complete - Native Functions) 🎯** - Successfully extracted all native functions into category-based modules (v0.9.0 Roadmap Task #27):

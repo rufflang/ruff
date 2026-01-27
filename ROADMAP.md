@@ -72,7 +72,12 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
   
 - **Week 5-6: VM Feature Parity**
   - Support generators and async/await in bytecode
-  - Handle exceptions and error propagation
+  - ✅ **COMPLETED**: Handle exceptions and error propagation (January 2026)
+    - Implemented exception handler stack in VM
+    - Added BeginTry/EndTry/Throw/BeginCatch/EndCatch opcodes
+    - Proper stack unwinding and call frame restoration
+    - Comprehensive test coverage (9 test scenarios)
+    - VM/interpreter parity achieved
   
 - **Week 7-8: Integration & Testing**
   - Switch default execution mode to VM
