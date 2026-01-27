@@ -113,6 +113,65 @@ If you are new to the project, read this first.
 
 ---
 
+## Compiler & Bytecode Optimizer
+
+### New modules must be declared in BOTH main.rs AND lib.rs
+
+- **Problem:** `error[E0432]: unresolved import` when trying to use new module
+- **Rule:** Ruff has dual crate structure (binary + library). Add `mod <name>;` to both `src/main.rs` AND `src/lib.rs`
+- **Why:** Binary crate (main.rs) is the executable, library crate (lib.rs) enables testing and external use. Both need module declarations for full visibility.
+- **Symptom:** Module compiles when building lib but fails when building bin, or vice versa
+- **Solution:** Always declare new modules in both files
+- **Prevention:** When creating `src/foo.rs`, immediately add `mod foo;` to both main.rs and lib.rs
+
+(Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
+
+### Division by zero must NOT be constant-folded
+
+- **Problem:** Folding `10 / 0` causes compile-time panic instead of runtime error
+- **Rule:** Optimizer must skip folding any operation that can fail at runtime
+- **Why:** Division by zero should produce a runtime error, not crash the compiler
+- **Affected operations:** Division (`/`), modulo (`%`) when divisor is zero or 0.0
+- **Code location:** `src/optimizer.rs::try_fold_binary_op()` includes explicit guards
+- **Prevention:** Any operation with runtime failure modes (array access, dict lookup, type coercion) must NOT be folded if inputs can cause failure
+
+(Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
+
+### Dead code elimination must update ALL index-based metadata
+
+- **Problem:** Exception handlers point to wrong instructions after DCE removes code
+- **Rule:** When removing instructions, build an `old_index → new_index` map and update: jump targets, exception handlers, source maps, debug info
+- **Why:** Removing instruction at index N shifts all subsequent indices down
+- **Critical structures:** `BytecodeChunk.exception_handlers`, all Jump* opcodes, BeginTry opcodes, source_map HashMap
+- **Algorithm:** 1) Mark reachable instructions, 2) Build index_map during emission, 3) Update all index references
+- **Prevention:** Check BytecodeChunk for ANY field containing instruction indices before implementing optimizations
+
+(Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
+
+### StoreVar consumes stack value - need Dup for read-after-write optimization
+
+- **Problem:** Replacing `StoreVar(x) + LoadVar(x)` with just `StoreVar(x)` removes value from stack
+- **Rule:** `StoreVar`/`StoreGlobal` are consuming operations (pop value from stack). To keep value available, must `Dup` before storing
+- **Why:** Stack discipline requires maintaining correct values. Store pops, Load pushes. Removing Load without duplicating loses the value.
+- **Correct pattern:** `StoreVar(x) + LoadVar(x)` → `Dup + StoreVar(x)` (leaves copy on stack)
+- **Incorrect pattern:** `StoreVar(x) + LoadVar(x)` → `StoreVar(x)` (value disappears)
+- **Prevention:** Understand stack effect of each opcode (push/pop semantics) before pattern-matching optimizations
+
+(Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
+
+### Ruff variables are globally scoped within script files
+
+- **Problem:** Test file reusing variable names like `sum` and `i` showed unexpected values
+- **Rule:** Variable assignment in Ruff UPDATES existing bindings at global scope, doesn't create new local bindings (unless inside function)
+- **Why:** Ruff's default scoping is global within a script. Loops/blocks don't create new scopes (only functions do)
+- **Symptom:** Assigning to `x := 10` then later `x := 20` updates the same global `x`, not shadowing
+- **Solution:** Use unique variable names in test files, or wrap tests in functions for isolated scopes
+- **Implication:** This is a Ruff language characteristic, not a bug. Test files should account for this.
+
+(Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
+
+---
+
 ## Runtime / Evaluator
 
 ### ErrorObject has specific field structure, not a generic HashMap
