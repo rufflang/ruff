@@ -548,8 +548,8 @@ impl VM {
 
                         // If this was an async function, wrap the return value in a Promise
                         let value_to_push = if frame.is_async {
-                            // Create a channel with the result already available
-                            let (tx, rx) = std::sync::mpsc::channel();
+                            // Create a tokio oneshot channel with the result already available
+                            let (tx, rx) = tokio::sync::oneshot::channel();
                             tx.send(Ok(return_value))
                                 .map_err(|_| "Failed to send to promise channel")?;
 
@@ -580,7 +580,7 @@ impl VM {
 
                         // If this was an async function, wrap None in a Promise
                         let value_to_push = if frame.is_async {
-                            let (tx, rx) = std::sync::mpsc::channel();
+                            let (tx, rx) = tokio::sync::oneshot::channel();
                             tx.send(Ok(Value::Null))
                                 .map_err(|_| "Failed to send to promise channel")?;
 
@@ -1022,10 +1022,18 @@ impl VM {
                                 }
                             }
 
-                            // Poll the promise - blocks until result is ready
+                            // Poll the promise using tokio runtime - blocks until result is ready
                             let result = {
-                                let recv = receiver.lock().unwrap();
-                                recv.recv()
+                                let mut recv_guard = receiver.lock().unwrap();
+                                // Take ownership by replacing with a dummy closed channel
+                                let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+                                drop(dummy_tx); // Close immediately
+                                let actual_rx = std::mem::replace(&mut *recv_guard, dummy_rx);
+                                drop(recv_guard); // Release lock before blocking
+                                
+                                // Block on the receiver using tokio runtime
+                                use crate::interpreter::AsyncRuntime;
+                                AsyncRuntime::block_on(actual_rx)
                             };
 
                             // Update cache
@@ -1063,8 +1071,8 @@ impl VM {
                     // Pop value from stack and wrap it in a resolved promise
                     let value = self.stack.pop().ok_or("Stack underflow in MakePromise")?;
 
-                    // Create a channel that immediately sends the value
-                    let (tx, rx) = std::sync::mpsc::channel();
+                    // Create a tokio oneshot channel that immediately sends the value
+                    let (tx, rx) = tokio::sync::oneshot::channel();
                     tx.send(Ok(value.clone())).map_err(|_| "Failed to send to promise channel")?;
 
                     // Create promise with the result already available

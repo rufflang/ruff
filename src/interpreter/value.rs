@@ -365,7 +365,7 @@ pub enum Value {
     },
     /// Promise for async computation results
     Promise {
-        receiver: Arc<Mutex<std::sync::mpsc::Receiver<Result<Value, String>>>>,
+        receiver: Arc<Mutex<tokio::sync::oneshot::Receiver<Result<Value, String>>>>,
         is_polled: Arc<Mutex<bool>>,
         cached_result: Arc<Mutex<Option<Result<Value, String>>>>,
     },

@@ -3518,11 +3518,11 @@ impl Interpreter {
                             self.env.clone()
                         };
 
-                        // Create a channel for the result
-                        let (tx, rx) = std::sync::mpsc::channel();
+                        // Create a tokio oneshot channel for the result
+                        let (tx, rx) = tokio::sync::oneshot::channel();
 
-                        // Spawn a thread to execute the async function
-                        std::thread::spawn(move || {
+                        // Spawn a tokio task to execute the async function
+                        AsyncRuntime::spawn_task(async move {
                             let mut async_interpreter = Interpreter::new();
                             async_interpreter.register_builtins(); // Register built-in functions
                             async_interpreter.env = base_env;
@@ -3548,6 +3548,9 @@ impl Interpreter {
 
                             // Send the result back
                             let _ = tx.send(Ok(result));
+                            
+                            // Return a dummy value (task result not used, only channel matters)
+                            Value::Null
                         });
 
                         // Return a Promise containing the receiver
@@ -3876,7 +3879,7 @@ impl Interpreter {
                 Value::Return(Box::new(yielded))
             }
             Expr::Await(promise_expr) => {
-                // Await expression - wait for a promise to resolve
+                // Await expression - wait for a promise to resolve using tokio runtime
                 let promise_value = self.eval_expr(promise_expr);
 
                 // If it's a promise, wait for it to resolve
@@ -3902,10 +3905,18 @@ impl Interpreter {
                             // Locks dropped here
                         }
 
-                        // Poll the promise - locks are released before blocking recv()
+                        // Poll the promise using tokio runtime
+                        // We need to take ownership of the receiver to await it
                         let result = {
-                            let recv = receiver.lock().unwrap();
-                            recv.recv()
+                            let mut recv_guard = receiver.lock().unwrap();
+                            // Take ownership by replacing with a dummy closed channel
+                            let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+                            drop(dummy_tx); // Close immediately
+                            let actual_rx = std::mem::replace(&mut *recv_guard, dummy_rx);
+                            drop(recv_guard); // Release lock before blocking
+                            
+                            // Block on the receiver using tokio runtime
+                            AsyncRuntime::block_on(actual_rx)
                         };
 
                         // Now update the cache with the result
