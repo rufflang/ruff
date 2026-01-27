@@ -205,10 +205,120 @@ pub enum OpCode {
     /// Pop a scope
     PopScope,
 
+    // === Iterator Operations ===
+    /// Create an iterator from a collection
+    /// Stack: [collection] -> [iterator]
+    MakeIterator,
+
+    /// Get the next value from an iterator
+    /// Stack: [iterator] -> [iterator, Some(value)] or [iterator, None]
+    IteratorNext,
+
+    /// Check if iterator has more values
+    /// Stack: [iterator] -> [iterator, bool]
+    IteratorHasNext,
+
+    // === Generator Operations ===
+    /// Yield a value from a generator function
+    /// Saves current execution state (IP, stack, locals) and returns value
+    /// Stack: [value] -> [] (generator returns to caller)
+    Yield,
+
+    /// Resume a generator from a yield point
+    /// Restores execution state and continues from where it yielded
+    /// Stack: [] -> [value] (value that was yielded)
+    ResumeGenerator,
+
+    /// Create a generator object from a function
+    /// Stack: [function] -> [generator]
+    MakeGenerator,
+
+    // === Async/Await Operations ===
+    /// Await a promise/async value
+    /// Suspends execution until the promise resolves
+    /// Stack: [promise] -> [resolved_value]
+    Await,
+
+    /// Create a promise that resolves with a value
+    /// Stack: [value] -> [promise]
+    MakePromise,
+
+    /// Mark function as async (used during compilation)
+    /// Not executed at runtime, used for function metadata
+    #[allow(dead_code)]
+    MarkAsync,
+
+    // === Exception Handling ===
+    /// Begin a try block
+    /// Sets up exception handler at the given instruction
+    /// Operand: catch block instruction index
+    BeginTry(usize),
+
+    /// End a try block
+    /// Removes the exception handler from the stack
+    EndTry,
+
+    /// Throw an exception
+    /// Stack: [error_value] -> unwinds to nearest catch handler
+    Throw,
+
+    /// Begin a catch block
+    /// Binds the caught exception to a variable
+    /// Operand: variable name for exception
+    BeginCatch(String),
+
+    /// End a catch block
+    EndCatch,
+
+    // === Native Function Calls ===
+    /// Call a native (built-in) function by name
+    /// Arguments are already on stack
+    /// Operand: (function_name, arg_count)
+    CallNative(String, usize),
+
+    // === Closure & Upvalue Operations ===
+    /// Capture an upvalue (closed-over variable)
+    /// Stack: [] -> [upvalue]
+    /// Operand: variable name to capture
+    CaptureUpvalue(String),
+
+    /// Load an upvalue onto the stack
+    /// Stack: [] -> [value]
+    /// Operand: upvalue index
+    LoadUpvalue(usize),
+
+    /// Store top of stack to an upvalue
+    /// Stack: [value] -> []
+    /// Operand: upvalue index
+    StoreUpvalue(usize),
+
+    /// Close upvalues up to the stack slot
+    /// Moves upvalues from stack to heap when they go out of scope
+    /// Operand: stack slot index
+    CloseUpvalues(usize),
+
+    // === Channel Operations (for concurrency) ===
+    /// Create a new channel for communication
+    /// Stack: [] -> [channel]
+    MakeChannel,
+
+    /// Send a value through a channel
+    /// Stack: [channel, value] -> []
+    ChannelSend,
+
+    /// Receive a value from a channel (blocking)
+    /// Stack: [channel] -> [value]
+    ChannelRecv,
+
     // === Debugging ===
     /// Print current stack state (for debugging)
     #[allow(dead_code)]
     DebugStack,
+
+    /// Print a message for debugging
+    /// Operand: debug message
+    #[allow(dead_code)]
+    DebugPrint(String),
 
     /// No operation (placeholder)
     Nop,
@@ -232,6 +342,18 @@ pub struct BytecodeChunk {
 
     /// Parameter names for functions
     pub params: Vec<String>,
+
+    /// Exception handlers for try/catch blocks
+    pub exception_handlers: Vec<ExceptionHandler>,
+
+    /// Upvalue names for closures (variables captured from outer scope)
+    pub upvalues: Vec<String>,
+
+    /// Whether this is a generator function
+    pub is_generator: bool,
+
+    /// Whether this is an async function
+    pub is_async: bool,
 }
 
 #[allow(dead_code)] // Methods not yet used - VM integration incomplete
@@ -243,6 +365,10 @@ impl BytecodeChunk {
             source_map: HashMap::new(),
             name: None,
             params: Vec::new(),
+            exception_handlers: Vec::new(),
+            upvalues: Vec::new(),
+            is_generator: false,
+            is_async: false,
         }
     }
 
@@ -305,9 +431,15 @@ pub enum Constant {
     Function(Box<BytecodeChunk>),
     /// Pattern for matching (stored AST pattern)
     Pattern(crate::ast::Pattern),
+    /// Type annotation for runtime type checking
+    Type(crate::ast::TypeAnnotation),
+    /// Array of constants (for nested structures)
+    Array(Vec<Constant>),
+    /// Dict of constants (key-value pairs)
+    Dict(Vec<(Constant, Constant)>),
 }
 
-/// Represents a compiled function with its bytecode
+/// Represents a compiled function with its bytecode and metadata
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Not yet used - function compilation incomplete
 pub struct CompiledFunction {
@@ -315,4 +447,19 @@ pub struct CompiledFunction {
     pub arity: usize, // Number of parameters
     pub chunk: BytecodeChunk,
     pub upvalues: Vec<String>, // Captured variables for closures
+    pub is_generator: bool,
+    pub is_async: bool,
+}
+
+/// Exception handler entry for try/catch
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExceptionHandler {
+    /// Start of try block (instruction index)
+    pub try_start: usize,
+    /// End of try block (instruction index)
+    pub try_end: usize,
+    /// Start of catch block (instruction index)
+    pub catch_start: usize,
+    /// Variable name to bind caught exception
+    pub exception_var: String,
 }
