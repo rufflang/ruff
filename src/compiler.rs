@@ -262,11 +262,11 @@ impl Compiler {
                 let mut func_compiler = Compiler::new();
                 func_compiler.chunk.name = Some(name.clone());
                 func_compiler.chunk.params = params.clone();
-                func_compiler.scope_depth = 0;
+                func_compiler.scope_depth = 1;  // Functions create a new scope (not global)
 
                 // Add parameters as locals
                 for param in params {
-                    func_compiler.locals.push(Local { name: param.clone(), depth: 0 });
+                    func_compiler.locals.push(Local { name: param.clone(), depth: 1 });
                 }
 
                 // Analyze the function body to find free variables (captures)
@@ -275,7 +275,7 @@ impl Compiler {
                 
                 // Add captured variables as locals so the compiler knows they exist
                 for upvalue_name in &free_vars {
-                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 0 });
+                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 1 });
                 }
 
                 // Compile function body
@@ -702,10 +702,11 @@ impl Compiler {
                 let mut func_compiler = Compiler::new();
                 func_compiler.chunk.name = Some("<lambda>".to_string());
                 func_compiler.chunk.params = params.clone();
+                func_compiler.scope_depth = 1;  // Functions create a new scope (not global)
 
                 // Add parameters as locals
                 for param in params {
-                    func_compiler.locals.push(Local { name: param.clone(), depth: 0 });
+                    func_compiler.locals.push(Local { name: param.clone(), depth: 1 });
                 }
 
                 // Analyze the function body to find free variables (captures)
@@ -715,7 +716,7 @@ impl Compiler {
                 // Add captured variables as locals so the compiler knows they exist
                 // They will be resolved from the closure's captured map at runtime
                 for upvalue_name in &free_vars {
-                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 0 });
+                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 1 });
                 }
 
                 // Compile function body

@@ -58,8 +58,11 @@ struct CallFrame {
     /// Stack offset for this frame
     stack_offset: usize,
 
-    /// Local environment for this frame
+    /// Local environment for this frame (parameters and local variables)
     locals: HashMap<String, Value>,
+    
+    /// Captured variables (upvalues) with shared mutable state
+    captured: HashMap<String, Arc<Mutex<Value>>>,
 
     /// Previous chunk (for returning)
     prev_chunk: Option<BytecodeChunk>,
@@ -109,12 +112,23 @@ impl VM {
                 }
 
                 OpCode::LoadVar(name) => {
-                    // Look in current call frame first
+                    // Look in current call frame first - check captured variables (Arc<Mutex<Value>>) first, then locals
                     let value = if let Some(frame) = self.call_frames.last() {
                         if std::env::var("DEBUG_VM").is_ok() {
-                            eprintln!("LoadVar('{}'):  checking frame locals ({} entries)", name, frame.locals.len());
+                            eprintln!("LoadVar('{}'):  checking frame captured ({} entries) and locals ({} entries)", 
+                                name, frame.captured.len(), frame.locals.len());
                         }
-                        frame.locals.get(&name).cloned()
+                        
+                        // Check captured variables first (these are shared mutable references)
+                        if let Some(captured_ref) = frame.captured.get(&name) {
+                            if std::env::var("DEBUG_VM").is_ok() {
+                                eprintln!("LoadVar('{}'): found in captured", name);
+                            }
+                            Some(captured_ref.lock().unwrap().clone())
+                        } else {
+                            // Fall back to locals
+                            frame.locals.get(&name).cloned()
+                        }
                     } else {
                         if std::env::var("DEBUG_VM").is_ok() {
                             eprintln!("LoadVar('{}'): no call frame", name);
@@ -132,7 +146,9 @@ impl VM {
                         })
                         .ok_or_else(|| {
                             if std::env::var("DEBUG_VM").is_ok() {
-                                eprintln!("LoadVar('{}'): FAILED - not in locals or globals", name);
+                                eprintln!("LoadVar('{}'): FAILED - not in captured, locals or globals", name);
+                                eprintln!("  Current frame captured: {:?}", 
+                                    self.call_frames.last().map(|f| f.captured.keys().collect::<Vec<_>>()));
                                 eprintln!("  Current frame locals: {:?}", 
                                     self.call_frames.last().map(|f| f.locals.keys().collect::<Vec<_>>()));
                             }
@@ -155,8 +171,23 @@ impl VM {
                     let value = self.stack.last().ok_or("Stack underflow")?.clone();
 
                     if let Some(frame) = self.call_frames.last_mut() {
-                        frame.locals.insert(name, value);
+                        // Check if this is a captured variable first
+                        if let Some(captured_ref) = frame.captured.get(&name) {
+                            if std::env::var("DEBUG_VM").is_ok() {
+                                eprintln!("StoreVar('{}'): updating captured variable", name);
+                            }
+                            *captured_ref.lock().unwrap() = value;
+                        } else {
+                            // Store in local variables
+                            if std::env::var("DEBUG_VM").is_ok() {
+                                eprintln!("StoreVar('{}'): storing in frame locals", name);
+                            }
+                            frame.locals.insert(name, value);
+                        }
                     } else {
+                        if std::env::var("DEBUG_VM").is_ok() {
+                            eprintln!("StoreVar('{}'): storing in globals (no frame)", name);
+                        }
                         // Store in global
                         self.globals.lock().unwrap().set(name, value);
                     }
@@ -379,6 +410,14 @@ impl VM {
                         if std::env::var("DEBUG_VM").is_ok() {
                             eprintln!("MakeClosure: function has {} upvalues: {:?}", 
                                 chunk.upvalues.len(), chunk.upvalues);
+                            eprintln!("  Call stack depth: {}", self.call_frames.len());
+                            if let Some(frame) = self.call_frames.last() {
+                                eprintln!("  Current frame has {} locals: {:?}, {} captured: {:?}", 
+                                    frame.locals.len(), frame.locals.keys().collect::<Vec<_>>(),
+                                    frame.captured.len(), frame.captured.keys().collect::<Vec<_>>());
+                            } else {
+                                eprintln!("  No current frame!");
+                            }
                         }
                         
                         for upvalue_name in &chunk.upvalues {
@@ -394,7 +433,8 @@ impl VM {
                                 if std::env::var("DEBUG_VM").is_ok() {
                                     eprintln!("  Captured '{}' from locals = {:?}", upvalue_name, val);
                                 }
-                                captured.insert(upvalue_name.clone(), val);
+                                // Wrap in Arc<Mutex<>> for shared mutable state
+                                captured.insert(upvalue_name.clone(), Arc::new(Mutex::new(val)));
                             } else {
                                 if std::env::var("DEBUG_VM").is_ok() {
                                     eprintln!("  Skipped '{}' (not in locals, will resolve at runtime)", upvalue_name);
@@ -885,22 +925,21 @@ impl VM {
                 locals.insert(param_name.clone(), arg_value.clone());
             }
 
-            // Add captured variables from closure
-            for (name, value) in captured {
-                if std::env::var("DEBUG_VM").is_ok() {
-                    eprintln!("Adding captured '{}' = {:?} to locals", name, value);
-                }
-                locals.insert(name, value);
+            // Prepare captured variables HashMap for mutable access
+            let mut captured_map = HashMap::new();
+            for (name, value_ref) in &captured {
+                captured_map.insert(name.clone(), value_ref.clone());
             }
             
             if std::env::var("DEBUG_VM").is_ok() {
-                eprintln!("CallFrame locals now has {} entries: {:?}", locals.len(), locals.keys().collect::<Vec<_>>());
+                eprintln!("CallFrame has {} captured variables: {:?}", captured_map.len(), captured_map.keys().collect::<Vec<_>>());
             }
 
             let frame = CallFrame {
                 return_ip: self.ip,
                 stack_offset: self.stack.len(),
                 locals,
+                captured: captured_map,
                 prev_chunk: Some(self.chunk.clone()),
             };
 

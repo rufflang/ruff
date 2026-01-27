@@ -250,7 +250,8 @@ pub enum Value {
     #[allow(dead_code)]
     BytecodeFunction {
         chunk: crate::bytecode::BytecodeChunk,
-        captured: HashMap<String, Value>,
+        /// Captured variables with shared mutable state
+        captured: HashMap<String, Arc<Mutex<Value>>>,
     },
     /// Internal marker for dynamic array construction in VM
     ArrayMarker,
