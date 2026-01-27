@@ -21,150 +21,7 @@ This roadmap outlines planned features and improvements for future versions of t
 **Timeline**: Q2 2026 (2-3 months)  
 **Priority**: Foundation work to improve maintainability and scalability
 
-> **Context**: After implementing async/await (#25), several architectural patterns and technical debt items became apparent. This release focuses on cleaning up the codebase foundation before continuing with developer experience features.
-
----
-
-### 27. Modularize interpreter.rs (P1)
-
-**Status**: Phase 2 Complete (January 26, 2026)  
-**Estimated Effort**: Medium (2-3 weeks)
-
-**Problem**: Current `interpreter.rs` was 14,802 lines in a single file, making it difficult to navigate, understand, and maintain.
-
-**Progress** (Phase 1 - January 26, 2026):
-- ✅ Created `src/interpreter/` module directory structure
-- ✅ Moved `interpreter.rs` → `interpreter/mod.rs` (compiles successfully)
-- ✅ Extracted Value enum (500 lines) → `value.rs` with 30+ variants, LeakyFunctionBody, DatabaseConnection, ConnectionPool
-- ✅ Extracted Environment struct (110 lines) → `environment.rs` with lexical scoping
-- ✅ Updated mod.rs with module declarations and pub use re-exports
-- ✅ Verified zero compilation warnings/errors
-- ✅ Committed and pushed changes (commit 07a5505)
-- ✅ Reduced mod.rs from 14,802 to 14,285 lines (-517 lines)
-
-**Progress** (Phase 2 - January 26, 2026):
-- ✅ Extracted ControlFlow enum (22 lines) → `control_flow.rs` for break/continue signals
-- ✅ Extracted test framework (230 lines) → `test_runner.rs` with TestRunner, TestCase, TestResult, TestReport
-- ✅ Maintained zero compilation warnings (1 expected unused import warning for public re-exports)
-- ✅ All functionality preserved, tests still passing
-- ✅ Committed changes (commits b69af53, 7cdbda9)
-- ✅ Reduced mod.rs from 14,285 to 14,071 lines (additional -214 lines)
-- ✅ **Total reduction: -731 lines from original 14,802**
-
-**Current Structure**:
-```
-src/interpreter/
-├── mod.rs              (core Interpreter + call_native_function_impl, ~14,071 lines)
-├── value.rs            (Value enum, 30+ variants, DB/image types, ~497 lines)
-├── environment.rs      (Environment with lexical scoping, ~109 lines)
-├── control_flow.rs     (ControlFlow enum for loops, ~22 lines)
-├── test_runner.rs      (Test framework infrastructure, ~230 lines)
-├── legacy_full.rs      (Backup of original monolithic file, ~14,754 lines)
-```
-
-**Key Design Decision**: The 5,700-line `call_native_function_impl` method (lines 1407-7112 in mod.rs) must remain in the impl block due to Rust's requirement that methods with `&mut self` stay in the same impl context. This function is well-organized with clear category comments for:
-- I/O functions (print, input)
-- Math operations (abs, sqrt, pow, etc.)
-- String manipulation (upper, lower, split, join, etc.)
-- Collections (array/dict/set/queue/stack operations)
-- File I/O (read_file, write_file, etc.)
-- HTTP (http_get, http_post, parallel_http)
-- Database operations (db_connect, db_query, transactions)
-- Crypto (hashing, AES/RSA encryption, JWT)
-- Image processing, compression, networking
-
-Similarly, the ~564-line `register_builtins` method (lines 400-964) remains in the impl block as it directly mutates `self.env`. While it could technically be extracted with refactoring, the benefit is minimal compared to the effort.
-
-**Benefits Achieved**:
-- Easier code navigation and search
-- Better parallelization for code reviews
-- Reduced mental load when working on features
-- Faster compilation (parallel module builds)
-- Clearer separation of concerns
-- Easier onboarding for contributors
-- ~5% reduction in mod.rs size (731 lines extracted)
-
-**Implementation Notes**:
-- Use `pub(crate)` visibility for internal APIs
-- Keep public API surface unchanged via pub use re-exports
-- Add module-level documentation
-- Maintain existing test suite compatibility
-- All tests passing, minimal warnings
-
-**Progress** (Phase 3 - January 26, 2026):
-- ✅ Created `src/interpreter/native_functions/` module directory structure
-- ✅ Extracted massive `call_native_function_impl` (5,703 lines) into 13 category-based modules
-- ✅ Implemented dispatcher pattern with category-based routing
-- ✅ Math module: 13 functions (abs, sqrt, floor, ceil, round, sin, cos, tan, log, exp, pow, min, max)
-- ✅ Strings module: 31 functions (to_upper, capitalize, trim, split, join, len, etc.)
-- ✅ Collections module: 65+ functions (arrays, dicts, sets, queues, stacks with higher-order functions)
-- ✅ Type Operations module: 23 functions (type checking, conversion, assertion, debugging)
-- ✅ Filesystem module: 14 functions (file I/O, directory operations)
-- ✅ System module: 11 functions (time, date, random operations)
-- ✅ HTTP module: 5 functions (parallel_http, JWT, OAuth2)
-- ✅ Concurrency module: 1 function (channel creation)
-- ✅ All 198 interpreter tests passing (100% test coverage maintained)
-- ✅ Reduced mod.rs from 14,071 to ~4,426 lines (68.5% reduction, -9,645 lines)
-- ✅ Committed changes across 8 commits (commits bb67dbd through ba54afd)
-
-**Current Structure**:
-```
-src/interpreter/
-├── mod.rs                      (core Interpreter, ~4,426 lines)
-├── value.rs                    (Value enum, ~497 lines)
-├── environment.rs              (Environment, ~109 lines)
-├── control_flow.rs             (ControlFlow enum, ~22 lines)
-├── test_runner.rs              (Test framework, ~230 lines)
-├── legacy_full.rs              (Backup, ~14,755 lines)
-├── native_functions/
-│   ├── mod.rs                  (Dispatcher, ~73 lines)
-│   ├── io.rs                   (I/O functions, ~20 lines)
-│   ├── math.rs                 (Math operations, ~65 lines)
-│   ├── strings.rs              (String manipulation, ~315 lines)
-│   ├── collections.rs          (Arrays/dicts/sets, ~815 lines)
-│   ├── type_ops.rs             (Type checking/conversion, ~394 lines)
-│   ├── filesystem.rs           (File operations, ~211 lines)
-│   ├── http.rs                 (HTTP/JWT/OAuth2, ~140 lines)
-│   ├── json.rs                 (JSON parsing, stub)
-│   ├── crypto.rs               (Cryptography, stub)
-│   ├── system.rs               (System/env/time, ~118 lines)
-│   ├── concurrency.rs          (Async/threading, ~22 lines)
-│   ├── database.rs             (Database ops, stub)
-│   └── network.rs              (TCP/UDP sockets, stub)
-```
-
-**Key Architecture Decision Revised**: 
-After careful analysis and implementation, the 5,700-line `call_native_function_impl` **was successfully modularized** despite initial concerns about `&mut self` requirements. The solution uses a dispatcher pattern where:
-- The main dispatcher in `native_functions/mod.rs` calls category modules in sequence
-- Category modules return `Option<Value>` (Some(result) if handled, None otherwise)
-- Modules needing interpreter access (for higher-order functions) take `&mut Interpreter` parameter
-- Each module handles 10-65 related functions, greatly improving code organization
-- Module stubs remain for future expansion (JSON, Crypto, Database, Network categories)
-
-**Benefits Achieved**:
-- **Massive reduction**: From 14,071 lines to 4,426 lines in mod.rs (68.5% decrease)
-- **100% test coverage maintained**: All 198 tests passing throughout refactoring
-- **Clear separation of concerns**: Each module handles one category (math, strings, collections, etc.)
-- **Easy to extend**: Adding new functions means editing focused 100-300 line modules, not a 14k line file
-- **Better IDE support**: Code completion and navigation significantly improved
-- **Parallel development**: Multiple developers can work on different modules simultaneously
-- **Reduced merge conflicts**: Changes isolated to specific module files
-- **Clearer code reviews**: Reviewers can focus on relevant category modules
-- **Progressive extraction**: Completed across 8 commits with continuous testing
-
-**Implementation Insights**:
-- Higher-order functions (map, filter, reduce) need `&mut Interpreter` access to call user functions
-- Polymorphic functions (len, contains, index_of) use return None to delegate to other modules
-- Dispatcher order matters: strings before collections to handle string-specific operations first
-- Module signatures flexible: standard `(name, args)` or extended `(interp, name, args)` as needed
-
-**Next Steps** (Future work):
-- Complete stub modules (JSON, Crypto, Database, Network) as features are needed
-- Consider further splitting large modules (collections.rs at 815 lines could split into arrays/dicts/sets)
-- Add module-level documentation explaining category patterns
-- Monitor performance impact of dispatcher overhead (expected to be negligible)
-
-**Phase 3 Status**: ✅ **COMPLETE** - All native functions successfully extracted and modularized
+> **Context**: After implementing async/await (#25) and completing interpreter modularization, the next priority is VM integration and performance improvements.
 
 ---
 
@@ -835,6 +692,167 @@ This release prioritizes **technical debt cleanup** over **new features** becaus
 5. **Community Growth**: Good documentation attracts contributors
 
 **Note**: This may seem like "boring" work, but it's essential for long-term project health. Think of it as paying down technical debt before taking on more feature debt.
+
+---
+
+## v0.11.0 - Native Function Expansion & Module Refinements
+
+**Focus**: Complete stub modules and refine modular architecture  
+**Timeline**: TBD (After v0.10.0)  
+**Priority**: P2 (Medium) - Feature expansion as needed
+
+> **Context**: Phase 3 (v0.9.0) successfully modularized native functions into 13 category modules. This release expands stub modules as features are needed and refines the module architecture based on real-world usage.
+
+---
+
+### 35. Complete Stub Native Function Modules (P2)
+
+**Status**: Planned  
+**Estimated Effort**: Medium per module (1-2 weeks each)
+
+**Current Stub Modules** (return `None`, awaiting implementation):
+- `json.rs` - JSON parsing and serialization
+- `crypto.rs` - Encryption, hashing, digital signatures
+- `database.rs` - MySQL, PostgreSQL, SQLite connections
+- `network.rs` - TCP/UDP socket operations
+
+**Implementation Strategy**: Implement modules **on-demand** based on user needs, not speculatively.
+
+#### JSON Module (json.rs)
+
+**Functions to Implement**:
+```rust
+// JSON parsing and serialization
+parse_json(json_str: &str) -> Value
+to_json(value: &Value) -> String
+json_get(json: &Value, path: &str) -> Option<Value>  // JSONPath queries
+json_merge(json1: &Value, json2: &Value) -> Value
+```
+
+**Trigger**: When users need JSON API integration or config file parsing.
+
+**Estimated Effort**: 1 week
+
+---
+
+#### Crypto Module (crypto.rs)
+
+**Functions to Implement**:
+```rust
+// Hashing
+hash_md5(data: &str) -> String
+hash_sha256(data: &str) -> String
+hash_sha512(data: &str) -> String
+
+// Encryption
+aes_encrypt(data: &[u8], key: &[u8]) -> Vec<u8>
+aes_decrypt(data: &[u8], key: &[u8]) -> Vec<u8>
+rsa_encrypt(data: &[u8], public_key: &str) -> Vec<u8>
+rsa_decrypt(data: &[u8], private_key: &str) -> Vec<u8>
+
+// Digital signatures
+rsa_sign(data: &[u8], private_key: &str) -> Vec<u8>
+rsa_verify(data: &[u8], signature: &[u8], public_key: &str) -> bool
+```
+
+**Trigger**: When users need secure authentication or data encryption.
+
+**Estimated Effort**: 2 weeks
+
+---
+
+#### Database Module (database.rs)
+
+**Functions to Implement**:
+```rust
+// Connection management
+db_connect(connection_string: &str) -> DatabaseConnection
+db_close(conn: &DatabaseConnection)
+db_pool_create(config: &Value) -> ConnectionPool
+
+// Query execution
+db_query(conn: &DatabaseConnection, sql: &str) -> Vec<Value>
+db_execute(conn: &DatabaseConnection, sql: &str) -> i64  // Returns rows affected
+
+// Transactions
+db_begin_transaction(conn: &DatabaseConnection)
+db_commit(conn: &DatabaseConnection)
+db_rollback(conn: &DatabaseConnection)
+```
+
+**Trigger**: When users need persistent storage or database integration.
+
+**Estimated Effort**: 2-3 weeks (complex due to connection pooling)
+
+---
+
+#### Network Module (network.rs)
+
+**Functions to Implement**:
+```rust
+// TCP sockets
+tcp_listen(addr: &str) -> TcpListener
+tcp_accept(listener: &TcpListener) -> TcpStream
+tcp_connect(addr: &str) -> TcpStream
+tcp_read(stream: &TcpStream, bytes: usize) -> Vec<u8>
+tcp_write(stream: &TcpStream, data: &[u8]) -> usize
+tcp_close(stream: &TcpStream)
+
+// UDP sockets
+udp_bind(addr: &str) -> UdpSocket
+udp_send_to(socket: &UdpSocket, data: &[u8], addr: &str) -> usize
+udp_recv_from(socket: &UdpSocket, bytes: usize) -> (Vec<u8>, String)
+```
+
+**Trigger**: When users need low-level networking or custom protocols.
+
+**Estimated Effort**: 2 weeks
+
+---
+
+### 36. Module Architecture Refinements (P3)
+
+**Status**: Planned  
+**Estimated Effort**: Small (3-5 days)
+
+**Proposed Improvements**:
+
+1. **Split Large Modules**: If `collections.rs` (815 lines) becomes unwieldy:
+   ```
+   native_functions/
+   ├── collections/
+   │   ├── mod.rs       (dispatcher)
+   │   ├── arrays.rs    (~300 lines)
+   │   ├── dicts.rs     (~250 lines)
+   │   ├── sets.rs      (~150 lines)
+   │   └── queues.rs    (~115 lines)
+   ```
+
+2. **Add Module-Level Documentation**: Document category patterns:
+   ```rust
+   //! Collections module - Array, Dict, Set, Queue, Stack operations
+   //!
+   //! # Architecture
+   //! - Returns `Option<Value>` (Some if handled, None to try next module)
+   //! - Higher-order functions (map, filter, reduce) require `&mut Interpreter`
+   //! - Polymorphic functions (len, contains) delegate via None returns
+   //!
+   //! # Performance
+   //! - All operations are O(1) to O(n) where n is collection size
+   //! - No heap allocations for primitive operations
+   ```
+
+3. **Performance Monitoring**: Add telemetry for dispatcher overhead:
+   ```rust
+   // In debug mode, track module hit rates
+   #[cfg(debug_assertions)]
+   fn log_dispatcher_stats() {
+       // Which modules handle most calls?
+       // Are there hot paths we can optimize?
+   }
+   ```
+
+**Trigger**: Implement when module size or complexity becomes problematic.
 
 ---
 
