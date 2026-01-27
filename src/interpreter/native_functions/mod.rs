@@ -36,7 +36,7 @@ pub fn call_native_function(
     if let Some(result) = strings::handle(name, arg_values) {
         return result;
     }
-    if let Some(result) = collections::handle(name, arg_values) {
+    if let Some(result) = collections::handle(interp, name, arg_values) {
         return result;
     }
     if let Some(result) = type_ops::handle(name, arg_values) {
