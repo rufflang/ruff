@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **JIT Advanced Optimizations (v0.9.0 Phase 4A - 🚧 60% COMPLETE)** - Type specialization infrastructure:
+  - **Type Profiling System**: Track runtime type observations for specialization decisions ✅
+    - `TypeProfile` tracks Int/Float/Bool/Other counts per variable
+    - Requires 60+ samples and 90%+ type stability before specialization
+    - `dominant_type()` identifies most common type
+    - Integrated into JitCompiler for per-function tracking
+  - **Adaptive Recompilation**: Automatically deoptimize when type assumptions fail ✅
+    - Guard success/failure tracking per compiled function
+    - Triggers recompilation when failure rate > 10%
+    - Automatic cache eviction and counter reset
+    - Prevents deopt thrashing with minimum sample requirements
+  - **Runtime Helpers for Specialization**: 4 new external functions ✅
+    - `jit_load_variable_float(ctx, hash) -> f64` - Load Float variables
+    - `jit_store_variable_float(ctx, hash, value)` - Store Float variables
+    - `jit_check_type_int(ctx, hash) -> i64` - Type guard for Int (returns 1/0)
+    - `jit_check_type_float(ctx, hash) -> i64` - Type guard for Float (returns 1/0)
+    - All registered as symbols and callable from JIT code
+  - **Extended BytecodeTranslator**: Ready for specialized code generation ✅
+    - Float function references (load/store)
+    - Guard function references (check_int/check_float)
+    - Specialization context with type profiles
+    - Infrastructure complete for Phase 4B
+  - **Comprehensive Test Suite**: 17 total JIT tests (5 new Phase 4 tests) ✅
+    - test_type_profiling - Int type tracking and specialization
+    - test_type_profiling_mixed_types - Mixed type handling
+    - test_guard_success_tracking - Guard counter validation
+    - test_guard_failure_despecialization - Adaptive recompilation
+    - test_float_specialization_profile - Float type tracking
+  - **Next Steps**: Specialized code generation (int/float arithmetic), guard insertion, constant propagation
+
 - **JIT Compilation Infrastructure (v0.9.0 Phase 3 - ✅ 100% COMPLETE)** - Just-In-Time compilation using Cranelift:
   - **Cranelift Integration**: Added Cranelift JIT backend for native code compilation ✅
   - **Hot Path Detection**: Automatic detection and compilation of hot loops (threshold: 100 executions) ✅

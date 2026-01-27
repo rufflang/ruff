@@ -64,7 +64,32 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 ---
 
-#### Phase 4: Advanced JIT Optimizations (2-3 weeks) - ⏳ PLANNED
+#### Phase 4: Advanced JIT Optimizations (2-3 weeks) - 🚧 60% COMPLETE
+
+**Status**: Infrastructure Complete (Phase 4A) | Specialization Generation In Progress (Phase 4B)
+
+**✅ Phase 4A: Infrastructure (COMPLETE)**
+- Type profiling system (TypeProfile, SpecializationInfo, ValueType)
+- Adaptive recompilation with guard failure tracking (10% threshold)
+- Runtime helpers: jit_load_variable_float, jit_store_variable_float
+- Type guard helpers: jit_check_type_int, jit_check_type_float
+- Extended BytecodeTranslator with specialization context
+- 17 total JIT tests (5 new Phase 4 tests), all passing
+
+**⏳ Phase 4B: Specialized Code Generation (IN PROGRESS)**
+- [ ] Int-specialized arithmetic (Add, Sub, Mul, Div) - pure i64 operations
+- [ ] Float-specialized arithmetic (Add, Sub, Mul, Div) - pure f64 operations
+- [ ] Mixed int/float handling with automatic conversions
+- [ ] Guard generation at function entry
+- [ ] Deoptimization handler (fallback to interpreter)
+
+**⏳ Phase 4C-E: Additional Optimizations (PLANNED)**
+- [ ] Constant propagation and folding in JIT IR
+- [ ] Loop unrolling for small fixed loops
+- [ ] Basic inlining for small operations
+- [ ] Dead code elimination in JIT IR
+
+**Expected Additional Gain**: 2-3x faster than Phase 3, bringing total to **5-10x faster for variable-heavy code**
 
 **Objectives**: Squeeze out maximum performance with type specialization
 
