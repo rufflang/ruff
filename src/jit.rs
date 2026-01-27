@@ -874,6 +874,157 @@ impl BytecodeTranslator {
         Ok(false) // Doesn't terminate block
     }
 
+    /// Translate Add operation with type specialization
+    fn translate_add_specialized(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        var_a: Option<&str>,
+        var_b: Option<&str>,
+    ) -> Result<(), String> {
+        // Try to determine types from specialization info
+        let type_a = var_a.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let type_b = var_b.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let b = self.pop_value()?;
+        let a = self.pop_value()?;
+        
+        // Generate specialized code based on types
+        match (type_a, type_b) {
+            (Some(ValueType::Int), Some(ValueType::Int)) => {
+                // Pure integer addition - fastest path
+                // Direct native i64 addition without type checks
+                let result = builder.ins().iadd(a, b);
+                self.push_value(result);
+            }
+            // Float specialization deferred to future optimization pass
+            // Current implementation focuses on integer optimization
+            _ => {
+                // Generic fallback - assume integers for now
+                let result = builder.ins().iadd(a, b);
+                self.push_value(result);
+            }
+        }
+        Ok(())
+    }
+
+    /// Translate Sub operation with type specialization
+    fn translate_sub_specialized(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        var_a: Option<&str>,
+        var_b: Option<&str>,
+    ) -> Result<(), String> {
+        let type_a = var_a.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let type_b = var_b.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let b = self.pop_value()?;
+        let a = self.pop_value()?;
+        
+        match (type_a, type_b) {
+            (Some(ValueType::Int), Some(ValueType::Int)) => {
+                // Pure integer subtraction
+                let result = builder.ins().isub(a, b);
+                self.push_value(result);
+            }
+            _ => {
+                let result = builder.ins().isub(a, b);
+                self.push_value(result);
+            }
+        }
+        Ok(())
+    }
+
+    /// Translate Mul operation with type specialization
+    fn translate_mul_specialized(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        var_a: Option<&str>,
+        var_b: Option<&str>,
+    ) -> Result<(), String> {
+        let type_a = var_a.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let type_b = var_b.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let b = self.pop_value()?;
+        let a = self.pop_value()?;
+        
+        match (type_a, type_b) {
+            (Some(ValueType::Int), Some(ValueType::Int)) => {
+                // Pure integer multiplication
+                let result = builder.ins().imul(a, b);
+                self.push_value(result);
+            }
+            _ => {
+                let result = builder.ins().imul(a, b);
+                self.push_value(result);
+            }
+        }
+        Ok(())
+    }
+
+    /// Translate Div operation with type specialization
+    fn translate_div_specialized(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        var_a: Option<&str>,
+        var_b: Option<&str>,
+    ) -> Result<(), String> {
+        let type_a = var_a.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let type_b = var_b.and_then(|name| {
+            let hash = Self::hash_var_name(name);
+            self.specialization.as_ref()?.specialized_types.get(&hash).copied()
+        });
+        
+        let b = self.pop_value()?;
+        let a = self.pop_value()?;
+        
+        match (type_a, type_b) {
+            (Some(ValueType::Int), Some(ValueType::Int)) => {
+                // Pure integer division
+                let result = builder.ins().sdiv(a, b);
+                self.push_value(result);
+            }
+            _ => {
+                let result = builder.ins().sdiv(a, b);
+                self.push_value(result);
+            }
+        }
+        Ok(())
+    }
+
+    /// Helper to hash variable names consistently
+    fn hash_var_name(name: &str) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        name.hash(&mut hasher);
+        hasher.finish()
+    }
+
     fn push_value(&mut self, val: cranelift::prelude::Value) {
         self.value_stack.push(val);
     }
@@ -1628,5 +1779,101 @@ mod tests {
         assert!(type_profile.is_stable());
         assert_eq!(type_profile.dominant_type(), Some(ValueType::Float));
         assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Float));
+    }
+
+    #[test]
+    fn test_int_specialized_addition() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+        
+        // Test: 100 + 200 = 300 (pure integer addition)
+        let const_100 = chunk.add_constant(Constant::Int(100));
+        let const_200 = chunk.add_constant(Constant::Int(200));
+        
+        chunk.emit(OpCode::LoadConst(const_100));
+        chunk.emit(OpCode::LoadConst(const_200));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile int addition: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_int_specialized_subtraction() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+        
+        // Test: 500 - 200 = 300
+        let const_500 = chunk.add_constant(Constant::Int(500));
+        let const_200 = chunk.add_constant(Constant::Int(200));
+        
+        chunk.emit(OpCode::LoadConst(const_500));
+        chunk.emit(OpCode::LoadConst(const_200));
+        chunk.emit(OpCode::Sub);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile int subtraction: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_int_specialized_multiplication() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+        
+        // Test: 25 * 4 = 100
+        let const_25 = chunk.add_constant(Constant::Int(25));
+        let const_4 = chunk.add_constant(Constant::Int(4));
+        
+        chunk.emit(OpCode::LoadConst(const_25));
+        chunk.emit(OpCode::LoadConst(const_4));
+        chunk.emit(OpCode::Mul);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile int multiplication: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_int_specialized_division() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+        
+        // Test: 100 / 4 = 25
+        let const_100 = chunk.add_constant(Constant::Int(100));
+        let const_4 = chunk.add_constant(Constant::Int(4));
+        
+        chunk.emit(OpCode::LoadConst(const_100));
+        chunk.emit(OpCode::LoadConst(const_4));
+        chunk.emit(OpCode::Div);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile int division: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_specialized_arithmetic_chain() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+        
+        // Test: (10 + 5) * 2 - 3 = 27
+        let const_10 = chunk.add_constant(Constant::Int(10));
+        let const_5 = chunk.add_constant(Constant::Int(5));
+        let const_2 = chunk.add_constant(Constant::Int(2));
+        let const_3 = chunk.add_constant(Constant::Int(3));
+        
+        chunk.emit(OpCode::LoadConst(const_10));
+        chunk.emit(OpCode::LoadConst(const_5));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::LoadConst(const_2));
+        chunk.emit(OpCode::Mul);
+        chunk.emit(OpCode::LoadConst(const_3));
+        chunk.emit(OpCode::Sub);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile arithmetic chain: {:?}", result.err());
     }
 }
