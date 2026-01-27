@@ -1386,7 +1386,7 @@ impl VM {
     /// Returns Some(value) if yielded, None if exhausted
     pub fn generator_next(&mut self, generator: Value) -> Result<Value, String> {
         if let Value::BytecodeGenerator { state } = generator {
-            let mut gen_state = state.lock().unwrap();
+            let gen_state = state.lock().unwrap();
             
             // Check if generator is exhausted
             if gen_state.is_exhausted {
