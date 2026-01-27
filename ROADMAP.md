@@ -1,27 +1,37 @@
 # Ruff Language - Development Roadmap
 
-This roadmap outlines planned features and improvements for future versions of the Ruff programming language. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
+This roadmap outlines **upcoming** planned features and improvements. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
 > **Current Version**: v0.8.0 (Released January 2026)  
-> **Next Planned Release**: v0.9.0 (Developer Experience)  
-> **Path to v1.0**: See [PATH_TO_PRODUCTION.md](PATH_TO_PRODUCTION.md) for comprehensive roadmap
+> **Next Planned Release**: v0.9.0 (VM Integration & Performance)  
+> **Status**: 🚧 In Progress - VM Exception Handling Complete (Jan 2026)
 
+---
+
+## 🎯 What's Next (Priority Order)
+
+1. **VM Generators & Async/Await** - Complete VM feature parity (Week 5-6 remaining)
+2. **VM Integration & Testing** - Make VM the default execution path (Week 7-8)
+3. **JIT Compilation** - Cranelift integration for 100-500x speedup (Phases 2-4)
+4. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values
+
+---
 
 ## Priority Levels
 
-- **P1 (High)**: Core language features needed for real-world applications
+- **P1 (High)**: Core features needed for v1.0 production readiness
 - **P2 (Medium)**: Quality-of-life improvements and developer experience
 - **P3 (Low)**: Nice-to-have features for advanced use cases
 
 ---
 
-## v0.9.0 - Codebase Refactoring & Architecture Improvements
+## v0.9.0 - VM Integration & Performance (IN PROGRESS)
 
-**Focus**: Technical debt cleanup and architectural improvements before expanding features  
-**Timeline**: Q2 2026 (2-3 months)  
-**Priority**: Foundation work to improve maintainability and scalability
+**Focus**: Complete bytecode VM integration and achieve near-native performance  
+**Timeline**: Q1-Q2 2026 (3-4 months total)  
+**Priority**: P1 - Essential for v1.0
 
-> **Context**: After implementing async/await (#25) and completing interpreter modularization, the next priority is VM integration and performance improvements.
+> **Progress**: ✅ Exception handling complete | 🚧 Generators/async pending | ⏳ JIT planned
 
 ---
 
@@ -49,52 +59,38 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
 
 ---
 
-#### Phase 1: Complete Bytecode VM Integration (6-8 weeks)
+#### Phase 1: Complete Bytecode VM Integration (6-8 weeks) - 🚧 IN PROGRESS
 
-**Objectives**:
-1. Make bytecode VM the **primary execution path**
-2. Remove tree-walking interpreter (or keep as fallback/debug mode)
-3. Optimize instruction set for common operations
-4. Complete all missing VM features
+**Status**: ~70% Complete (Weeks 1-4 done, exception handling done, generators/async pending)
 
-**Tasks**:
-- **Week 1-2: VM Instruction Set Design**
-  - Audit existing bytecode instructions
-  - Add missing instructions for all language features
-  - Design efficient encoding (stack-based vs register-based)
-  - Document instruction semantics
+**Remaining Tasks**:
+
+- **⏳ Week 5-6: VM Feature Parity** (NEXT UP)
+  - [ ] Support generators in bytecode (Yield, ResumeGenerator, MakeGenerator opcodes)
+  - [ ] Support async/await in bytecode (Await, MakePromise opcodes)
+  - ✅ Exception handling complete (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
   
-- **Week 3-4: Compiler Completion**
-  - Complete AST → bytecode compilation for all nodes
-  - Implement constant folding optimization
-  - Add jump optimization (eliminate dead code)
-  - Handle all expression and statement types
-  
-- **Week 5-6: VM Feature Parity**
-  - Support generators and async/await in bytecode
-  - ✅ **COMPLETED**: Handle exceptions and error propagation (January 2026)
-    - Implemented exception handler stack in VM
-    - Added BeginTry/EndTry/Throw/BeginCatch/EndCatch opcodes
-    - Proper stack unwinding and call frame restoration
-    - Comprehensive test coverage (9 test scenarios)
-    - VM/interpreter parity achieved
-  
-- **Week 7-8: Integration & Testing**
-  - Switch default execution mode to VM
-  - Performance benchmarking baseline
+- **⏳ Week 7-8: Integration & Testing** (AFTER WEEK 5-6)
+  - [ ] Switch default execution mode to VM
+  - [ ] Add `--interpreter` flag for fallback mode
+  - [ ] Run full test suite in VM mode (198+ tests)
+  - [ ] Performance benchmarking baseline
+  - [ ] Document performance characteristics
 
 **Expected Performance Gain**: 10-50x faster than tree-walking interpreter
 
+**Completed So Far**:
+- ✅ VM instruction set design (60+ opcodes)
+- ✅ Bytecode compiler for all AST nodes
+- ✅ Function calls, closures, upvalues
+- ✅ Exception handling with proper unwinding
+- ✅ Native function integration (180+ functions)
+
 ---
 
-#### Phase 2: Basic Optimizations (2-3 weeks)
+#### Phase 2: Basic Optimizations (2-3 weeks) - ⏳ PLANNED
 
-**Objectives**:
-1. Low-hanging fruit optimizations before JIT
-2. Improve bytecode quality
-3. Optimize hot paths
-
-**Optimizations**:
+**Objectives**: Low-hanging fruit optimizations before JIT
 - **Constant Folding**: Evaluate constant expressions at compile time
   ```ruff
   x := 2 + 3 * 4  # Compile to: x := 14
@@ -126,14 +122,9 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
 
 ---
 
-#### Phase 3: JIT Compilation Infrastructure (4-6 weeks)
+#### Phase 3: JIT Compilation Infrastructure (4-6 weeks) - ⏳ PLANNED
 
-**Objectives**:
-1. Detect hot code paths at runtime
-2. Compile bytecode to native machine code
-3. Seamlessly switch between interpreted and compiled code
-
-**Architecture Decision - Two Options**:
+**Objectives**: Detect hot code and compile to native machine code
 
 **Option A: LLVM Backend** (Recommended)
 - Use existing LLVM infrastructure
@@ -178,14 +169,9 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
 
 ---
 
-#### Phase 4: Advanced JIT Optimizations (2-3 weeks)
+#### Phase 4: Advanced JIT Optimizations (2-3 weeks) - ⏳ PLANNED
 
-**Objectives**:
-1. Squeeze out maximum performance
-2. Implement type specialization
-3. Optimize memory access patterns
-
-**Optimizations**:
+**Objectives**: Squeeze out maximum performance with type specialization
 
 - **Type Specialization**: Generate optimized code for common types
   ```ruff
@@ -286,52 +272,29 @@ Results:
 **Integration with v0.9.0**:
 - This work happens **during** v0.9.0 (parallel with modularization)
 - Modularize interpreter.rs **first** (makes VM work easier)
-- VM integration happens after code is organized
+- VM integration hPriority & Success Criteria
 
-**Milestones**:
+**Current Sprint** (Week 5-6):
+1. 🎯 Implement generator support in VM (Yield/Resume/MakeGenerator)
+2. 🎯 Implement async/await support in VM (Await/MakePromise)
+3. 🎯 Test generator and async VM implementations
 
-| Timeline | Milestone | Performance Target |
-|----------|-----------|-------------------|
-| Month 1 | Complete bytecode VM | 10-50x faster than tree-walking |
-| Month 2 | Basic optimizations | 20-100x faster than tree-walking |
-| Month 3 | JIT infrastructure + Cranelift integration | 100-200x faster than tree-walking |
-| Month 4 | Advanced optimizations + tuning | 200-500x faster than tree-walking |
+**Next Sprint** (Week 7-8):
+1. Switch default to VM mode (`--interpreter` for fallback)
+2. Comprehensive testing (all 198+ tests in VM mode)
+3. Performance benchmarking and documentation
 
-**Success Criteria**:
-- ✅ All tests pass with VM as primary execution path
-- ✅ Zero regressions in language features
-- ✅ Performance within 2-5x of Go for I/O-bound workloads
-- ✅ Performance within 5-10x of Go for CPU-bound workloads
-- ✅ JIT compilation success rate > 95% for hot paths
-- ✅ Comprehensive benchmark suite demonstrating improvements
-
-**Dependencies**:
-```toml
-[dependencies]
-cranelift = "0.100"  # JIT compilation
-cranelift-module = "0.100"
-cranelift-jit = "0.100"
-target-lexicon = "0.12"  # Platform detection
-```
-
-**Notes**:
-- This is a **long task** (3-4 months), but absolutely essential for v1.0
-- Performance is **non-negotiable** for production adoption
-- Many modern languages (Julia, LuaJIT, PyPy) prove JIT viability
-- Without this, Ruff will be "just another slow scripting language"
-- With this, Ruff can compete with Go/Node.js for real workloads
+**Overall Success Metrics**:
+- All tests pass with VM as primary execution path
+- Zero regressions in language features  
+- Performance: 10-50x faster than tree-walking (Phase 1)
+- Performance: 100-500x faster after JIT (Phases 2-4)
 
 ---
 
-### 29. Fix LeakyFunctionBody Pattern (P2)
+## v0.9.0 - Architecture Cleanup Tasks (P2)
 
-**Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
-
-**Problem**: Current workaround intentionally leaks memory to avoid stack overflow during drop:
-```rust
-/// Wrapper type for function bodies that prevents deep recursion during drop.
-pub struct LeakyFunctionBody(ManuallyDrop<Arc<Vec<Stmt>>>);
+These run in parallel with VM work and don't block v1.0:p<Arc<Vec<Stmt>>>);
 ```
 
 **Root Cause**: Recursive drop implementations traverse deeply nested AST structures where `Stmt` contains more `Vec<Stmt>`.
@@ -656,47 +619,26 @@ let result = left_value.add(&right_value)?;
 
 ---
 
-## Implementation Priority
+## ✅ Recently Completed (v0.8.0 - v0.9.0)
 
-**Phase 1 (Month 1): Foundation**
-1. ✅ Modularize interpreter.rs → Easier navigation
-2. ✅ Architecture documentation → Knowledge sharing
-3. ✅ Improve error context → Better DX
+**Modularization Complete**:
+- ✅ Interpreter modularization (14,802 → 4,426 lines, 68.5% reduction)
+- ✅ Value enum extraction (500 lines → value.rs)
+- ✅ Environment extraction (110 lines → environment.rs)
+- ✅ Native functions modularization (13 category modules)
 
-**Phase 2 (Month 2): Cleanup**
-1. ✅ VM integration decision → Remove confusion
-2. ✅ Fix LeakyFunctionBody → No memory leaks
-3. ✅ Type system documentation → Clarify design
+**VM Foundation**:
+- ✅ VM instruction set (60+ opcodes)
+- ✅ Bytecode compiler for all AST nodes
+- ✅ Exception handling in VM (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
+- ✅ Native function integration (180+ built-in functions)
+- ✅ Closures and upvalue support
 
-**Phase 3 (Month 3): Optimization**
-1. ✅ Trait-based value operations → Less duplication
-2. ✅ Separate AST from runtime → Better architecture
-3. ✅ Contributing guide → Open to community
-
-**Success Criteria**:
-- Reduced onboarding time for new contributors
-- Cleaner codebase with better organization
-- Zero intentional memory leaks
-- Comprehensive documentation
-- Faster iteration on new features
+See [CHANGELOG.md](CHANGELOG.md) for complete details.
 
 ---
 
-## Rationale
-
-This release prioritizes **technical debt cleanup** over **new features** because:
-
-1. **Foundation First**: Adding more features to poorly organized code compounds problems
-2. **Async/Await Lessons**: Recent refactor showed cost of architectural decisions
-3. **Scaling Preparation**: Clean architecture needed before expanding team/features
-4. **Maintainability**: 14K line files don't scale well
-5. **Community Growth**: Good documentation attracts contributors
-
-**Note**: This may seem like "boring" work, but it's essential for long-term project health. Think of it as paying down technical debt before taking on more feature debt.
-
----
-
-## v0.11.0 - Native Function Expansion & Module Refinements
+## v0.11.0 and Beyond
 
 **Focus**: Complete stub modules and refine modular architecture  
 **Timeline**: TBD (After v0.10.0)  
