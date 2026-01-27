@@ -1468,6 +1468,425 @@ impl TypeChecker {
                 return_type: None,                               // Returns Image object
             },
         );
+
+        // I/O functions (CRITICAL - these were missing!)
+        self.functions.insert(
+            "print".to_string(),
+            FunctionSignature {
+                param_types: vec![], // Variadic - accepts any number of arguments
+                return_type: None,   // Returns null
+            },
+        );
+
+        self.functions.insert(
+            "input".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // Optional prompt
+                return_type: Some(TypeAnnotation::String),       // Returns user input
+            },
+        );
+
+        // Additional commonly used functions
+        self.functions.insert(
+            "parse_int".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Int),
+            },
+        );
+
+        self.functions.insert(
+            "parse_float".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
+            "throw".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any error value
+                return_type: None,       // Never returns (throws)
+            },
+        );
+
+        // Environment variable helpers (v0.8.0)
+        self.functions.insert(
+            "env_or".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // key, default
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "env_int".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // key
+                return_type: Some(TypeAnnotation::Int),
+            },
+        );
+
+        self.functions.insert(
+            "env_float".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // key
+                return_type: Some(TypeAnnotation::Float),
+            },
+        );
+
+        self.functions.insert(
+            "env_bool".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // key
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "env_required".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // key
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "env_set".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // key, value
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "env_list".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: None, // Returns dict of all env vars
+            },
+        );
+
+        // Argument parser function
+        self.functions.insert(
+            "arg_parser".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: None, // Returns ArgParser object
+            },
+        );
+
+        // Compression & hashing functions (v0.8.0)
+        self.functions.insert(
+            "zip_create".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // zip file path
+                return_type: None,                               // Returns ZipArchive object
+            },
+        );
+
+        self.functions.insert(
+            "zip_add_file".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String)], // archive, file path
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "zip_add_dir".to_string(),
+            FunctionSignature {
+                param_types: vec![None, Some(TypeAnnotation::String)], // archive, dir path
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "zip_close".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // archive
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "unzip".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // zip path, dest dir
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "sha256".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // data
+                return_type: Some(TypeAnnotation::String),       // hash
+            },
+        );
+
+        self.functions.insert(
+            "md5".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // data
+                return_type: Some(TypeAnnotation::String),       // hash
+            },
+        );
+
+        self.functions.insert(
+            "md5_file".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // file path
+                return_type: Some(TypeAnnotation::String),       // hash
+            },
+        );
+
+        self.functions.insert(
+            "hash_password".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // password
+                return_type: Some(TypeAnnotation::String),       // hashed
+            },
+        );
+
+        self.functions.insert(
+            "verify_password".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // password, hash
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        // Process management functions
+        self.functions.insert(
+            "spawn_process".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // array of command args
+                return_type: None,       // Returns dict with stdout, stderr, status
+            },
+        );
+
+        self.functions.insert(
+            "pipe_commands".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // array of command arrays
+                return_type: None,       // Returns dict with stdout, stderr, status
+            },
+        );
+
+        // OS & Path module functions
+        self.functions.insert(
+            "os_getcwd".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "os_chdir".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // path
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "os_rmdir".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // path
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "os_environ".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: None, // Returns dict of env vars
+            },
+        );
+
+        self.functions.insert(
+            "path_join".to_string(),
+            FunctionSignature {
+                param_types: vec![], // Variadic string arguments
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "path_absolute".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // path
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "path_is_dir".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // path
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "path_is_file".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // path
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "path_extension".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // path
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        // Binary/Base64 functions
+        self.functions.insert(
+            "encode_base64".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // bytes
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "decode_base64".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // base64 string
+                return_type: None,                               // bytes
+            },
+        );
+
+        self.functions.insert(
+            "read_binary_file".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // file path
+                return_type: None,                               // bytes
+            },
+        );
+
+        self.functions.insert(
+            "http_get_binary".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // URL
+                return_type: None,                               // bytes
+            },
+        );
+
+        // Advanced I/O functions (v0.8.0)
+        self.functions.insert(
+            "io_read_bytes".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::Int)], // path, count
+                return_type: None, // bytes
+            },
+        );
+
+        self.functions.insert(
+            "io_write_bytes".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), None], // path, bytes
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "io_append_bytes".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), None], // path, bytes
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "io_read_at".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String), // path
+                    Some(TypeAnnotation::Int),    // offset
+                    Some(TypeAnnotation::Int),    // count
+                ],
+                return_type: None, // bytes
+            },
+        );
+
+        self.functions.insert(
+            "io_write_at".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String), // path
+                    Some(TypeAnnotation::Int),    // offset
+                    None,                         // bytes
+                ],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "io_seek_read".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String), // path
+                    Some(TypeAnnotation::Int),    // position
+                    Some(TypeAnnotation::Int),    // count
+                ],
+                return_type: None, // bytes
+            },
+        );
+
+        self.functions.insert(
+            "io_file_metadata".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)], // path
+                return_type: None,                               // dict with metadata
+            },
+        );
+
+        self.functions.insert(
+            "io_truncate".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::Int)], // path, size
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
+            "io_copy_range".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String), // source path
+                    Some(TypeAnnotation::String), // dest path
+                    Some(TypeAnnotation::Int),    // offset
+                    Some(TypeAnnotation::Int),    // count
+                ],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        // Concurrency functions
+        self.functions.insert(
+            "channel".to_string(),
+            FunctionSignature {
+                param_types: vec![],
+                return_type: None, // Returns Channel object
+            },
+        );
+
+        self.functions.insert(
+            "parallel_http".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // array of URLs
+                return_type: None,       // Returns array of responses
+            },
+        );
     }
 
     /// Type check a list of statements
