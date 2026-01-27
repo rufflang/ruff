@@ -452,6 +452,14 @@ struct BytecodeTranslator {
     /// External function references
     load_var_func: Option<FuncRef>,
     store_var_func: Option<FuncRef>,
+    /// Float load/store function references
+    load_var_float_func: Option<FuncRef>,
+    store_var_float_func: Option<FuncRef>,
+    /// Type guard function references
+    check_type_int_func: Option<FuncRef>,
+    check_type_float_func: Option<FuncRef>,
+    /// Specialization information for this compilation
+    specialization: Option<SpecializationInfo>,
 }
 
 impl BytecodeTranslator {
@@ -463,6 +471,11 @@ impl BytecodeTranslator {
             ctx_param: None,
             load_var_func: None,
             store_var_func: None,
+            load_var_float_func: None,
+            store_var_float_func: None,
+            check_type_int_func: None,
+            check_type_float_func: None,
+            specialization: None,
         }
     }
     
@@ -473,6 +486,20 @@ impl BytecodeTranslator {
     fn set_external_functions(&mut self, load_var: FuncRef, store_var: FuncRef) {
         self.load_var_func = Some(load_var);
         self.store_var_func = Some(store_var);
+    }
+    
+    fn set_float_functions(&mut self, load_var_float: FuncRef, store_var_float: FuncRef) {
+        self.load_var_float_func = Some(load_var_float);
+        self.store_var_float_func = Some(store_var_float);
+    }
+    
+    fn set_guard_functions(&mut self, check_int: FuncRef, check_float: FuncRef) {
+        self.check_type_int_func = Some(check_int);
+        self.check_type_float_func = Some(check_float);
+    }
+    
+    fn set_specialization(&mut self, spec: SpecializationInfo) {
+        self.specialization = Some(spec);
     }
 
     /// Pre-create blocks for all jump targets
@@ -957,6 +984,50 @@ impl JitCompiler {
             .module
             .declare_function("jit_store_variable", Linkage::Import, &store_var_sig)
             .map_err(|e| format!("Failed to declare jit_store_variable: {}", e))?;
+        
+        // jit_load_variable_float: fn(*mut VMContext, i64) -> f64
+        let mut load_var_float_sig = self.module.make_signature();
+        load_var_float_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        load_var_float_sig.params.push(AbiParam::new(types::I64)); // name_hash
+        load_var_float_sig.returns.push(AbiParam::new(types::F64)); // return f64
+        
+        let load_var_float_func_id = self
+            .module
+            .declare_function("jit_load_variable_float", Linkage::Import, &load_var_float_sig)
+            .map_err(|e| format!("Failed to declare jit_load_variable_float: {}", e))?;
+        
+        // jit_store_variable_float: fn(*mut VMContext, i64, f64)
+        let mut store_var_float_sig = self.module.make_signature();
+        store_var_float_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        store_var_float_sig.params.push(AbiParam::new(types::I64)); // name_hash
+        store_var_float_sig.params.push(AbiParam::new(types::F64)); // value f64
+        
+        let store_var_float_func_id = self
+            .module
+            .declare_function("jit_store_variable_float", Linkage::Import, &store_var_float_sig)
+            .map_err(|e| format!("Failed to declare jit_store_variable_float: {}", e))?;
+        
+        // jit_check_type_int: fn(*mut VMContext, i64) -> i64
+        let mut check_int_sig = self.module.make_signature();
+        check_int_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        check_int_sig.params.push(AbiParam::new(types::I64)); // name_hash
+        check_int_sig.returns.push(AbiParam::new(types::I64)); // returns 1 if Int, 0 otherwise
+        
+        let check_type_int_func_id = self
+            .module
+            .declare_function("jit_check_type_int", Linkage::Import, &check_int_sig)
+            .map_err(|e| format!("Failed to declare jit_check_type_int: {}", e))?;
+        
+        // jit_check_type_float: fn(*mut VMContext, i64) -> i64
+        let mut check_float_sig = self.module.make_signature();
+        check_float_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        check_float_sig.params.push(AbiParam::new(types::I64)); // name_hash
+        check_float_sig.returns.push(AbiParam::new(types::I64)); // returns 1 if Float, 0 otherwise
+        
+        let check_type_float_func_id = self
+            .module
+            .declare_function("jit_check_type_float", Linkage::Import, &check_float_sig)
+            .map_err(|e| format!("Failed to declare jit_check_type_float: {}", e))?;
 
         // Build the function with a fresh builder context
         {
@@ -966,6 +1037,10 @@ impl JitCompiler {
             // Import the external functions into this function's scope
             let load_var_func_ref = self.module.declare_func_in_func(load_var_func_id, builder.func);
             let store_var_func_ref = self.module.declare_func_in_func(store_var_func_id, builder.func);
+            let load_var_float_func_ref = self.module.declare_func_in_func(load_var_float_func_id, builder.func);
+            let store_var_float_func_ref = self.module.declare_func_in_func(store_var_float_func_id, builder.func);
+            let check_int_func_ref = self.module.declare_func_in_func(check_type_int_func_id, builder.func);
+            let check_float_func_ref = self.module.declare_func_in_func(check_type_float_func_id, builder.func);
 
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
@@ -977,6 +1052,13 @@ impl JitCompiler {
             let mut translator = BytecodeTranslator::new();
             translator.set_context_param(ctx_ptr);
             translator.set_external_functions(load_var_func_ref, store_var_func_ref);
+            translator.set_float_functions(load_var_float_func_ref, store_var_float_func_ref);
+            translator.set_guard_functions(check_int_func_ref, check_float_func_ref);
+            
+            // Set specialization info if available
+            if let Some(spec) = self.type_profiles.get(&offset) {
+                translator.set_specialization(spec.clone());
+            }
             
             // First pass: create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
