@@ -465,18 +465,46 @@ If you are new to the project, read this first.
 
 ---
 
-## Module Structure (as of 2026-01-26)
+## VM & Bytecode
 
-The interpreter has been modularized into:
+### Chunk restoration is critical during exception unwinding
 
-```
-src/interpreter/
-├── mod.rs              (~14,285 lines - core Interpreter + call_native_function_impl)
-├── value.rs            (~500 lines - Value enum with 30+ variants)
-└── environment.rs      (~110 lines - Environment with lexical scoping)
-```
+- **Problem:** Exception caught but execution continues in wrong bytecode chunk
+- **Rule:** When unwinding call frames during exception handling, must restore `self.chunk` from `frame.prev_chunk`
+- **Why:** Function calls switch to function's bytecode chunk. When exception unwinds through function calls, must restore caller's chunk.
+- **Solution:** Only restore chunk when reaching target frame depth (not on each frame pop)
+- **Code location:** `src/vm.rs` OpCode::Throw implementation
+- **Symptom:** Execution continues after catch block but in wrong function's bytecode, causing wrong instructions to execute
 
-- Use `interpreter::Value` and `interpreter::Environment` in external code (pub use re-exports)
-- Use `use super::value::Value` within interpreter/ modules
-- Value and Environment form a circular type dependency (intentional and safe)
+(Discovered during: 2026-01-26_vm-exception-handling.md)
+
+### set_jump_target must handle all opcodes with jump addresses
+
+- **Problem:** Compiler calls `set_jump_target(begin_try_index, catch_start)` but method only handles Jump/JumpIfFalse/JumpIfTrue
+- **Rule:** Any opcode containing a jump target (usize address) must be handled in `set_jump_target()` and `patch_jump()` methods
+- **Why:** Compiler generates opcodes with placeholder addresses (0) and patches them later when target address is known
+- **Solution:** Add new opcode variants to match arms in bytecode.rs methods
+- **Example:** `OpCode::BeginTry(ref mut addr)` needs to be in set_jump_target match
+- **Symptom:** Panic: "Attempted to set target on non-jump instruction"
+
+(Discovered during: 2026-01-26_vm-exception-handling.md)
+
+### Exception handlers must pop BEFORE unwinding
+
+- **Problem:** Should exception handler be popped before or after stack/frame unwinding?
+- **Rule:** Pop exception handler BEFORE unwinding, so nested handlers work correctly
+- **Why:** LIFO order - innermost try block's handler should catch first
+- **Example:**
+  ```ruff
+  try {              # Handler A
+      try {          # Handler B
+          throw()    # Should unwind to B, not A
+      } except {}
+  } except {}
+  ```
+- **Implication:** Stack-based exception handling naturally supports nesting when handlers popped in LIFO order
+
+(Discovered during: 2026-01-26_vm-exception-handling.md)
+
+---
 
