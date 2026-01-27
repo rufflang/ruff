@@ -8,18 +8,25 @@ use crate::interpreter::Value;
 use cranelift::prelude::*;
 use cranelift::codegen::ir::FuncRef;
 use cranelift_jit::{JITBuilder, JITModule};
+// FuncId used for future multi-function JIT optimization
+#[allow(unused_imports)]
 use cranelift_module::{Linkage, Module, FuncId};
 use std::collections::HashMap;
+// Hash/Hasher for future variable hashing optimizations
+#[allow(unused_imports)]
 use std::hash::{Hash, Hasher};
+#[allow(unused_imports)]
 use std::collections::hash_map::DefaultHasher;
 
 /// JIT compilation threshold - number of executions before compiling
 const JIT_THRESHOLD: usize = 100;
 
 /// Guard failure threshold - recompile if guard failures exceed this percentage
+#[allow(dead_code)] // Used in Phase 4D guard validation logic
 const GUARD_FAILURE_THRESHOLD: f64 = 0.10; // 10%
 
 /// Minimum samples before type specialization
+#[allow(dead_code)] // Used in Phase 4A type profiling logic
 const MIN_TYPE_SAMPLES: usize = 50;
 
 /// Runtime context passed to JIT-compiled functions
@@ -38,6 +45,8 @@ pub struct VMContext {
 
 impl VMContext {
     /// Create a new VMContext from VM state
+    /// Used for JIT function execution with VM integration
+    #[allow(dead_code)] // TODO: Will be used when JIT fully integrated into VM loop
     pub fn new(
         stack: *mut Vec<Value>,
         locals: *mut HashMap<String, Value>,
@@ -52,6 +61,8 @@ impl VMContext {
     }
     
     /// Create with variable name mapping
+    /// Used for JIT variable resolution optimization
+    #[allow(dead_code)] // TODO: Will be used when variable hashing is implemented
     pub fn with_var_names(
         stack: *mut Vec<Value>,
         locals: *mut HashMap<String, Value>,
@@ -71,6 +82,8 @@ impl VMContext {
 type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
 
 /// Type profile for a variable or operation
+/// Infrastructure for Phase 4A adaptive specialization
+#[allow(dead_code)] // TODO: Integrate into VM execution loop for automatic profiling
 #[derive(Debug, Clone, Default)]
 pub struct TypeProfile {
     /// Count of Int values observed
@@ -83,6 +96,7 @@ pub struct TypeProfile {
     pub other_count: usize,
 }
 
+#[allow(dead_code)] // Infrastructure for adaptive recompilation
 impl TypeProfile {
     /// Record a type observation
     pub fn record(&mut self, value: &Value) {
@@ -125,6 +139,8 @@ impl TypeProfile {
 }
 
 /// Value types for specialization
+/// Infrastructure for Phase 4B type-specialized code generation
+#[allow(dead_code)] // TODO: Used in adaptive recompilation decisions
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
     Int,
@@ -134,6 +150,8 @@ pub enum ValueType {
 }
 
 /// Specialization strategy for a function
+/// Infrastructure for Phase 4 adaptive optimization
+#[allow(dead_code)] // TODO: Integrate into VM hot path detection
 #[derive(Debug, Clone)]
 pub struct SpecializationInfo {
     /// Type profiles for each variable (by name hash)
@@ -146,6 +164,7 @@ pub struct SpecializationInfo {
     pub guard_failures: usize,
 }
 
+#[allow(dead_code)] // Infrastructure for adaptive recompilation
 impl SpecializationInfo {
     fn new() -> Self {
         Self {
@@ -443,7 +462,9 @@ pub struct JitCompiler {
 struct BytecodeTranslator {
     /// Stack simulation - maps stack depth to Cranelift values
     value_stack: Vec<cranelift::prelude::Value>,
-    /// Variable storage - maps variable names to Cranelift values (reserved for future use)
+    /// Variable storage - maps variable names to Cranelift values
+    /// TODO: Future optimization - keep frequently used variables in registers
+    #[allow(dead_code)]
     variables: HashMap<String, cranelift::prelude::Value>,
     /// Blocks for control flow - maps bytecode PC to Cranelift blocks
     blocks: HashMap<usize, Block>,
@@ -1396,6 +1417,8 @@ impl JitCompiler {
     }
     
     /// Record a type observation for profiling
+    /// TODO: Integrate into VM execution loop for automatic profiling
+    #[allow(dead_code)]
     pub fn record_type(&mut self, offset: usize, var_hash: u64, value: &Value) {
         let profile = self.type_profiles.entry(offset).or_insert_with(SpecializationInfo::new);
         let type_profile = profile.variable_types.entry(var_hash).or_insert_with(TypeProfile::default);
@@ -1410,6 +1433,8 @@ impl JitCompiler {
     }
     
     /// Record a guard success
+    /// TODO: Call from JIT-compiled code guard checks
+    #[allow(dead_code)]
     pub fn record_guard_success(&mut self, offset: usize) {
         if let Some(profile) = self.type_profiles.get_mut(&offset) {
             profile.guard_successes += 1;
@@ -1417,6 +1442,8 @@ impl JitCompiler {
     }
     
     /// Record a guard failure
+    /// TODO: Call from JIT-compiled code when guard checks fail
+    #[allow(dead_code)]
     pub fn record_guard_failure(&mut self, offset: usize) {
         if let Some(profile) = self.type_profiles.get_mut(&offset) {
             profile.guard_failures += 1;
@@ -1433,6 +1460,8 @@ impl JitCompiler {
     }
     
     /// Get specialization info for a function
+    /// TODO: Use for adaptive recompilation decisions
+    #[allow(dead_code)]
     pub fn get_specialization(&self, offset: usize) -> Option<&SpecializationInfo> {
         self.type_profiles.get(&offset)
     }

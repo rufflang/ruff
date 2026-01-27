@@ -21,6 +21,8 @@ impl Timer {
         self.start.elapsed()
     }
 
+    /// Reset timer to current time (for multi-phase benchmarks)
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.start = Instant::now();
     }
@@ -33,6 +35,8 @@ impl Default for Timer {
 }
 
 /// Run a function multiple times and collect timing samples
+/// Infrastructure for programmatic benchmarking
+#[allow(dead_code)]
 pub fn benchmark<F>(_name: &str, iterations: usize, mut f: F) -> Vec<Duration>
 where
     F: FnMut(),
@@ -53,6 +57,8 @@ where
 }
 
 /// Time a single execution
+/// Infrastructure for one-off performance measurements
+#[allow(dead_code)]
 pub fn time_once<F>(f: F) -> Duration
 where
     F: FnOnce(),

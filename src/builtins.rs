@@ -548,6 +548,8 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
 
 /// JSON functions
 /// Parse a JSON string into a Ruff value
+/// Infrastructure for json.parse() builtin
+#[allow(dead_code)]
 pub fn parse_json(json_str: &str) -> Result<Value, String> {
     match serde_json::from_str::<serde_json::Value>(json_str) {
         Ok(json_value) => Ok(json_to_ruff_value(json_value)),
@@ -556,6 +558,8 @@ pub fn parse_json(json_str: &str) -> Result<Value, String> {
 }
 
 /// Convert a Ruff value to a JSON string
+/// Infrastructure for json.stringify() builtin
+#[allow(dead_code)]
 pub fn to_json(value: &Value) -> Result<String, String> {
     let json_value = ruff_value_to_json(value)?;
     match serde_json::to_string(&json_value) {
@@ -624,6 +628,8 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
 
 /// TOML functions
 /// Parse a TOML string into a Ruff value
+/// Infrastructure for toml.parse() builtin
+#[allow(dead_code)]
 pub fn parse_toml(toml_str: &str) -> Result<Value, String> {
     match toml::from_str::<toml::Value>(toml_str) {
         Ok(toml_value) => Ok(toml_to_ruff_value(toml_value)),
@@ -632,6 +638,8 @@ pub fn parse_toml(toml_str: &str) -> Result<Value, String> {
 }
 
 /// Convert a Ruff value to a TOML string
+/// Infrastructure for toml.stringify() builtin
+#[allow(dead_code)]
 pub fn to_toml(value: &Value) -> Result<String, String> {
     let toml_value = ruff_value_to_toml(value)?;
     match toml::to_string(&toml_value) {
@@ -641,6 +649,7 @@ pub fn to_toml(value: &Value) -> Result<String, String> {
 }
 
 /// Convert toml::Value to Ruff Value
+#[allow(dead_code)]
 fn toml_to_ruff_value(toml: toml::Value) -> Value {
     match toml {
         toml::Value::String(s) => Value::Str(s),
@@ -663,6 +672,7 @@ fn toml_to_ruff_value(toml: toml::Value) -> Value {
 }
 
 /// Convert Ruff Value to toml::Value
+#[allow(dead_code)]
 fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
     match value {
         Value::Null => Ok(toml::Value::String(String::new())), // TOML doesn't have null, use empty string
@@ -690,6 +700,8 @@ fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
 
 /// YAML functions
 /// Parse a YAML string into a Ruff value
+/// Infrastructure for yaml.parse() builtin
+#[allow(dead_code)]
 pub fn parse_yaml(yaml_str: &str) -> Result<Value, String> {
     match serde_yaml::from_str::<serde_yaml::Value>(yaml_str) {
         Ok(yaml_value) => Ok(yaml_to_ruff_value(yaml_value)),
@@ -698,6 +710,8 @@ pub fn parse_yaml(yaml_str: &str) -> Result<Value, String> {
 }
 
 /// Convert a Ruff value to a YAML string
+/// Infrastructure for yaml.stringify() builtin
+#[allow(dead_code)]
 pub fn to_yaml(value: &Value) -> Result<String, String> {
     let yaml_value = ruff_value_to_yaml(value)?;
     match serde_yaml::to_string(&yaml_value) {
@@ -707,6 +721,7 @@ pub fn to_yaml(value: &Value) -> Result<String, String> {
 }
 
 /// Convert serde_yaml::Value to Ruff Value
+#[allow(dead_code)]
 fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
     match yaml {
         serde_yaml::Value::Null => Value::Null,
@@ -747,6 +762,7 @@ fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
 }
 
 /// Convert Ruff Value to serde_yaml::Value
+#[allow(dead_code)]
 fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
     match value {
         Value::Null => Ok(serde_yaml::Value::Null),
@@ -775,6 +791,8 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
 /// CSV functions
 /// Parse a CSV string into a Ruff array of dictionaries
 /// Each row becomes a dictionary with column headers as keys
+/// Infrastructure for csv.parse() builtin
+#[allow(dead_code)]
 pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
     let mut reader = csv::Reader::from_reader(csv_str.as_bytes());
 
@@ -812,6 +830,8 @@ pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
 }
 
 /// Convert a Ruff array of dictionaries to a CSV string
+/// Infrastructure for csv.stringify() builtin
+#[allow(dead_code)]
 pub fn to_csv(value: &Value) -> Result<String, String> {
     match value {
         Value::Array(rows) if !rows.is_empty() => {
@@ -977,16 +997,22 @@ pub fn parse_date(date_str: &str, _format: &str) -> f64 {
 
 /// System operation functions
 /// Get environment variable value
+/// Infrastructure for env.get() builtin
+#[allow(dead_code)]
 pub fn get_env(var_name: &str) -> String {
     env::var(var_name).unwrap_or_default()
 }
 
 /// Get environment variable or return default value if not set
+/// Infrastructure for env.getOr() builtin
+#[allow(dead_code)]
 pub fn env_or(var_name: &str, default: &str) -> String {
     env::var(var_name).unwrap_or_else(|_| default.to_string())
 }
 
 /// Get environment variable and parse as integer
+/// Infrastructure for env.getInt() builtin
+#[allow(dead_code)]
 pub fn env_int(var_name: &str) -> Result<i64, String> {
     match env::var(var_name) {
         Ok(val) => val.parse::<i64>().map_err(|_| {
@@ -997,6 +1023,8 @@ pub fn env_int(var_name: &str) -> Result<i64, String> {
 }
 
 /// Get environment variable and parse as float
+/// Infrastructure for env.getFloat() builtin
+#[allow(dead_code)]
 pub fn env_float(var_name: &str) -> Result<f64, String> {
     match env::var(var_name) {
         Ok(val) => val.parse::<f64>().map_err(|_| {
@@ -1008,7 +1036,8 @@ pub fn env_float(var_name: &str) -> Result<f64, String> {
 
 /// Get environment variable and parse as boolean
 /// Accepts: "true", "1", "yes", "on" (case insensitive) as true
-/// Everything else is false
+/// Infrastructure for env.getBool() builtin
+#[allow(dead_code)]
 pub fn env_bool(var_name: &str) -> Result<bool, String> {
     match env::var(var_name) {
         Ok(val) => {
@@ -1020,17 +1049,23 @@ pub fn env_bool(var_name: &str) -> Result<bool, String> {
 }
 
 /// Get required environment variable or error if not set
+/// Infrastructure for env.require() builtin
+#[allow(dead_code)]
 pub fn env_required(var_name: &str) -> Result<String, String> {
     env::var(var_name)
         .map_err(|_| format!("Required environment variable '{}' is not set", var_name))
 }
 
 /// Set environment variable
+/// Infrastructure for env.set() builtin
+#[allow(dead_code)]
 pub fn env_set(var_name: &str, value: &str) {
     env::set_var(var_name, value);
 }
 
 /// Get all environment variables as a HashMap
+/// Infrastructure for env.list() builtin
+#[allow(dead_code)]
 pub fn env_list() -> HashMap<String, String> {
     env::vars().collect()
 }
@@ -1070,11 +1105,15 @@ pub fn get_args() -> Vec<String> {
 }
 
 /// Sleep for specified milliseconds
+/// Infrastructure for sleep() builtin
+#[allow(dead_code)]
 pub fn sleep_ms(ms: f64) {
     thread::sleep(Duration::from_millis(ms as u64));
 }
 
 /// Execute a shell command and return output
+/// Infrastructure for exec() builtin
+#[allow(dead_code)]
 pub fn execute_command(command: &str) -> String {
     if cfg!(target_os = "windows") {
         match Command::new("cmd").args(["/C", command]).output() {
@@ -1091,30 +1130,40 @@ pub fn execute_command(command: &str) -> String {
 
 /// Path operation functions
 /// Join path components
+/// Infrastructure for path.join() builtin
+#[allow(dead_code)]
 pub fn join_path(parts: &[String]) -> String {
     let path: PathBuf = parts.iter().collect();
     path.to_string_lossy().to_string()
 }
 
 /// Get directory name from path
+/// Infrastructure for path.dirname() builtin
+#[allow(dead_code)]
 pub fn dirname(path_str: &str) -> String {
     let path = Path::new(path_str);
     path.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| String::from("/"))
 }
 
 /// Get base filename from path
+/// Infrastructure for path.basename() builtin
+#[allow(dead_code)]
 pub fn basename(path_str: &str) -> String {
     let path = Path::new(path_str);
     path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default()
 }
 
 /// Check if path exists
+/// Infrastructure for path.exists() builtin
+#[allow(dead_code)]
 pub fn path_exists(path_str: &str) -> bool {
     Path::new(path_str).exists()
 }
 
 /// Regular expression functions
 /// Check if string matches regex pattern
+/// Infrastructure for regex.match() builtin
+#[allow(dead_code)]
 pub fn regex_match(text: &str, pattern: &str) -> bool {
     match Regex::new(pattern) {
         Ok(re) => re.is_match(text),
@@ -1123,6 +1172,8 @@ pub fn regex_match(text: &str, pattern: &str) -> bool {
 }
 
 /// Find all matches of regex pattern in text
+/// Infrastructure for regex.findAll() builtin
+#[allow(dead_code)]
 pub fn regex_find_all(text: &str, pattern: &str) -> Vec<String> {
     match Regex::new(pattern) {
         Ok(re) => re.find_iter(text).map(|m| m.as_str().to_string()).collect(),
@@ -1131,6 +1182,8 @@ pub fn regex_find_all(text: &str, pattern: &str) -> Vec<String> {
 }
 
 /// Replace all matches of regex pattern with replacement string
+/// Infrastructure for regex.replace() builtin
+#[allow(dead_code)]
 pub fn regex_replace(text: &str, pattern: &str, replacement: &str) -> String {
     match Regex::new(pattern) {
         Ok(re) => re.replace_all(text, replacement).to_string(),
@@ -1139,6 +1192,8 @@ pub fn regex_replace(text: &str, pattern: &str, replacement: &str) -> String {
 }
 
 /// Split string by regex pattern
+/// Infrastructure for regex.split() builtin
+#[allow(dead_code)]
 pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
     match Regex::new(pattern) {
         Ok(re) => re.split(text).map(|s| s.to_string()).collect(),
@@ -1329,6 +1384,8 @@ pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
 /// HTTP Client Functions
 /// Make an HTTP GET request
 /// Returns a dictionary with status, body, and headers
+/// Infrastructure for http.get() builtin
+#[allow(dead_code)]
 pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
     match reqwest::blocking::get(url) {
         Ok(response) => {
@@ -1347,6 +1404,8 @@ pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
 
 /// Make an HTTP POST request with JSON body
 /// body_json should be a stringified JSON
+/// Infrastructure for http.post() builtin
+#[allow(dead_code)]
 pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
     let client = reqwest::blocking::Client::new();
 
@@ -1371,6 +1430,8 @@ pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, S
 }
 
 /// Make an HTTP PUT request with JSON body
+/// Infrastructure for http.put() builtin
+#[allow(dead_code)]
 pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
     let client = reqwest::blocking::Client::new();
 
@@ -1395,6 +1456,8 @@ pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, St
 }
 
 /// Make an HTTP DELETE request
+/// Infrastructure for http.delete() builtin
+#[allow(dead_code)]
 pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
     let client = reqwest::blocking::Client::new();
 
@@ -1414,6 +1477,8 @@ pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
 }
 
 /// Make an HTTP GET request and return binary data
+/// Infrastructure for http.getBinary() builtin
+#[allow(dead_code)]
 pub fn http_get_binary(url: &str) -> Result<Vec<u8>, String> {
     match reqwest::blocking::get(url) {
         Ok(response) => {
@@ -1430,11 +1495,15 @@ pub fn http_get_binary(url: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Encode bytes to base64 string
+/// Infrastructure for base64.encode() builtin
+#[allow(dead_code)]
 pub fn encode_base64(bytes: &[u8]) -> String {
     general_purpose::STANDARD.encode(bytes)
 }
 
 /// Decode base64 string to bytes
+/// Infrastructure for base64.decode() builtin
+#[allow(dead_code)]
 pub fn decode_base64(s: &str) -> Result<Vec<u8>, String> {
     general_purpose::STANDARD.decode(s).map_err(|e| format!("Base64 decode error: {}", e))
 }
@@ -1566,6 +1635,8 @@ pub struct HttpStream {
 
 /// Start an HTTP GET stream
 /// http_get_stream(url) -> stream handle (as dictionary with internal state)
+/// Infrastructure for http.getStream() builtin
+#[allow(dead_code)]
 pub fn http_get_stream(url: &str) -> Result<Vec<u8>, String> {
     // For now, we'll fetch the entire response but allow chunked reading
     // In a real implementation, this would use async streaming

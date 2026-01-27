@@ -78,6 +78,9 @@ fn calculate_stddev(samples: &[Duration], mean: Duration) -> Duration {
     Duration::from_nanos(variance.sqrt() as u64)
 }
 
+/// Compare speedup between baseline and optimized implementations
+/// Infrastructure for performance regression detection
+#[allow(dead_code)]
 pub fn compare_speedup(baseline: Duration, optimized: Duration) -> f64 {
     if optimized.as_nanos() == 0 {
         return 0.0;

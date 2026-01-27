@@ -12,6 +12,9 @@ use std::sync::{Arc, Mutex};
 
 /// Upvalue: heap-allocated captured variable for closures
 #[derive(Debug, Clone)]
+/// Upvalue - captured variable for closures
+/// Infrastructure for closure variable capture
+#[allow(dead_code)] // TODO: Full closure upvalue implementation
 struct Upvalue {
     /// The captured value
     value: Arc<Mutex<Value>>,
@@ -73,6 +76,8 @@ struct ExceptionHandlerFrame {
 }
 
 /// Generator state for suspended execution
+/// Infrastructure for generator resume functionality
+#[allow(dead_code)] // TODO: Full generator state restoration
 #[derive(Debug, Clone)]
 pub struct GeneratorState {
     /// Instruction pointer where generator yielded
