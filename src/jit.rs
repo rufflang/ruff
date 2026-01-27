@@ -697,4 +697,30 @@ mod tests {
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile simple loop: {:?}", result.err());
     }
+
+    #[test]
+    fn test_execute_compiled_code() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+
+        // Simple arithmetic: 5 + 3 = 8
+        let const_5 = chunk.add_constant(Constant::Int(5));
+        let const_3 = chunk.add_constant(Constant::Int(3));
+
+        chunk.emit(OpCode::LoadConst(const_5));
+        chunk.emit(OpCode::LoadConst(const_3));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+
+        let compiled_fn = compiler.compile(&chunk, 0).expect("Should compile");
+
+        // Execute the compiled function
+        // For now, pass a null pointer since we don't need stack access for pure arithmetic
+        let result = unsafe { compiled_fn(std::ptr::null_mut()) };
+
+        // Result should be 0 (success code)
+        assert_eq!(result, 0, "Compiled function should return success code");
+
+        println!("✓ Compiled code executed successfully!");
+    }
 }

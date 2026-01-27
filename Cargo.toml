@@ -46,3 +46,11 @@ cranelift-module = "0.112"
 cranelift-jit = "0.112"
 cranelift-native = "0.112"
 target-lexicon = "0.12"
+
+[[example]]
+name = "jit_microbenchmark"
+path = "examples/jit_microbenchmark.rs"
+
+[[example]]
+name = "jit_simple_test"
+path = "examples/jit_simple_test.rs"
