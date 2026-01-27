@@ -12,6 +12,7 @@ mod errors;
 mod interpreter;
 mod lexer;
 mod module;
+mod optimizer;
 mod parser;
 mod repl;
 mod type_checker;

@@ -5,6 +5,7 @@
 
 use crate::ast::{ArrayElement, DictElement, Expr, Pattern, Stmt};
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
+use crate::optimizer::Optimizer;
 
 /// Compiler state for generating bytecode from AST
 #[allow(dead_code)] // Compiler not yet integrated into execution path
@@ -50,6 +51,15 @@ impl Compiler {
 
     /// Compile a list of statements into bytecode
     pub fn compile(&mut self, statements: &[Stmt]) -> Result<BytecodeChunk, String> {
+        self.compile_with_optimization(statements, true)
+    }
+
+    /// Compile with optional optimization
+    pub fn compile_with_optimization(
+        &mut self,
+        statements: &[Stmt],
+        optimize: bool,
+    ) -> Result<BytecodeChunk, String> {
         for stmt in statements {
             self.compile_stmt(stmt)?;
         }
@@ -57,7 +67,27 @@ impl Compiler {
         // Ensure we return None at the end if no explicit return
         self.chunk.emit(OpCode::ReturnNone);
 
-        Ok(self.chunk.clone())
+        // Apply optimizations if enabled
+        let mut chunk = self.chunk.clone();
+        if optimize {
+            let mut optimizer = Optimizer::new();
+            optimizer.optimize(&mut chunk);
+            
+            // Log optimization stats in debug mode
+            if cfg!(debug_assertions) {
+                if optimizer.stats.constants_folded > 0
+                    || optimizer.stats.dead_instructions_removed > 0
+                    || optimizer.stats.peephole_optimizations > 0
+                {
+                    eprintln!("Compiler optimization: {} constants folded, {} dead instructions removed, {} peephole optimizations",
+                        optimizer.stats.constants_folded,
+                        optimizer.stats.dead_instructions_removed,
+                        optimizer.stats.peephole_optimizations);
+                }
+            }
+        }
+
+        Ok(chunk)
     }
 
     /// Compile a single statement
