@@ -413,6 +413,8 @@ impl Optimizer {
     }
 
     /// Get a summary of optimization results
+    /// Infrastructure for optimization reporting
+    #[allow(dead_code)]
     pub fn summary(&self) -> String {
         let reduction = if self.stats.total_instructions_before > 0 {
             let diff = self.stats.total_instructions_before - self.stats.total_instructions_after;
