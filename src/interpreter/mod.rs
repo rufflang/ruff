@@ -389,6 +389,8 @@ impl Interpreter {
             // Async operations
             "async_sleep",
             "async_timeout",
+            "Promise.all",
+            "promise_all",
             // Testing assertion functions
             "assert_equal",
             "assert_true",
@@ -906,6 +908,8 @@ impl Interpreter {
         // Async operations
         self.env.define("async_sleep".to_string(), Value::NativeFunction("async_sleep".to_string()));
         self.env.define("async_timeout".to_string(), Value::NativeFunction("async_timeout".to_string()));
+        self.env.define("Promise.all".to_string(), Value::NativeFunction("Promise.all".to_string()));
+        self.env.define("promise_all".to_string(), Value::NativeFunction("promise_all".to_string())); // Alias
 
         // Testing assertion functions
         self.env

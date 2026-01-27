@@ -159,6 +159,112 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             }
         }
 
+        "Promise.all" | "promise_all" => {
+            // Promise.all(promises: Array<Promise>) -> Promise<Array<Value>>
+            // Await all promises concurrently, return array of results
+            // If any promise rejects, the whole operation fails with first error
+            if args.len() != 1 {
+                return Some(Value::Error(format!(
+                    "Promise.all() expects 1 argument (array of promises), got {}",
+                    args.len()
+                )));
+            }
+
+            // Extract array of promises
+            let promises = match &args[0] {
+                Value::Array(arr) => arr.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "Promise.all() requires an array of promises".to_string(),
+                    ));
+                }
+            };
+
+            if promises.is_empty() {
+                // Empty array - return immediately resolved promise with empty array
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                let _ = tx.send(Ok(Value::Array(vec![])));
+                return Some(Value::Promise {
+                    receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                    is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                    cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                });
+            }
+
+            // Extract receivers from all promises
+            let mut receivers = Vec::new();
+            for (idx, promise) in promises.iter().enumerate() {
+                match promise {
+                    Value::Promise { receiver, .. } => {
+                        receivers.push((idx, receiver.clone()));
+                    }
+                    _ => {
+                        return Some(Value::Error(format!(
+                            "Promise.all() array element {} is not a Promise",
+                            idx
+                        )));
+                    }
+                }
+            }
+
+            // Create channel for final result
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let count = receivers.len();
+
+            // Spawn task that awaits all promises concurrently
+            AsyncRuntime::spawn_task(async move {
+                // Extract all receivers
+                let mut futures = Vec::new();
+                for (idx, receiver_arc) in receivers {
+                    let actual_rx = {
+                        let mut recv_guard = receiver_arc.lock().unwrap();
+                        let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+                        drop(dummy_tx);
+                        std::mem::replace(&mut *recv_guard, dummy_rx)
+                    };
+                    futures.push((idx, actual_rx));
+                }
+
+                // Await all futures concurrently using tokio::join! or futures combinator
+                // We'll use a simple loop that spawns and collects
+                let mut tasks = Vec::new();
+                for (idx, rx) in futures {
+                    tasks.push(tokio::spawn(async move {
+                        (idx, rx.await)
+                    }));
+                }
+
+                // Collect all results
+                let mut results = vec![Value::Null; count];
+                for task in tasks {
+                    match task.await {
+                        Ok((idx, Ok(Ok(value)))) => {
+                            results[idx] = value;
+                        }
+                        Ok((idx, Ok(Err(err)))) => {
+                            let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
+                            return Value::Null;
+                        }
+                        Ok((_, Err(_))) | Err(_) => {
+                            let _ = tx.send(Err("Promise never resolved".to_string()));
+                            return Value::Null;
+                        }
+                    }
+                }
+
+                // All promises resolved successfully
+                let _ = tx.send(Ok(Value::Array(results)));
+                Value::Null
+            });
+
+            // Return promise that resolves to array of results
+            Some(Value::Promise {
+                receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            })
+        }
+
         _ => None, // Not handled by this module
     }
 }
