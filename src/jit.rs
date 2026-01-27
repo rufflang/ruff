@@ -39,10 +39,8 @@ struct BytecodeTranslator {
     /// Stack simulation - maps stack depth to Cranelift values
     value_stack: Vec<cranelift::prelude::Value>,
     /// Variable storage - maps variable names to Cranelift values (reserved for future use)
-    #[allow(dead_code)]
     variables: HashMap<String, cranelift::prelude::Value>,
-    /// Blocks for control flow (reserved for future use)
-    #[allow(dead_code)]
+    /// Blocks for control flow - maps bytecode PC to Cranelift blocks
     blocks: HashMap<usize, Block>,
 }
 
@@ -51,13 +49,45 @@ impl BytecodeTranslator {
         Self { value_stack: Vec::new(), variables: HashMap::new(), blocks: HashMap::new() }
     }
 
+    /// Pre-create blocks for all jump targets
+    fn create_blocks(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        instructions: &[OpCode],
+    ) -> Result<(), String> {
+        // Create a block for each instruction that could be a jump target
+        for (pc, instruction) in instructions.iter().enumerate() {
+            match instruction {
+                OpCode::Jump(target)
+                | OpCode::JumpIfFalse(target)
+                | OpCode::JumpIfTrue(target)
+                | OpCode::JumpBack(target) => {
+                    // Create block for the target if it doesn't exist
+                    if !self.blocks.contains_key(target) {
+                        self.blocks.insert(*target, builder.create_block());
+                    }
+                    // Also create block for the instruction after the jump
+                    let next_pc = pc + 1;
+                    if next_pc < instructions.len() && !self.blocks.contains_key(&next_pc) {
+                        self.blocks.insert(next_pc, builder.create_block());
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     /// Translate a bytecode instruction to Cranelift IR
     fn translate_instruction(
         &mut self,
         builder: &mut FunctionBuilder,
+        pc: usize,
         instruction: &OpCode,
         constants: &[Constant],
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
+        // Returns Ok(true) if this instruction terminates the block
+        
         match instruction {
             // Arithmetic operations
             OpCode::Add => {
@@ -212,7 +242,62 @@ impl BytecodeTranslator {
                 }
             }
 
-            // Control flow - for now, we'll handle simple cases
+            // Control flow with proper block handling
+            OpCode::Jump(target) => {
+                if let Some(&target_block) = self.blocks.get(target) {
+                    builder.ins().jump(target_block, &[]);
+                    return Ok(true); // Terminates block
+                } else {
+                    return Err(format!("Jump to undefined block at PC {}", target));
+                }
+            }
+
+            OpCode::JumpIfFalse(target) => {
+                let condition = self.pop_value()?;
+                let zero = builder.ins().iconst(types::I64, 0);
+                let is_false = builder.ins().icmp(IntCC::Equal, condition, zero);
+
+                if let Some(&target_block) = self.blocks.get(target) {
+                    // Get or create the fallthrough block
+                    let next_pc = pc + 1;
+                    let fallthrough_block = *self.blocks.get(&next_pc)
+                        .ok_or_else(|| format!("No fallthrough block after JumpIfFalse at PC {}", pc))?;
+
+                    builder.ins().brif(is_false, target_block, &[], fallthrough_block, &[]);
+                    return Ok(true); // Terminates block
+                } else {
+                    return Err(format!("JumpIfFalse to undefined block at PC {}", target));
+                }
+            }
+
+            OpCode::JumpIfTrue(target) => {
+                let condition = self.pop_value()?;
+                let zero = builder.ins().iconst(types::I64, 0);
+                let is_true = builder.ins().icmp(IntCC::NotEqual, condition, zero);
+
+                if let Some(&target_block) = self.blocks.get(target) {
+                    // Get or create the fallthrough block
+                    let next_pc = pc + 1;
+                    let fallthrough_block = *self.blocks.get(&next_pc)
+                        .ok_or_else(|| format!("No fallthrough block after JumpIfTrue at PC {}", pc))?;
+
+                    builder.ins().brif(is_true, target_block, &[], fallthrough_block, &[]);
+                    return Ok(true); // Terminates block
+                } else {
+                    return Err(format!("JumpIfTrue to undefined block at PC {}", target));
+                }
+            }
+
+            OpCode::JumpBack(target) => {
+                // JumpBack is like Jump but backwards (for loops)
+                if let Some(&target_block) = self.blocks.get(target) {
+                    builder.ins().jump(target_block, &[]);
+                    return Ok(true); // Terminates block
+                } else {
+                    return Err(format!("JumpBack to undefined block at PC {}", target));
+                }
+            }
+
             OpCode::Return => {
                 if self.value_stack.last().is_some() {
                     // Return the value (for now, just return 0 for success)
@@ -222,11 +307,13 @@ impl BytecodeTranslator {
                     let zero = builder.ins().iconst(types::I64, 0);
                     builder.ins().return_(&[zero]);
                 }
+                return Ok(true); // Terminates block
             }
 
             OpCode::ReturnNone => {
                 let zero = builder.ins().iconst(types::I64, 0);
                 builder.ins().return_(&[zero]);
+                return Ok(true); // Terminates block
             }
 
             // Unsupported operations fall back to interpreter
@@ -235,7 +322,7 @@ impl BytecodeTranslator {
             }
         }
 
-        Ok(())
+        Ok(false) // Doesn't terminate block
     }
 
     fn push_value(&mut self, val: cranelift::prelude::Value) {
@@ -320,20 +407,75 @@ impl JitCompiler {
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
             builder.switch_to_block(entry_block);
-            builder.seal_block(entry_block);
 
             let _stack_ptr = builder.block_params(entry_block)[0];
 
             // Translate bytecode instructions to Cranelift IR
             let mut translator = BytecodeTranslator::new();
-
-            for (idx, instruction) in chunk.instructions.iter().enumerate() {
-                if let Err(e) =
-                    translator.translate_instruction(&mut builder, instruction, &chunk.constants)
-                {
-                    // If translation fails, we can't JIT compile this function
-                    // This is expected for complex operations
-                    return Err(format!("Translation failed at instruction {}: {}", idx, e));
+            
+            // First pass: create blocks for all jump targets
+            translator.create_blocks(&mut builder, &chunk.instructions)?;
+            
+            // Add entry block to the map
+            translator.blocks.insert(0, entry_block);
+            
+            // Track sealed blocks to avoid double-sealing
+            let mut sealed_blocks = std::collections::HashSet::new();
+            
+            // Second pass: translate instructions
+            let mut current_block = entry_block;
+            let mut block_terminated = false;
+            
+            for (pc, instruction) in chunk.instructions.iter().enumerate() {
+                // If this PC has a block (it's a jump target), switch to it
+                if let Some(&block) = translator.blocks.get(&pc) {
+                    if block != current_block {
+                        // If current block not terminated, add a fallthrough jump
+                        if !block_terminated {
+                            builder.ins().jump(block, &[]);
+                        }
+                        
+                        // Seal the previous block before switching
+                        if !sealed_blocks.contains(&current_block) {
+                            builder.seal_block(current_block);
+                            sealed_blocks.insert(current_block);
+                        }
+                        builder.switch_to_block(block);
+                        current_block = block;
+                        block_terminated = false;
+                    }
+                }
+                
+                // Skip instruction if block is already terminated
+                if block_terminated {
+                    continue;
+                }
+                
+                match translator.translate_instruction(&mut builder, pc, instruction, &chunk.constants) {
+                    Ok(terminates_block) => {
+                        if terminates_block {
+                            // Block is terminated, seal it
+                            if !sealed_blocks.contains(&current_block) {
+                                builder.seal_block(current_block);
+                                sealed_blocks.insert(current_block);
+                            }
+                            block_terminated = true;
+                        }
+                    }
+                    Err(e) => {
+                        // If translation fails, we can't JIT compile this function
+                        // This is expected for complex operations
+                        return Err(format!("Translation failed at PC {}: {}", pc, e));
+                    }
+                }
+            }
+            
+            // If the last block is not terminated, add a return
+            if !block_terminated {
+                let zero = builder.ins().iconst(types::I64, 0);
+                builder.ins().return_(&[zero]);
+                if !sealed_blocks.contains(&current_block) {
+                    builder.seal_block(current_block);
                 }
             }
 
@@ -513,5 +655,46 @@ mod tests {
 
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile stack operations: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_compile_simple_loop() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+
+        // Simple loop: counter from 0 to 10
+        // counter := 0
+        // loop_start:
+        //   counter := counter + 1
+        //   if counter < 10 then goto loop_start
+        //   return
+
+        let const_0 = chunk.add_constant(Constant::Int(0));
+        let const_1 = chunk.add_constant(Constant::Int(1));
+        let const_10 = chunk.add_constant(Constant::Int(10));
+
+        // Initialize counter to 0
+        chunk.emit(OpCode::LoadConst(const_0)); // 0: load 0
+
+        // loop_start (PC 1):
+        let loop_start = chunk.instructions.len();
+        chunk.emit(OpCode::Dup); // 1: duplicate counter
+        chunk.emit(OpCode::LoadConst(const_1)); // 2: load 1
+        chunk.emit(OpCode::Add); // 3: counter + 1
+
+        // Check if counter < 10
+        chunk.emit(OpCode::Dup); // 4: duplicate new counter
+        chunk.emit(OpCode::LoadConst(const_10)); // 5: load 10
+        chunk.emit(OpCode::LessThan); // 6: counter < 10
+
+        // If true, jump back to loop_start
+        let jump_if_true = chunk.emit(OpCode::JumpIfTrue(0)); // 7: conditional jump (will be patched)
+        chunk.set_jump_target(jump_if_true, loop_start);
+
+        // Exit loop
+        chunk.emit(OpCode::Return); // 8: return
+
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile simple loop: {:?}", result.err());
     }
 }
