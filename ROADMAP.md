@@ -4,15 +4,15 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 > **Current Version**: v0.8.0 (Released January 2026)  
 > **Next Planned Release**: v0.9.0 (VM Integration & Performance)  
-> **Status**: 🚧 In Progress - Exception Handling & Generators Complete (Jan 2026)
+> **Status**: 🚧 In Progress - Exception Handling, Generators & Async/Await Complete (Jan 2026)
 
 ---
 
 ## 🎯 What's Next (Priority Order)
 
 **IMMEDIATE NEXT**:
-1. **VM Async/Await Support** - Implement Await/MakePromise opcodes for async functions
-2. **VM Integration & Testing** - Make VM the default execution path (Week 7-8)
+1. **VM Integration & Testing** - Make VM the default execution path (Week 7-8)
+2. **Performance Benchmarking** - Establish baseline metrics before JIT
 
 **AFTER THAT**:
 3. **JIT Compilation** - Cranelift integration for 100-500x speedup (Phases 2-4)
@@ -34,7 +34,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 **Timeline**: Q1-Q2 2026 (3-4 months total)  
 **Priority**: P1 - Essential for v1.0
 
-> **Progress**: ✅ Exception handling complete | ✅ Generators complete | 🚧 Async/await next | ⏳ JIT planned
+> **Progress**: ✅ Exception handling complete | ✅ Generators complete | ✅ Async/await complete | ⏳ Integration next | ⏳ JIT planned
 
 ---
 
@@ -63,18 +63,18 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 #### Phase 1: Complete Bytecode VM Integration (6-8 weeks) - 🚧 IN PROGRESS
 
-**Status**: ~85% Complete (exception handling ✅, generators ✅, async/await pending)
+**Status**: ~90% Complete (exception handling ✅, generators ✅, async/await ✅)
 
-**🎯 Current Priority: Week 5-6 - Async/Await Support**
+**✅ Completed: Week 5-6 - Async/Await Support**
   
-- [ ] Implement Await opcode (suspend until promise resolves)
-- [ ] Implement MakePromise opcode (wrap value in promise)
-- [ ] Integrate with async runtime (tokio or equivalent)
-- [ ] Add promise state management to VM
-- [ ] Test with existing async examples (see examples/async_*.ruff)
-- [ ] Add comprehensive async/await tests
+- [x] Implement Await opcode (suspend until promise resolves) ✅
+- [x] Implement MakePromise opcode (wrap value in promise) ✅
+- [x] Add promise state management to VM ✅
+- [x] Test with existing async examples ✅
+- [x] Add comprehensive async/await tests (7 tests) ✅
+- Note: Async runtime integration deferred - VM executes async synchronously (sufficient for now)
 
-**Next: Week 7-8 - Integration & Testing**
+**🎯 Current Priority: Week 7-8 - Integration & Testing**
   
 - [ ] Switch default execution mode to VM
 - [ ] Add `--interpreter` flag for fallback mode

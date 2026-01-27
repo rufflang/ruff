@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **VM Async/Await Support (v0.9.0 Phase 1 - ✅ COMPLETE)** - Full async/await implementation in bytecode VM:
+  - **Async Function Support**:
+    - Async functions execute synchronously in VM but return Promises
+    - Return opcodes automatically wrap async function results in Promises
+    - Added `is_async` field to CallFrame for tracking async context
+    - Compiler preserves `is_async` flag from FuncDef through bytecode compilation
+  - **Await Opcode Implementation**:
+    - Polls Promise receiver and returns cached result if already resolved
+    - Blocks execution until Promise resolves (synchronous await)
+    - Supports awaiting non-Promise values (returns value immediately)
+    - Proper error propagation from rejected Promises
+  - **MakePromise Opcode**:
+    - Wraps arbitrary values in resolved Promises
+    - Creates channel with value pre-sent for immediate availability
+    - Used internally by Return opcode for async functions
+  - **MarkAsync Opcode**:
+    - No-op marker for async context during compilation
+    - Reserved for future async runtime integration
+  - **Comprehensive Test Suite**:
+    - 7 tests covering all async scenarios
+    - Basic async function calls and returns
+    - Multiple concurrent promise handling
+    - Nested async function calls
+    - Promise reuse and result caching
+    - Awaiting non-promise values
+    - Async functions with computations
+  - **Limitations**: VM async is synchronous - true concurrency requires tokio runtime (future enhancement)
+  - All 198+ existing tests still pass ✓
+
 - **Generator Support (v0.9.0 Phase 1 - ✅ COMPLETE)** - Full generator implementation for both tree-walking interpreter and bytecode VM:
   - **Tree-Walking Interpreter** (✅ COMPLETE):
     - Full support for `func*` generator function syntax
