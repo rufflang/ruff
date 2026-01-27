@@ -4,18 +4,18 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 > **Current Version**: v0.8.0 (Released January 2026)  
 > **Next Planned Release**: v0.9.0 (VM Integration & Performance)  
-> **Status**: 🚧 In Progress - Phase 2 Optimizations Complete! JIT Compilation Next (Jan 2026)
+> **Status**: 🚧 In Progress - JIT Compilation Phase 3 Started! (Jan 2026)
 
 ---
 
 ## 🎯 What's Next (Priority Order)
 
 **IMMEDIATE NEXT**:
-1. **JIT Compilation** - Cranelift integration for 5-10x speedup (Weeks 9-14)
-2. **Advanced JIT Optimizations** - Type specialization, escape analysis (Weeks 15-16)
+1. **Complete JIT Execution** - Execute compiled native code, not just cache it (Week 5-6)
+2. **Advanced JIT Optimizations** - Type specialization, inline caching, escape analysis (Weeks 7-8)
 
 **AFTER THAT**:
-3. **Performance Benchmarking** - Comprehensive performance analysis and tuning (Week 17-18)
+3. **Performance Benchmarking** - Comprehensive performance analysis and tuning (Week 9-10)
 4. **True Async Runtime** - Tokio integration for concurrent I/O (Phase 5, P2 priority)
 5. **Architecture Cleanup** - Fix LeakyFunctionBody, separate AST from runtime values (P2, non-blocking)
 
@@ -132,50 +132,64 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 ---
 
-#### Phase 3: JIT Compilation Infrastructure (4-6 weeks) - 🎯 NEXT PRIORITY
+#### Phase 3: JIT Compilation Infrastructure (4-6 weeks) - 🚧 IN PROGRESS
 
-**Objectives**: Detect hot code and compile to native machine code
+**Status**: ~60% Complete (January 2026)  
+**Decision**: Using **Cranelift Backend** (lighter weight, faster iteration)
 
-**Option A: LLVM Backend** (Recommended)
-- Use existing LLVM infrastructure
-- Mature optimization pipeline
-- Good debugging tools
-- Cross-platform support
-- Dependency: `inkwell` crate (LLVM bindings)
-- Examples: Julia, Swift, Rust compiler
+**Completed Work**:
+- ✅ **Week 1-2: JIT Infrastructure** (COMPLETE)
+  - Hot path detection with execution counters (threshold: 100 iterations)
+  - Threshold-based compilation triggers for backward jumps (loops)
+  - Code cache management with HashMap storage
+  - Graceful degradation (falls back to bytecode interpretation)
+  - JIT enable/disable functionality
+  - Statistics tracking (functions monitored, compiled, enabled status)
 
-**Option B: Cranelift Backend** (Lighter weight)
-- Faster compilation than LLVM
-- Pure Rust implementation
-- Simpler integration
-- Less aggressive optimizations
-- Dependency: `cranelift` crate
-- Examples: Wasmtime, Lucet
+- ✅ **Week 3-4: Bytecode → Native Compiler** (COMPLETE)
+  - Translate arithmetic bytecode to Cranelift IR (Add, Sub, Mul, Div, Mod, Negate)
+  - Translate comparison operations (Equal, NotEqual, LessThan, GreaterThan, LessEqual, GreaterEqual)
+  - Translate logical operations (And, Or, Not)
+  - Translate stack operations (Pop, Dup)
+  - Translate constant loading (Int, Bool)
+  - Translate control flow (Return, ReturnNone)
+  - Generate native machine code via Cranelift
+  - Function signature translation (fn(*mut Value) -> i64)
 
-**Recommendation**: Start with **Cranelift** for faster iteration, consider LLVM later for maximum performance.
+- ✅ **VM Integration** (COMPLETE)
+  - JIT compiler instance added to VM
+  - Hot loop detection in execution loop (JumpBack opcodes)
+  - Automatic compilation when thresholds reached
+  - Debug logging support (DEBUG_JIT environment variable)
+  - All 198 tests pass with JIT enabled
 
-**Implementation**:
+**Remaining Work**:
 
-- **Week 1-2: JIT Infrastructure**
-  - Hot path detection (count bytecode loop iterations)
-  - Threshold-based compilation triggers
-  - Code cache management
-  - Deoptimization support (fall back to interpreter)
-
-- **Week 3-4: Bytecode → Native Compiler**
-  - Translate bytecode instructions to Cranelift IR
-  - Handle calling conventions
-  - Implement stack management
-  - Generate native machine code
-
-- **Week 5-6: Integration & Optimization**
-  - Inline small functions (avoid call overhead)
-  - Register allocation optimization
-  - Dead store elimination
-  - Loop unrolling for small loops
-  - SIMD vectorization for arrays
+- **Week 5-6: Full Execution & Optimization** (NEXT)
+  - Execute compiled native code (currently compiles but doesn't execute yet)
+  - Handle variable access in compiled code
+  - Implement proper stack/heap interaction
+  - Profile and measure actual performance gains
+  - Add more bytecode instruction support:
+    - Variable operations (LoadVar, StoreVar, LoadGlobal, StoreGlobal)
+    - Control flow (Jump, JumpIfFalse, JumpIfTrue, JumpBack)
+    - Function calls (Call, CallNative)
+    - Array/Dict operations
+  - Optimization passes:
+    - Inline small functions
+    - Register allocation optimization
+    - Dead store elimination
+    - Loop unrolling for small loops
 
 **Expected Performance Gain**: 5-10x faster than optimized bytecode VM
+
+**Files Added**:
+- `src/jit.rs` - JIT compiler implementation (400+ lines)
+- `examples/jit_loop_test.ruff` - JIT compilation test example
+
+**Testing**:
+- 8 JIT-specific tests covering infrastructure, translation, and compilation
+- All 198 existing tests pass with JIT integration
 
 ---
 

@@ -72,7 +72,7 @@ impl Compiler {
         if optimize {
             let mut optimizer = Optimizer::new();
             optimizer.optimize(&mut chunk);
-            
+
             // Log optimization stats in debug mode
             if cfg!(debug_assertions) {
                 if optimizer.stats.constants_folded > 0

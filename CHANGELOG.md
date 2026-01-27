@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **JIT Compilation Infrastructure (v0.9.0 Phase 3 - 🚧 IN PROGRESS)** - Just-In-Time compilation using Cranelift:
+  - **Cranelift Integration**: Added Cranelift JIT backend for native code compilation
+  - **Hot Path Detection**: Automatic detection and compilation of hot loops (threshold: 100 executions)
+  - **Bytecode Translation**: Translate bytecode instructions to Cranelift IR:
+    - Arithmetic operations: Add, Sub, Mul, Div, Mod, Negate
+    - Comparison operations: Equal, NotEqual, LessThan, GreaterThan, LessEqual, GreaterEqual
+    - Logical operations: And, Or, Not
+    - Stack operations: Pop, Dup
+    - Constant loading: Int and Bool constants
+    - Control flow: Return and ReturnNone
+  - **Code Cache**: Compiled native functions cached for reuse
+  - **VM Integration**: JIT compiler integrated into VM execution loop
+  - **Enable/Disable**: JIT can be enabled or disabled at runtime via `VM::set_jit_enabled()`
+  - **Statistics**: Get JIT stats via `VM::jit_stats()` (functions tracked, compiled, enabled status)
+  - **Graceful Degradation**: Falls back to bytecode interpretation for unsupported operations
+  - **Test Suite**: 8 comprehensive tests for JIT infrastructure, translation, and compilation
+  - **Example**: Added `examples/jit_loop_test.ruff` demonstrating hot loop compilation
+  - **Performance Target**: Expected 5-10x speedup for compiled code (Phase 3 goal)
+  - **Status**: Infrastructure complete, bytecode translation functional, VM integration complete
+  - **Next Steps**: Full execution of compiled code, advanced optimizations (type specialization, inlining)
+
 - **VM Bytecode Optimizations (v0.9.0 Phase 2 - ✅ COMPLETE)** - Compiler optimizations for 2-3x performance improvement:
   - **Constant Folding**: Evaluates constant expressions at compile time
     - Arithmetic: `2 + 3 * 4` → compiles to `14` directly

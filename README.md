@@ -39,11 +39,17 @@
 
 ### In Progress for v0.9.0 🚧
 
-* **JIT Compilation (Phase 3 - Next Priority) 🎯**
-  - Cranelift backend for native code generation
-  - Hot path detection and compilation triggers
-  - Expected: 5-10x faster than optimized bytecode VM
-  - Targeting 20-50x faster than original tree-walking interpreter
+* **JIT Compilation (Phase 3 - 🚧 IN PROGRESS) ⚡**
+  - **Cranelift Integration**: Native code generation using Cranelift JIT backend
+  - **Hot Path Detection**: Automatic detection and compilation of hot loops (100+ executions)
+  - **Bytecode Translation**: Arithmetic, comparison, logical, and stack operations compiled to native code
+  - **VM Integration**: JIT compiler integrated into execution loop with graceful fallback
+  - **Performance Goal**: 5-10x faster than optimized bytecode VM for compiled code
+  - **Overall Target**: 20-50x faster than original tree-walking interpreter
+  - **Status**: Infrastructure complete (~60%), working on full native code execution
+  - **Remaining Work**: Execute compiled code, variable access in JIT, advanced optimizations
+  - Example: `examples/jit_loop_test.ruff` demonstrates hot loop detection
+  - See `ROADMAP.md` Phase 3 for detailed progress
 
 ### Completed in v0.9.0 (Earlier Phases) ✅
 

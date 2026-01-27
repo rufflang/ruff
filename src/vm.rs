@@ -51,10 +51,10 @@ pub struct VM {
     /// Exception handler stack for try/catch blocks
     /// Tracks nested try blocks and their catch handlers
     exception_handlers: Vec<ExceptionHandlerFrame>,
-    
+
     /// JIT compiler for hot code paths
     jit_compiler: JitCompiler,
-    
+
     /// JIT enabled flag (can be disabled for debugging)
     jit_enabled: bool,
 }
@@ -124,7 +124,7 @@ struct CallFrame {
 
     /// Previous chunk (for returning)
     prev_chunk: Option<BytecodeChunk>,
-    
+
     /// Whether this function is async (for wrapping return values in Promises)
     is_async: bool,
 }
@@ -156,13 +156,13 @@ impl VM {
         // Also set the interpreter's environment so it can resolve native functions
         self.interpreter.set_env(env);
     }
-    
+
     /// Enable or disable JIT compilation
     pub fn set_jit_enabled(&mut self, enabled: bool) {
         self.jit_enabled = enabled;
         self.jit_compiler.set_enabled(enabled);
     }
-    
+
     /// Get JIT compilation statistics
     pub fn jit_stats(&self) -> crate::jit::JitStats {
         self.jit_compiler.stats()
@@ -179,7 +179,7 @@ impl VM {
                 // Reached end of program
                 return Ok(Value::Null);
             }
-            
+
             // Check if we should JIT compile this hot path
             if self.jit_enabled {
                 // For loops (backward jumps), check if we should compile
@@ -192,13 +192,19 @@ impl VM {
                                 // Note: For full JIT execution, we would call the compiled function here
                                 // For now, we just cache it and continue with bytecode interpretation
                                 if std::env::var("DEBUG_JIT").is_ok() {
-                                    eprintln!("JIT: Successfully compiled hot loop at offset {}", self.ip);
+                                    eprintln!(
+                                        "JIT: Successfully compiled hot loop at offset {}",
+                                        self.ip
+                                    );
                                 }
                             }
                             Err(e) => {
                                 // Compilation failed - this is expected for complex code
                                 if std::env::var("DEBUG_JIT").is_ok() {
-                                    eprintln!("JIT: Could not compile at offset {}: {}", self.ip, e);
+                                    eprintln!(
+                                        "JIT: Could not compile at offset {}: {}",
+                                        self.ip, e
+                                    );
                                 }
                             }
                         }
@@ -539,8 +545,9 @@ impl VM {
                         let value_to_push = if frame.is_async {
                             // Create a channel with the result already available
                             let (tx, rx) = std::sync::mpsc::channel();
-                            tx.send(Ok(return_value)).map_err(|_| "Failed to send to promise channel")?;
-                            
+                            tx.send(Ok(return_value))
+                                .map_err(|_| "Failed to send to promise channel")?;
+
                             Value::Promise {
                                 receiver: Arc::new(Mutex::new(rx)),
                                 is_polled: Arc::new(Mutex::new(false)),
@@ -565,12 +572,13 @@ impl VM {
                             self.chunk = prev_chunk;
                         }
                         self.stack.truncate(frame.stack_offset);
-                        
+
                         // If this was an async function, wrap None in a Promise
                         let value_to_push = if frame.is_async {
                             let (tx, rx) = std::sync::mpsc::channel();
-                            tx.send(Ok(Value::Null)).map_err(|_| "Failed to send to promise channel")?;
-                            
+                            tx.send(Ok(Value::Null))
+                                .map_err(|_| "Failed to send to promise channel")?;
+
                             Value::Promise {
                                 receiver: Arc::new(Mutex::new(rx)),
                                 is_polled: Arc::new(Mutex::new(false)),
@@ -579,7 +587,7 @@ impl VM {
                         } else {
                             Value::Null
                         };
-                        
+
                         self.stack.push(value_to_push);
                     } else {
                         return Ok(Value::Null);
@@ -982,14 +990,14 @@ impl VM {
                 OpCode::Await => {
                     // Pop promise from stack and await it
                     let promise = self.stack.pop().ok_or("Stack underflow in Await")?;
-                    
+
                     match promise {
                         Value::Promise { receiver, is_polled, cached_result } => {
                             // Check if we've already polled this promise
                             {
                                 let polled = is_polled.lock().unwrap();
                                 let cached = cached_result.lock().unwrap();
-                                
+
                                 if *polled {
                                     // Use cached result
                                     match cached.as_ref() {
@@ -1001,22 +1009,24 @@ impl VM {
                                             return Err(format!("Promise rejected: {}", err));
                                         }
                                         None => {
-                                            return Err("Promise polled but no result cached".to_string());
+                                            return Err(
+                                                "Promise polled but no result cached".to_string()
+                                            );
                                         }
                                     }
                                 }
                             }
-                            
+
                             // Poll the promise - blocks until result is ready
                             let result = {
                                 let recv = receiver.lock().unwrap();
                                 recv.recv()
                             };
-                            
+
                             // Update cache
                             let mut polled = is_polled.lock().unwrap();
                             let mut cached = cached_result.lock().unwrap();
-                            
+
                             match result {
                                 Ok(Ok(value)) => {
                                     *cached = Some(Ok(value.clone()));
@@ -1031,7 +1041,9 @@ impl VM {
                                 Err(_) => {
                                     *cached = Some(Err("Promise never resolved".to_string()));
                                     *polled = true;
-                                    return Err("Promise never resolved (channel closed)".to_string());
+                                    return Err(
+                                        "Promise never resolved (channel closed)".to_string()
+                                    );
                                 }
                             }
                         }
@@ -1041,25 +1053,25 @@ impl VM {
                         }
                     }
                 }
-                
+
                 OpCode::MakePromise => {
                     // Pop value from stack and wrap it in a resolved promise
                     let value = self.stack.pop().ok_or("Stack underflow in MakePromise")?;
-                    
+
                     // Create a channel that immediately sends the value
                     let (tx, rx) = std::sync::mpsc::channel();
                     tx.send(Ok(value.clone())).map_err(|_| "Failed to send to promise channel")?;
-                    
+
                     // Create promise with the result already available
                     let promise = Value::Promise {
                         receiver: Arc::new(Mutex::new(rx)),
                         is_polled: Arc::new(Mutex::new(false)),
                         cached_result: Arc::new(Mutex::new(None)),
                     };
-                    
+
                     self.stack.push(promise);
                 }
-                
+
                 OpCode::MarkAsync => {
                     // This is a no-op marker used during compilation
                     // It marks that the current context is async but doesn't generate runtime code
@@ -1832,10 +1844,10 @@ mod tests {
         let tokens = lexer::tokenize(code);
         let mut parser = Parser::new(tokens);
         let ast = parser.parse();
-        
+
         let mut compiler = Compiler::new();
         let chunk = compiler.compile(&ast)?;
-        
+
         let mut vm = VM::new();
         vm.execute(chunk)
     }
@@ -1850,7 +1862,7 @@ mod tests {
             let promise = fetch_data(42);
             return await promise;
         "#;
-        
+
         match run_vm_code(code) {
             Ok(Value::Str(s)) => assert_eq!(s, "Data for ID"),
             Ok(other) => panic!("Expected string, got: {:?}", other),
@@ -1867,10 +1879,10 @@ mod tests {
             
             return get_number();
         "#;
-        
+
         let result = run_vm_code(code);
         eprintln!("Simple return test: {:?}", result);
-        
+
         match result {
             Ok(Value::Int(n)) => assert_eq!(n, 42),
             Ok(other) => panic!("Expected int 42, got: {:?}", other),
@@ -1888,10 +1900,10 @@ mod tests {
             let p = get_number();
             return await p;
         "#;
-        
+
         let result = run_vm_code(code);
         eprintln!("Test result: {:?}", result);
-        
+
         match result {
             Ok(Value::Int(n)) => assert_eq!(n, 42),
             Ok(other) => panic!("Expected int 42, got: {:?}", other),
@@ -1916,7 +1928,7 @@ mod tests {
             
             return r1 + r2 + r3;
         "#;
-        
+
         match run_vm_code(code) {
             Ok(Value::Int(n)) => assert_eq!(n, 10 + 20 + 30),
             Ok(other) => panic!("Expected int 60, got: {:?}", other),
@@ -1940,7 +1952,7 @@ mod tests {
             let p = outer(5);
             return await p;
         "#;
-        
+
         match run_vm_code(code) {
             Ok(Value::Int(n)) => assert_eq!(n, (5 + 10) * 2),
             Ok(other) => panic!("Expected int 30, got: {:?}", other),
@@ -1959,7 +1971,7 @@ mod tests {
             let promise = calculate_sum(10, 20, 30);
             return await promise;
         "#;
-        
+
         match run_vm_code(code) {
             Ok(Value::Int(n)) => assert_eq!(n, 60),
             Ok(other) => panic!("Expected int 60, got: {:?}", other),
@@ -1978,7 +1990,7 @@ mod tests {
             
             return await simple();
         "#;
-        
+
         match run_vm_code(code) {
             Ok(Value::Int(n)) => assert_eq!(n, 123),
             Ok(other) => panic!("Expected int 123, got: {:?}", other),
@@ -2001,7 +2013,7 @@ mod tests {
             
             return first == second;
         "#;
-        
+
         match run_vm_code(code) {
             Ok(Value::Bool(b)) => assert!(b, "Promise should return same value on multiple awaits"),
             Ok(other) => panic!("Expected bool true, got: {:?}", other),
@@ -2016,7 +2028,7 @@ mod tests {
             let x = 42;
             return await x;
         "#;
-        
+
         match run_vm_code(code) {
             Ok(Value::Int(n)) => assert_eq!(n, 42),
             Ok(other) => panic!("Expected int 42, got: {:?}", other),
@@ -2024,4 +2036,3 @@ mod tests {
         }
     }
 }
-

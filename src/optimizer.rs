@@ -25,9 +25,7 @@ pub struct OptimizationStats {
 
 impl Optimizer {
     pub fn new() -> Self {
-        Self {
-            stats: OptimizationStats::default(),
-        }
+        Self { stats: OptimizationStats::default() }
     }
 
     /// Run all optimization passes on a bytecode chunk
@@ -62,15 +60,9 @@ impl Optimizer {
         while i < chunk.instructions.len() {
             // Look for pattern: LoadConst, LoadConst, BinaryOp
             if i + 2 < chunk.instructions.len() {
-                if let (
-                    OpCode::LoadConst(idx1),
-                    OpCode::LoadConst(idx2),
-                    binary_op,
-                ) = (
-                    &chunk.instructions[i],
-                    &chunk.instructions[i + 1],
-                    &chunk.instructions[i + 2],
-                ) {
+                if let (OpCode::LoadConst(idx1), OpCode::LoadConst(idx2), binary_op) =
+                    (&chunk.instructions[i], &chunk.instructions[i + 1], &chunk.instructions[i + 2])
+                {
                     // Try to fold constants
                     if let Some(folded) = self.try_fold_binary_op(
                         &chunk.constants[*idx1],
@@ -80,7 +72,7 @@ impl Optimizer {
                         // Add the folded constant
                         let new_idx = chunk.add_constant(folded);
                         new_instructions.push(OpCode::LoadConst(new_idx));
-                        
+
                         self.stats.constants_folded += 1;
                         i += 3; // Skip the three instructions we just folded
                         continue;
@@ -96,7 +88,7 @@ impl Optimizer {
                     if let Some(folded) = self.try_fold_unary_op(&chunk.constants[*idx], unary_op) {
                         let new_idx = chunk.add_constant(folded);
                         new_instructions.push(OpCode::LoadConst(new_idx));
-                        
+
                         self.stats.constants_folded += 1;
                         i += 2;
                         continue;
@@ -181,7 +173,9 @@ impl Optimizer {
             (Constant::Int(a), Constant::Int(b), OpCode::Equal) => Some(Constant::Bool(a == b)),
             (Constant::Int(a), Constant::Int(b), OpCode::NotEqual) => Some(Constant::Bool(a != b)),
             (Constant::Int(a), Constant::Int(b), OpCode::LessThan) => Some(Constant::Bool(a < b)),
-            (Constant::Int(a), Constant::Int(b), OpCode::GreaterThan) => Some(Constant::Bool(a > b)),
+            (Constant::Int(a), Constant::Int(b), OpCode::GreaterThan) => {
+                Some(Constant::Bool(a > b))
+            }
             (Constant::Int(a), Constant::Int(b), OpCode::LessEqual) => Some(Constant::Bool(a <= b)),
             (Constant::Int(a), Constant::Int(b), OpCode::GreaterEqual) => {
                 Some(Constant::Bool(a >= b))
@@ -237,7 +231,7 @@ impl Optimizer {
     /// Removes unreachable instructions
     fn dead_code_elimination_pass(&mut self, chunk: &mut BytecodeChunk) {
         let mut reachable = vec![false; chunk.instructions.len()];
-        
+
         // Mark all reachable instructions starting from entry point
         self.mark_reachable(chunk, &mut reachable, 0);
 
@@ -294,12 +288,7 @@ impl Optimizer {
     }
 
     /// Mark all reachable instructions starting from a given index
-    fn mark_reachable(
-        &self,
-        chunk: &BytecodeChunk,
-        reachable: &mut [bool],
-        start: usize,
-    ) {
+    fn mark_reachable(&self, chunk: &BytecodeChunk, reachable: &mut [bool], start: usize) {
         if start >= chunk.instructions.len() || reachable[start] {
             return; // Already visited or out of bounds
         }
@@ -395,7 +384,9 @@ impl Optimizer {
             // Pattern 3: Pop followed by Pop -> could combine but not worth complexity
             // Pattern 4: Double Jump optimization
             if !optimized && i + 1 < chunk.instructions.len() {
-                if let (OpCode::Jump(target1), _) = (&chunk.instructions[i], &chunk.instructions[i + 1]) {
+                if let (OpCode::Jump(target1), _) =
+                    (&chunk.instructions[i], &chunk.instructions[i + 1])
+                {
                     // Check if target is also a jump
                     if *target1 < chunk.instructions.len() {
                         if let OpCode::Jump(target2) = chunk.instructions[*target1] {
@@ -460,17 +451,17 @@ mod tests {
     #[test]
     fn test_constant_folding_arithmetic() {
         let mut chunk = BytecodeChunk::new();
-        
+
         // Create: 2 + 3 (should fold to 5)
         let idx1 = chunk.add_constant(Constant::Int(2));
         let idx2 = chunk.add_constant(Constant::Int(3));
         chunk.emit(OpCode::LoadConst(idx1));
         chunk.emit(OpCode::LoadConst(idx2));
         chunk.emit(OpCode::Add);
-        
+
         let mut optimizer = Optimizer::new();
         optimizer.optimize(&mut chunk);
-        
+
         // Should be optimized to single LoadConst(5)
         assert_eq!(chunk.instructions.len(), 1);
         assert!(matches!(chunk.instructions[0], OpCode::LoadConst(_)));
@@ -480,17 +471,17 @@ mod tests {
     #[test]
     fn test_constant_folding_string_concat() {
         let mut chunk = BytecodeChunk::new();
-        
+
         // Create: "hello" + " world"
         let idx1 = chunk.add_constant(Constant::String("hello".to_string()));
         let idx2 = chunk.add_constant(Constant::String(" world".to_string()));
         chunk.emit(OpCode::LoadConst(idx1));
         chunk.emit(OpCode::LoadConst(idx2));
         chunk.emit(OpCode::Add);
-        
+
         let mut optimizer = Optimizer::new();
         optimizer.optimize(&mut chunk);
-        
+
         assert_eq!(chunk.instructions.len(), 1);
         assert_eq!(optimizer.stats.constants_folded, 1);
     }
@@ -498,17 +489,17 @@ mod tests {
     #[test]
     fn test_constant_folding_boolean() {
         let mut chunk = BytecodeChunk::new();
-        
+
         // Create: true && false (should fold to false)
         let idx1 = chunk.add_constant(Constant::Bool(true));
         let idx2 = chunk.add_constant(Constant::Bool(false));
         chunk.emit(OpCode::LoadConst(idx1));
         chunk.emit(OpCode::LoadConst(idx2));
         chunk.emit(OpCode::And);
-        
+
         let mut optimizer = Optimizer::new();
         optimizer.optimize(&mut chunk);
-        
+
         assert_eq!(chunk.instructions.len(), 1);
         assert_eq!(optimizer.stats.constants_folded, 1);
     }
@@ -516,17 +507,17 @@ mod tests {
     #[test]
     fn test_dead_code_elimination() {
         let mut chunk = BytecodeChunk::new();
-        
+
         // Create code with unreachable instruction after return
         let idx = chunk.add_constant(Constant::Int(42));
         chunk.emit(OpCode::LoadConst(idx));
         chunk.emit(OpCode::Return);
         chunk.emit(OpCode::LoadConst(idx)); // Dead code
         chunk.emit(OpCode::Pop); // Dead code
-        
+
         let mut optimizer = Optimizer::new();
         optimizer.optimize(&mut chunk);
-        
+
         // Dead code after return should be removed
         assert!(optimizer.stats.dead_instructions_removed > 0);
     }
@@ -534,15 +525,15 @@ mod tests {
     #[test]
     fn test_peephole_load_pop() {
         let mut chunk = BytecodeChunk::new();
-        
+
         // Create: LoadConst followed by Pop (useless)
         let idx = chunk.add_constant(Constant::Int(42));
         chunk.emit(OpCode::LoadConst(idx));
         chunk.emit(OpCode::Pop);
-        
+
         let mut optimizer = Optimizer::new();
         optimizer.optimize(&mut chunk);
-        
+
         // Both instructions should be removed
         assert_eq!(chunk.instructions.len(), 0);
         assert_eq!(optimizer.stats.peephole_optimizations, 1);
@@ -551,17 +542,17 @@ mod tests {
     #[test]
     fn test_no_division_by_zero_folding() {
         let mut chunk = BytecodeChunk::new();
-        
+
         // Create: 10 / 0 (should NOT fold - runtime error)
         let idx1 = chunk.add_constant(Constant::Int(10));
         let idx2 = chunk.add_constant(Constant::Int(0));
         chunk.emit(OpCode::LoadConst(idx1));
         chunk.emit(OpCode::LoadConst(idx2));
         chunk.emit(OpCode::Div);
-        
+
         let mut optimizer = Optimizer::new();
         optimizer.optimize(&mut chunk);
-        
+
         // Should NOT be optimized (div by zero)
         assert_eq!(chunk.instructions.len(), 3);
         assert_eq!(optimizer.stats.constants_folded, 0);
