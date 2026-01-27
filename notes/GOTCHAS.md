@@ -669,3 +669,73 @@ If you are new to the project, read this first.
 
 ---
 
+
+## JIT Type Specialization (Phase 4)
+
+### Type specialization is function-level, not operation-level
+
+- **Problem:** You might think each Add/Sub/Mul/Div operation gets specialized individually based on operand types
+- **Reality:** Specialization happens at function boundaries. A function is profiled, then recompiled with type assumptions for ALL its variables
+- **Rule:** Type guards go at function entry. Assumptions hold for the entire function body. If guards fail, deoptimize the whole function.
+- **Why:** Stack-based bytecode doesn't track value provenance. You don't know which variables produced stack values.
+- **Implication:** 
+  - Don't try to specialize per-operation
+  - Think: "compile this function assuming x:Int, y:Int"
+  - Not: "specialize this Add if operands are Int"
+- **Reference:** `src/jit.rs` BytecodeTranslator specialization methods
+
+(Discovered during: 2026-01-27_10-53_phase4b-specialized-codegen.md)
+
+### Cranelift bitcast API is not obvious for i64⇄f64 conversion
+
+- **Problem:** You assume `builder.ins().bitcast(types::F64, value)` will reinterpret i64 as f64
+- **Symptom:** Compilation error: `the trait bound 'MemFlags: From<cranelift::prelude::Value>' is not satisfied`
+- **Reality:** Cranelift's `bitcast()` requires 3 arguments: type, memory flags, and value. There's no `raw_bitcast()` method.
+- **Rule:** Float specialization requires researching Cranelift's type conversion APIs. Options: fcvt instructions, load/store through memory, or bitcast with correct MemFlags.
+- **Why:** Type conversion is architecture-dependent and needs explicit flag handling
+- **Implication:** Int specialization is trivial (native i64 ops). Float specialization is a research task.
+- **Location:** Phase 4B attempted float specialization, deferred to Phase 4C
+
+(Discovered during: 2026-01-27_10-53_phase4b-specialized-codegen.md)
+
+### JIT type profiles grow unbounded
+
+- **Problem:** `JitCompiler::type_profiles` HashMap has no eviction policy
+- **Symptom:** Memory grows if many functions are executed once or infrequently
+- **Rule:** Current implementation trades memory for simplicity. Production code needs LRU or size limits.
+- **Why:** Every function offset that hits JIT_THRESHOLD (100) creates a profile entry that never expires
+- **Implication:** Fine for benchmarks and development. Needs attention before production use.
+- **Location:** `src/jit.rs` line 439 - `type_profiles: HashMap<usize, SpecializationInfo>`
+
+(Discovered during: 2026-01-27_10-53_phase4b-specialized-codegen.md)
+
+### Test compilation success ≠ execution validation
+
+- **Problem:** JIT tests that only check `compile().is_ok()` don't validate generated code correctness
+- **Symptom:** Tests pass but compiled code might produce wrong results
+- **Rule:** Compilation tests validate IR generation. Execution tests validate semantics. You need both.
+- **Why:** Cranelift can successfully compile incorrect IR if instructions are well-formed
+- **Implication:** 
+  - Use `is_ok()` tests for IR generation coverage (Phase 4B approach)
+  - Use execution tests with result validation for correctness (Phase 3 approach)
+  - Need both types of tests for complete coverage
+- **Location:** Phase 4B tests (lines 1630-1730 in `src/jit.rs`)
+
+(Discovered during: 2026-01-27_10-53_phase4b-specialized-codegen.md)
+
+### Specialized methods exist but aren't wired up yet (Phase 4B→4C boundary)
+
+- **Problem:** Created `translate_add_specialized()` etc. but they're never called
+- **Symptom:** Methods exist, tests compile, but specialization doesn't happen at runtime
+- **Rule:** Phase 4B creates methods, Phase 4C integrates them. This is intentional separation.
+- **Why:** Clear phase boundaries prevent scope creep and allow incremental testing
+- **Implication:** 
+  - Don't be surprised when specialized methods aren't used yet
+  - Phase 4C task: Modify `translate_instruction()` to check `self.specialization` and route to specialized methods
+  - Integration requires deciding: per-operation or per-function specialization strategy
+
+(Discovered during: 2026-01-27_10-53_phase4b-specialized-codegen.md)
+
+---
+
+*Last updated: 2026-01-27 (Phase 4B - Type Specialization)*
