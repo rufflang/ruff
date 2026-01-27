@@ -9,6 +9,7 @@ pub mod bytecode;
 pub mod compiler;
 pub mod errors;
 pub mod interpreter;
+pub mod jit;
 pub mod lexer;
 pub mod module;
 pub mod optimizer;
