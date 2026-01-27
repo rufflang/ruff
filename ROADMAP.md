@@ -163,11 +163,11 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 ---
 
-#### Phase 5: True Async Runtime Integration (2-3 weeks) - ⏳ PLANNED
+#### Phase 5: True Async Runtime Integration (2-3 weeks) - 🔥 NEXT UP
 
-**Status**: Not Started  
-**Priority**: P2 (Medium) - Quality of life improvement, not blocking v1.0  
-**Dependencies**: Phase 1-4 complete
+**Status**: Ready to Implement  
+**Priority**: P1 (High) - Maximum performance for I/O-bound workloads  
+**Dependencies**: Phase 1-4 complete ✅
 
 **Why This Matters**:
 Currently, async functions in the VM execute synchronously and wrap results in Promises. This works for most use cases but doesn't provide true concurrent I/O. Real-world applications need non-blocking async for:
