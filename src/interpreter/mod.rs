@@ -9881,8 +9881,8 @@ impl Interpreter {
                         match ret_val {
                             Value::Return(inner) => {
                                 // This is a yield - extract the value and suspend
-                                // DO NOT advance PC - we want to resume at the same statement
-                                // (important for loops with yields inside)
+                                // Advance PC so next call continues from next statement
+                                *pc += 1;
                                 yielded_value = Some(inner.as_ref().clone());
                                 self.return_value = None;
                                 break;
