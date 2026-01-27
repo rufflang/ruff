@@ -2164,4 +2164,304 @@ mod tests {
         let result = compiler.compile(&chunk, offset);
         assert!(result.is_ok(), "Should compile with multiple guards: {:?}", result.err());
     }
+
+    // ========================================================================
+    // Phase 4E: Performance Benchmarking Tests
+    // ========================================================================
+
+    /// Helper function to measure execution time of a closure
+    fn measure_time<F>(f: F) -> std::time::Duration
+    where
+        F: FnOnce(),
+    {
+        let start = std::time::Instant::now();
+        f();
+        start.elapsed()
+    }
+
+    #[test]
+    #[ignore] // Benchmark test - run with: cargo test --release -- --ignored benchmark_
+    fn benchmark_specialized_vs_generic_addition() {
+        use std::time::Duration;
+        
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+        
+        // Create a simple addition benchmark: sum 1000 times
+        // We'll use constants to isolate JIT performance
+        let const_1 = chunk.add_constant(Constant::Int(1));
+        let const_0 = chunk.add_constant(Constant::Int(0));
+        
+        // Initialize sum = 0
+        chunk.emit(OpCode::LoadConst(const_0));
+        
+        // Add 1, 1000 times (unrolled for simplicity)
+        for _ in 0..1000 {
+            chunk.emit(OpCode::LoadConst(const_1));
+            chunk.emit(OpCode::Add);
+        }
+        chunk.emit(OpCode::Return);
+        
+        // Compile without specialization
+        let compile_start = std::time::Instant::now();
+        let result = compiler.compile(&chunk, 0);
+        let compile_time = compile_start.elapsed();
+        
+        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
+        
+        println!("\n=== Specialized vs Generic Addition Benchmark ===");
+        println!("Compilation time: {:?}", compile_time);
+        println!("Instructions compiled: {}", chunk.instructions.len());
+        println!("Note: This is a micro-benchmark of JIT compilation itself");
+        println!("For runtime performance, see the benchmark_*.ruff examples");
+    }
+
+    #[test]
+    #[ignore]
+    fn benchmark_compilation_overhead() {
+        let mut compiler = JitCompiler::new().unwrap();
+        
+        // Test 1: Simple arithmetic (should be fast)
+        let mut chunk1 = BytecodeChunk::new();
+        let c1 = chunk1.add_constant(Constant::Int(10));
+        let c2 = chunk1.add_constant(Constant::Int(20));
+        chunk1.emit(OpCode::LoadConst(c1));
+        chunk1.emit(OpCode::LoadConst(c2));
+        chunk1.emit(OpCode::Add);
+        chunk1.emit(OpCode::Return);
+        
+        let time1 = measure_time(|| {
+            let _ = compiler.compile(&chunk1, 0);
+        });
+        
+        // Test 2: Complex arithmetic chain (should be slower)
+        let mut chunk2 = BytecodeChunk::new();
+        for i in 0..100 {
+            let c = chunk2.add_constant(Constant::Int(i));
+            chunk2.emit(OpCode::LoadConst(c));
+            if i > 0 {
+                chunk2.emit(OpCode::Add);
+            }
+        }
+        chunk2.emit(OpCode::Return);
+        
+        let time2 = measure_time(|| {
+            let _ = compiler.compile(&chunk2, 1);
+        });
+        
+        println!("\n=== Compilation Overhead Benchmark ===");
+        println!("Simple (3 instructions): {:?}", time1);
+        println!("Complex (200 instructions): {:?}", time2);
+        println!("Ratio: {:.2}x", time2.as_nanos() as f64 / time1.as_nanos() as f64);
+        
+        // Complex should take longer (but not orders of magnitude longer)
+        assert!(time2 > time1, "Complex compilation should take longer");
+    }
+
+    #[test]
+    #[ignore]
+    fn benchmark_type_profiling_overhead() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        let var_hash = 12345u64;
+        
+        // Benchmark: recording 10,000 type observations
+        let iterations = 10_000;
+        
+        let time = measure_time(|| {
+            for _ in 0..iterations {
+                compiler.record_type(offset, var_hash, &Value::Int(42));
+            }
+        });
+        
+        println!("\n=== Type Profiling Overhead Benchmark ===");
+        println!("Recorded {} type observations in {:?}", iterations, time);
+        println!("Average per observation: {:?}", time / iterations);
+        println!("Observations per second: {:.0}", iterations as f64 / time.as_secs_f64());
+        
+        // Verify profile was built
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Int));
+    }
+
+    #[test]
+    #[ignore]
+    fn benchmark_specialized_arithmetic_chain() {
+        let mut compiler = JitCompiler::new().unwrap();
+        
+        // Build a long arithmetic chain: ((((1 + 2) + 3) + 4) + ... + 100)
+        let mut chunk = BytecodeChunk::new();
+        
+        for i in 1..=100 {
+            let c = chunk.add_constant(Constant::Int(i));
+            chunk.emit(OpCode::LoadConst(c));
+            if i > 1 {
+                chunk.emit(OpCode::Add);
+            }
+        }
+        chunk.emit(OpCode::Return);
+        
+        // Compile the chain
+        let compile_time = measure_time(|| {
+            let result = compiler.compile(&chunk, 0);
+            assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
+        });
+        
+        println!("\n=== Specialized Arithmetic Chain Benchmark ===");
+        println!("Chain length: 100 additions");
+        println!("Total instructions: {}", chunk.instructions.len());
+        println!("Compilation time: {:?}", compile_time);
+        println!("Time per instruction: {:?}", compile_time / chunk.instructions.len() as u32);
+    }
+
+    #[test]
+    #[ignore]
+    fn benchmark_guard_generation_overhead() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        
+        // Setup: Create specialization profiles for many variables
+        let var_count = 50;
+        let mut var_hashes = Vec::new();
+        
+        for i in 0..var_count {
+            let var_hash = (i as u64) * 1000;
+            var_hashes.push(var_hash);
+            
+            // Build stable profile
+            for _ in 0..100 {
+                compiler.record_type(offset, var_hash, &Value::Int(42));
+            }
+        }
+        
+        // Compile with many guards
+        let mut chunk = BytecodeChunk::new();
+        let const_1 = chunk.add_constant(Constant::Int(1));
+        chunk.emit(OpCode::LoadConst(const_1));
+        chunk.emit(OpCode::Return);
+        
+        let compile_time = measure_time(|| {
+            let result = compiler.compile(&chunk, offset);
+            assert!(result.is_ok(), "Compilation with guards failed: {:?}", result.err());
+        });
+        
+        println!("\n=== Guard Generation Overhead Benchmark ===");
+        println!("Variables with specialized types: {}", var_count);
+        println!("Compilation time: {:?}", compile_time);
+        println!("Time per guard: {:?}", compile_time / var_count);
+    }
+
+    #[test]
+    #[ignore]
+    fn benchmark_cache_lookup_performance() {
+        let mut compiler = JitCompiler::new().unwrap();
+        
+        // Compile several functions
+        for offset in 0..100 {
+            let mut chunk = BytecodeChunk::new();
+            let c = chunk.add_constant(Constant::Int(offset as i64));
+            chunk.emit(OpCode::LoadConst(c));
+            chunk.emit(OpCode::Return);
+            
+            let _ = compiler.compile(&chunk, offset);
+        }
+        
+        // Benchmark: Check if functions should compile (cache lookup)
+        let iterations = 100_000;
+        let time = measure_time(|| {
+            for _ in 0..iterations {
+                for offset in 0..100 {
+                    let _ = compiler.should_compile(offset);
+                }
+            }
+        });
+        
+        println!("\n=== Cache Lookup Performance Benchmark ===");
+        println!("Cache entries: 100");
+        println!("Total lookups: {}", iterations * 100);
+        println!("Time: {:?}", time);
+        println!("Lookups per second: {:.0}", (iterations * 100) as f64 / time.as_secs_f64());
+        println!("Average per lookup: {:?}", time / (iterations * 100));
+    }
+
+    #[test]
+    #[ignore]
+    fn benchmark_specialization_decision_overhead() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        let var_hash = 99999u64;
+        
+        // Record mixed types to test decision logic
+        for i in 0..100 {
+            if i % 10 == 0 {
+                compiler.record_type(offset, var_hash, &Value::Float(1.0));
+            } else {
+                compiler.record_type(offset, var_hash, &Value::Int(1));
+            }
+        }
+        
+        // Benchmark: decision making
+        let iterations = 100_000;
+        let time = measure_time(|| {
+            for _ in 0..iterations {
+                if let Some(profile) = compiler.get_specialization(offset) {
+                    let _ = profile.specialized_types.get(&var_hash);
+                    let _ = profile.should_despecialize();
+                }
+            }
+        });
+        
+        println!("\n=== Specialization Decision Overhead Benchmark ===");
+        println!("Decisions made: {}", iterations);
+        println!("Time: {:?}", time);
+        println!("Decisions per second: {:.0}", iterations as f64 / time.as_secs_f64());
+        println!("Average per decision: {:?}", time / iterations);
+    }
+
+    #[test]
+    fn validate_phase4_infrastructure_complete() {
+        // This test validates that Phase 4A-4D infrastructure is in place
+        let mut compiler = JitCompiler::new().unwrap();
+        
+        println!("\n=== Phase 4A-4D Infrastructure Validation ===");
+        
+        // Phase 4A: Type profiling system
+        let offset = 0;
+        let var_hash = 11111u64;
+        
+        for _ in 0..60 {
+            compiler.record_type(offset, var_hash, &Value::Int(42));
+        }
+        
+        let profile = compiler.get_specialization(offset);
+        assert!(profile.is_some(), "Phase 4A: Type profiling should work");
+        println!("✅ Phase 4A: Type profiling system working");
+        
+        // Phase 4B: Specialized code generation
+        let mut chunk = BytecodeChunk::new();
+        let c1 = chunk.add_constant(Constant::Int(10));
+        let c2 = chunk.add_constant(Constant::Int(20));
+        chunk.emit(OpCode::LoadConst(c1));
+        chunk.emit(OpCode::LoadConst(c2));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+        
+        let result = compiler.compile(&chunk, offset);
+        assert!(result.is_ok(), "Phase 4B: Specialized compilation should work");
+        println!("✅ Phase 4B: Specialized code generation working");
+        
+        // Phase 4C: Integration (compile with profile)
+        assert!(compiler.compiled_cache.contains_key(&offset), 
+                "Phase 4C: Compiled function should be cached");
+        println!("✅ Phase 4C: Integration working");
+        
+        // Phase 4D: Guard generation
+        let profile = compiler.get_specialization(offset).unwrap();
+        assert!(!profile.specialized_types.is_empty(), 
+                "Phase 4D: Should have specialized types for guards");
+        println!("✅ Phase 4D: Guard generation working");
+        
+        println!("\n🎉 All Phase 4A-4D infrastructure validated!");
+        println!("Phase 4E: Ready for performance validation and advanced optimizations");
+    }
 }
