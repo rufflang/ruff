@@ -46,6 +46,23 @@ pub struct VM {
     /// Upvalues (captured variables) - indexed by upvalue ID
     /// These are heap-allocated shared references to captured variables
     upvalues: Vec<Upvalue>,
+    
+    /// Exception handler stack for try/catch blocks
+    /// Tracks nested try blocks and their catch handlers
+    exception_handlers: Vec<ExceptionHandlerFrame>,
+}
+
+/// Exception handler frame for active try blocks
+#[derive(Debug, Clone)]
+struct ExceptionHandlerFrame {
+    /// Instruction pointer for catch block
+    catch_ip: usize,
+    
+    /// Stack size when entering try block (for unwinding)
+    stack_offset: usize,
+    
+    /// Call frame depth when entering try block (for unwinding)
+    frame_offset: usize,
 }
 
 /// Call frame for function calls
@@ -79,6 +96,7 @@ impl VM {
             chunk: BytecodeChunk::new(),
             interpreter: Interpreter::new(),
             upvalues: Vec::new(),
+            exception_handlers: Vec::new(),
         }
     }
 
@@ -757,11 +775,151 @@ impl VM {
                 }
 
                 // Exception handling
-                OpCode::BeginTry(_) | OpCode::EndTry | OpCode::Throw |
-                OpCode::BeginCatch(_) | OpCode::EndCatch => {
-                    // Exception handling requires exception table lookup
-                    // For now, return an error - will implement in Week 5-6
-                    return Err("Exception handling not yet implemented in VM".to_string());
+                OpCode::BeginTry(catch_ip) => {
+                    // Push exception handler onto stack
+                    self.exception_handlers.push(ExceptionHandlerFrame {
+                        catch_ip,
+                        stack_offset: self.stack.len(),
+                        frame_offset: self.call_frames.len(),
+                    });
+                }
+                
+                OpCode::EndTry => {
+                    // Pop exception handler (normal exit from try block)
+                    if self.exception_handlers.is_empty() {
+                        return Err("EndTry without matching BeginTry".to_string());
+                    }
+                    self.exception_handlers.pop();
+                }
+                
+                OpCode::Throw => {
+                    // Pop error value from stack
+                    let error_value = self.stack.pop().ok_or("Stack underflow in Throw")?;
+                    
+                    if std::env::var("DEBUG_VM").is_ok() {
+                        eprintln!("THROW: error_value={:?}", error_value);
+                        eprintln!("  Exception handlers: {}", self.exception_handlers.len());
+                        eprintln!("  Call frames: {}", self.call_frames.len());
+                    }
+                    
+                    // Find nearest exception handler
+                    if let Some(handler) = self.exception_handlers.pop() {
+                        if std::env::var("DEBUG_VM").is_ok() {
+                            eprintln!("  Handler found: catch_ip={}, frame_offset={}, stack_offset={}", 
+                                handler.catch_ip, handler.frame_offset, handler.stack_offset);
+                        }
+                        
+                        // Unwind call frames to handler's frame offset
+                        // We need to restore the chunk from the target frame (or top-level)
+                        while self.call_frames.len() > handler.frame_offset {
+                            if let Some(frame) = self.call_frames.pop() {
+                                if std::env::var("DEBUG_VM").is_ok() {
+                                    eprintln!("  Unwinding frame: return_ip={}", frame.return_ip);
+                                }
+                                // Restore chunk if this was the last frame to unwind
+                                if self.call_frames.len() == handler.frame_offset {
+                                    if let Some(prev_chunk) = frame.prev_chunk {
+                                        self.chunk = prev_chunk;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Unwind stack to handler's stack offset
+                        self.stack.truncate(handler.stack_offset);
+                        
+                        // Push error value back onto stack for BeginCatch
+                        self.stack.push(error_value);
+                        
+                        // Jump to catch block
+                        self.ip = handler.catch_ip;
+                        
+                        if std::env::var("DEBUG_VM").is_ok() {
+                            eprintln!("  After unwind: ip={}, frames={}, stack={}", 
+                                self.ip, self.call_frames.len(), self.stack.len());
+                        }
+                    } else {
+                        // No exception handler found - uncaught exception
+                        let error_msg = match error_value {
+                            Value::Str(s) => s,
+                            Value::Error(e) => e,
+                            Value::ErrorObject { message, .. } => message,
+                            other => format!("Uncaught exception: {:?}", other),
+                        };
+                        return Err(error_msg);
+                    }
+                }
+                
+                OpCode::BeginCatch(var_name) => {
+                    // Pop error from stack and bind to local variable
+                    let error_value = self.stack.pop().ok_or("Stack underflow in BeginCatch")?;
+                    
+                    // Convert error to structured error object if needed
+                    let error_obj = match error_value {
+                        Value::Str(msg) => {
+                            // Simple string error - wrap in error struct
+                            let mut fields = HashMap::new();
+                            fields.insert("message".to_string(), Value::Str(msg));
+                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                            fields.insert("line".to_string(), Value::Int(0));
+                            Value::Struct {
+                                name: "Error".to_string(),
+                                fields,
+                            }
+                        }
+                        Value::Error(msg) => {
+                            // Legacy Error type - wrap in struct
+                            let mut fields = HashMap::new();
+                            fields.insert("message".to_string(), Value::Str(msg));
+                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                            fields.insert("line".to_string(), Value::Int(0));
+                            Value::Struct {
+                                name: "Error".to_string(),
+                                fields,
+                            }
+                        }
+                        Value::ErrorObject { message, stack, line, cause } => {
+                            // Full error object - convert to struct
+                            let mut fields = HashMap::new();
+                            fields.insert("message".to_string(), Value::Str(message));
+                            fields.insert(
+                                "stack".to_string(),
+                                Value::Array(stack.iter().map(|s| Value::Str(s.clone())).collect()),
+                            );
+                            fields.insert("line".to_string(), Value::Int(line.unwrap_or(0) as i64));
+                            if let Some(cause_val) = cause {
+                                fields.insert("cause".to_string(), *cause_val);
+                            }
+                            Value::Struct {
+                                name: "Error".to_string(),
+                                fields,
+                            }
+                        }
+                        other => {
+                            // Any other value - wrap as message
+                            let mut fields = HashMap::new();
+                            fields.insert("message".to_string(), Value::Str(format!("{:?}", other)));
+                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                            fields.insert("line".to_string(), Value::Int(0));
+                            Value::Struct {
+                                name: "Error".to_string(),
+                                fields,
+                            }
+                        }
+                    };
+                    
+                    // Bind error to variable in current frame
+                    if let Some(frame) = self.call_frames.last_mut() {
+                        frame.locals.insert(var_name, error_obj);
+                    } else {
+                        // No call frame - store in globals
+                        self.globals.lock().unwrap().set(var_name, error_obj);
+                    }
+                }
+                
+                OpCode::EndCatch => {
+                    // Nothing to do - handler already removed by Throw
+                    // This opcode marks the end of the catch block for debugging/profiling
                 }
 
                 // Native function calls

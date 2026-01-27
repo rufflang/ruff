@@ -410,7 +410,8 @@ impl BytecodeChunk {
             OpCode::Jump(ref mut addr)
             | OpCode::JumpIfFalse(ref mut addr)
             | OpCode::JumpIfTrue(ref mut addr)
-            | OpCode::JumpBack(ref mut addr) => {
+            | OpCode::JumpBack(ref mut addr)
+            | OpCode::BeginTry(ref mut addr) => {
                 *addr = target;
             }
             _ => panic!("Attempted to set target on non-jump instruction"),

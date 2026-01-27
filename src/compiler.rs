@@ -775,7 +775,21 @@ impl Compiler {
             }
 
             Expr::Tag(tag, values) => {
-                // Compile tag values
+                // Special handling for throw - it's a control flow primitive
+                if tag == "throw" {
+                    // Compile error value
+                    if values.len() != 1 {
+                        return Err("throw() requires exactly one argument".to_string());
+                    }
+                    self.compile_expr(&values[0])?;
+                    
+                    // Emit throw instruction
+                    self.chunk.emit(OpCode::Throw);
+                    
+                    return Ok(());
+                }
+                
+                // Compile tag values for other tags
                 for value in values {
                     self.compile_expr(value)?;
                 }
