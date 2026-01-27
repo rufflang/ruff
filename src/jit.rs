@@ -544,31 +544,55 @@ impl BytecodeTranslator {
         match instruction {
             // Arithmetic operations
             OpCode::Add => {
-                let b = self.pop_value()?;
-                let a = self.pop_value()?;
-                let result = builder.ins().iadd(a, b);
-                self.push_value(result);
+                // Check if we have specialization context for optimized path
+                if self.specialization.is_some() {
+                    self.translate_add_specialized(builder, None, None)?;
+                } else {
+                    // Generic fallback
+                    let b = self.pop_value()?;
+                    let a = self.pop_value()?;
+                    let result = builder.ins().iadd(a, b);
+                    self.push_value(result);
+                }
             }
 
             OpCode::Sub => {
-                let b = self.pop_value()?;
-                let a = self.pop_value()?;
-                let result = builder.ins().isub(a, b);
-                self.push_value(result);
+                // Check if we have specialization context for optimized path
+                if self.specialization.is_some() {
+                    self.translate_sub_specialized(builder, None, None)?;
+                } else {
+                    // Generic fallback
+                    let b = self.pop_value()?;
+                    let a = self.pop_value()?;
+                    let result = builder.ins().isub(a, b);
+                    self.push_value(result);
+                }
             }
 
             OpCode::Mul => {
-                let b = self.pop_value()?;
-                let a = self.pop_value()?;
-                let result = builder.ins().imul(a, b);
-                self.push_value(result);
+                // Check if we have specialization context for optimized path
+                if self.specialization.is_some() {
+                    self.translate_mul_specialized(builder, None, None)?;
+                } else {
+                    // Generic fallback
+                    let b = self.pop_value()?;
+                    let a = self.pop_value()?;
+                    let result = builder.ins().imul(a, b);
+                    self.push_value(result);
+                }
             }
 
             OpCode::Div => {
-                let b = self.pop_value()?;
-                let a = self.pop_value()?;
-                let result = builder.ins().sdiv(a, b);
-                self.push_value(result);
+                // Check if we have specialization context for optimized path
+                if self.specialization.is_some() {
+                    self.translate_div_specialized(builder, None, None)?;
+                } else {
+                    // Generic fallback
+                    let b = self.pop_value()?;
+                    let a = self.pop_value()?;
+                    let result = builder.ins().sdiv(a, b);
+                    self.push_value(result);
+                }
             }
 
             OpCode::Mod => {
@@ -1875,5 +1899,127 @@ mod tests {
         
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile arithmetic chain: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_compilation_with_specialization_context() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset = 0;
+        let var_hash_x = 11111u64;
+        let var_hash_y = 22222u64;
+        
+        // Build type profile with stable Int types
+        for _ in 0..60 {
+            compiler.record_type(offset, var_hash_x, &Value::Int(10));
+            compiler.record_type(offset, var_hash_y, &Value::Int(20));
+        }
+        
+        // Verify profile is stable and specialized
+        let profile = compiler.get_specialization(offset).expect("Profile should exist");
+        assert_eq!(profile.specialized_types.get(&var_hash_x), Some(&ValueType::Int));
+        assert_eq!(profile.specialized_types.get(&var_hash_y), Some(&ValueType::Int));
+        
+        // Now compile with specialization context
+        let mut chunk = BytecodeChunk::new();
+        let const_5 = chunk.add_constant(Constant::Int(5));
+        let const_3 = chunk.add_constant(Constant::Int(3));
+        
+        chunk.emit(OpCode::LoadConst(const_5));
+        chunk.emit(OpCode::LoadConst(const_3));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+        
+        // Compilation should succeed with specialization
+        let result = compiler.compile(&chunk, offset);
+        assert!(result.is_ok(), "Should compile with specialization context: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_compilation_without_specialization_fallback() {
+        let mut compiler = JitCompiler::new().unwrap();
+        
+        // No type profiling - compile without specialization
+        let mut chunk = BytecodeChunk::new();
+        let const_100 = chunk.add_constant(Constant::Int(100));
+        let const_50 = chunk.add_constant(Constant::Int(50));
+        
+        chunk.emit(OpCode::LoadConst(const_100));
+        chunk.emit(OpCode::LoadConst(const_50));
+        chunk.emit(OpCode::Sub);
+        chunk.emit(OpCode::Return);
+        
+        // Should still compile successfully using generic path
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile without specialization: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_all_arithmetic_ops_with_specialization() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let offset_base = 100;
+        
+        // Profile for specialization at offset 100
+        for _ in 0..60 {
+            compiler.record_type(offset_base, 99999u64, &Value::Int(42));
+        }
+        
+        // Test Add with specialization at offset 100
+        let mut chunk = BytecodeChunk::new();
+        let const_10 = chunk.add_constant(Constant::Int(10));
+        let const_20 = chunk.add_constant(Constant::Int(20));
+        chunk.emit(OpCode::LoadConst(const_10));
+        chunk.emit(OpCode::LoadConst(const_20));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+        assert!(compiler.compile(&chunk, offset_base).is_ok());
+        
+        // Profile for specialization at offset 200
+        let offset_sub = 200;
+        for _ in 0..60 {
+            compiler.record_type(offset_sub, 88888u64, &Value::Int(30));
+        }
+        
+        // Test Sub with specialization at offset 200
+        let mut chunk = BytecodeChunk::new();
+        let const_30 = chunk.add_constant(Constant::Int(30));
+        let const_10 = chunk.add_constant(Constant::Int(10));
+        chunk.emit(OpCode::LoadConst(const_30));
+        chunk.emit(OpCode::LoadConst(const_10));
+        chunk.emit(OpCode::Sub);
+        chunk.emit(OpCode::Return);
+        let result = compiler.compile(&chunk, offset_sub);
+        assert!(result.is_ok(), "Sub compilation failed: {:?}", result.err());
+        
+        // Profile for specialization at offset 300
+        let offset_mul = 300;
+        for _ in 0..60 {
+            compiler.record_type(offset_mul, 77777u64, &Value::Int(5));
+        }
+        
+        // Test Mul with specialization at offset 300
+        let mut chunk = BytecodeChunk::new();
+        let const_5 = chunk.add_constant(Constant::Int(5));
+        let const_6 = chunk.add_constant(Constant::Int(6));
+        chunk.emit(OpCode::LoadConst(const_5));
+        chunk.emit(OpCode::LoadConst(const_6));
+        chunk.emit(OpCode::Mul);
+        chunk.emit(OpCode::Return);
+        assert!(compiler.compile(&chunk, offset_mul).is_ok());
+        
+        // Profile for specialization at offset 400
+        let offset_div = 400;
+        for _ in 0..60 {
+            compiler.record_type(offset_div, 66666u64, &Value::Int(100));
+        }
+        
+        // Test Div with specialization at offset 400
+        let mut chunk = BytecodeChunk::new();
+        let const_100 = chunk.add_constant(Constant::Int(100));
+        let const_5 = chunk.add_constant(Constant::Int(5));
+        chunk.emit(OpCode::LoadConst(const_100));
+        chunk.emit(OpCode::LoadConst(const_5));
+        chunk.emit(OpCode::Div);
+        chunk.emit(OpCode::Return);
+        assert!(compiler.compile(&chunk, offset_div).is_ok());
     }
 }
