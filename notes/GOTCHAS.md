@@ -370,6 +370,22 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
 
+### Native function dispatcher pattern enables modular organization
+- **Problem:** Adding native functions to monolithic `call_native_function_impl()` doesn't scale
+- **Rule:** As of v0.9.0, native functions are organized in category modules under `src/interpreter/native_functions/`
+- **Pattern:** Each module has `handle(interp, name, args) -> Option<Value>` that returns:
+  - `Some(Value)` if the function was handled by this module
+  - `None` if the function name is not recognized (try next module)
+- **Dispatcher:** Main `call_native_function()` tries each module in order until one returns `Some`
+- **Modules:** math, strings, collections, io, filesystem, http, system, type_ops, concurrency, json, crypto, database, network
+- **Why:** First match wins - allows logical grouping by category while keeping dispatcher simple
+- **Adding functions:** Just add a match case to appropriate module's `handle()` function - no registration needed!
+- **Implication:** Function names must be unique across all modules (no two modules can handle the same name)
+- **Location:** `src/interpreter/native_functions/mod.rs` (dispatcher), individual modules for implementations
+- **Documentation:** See `docs/EXTENDING.md` for complete guide
+
+(Discovered during: 2026-01-27_architecture-documentation-complete.md)
+
 ---
 
 ## I/O & Network Programming
@@ -436,6 +452,19 @@ If you are new to the project, read this first.
 - **Pattern:** `tcp_close()`, `udp_close()`, `db_close()` all just return `Value::Bool(true)`
 
 (Discovered during: 2026-01-26_02-13_net-module-tcp-udp.md)
+
+### LeakyFunctionBody prevents stack overflow during drop
+- **Problem:** Program crashes with stack overflow during shutdown when functions have deeply nested AST
+- **Root cause:** Function bodies are `Vec<Stmt>`, and Stmt contains nested `Vec<Stmt>` (in If, While, For, etc.). Rust's automatic Drop implementation recurses deeply through these structures, causing stack overflow.
+- **Rule:** `LeakyFunctionBody` uses `ManuallyDrop<Arc<Vec<Stmt>>>` to prevent automatic drop - the memory is intentionally leaked
+- **Why:** OS reclaims all memory at program shutdown anyway, so leaking is acceptable. This avoids stack overflow for deeply nested code.
+- **Symptom:** Stack overflow errors during program exit (not during execution)
+- **Workaround:** Current implementation intentionally leaks function bodies. They're never freed during runtime.
+- **Future fix:** Roadmap Task #29 will implement iterative drop or arena allocation to properly free memory without recursion
+- **Implication:** Long-running programs that define many functions dynamically will accumulate leaked memory. Acceptable for most use cases but may matter for REPL or servers.
+- **Location:** `src/interpreter/value.rs:20-42`
+
+(Discovered during: 2026-01-27_architecture-documentation-complete.md)
 
 ---
 
