@@ -65,20 +65,23 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
 
 #### Phase 1: Complete Bytecode VM Integration (6-8 weeks) - 🚧 IN PROGRESS
 
-**Status**: ~75% Complete (Weeks 1-4 done, exception handling done, generators infrastructure added, execution flow pending)
+**Status**: ~80% Complete (Weeks 1-4 done, exception handling done, generator infrastructure complete, VM instruction dispatch pending)
 
 **Remaining Tasks**:
 
 - **🎯 Week 5-6: VM Feature Parity** (CURRENT PRIORITY - Pick One)
   
-  **Option A: Generators First** (Recommended) - 🔨 IN PROGRESS
+  **Option A: Generators First** (Recommended) - ✅ 90% DONE
   - [x] Implement Yield opcode (save VM state, return value to caller)
-  - [x] Implement ResumeGenerator opcode (restore VM state, continue execution)
+  - [x] Implement ResumeGenerator opcode (restore VM state, continue execution)  
   - [x] Implement MakeGenerator opcode (create generator from function)
   - [x] Add generator state tracking to VM (instruction pointer, stack snapshot)
-  - [ ] **NEXT**: Refine generator execution flow (handle yield/resume properly in VM loop)
-  - [ ] **NEXT**: Create helper method for generator.next() calls
-  - [ ] Test with existing generator examples (see examples/generators_test.ruff)
+  - [x] Create helper method for generator.next() calls
+  - [x] Auto-create generators when calling generator functions (is_generator check)
+  - [x] Add comprehensive generator tests (tests/test_generators.ruff)
+  - [x] **COMPLETE**: Tree-walking interpreter generators fully working
+  - [ ] **REMAINING**: Complete instruction dispatch in generator_next() for VM execution
+  - [ ] **OPTIONAL**: Test generators with bytecode VM execution path
   
   **Option B: Async/Await First**
   - [ ] Implement Await opcode (suspend until promise resolves)
@@ -89,8 +92,11 @@ This is a long task spanning multiple months, but it's fundamental to making Ruf
   
   **Already Complete**:
   - ✅ Exception handling (BeginTry/EndTry/Throw/BeginCatch/EndCatch)
-  - ✅ Generator opcodes and state structures added (MakeGenerator/Yield/ResumeGenerator)
+  - ✅ Generator opcodes and state structures (MakeGenerator/Yield/ResumeGenerator)
   - ✅ BytecodeGenerator value type with state tracking
+  - ✅ Generator auto-creation on function calls
+  - ✅ generator_next() method with state management
+  - ✅ Tree-walking interpreter generator support (FULLY WORKING)
   
 - **⏳ Week 7-8: Integration & Testing** (AFTER WEEK 5-6 COMPLETE)
   - [ ] Switch default execution mode to VM

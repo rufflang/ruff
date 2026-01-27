@@ -9,16 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **VM Generator Support Infrastructure (v0.9.0 Phase 1 - Partial)** - Initial structures and opcodes for generator support in bytecode VM:
-  - Added `GeneratorState` struct to track generator execution state (IP, stack, call frames, locals, captured variables)
-  - Added `CallFrameData` struct for serializable call frame storage in generator state
-  - Added `BytecodeGenerator` value variant with Arc<Mutex<GeneratorState>> for concurrent access
-  - Implemented `MakeGenerator` opcode to convert BytecodeFunction to generator object
-  - Implemented `Yield` opcode with special return value to signal suspension
-  - Implemented `ResumeGenerator` opcode to restore generator state and continue execution
-  - Updated type checking (type() function) to recognize BytecodeGenerator as "generator"
-  - Updated debug formatting for BytecodeGenerator values
-  - NOTE: Full generator execution flow requires additional refinement - opcodes are in place but execution loop needs completion
+- **Generator Support (v0.9.0 Phase 1)** - Comprehensive generator infrastructure with working tree-walking interpreter implementation:
+  - **Tree-Walking Interpreter** (✅ COMPLETE):
+    - Full support for `func*` generator function syntax
+    - Generator creation with parameter binding
+    - `yield` expression support for suspending execution
+    - Generator state preservation between yields (environment, program counter, local variables)
+    - For-in loop integration for iterating over generators
+    - Proper generator exhaustion handling
+    - Added comprehensive test suite in `tests/test_generators.ruff` with 5 test scenarios
+  - **Bytecode VM** (🚧 PARTIAL - Infrastructure Complete):
+    - Added `GeneratorState` struct to track execution state (IP, stack, call frames, locals, captured variables)
+    - Added `CallFrameData` struct for serializable call frame storage
+    - Added `BytecodeGenerator` value variant with Arc<Mutex<GeneratorState>> for concurrent access
+    - Implemented `MakeGenerator` opcode (converts BytecodeFunction to generator)
+    - Implemented `Yield` opcode (signals suspension point)
+    - Implemented `ResumeGenerator` opcode (calls generator_next() helper)
+    - Added `generator_next()` method with state save/restore logic
+    - Modified `Call` opcode to auto-create generators when calling generator functions (is_generator flag check)
+    - Updated type checking (type() function) to recognize BytecodeGenerator as "generator"
+    - Updated debug formatting for BytecodeGenerator values
+    - NOTE: Full VM generator execution requires completing instruction dispatch in generator_next() method
 
 - **VM Exception Handling Implementation (v0.9.0 Phase 1)** - Fully implemented exception handling in bytecode VM:
   - Added exception handler stack to VM for tracking nested try blocks
