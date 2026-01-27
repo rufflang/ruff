@@ -13,16 +13,21 @@ pub mod timer;
 pub mod stats;
 pub mod runner;
 pub mod reporter;
+pub mod profiler;
 
 pub use runner::BenchmarkRunner;
 pub use timer::Timer;
 pub use stats::Statistics;
 pub use reporter::Reporter;
+pub use profiler::{Profiler, ProfileConfig, print_profile_report};
 
+/// Execution mode for benchmarking
 #[derive(Debug, Clone)]
 pub enum ExecutionMode {
     Interpreter,
     VM,
+    /// JIT execution mode (reserved for future JIT-only benchmarks)
+    #[allow(dead_code)]
     JIT,
 }
 
@@ -73,6 +78,8 @@ impl BenchmarkResult {
         Some(total / self.samples.len() as u32)
     }
 
+    /// Calculate median duration (for detailed benchmark analysis)
+    #[allow(dead_code)]
     pub fn median(&self) -> Option<std::time::Duration> {
         if self.samples.is_empty() {
             return None;
@@ -87,10 +94,14 @@ impl BenchmarkResult {
         }
     }
 
+    /// Get minimum duration (for detailed benchmark analysis)
+    #[allow(dead_code)]
     pub fn min(&self) -> Option<std::time::Duration> {
         self.samples.iter().min().copied()
     }
 
+    /// Get maximum duration (for detailed benchmark analysis)
+    #[allow(dead_code)]
     pub fn max(&self) -> Option<std::time::Duration> {
         self.samples.iter().max().copied()
     }
