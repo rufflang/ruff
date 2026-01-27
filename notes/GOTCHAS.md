@@ -773,4 +773,117 @@ If you are new to the project, read this first.
 
 ---
 
-*Last updated: 2026-01-27 (Phase 4C - Specialized Method Integration)*
+## JIT Guard Generation (Phase 4D)
+
+### Entry block must be sealed AFTER branching from it
+
+- **Problem:** Panic: "unsealed blocks after building function"
+- **Reality:** Entry block is unique - we branch FROM it, but no blocks branch TO it
+- **Rule:** Seal entry_block immediately after creating brif from it. Do NOT seal guard_success_block immediately.
+- **Why:** Cranelift requires blocks sealed after all incoming edges established. Entry has zero incoming edges (it's the entry!). Guard_success_block gets more jumps from instruction translation.
+- **Pattern:**
+  ```rust
+  // Create guards and branch
+  builder.ins().brif(all_guards, success_block, &[], failure_block, &[]);
+  builder.seal_block(entry_block);  // ✓ Seal now - no more edges to it
+  
+  // Do NOT: builder.seal_block(guard_success_block); // ✗ More jumps coming!
+  ```
+- **Implication:** Block sealing order depends on control flow structure, not declaration order
+
+(Discovered during: 2026-01-27_11-15_phase4d-guards.md)
+
+### brif takes boolean directly, not integer that needs conversion
+
+- **Problem:** Type error: "brif expects b1, got i64"
+- **Reality:** `icmp` returns `b1` (boolean type), which is exactly what `brif` wants
+- **Rule:** Use comparison results directly in brif. Don't try to convert with brnz or bint.
+- **Why:** Cranelift has distinct bool (b1) and integer (i64) types. Comparisons return bool.
+- **Pattern:**
+  ```rust
+  let guard_passed = builder.ins().icmp_imm(IntCC::Equal, result, 1); // b1
+  builder.ins().brif(guard_passed, success, &[], failure, &[]);  // ✓
+  
+  // NOT: builder.ins().brnz(result, ...);  // ✗ wrong instruction
+  ```
+- **Implication:** Learn Cranelift's type system - b1 vs i64 distinction matters
+
+(Discovered during: 2026-01-27_11-15_phase4d-guards.md)
+
+### Guards must be ANDed together for multiple specialized variables
+
+- **Problem:** Function executes optimized code when only some guards pass
+- **Reality:** ALL type assumptions must hold for specialization to be safe
+- **Rule:** Initialize guards to true (1), AND each check result, branch on final value
+- **Why:** Partial specialization is unsafe. If ANY variable has wrong type, deoptimize.
+- **Pattern:**
+  ```rust
+  let mut all_guards = builder.ins().iconst(types::I64, 1);  // Start true
+  for (var, expected_type) in specialized_vars {
+      let check = call_jit_check_type(var, expected_type);
+      let passed = builder.ins().icmp_imm(IntCC::Equal, check, 1);
+      all_guards = builder.ins().band(all_guards, passed);  // AND accumulator
+  }
+  builder.ins().brif(all_guards, success, failure);
+  ```
+- **Implication:** Guard logic scales to any number of specialized variables
+
+(Discovered during: 2026-01-27_11-15_phase4d-guards.md)
+
+### Guard failures return error codes, not exceptions
+
+- **Problem:** Uncertainty about how to signal deoptimization needs
+- **Reality:** Native code across FFI boundary can't throw Rust exceptions
+- **Rule:** Return -1 as error code when guards fail. Calling code checks return value.
+- **Why:** JIT functions are called from Rust via FFI (no exception unwinding)
+- **Pattern:**
+  ```rust
+  // In guard_failure_block:
+  let error_code = builder.ins().iconst(types::I64, -1);
+  builder.ins().return_(&[error_code]);
+  
+  // In caller:
+  let result = jit_func.call();
+  if result == -1 {
+      // Fall back to interpreter, invalidate specialization
+  }
+  ```
+- **Implication:** Deoptimization is cooperative between JIT and VM
+
+(Discovered during: 2026-01-27_11-15_phase4d-guards.md)
+
+### current_block variable scope must span guard generation and translation
+
+- **Problem:** Borrow checker error: "cannot find value `current_block` in this scope"
+- **Reality:** `current_block` declared inside `if let Some(spec)` block not visible outside
+- **Rule:** Declare mutable `current_block` before conditional guard logic, update in branches
+- **Why:** Guard generation changes which block instructions are added to (entry vs guard_success)
+- **Pattern:**
+  ```rust
+  let mut current_block = entry_block;  // Before conditionals
+  
+  if let Some(spec) = self.specialization {
+      // Generate guards...
+      current_block = guard_success_block;  // Update for instruction translation
+  }
+  
+  // Now current_block visible here for instruction loop
+  ```
+- **Implication:** Variable scope must match usage patterns, not implementation structure
+
+(Discovered during: 2026-01-27_11-15_phase4d-guards.md)
+
+### Guards are safety mechanisms, not performance optimizations
+
+- **Mental Model:** Guards ENABLE optimization, they don't optimize themselves
+- **Reality:** Guards check type assumptions at function entry. Cost: ~5-10 instructions.
+- **Rule:** Guards let you generate aggressive specialized code safely. The specialization is the optimization.
+- **Why:** Without guards, can't make type assumptions → must use slow generic code. With guards, can assume types → use fast specialized code. Guard cost << specialization gain.
+- **Implication:** Don't worry about guard overhead. Focus on optimization quality.
+- **Pattern:** Same as V8 (JavaScript), PyPy (Python), LuaJIT - all use guard-based specialization
+
+(Discovered during: 2026-01-27_11-15_phase4d-guards.md)
+
+---
+
+*Last updated: 2026-01-27 (Phase 4D - Guard Generation & Validation)*
