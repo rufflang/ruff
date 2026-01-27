@@ -23,6 +23,9 @@ pub struct Compiler {
 
     /// Local variables in current scope
     locals: Vec<Local>,
+    
+    /// Parent compiler (for nested functions/closures)
+    parent: Option<Box<Compiler>>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +44,7 @@ impl Compiler {
             loop_ends: Vec::new(),
             scope_depth: 0,
             locals: Vec::new(),
+            parent: None,
         }
     }
 
@@ -263,6 +267,15 @@ impl Compiler {
                 // Add parameters as locals
                 for param in params {
                     func_compiler.locals.push(Local { name: param.clone(), depth: 0 });
+                }
+
+                // Analyze the function body to find free variables (captures)
+                let free_vars = Self::find_free_variables(body, params, &self.locals);
+                func_compiler.chunk.upvalues = free_vars.clone();
+                
+                // Add captured variables as locals so the compiler knows they exist
+                for upvalue_name in &free_vars {
+                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 0 });
                 }
 
                 // Compile function body
@@ -695,6 +708,16 @@ impl Compiler {
                     func_compiler.locals.push(Local { name: param.clone(), depth: 0 });
                 }
 
+                // Analyze the function body to find free variables (captures)
+                let free_vars = Self::find_free_variables(body, params, &self.locals);
+                func_compiler.chunk.upvalues = free_vars.clone();
+                
+                // Add captured variables as locals so the compiler knows they exist
+                // They will be resolved from the closure's captured map at runtime
+                for upvalue_name in &free_vars {
+                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 0 });
+                }
+
                 // Compile function body
                 for stmt in body {
                     func_compiler.compile_stmt(stmt)?;
@@ -938,5 +961,243 @@ impl Compiler {
     /// Check if a variable is a local
     fn is_local(&self, name: &str) -> bool {
         self.locals.iter().any(|local| local.name == name)
+    }
+    
+    /// Find free variables in a function body
+    /// Free variables are variables that are used but not defined locally (not params or let bindings)
+    fn find_free_variables(body: &[Stmt], params: &[String], _parent_locals: &[Local]) -> Vec<String> {
+        use std::collections::HashSet;
+        
+        let mut used_vars = HashSet::new();
+        let mut defined_vars: HashSet<String> = params.iter().cloned().collect();
+        
+        // Helper function to collect variable usage from expressions
+        fn collect_expr_vars(expr: &Expr, used: &mut HashSet<String>) {
+            match expr {
+                Expr::Identifier(name) => {
+                    used.insert(name.clone());
+                }
+                Expr::BinaryOp { left, right, .. } => {
+                    collect_expr_vars(left, used);
+                    collect_expr_vars(right, used);
+                }
+                Expr::UnaryOp { operand, .. } => {
+                    collect_expr_vars(operand, used);
+                }
+                Expr::Call { function, args } => {
+                    collect_expr_vars(function, used);
+                    for arg in args {
+                        collect_expr_vars(arg, used);
+                    }
+                }
+                Expr::MethodCall { object, args, .. } => {
+                    collect_expr_vars(object, used);
+                    for arg in args {
+                        collect_expr_vars(arg, used);
+                    }
+                }
+                Expr::ArrayLiteral(elements) => {
+                    for elem in elements {
+                        match elem {
+                            ArrayElement::Single(e) | ArrayElement::Spread(e) => {
+                                collect_expr_vars(e, used);
+                            }
+                        }
+                    }
+                }
+                Expr::DictLiteral(entries) => {
+                    for entry in entries {
+                        match entry {
+                            DictElement::Pair(k, v) => {
+                                collect_expr_vars(k, used);
+                                collect_expr_vars(v, used);
+                            }
+                            DictElement::Spread(e) => {
+                                collect_expr_vars(e, used);
+                            }
+                        }
+                    }
+                }
+                Expr::IndexAccess { object, index } => {
+                    collect_expr_vars(object, used);
+                    collect_expr_vars(index, used);
+                }
+                Expr::FieldAccess { object, .. } => {
+                    collect_expr_vars(object, used);
+                }
+                Expr::Function { body, .. } => {
+                    // Don't descend into nested functions - they have their own scope
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used, &mut HashSet::new());
+                    }
+                }
+                Expr::Ok(e) | Expr::Err(e) | Expr::Some(e) | Expr::Await(e) => {
+                    collect_expr_vars(e, used);
+                }
+                Expr::Yield(Some(e)) => {
+                    collect_expr_vars(e, used);
+                }
+                Expr::Try(e) => {
+                    collect_expr_vars(e, used);
+                }
+                Expr::StructInstance { fields, .. } => {
+                    for (_, expr) in fields {
+                        collect_expr_vars(expr, used);
+                    }
+                }
+                Expr::InterpolatedString(parts) => {
+                    for part in parts {
+                        if let crate::ast::InterpolatedStringPart::Expr(e) = part {
+                            collect_expr_vars(e, used);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        // Helper function to collect variable definitions and usage from statements
+        fn collect_stmt_vars(stmt: &Stmt, used: &mut HashSet<String>, defined: &mut HashSet<String>) {
+            match stmt {
+                Stmt::Let { pattern, value, .. } => {
+                    collect_expr_vars(value, used);
+                    // Add defined variables from pattern
+                    if let Pattern::Identifier(name) = pattern {
+                        defined.insert(name.clone());
+                    }
+                }
+                Stmt::Assign { target, value } => {
+                    collect_expr_vars(value, used);
+                    collect_expr_vars(target, used);
+                }
+                Stmt::ExprStmt(expr) => {
+                    collect_expr_vars(expr, used);
+                }
+                Stmt::If { condition, then_branch, else_branch } => {
+                    collect_expr_vars(condition, used);
+                    for s in then_branch {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                    if let Some(else_stmts) = else_branch {
+                        for s in else_stmts {
+                            collect_stmt_vars(s, used, defined);
+                        }
+                    }
+                }
+                Stmt::While { condition, body } => {
+                    collect_expr_vars(condition, used);
+                    for s in body {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+                Stmt::For { var, iterable, body } => {
+                    collect_expr_vars(iterable, used);
+                    defined.insert(var.clone());
+                    for s in body {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+                Stmt::Return(expr) => {
+                    if let Some(e) = expr {
+                        collect_expr_vars(e, used);
+                    }
+                }
+                Stmt::Break | Stmt::Continue => {}
+                Stmt::Match { value, cases, default } => {
+                    collect_expr_vars(value, used);
+                    for (_pattern, stmts) in cases {
+                        for s in stmts {
+                            collect_stmt_vars(s, used, defined);
+                        }
+                    }
+                    if let Some(default_stmts) = default {
+                        for s in default_stmts {
+                            collect_stmt_vars(s, used, defined);
+                        }
+                    }
+                }
+                Stmt::FuncDef { name, body, .. } => {
+                    defined.insert(name.clone());
+                    // Don't descend into nested function bodies
+                    for s in body {
+                        collect_stmt_vars(s, used, &mut HashSet::new());
+                    }
+                }
+                Stmt::TryExcept { try_block, except_block, .. } => {
+                    for s in try_block {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                    for s in except_block {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+                Stmt::Block(stmts) => {
+                    for s in stmts {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+                Stmt::Const { name, value, .. } => {
+                    defined.insert(name.clone());
+                    collect_expr_vars(value, used);
+                }
+                Stmt::Export { stmt } => {
+                    collect_stmt_vars(stmt, used, defined);
+                }
+                Stmt::Spawn { body } => {
+                    for s in body {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+                Stmt::StructDef { name, .. } => {
+                    defined.insert(name.clone());
+                }
+                Stmt::EnumDef { name, .. } => {
+                    defined.insert(name.clone());
+                }
+                Stmt::Import { module, symbols } => {
+                    // Module itself becomes a variable
+                    defined.insert(module.clone());
+                    // Imported symbols also become variables
+                    if let Some(syms) = symbols {
+                        for sym in syms {
+                            defined.insert(sym.clone());
+                        }
+                    }
+                }
+                Stmt::Loop { condition, body } => {
+                    if let Some(cond) = condition {
+                        collect_expr_vars(cond, used);
+                    }
+                    for s in body {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+                Stmt::Test { body, .. } | Stmt::TestSetup { body } | Stmt::TestTeardown { body } => {
+                    for s in body {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+                Stmt::TestGroup { tests, .. } => {
+                    for s in tests {
+                        collect_stmt_vars(s, used, defined);
+                    }
+                }
+            }
+        }
+        
+        // Collect all variable usage and definitions
+        for stmt in body {
+            collect_stmt_vars(stmt, &mut used_vars, &mut defined_vars);
+        }
+        
+        // Free variables are those used but not defined locally
+        let mut free_vars: Vec<String> = used_vars
+            .difference(&defined_vars)
+            .cloned()
+            .collect();
+        
+        // Sort for deterministic output
+        free_vars.sort();
+        free_vars
     }
 }

@@ -9,6 +9,19 @@ use crate::interpreter::{Environment, Interpreter, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// Upvalue: heap-allocated captured variable for closures
+#[derive(Debug, Clone)]
+struct Upvalue {
+    /// The captured value
+    value: Arc<Mutex<Value>>,
+    
+    /// Whether the upvalue is still on the stack (false) or has been closed (true)
+    is_closed: bool,
+    
+    /// If still on stack, the stack index
+    stack_index: Option<usize>,
+}
+
 /// Virtual Machine for executing bytecode
 #[allow(dead_code)] // VM not yet integrated into execution path
 pub struct VM {
@@ -29,6 +42,10 @@ pub struct VM {
 
     /// Interpreter instance for calling native functions
     interpreter: Interpreter,
+    
+    /// Upvalues (captured variables) - indexed by upvalue ID
+    /// These are heap-allocated shared references to captured variables
+    upvalues: Vec<Upvalue>,
 }
 
 /// Call frame for function calls
@@ -58,6 +75,7 @@ impl VM {
             ip: 0,
             chunk: BytecodeChunk::new(),
             interpreter: Interpreter::new(),
+            upvalues: Vec::new(),
         }
     }
 
@@ -93,14 +111,33 @@ impl VM {
                 OpCode::LoadVar(name) => {
                     // Look in current call frame first
                     let value = if let Some(frame) = self.call_frames.last() {
+                        if std::env::var("DEBUG_VM").is_ok() {
+                            eprintln!("LoadVar('{}'):  checking frame locals ({} entries)", name, frame.locals.len());
+                        }
                         frame.locals.get(&name).cloned()
                     } else {
+                        if std::env::var("DEBUG_VM").is_ok() {
+                            eprintln!("LoadVar('{}'): no call frame", name);
+                        }
                         None
                     };
 
                     let value = value
-                        .or_else(|| self.globals.lock().unwrap().get(&name))
-                        .ok_or_else(|| format!("Undefined variable: {}", name))?;
+                        .or_else(|| {
+                            let global_val = self.globals.lock().unwrap().get(&name);
+                            if std::env::var("DEBUG_VM").is_ok() {
+                                eprintln!("LoadVar('{}'): checking globals -> {:?}", name, global_val.is_some());
+                            }
+                            global_val
+                        })
+                        .ok_or_else(|| {
+                            if std::env::var("DEBUG_VM").is_ok() {
+                                eprintln!("LoadVar('{}'): FAILED - not in locals or globals", name);
+                                eprintln!("  Current frame locals: {:?}", 
+                                    self.call_frames.last().map(|f| f.locals.keys().collect::<Vec<_>>()));
+                            }
+                            format!("Undefined variable: {}", name)
+                        })?;
 
                     self.stack.push(value);
                 }
@@ -336,10 +373,41 @@ impl VM {
                 OpCode::MakeClosure(func_index) => {
                     let constant = &self.chunk.constants[func_index];
                     if let Constant::Function(chunk) = constant {
-                        // Create a closure value
+                        // Capture upvalues listed in the function's chunk
+                        let mut captured = HashMap::new();
+                        
+                        if std::env::var("DEBUG_VM").is_ok() {
+                            eprintln!("MakeClosure: function has {} upvalues: {:?}", 
+                                chunk.upvalues.len(), chunk.upvalues);
+                        }
+                        
+                        for upvalue_name in &chunk.upvalues {
+                            // Find the variable in current scope (locals only - NOT globals)
+                            // Globals/built-ins will be resolved at runtime
+                            let value = if let Some(frame) = self.call_frames.last() {
+                                frame.locals.get(upvalue_name).cloned()
+                            } else {
+                                None
+                            };
+                            
+                            if let Some(val) = value {
+                                if std::env::var("DEBUG_VM").is_ok() {
+                                    eprintln!("  Captured '{}' from locals = {:?}", upvalue_name, val);
+                                }
+                                captured.insert(upvalue_name.clone(), val);
+                            } else {
+                                if std::env::var("DEBUG_VM").is_ok() {
+                                    eprintln!("  Skipped '{}' (not in locals, will resolve at runtime)", upvalue_name);
+                                }
+                                // Variable not in locals - it's either a global or undefined
+                                // Don't capture it - let it be resolved at runtime
+                            }
+                        }
+                        
+                        // Create a closure value with captured variables
                         let value = Value::BytecodeFunction {
                             chunk: (**chunk).clone(),
-                            captured: HashMap::new(),
+                            captured,
                         };
                         self.stack.push(value);
                     } else {
@@ -677,11 +745,58 @@ impl VM {
                 }
 
                 // Closure & upvalue operations
-                OpCode::CaptureUpvalue(_) | OpCode::LoadUpvalue(_) |
-                OpCode::StoreUpvalue(_) | OpCode::CloseUpvalues(_) => {
-                    // Proper upvalue handling requires heap allocation
-                    // For now, return an error - will implement in Week 5-6
-                    return Err("Upvalue operations not yet implemented in VM".to_string());
+                OpCode::CaptureUpvalue(name) => {
+                    // Find the variable in the current scope (locals or globals)
+                    let value = if let Some(frame) = self.call_frames.last() {
+                        frame.locals.get(&name).cloned()
+                    } else {
+                        None
+                    }.or_else(|| {
+                        // Try globals
+                        self.globals.lock().unwrap().get(&name)
+                    }).ok_or_else(|| format!("Variable '{}' not found for capture", name))?;
+                    
+                    // Create a new upvalue with the captured value
+                    let upvalue = Upvalue {
+                        value: Arc::new(Mutex::new(value)),
+                        is_closed: true, // Immediately close it (move to heap)
+                        stack_index: None,
+                    };
+                    
+                    let upvalue_index = self.upvalues.len();
+                    self.upvalues.push(upvalue);
+                    
+                    // Push the upvalue index onto the stack (for MakeClosure to use)
+                    self.stack.push(Value::Int(upvalue_index as i64));
+                }
+                
+                OpCode::LoadUpvalue(index) => {
+                    // Load the value from the upvalue
+                    if index >= self.upvalues.len() {
+                        return Err(format!("Invalid upvalue index: {}", index));
+                    }
+                    
+                    let upvalue = &self.upvalues[index];
+                    let value = upvalue.value.lock().unwrap().clone();
+                    self.stack.push(value);
+                }
+                
+                OpCode::StoreUpvalue(index) => {
+                    // Store the top of stack to the upvalue
+                    if index >= self.upvalues.len() {
+                        return Err(format!("Invalid upvalue index: {}", index));
+                    }
+                    
+                    let value = self.stack.pop().ok_or("Stack underflow in StoreUpvalue")?;
+                    let upvalue = &self.upvalues[index];
+                    *upvalue.value.lock().unwrap() = value;
+                }
+                
+                OpCode::CloseUpvalues(_slot) => {
+                    // In our simplified implementation, upvalues are immediately closed
+                    // (moved to heap) when captured. This operation is a no-op.
+                    // A more sophisticated implementation would keep upvalues on the stack
+                    // until they go out of scope, then move them to the heap.
                 }
 
                 // Channel operations
@@ -772,7 +887,14 @@ impl VM {
 
             // Add captured variables from closure
             for (name, value) in captured {
+                if std::env::var("DEBUG_VM").is_ok() {
+                    eprintln!("Adding captured '{}' = {:?} to locals", name, value);
+                }
                 locals.insert(name, value);
+            }
+            
+            if std::env::var("DEBUG_VM").is_ok() {
+                eprintln!("CallFrame locals now has {} entries: {:?}", locals.len(), locals.keys().collect::<Vec<_>>());
             }
 
             let frame = CallFrame {
