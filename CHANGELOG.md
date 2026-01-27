@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **JIT Compilation Infrastructure (v0.9.0 Phase 3 - 🚧 ~85% COMPLETE)** - Just-In-Time compilation using Cranelift:
+- **JIT Compilation Infrastructure (v0.9.0 Phase 3 - 🚧 ~90% COMPLETE)** - Just-In-Time compilation using Cranelift:
   - **Cranelift Integration**: Added Cranelift JIT backend for native code compilation
   - **Hot Path Detection**: Automatic detection and compilation of hot loops (threshold: 100 executions)
   - **Bytecode Translation**: Translate bytecode instructions to Cranelift IR:
@@ -19,25 +19,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Stack operations: Pop, Dup
     - Constant loading: Int and Bool constants
     - **Control flow**: Jump, JumpIfFalse, JumpIfTrue, JumpBack (loops)
+    - **Variable operations**: LoadVar, StoreVar, LoadGlobal, StoreGlobal (infrastructure ready)
     - **Proper basic blocks**: Two-pass translation with block creation and sealing
     - Return and ReturnNone instructions
   - **Native Code Execution**: ✅ Compiled functions execute successfully via unsafe FFI
-  - **Massive Performance Gains**: 🚀 **37,647x speedup** for pure arithmetic operations
-    - Bytecode VM: ~3.14 seconds for 10,000 iterations
-    - JIT compiled: ~83 microseconds for 10,000 iterations
+  - **Massive Performance Gains**: 🚀 **28,000-37,000x speedup** for pure arithmetic operations
+    - Bytecode VM: ~3 seconds for 10,000 iterations
+    - JIT compiled: ~80-100 microseconds for 10,000 iterations
     - Pure arithmetic test: `5 + 3 * 2` executed 10,000 times
+  - **Runtime Context**: VMContext structure for passing VM state to JIT code
+    - Stack pointer access
+    - Local variables access
+    - Global variables access
+  - **Runtime Helpers**: External functions callable from JIT code
+    - jit_stack_push/pop for stack operations
+    - jit_load_variable for reading variables
+    - jit_store_variable for writing variables
   - **Code Cache**: Compiled native functions cached for reuse
   - **VM Integration**: JIT compiler integrated into VM execution loop
   - **Enable/Disable**: JIT can be enabled or disabled at runtime via `VM::set_jit_enabled()`
   - **Statistics**: Get JIT stats via `VM::jit_stats()` (functions tracked, compiled, enabled status)
   - **Graceful Degradation**: Falls back to bytecode interpretation for unsupported operations
-  - **Test Suite**: 10 comprehensive tests including execution validation
+  - **Test Suite**: 11 comprehensive tests including variable compilation
   - **Benchmarks**: 
-    - `examples/jit_simple_test.rs` - Pure arithmetic (37K+ speedup validated)
+    - `examples/jit_simple_test.rs` - Pure arithmetic (28-37K speedup validated)
     - `examples/jit_microbenchmark.rs` - Loop performance testing
     - `examples/jit_loop_test.ruff` - Hot loop demonstration
     - `examples/benchmark_jit.ruff` - Runtime benchmark
-  - **Status**: ~85% complete - pure arithmetic execution working with massive speedup
+  - **Status**: ~90% complete - pure arithmetic working, variable infrastructure ready
+  - **Remaining**: External function call generation for full variable support (~10%)
   - **Known Limitations**: Loop state management needs runtime stack integration
   - **Next Steps**: Full VM runtime integration, variable access, loop state management
 
