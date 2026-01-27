@@ -52,13 +52,23 @@ fn main() {
             
             // Try to execute it
             println!("\nTest 3: Execute Compiled Code");
-            let result = unsafe { compiled_fn(std::ptr::null_mut()) };
+            let mut ctx = ruff::jit::VMContext::new(
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut()
+            );
+            let result = unsafe { compiled_fn(&mut ctx as *mut ruff::jit::VMContext) };
             println!("  Return code: {}", result);
             
             // Benchmark compiled code
             let start = Instant::now();
             for _ in 0..10000 {
-                unsafe { compiled_fn(std::ptr::null_mut()); }
+                let mut ctx = ruff::jit::VMContext::new(
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut()
+                );
+                unsafe { compiled_fn(&mut ctx as *mut ruff::jit::VMContext); }
             }
             let jit_time = start.elapsed();
             println!("  10000 runs: {:?}", jit_time);

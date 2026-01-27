@@ -152,11 +152,17 @@ struct BytecodeTranslator {
     variables: HashMap<String, cranelift::prelude::Value>,
     /// Blocks for control flow - maps bytecode PC to Cranelift blocks
     blocks: HashMap<usize, Block>,
+    /// VMContext parameter passed to the function
+    ctx_param: Option<cranelift::prelude::Value>,
 }
 
 impl BytecodeTranslator {
     fn new() -> Self {
-        Self { value_stack: Vec::new(), variables: HashMap::new(), blocks: HashMap::new() }
+        Self { value_stack: Vec::new(), variables: HashMap::new(), blocks: HashMap::new(), ctx_param: None }
+    }
+    
+    fn set_context_param(&mut self, ctx: cranelift::prelude::Value) {
+        self.ctx_param = Some(ctx);
     }
 
     /// Pre-create blocks for all jump targets
@@ -547,10 +553,11 @@ impl JitCompiler {
             builder.append_block_params_for_function_params(entry_block);
             builder.switch_to_block(entry_block);
 
-            let _stack_ptr = builder.block_params(entry_block)[0];
+            let ctx_ptr = builder.block_params(entry_block)[0];
 
             // Translate bytecode instructions to Cranelift IR
             let mut translator = BytecodeTranslator::new();
+            translator.set_context_param(ctx_ptr);
             
             // First pass: create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
