@@ -86,6 +86,28 @@ enum Commands {
         #[arg(short, long, default_value_t = 2)]
         warmup: usize,
     },
+
+    /// Profile a Ruff script (CPU, memory, JIT stats)
+    Profile {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// Enable CPU profiling
+        #[arg(long, default_value_t = true)]
+        cpu: bool,
+
+        /// Enable memory profiling
+        #[arg(long, default_value_t = true)]
+        memory: bool,
+
+        /// Enable JIT statistics
+        #[arg(long, default_value_t = true)]
+        jit: bool,
+
+        /// Generate flamegraph output file
+        #[arg(long)]
+        flamegraph: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -273,6 +295,59 @@ fn main() {
 
             // Print summary
             Reporter::print_summary(&results);
+        }
+
+        Commands::Profile { file, cpu, memory, jit, flamegraph } => {
+            use benchmarks::{Profiler, ProfileConfig, print_profile_report, profiler::generate_flamegraph_data};
+
+            // Read and parse the file
+            let code = fs::read_to_string(&file).expect("Failed to read file");
+            let filename = file.to_string_lossy().to_string();
+
+            // Create profile configuration
+            let config = ProfileConfig {
+                cpu_profiling: cpu,
+                memory_profiling: memory,
+                jit_stats: jit,
+                ..Default::default()
+            };
+
+            let mut profiler = Profiler::new(config);
+            profiler.start();
+
+            // Execute the code
+            let tokens = lexer::tokenize(&code);
+            let mut parser = parser::Parser::new(tokens);
+            let stmts = parser.parse();
+
+            let mut interp = interpreter::Interpreter::new();
+            interp.set_source(filename, &code);
+            
+            // Run the program
+            interp.eval_stmts(&stmts);
+            
+            // Stop profiling
+            let elapsed = profiler.stop();
+            
+            // Get profile data
+            let profile_data = profiler.into_data();
+            
+            // Print profile report
+            print_profile_report(&profile_data);
+            
+            println!("\nTotal execution time: {:.3}s", elapsed.as_secs_f64());
+            
+            // Generate flamegraph if requested
+            if let Some(fg_path) = flamegraph {
+                let fg_data = generate_flamegraph_data(&profile_data.cpu);
+                fs::write(&fg_path, fg_data)
+                    .expect("Failed to write flamegraph data");
+                println!("\nFlamegraph data written to: {}", fg_path.display());
+                println!("Generate SVG with: flamegraph.pl {} > flamegraph.svg", fg_path.display());
+            }
+            
+            // Cleanup
+            interp.cleanup();
         }
     }
 }

@@ -42,28 +42,41 @@ impl LeakyFunctionBody {
 }
 
 /// Database connection types
+/// Infrastructure for database.rs stub module
 #[derive(Clone)]
 pub enum DatabaseConnection {
+    #[allow(dead_code)]
     Sqlite(Arc<Mutex<SqliteConnection>>),
+    #[allow(dead_code)]
     Postgres(Arc<Mutex<PostgresClient>>),
+    #[allow(dead_code)]
     Mysql(Arc<Mutex<MysqlConn>>),
 }
 
 /// Connection pool for database connections
+/// Infrastructure for database.rs stub module
 #[derive(Clone)]
 pub struct ConnectionPool {
+    #[allow(dead_code)]
     pub(crate) db_type: String,
+    #[allow(dead_code)]
     pub(crate) connection_string: String,
     #[allow(dead_code)] // Reserved for future use
     pub(crate) min_connections: usize,
+    #[allow(dead_code)]
     pub(crate) max_connections: usize,
+    #[allow(dead_code)]
     pub(crate) connection_timeout: u64, // seconds
+    #[allow(dead_code)]
     pub(crate) available: Arc<Mutex<std::collections::VecDeque<DatabaseConnection>>>,
+    #[allow(dead_code)]
     pub(crate) in_use: Arc<Mutex<usize>>,
+    #[allow(dead_code)]
     pub(crate) total_created: Arc<Mutex<usize>>,
 }
 
 impl ConnectionPool {
+    #[allow(dead_code)]
     pub fn new(
         db_type: String,
         connection_string: String,
@@ -113,6 +126,7 @@ impl ConnectionPool {
         })
     }
 
+    #[allow(dead_code)]
     pub fn acquire(&self) -> Result<DatabaseConnection, String> {
         let start_time = std::time::Instant::now();
 
@@ -155,6 +169,7 @@ impl ConnectionPool {
         }
     }
 
+    #[allow(dead_code)]
     pub fn release(&self, conn: DatabaseConnection) {
         let mut available = self.available.lock().unwrap();
         available.push_back(conn);
@@ -164,6 +179,7 @@ impl ConnectionPool {
         }
     }
 
+    #[allow(dead_code)]
     pub fn stats(&self) -> HashMap<String, usize> {
         let available = self.available.lock().unwrap();
         let in_use = self.in_use.lock().unwrap();
@@ -177,6 +193,7 @@ impl ConnectionPool {
         stats
     }
 
+    #[allow(dead_code)]
     pub fn close(&self) {
         let mut available = self.available.lock().unwrap();
         available.clear();
@@ -186,6 +203,7 @@ impl ConnectionPool {
         *total = 0;
     }
 
+    #[allow(dead_code)]
     fn create_connection(&self) -> Result<DatabaseConnection, String> {
         use postgres::NoTls;
 
@@ -293,6 +311,8 @@ pub enum Value {
     /// HTTP response
     HttpResponse { status: u16, body: String, headers: HashMap<String, String> },
     /// Database connection
+    /// Infrastructure for database.rs stub module
+    #[allow(dead_code)]
     Database {
         connection: DatabaseConnection,
         db_type: String,
@@ -300,16 +320,26 @@ pub enum Value {
         in_transaction: Arc<Mutex<bool>>,
     },
     /// Database connection pool
+    /// Infrastructure for database.rs stub module
+    #[allow(dead_code)]
     DatabasePool { pool: Arc<Mutex<ConnectionPool>> },
     /// Image data
     Image { data: Arc<Mutex<DynamicImage>>, format: String },
     /// Zip archive writer
+    /// Infrastructure for zip.rs stub module
+    #[allow(dead_code)]
     ZipArchive { writer: Arc<Mutex<Option<ZipWriter<File>>>>, path: String },
     /// TCP listener for accepting connections
+    /// Infrastructure for network.rs stub module
+    #[allow(dead_code)]
     TcpListener { listener: Arc<Mutex<std::net::TcpListener>>, addr: String },
     /// TCP stream for bidirectional communication
+    /// Infrastructure for network.rs stub module
+    #[allow(dead_code)]
     TcpStream { stream: Arc<Mutex<std::net::TcpStream>>, peer_addr: String },
     /// UDP socket for datagram communication
+    /// Infrastructure for network.rs stub module
+    #[allow(dead_code)]
     UdpSocket { socket: Arc<Mutex<std::net::UdpSocket>>, addr: String },
     /// Result type: Ok(value) or Err(error)
     Result { is_ok: bool, value: Box<Value> },

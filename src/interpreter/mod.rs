@@ -25,7 +25,11 @@ mod value;
 
 // Re-exports for backward compatibility
 pub use environment::Environment;
+// Test framework exports - used by CLI test command
+#[allow(unused_imports)]
 pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
+// Database infrastructure - used by stub database.rs module
+#[allow(unused_imports)]
 pub use value::{ConnectionPool, DatabaseConnection, LeakyFunctionBody, Value};
 
 // Internal-only imports
@@ -35,26 +39,42 @@ use crate::ast::{Expr, Stmt};
 use crate::builtins;
 use crate::errors::RuffError;
 use crate::module::ModuleLoader;
+
+// Infrastructure imports for stub modules (crypto.rs, database.rs, network.rs)
+// These will be used when stub modules are fully implemented
+#[allow(unused_imports)]
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
+#[allow(unused_imports)]
 use md5::Md5;
+#[allow(unused_imports)]
 use mysql_async::{prelude::*, Conn as MysqlConn, Opts as MysqlOpts};
+#[allow(unused_imports)]
 use postgres::{Client as PostgresClient, NoTls};
+#[allow(unused_imports)]
 use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding},
     Oaep, RsaPrivateKey, RsaPublicKey,
 };
+#[allow(unused_imports)]
 use rusqlite::Connection as SqliteConnection;
+#[allow(unused_imports)]
 use sha2::Sha256 as RsaSha256;
+#[allow(unused_imports)]
 use sha2::{Digest as Sha2Digest, Sha256};
+#[allow(unused_imports)]
 use std::collections::{HashMap, VecDeque};
+#[allow(unused_imports)]
 use std::fs::File;
+#[allow(unused_imports)]
 use std::io::Read;
 use std::io::Write;
+#[allow(unused_imports)]
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+#[allow(unused_imports)]
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 /// Main interpreter that executes Ruff programs
