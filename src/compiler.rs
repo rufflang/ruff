@@ -257,11 +257,13 @@ impl Compiler {
                 Ok(())
             }
 
-            Stmt::FuncDef { name, params, body, .. } => {
+            Stmt::FuncDef { name, params, body, is_async, is_generator, .. } => {
                 // Create a new compiler for the function body
                 let mut func_compiler = Compiler::new();
                 func_compiler.chunk.name = Some(name.clone());
                 func_compiler.chunk.params = params.clone();
+                func_compiler.chunk.is_async = *is_async;
+                func_compiler.chunk.is_generator = *is_generator;
                 func_compiler.scope_depth = 1; // Functions create a new scope (not global)
 
                 // Add parameters as locals

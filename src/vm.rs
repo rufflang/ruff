@@ -14,10 +14,10 @@ use std::sync::{Arc, Mutex};
 struct Upvalue {
     /// The captured value
     value: Arc<Mutex<Value>>,
-    
+
     /// Whether the upvalue is still on the stack (false) or has been closed (true)
     is_closed: bool,
-    
+
     /// If still on stack, the stack index
     stack_index: Option<usize>,
 }
@@ -42,11 +42,11 @@ pub struct VM {
 
     /// Interpreter instance for calling native functions
     interpreter: Interpreter,
-    
+
     /// Upvalues (captured variables) - indexed by upvalue ID
     /// These are heap-allocated shared references to captured variables
     upvalues: Vec<Upvalue>,
-    
+
     /// Exception handler stack for try/catch blocks
     /// Tracks nested try blocks and their catch handlers
     exception_handlers: Vec<ExceptionHandlerFrame>,
@@ -57,10 +57,10 @@ pub struct VM {
 struct ExceptionHandlerFrame {
     /// Instruction pointer for catch block
     catch_ip: usize,
-    
+
     /// Stack size when entering try block (for unwinding)
     stack_offset: usize,
-    
+
     /// Call frame depth when entering try block (for unwinding)
     frame_offset: usize,
 }
@@ -70,22 +70,22 @@ struct ExceptionHandlerFrame {
 pub struct GeneratorState {
     /// Instruction pointer where generator yielded
     pub ip: usize,
-    
+
     /// Stack snapshot at yield point
     pub stack: Vec<Value>,
-    
+
     /// Call frame stack at yield point (stored as separate values to avoid circular dependency)
     pub call_frames_data: Vec<CallFrameData>,
-    
+
     /// Bytecode chunk being executed
     pub chunk: BytecodeChunk,
-    
+
     /// Local variables at yield point
     pub locals: HashMap<String, Value>,
-    
+
     /// Captured variables at yield point
     pub captured: HashMap<String, Arc<Mutex<Value>>>,
-    
+
     /// Whether the generator has finished
     pub is_exhausted: bool,
 }
@@ -111,12 +111,15 @@ struct CallFrame {
 
     /// Local environment for this frame (parameters and local variables)
     locals: HashMap<String, Value>,
-    
+
     /// Captured variables (upvalues) with shared mutable state
     captured: HashMap<String, Arc<Mutex<Value>>>,
 
     /// Previous chunk (for returning)
     prev_chunk: Option<BytecodeChunk>,
+    
+    /// Whether this function is async (for wrapping return values in Promises)
+    is_async: bool,
 }
 
 #[allow(dead_code)] // VM not yet integrated into execution path
@@ -170,7 +173,7 @@ impl VM {
                             eprintln!("LoadVar('{}'):  checking frame captured ({} entries) and locals ({} entries)", 
                                 name, frame.captured.len(), frame.locals.len());
                         }
-                        
+
                         // Check captured variables first (these are shared mutable references)
                         if let Some(captured_ref) = frame.captured.get(&name) {
                             if std::env::var("DEBUG_VM").is_ok() {
@@ -192,17 +195,32 @@ impl VM {
                         .or_else(|| {
                             let global_val = self.globals.lock().unwrap().get(&name);
                             if std::env::var("DEBUG_VM").is_ok() {
-                                eprintln!("LoadVar('{}'): checking globals -> {:?}", name, global_val.is_some());
+                                eprintln!(
+                                    "LoadVar('{}'): checking globals -> {:?}",
+                                    name,
+                                    global_val.is_some()
+                                );
                             }
                             global_val
                         })
                         .ok_or_else(|| {
                             if std::env::var("DEBUG_VM").is_ok() {
-                                eprintln!("LoadVar('{}'): FAILED - not in captured, locals or globals", name);
-                                eprintln!("  Current frame captured: {:?}", 
-                                    self.call_frames.last().map(|f| f.captured.keys().collect::<Vec<_>>()));
-                                eprintln!("  Current frame locals: {:?}", 
-                                    self.call_frames.last().map(|f| f.locals.keys().collect::<Vec<_>>()));
+                                eprintln!(
+                                    "LoadVar('{}'): FAILED - not in captured, locals or globals",
+                                    name
+                                );
+                                eprintln!(
+                                    "  Current frame captured: {:?}",
+                                    self.call_frames
+                                        .last()
+                                        .map(|f| f.captured.keys().collect::<Vec<_>>())
+                                );
+                                eprintln!(
+                                    "  Current frame locals: {:?}",
+                                    self.call_frames
+                                        .last()
+                                        .map(|f| f.locals.keys().collect::<Vec<_>>())
+                                );
                             }
                             format!("Undefined variable: {}", name)
                         })?;
@@ -213,7 +231,8 @@ impl VM {
                 OpCode::LoadGlobal(name) => {
                     let value = self
                         .globals
-                        .lock().unwrap()
+                        .lock()
+                        .unwrap()
                         .get(&name)
                         .ok_or_else(|| format!("Undefined global: {}", name))?;
                     self.stack.push(value);
@@ -410,14 +429,14 @@ impl VM {
                                 // Generator functions don't execute immediately
                                 // Instead, create a generator instance
                                 let mut locals = HashMap::new();
-                                
+
                                 // Bind arguments to parameters
                                 for (i, param_name) in chunk.params.iter().enumerate() {
                                     if let Some(arg) = args.get(i) {
                                         locals.insert(param_name.clone(), arg.clone());
                                     }
                                 }
-                                
+
                                 // Create generator state (not yet started, IP at 0)
                                 let gen_state = GeneratorState {
                                     ip: 0,
@@ -428,15 +447,18 @@ impl VM {
                                     captured: captured.clone(),
                                     is_exhausted: false,
                                 };
-                                
+
                                 let generator = Value::BytecodeGenerator {
                                     state: Arc::new(Mutex::new(gen_state)),
                                 };
-                                
+
                                 self.stack.push(generator);
                             } else {
-                                // Regular function - set up call frame and switch context
+                                // Regular or async function - set up call frame and switch context
                                 // Return value will be pushed by Return opcode
+                                // Note: Async functions execute synchronously in the VM.
+                                // The return value will be wrapped in a Promise by the Return opcode
+                                // if needed, based on the chunk.is_async flag.
                                 self.call_bytecode_function(function, args)?;
                                 // Don't push anything - Return will do it
                             }
@@ -463,8 +485,23 @@ impl VM {
                         // Clear stack to frame offset
                         self.stack.truncate(frame.stack_offset);
 
-                        // Push return value
-                        self.stack.push(return_value);
+                        // If this was an async function, wrap the return value in a Promise
+                        let value_to_push = if frame.is_async {
+                            // Create a channel with the result already available
+                            let (tx, rx) = std::sync::mpsc::channel();
+                            tx.send(Ok(return_value)).map_err(|_| "Failed to send to promise channel")?;
+                            
+                            Value::Promise {
+                                receiver: Arc::new(Mutex::new(rx)),
+                                is_polled: Arc::new(Mutex::new(false)),
+                                cached_result: Arc::new(Mutex::new(None)),
+                            }
+                        } else {
+                            return_value
+                        };
+
+                        // Push return value (or promise)
+                        self.stack.push(value_to_push);
                     } else {
                         // Top-level return
                         return Ok(return_value);
@@ -478,7 +515,22 @@ impl VM {
                             self.chunk = prev_chunk;
                         }
                         self.stack.truncate(frame.stack_offset);
-                        self.stack.push(Value::Null);
+                        
+                        // If this was an async function, wrap None in a Promise
+                        let value_to_push = if frame.is_async {
+                            let (tx, rx) = std::sync::mpsc::channel();
+                            tx.send(Ok(Value::Null)).map_err(|_| "Failed to send to promise channel")?;
+                            
+                            Value::Promise {
+                                receiver: Arc::new(Mutex::new(rx)),
+                                is_polled: Arc::new(Mutex::new(false)),
+                                cached_result: Arc::new(Mutex::new(None)),
+                            }
+                        } else {
+                            Value::Null
+                        };
+                        
+                        self.stack.push(value_to_push);
                     } else {
                         return Ok(Value::Null);
                     }
@@ -489,20 +541,27 @@ impl VM {
                     if let Constant::Function(chunk) = constant {
                         // Capture upvalues listed in the function's chunk
                         let mut captured = HashMap::new();
-                        
+
                         if std::env::var("DEBUG_VM").is_ok() {
-                            eprintln!("MakeClosure: function has {} upvalues: {:?}", 
-                                chunk.upvalues.len(), chunk.upvalues);
+                            eprintln!(
+                                "MakeClosure: function has {} upvalues: {:?}",
+                                chunk.upvalues.len(),
+                                chunk.upvalues
+                            );
                             eprintln!("  Call stack depth: {}", self.call_frames.len());
                             if let Some(frame) = self.call_frames.last() {
-                                eprintln!("  Current frame has {} locals: {:?}, {} captured: {:?}", 
-                                    frame.locals.len(), frame.locals.keys().collect::<Vec<_>>(),
-                                    frame.captured.len(), frame.captured.keys().collect::<Vec<_>>());
+                                eprintln!(
+                                    "  Current frame has {} locals: {:?}, {} captured: {:?}",
+                                    frame.locals.len(),
+                                    frame.locals.keys().collect::<Vec<_>>(),
+                                    frame.captured.len(),
+                                    frame.captured.keys().collect::<Vec<_>>()
+                                );
                             } else {
                                 eprintln!("  No current frame!");
                             }
                         }
-                        
+
                         for upvalue_name in &chunk.upvalues {
                             // Find the variable in current scope (locals only - NOT globals)
                             // Globals/built-ins will be resolved at runtime
@@ -511,27 +570,30 @@ impl VM {
                             } else {
                                 None
                             };
-                            
+
                             if let Some(val) = value {
                                 if std::env::var("DEBUG_VM").is_ok() {
-                                    eprintln!("  Captured '{}' from locals = {:?}", upvalue_name, val);
+                                    eprintln!(
+                                        "  Captured '{}' from locals = {:?}",
+                                        upvalue_name, val
+                                    );
                                 }
                                 // Wrap in Arc<Mutex<>> for shared mutable state
                                 captured.insert(upvalue_name.clone(), Arc::new(Mutex::new(val)));
                             } else {
                                 if std::env::var("DEBUG_VM").is_ok() {
-                                    eprintln!("  Skipped '{}' (not in locals, will resolve at runtime)", upvalue_name);
+                                    eprintln!(
+                                        "  Skipped '{}' (not in locals, will resolve at runtime)",
+                                        upvalue_name
+                                    );
                                 }
                                 // Variable not in locals - it's either a global or undefined
                                 // Don't capture it - let it be resolved at runtime
                             }
                         }
-                        
+
                         // Create a closure value with captured variables
-                        let value = Value::BytecodeFunction {
-                            chunk: (**chunk).clone(),
-                            captured,
-                        };
+                        let value = Value::BytecodeFunction { chunk: (**chunk).clone(), captured };
                         self.stack.push(value);
                     } else {
                         return Err("Expected function constant".to_string());
@@ -805,7 +867,9 @@ impl VM {
                 OpCode::IteratorNext => {
                     let iterator = self.stack.pop().ok_or("Stack underflow")?;
                     // Call next() on the iterator
-                    let result = self.interpreter.call_native_function_impl("iterator_next", &[iterator.clone()]);
+                    let result = self
+                        .interpreter
+                        .call_native_function_impl("iterator_next", &[iterator.clone()]);
                     self.stack.push(iterator); // Keep iterator on stack
                     self.stack.push(result); // Push result (Some/None)
                 }
@@ -814,12 +878,10 @@ impl VM {
                     let iterator = self.stack.last().ok_or("Stack underflow")?.clone();
                     // Check if iterator has more values
                     let has_next = match &iterator {
-                        Value::Iterator { index, source, .. } => {
-                            match source.as_ref() {
-                                Value::Array(arr) => *index < arr.len(),
-                                _ => false,
-                            }
-                        }
+                        Value::Iterator { index, source, .. } => match source.as_ref() {
+                            Value::Array(arr) => *index < arr.len(),
+                            _ => false,
+                        },
                         _ => false,
                     };
                     self.stack.push(Value::Bool(has_next));
@@ -829,7 +891,7 @@ impl VM {
                 OpCode::MakeGenerator => {
                     // Pop the function from stack and convert it to a generator
                     let function = self.stack.pop().ok_or("Stack underflow in MakeGenerator")?;
-                    
+
                     if let Value::BytecodeFunction { chunk, captured } = function {
                         // Create initial generator state (not yet started)
                         let state = GeneratorState {
@@ -841,24 +903,23 @@ impl VM {
                             captured: captured.clone(),
                             is_exhausted: false,
                         };
-                        
-                        let generator = Value::BytecodeGenerator {
-                            state: Arc::new(Mutex::new(state)),
-                        };
-                        
+
+                        let generator =
+                            Value::BytecodeGenerator { state: Arc::new(Mutex::new(state)) };
+
                         self.stack.push(generator);
                     } else {
                         return Err("MakeGenerator requires a BytecodeFunction".to_string());
                     }
                 }
-                
+
                 OpCode::Yield => {
                     // Yield is handled specially in generator_next() method
                     // This opcode serves as a marker for the generator execution loop
                     // When we reach here in normal execution, it's an error
                     return Err("Yield can only be used inside generator functions".to_string());
                 }
-                
+
                 OpCode::ResumeGenerator => {
                     // Resume generator by calling generator_next()
                     // This pops the generator from stack and pushes the result (Some(value) or None)
@@ -868,10 +929,90 @@ impl VM {
                 }
 
                 // Async/await operations
-                OpCode::Await | OpCode::MakePromise | OpCode::MarkAsync => {
-                    // Async operations require integration with the runtime
-                    // For now, return an error - will implement in Week 5-6
-                    return Err("Async/await operations not yet implemented in VM".to_string());
+                OpCode::Await => {
+                    // Pop promise from stack and await it
+                    let promise = self.stack.pop().ok_or("Stack underflow in Await")?;
+                    
+                    match promise {
+                        Value::Promise { receiver, is_polled, cached_result } => {
+                            // Check if we've already polled this promise
+                            {
+                                let polled = is_polled.lock().unwrap();
+                                let cached = cached_result.lock().unwrap();
+                                
+                                if *polled {
+                                    // Use cached result
+                                    match cached.as_ref() {
+                                        Some(Ok(val)) => {
+                                            self.stack.push(val.clone());
+                                            continue;
+                                        }
+                                        Some(Err(err)) => {
+                                            return Err(format!("Promise rejected: {}", err));
+                                        }
+                                        None => {
+                                            return Err("Promise polled but no result cached".to_string());
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Poll the promise - blocks until result is ready
+                            let result = {
+                                let recv = receiver.lock().unwrap();
+                                recv.recv()
+                            };
+                            
+                            // Update cache
+                            let mut polled = is_polled.lock().unwrap();
+                            let mut cached = cached_result.lock().unwrap();
+                            
+                            match result {
+                                Ok(Ok(value)) => {
+                                    *cached = Some(Ok(value.clone()));
+                                    *polled = true;
+                                    self.stack.push(value);
+                                }
+                                Ok(Err(error)) => {
+                                    *cached = Some(Err(error.clone()));
+                                    *polled = true;
+                                    return Err(format!("Promise rejected: {}", error));
+                                }
+                                Err(_) => {
+                                    *cached = Some(Err("Promise never resolved".to_string()));
+                                    *polled = true;
+                                    return Err("Promise never resolved (channel closed)".to_string());
+                                }
+                            }
+                        }
+                        _ => {
+                            // Not a promise - just push it back (treat as already resolved)
+                            self.stack.push(promise);
+                        }
+                    }
+                }
+                
+                OpCode::MakePromise => {
+                    // Pop value from stack and wrap it in a resolved promise
+                    let value = self.stack.pop().ok_or("Stack underflow in MakePromise")?;
+                    
+                    // Create a channel that immediately sends the value
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    tx.send(Ok(value.clone())).map_err(|_| "Failed to send to promise channel")?;
+                    
+                    // Create promise with the result already available
+                    let promise = Value::Promise {
+                        receiver: Arc::new(Mutex::new(rx)),
+                        is_polled: Arc::new(Mutex::new(false)),
+                        cached_result: Arc::new(Mutex::new(None)),
+                    };
+                    
+                    self.stack.push(promise);
+                }
+                
+                OpCode::MarkAsync => {
+                    // This is a no-op marker used during compilation
+                    // It marks that the current context is async but doesn't generate runtime code
                 }
 
                 // Exception handling
@@ -883,7 +1024,7 @@ impl VM {
                         frame_offset: self.call_frames.len(),
                     });
                 }
-                
+
                 OpCode::EndTry => {
                     // Pop exception handler (normal exit from try block)
                     if self.exception_handlers.is_empty() {
@@ -891,24 +1032,26 @@ impl VM {
                     }
                     self.exception_handlers.pop();
                 }
-                
+
                 OpCode::Throw => {
                     // Pop error value from stack
                     let error_value = self.stack.pop().ok_or("Stack underflow in Throw")?;
-                    
+
                     if std::env::var("DEBUG_VM").is_ok() {
                         eprintln!("THROW: error_value={:?}", error_value);
                         eprintln!("  Exception handlers: {}", self.exception_handlers.len());
                         eprintln!("  Call frames: {}", self.call_frames.len());
                     }
-                    
+
                     // Find nearest exception handler
                     if let Some(handler) = self.exception_handlers.pop() {
                         if std::env::var("DEBUG_VM").is_ok() {
-                            eprintln!("  Handler found: catch_ip={}, frame_offset={}, stack_offset={}", 
-                                handler.catch_ip, handler.frame_offset, handler.stack_offset);
+                            eprintln!(
+                                "  Handler found: catch_ip={}, frame_offset={}, stack_offset={}",
+                                handler.catch_ip, handler.frame_offset, handler.stack_offset
+                            );
                         }
-                        
+
                         // Unwind call frames to handler's frame offset
                         // We need to restore the chunk from the target frame (or top-level)
                         while self.call_frames.len() > handler.frame_offset {
@@ -924,19 +1067,23 @@ impl VM {
                                 }
                             }
                         }
-                        
+
                         // Unwind stack to handler's stack offset
                         self.stack.truncate(handler.stack_offset);
-                        
+
                         // Push error value back onto stack for BeginCatch
                         self.stack.push(error_value);
-                        
+
                         // Jump to catch block
                         self.ip = handler.catch_ip;
-                        
+
                         if std::env::var("DEBUG_VM").is_ok() {
-                            eprintln!("  After unwind: ip={}, frames={}, stack={}", 
-                                self.ip, self.call_frames.len(), self.stack.len());
+                            eprintln!(
+                                "  After unwind: ip={}, frames={}, stack={}",
+                                self.ip,
+                                self.call_frames.len(),
+                                self.stack.len()
+                            );
                         }
                     } else {
                         // No exception handler found - uncaught exception
@@ -949,11 +1096,11 @@ impl VM {
                         return Err(error_msg);
                     }
                 }
-                
+
                 OpCode::BeginCatch(var_name) => {
                     // Pop error from stack and bind to local variable
                     let error_value = self.stack.pop().ok_or("Stack underflow in BeginCatch")?;
-                    
+
                     // Convert error to structured error object if needed
                     let error_obj = match error_value {
                         Value::Str(msg) => {
@@ -962,10 +1109,7 @@ impl VM {
                             fields.insert("message".to_string(), Value::Str(msg));
                             fields.insert("stack".to_string(), Value::Array(Vec::new()));
                             fields.insert("line".to_string(), Value::Int(0));
-                            Value::Struct {
-                                name: "Error".to_string(),
-                                fields,
-                            }
+                            Value::Struct { name: "Error".to_string(), fields }
                         }
                         Value::Error(msg) => {
                             // Legacy Error type - wrap in struct
@@ -973,10 +1117,7 @@ impl VM {
                             fields.insert("message".to_string(), Value::Str(msg));
                             fields.insert("stack".to_string(), Value::Array(Vec::new()));
                             fields.insert("line".to_string(), Value::Int(0));
-                            Value::Struct {
-                                name: "Error".to_string(),
-                                fields,
-                            }
+                            Value::Struct { name: "Error".to_string(), fields }
                         }
                         Value::ErrorObject { message, stack, line, cause } => {
                             // Full error object - convert to struct
@@ -990,24 +1131,19 @@ impl VM {
                             if let Some(cause_val) = cause {
                                 fields.insert("cause".to_string(), *cause_val);
                             }
-                            Value::Struct {
-                                name: "Error".to_string(),
-                                fields,
-                            }
+                            Value::Struct { name: "Error".to_string(), fields }
                         }
                         other => {
                             // Any other value - wrap as message
                             let mut fields = HashMap::new();
-                            fields.insert("message".to_string(), Value::Str(format!("{:?}", other)));
+                            fields
+                                .insert("message".to_string(), Value::Str(format!("{:?}", other)));
                             fields.insert("stack".to_string(), Value::Array(Vec::new()));
                             fields.insert("line".to_string(), Value::Int(0));
-                            Value::Struct {
-                                name: "Error".to_string(),
-                                fields,
-                            }
+                            Value::Struct { name: "Error".to_string(), fields }
                         }
                     };
-                    
+
                     // Bind error to variable in current frame
                     if let Some(frame) = self.call_frames.last_mut() {
                         frame.locals.insert(var_name, error_obj);
@@ -1016,7 +1152,7 @@ impl VM {
                         self.globals.lock().unwrap().set(var_name, error_obj);
                     }
                 }
-                
+
                 OpCode::EndCatch => {
                     // Nothing to do - handler already removed by Throw
                     // This opcode marks the end of the catch block for debugging/profiling
@@ -1037,7 +1173,9 @@ impl VM {
                     // Check if result is an error
                     match &result {
                         Value::Error(msg) => return Err(msg.clone()),
-                        Value::ErrorObject { .. } => return Err(format!("Error in native function {}", name)),
+                        Value::ErrorObject { .. } => {
+                            return Err(format!("Error in native function {}", name))
+                        }
                         _ => self.stack.push(result),
                     }
                 }
@@ -1049,47 +1187,49 @@ impl VM {
                         frame.locals.get(&name).cloned()
                     } else {
                         None
-                    }.or_else(|| {
+                    }
+                    .or_else(|| {
                         // Try globals
                         self.globals.lock().unwrap().get(&name)
-                    }).ok_or_else(|| format!("Variable '{}' not found for capture", name))?;
-                    
+                    })
+                    .ok_or_else(|| format!("Variable '{}' not found for capture", name))?;
+
                     // Create a new upvalue with the captured value
                     let upvalue = Upvalue {
                         value: Arc::new(Mutex::new(value)),
                         is_closed: true, // Immediately close it (move to heap)
                         stack_index: None,
                     };
-                    
+
                     let upvalue_index = self.upvalues.len();
                     self.upvalues.push(upvalue);
-                    
+
                     // Push the upvalue index onto the stack (for MakeClosure to use)
                     self.stack.push(Value::Int(upvalue_index as i64));
                 }
-                
+
                 OpCode::LoadUpvalue(index) => {
                     // Load the value from the upvalue
                     if index >= self.upvalues.len() {
                         return Err(format!("Invalid upvalue index: {}", index));
                     }
-                    
+
                     let upvalue = &self.upvalues[index];
                     let value = upvalue.value.lock().unwrap().clone();
                     self.stack.push(value);
                 }
-                
+
                 OpCode::StoreUpvalue(index) => {
                     // Store the top of stack to the upvalue
                     if index >= self.upvalues.len() {
                         return Err(format!("Invalid upvalue index: {}", index));
                     }
-                    
+
                     let value = self.stack.pop().ok_or("Stack underflow in StoreUpvalue")?;
                     let upvalue = &self.upvalues[index];
                     *upvalue.value.lock().unwrap() = value;
                 }
-                
+
                 OpCode::CloseUpvalues(_slot) => {
                     // In our simplified implementation, upvalues are immediately closed
                     // (moved to heap) when captured. This operation is a no-op.
@@ -1145,7 +1285,7 @@ impl VM {
                 for (key_const, value_const) in pairs {
                     let key = self.constant_to_value(key_const)?;
                     let value = self.constant_to_value(value_const)?;
-                    
+
                     // Key must be a string
                     if let Value::Str(key_str) = key {
                         dict.insert(key_str, value);
@@ -1188,9 +1328,13 @@ impl VM {
             for (name, value_ref) in &captured {
                 captured_map.insert(name.clone(), value_ref.clone());
             }
-            
+
             if std::env::var("DEBUG_VM").is_ok() {
-                eprintln!("CallFrame has {} captured variables: {:?}", captured_map.len(), captured_map.keys().collect::<Vec<_>>());
+                eprintln!(
+                    "CallFrame has {} captured variables: {:?}",
+                    captured_map.len(),
+                    captured_map.keys().collect::<Vec<_>>()
+                );
             }
 
             let frame = CallFrame {
@@ -1199,6 +1343,7 @@ impl VM {
                 locals,
                 captured: captured_map,
                 prev_chunk: Some(self.chunk.clone()),
+                is_async: chunk.is_async,
             };
 
             self.call_frames.push(frame);
@@ -1387,26 +1532,23 @@ impl VM {
     pub fn generator_next(&mut self, generator: Value) -> Result<Value, String> {
         if let Value::BytecodeGenerator { state } = generator {
             let gen_state = state.lock().unwrap();
-            
+
             // Check if generator is exhausted
             if gen_state.is_exhausted {
-                return Ok(Value::Option {
-                    is_some: false,
-                    value: Box::new(Value::Null),
-                });
+                return Ok(Value::Option { is_some: false, value: Box::new(Value::Null) });
             }
-            
+
             // Save current VM state
             let saved_ip = self.ip;
             let saved_chunk = self.chunk.clone();
             let saved_stack = self.stack.clone();
             let saved_frames = self.call_frames.clone();
-            
+
             // Restore generator state
             self.ip = gen_state.ip;
             self.chunk = gen_state.chunk.clone();
             self.stack = gen_state.stack.clone();
-            
+
             // Restore call frames
             self.call_frames.clear();
             for frame_data in &gen_state.call_frames_data {
@@ -1416,35 +1558,33 @@ impl VM {
                     locals: frame_data.locals.clone(),
                     captured: frame_data.captured.clone(),
                     prev_chunk: None,
+                    is_async: false, // Generators are not async
                 });
             }
-            
+
             // Drop the lock before executing
             drop(gen_state);
-            
+
             // Execute until yield or completion
             let result = loop {
                 if self.ip >= self.chunk.instructions.len() {
                     // Generator completed without explicit return
-                    break Ok(Value::Option {
-                        is_some: false,
-                        value: Box::new(Value::Null),
-                    });
+                    break Ok(Value::Option { is_some: false, value: Box::new(Value::Null) });
                 }
-                
+
                 let instruction = self.chunk.instructions[self.ip].clone();
                 self.ip += 1;
-                
+
                 // Check for Yield opcode
                 if matches!(instruction, OpCode::Yield) {
                     // Get the yielded value
                     let yielded_value = self.stack.pop().ok_or("Stack underflow in Yield")?;
-                    
+
                     // Save current state back to generator
                     let mut gen_state = state.lock().unwrap();
                     gen_state.ip = self.ip;
                     gen_state.stack = self.stack.clone();
-                    
+
                     // Save call frames
                     gen_state.call_frames_data.clear();
                     for frame in &self.call_frames {
@@ -1455,40 +1595,34 @@ impl VM {
                             captured: frame.captured.clone(),
                         });
                     }
-                    
+
                     drop(gen_state);
-                    
+
                     // Restore original VM state
                     self.ip = saved_ip;
                     self.chunk = saved_chunk;
                     self.stack = saved_stack;
                     self.call_frames = saved_frames;
-                    
+
                     // Return the yielded value
-                    break Ok(Value::Option {
-                        is_some: true,
-                        value: Box::new(yielded_value),
-                    });
+                    break Ok(Value::Option { is_some: true, value: Box::new(yielded_value) });
                 }
-                
+
                 // Check for Return opcodes (generator completed)
                 if matches!(instruction, OpCode::Return | OpCode::ReturnNone) {
                     let mut gen_state = state.lock().unwrap();
                     gen_state.is_exhausted = true;
                     drop(gen_state);
-                    
+
                     // Restore original VM state
                     self.ip = saved_ip;
                     self.chunk = saved_chunk;
                     self.stack = saved_stack;
                     self.call_frames = saved_frames;
-                    
-                    break Ok(Value::Option {
-                        is_some: false,
-                        value: Box::new(Value::Null),
-                    });
+
+                    break Ok(Value::Option { is_some: false, value: Box::new(Value::Null) });
                 }
-                
+
                 // Execute the instruction normally (by backing up IP and calling execute on single instruction)
                 // This is inefficient but simple - a better approach would be to extract instruction execution
                 // For now, we'll manually handle key instructions
@@ -1500,13 +1634,15 @@ impl VM {
                     }
                     OpCode::LoadVar(name) => {
                         let value = if let Some(frame) = self.call_frames.last() {
-                            frame.captured.get(&name)
+                            frame
+                                .captured
+                                .get(&name)
                                 .map(|r| r.lock().unwrap().clone())
                                 .or_else(|| frame.locals.get(&name).cloned())
                         } else {
                             None
                         };
-                        
+
                         let value = value
                             .or_else(|| self.globals.lock().unwrap().get(&name))
                             .ok_or_else(|| format!("Undefined variable: {}", name))?;
@@ -1527,7 +1663,7 @@ impl VM {
                     OpCode::Pop => {
                         self.stack.pop().ok_or("Stack underflow")?;
                     }
-                    
+
                     // Arithmetic operations
                     OpCode::Add => {
                         let right = self.stack.pop().ok_or("Stack underflow")?;
@@ -1559,7 +1695,7 @@ impl VM {
                         let result = self.binary_op(&left, "%", &right)?;
                         self.stack.push(result);
                     }
-                    
+
                     // Comparison operations
                     OpCode::Equal => {
                         let right = self.stack.pop().ok_or("Stack underflow")?;
@@ -1595,7 +1731,7 @@ impl VM {
                         let result = self.compare_op(&left, ">=", &right)?;
                         self.stack.push(result);
                     }
-                    
+
                     // Control flow
                     OpCode::Jump(target) => {
                         self.ip = target;
@@ -1615,18 +1751,227 @@ impl VM {
                     OpCode::JumpBack(target) => {
                         self.ip = target;
                     }
-                    
+
                     // For now, return error for other unhandled instructions
                     // Full implementation would need to handle all opcodes
                     _ => {
-                        return Err(format!("Instruction {:?} not yet handled in generator execution", instruction));
+                        return Err(format!(
+                            "Instruction {:?} not yet handled in generator execution",
+                            instruction
+                        ));
                     }
                 }
             };
-            
+
             result
         } else {
             Err("generator_next() requires a BytecodeGenerator".to_string())
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler::Compiler;
+    use crate::lexer;
+    use crate::parser::Parser;
+
+    /// Helper to compile and run Ruff code through the VM
+    fn run_vm_code(code: &str) -> Result<Value, String> {
+        let tokens = lexer::tokenize(code);
+        let mut parser = Parser::new(tokens);
+        let ast = parser.parse();
+        
+        let mut compiler = Compiler::new();
+        let chunk = compiler.compile(&ast)?;
+        
+        let mut vm = VM::new();
+        vm.execute(chunk)
+    }
+
+    #[test]
+    fn test_async_function_definition() {
+        let code = r#"
+            async func fetch_data(id) {
+                return "Data for ID";
+            }
+            
+            let promise = fetch_data(42);
+            return await promise;
+        "#;
+        
+        match run_vm_code(code) {
+            Ok(Value::Str(s)) => assert_eq!(s, "Data for ID"),
+            Ok(other) => panic!("Expected string, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_simple_return() {
+        let code = r#"
+            func get_number() {
+                return 42;
+            }
+            
+            return get_number();
+        "#;
+        
+        let result = run_vm_code(code);
+        eprintln!("Simple return test: {:?}", result);
+        
+        match result {
+            Ok(Value::Int(n)) => assert_eq!(n, 42),
+            Ok(other) => panic!("Expected int 42, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_async_await_basic() {
+        let code = r#"
+            async func get_number() {
+                return 42;
+            }
+            
+            let p = get_number();
+            return await p;
+        "#;
+        
+        let result = run_vm_code(code);
+        eprintln!("Test result: {:?}", result);
+        
+        match result {
+            Ok(Value::Int(n)) => assert_eq!(n, 42),
+            Ok(other) => panic!("Expected int 42, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_async_multiple_await() {
+        let code = r#"
+            async func double(x) {
+                return x * 2;
+            }
+            
+            let p1 = double(5);
+            let p2 = double(10);
+            let p3 = double(15);
+            
+            let r1 = await p1;
+            let r2 = await p2;
+            let r3 = await p3;
+            
+            return r1 + r2 + r3;
+        "#;
+        
+        match run_vm_code(code) {
+            Ok(Value::Int(n)) => assert_eq!(n, 10 + 20 + 30),
+            Ok(other) => panic!("Expected int 60, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_async_nested_calls() {
+        let code = r#"
+            async func inner(x) {
+                return x + 10;
+            }
+            
+            async func outer(x) {
+                let p = inner(x);
+                let result = await p;
+                return result * 2;
+            }
+            
+            let p = outer(5);
+            return await p;
+        "#;
+        
+        match run_vm_code(code) {
+            Ok(Value::Int(n)) => assert_eq!(n, (5 + 10) * 2),
+            Ok(other) => panic!("Expected int 30, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_async_with_computation() {
+        let code = r#"
+            async func calculate_sum(a, b, c) {
+                let sum = a + b + c;
+                return sum;
+            }
+            
+            let promise = calculate_sum(10, 20, 30);
+            return await promise;
+        "#;
+        
+        match run_vm_code(code) {
+            Ok(Value::Int(n)) => assert_eq!(n, 60),
+            Ok(other) => panic!("Expected int 60, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_make_promise_opcode() {
+        let code = r#"
+            # Test MakePromise opcode (though not directly accessible in syntax)
+            # We can test it indirectly through async functions
+            async func simple() {
+                return 123;
+            }
+            
+            return await simple();
+        "#;
+        
+        match run_vm_code(code) {
+            Ok(Value::Int(n)) => assert_eq!(n, 123),
+            Ok(other) => panic!("Expected int 123, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_async_promise_reuse() {
+        let code = r#"
+            async func get_value() {
+                return 999;
+            }
+            
+            let promise = get_value();
+            
+            # Await the same promise multiple times
+            let first = await promise;
+            let second = await promise;
+            
+            return first == second;
+        "#;
+        
+        match run_vm_code(code) {
+            Ok(Value::Bool(b)) => assert!(b, "Promise should return same value on multiple awaits"),
+            Ok(other) => panic!("Expected bool true, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_await_non_promise() {
+        let code = r#"
+            # Awaiting a non-promise should just return the value
+            let x = 42;
+            return await x;
+        "#;
+        
+        match run_vm_code(code) {
+            Ok(Value::Int(n)) => assert_eq!(n, 42),
+            Ok(other) => panic!("Expected int 42, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+}
+
