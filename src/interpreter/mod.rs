@@ -17,6 +17,7 @@
 // or error values for exception handling.
 
 // Module structure
+mod async_runtime;
 mod control_flow;
 mod environment;
 mod native_functions;
@@ -24,6 +25,7 @@ mod test_runner;
 mod value;
 
 // Re-exports for backward compatibility
+pub use async_runtime::AsyncRuntime;
 pub use environment::Environment;
 // Test framework exports - used by CLI test command
 #[allow(unused_imports)]
