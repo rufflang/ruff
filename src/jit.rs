@@ -13,8 +13,118 @@ use std::collections::HashMap;
 /// JIT compilation threshold - number of executions before compiling
 const JIT_THRESHOLD: usize = 100;
 
-/// Compiled function type: takes stack pointer, returns result
-type CompiledFn = unsafe extern "C" fn(*mut Value) -> i64;
+/// Runtime context passed to JIT-compiled functions
+/// This allows JIT code to access VM state (stack, variables, etc.)
+#[repr(C)]
+pub struct VMContext {
+    /// Pointer to value stack
+    pub stack_ptr: *mut Vec<Value>,
+    /// Pointer to local variables (current call frame)
+    pub locals_ptr: *mut HashMap<String, Value>,
+    /// Pointer to global variables
+    pub globals_ptr: *mut HashMap<String, Value>,
+}
+
+impl VMContext {
+    /// Create a new VMContext from VM state
+    pub fn new(
+        stack: *mut Vec<Value>,
+        locals: *mut HashMap<String, Value>,
+        globals: *mut HashMap<String, Value>,
+    ) -> Self {
+        Self { stack_ptr: stack, locals_ptr: locals, globals_ptr: globals }
+    }
+}
+
+/// Compiled function type: takes VMContext pointer, returns status code
+type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
+
+// Runtime helper functions that JIT code can call
+// These are marked #[no_mangle] so JIT code can find them by name
+
+/// Push a value onto the VM stack (called from JIT code)
+#[no_mangle]
+pub unsafe extern "C" fn jit_stack_push(ctx: *mut VMContext, value: i64) {
+    if ctx.is_null() {
+        return;
+    }
+    let ctx = &mut *ctx;
+    if !ctx.stack_ptr.is_null() {
+        let stack = &mut *ctx.stack_ptr;
+        stack.push(Value::Int(value));
+    }
+}
+
+/// Pop a value from the VM stack (called from JIT code)
+#[no_mangle]
+pub unsafe extern "C" fn jit_stack_pop(ctx: *mut VMContext) -> i64 {
+    if ctx.is_null() {
+        return 0;
+    }
+    let ctx = &mut *ctx;
+    if !ctx.stack_ptr.is_null() {
+        let stack = &mut *ctx.stack_ptr;
+        if let Some(Value::Int(val)) = stack.pop() {
+            return val;
+        }
+    }
+    0
+}
+
+/// Load a variable from locals or globals (called from JIT code)
+/// Returns the variable value as i64, or 0 if not found
+#[no_mangle]
+pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_ptr: *const u8, name_len: usize) -> i64 {
+    if ctx.is_null() || name_ptr.is_null() {
+        return 0;
+    }
+    
+    let ctx = &*ctx;
+    let name_bytes = std::slice::from_raw_parts(name_ptr, name_len);
+    let name = match std::str::from_utf8(name_bytes) {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+    
+    // Try locals first
+    if !ctx.locals_ptr.is_null() {
+        let locals = &*ctx.locals_ptr;
+        if let Some(Value::Int(val)) = locals.get(name) {
+            return *val;
+        }
+    }
+    
+    // Then try globals
+    if !ctx.globals_ptr.is_null() {
+        let globals = &*ctx.globals_ptr;
+        if let Some(Value::Int(val)) = globals.get(name) {
+            return *val;
+        }
+    }
+    
+    0
+}
+
+/// Store a variable to locals (called from JIT code)
+#[no_mangle]
+pub unsafe extern "C" fn jit_store_variable(ctx: *mut VMContext, name_ptr: *const u8, name_len: usize, value: i64) {
+    if ctx.is_null() || name_ptr.is_null() {
+        return;
+    }
+    
+    let ctx = &mut *ctx;
+    let name_bytes = std::slice::from_raw_parts(name_ptr, name_len);
+    let name = match std::str::from_utf8(name_bytes) {
+        Ok(s) => s.to_string(),
+        Err(_) => return,
+    };
+    
+    // Store in locals
+    if !ctx.locals_ptr.is_null() {
+        let locals = &mut *ctx.locals_ptr;
+        locals.insert(name, Value::Int(value));
+    }
+}
 
 /// JIT compiler for Ruff bytecode
 pub struct JitCompiler {
@@ -314,6 +424,35 @@ impl BytecodeTranslator {
                 let zero = builder.ins().iconst(types::I64, 0);
                 builder.ins().return_(&[zero]);
                 return Ok(true); // Terminates block
+            }
+
+            // Variable operations - for now, we'll simulate with stack
+            // Full implementation would call runtime helpers
+            OpCode::LoadVar(_name) => {
+                // For now, load a dummy value (0) since we don't have variable context yet
+                // TODO: Call jit_load_variable runtime helper
+                let zero = builder.ins().iconst(types::I64, 0);
+                self.push_value(zero);
+            }
+
+            OpCode::StoreVar(_name) => {
+                // For now, just pop the value and discard
+                // TODO: Call jit_store_variable runtime helper
+                let _val = self.pop_value()?;
+                // In the future: call runtime helper to actually store
+            }
+
+            OpCode::LoadGlobal(_name) => {
+                // For now, load a dummy value (0)
+                // TODO: Call jit_load_variable runtime helper with globals
+                let zero = builder.ins().iconst(types::I64, 0);
+                self.push_value(zero);
+            }
+
+            OpCode::StoreGlobal(_name) => {
+                // For now, just pop the value and discard
+                // TODO: Call jit_store_variable runtime helper with globals
+                let _val = self.pop_value()?;
             }
 
             // Unsupported operations fall back to interpreter
@@ -715,12 +854,39 @@ mod tests {
         let compiled_fn = compiler.compile(&chunk, 0).expect("Should compile");
 
         // Execute the compiled function
-        // For now, pass a null pointer since we don't need stack access for pure arithmetic
-        let result = unsafe { compiled_fn(std::ptr::null_mut()) };
+        // For now, pass a null pointer since we don't need context for pure arithmetic
+        let mut ctx = VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
+        let result = unsafe { compiled_fn(&mut ctx as *mut VMContext) };
 
         // Result should be 0 (success code)
         assert_eq!(result, 0, "Compiled function should return success code");
 
         println!("✓ Compiled code executed successfully!");
+    }
+
+    #[test]
+    fn test_compile_with_variables() {
+        let mut compiler = JitCompiler::new().unwrap();
+        let mut chunk = BytecodeChunk::new();
+
+        // Test that variable opcodes at least compile (even if stubbed)
+        // x := 5; y := 3; result := x + y
+        let const_5 = chunk.add_constant(Constant::Int(5));
+        let const_3 = chunk.add_constant(Constant::Int(3));
+
+        chunk.emit(OpCode::LoadConst(const_5));
+        chunk.emit(OpCode::StoreVar("x".to_string()));
+        chunk.emit(OpCode::LoadConst(const_3));
+        chunk.emit(OpCode::StoreVar("y".to_string()));
+        chunk.emit(OpCode::LoadVar("x".to_string()));
+        chunk.emit(OpCode::LoadVar("y".to_string()));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::StoreVar("result".to_string()));
+        chunk.emit(OpCode::Return);
+
+        let result = compiler.compile(&chunk, 0);
+        assert!(result.is_ok(), "Should compile variable operations: {:?}", result.err());
+        
+        println!("✓ Variable operations compile successfully!");
     }
 }
