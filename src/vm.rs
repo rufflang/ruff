@@ -76,6 +76,10 @@ pub struct VM {
     /// Maps function name to compiled native code
     compiled_functions: HashMap<String, CompiledFn>,
     
+    /// Cache of var_names for JIT-compiled functions
+    /// This avoids re-computing hash mappings on every call
+    jit_var_names_cache: HashMap<String, HashMap<u64, String>>,
+    
     /// Current recursion depth (for optimization and debugging)
     recursion_depth: usize,
     
@@ -176,6 +180,7 @@ impl VM {
             function_call_stack: Vec::new(),
             function_call_counts: HashMap::new(),
             compiled_functions: HashMap::new(),
+            jit_var_names_cache: HashMap::new(),
             recursion_depth: 0,
             max_recursion_depth: 0,
         }
@@ -587,30 +592,50 @@ impl VM {
                                 // Check if we have a JIT-compiled version
                                 if let Some(compiled_fn) = self.compiled_functions.get(func_name) {
                                     // Fast path: Call JIT-compiled version
-                                    if std::env::var("DEBUG_JIT").is_ok() {
-                                        eprintln!("JIT: Calling compiled function: {}", func_name);
-                                    }
                                     
                                     // Create locals HashMap for the function parameters
                                     let mut func_locals = HashMap::new();
                                     
-                                    // Create var_names HashMap for JIT variable resolution
-                                    let mut var_names = HashMap::new();
-                                    
-                                    // Bind arguments to parameter names and register them
+                                    // Bind arguments to parameter names
                                     for (i, param_name) in chunk.params.iter().enumerate() {
                                         if let Some(arg) = args.get(i) {
                                             func_locals.insert(param_name.clone(), arg.clone());
                                         }
-                                        
-                                        // Register the parameter name with its hash
-                                        use std::collections::hash_map::DefaultHasher;
-                                        use std::hash::{Hash, Hasher};
-                                        let mut hasher = DefaultHasher::new();
-                                        param_name.hash(&mut hasher);
-                                        let hash = hasher.finish();
-                                        var_names.insert(hash, param_name.clone());
                                     }
+                                    
+                                    // Get or create var_names from cache
+                                    let func_name_owned = func_name.to_string();
+                                    let mut var_names = if let Some(cached) = self.jit_var_names_cache.get(&func_name_owned) {
+                                        cached.clone()
+                                    } else {
+                                        // Build var_names once and cache it
+                                        let mut cached_var_names = HashMap::new();
+                                        
+                                        // Register parameter names
+                                        for param_name in &chunk.params {
+                                            use std::collections::hash_map::DefaultHasher;
+                                            use std::hash::{Hash, Hasher};
+                                            let mut hasher = DefaultHasher::new();
+                                            param_name.hash(&mut hasher);
+                                            let hash = hasher.finish();
+                                            cached_var_names.insert(hash, param_name.clone());
+                                        }
+                                        
+                                        // Register all LoadVar names
+                                        for instr in &chunk.instructions {
+                                            if let OpCode::LoadVar(name) = instr {
+                                                use std::collections::hash_map::DefaultHasher;
+                                                use std::hash::{Hash, Hasher};
+                                                let mut hasher = DefaultHasher::new();
+                                                name.hash(&mut hasher);
+                                                let hash = hasher.finish();
+                                                cached_var_names.insert(hash, name.clone());
+                                            }
+                                        }
+                                        
+                                        self.jit_var_names_cache.insert(func_name_owned.clone(), cached_var_names.clone());
+                                        cached_var_names
+                                    };
                                     
                                     // Save stack size to detect return value
                                     let stack_size_before = self.stack.len();
@@ -619,9 +644,13 @@ impl VM {
                                     // Get mutable pointers to VM state for VMContext
                                     let stack_ptr: *mut Vec<Value> = &mut self.stack;
                                     
-                                    // Get globals - lock and get mutable reference to the first scope
-                                    let mut globals_guard = self.globals.lock().unwrap();
-                                    let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+                                    // Get globals - drop lock before execution to avoid deadlock on recursive calls
+                                    let globals_ptr: *mut HashMap<String, Value> = {
+                                        let mut globals_guard = self.globals.lock().unwrap();
+                                        let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                        drop(globals_guard);
+                                        ptr
+                                    };
                                     
                                     // Use the function's locals (with bound parameters)
                                     let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
@@ -639,12 +668,10 @@ impl VM {
                                     vm_context.vm_ptr = vm_ptr; // Add VM pointer for Call opcode support
                                     
                                     // Execute the compiled function!
+                                    // Lock is NOT held during execution to allow recursive calls
                                     let result_code = unsafe {
                                         (*compiled_fn)(&mut vm_context)
                                     };
-                                    
-                                    // Drop the globals lock
-                                    drop(globals_guard);
                                     
                                     if result_code != 0 {
                                         return Err(format!("JIT execution failed with code: {}", result_code));
@@ -673,6 +700,16 @@ impl VM {
                                             "JIT: Function '{}' hit threshold ({} calls), attempting compilation...",
                                             func_name, JIT_FUNCTION_THRESHOLD
                                         );
+                                        // Dump bytecode for debugging
+                                        eprintln!("JIT: Bytecode for '{}':", func_name);
+                                        for (pc, instr) in chunk.instructions.iter().enumerate() {
+                                            eprintln!("  {:3}: {:?}", pc, instr);
+                                        }
+                                        // Dump constants
+                                        eprintln!("JIT: Constants for '{}':", func_name);
+                                        for (idx, constant) in chunk.constants.iter().enumerate() {
+                                            eprintln!("  {:3}: {:?}", idx, constant);
+                                        }
                                     }
                                     
                                     // Attempt to compile the function
@@ -1716,32 +1753,52 @@ impl VM {
                     
                     if let Some(compiled_fn) = compiled_fn_opt {
                         // Fast path: Direct JIT → JIT call!
-                        if std::env::var("DEBUG_JIT").is_ok() {
-                            eprintln!("JIT: Direct JIT→JIT call to '{}'", func_name);
-                        }
                         
                         // Create locals HashMap for the function parameters
                         let mut func_locals = HashMap::new();
-                        
-                        // Create var_names HashMap for JIT variable resolution
-                        let mut var_names = HashMap::new();
                         
                         // Bind arguments to parameter names
                         for (i, param_name) in chunk.params.iter().enumerate() {
                             if let Some(arg) = args.get(i) {
                                 func_locals.insert(param_name.clone(), arg.clone());
                             }
-                            
-                            // Register the parameter name with its hash
-                            use std::collections::hash_map::DefaultHasher;
-                            use std::hash::{Hash, Hasher};
-                            let mut hasher = DefaultHasher::new();
-                            param_name.hash(&mut hasher);
-                            let hash = hasher.finish();
-                            var_names.insert(hash, param_name.clone());
                         }
                         
-                        // Get VM pointer
+                        // Get or create var_names from cache (avoids re-hashing on every call)
+                        let func_name_owned = func_name.to_string();
+                        let mut var_names = if let Some(cached) = self.jit_var_names_cache.get(&func_name_owned) {
+                            // Use cached version (clone is fast since it's small)
+                            cached.clone()
+                        } else {
+                            // Build var_names once and cache it
+                            let mut cached_var_names = HashMap::new();
+                            
+                            // Register parameter names
+                            for param_name in &chunk.params {
+                                use std::collections::hash_map::DefaultHasher;
+                                use std::hash::{Hash, Hasher};
+                                let mut hasher = DefaultHasher::new();
+                                param_name.hash(&mut hasher);
+                                let hash = hasher.finish();
+                                cached_var_names.insert(hash, param_name.clone());
+                            }
+                            
+                            // Register all LoadVar names
+                            for instr in &chunk.instructions {
+                                if let OpCode::LoadVar(name) = instr {
+                                    use std::collections::hash_map::DefaultHasher;
+                                    use std::hash::{Hash, Hasher};
+                                    let mut hasher = DefaultHasher::new();
+                                    name.hash(&mut hasher);
+                                    let hash = hasher.finish();
+                                    cached_var_names.insert(hash, name.clone());
+                                }
+                            }
+                            
+                            self.jit_var_names_cache.insert(func_name_owned.clone(), cached_var_names.clone());
+                            cached_var_names
+                        };
+                        
                         let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
                         
                         // Save stack size to detect return value
@@ -1750,9 +1807,16 @@ impl VM {
                         // Get mutable pointers to VM state for VMContext
                         let stack_ptr: *mut Vec<Value> = &mut self.stack;
                         
-                        // Get globals
-                        let mut globals_guard = self.globals.lock().unwrap();
-                        let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+                        // Get globals - we need to drop the lock before executing
+                        // to avoid deadlock on recursive calls. Since JIT execution
+                        // is single-threaded, we can safely use a raw pointer.
+                        let globals_ptr: *mut HashMap<String, Value> = {
+                            let mut globals_guard = self.globals.lock().unwrap();
+                            let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                            // Explicitly drop to release lock before JIT execution
+                            drop(globals_guard);
+                            ptr
+                        };
                         
                         let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
                         let var_names_ptr: *mut HashMap<u64, String> = &mut var_names;
@@ -1767,11 +1831,10 @@ impl VM {
                         vm_context.vm_ptr = vm_ptr;
                         
                         // Execute the compiled function!
+                        // Lock is NOT held during execution to allow recursive calls
                         let result_code = unsafe {
                             compiled_fn(&mut vm_context)
                         };
-                        
-                        drop(globals_guard);
                         
                         if result_code != 0 {
                             return Err(format!("JIT execution failed with code: {}", result_code));

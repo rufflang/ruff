@@ -1007,6 +1007,143 @@ Ok(compiled_fn) => {
 
 ---
 
+## JIT Recursive Functions (Phase 7)
+
+### SSA block parameters: PEEK don't POP for conditionals
+
+- **Problem:** JumpIfFalse/JumpIfTrue cause stack underflow or wrong values
+- **Root cause:** Consuming condition value via `pop()` before branching leaves SSA in broken state
+- **Rule:** Use `peek()` for JumpIfFalse/JumpIfTrue. Only `pop()` when opcode actually consumes value.
+- **Why:** SSA block parameters need the value to flow to the target block. Popping removes it.
+- **Pattern:**
+  ```rust
+  // ✓ CORRECT - peek for conditionals
+  Opcode::JumpIfFalse(_) => {
+      let condition = self.operand_stack.last().copied()...  // peek
+  }
+  
+  // ✗ WRONG - pop loses the value
+  Opcode::JumpIfFalse(_) => {
+      let condition = self.operand_stack.pop()...  // destroys value
+  }
+  ```
+- **Symptom:** Stack underflow panics, wrong branch taken, values corrupted
+- **Location:** `src/jit.rs` translate_instruction() JumpIfFalse/JumpIfTrue handling
+
+(Discovered during: 2026-01-28_15-30_phase7-step6-recursive-jit.md)
+
+### LessEqual/GreaterEqual: DON'T use bnot to invert comparison
+
+- **Problem:** Comparison returns wrong result (e.g., `n <= 1` fails for n=0)
+- **Root cause:** `bnot` is BITWISE NOT, not LOGICAL NOT. `bnot(0)` = `-1`, not `1`
+- **Rule:** Use correct `IntCC` variant directly. Never try to invert with bnot.
+- **Why:** `bnot(x)` inverts ALL bits. For 64-bit: `bnot(0) = 0xFFFFFFFFFFFFFFFF = -1`
+- **Fix:**
+  ```rust
+  // ✓ CORRECT - use proper IntCC
+  BinaryOp::LessEqual => builder.ins().icmp(IntCC::SignedLessThanOrEqual, left, right)
+  BinaryOp::GreaterEqual => builder.ins().icmp(IntCC::SignedGreaterThanOrEqual, left, right)
+  
+  // ✗ WRONG - bnot doesn't work
+  BinaryOp::LessEqual => {
+      let gt = builder.ins().icmp(IntCC::SignedGreaterThan, left, right);
+      builder.ins().bnot(gt)  // BROKEN: inverts bits, not boolean
+  }
+  ```
+- **Location:** `src/jit.rs` translate_binary_op() comparison handling
+
+(Discovered during: 2026-01-28_15-30_phase7-step6-recursive-jit.md)
+
+### Recursive JIT calls DEADLOCK on mutex
+
+- **Problem:** Program hangs when JIT function calls itself recursively
+- **Root cause:** Mutex held during JIT execution blocks recursive `call_function_from_jit`
+- **Rule:** ALWAYS drop mutex guard BEFORE executing JIT-compiled code
+- **Why:** JIT code calls back to VM (jit_call_function → call_function_from_jit). If VM holds mutex, recursive call blocks forever.
+- **Pattern:**
+  ```rust
+  // ✓ CORRECT - drop guard before execution
+  let jit_func: fn(...) -> i64 = {
+      let guard = self.jit_compiler.lock().unwrap();
+      // get function pointer...
+      jit_ptr  // guard drops at end of block
+  };
+  jit_func(...)  // Call AFTER guard dropped
+  
+  // ✗ WRONG - guard held during call
+  let guard = self.jit_compiler.lock().unwrap();
+  let jit_func = guard.get_function_ptr();
+  jit_func(...)  // DEADLOCK on recursive call
+  ```
+- **Symptom:** Program freezes on recursive function call (no error, just hang)
+- **Location:** `src/vm.rs` run() JIT execution path
+
+(Discovered during: 2026-01-28_15-30_phase7-step6-recursive-jit.md)
+
+### Hash type mismatch: i64 vs u64 across JIT boundary
+
+- **Problem:** Variable lookup fails with wrong hash value
+- **Root cause:** Cranelift uses i64, DefaultHasher returns u64. Sign extension corrupts high bit.
+- **Rule:** Use consistent types. Convert u64 to i64 with `as i64` at definition, NOT at use.
+- **Why:** Hash `9876543210` fits in u64 but may overflow i64. Different bit patterns → wrong lookup.
+- **Fix:**
+  ```rust
+  // In JIT compilation (Cranelift)
+  let hash = compute_hash(var_name) as i64;  // Convert HERE
+  let hash_val = builder.ins().iconst(types::I64, hash);
+  
+  // In runtime lookup
+  let hash = hash_param as u64;  // Convert back for HashMap
+  var_names.get(&hash)
+  ```
+- **Symptom:** `None` returned from var_names lookup, "Unknown variable" errors
+- **Location:** `src/jit.rs` LoadVar/StoreVar, `src/vm.rs` jit_load_variable
+
+(Discovered during: 2026-01-28_15-30_phase7-step6-recursive-jit.md)
+
+### jit_load_variable must handle function Values
+
+- **Problem:** Function calls fail with "variable not found" or wrong value
+- **Root cause:** `jit_load_variable` only handled `Value::Int`, not `Value::Function`
+- **Rule:** Return sentinel value (-1) for functions, handle in JIT to trigger interpreter path
+- **Why:** Function values can't be encoded as simple i64. Need marker to signal "use runtime call"
+- **Pattern:**
+  ```rust
+  // In jit_load_variable
+  match value {
+      Value::Int(i) => *i,
+      Value::Function(_) => -1,  // Sentinel: "call the function, don't load"
+      _ => panic!("Unsupported type"),
+  }
+  
+  // In JIT code generation for Call opcode
+  // Check if loaded value is -1, if so, use call mechanism
+  ```
+- **Symptom:** Recursive calls don't work, function values corrupted
+- **Location:** `src/vm.rs` jit_load_variable(), `src/jit.rs` Call opcode
+
+(Discovered during: 2026-01-28_15-30_phase7-step6-recursive-jit.md)
+
+### Backward jumps need special SSA block parameter handling
+
+- **Problem:** Loop back-edges fail with "variable not defined" or wrong values
+- **Root cause:** SSA requires all block parameters declared BEFORE any edges created
+- **Rule:** For backward jumps: 1) Pre-analyze which vars are live, 2) Declare params at block creation, 3) Pass correct values on each edge
+- **Why:** Forward-only translation doesn't know what vars exist when creating loop header block
+- **Status:** Currently test `test_compile_simple_loop` is #[ignore] pending fix
+- **Approach:**
+  ```rust
+  // Two-pass approach needed:
+  // Pass 1: Scan bytecode, find backward jumps, identify live variables at targets
+  // Pass 2: Create blocks with correct parameters, translate with proper phi values
+  ```
+- **Symptom:** Panic on backward jump, loop variables undefined
+- **Location:** `src/jit.rs` Jump handling, needs architectural fix
+
+(Discovered during: 2026-01-28_15-30_phase7-step6-recursive-jit.md)
+
+---
+
 ## Async Runtime & Promises (Phase 5)
 
 ### Promise.all vs promise_all - Namespace Syntax Limitation
@@ -1107,4 +1244,4 @@ Ok(compiled_fn) => {
 
 ---
 
-*Last updated: 2026-01-28 (Phase 5 - Async Runtime Integration)*
+*Last updated: 2026-01-28 (Phase 7 Step 6 - Recursive JIT Functions)*
