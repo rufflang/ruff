@@ -4,7 +4,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 > **Current Version**: v0.8.0 (Released January 2026)  
 > **Next Planned Release**: v0.9.0 (JIT Performance - Beat Python)  
-> **Status**: Phase 7 - 95% Complete! Recursive JIT is **31-48x FASTER** than Python! Loop JIT remaining.
+> **Status**: Phase 7 - 98% Complete! All JIT infrastructure working. Loops in functions now JIT-compile!
 
 ---
 
@@ -15,9 +15,10 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
    - fib(25): 0.5ms vs Python's 24ms (48x faster)
    - fib(30): 5-8ms vs Python's 253ms (31-50x faster)
 
-2. **🔥 Loop JIT (Step 11)** - Enable JIT for while/for loops (P1 - CURRENT FOCUS)
-   - Loops currently fall back to interpreter
-   - Needed for array/hashmap benchmarks
+2. **✅ Loop JIT (Step 11)** - COMPLETE! Loops in JIT-compiled functions now work!
+   - Added late sealing for loop header blocks
+   - JumpBack correctly passes stack values to loop headers
+   - All 31 JIT tests passing
 
 3. **v1.0 Release Preparation** - Finalize APIs, comprehensive documentation
 
@@ -113,11 +114,17 @@ Previous issues that have been **FIXED**:
 - [x] Direct JIT recursion fully working (see Step 12)
 - Status: ✅ COMPLETE - 48x faster than Python for fib(25)!
 
-**Step 11: Loop Back-Edge Fix (P1) - NEXT PRIORITY**
-- [ ] Fix SSA block parameters for backward jumps
-- [ ] Enable JIT for `while` and `for` loops
-- [ ] Currently `test_compile_simple_loop` is ignored
-- Status: Loops fall back to interpreter. This is the main remaining work.
+**Step 11: Loop Back-Edge Fix (P1) - ✅ COMPLETE**
+- [x] Added `analyze_loop_headers()` for pre-detecting backward jump targets
+- [x] Added `stack_effect()` to calculate stack depth changes per opcode
+- [x] Added `loop_header_pcs` HashSet to track loop header blocks
+- [x] Loop headers created with proper Cranelift block parameters
+- [x] Implemented late sealing - loop headers sealed after back-edges processed
+- [x] JumpBack now passes stack values as block arguments
+- [x] Test `test_compile_simple_loop` passing
+- [x] All 31 JIT tests passing
+- Status: ✅ COMPLETE - Loops in JIT-compiled functions now work!
+- Note: Loops in top-level scripts still run interpreted (functions-only JIT design)
 
 **Step 12: Direct JIT Recursion (P0) - ✅ COMPLETE**
 - [x] Added `CompiledFnWithArg` type for direct-arg functions

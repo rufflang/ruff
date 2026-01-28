@@ -772,6 +772,9 @@ struct BytecodeTranslator {
     blocks: HashMap<usize, Block>,
     /// Expected stack depth when entering each block (for SSA handling)
     block_entry_stack_depth: HashMap<usize, usize>,
+    /// PCs that are loop headers (backward jump targets)
+    /// These blocks should not be sealed until all predecessors are processed
+    loop_header_pcs: std::collections::HashSet<usize>,
     /// VMContext parameter passed to the function
     ctx_param: Option<cranelift::prelude::Value>,
     /// External function references
@@ -839,6 +842,7 @@ impl BytecodeTranslator {
             variables: HashMap::new(), 
             blocks: HashMap::new(), 
             block_entry_stack_depth: HashMap::new(),
+            loop_header_pcs: std::collections::HashSet::new(),
             ctx_param: None,
             load_var_func: None,
             store_var_func: None,
@@ -862,6 +866,98 @@ impl BytecodeTranslator {
             direct_arg_mode: false,
             direct_arg_param: None,
             param_count: 0,
+        }
+    }
+    
+    /// Analyze bytecode to find loop headers (backward jump targets) and their expected stack depths.
+    /// This is required for correct SSA handling - Cranelift blocks must have parameters
+    /// declared when they're created, but for backward jumps we don't know the stack depth
+    /// until we reach the jump instruction.
+    /// 
+    /// Returns a HashMap: PC -> expected stack depth for blocks that receive backward jumps
+    fn analyze_loop_headers(instructions: &[OpCode], function_end: usize) -> HashMap<usize, usize> {
+        let mut loop_headers: HashMap<usize, usize> = HashMap::new();
+        
+        // Simple simulation: track stack depth changes through the bytecode
+        // We're looking for backward jumps and what stack depth they carry
+        let mut stack_depth: i32 = 0;
+        let mut pc_stack_depths: HashMap<usize, i32> = HashMap::new();
+        
+        for (pc, instruction) in instructions.iter().enumerate() {
+            if pc >= function_end {
+                break;
+            }
+            
+            // Record stack depth at this PC before processing
+            pc_stack_depths.insert(pc, stack_depth);
+            
+            // Calculate stack effect of each instruction
+            let (pops, pushes) = Self::stack_effect(instruction);
+            stack_depth = (stack_depth - pops as i32 + pushes as i32).max(0);
+            
+            // Check for backward jumps (loop back-edges)
+            match instruction {
+                OpCode::Jump(target) | OpCode::JumpBack(target) => {
+                    if *target <= pc && *target < function_end {
+                        // This is a backward jump - record the target as a loop header
+                        // The stack depth at the jump is what we need at the header
+                        let depth = stack_depth.max(0) as usize;
+                        loop_headers.insert(*target, depth);
+                        
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: Found loop header at PC {} with stack depth {}", target, depth);
+                        }
+                    }
+                }
+                OpCode::JumpIfTrue(target) | OpCode::JumpIfFalse(target) => {
+                    if *target <= pc && *target < function_end {
+                        // Conditional backward jump - this is a loop back-edge
+                        // Note: Condition stays on stack (peek), so add 1
+                        let depth = stack_depth.max(0) as usize;
+                        loop_headers.insert(*target, depth);
+                        
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: Found conditional loop header at PC {} with stack depth {}", target, depth);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        loop_headers
+    }
+    
+    /// Calculate the stack effect (pops, pushes) of a bytecode instruction
+    fn stack_effect(instruction: &OpCode) -> (usize, usize) {
+        match instruction {
+            // Push instructions (0 pops, 1 push)
+            OpCode::LoadConst(_) | OpCode::LoadVar(_) | OpCode::LoadGlobal(_) => (0, 1),
+            
+            // Pop instructions (1 pop, 0 push)
+            OpCode::Pop | OpCode::StoreVar(_) | OpCode::StoreGlobal(_) => (1, 0),
+            
+            // Binary ops (2 pops, 1 push)
+            OpCode::Add | OpCode::Sub | OpCode::Mul | OpCode::Div | OpCode::Mod
+            | OpCode::Equal | OpCode::NotEqual | OpCode::LessThan | OpCode::GreaterThan
+            | OpCode::LessEqual | OpCode::GreaterEqual => (2, 1),
+            
+            // Unary ops (1 pop, 1 push)
+            OpCode::Negate | OpCode::Not => (1, 1),
+            
+            // Stack manipulation
+            OpCode::Dup => (0, 1), // Peek + push copy
+            
+            // Control flow (vary by type)
+            OpCode::Return | OpCode::ReturnNone => (0, 0), // Terminates
+            OpCode::Jump(_) | OpCode::JumpBack(_) => (0, 0), // No stack effect
+            OpCode::JumpIfTrue(_) | OpCode::JumpIfFalse(_) => (0, 0), // Peek, no pop
+            
+            // Call (pops args + func, pushes result)
+            OpCode::Call(n) => (*n + 1, 1), // Pop n args + 1 func, push result
+            
+            // Default for unknown opcodes - assume neutral
+            _ => (0, 0),
         }
     }
     
@@ -1145,6 +1241,8 @@ impl BytecodeTranslator {
     }
 
     /// Pre-create blocks for all jump targets within the function body
+    /// For loop headers (backward jump targets), we also add block parameters
+    /// to handle the values that flow from the back-edge to the loop header
     fn create_blocks(
         &mut self,
         builder: &mut FunctionBuilder,
@@ -1152,6 +1250,9 @@ impl BytecodeTranslator {
     ) -> Result<(), String> {
         // Calculate and store function_end
         self.function_end = Self::calculate_function_end(instructions);
+        
+        // STEP 11 FIX: Analyze loop headers to find backward jump targets and their stack depths
+        let loop_headers = Self::analyze_loop_headers(instructions, self.function_end);
         
         // Create blocks for jump targets within function body
         for (pc, instruction) in instructions.iter().enumerate() {
@@ -1166,7 +1267,29 @@ impl BytecodeTranslator {
                 | OpCode::JumpBack(target) => {
                     if *target < self.function_end {
                         if !self.blocks.contains_key(target) {
-                            self.blocks.insert(*target, builder.create_block());
+                            let block = builder.create_block();
+                            
+                            // STEP 11 FIX: If this is a loop header, add block parameters
+                            // This enables backward jumps to pass values (like loop counters)
+                            if let Some(&expected_depth) = loop_headers.get(target) {
+                                // Record this as a loop header - it should NOT be sealed until
+                                // all predecessors (including back-edges) are processed
+                                self.loop_header_pcs.insert(*target);
+                                
+                                // Add i64 parameters for each expected stack value
+                                for _ in 0..expected_depth {
+                                    builder.append_block_param(block, types::I64);
+                                }
+                                // Record the expected stack depth for this block
+                                self.block_entry_stack_depth.insert(*target, expected_depth);
+                                
+                                if std::env::var("DEBUG_JIT").is_ok() {
+                                    eprintln!("JIT: Created loop header block at PC {} with {} params", 
+                                        target, expected_depth);
+                                }
+                            }
+                            
+                            self.blocks.insert(*target, block);
                         }
                     }
                     // Also create block for fallthrough
@@ -1442,8 +1565,11 @@ impl BytecodeTranslator {
 
             OpCode::JumpBack(target) => {
                 // JumpBack is like Jump but backwards (for loops)
+                // STEP 11 FIX: Loop headers have block parameters, pass current stack
                 if let Some(&target_block) = self.blocks.get(target) {
-                    builder.ins().jump(target_block, &[]);
+                    // Pass current stack values as arguments to the loop header
+                    let args: Vec<_> = self.value_stack.clone();
+                    builder.ins().jump(target_block, &args);
                     return Ok(true); // Terminates block
                 } else {
                     return Err(format!("JumpBack to undefined block at PC {}", target));
@@ -2356,7 +2482,10 @@ impl JitCompiler {
                         }
                         
                         // Seal the previous block before switching
-                        if !sealed_blocks.contains(&current_block) {
+                        // STEP 11 FIX: Don't seal loop headers yet - they have back-edges
+                        // that haven't been processed yet
+                        if !sealed_blocks.contains(&current_block) && 
+                           !translator.loop_header_pcs.iter().any(|&lpc| translator.blocks.get(&lpc) == Some(&current_block)) {
                             builder.seal_block(current_block);
                             sealed_blocks.insert(current_block);
                         }
@@ -2364,15 +2493,28 @@ impl JitCompiler {
                         current_block = block;
                         block_terminated = false;
                         
-                        // If this block expects stack values (from conditional branches),
-                        // add block parameters and restore the value_stack
+                        // If this block expects stack values (from conditional branches or loop back-edges),
+                        // restore the value_stack from block parameters
                         if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&pc) {
-                            // Clear current stack and add block parameters
+                            // Clear current stack and read block parameters
+                            // NOTE: For loop headers, parameters were added during create_blocks
+                            // For other blocks, they're added here
                             translator.value_stack.clear();
-                            for _ in 0..expected_depth {
-                                let param = builder.append_block_param(block, types::I64);
-                                translator.value_stack.push(param);
+                            let existing_params = builder.block_params(block);
+                            
+                            if existing_params.len() >= expected_depth {
+                                // Loop header - use existing parameters
+                                for i in 0..expected_depth {
+                                    translator.value_stack.push(existing_params[i]);
+                                }
+                            } else {
+                                // Not a loop header - add parameters now
+                                for _ in 0..expected_depth {
+                                    let param = builder.append_block_param(block, types::I64);
+                                    translator.value_stack.push(param);
+                                }
                             }
+                            
                             if std::env::var("DEBUG_JIT").is_ok() {
                                 eprintln!("JIT: Block at PC {} has {} params, stack restored", pc, expected_depth);
                             }
@@ -2389,7 +2531,9 @@ impl JitCompiler {
                     Ok(terminates_block) => {
                         if terminates_block {
                             // Block is terminated, seal it
-                            if !sealed_blocks.contains(&current_block) {
+                            // STEP 11 FIX: Don't seal loop headers yet - they have back-edges
+                            if !sealed_blocks.contains(&current_block) &&
+                               !translator.loop_header_pcs.iter().any(|&lpc| translator.blocks.get(&lpc) == Some(&current_block)) {
                                 builder.seal_block(current_block);
                                 sealed_blocks.insert(current_block);
                             }
@@ -2412,6 +2556,18 @@ impl JitCompiler {
                     builder.seal_block(current_block);
                 }
             }
+            
+            // STEP 11 FIX: Seal any remaining unsealed blocks (including loop headers)
+            // This must be done AFTER all edges (including back-edges) have been added
+            for (&pc, &block) in &translator.blocks {
+                if !sealed_blocks.contains(&block) {
+                    builder.seal_block(block);
+                    sealed_blocks.insert(block);
+                    if std::env::var("DEBUG_JIT").is_ok() {
+                        eprintln!("JIT: Late-sealing block at PC {}", pc);
+                    }
+                }
+            }
 
             builder.finalize();
         }
@@ -2419,7 +2575,12 @@ impl JitCompiler {
         // Compile the function
         self.module
             .define_function(func_id, &mut self.ctx)
-            .map_err(|e| format!("Failed to define function: {}", e))?;
+            .map_err(|e| {
+                if std::env::var("DEBUG_JIT").is_ok() {
+                    eprintln!("JIT define_function error: {:#?}", e);
+                }
+                format!("Failed to define function: {}", e)
+            })?;
 
         self.module.clear_context(&mut self.ctx);
         self.module.finalize_definitions().map_err(|e| format!("Failed to finalize: {}", e))?;
@@ -2676,12 +2837,23 @@ impl JitCompiler {
                         current_block = block;
                         block_terminated = false;
                         
-                        // If this block expects stack values, add block parameters
+                        // If this block expects stack values, use block parameters
+                        // NOTE: For loop headers, parameters were added during create_blocks
                         if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&pc) {
                             translator.value_stack.clear();
-                            for _ in 0..expected_depth {
-                                let param = builder.append_block_param(block, types::I64);
-                                translator.value_stack.push(param);
+                            let existing_params = builder.block_params(block);
+                            
+                            if existing_params.len() >= expected_depth {
+                                // Loop header - use existing parameters
+                                for i in 0..expected_depth {
+                                    translator.value_stack.push(existing_params[i]);
+                                }
+                            } else {
+                                // Not a loop header - add parameters now
+                                for _ in 0..expected_depth {
+                                    let param = builder.append_block_param(block, types::I64);
+                                    translator.value_stack.push(param);
+                                }
                             }
                             if std::env::var("DEBUG_JIT").is_ok() {
                                 eprintln!("JIT: Block at PC {} has {} params, stack restored", pc, expected_depth);
@@ -2878,11 +3050,20 @@ impl JitCompiler {
                         current_block = block;
                         block_terminated = false;
                         
+                        // Use existing block parameters for loop headers
                         if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&pc) {
                             translator.value_stack.clear();
-                            for _ in 0..expected_depth {
-                                let param = builder.append_block_param(block, types::I64);
-                                translator.value_stack.push(param);
+                            let existing_params = builder.block_params(block);
+                            
+                            if existing_params.len() >= expected_depth {
+                                for i in 0..expected_depth {
+                                    translator.value_stack.push(existing_params[i]);
+                                }
+                            } else {
+                                for _ in 0..expected_depth {
+                                    let param = builder.append_block_param(block, types::I64);
+                                    translator.value_stack.push(param);
+                                }
                             }
                         }
                     }
@@ -3252,42 +3433,66 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Backward jump block parameters need fix - deferred to Step 8"]
     fn test_compile_simple_loop() {
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
 
-        // Simple loop: counter from 0 to 10
-        // counter := 0
-        // loop_start:
-        //   counter := counter + 1
-        //   if counter < 10 then goto loop_start
-        //   return
+        // Simulates: while (counter < 10) { counter := counter + 1 }
+        // NOTE: StoreVar PEEKS (doesn't pop), so we need Pop after to clean stack
+        // Following the actual compiler's bytecode pattern:
+        //   loop_start:
+        //     LoadVar counter
+        //     LoadConst 10
+        //     LessThan
+        //     JumpIfFalse end
+        //     Pop (condition)
+        //     LoadVar counter
+        //     LoadConst 1
+        //     Add
+        //     StoreVar counter
+        //     Pop (clean stack - StoreVar peeks, doesn't pop)
+        //     JumpBack loop_start
+        //   end:
+        //     Pop (condition)
+        //     Return
 
-        let const_0 = chunk.add_constant(Constant::Int(0));
         let const_1 = chunk.add_constant(Constant::Int(1));
         let const_10 = chunk.add_constant(Constant::Int(10));
-
-        // Initialize counter to 0
+        let const_0 = chunk.add_constant(Constant::Int(0));
+        
+        // Initialize counter = 0
         chunk.emit(OpCode::LoadConst(const_0)); // 0: load 0
-
-        // loop_start (PC 1):
+        chunk.emit(OpCode::StoreVar("counter".to_string())); // 1: store to counter
+        chunk.emit(OpCode::Pop);                            // 2: clean stack after let
+        
+        // loop_start (PC 3): stack is empty []
         let loop_start = chunk.instructions.len();
-        chunk.emit(OpCode::Dup); // 1: duplicate counter
-        chunk.emit(OpCode::LoadConst(const_1)); // 2: load 1
-        chunk.emit(OpCode::Add); // 3: counter + 1
-
-        // Check if counter < 10
-        chunk.emit(OpCode::Dup); // 4: duplicate new counter
-        chunk.emit(OpCode::LoadConst(const_10)); // 5: load 10
-        chunk.emit(OpCode::LessThan); // 6: counter < 10
-
-        // If true, jump back to loop_start
-        let jump_if_true = chunk.emit(OpCode::JumpIfTrue(0)); // 7: conditional jump (will be patched)
-        chunk.set_jump_target(jump_if_true, loop_start);
-
-        // Exit loop
-        chunk.emit(OpCode::Return); // 8: return
+        
+        // Check condition: counter < 10
+        chunk.emit(OpCode::LoadVar("counter".to_string())); // 3: load counter, stack: [counter]
+        chunk.emit(OpCode::LoadConst(const_10));            // 4: load 10, stack: [counter, 10]
+        chunk.emit(OpCode::LessThan);                       // 5: <, stack: [is_less]
+        chunk.emit(OpCode::JumpIfFalse(0));                 // 6: jump if false (patched)
+        chunk.emit(OpCode::Pop);                            // 7: pop condition, stack: []
+        
+        // Body: counter := counter + 1
+        chunk.emit(OpCode::LoadVar("counter".to_string())); // 8: load counter
+        chunk.emit(OpCode::LoadConst(const_1));             // 9: load 1
+        chunk.emit(OpCode::Add);                            // 10: add
+        chunk.emit(OpCode::StoreVar("counter".to_string())); // 11: store counter
+        chunk.emit(OpCode::Pop);                            // 12: pop (StoreVar peeks, we need clean stack)
+        
+        // Jump back to loop start (stack is empty, matches PC 3 entry)
+        chunk.emit(OpCode::JumpBack(loop_start));           // 13: jump back
+        
+        // end (PC 14):
+        let end_pc = chunk.instructions.len();
+        chunk.emit(OpCode::Pop);                            // 14: pop condition
+        chunk.emit(OpCode::LoadVar("counter".to_string())); // 15: load final counter
+        chunk.emit(OpCode::Return);                         // 16: return
+        
+        // Patch jump
+        chunk.instructions[6] = OpCode::JumpIfFalse(end_pc);
 
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile simple loop: {:?}", result.err());

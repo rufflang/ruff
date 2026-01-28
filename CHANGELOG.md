@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 11: Loop Back-Edge Fix** (2026-01-30):
+    - Fixed JIT compilation of loops with backward jumps (JumpBack opcode)
+    - Added `analyze_loop_headers()` to pre-detect backward jump targets
+    - Added `stack_effect()` to calculate stack depth changes per opcode
+    - Added `loop_header_pcs` HashSet to track loop headers
+    - Loop headers are now created with proper Cranelift block parameters
+    - Loop headers are sealed AFTER back-edges are processed (late sealing)
+    - JumpBack now correctly passes stack values as block arguments
+    - Added comprehensive test `test_compile_simple_loop` for validation
+    - All JIT tests (31) passing with loop support
+    - Note: Loops in top-level scripts still run interpreted (only functions JIT-compile)
+
   - **Step 12 Partial: Direct JIT Recursion** (2026-01-30):
     - Added `CompiledFnWithArg` type for functions that take args directly
     - Added `CompiledFnInfo` struct tracking standard + direct-arg variants
