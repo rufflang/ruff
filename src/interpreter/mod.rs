@@ -118,6 +118,11 @@ impl Interpreter {
         self.env = locked_env.clone();
     }
 
+    /// Get the current call stack for error reporting
+    pub fn get_call_stack(&self) -> Vec<String> {
+        self.call_stack.clone()
+    }
+
     /// Get all built-in function names (for VM initialization)
     /// This returns a list of all native functions that the interpreter supports
     pub fn get_builtin_names() -> Vec<&'static str> {
@@ -1574,7 +1579,8 @@ impl Interpreter {
                     let err = RuffError::runtime_error(
                         msg.clone(),
                         crate::errors::SourceLocation::unknown(),
-                    );
+                    )
+                    .with_call_stack(self.call_stack.clone());
                     self.return_value = None; // Clear error for next input
                     return Err(Box::new(err));
                 }
@@ -1582,7 +1588,8 @@ impl Interpreter {
                     let err = RuffError::runtime_error(
                         message.clone(),
                         crate::errors::SourceLocation::unknown(),
-                    );
+                    )
+                    .with_call_stack(self.call_stack.clone());
                     self.return_value = None; // Clear error for next input
                     return Err(Box::new(err));
                 }
@@ -1600,14 +1607,14 @@ impl Interpreter {
 
         // Check if the value is an error
         match value {
-            Value::Error(msg) => Err(Box::new(RuffError::runtime_error(
-                msg,
-                crate::errors::SourceLocation::unknown(),
-            ))),
-            Value::ErrorObject { message, .. } => Err(Box::new(RuffError::runtime_error(
-                message,
-                crate::errors::SourceLocation::unknown(),
-            ))),
+            Value::Error(msg) => Err(Box::new(
+                RuffError::runtime_error(msg, crate::errors::SourceLocation::unknown())
+                    .with_call_stack(self.call_stack.clone()),
+            )),
+            Value::ErrorObject { message, .. } => Err(Box::new(
+                RuffError::runtime_error(message, crate::errors::SourceLocation::unknown())
+                    .with_call_stack(self.call_stack.clone()),
+            )),
             _ => Ok(value),
         }
     }

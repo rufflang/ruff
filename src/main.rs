@@ -171,7 +171,16 @@ fn main() {
                                 // Success - program executed
                             }
                             Err(e) => {
-                                eprintln!("Runtime error: {}", e);
+                                // Create a proper error with call stack
+                                use crate::errors::{RuffError, SourceLocation};
+                                let call_stack = vm.get_call_stack();
+                                let error = RuffError::runtime_error(
+                                    e,
+                                    SourceLocation::unknown(),
+                                )
+                                .with_call_stack(call_stack);
+                                
+                                eprintln!("{}", error);
                                 std::process::exit(1);
                             }
                         }
@@ -195,7 +204,36 @@ fn main() {
 
                 let mut interpreter = interpreter::Interpreter::new();
                 interpreter.set_source(filename, &code);
+                
+                // Execute statements
                 interpreter.eval_stmts(&stmts);
+                
+                // Check for errors in return_value and display with call stack
+                if let Some(ref val) = interpreter.return_value {
+                    use crate::errors::RuffError;
+                    match val {
+                        interpreter::Value::Error(msg) => {
+                            let err = RuffError::runtime_error(
+                                msg.clone(),
+                                crate::errors::SourceLocation::unknown(),
+                            )
+                            .with_call_stack(interpreter.get_call_stack());
+                            eprintln!("{}", err);
+                            std::process::exit(1);
+                        }
+                        interpreter::Value::ErrorObject { message, .. } => {
+                            let err = RuffError::runtime_error(
+                                message.clone(),
+                                crate::errors::SourceLocation::unknown(),
+                            )
+                            .with_call_stack(interpreter.get_call_stack());
+                            eprintln!("{}", err);
+                            std::process::exit(1);
+                        }
+                        _ => {}
+                    }
+                }
+                
                 interpreter.cleanup();
                 drop(interpreter);
             }

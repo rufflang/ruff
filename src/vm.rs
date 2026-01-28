@@ -60,6 +60,9 @@ pub struct VM {
 
     /// JIT enabled flag (can be disabled for debugging)
     jit_enabled: bool,
+
+    /// Function call stack for error reporting (tracks function names)
+    function_call_stack: Vec<String>,
 }
 
 /// Exception handler frame for active try blocks
@@ -152,6 +155,7 @@ impl VM {
                 JitCompiler::default()
             }),
             jit_enabled: true,
+            function_call_stack: Vec::new(),
         }
     }
 
@@ -171,6 +175,11 @@ impl VM {
     /// Get JIT compilation statistics
     pub fn jit_stats(&self) -> crate::jit::JitStats {
         self.jit_compiler.stats()
+    }
+
+    /// Get the VM's function call stack for error reporting
+    pub fn get_call_stack(&self) -> Vec<String> {
+        self.function_call_stack.clone()
     }
 
     /// Execute a bytecode chunk
@@ -537,6 +546,9 @@ impl VM {
                     let return_value = self.stack.pop().ok_or("Stack underflow")?;
 
                     if let Some(frame) = self.call_frames.pop() {
+                        // Pop from function call stack for error reporting
+                        self.function_call_stack.pop();
+                        
                         // Restore previous state
                         self.ip = frame.return_ip;
                         if let Some(prev_chunk) = frame.prev_chunk {
@@ -1422,6 +1434,10 @@ impl VM {
             };
 
             self.call_frames.push(frame);
+
+            // Track function call for error reporting
+            let func_name = chunk.name.as_deref().unwrap_or("<anonymous>").to_string();
+            self.function_call_stack.push(func_name);
 
             // Switch to function's chunk and reset IP
             self.chunk = chunk;

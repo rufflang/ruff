@@ -67,7 +67,7 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-/// A structured error with location information
+/// A structured error with location information and call stack
 #[derive(Debug, Clone)]
 pub struct RuffError {
     pub kind: ErrorKind,
@@ -77,6 +77,7 @@ pub struct RuffError {
     pub suggestion: Option<String>,
     pub help: Option<String>,
     pub note: Option<String>,
+    pub call_stack: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -90,6 +91,7 @@ impl RuffError {
             suggestion: None,
             help: None,
             note: None,
+            call_stack: Vec::new(),
         }
     }
 
@@ -110,6 +112,11 @@ impl RuffError {
 
     pub fn with_note(mut self, note: String) -> Self {
         self.note = Some(note);
+        self
+    }
+
+    pub fn with_call_stack(mut self, call_stack: Vec<String>) -> Self {
+        self.call_stack = call_stack;
         self
     }
 
@@ -196,6 +203,20 @@ impl fmt::Display for RuffError {
 
         if let Some(ref note) = self.note {
             writeln!(f, "   {} {}", "=".bright_cyan(), format!("note: {}", note).bright_cyan())?;
+        }
+
+        // Call stack trace
+        if !self.call_stack.is_empty() {
+            writeln!(f)?;
+            writeln!(f, "{}", "Call stack:".bright_white().bold())?;
+            for (i, frame) in self.call_stack.iter().rev().enumerate() {
+                writeln!(
+                    f,
+                    "  {} at {}",
+                    format!("{}", i).bright_blue(),
+                    frame.bright_white()
+                )?;
+            }
         }
 
         Ok(())

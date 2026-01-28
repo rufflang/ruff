@@ -451,78 +451,57 @@ struct CompiledBody {
 
 ### 32. Improve Error Context & Source Locations (P1)
 
-**Status**: Planned  
-**Estimated Effort**: Medium (2-3 weeks)
+**Status**: 🚧 IN PROGRESS (Phase 1 Complete - Call Stack Tracing)  
+**Estimated Effort**: Medium (2-3 weeks total, ~30% complete)  
+**Completed**: January 27, 2026 - Call stack display in errors
 
-**Current Issues**:
-- Line numbers incomplete throughout codebase
-- Stack traces don't always show source locations
-- Hard to trace runtime errors back to source code
-- Error messages lack context
+**Phase 1 Complete ✅ - Call Stack Tracing**:
+- ✅ Call stack tracking already exists in Interpreter
+- ✅ Added call_stack field to RuffError struct
+- ✅ Integrated call stack display into error formatting
+- ✅ Created test files for validation
+- ✅ Parser helper methods for source location tracking
 
-**Proposed Solution**:
+**Example Output**:
+```
+Runtime Error: Undefined global: undefined_var
+  --> 0:0
 
-1. **Add SourceLocation to AST Nodes**:
-   ```rust
-   pub struct SourceLocation {
-       file: Rc<String>,
-       line: usize,
-       column: usize,
-       length: usize,
-   }
+Call stack:
+  0 at level3
+  1 at level2
+  2 at level1
+```
+
+**Remaining Work**:
+
+2. **Add SourceLocation to AST Nodes**:
+   - Capture source locations during parsing
+   - Store locations for key AST nodes (function calls, variable access, assignments)
+   - Update eval_expr/eval_stmt to track current location
    
-   pub struct Expr {
-       kind: ExprKind,
-       loc: SourceLocation,
-   }
-   
-   pub struct Stmt {
-       kind: StmtKind,
-       loc: SourceLocation,
-   }
-   ```
+3. **Enhanced Error Messages with Source Context**:
+   - Extract 3 lines of context around error location
+   - Display line numbers and visual indicator (^)
+   - Example:
+     ```
+     Error at file.ruff:42:15
+       40 | func calculate(x, y) {
+       41 |     let result := x / y
+       42 |     return result + z  // Error: undefined variable 'z'
+          |                     ^
+       43 | }
+     ```
 
-2. **Maintain Call Stack**:
-   ```rust
-   pub struct CallFrame {
-       function_name: String,
-       location: SourceLocation,
-   }
-   
-   pub struct Interpreter {
-       call_stack: Vec<CallFrame>,
-       // ... existing fields
-   }
-   ```
-
-3. **Enhanced Error Messages**:
-   ```rust
-   Error at file.ruff:42:15
-     40 | func calculate(x, y) {
-     41 |     let result := x / y
-     42 |     return result + z  // Error: undefined variable 'z'
-        |                     ^
-     43 | }
-   
-   Call stack:
-     at calculate (file.ruff:42:15)
-     at main (file.ruff:10:5)
-   ```
-
-4. **Error Chaining**:
-   ```rust
-   pub struct RuntimeError {
-       message: String,
-       location: SourceLocation,
-       caused_by: Option<Box<RuntimeError>>,
-   }
-   ```
+4. **Error Chaining** (Optional Enhancement):
+   - Track causal relationships between errors
+   - Display error chains for better debugging
 
 **Benefits**:
-- Dramatically better debugging experience
-- Easier to identify and fix errors
-- Professional error reporting
-- Better user experience
+- ✅ Call stack tracing enables debugging of nested function calls
+- 🔜 Source context will dramatically improve error messages
+- 🔜 Professional error reporting on par with Rust/TypeScript compilers
+- 🔜 Better developer experience
 
 ---
 

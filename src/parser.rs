@@ -15,6 +15,7 @@
 // as it builds the AST.
 
 use crate::ast::{Expr, Stmt};
+use crate::errors::SourceLocation;
 use crate::lexer::{Token, TokenKind};
 use std::fs;
 use std::path::Path;
@@ -43,6 +44,28 @@ impl Parser {
         let tok = self.tokens.get(self.pos).map(|t| &t.kind).unwrap_or(&TokenKind::Eof);
         self.pos += 1;
         tok
+    }
+
+    /// Get the source location of the current token
+    /// Used in Phase 2 for capturing AST node locations
+    #[allow(dead_code)]
+    fn current_location(&self) -> SourceLocation {
+        if let Some(token) = self.tokens.get(self.pos) {
+            SourceLocation::new(token.line, token.column)
+        } else {
+            SourceLocation::unknown()
+        }
+    }
+
+    /// Get the source location at a specific position in the token stream
+    /// Used in Phase 2 for capturing AST node locations
+    #[allow(dead_code)]
+    fn location_at(&self, pos: usize) -> SourceLocation {
+        if let Some(token) = self.tokens.get(pos) {
+            SourceLocation::new(token.line, token.column)
+        } else {
+            SourceLocation::unknown()
+        }
     }
 
     /// Parse the entire token stream into a vector of statements

@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Call Stack Tracing in Error Messages (Task #32 - 🚧 IN PROGRESS)**:
+  - **Call Stack Display**: Runtime errors now show complete function call trace
+    - Automatically tracks all function calls in `call_stack` vector
+    - Call stack displayed in reverse order (most recent call first)
+    - Formatted with numbered frames for clarity
+    - Example output:
+      ```
+      Runtime Error: Undefined global: undefined_var
+        --> 0:0
+      
+      Call stack:
+        0 at level3
+        1 at level2
+        2 at level1
+      ```
+  - **Parser Helper Methods**: Added source location helpers for future enhancements
+    - `current_location()`: Get SourceLocation from current token
+    - `location_at(pos)`: Get SourceLocation from any position in token stream
+  - **Enhanced RuffError struct**:
+    - Added `call_stack: Vec<String>` field
+    - Added `with_call_stack()` builder method
+    - Integrated call stack into error display formatting
+  - **Test Files**: Created test cases to verify call stack display
+    - `tests/error_call_stack_test.ruff`: Tests nested function calls
+    - `tests/error_no_stack_test.ruff`: Tests errors without call stack
+  - **Next Steps**: Source location tracking in parser, multi-line context display
+
 - **Architecture Documentation (Task #34 - ✅ COMPLETE)**:
   - **`docs/CONCURRENCY.md`**: Comprehensive concurrency documentation (893 lines)
     - Threading model with Arc<Mutex<>> for shared state
