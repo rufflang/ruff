@@ -369,6 +369,11 @@ pub enum Value {
         is_polled: Arc<Mutex<bool>>,
         cached_result: Arc<Mutex<Option<Result<Value, String>>>>,
     },
+    /// Task handle for spawned async tasks
+    TaskHandle {
+        handle: Arc<Mutex<Option<tokio::task::JoinHandle<Value>>>>,
+        is_cancelled: Arc<Mutex<bool>>,
+    },
 }
 
 // Manual Debug implementation for Value
@@ -495,6 +500,14 @@ impl std::fmt::Debug for Value {
                     None => write!(f, "Promise(Pending)"),
                     Some(Ok(_)) => write!(f, "Promise(Resolved)"),
                     Some(Err(err)) => write!(f, "Promise(Rejected: {})", err),
+                }
+            }
+            Value::TaskHandle { is_cancelled, .. } => {
+                let cancelled = is_cancelled.lock().unwrap();
+                if *cancelled {
+                    write!(f, "TaskHandle(Cancelled)")
+                } else {
+                    write!(f, "TaskHandle(Running)")
                 }
             }
         }

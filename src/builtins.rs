@@ -1759,6 +1759,14 @@ pub fn format_debug_value(value: &Value) -> String {
                 Some(Err(err)) => format!("Promise(Rejected: {})", err),
             }
         }
+        Value::TaskHandle { is_cancelled, .. } => {
+            let cancelled = is_cancelled.lock().unwrap();
+            if *cancelled {
+                "TaskHandle(Cancelled)".to_string()
+            } else {
+                "TaskHandle(Running)".to_string()
+            }
+        }
     }
 }
 

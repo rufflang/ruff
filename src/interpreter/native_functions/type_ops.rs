@@ -178,6 +178,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Generator { .. } => "generator",
                     Value::Iterator { .. } => "iterator",
                     Value::Promise { .. } => "promise",
+                    Value::TaskHandle { .. } => "taskhandle",
                 };
                 Value::Str(type_name.to_string())
             } else {
