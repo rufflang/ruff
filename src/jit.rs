@@ -843,7 +843,9 @@ impl BytecodeTranslator {
 
             OpCode::StoreVar(name) => {
                 if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
-                    let value = self.pop_value()?;
+                    // IMPORTANT: StoreVar PEEKS at the stack (doesn't pop)
+                    // The value remains on stack after assignment
+                    let value = self.peek_value()?;
                     
                     // Use hash of variable name
                     let name_hash = {
@@ -859,9 +861,9 @@ impl BytecodeTranslator {
                     
                     // Call jit_store_variable(ctx, name_hash, 0, value)
                     builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
+                    // Value stays on stack - do NOT pop
                 } else {
-                    // Fallback: just pop the value
-                    let _val = self.pop_value()?;
+                    // Can't store without context - just leave value on stack
                 }
             }
 
@@ -889,9 +891,9 @@ impl BytecodeTranslator {
             }
 
             OpCode::StoreGlobal(name) => {
-                // Same as StoreVar for now
+                // Same as StoreVar - PEEKS at stack, doesn't pop
                 if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
-                    let value = self.pop_value()?;
+                    let value = self.peek_value()?;
                     
                     let name_hash = {
                         use std::collections::hash_map::DefaultHasher;
@@ -905,8 +907,9 @@ impl BytecodeTranslator {
                     let zero = builder.ins().iconst(types::I64, 0);
                     
                     builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
+                    // Value stays on stack - do NOT pop
                 } else {
-                    let _val = self.pop_value()?;
+                    // Can't store without context - leave value on stack
                 }
             }
 

@@ -6,6 +6,41 @@ If you are new to the project, read this first.
 
 ---
 
+## 🚨 CRITICAL PERFORMANCE ISSUE
+
+### JIT Compiles But Doesn't Execute - 100-400x Performance Loss!
+
+- **Problem:** Ruff is 45-200x SLOWER than Python instead of 5-10x FASTER
+- **Root Cause:** JIT compiler successfully compiles hot loops to native code, then THROWS IT AWAY and continues with bytecode interpretation
+- **Location:** `src/vm.rs` lines 204-227 - compiled functions are cached but never called
+- **Symptom:** Benchmarks show catastrophic performance (11,990ms for fib(30) vs Python's 265ms)
+- **Impact:** Ruff is running at **0.25-1% of expected performance** - essentially pure interpretation
+- **Evidence:** Simple operations (string concat, object creation) match Python because they're not compute-bound
+- **Fix Needed:** Actually execute the `compiled_fn` instead of just caching it and continuing interpretation
+- **Challenge:** Must create proper VMContext and handle transition between interpreted and JIT code
+- **Expected Result:** After fix, Ruff should be 5-10x FASTER than Python (not 45x slower!)
+- **Why This Happened:** JIT infrastructure is complete but final execution step was never wired up
+- **Good News:** The hard work is done (VM, JIT compiler, Cranelift integration all work) - just need to flip the switch!
+
+**Code that needs to change:**
+```rust
+// Current (line 204-206):
+Ok(_compiled_fn) => {
+    // For now, we just cache it and continue with bytecode interpretation
+
+// Should be:
+Ok(compiled_fn) => {
+    unsafe {
+        let result = (compiled_fn)(&mut vm_context);
+        // Handle result, skip interpreted version
+    }
+}
+```
+
+(Discovered during: 2026-01-28_03-36_jit-not-executing.md - Cross-language benchmarking)
+
+---
+
 ## Parser & Syntax
 
 ### Reserved keywords cannot be used as function names
@@ -972,4 +1007,104 @@ If you are new to the project, read this first.
 
 ---
 
-*Last updated: 2026-01-27 (Phase 4D - Guard Generation & Validation)*
+## Async Runtime & Promises (Phase 5)
+
+### Promise.all vs promise_all - Namespace Syntax Limitation
+
+- **Problem:** `await Promise.all(promises)` fails with "Undefined global: Promise"
+- **Root cause:** Ruff doesn't have true namespace/object method syntax. `Promise.all` is a single function name string, not a method on Promise class
+- **Rule:** Functions with dot notation must have snake_case aliases: both `"Promise.all"` AND `"promise_all"`
+- **Solution:** Use `await promise_all(promises)` instead
+- **Prevention:** When registering functions with `.` in names, always provide alias
+- **Location:** `src/interpreter/mod.rs` function registration
+
+(Discovered during: 2026-01-28_02-50_phase5-async-runtime.md)
+
+### MutexGuard Cannot Cross Await Points
+
+- **Problem:** Compile error "future cannot be sent between threads safely" when holding MutexGuard across `.await`
+- **Root cause:** Async futures must be `Send`. `std::sync::MutexGuard` is not `Send` by design (prevents deadlocks)
+- **Rule:** Always extract values from mutex guards into local variables BEFORE any `.await`
+- **Pattern:**
+  ```rust
+  let is_cancelled = {
+      let guard = is_cancelled.lock().unwrap();
+      *guard  // Copy value, guard drops here
+  };
+  // Now safe to await
+  match h.await { ... }
+  ```
+- **Location:** Common in `src/interpreter/native_functions/async_ops.rs`
+- **Prevention:** Never hold mutex locks across async boundaries. Extract → drop → await
+
+(Discovered during: 2026-01-28_02-50_phase5-async-runtime.md)
+
+### New Value Variants Require 4+ Updates
+
+- **Problem:** Non-exhaustive pattern errors in seemingly unrelated files after adding Value enum variant
+- **Rule:** When adding new `Value` variant (e.g., TaskHandle), update ALL these locations:
+  1. `src/interpreter/value.rs` - enum definition
+  2. `src/interpreter/value.rs` - Debug impl (`fmt()` method)
+  3. `src/builtins.rs` - `format_debug_value()` match
+  4. `src/interpreter/native_functions/type_ops.rs` - `type()` function match
+- **Why:** Rust exhaustive matching enforces handling all variants
+- **Prevention:** After adding variant, search for `match value {` or `match val {` - compiler will show locations
+- **Tip:** Compiler errors are your checklist - each one shows a place to update
+
+(Discovered during: 2026-01-28_02-50_phase5-async-runtime.md)
+
+### Native Functions Need Two-Part Registration
+
+- **Problem:** Function implemented but `Runtime Error: Undefined global: function_name`
+- **Root cause:** Native functions must be registered in BOTH static list AND environment initialization
+- **Rule:** Add to both places in `src/interpreter/mod.rs`:
+  1. `const NATIVE_FUNCTIONS: &[&str]` array (~line 390)
+  2. `initialize()` method: `self.env.define("name", Value::NativeFunction("name"))`
+- **Why:** VM uses const array for compile-time validation, runtime needs environment bindings
+- **Prevention:** Grep for existing similar function to see both registration points
+- **Implication:** Missing either causes "undefined" errors even though implementation exists
+
+(Discovered during: 2026-01-28_02-50_phase5-async-runtime.md)
+
+### Tokio Features Are Opt-In
+
+- **Problem:** `tokio::fs` or `tokio::time::timeout` not found despite having tokio dependency
+- **Root cause:** Tokio features are opt-in to minimize compile time and binary size
+- **Rule:** Enable required features in Cargo.toml:
+  ```toml
+  tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time", "io-util", "fs"] }
+  ```
+- **Why:** Not all projects need all tokio functionality. Selective features reduce bloat.
+- **Prevention:** Check tokio documentation for module-to-feature mapping before using types
+- **Common mappings:** `tokio::fs` → "fs", `tokio::time` → "time", `tokio::net` → "net"
+
+(Discovered during: 2026-01-28_02-50_phase5-async-runtime.md)
+
+### Array Building with push() in Loops Doesn't Work
+
+- **Problem:** Test hangs indefinitely when building array in loop with `array := array.push(item)`
+- **Root cause:** Unclear - possibly push() doesn't return updated array or scoping issue
+- **Rule:** AVOID push() in loops. Use literal array construction instead.
+- **Pattern:**
+  ```ruff
+  # DON'T do this:
+  promises := []
+  for item in items {
+      promise := async_func(item)
+      promises := promises.push(promise)  # Hangs or wrong result
+  }
+  
+  # DO this instead:
+  p1 := async_func(item1)
+  p2 := async_func(item2)
+  p3 := async_func(item3)
+  promises := [p1, p2, p3]
+  ```
+- **TODO:** Investigate push() behavior - is it mutating or returning new array?
+- **Prevention:** For now, build arrays manually with literals when items known at write-time
+
+(Discovered during: 2026-01-28_02-50_phase5-async-runtime.md)
+
+---
+
+*Last updated: 2026-01-28 (Phase 5 - Async Runtime Integration)*

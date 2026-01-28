@@ -1,0 +1,9 @@
+sum := 0
+i := 0
+while i < 1000000 {
+    sum := sum + i
+    i := i + 1
+}
+print("Sum of 0..999999:")
+print(sum)
+print("Expected: 499999500000")

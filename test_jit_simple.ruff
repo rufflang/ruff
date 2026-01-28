@@ -1,0 +1,9 @@
+// Simple loop test for JIT
+sum := 0
+i := 0
+while i < 1000000 {
+    sum := sum + i
+    i := i + 1
+}
+print("Sum:")
+print(sum)

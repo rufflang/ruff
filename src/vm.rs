@@ -197,27 +197,71 @@ impl VM {
             // Check if we should JIT compile this hot path
             if self.jit_enabled {
                 // For loops (backward jumps), check if we should compile
-                if let Some(OpCode::JumpBack(_)) = self.chunk.instructions.get(self.ip) {
+                if let Some(OpCode::JumpBack(jump_target)) = self.chunk.instructions.get(self.ip) {
                     if self.jit_compiler.should_compile(self.ip) {
                         // Try to compile this hot loop
-                        match self.jit_compiler.compile(&self.chunk, self.ip) {
-                            Ok(_compiled_fn) => {
-                                // Successfully compiled!
-                                // Note: For full JIT execution, we would call the compiled function here
-                                // For now, we just cache it and continue with bytecode interpretation
+                        // IMPORTANT: Compile from the loop START (jump_target), not from the JumpBack!
+                        // The JumpBack just marks the end of the loop
+                        match self.jit_compiler.compile(&self.chunk, *jump_target) {
+                            Ok(compiled_fn) => {
+                                // Successfully compiled! Now EXECUTE the compiled function
                                 if std::env::var("DEBUG_JIT").is_ok() {
                                     eprintln!(
-                                        "JIT: Successfully compiled hot loop at offset {}",
-                                        self.ip
+                                        "JIT: Successfully compiled hot loop starting at offset {} - EXECUTING NOW!",
+                                        jump_target
                                     );
                                 }
+
+                                // Execute the JIT-compiled function
+                                // Get mutable pointers to VM state for VMContext
+                                let stack_ptr: *mut Vec<Value> = &mut self.stack;
+                                
+                                // Get globals - lock and get mutable reference to the first scope
+                                let mut globals_guard = self.globals.lock().unwrap();
+                                let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+                                
+                                // Get locals from current call frame, or use globals if at top level
+                                let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
+                                    &mut frame.locals
+                                } else {
+                                    // Top-level: use globals as locals
+                                    globals_ptr
+                                };
+                                
+                                // Create VMContext
+                                let mut vm_context = crate::jit::VMContext::new(
+                                    stack_ptr,
+                                    locals_ptr,
+                                    globals_ptr,
+                                );
+                                
+                                // Execute the compiled function!
+                                let result_code = unsafe {
+                                    (compiled_fn)(&mut vm_context)
+                                };
+                                
+                                // Drop the globals lock
+                                drop(globals_guard);
+                                
+                                if result_code != 0 {
+                                    return Err(format!("JIT execution failed with code: {}", result_code));
+                                }
+                                
+                                if std::env::var("DEBUG_JIT").is_ok() {
+                                    eprintln!("JIT: Execution completed successfully!");
+                                }
+                                
+                                // The JIT function executed the loop completely
+                                // Skip past the JumpBack instruction to avoid re-executing the loop
+                                self.ip += 1;
+                                continue;
                             }
                             Err(e) => {
                                 // Compilation failed - this is expected for complex code
                                 if std::env::var("DEBUG_JIT").is_ok() {
                                     eprintln!(
                                         "JIT: Could not compile at offset {}: {}",
-                                        self.ip, e
+                                        jump_target, e
                                     );
                                 }
                             }
@@ -738,6 +782,10 @@ impl VM {
                         (Value::Dict(dict), Value::Str(key)) => {
                             dict.get(key).cloned().unwrap_or(Value::Null)
                         }
+                        (Value::Dict(dict), Value::Int(i)) => {
+                            // Support integer keys by converting to string
+                            dict.get(&i.to_string()).cloned().unwrap_or(Value::Null)
+                        }
                         (Value::Str(s), Value::Int(i)) => {
                             let idx =
                                 if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
@@ -771,6 +819,11 @@ impl VM {
                         }
                         (Value::Dict(mut dict), Value::Str(key)) => {
                             dict.insert(key, value);
+                            self.stack.push(Value::Dict(dict));
+                        }
+                        (Value::Dict(mut dict), Value::Int(i)) => {
+                            // Support integer keys by converting to string
+                            dict.insert(i.to_string(), value);
                             self.stack.push(Value::Dict(dict));
                         }
                         _ => return Err("Invalid index assignment".to_string()),

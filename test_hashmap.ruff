@@ -1,0 +1,43 @@
+// Test that hash maps work with integer keys
+
+func test_int_keys() {
+    map := {}
+    
+    // Set with integer keys
+    map[0] := "zero"
+    map[1] := "one"
+    map[42] := "answer"
+    map[100] := "hundred"
+    
+    // Get with integer keys
+    print("map[0] =")
+    print(map[0])
+    print("map[1] =")
+    print(map[1])
+    print("map[42] =")
+    print(map[42])
+    print("map[100] =")
+    print(map[100])
+    
+    // Mixed operations
+    sum := 0
+    i := 0
+    while i < 10 {
+        map[i] := i * 2
+        i := i + 1
+    }
+    
+    i := 0
+    while i < 10 {
+        sum := sum + map[i]
+        i := i + 1
+    }
+    
+    print("Sum of doubled values 0-9:")
+    print(sum)
+    
+    return "test passed"
+}
+
+result := test_int_keys()
+print(result)
