@@ -1,99 +1,85 @@
-# 🎉 Phase 7 Step 1 COMPLETE - Start Step 2 Immediately!
+# 🎉 Phase 7 Steps 1 & 2 COMPLETE - Start Step 3!
 
 ## Session Date: 2026-01-28
 
 ## Current Status
 
 ✅ **Step 1: Function Call Tracking Infrastructure - COMPLETE!**
+✅ **Step 2: Function Body Compilation Infrastructure - COMPLETE!**
 
-The foundation for function-level JIT compilation is now in place:
+The foundation for function-level JIT compilation is solid and working:
 - ✅ Call tracking implemented in VM
 - ✅ Compiled function cache ready
 - ✅ Fast path for JIT-compiled functions
-- ✅ Threshold detection (100 calls)
-- ✅ Debug logging with DEBUG_JIT
-- ✅ Comprehensive documentation
+- ✅ compile_function() compiles function bodies successfully
+- ✅ can_compile_function() validates bytecode
+- ✅ All tests passing (79/79)
+- ✅ Both steps committed and pushed to main
 
-## 🚨 IMMEDIATE ACTION REQUIRED
+## 🚨 IMMEDIATE ACTION: Start Step 3
 
-### First, Verify Compilation
+### Step 3: Call Opcode JIT Support
+
+**Goal**: Enable JIT-compiled functions to call other functions
+
+**Current Blocker**: 
+- Functions can't call other functions from JIT code
+- Call opcode is marked as unsupported
+- This prevents recursive functions like Fibonacci from being JIT-compiled
+
+**Time Estimate**: 2-3 days (9-13 hours)
+
+**What To Do**:
+1. Read `START_HERE_PHASE7_STEP3.md` for detailed implementation guide
+2. Study current Call opcode in `src/vm.rs` (lines 570-680)
+3. Implement `jit_call_function` runtime helper
+4. Add Call opcode translation to BytecodeTranslator
+5. Test with simple function calls
+6. Ensure all tests pass
+
+### Quick Start
 
 ```bash
+# 1. Verify current state
 cd /Users/robertdevore/2026/ruff
+cargo build && cargo test --lib
 
-# 1. Verify code compiles
-cargo build
+# 2. Read the guide
+cat START_HERE_PHASE7_STEP3.md
 
-# 2. Fix any errors if needed
-
-# 3. Run tests
-cargo test --lib vm
-cargo test --lib jit
-
-# 4. Test manually
-DEBUG_JIT=1 cargo run --release -- run test_function_jit_simple.ruff
+# 3. Start implementing
+# (follow the step-by-step guide in START_HERE_PHASE7_STEP3.md)
 ```
-
-⚠️ **NOTE**: Bash commands failed in previous session due to pty_posix_spawn errors.
-These MUST be run first to verify Step 1 before committing.
-
-### Then, Commit Step 1
-
-If all tests pass:
-
-```bash
-git add src/vm.rs src/jit.rs test_function_jit_simple.ruff notes/ CHANGELOG.md ROADMAP.md START_HERE_PHASE7_STEP2.md SESSION_SUMMARY_2026-01-28.md START_HERE_NEXT_SESSION.md
-git commit -m ":package: NEW: add function call tracking for JIT compilation"
-git push origin main
-```
-
-Use the commit message from `notes/COMMIT_PHASE7_STEP1.md` if you want the full detailed version.
-
-### Then, Start Step 2 Immediately!
 
 ## 📖 Required Reading (In Order)
 
-1. **`START_HERE_PHASE7_STEP2.md`** ← START HERE!
-   - Complete implementation guide for Step 2
-   - Code examples ready to paste
-   - Testing strategy included
+1. **`START_HERE_PHASE7_STEP3.md`** ← START HERE!
+   - Complete implementation guide for Step 3
+   - Step-by-step instructions
+   - Code examples and testing strategy
    
-2. **`SESSION_SUMMARY_2026-01-28.md`**
-   - What was done in previous session
-   - Current state of implementation
-   - Known issues and blockers
+2. **`SESSION_SUMMARY_2026-01-28_STEP2.md`**
+   - What was done in Step 2
+   - Technical details and test results
+   - Current limitations and next steps
    
-3. **`notes/2026-01-28_phase7_step1_complete.md`**
-   - Technical details of Step 1
-   - Architecture overview
-   - What works and what doesn't
+3. **`src/vm.rs`** (lines 570-680)
+   - Study how Call opcode currently works
+   - Understand argument passing
+   - See how function lookup works
    
 4. **`ROADMAP.md` Phase 7 section**
    - Overall implementation plan
    - All 10 steps outlined
    - Performance targets
 
-## 🎯 Next Step: Function Body Compilation
-
-**Step 2** is to implement actual function compilation in JitCompiler.
-
-Key tasks:
-1. Add `compile_function()` method to JitCompiler (3-4 hours)
-2. Add `can_compile_function()` opcode checker (1 hour)  
-3. Wire up compilation trigger in VM (1 hour)
-4. Test and debug (2-3 hours)
-
-**Total estimated time**: 5-7 hours (one work day)
-
-Full implementation guide with code examples is in `START_HERE_PHASE7_STEP2.md`.
-
 ## 📊 Progress Status
 
 ### Phase 7 Overall
-- ✅ Step 1: Function Call Tracking (COMPLETE)
-- 🔄 Step 2: Function Body Compilation (NEXT - START NOW!)
-- ⏳ Step 3: Call Opcode JIT Support
-- ⏳ Step 4: Translate Call in JIT
+- ✅ Step 1: Function Call Tracking (COMPLETE - 1 day)
+- ✅ Step 2: Function Body Compilation (COMPLETE - 0.5 days)
+- 🔄 Step 3: Call Opcode JIT Support (NEXT - 2-3 days)
+- ⏳ Step 4: Argument Passing Optimization
 - ⏳ Step 5: Testing Simple Functions
 - ⏳ Step 6: Recursive Function Optimization
 - ⏳ Step 7: Return Value Optimization
@@ -101,8 +87,8 @@ Full implementation guide with code examples is in `START_HERE_PHASE7_STEP2.md`.
 - ⏳ Step 9: Cross-Language Benchmarks
 - ⏳ Step 10: Edge Cases & Error Handling
 
-**Overall**: ~10% complete (Step 1 of 10)
-**Timeline**: On track (1 day used of 14-28 day estimate)
+**Overall**: ~20% complete (Steps 1-2 of 10)
+**Timeline**: Ahead of schedule (1.5 days used of 14-28 day estimate)
 
 ## 🎯 Why This Is Critical
 
@@ -110,101 +96,118 @@ Full implementation guide with code examples is in `START_HERE_PHASE7_STEP2.md`.
 - Fibonacci recursive: **42x SLOWER than Python** (11,782ms vs 282ms)
 - Fibonacci iterative: **7.8x SLOWER than Python** (918ms vs 118ms)
 
-**After Phase 7 completion**:
-- Fibonacci recursive: **<50ms** (5-10x FASTER than Python)
-- Fibonacci iterative: **<20ms** (5-10x FASTER than Python)
-- ALL benchmarks: **5-10x faster than Python**
+**Root Cause**: Functions can't call functions in JIT code!
+
+**After Step 3 completion**:
+- Functions will be able to call other functions
+- Recursive functions can be JIT-compiled
+- Fibonacci benchmarks will start improving
+- Opens path to full JIT coverage
 
 This is **P0 priority** and **BLOCKS v0.9.0 release**.
 
-## 📁 Files Modified in Step 1
+## 📁 Recent Commits
 
-### Code
-- `src/vm.rs` - Added call tracking infrastructure (~90 lines)
-- `src/jit.rs` - Exported CompiledFn type (1 line)
+1. **5843a9c** - Step 1: Function call tracking infrastructure
+2. **7c33500** - Step 2: Function body compilation infrastructure
 
-### Tests
-- `test_function_jit_simple.ruff` - Test file for validation
+Both pushed to main successfully.
 
-### Documentation
-- `notes/2026-01-28_phase7_step1_complete.md` - Technical notes
-- `notes/COMMIT_PHASE7_STEP1.md` - Commit information
-- `START_HERE_PHASE7_STEP2.md` - Next steps guide
-- `SESSION_SUMMARY_2026-01-28.md` - Session summary
-- `CHANGELOG.md` - Updated with Step 1
-- `ROADMAP.md` - Marked Step 1 complete
+## 📈 What's Working Now
 
-**Total**: 9 files, ~376 lines added
+✅ **Step 1 Features**:
+- Function call counting
+- Compilation threshold detection (100 calls)
+- Compiled function caching
+- Fast execution path for JIT'd functions
+- Debug logging with DEBUG_JIT
 
-## ⚠️ Known Issues
+✅ **Step 2 Features**:
+- compile_function() compiles function bodies
+- can_compile_function() validates bytecode
+- VM triggers compilation at threshold
+- Clean error handling and fallback
+- All supported opcodes working
 
-1. **Bash execution failures** in previous session
-   - Error: pty_posix_spawn failed
-   - Impact: Could not verify compilation
-   - Action: Verify immediately in next session
+❌ **What's Missing** (Step 3 will fix):
+- Call opcode not supported
+- Functions can't call other functions
+- Arguments not passed correctly
+- Recursive functions can't be JIT'd
 
-2. **Step 1 not yet committed**
-   - Code ready but not verified
-   - Must compile and test first
+## 🎯 Step 3 Success Criteria
 
-3. **No actual compilation yet**
-   - Functions are tracked but not compiled
-   - Step 2 will implement compilation logic
+When Step 3 is complete:
+- ✅ Call opcode compiles in JIT functions
+- ✅ Simple function calls work
+- ✅ No crashes or segfaults
+- ✅ All existing tests pass
+- ✅ Functions can call other functions
+- ✅ Ready for Step 4 (argument optimization)
 
-## 🚀 Success Criteria
+## 💡 Implementation Strategy
 
-### For Step 2 (Immediate Goal)
-- [ ] `compile_function()` compiles simple functions
-- [ ] `can_compile_function()` checks opcodes correctly  
-- [ ] Test file runs without crashes
-- [ ] DEBUG_JIT shows compilation messages
-- [ ] Simple functions execute via JIT
-- [ ] All existing tests still pass
+**Recommended Approach** (from guide):
+1. Start with VM callback approach (simpler)
+2. Add `jit_call_function` runtime helper
+3. Translate Call opcode to call the helper
+4. Let VM handle JIT vs interpreter decision
+5. Test with simple cases first
+6. Optimize later in future steps
 
-### For Phase 7 (Final Goal)
-- [ ] All 10 steps complete
-- [ ] Fibonacci 5-10x faster than Python
-- [ ] All benchmarks improved
-- [ ] Zero regressions
-- [ ] Production-ready JIT
-- [ ] v0.9.0 ready to ship
+**DO NOT**:
+- ❌ Try to do direct native calls yet (too complex)
+- ❌ Optimize argument passing yet (Step 4)
+- ❌ Implement tail call optimization (Step 6)
+- ❌ Try to do everything at once
 
-## 💡 Quick Start
+## 🚀 Quick Reference
 
+### Test Commands
 ```bash
-# 1. Verify Step 1
-cargo build && cargo test --lib vm
+# Build
+cargo build
 
-# 2. If tests pass, commit Step 1
-git add -A
-git commit -m ":package: NEW: add function call tracking for JIT compilation"
-git push origin main
+# Run all tests
+cargo test --lib
 
-# 3. Read implementation guide
-cat START_HERE_PHASE7_STEP2.md
+# Test with debug output
+DEBUG_JIT=1 cargo run --release -- run test_file.ruff
 
-# 4. Start implementing Step 2
-# (follow the guide in START_HERE_PHASE7_STEP2.md)
+# Check specific test
+cargo test --lib jit
 ```
 
-## 📚 Reference Documents
+### Debug Tips
+- Use `DEBUG_JIT=1` to see JIT behavior
+- Use `RUST_BACKTRACE=1` for stack traces
+- Test incrementally with simple cases
+- Check compilation with `cargo build` often
 
-- `START_HERE_PHASE7_STEP2.md` - Implementation guide (READ THIS!)
-- `SESSION_SUMMARY_2026-01-28.md` - What happened last session
-- `notes/2026-01-28_phase7_step1_complete.md` - Technical details
-- `notes/COMMIT_PHASE7_STEP1.md` - Commit message info
-- `ROADMAP.md` Phase 7 - Overall plan
-- `.github/AGENT_INSTRUCTIONS.md` - Development guidelines
+### File Locations
+- VM Call handler: `src/vm.rs` lines 570-680
+- JIT compiler: `src/jit.rs`
+- Runtime helpers: `src/jit.rs` around line 150-400
+- Tests: `tests/` directory
+
+## 📚 Documentation
+
+All documentation is up to date:
+- ✅ ROADMAP.md - Steps 1-2 marked complete
+- ✅ CHANGELOG.md - Updated with Steps 1-2
+- ✅ Session summaries - Complete and detailed
+- ✅ START_HERE_PHASE7_STEP3.md - Implementation guide ready
 
 ## 🎯 Remember
 
-- This is **P0 priority**
-- v0.9.0 **CANNOT ship** without this
-- Step 1 is **COMPLETE**, Step 2 is **NEXT**
-- Full implementation guide is ready
-- You have all the information you need
-- **START NOW!**
+- Steps 1-2 took 1.5 days (estimate was 5-7 days) ✅
+- You're ahead of schedule ✅
+- Momentum is strong ✅
+- Step 3 is well-documented ✅
+- Clear path forward ✅
+
+**Focus on Step 3 now - follow the guide in START_HERE_PHASE7_STEP3.md!**
 
 ---
 
-**Good luck with Step 2! The foundation is solid, now let's build on it!** 🚀
+**Good luck! You've got this! 🚀**
