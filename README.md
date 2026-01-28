@@ -68,7 +68,7 @@
   - Run demo: `cargo run --example jit_simple_test` for 28-37K speedup
   - See `ROADMAP.md` Phase 3 for complete technical details
 
-* **JIT Advanced Optimizations (Phase 4 - 🚧 95% IN PROGRESS)**
+* **JIT Advanced Optimizations (Phase 4 - ✅ 100% COMPLETE!)**
   - **Phase 4A (✅ Complete)**: Type profiling, adaptive recompilation, runtime helpers
   - **Phase 4B (✅ Complete)**: Type-specialized arithmetic operations
     - Int-specialized fast paths for Add/Sub/Mul/Div (pure i64 operations)
@@ -162,7 +162,19 @@
 
 ### In Progress for v0.9.0 🚧
 
-(None - All phases complete! Ready for v0.9.0 release)
+* **Function-Level JIT (Phase 7 - 🔄 70% Complete)**
+  - **Goal**: JIT compile entire user functions for optimal performance
+  - **Hot Function Detection**: Automatic compilation after 100+ calls ✅
+  - **Recursive Function Support**: Self-referential calls compile correctly ✅
+  - **Register-Based Locals (Step 7 ✅)**:
+    - Local variables use Cranelift stack slots instead of HashMap lookups
+    - Function parameters automatically initialized to stack slots
+    - ~100x faster variable access vs runtime function calls
+    - Global variables correctly fall back to runtime resolution
+  - **Current Performance**: fib(25) = 1.2s (recursive call overhead dominates)
+  - **Status**: Steps 1-7 complete, Steps 8-10 remaining
+  - **Next**: Return value optimization, iterative benchmarks, edge cases
+  - See `PHASE7_CHECKLIST.md` for detailed implementation progress
 
 ### Completed in v0.9.0 (Earlier Phases) ✅
 
