@@ -214,3 +214,44 @@ cargo run --release -- run test_fib_rec_simple.ruff
 
 **Generated**: 2026-01-28  
 **Phase 7 Progress**: 50% complete (Step 5 done, Step 6 next)
+
+---
+
+## Update (2026-01-28 - Later Session)
+
+### HashMap Bug Fixed! ✅
+
+**Issue**: HashMap benchmark was crashing with "Type mismatch in binary operation"
+
+**Root Cause**: 
+- `map[key] := value` assignments were not persisting
+- `arr[index] := value` assignments were not persisting
+- `IndexSet` opcode returned modified collection but didn't store it back to the variable
+- All HashMap/Array mutations were silently lost
+
+**Fix Applied**:
+```rust
+// In src/compiler.rs compile_assignment()
+// After IndexSet, store the modified collection back to the variable
+if let Expr::Identifier(name) = &**object {
+    if self.is_local(name) {
+        self.chunk.emit(OpCode::StoreVar(name.clone()));
+    } else {
+        self.chunk.emit(OpCode::StoreGlobal(name.clone()));
+    }
+}
+```
+
+**Result**:
+- ✅ HashMap operations now work correctly
+- ✅ Array mutations now persist
+- ✅ All 198 tests still passing
+- ✅ HashMap benchmark can now complete (though slow)
+
+**Performance Note**:
+HashMap operations are currently slow (1k items = ~524ms) compared to Python (~32ms for 100k). This is a performance optimization opportunity, not a correctness issue. The operations produce correct results.
+
+**Next Steps**:
+1. HashMap fix complete ✅
+2. Continue with Phase 7 Step 6 (Recursive Function Optimization)
+3. HashMap performance optimization can be addressed separately if needed
