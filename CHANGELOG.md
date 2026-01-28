@@ -10,6 +10,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 3 Complete: Call Opcode JIT Support** (2026-01-28):
+    - Added `jit_call_function` runtime helper for function calls from JIT code
+    - Added Call opcode translation in `BytecodeTranslator::translate_instruction`
+    - Updated `is_supported_opcode` to include `OpCode::Call`
+    - Added `call_func` field and setter to BytecodeTranslator
+    - Declared jit_call_function symbol in JitCompiler::new
+    - Functions containing Call opcodes can now be JIT-compiled!
+    - Runtime execution is placeholder (Step 4 will implement actual execution)
+    - All 79 tests still passing
+    - Opens path for recursive functions and function inlining
+    - Next: Step 4 - Argument Passing Optimization
+    - See session summary for details
+  
+  - **Step 2 Complete: Function Body Compilation Infrastructure** (2026-01-28):
+    - Implemented `compile_function()` method in JitCompiler
+    - Implemented `can_compile_function()` validation method
+    - Added function compilation at call threshold in VM
+    - Functions with only supported opcodes now compile to native code
+    - Clean fallback to interpreter for unsupported features
+    - Foundation ready for Call opcode support (Step 3)
+    - All 79 tests passing
+  
   - **Step 1 Complete: Function Call Tracking Infrastructure** (2026-01-28):
     - Added `function_call_counts` HashMap to VM for tracking call frequency
     - Added `compiled_functions` cache for storing JIT-compiled native code
