@@ -1,0 +1,12 @@
+# Very simple HashMap test
+
+map := {"a": 1, "b": 2}
+print("Map literal:", map)
+print("map[\"a\"] =", map["a"])
+print("map[\"b\"] =", map["b"])
+
+# Try assignment
+map["c"] := 3
+print("After map[\"c\"] := 3")
+print("Map:", map)
+print("map[\"c\"] =", map["c"])

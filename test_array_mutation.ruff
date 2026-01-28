@@ -1,0 +1,12 @@
+# Test if array mutation works
+
+arr := [1, 2, 3]
+print("Original array:", arr)
+
+arr[0] := 10
+print("After arr[0] := 10:", arr)
+
+arr[1] := 20
+print("After arr[1] := 20:", arr)
+
+print("Test complete!")

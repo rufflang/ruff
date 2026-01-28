@@ -992,6 +992,19 @@ impl Compiler {
                 self.compile_expr(object)?;
                 self.compile_expr(index)?;
                 self.chunk.emit(OpCode::IndexSet);
+                
+                // IndexSet leaves the modified object on the stack
+                // We need to store it back to the variable if object is an identifier
+                if let Expr::Identifier(name) = &**object {
+                    if self.is_local(name) {
+                        self.chunk.emit(OpCode::StoreVar(name.clone()));
+                    } else {
+                        self.chunk.emit(OpCode::StoreGlobal(name.clone()));
+                    }
+                } else {
+                    // For non-identifier objects (like nested access), just pop the result
+                    self.chunk.emit(OpCode::Pop);
+                }
                 Ok(())
             }
 

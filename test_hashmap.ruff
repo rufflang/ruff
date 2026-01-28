@@ -1,43 +1,33 @@
-// Test that hash maps work with integer keys
+# Test HashMap operations
 
-func test_int_keys() {
+print("Testing HashMap with integer keys...")
+
+func hash_map_ops(n) {
     map := {}
-    
-    // Set with integer keys
-    map[0] := "zero"
-    map[1] := "one"
-    map[42] := "answer"
-    map[100] := "hundred"
-    
-    // Get with integer keys
-    print("map[0] =")
-    print(map[0])
-    print("map[1] =")
-    print(map[1])
-    print("map[42] =")
-    print(map[42])
-    print("map[100] =")
-    print(map[100])
-    
-    // Mixed operations
-    sum := 0
     i := 0
-    while i < 10 {
+    while i < n {
         map[i] := i * 2
         i := i + 1
     }
-    
+    sum := 0
     i := 0
-    while i < 10 {
+    while i < n {
         sum := sum + map[i]
         i := i + 1
     }
-    
-    print("Sum of doubled values 0-9:")
-    print(sum)
-    
-    return "test passed"
+    return sum
 }
 
-result := test_int_keys()
-print(result)
+print("Test 1: Small map (10 items)")
+result1 := hash_map_ops(10)
+print("Result:", result1, "(expected 90)")
+
+print("Test 2: Medium map (100 items)")
+result2 := hash_map_ops(100)
+print("Result:", result2, "(expected 9900)")
+
+print("Test 3: Large map (1000 items)")
+result3 := hash_map_ops(1000)
+print("Result:", result3, "(expected 999000)")
+
+print("All tests complete!")
