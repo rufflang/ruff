@@ -89,17 +89,26 @@ Target: Make Ruff 5-10x faster than Python across ALL benchmarks.
 
 ### Recommendations
 
-**For v0.9.0 Release**:
-- ✅ Ship with current loop-level JIT (excellent for computational workloads)
-- ✅ Document JIT capabilities and limitations clearly
-- ✅ Set expectation: Great for loops, uses interpreter for function calls
-- ✅ Defer function-level JIT to v1.0
+**Management Decision**: IMPLEMENT FUNCTION-LEVEL JIT NOW FOR v0.9.0
 
-**For v1.0**:
-- Implement function-level JIT compilation
-- Achieve 5-10x faster than Python across ALL benchmarks
-- Support recursive function optimization
-- Add inline caching and call-site optimization
+- 🚨 This is P0 priority, NOT deferred
+- 🚨 v0.9.0 CANNOT ship without function-level JIT
+- 🚨 Start immediately in next session
+- Follow implementation plan in updated ROADMAP.md
+- Timeline: 2-4 weeks of focused work
+- Non-negotiable: Ruff must be faster than Python on ALL benchmarks
+
+**Why**:
+- Ruff cannot be 42x slower than Python on common patterns
+- Function calls are everywhere in real code
+- This is the difference between toy language and production-ready
+- Loop-level JIT alone is insufficient
+
+**Next Session MUST**:
+1. Start with function call tracking in VM
+2. Implement function body compilation
+3. Add Call opcode JIT support
+4. Achieve fibonacci performance targets
 
 ### Files Modified
 ```

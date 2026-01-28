@@ -310,12 +310,12 @@ cd examples/benchmarks && ./compare_languages.sh
 
 ---
 
-#### Phase 7: JIT Performance Critical Path - Beat Python! (1-2 weeks) - 🔥 URGENT
+#### Phase 7: JIT Performance Critical Path - Beat Python! (2-4 weeks) - 🔥 URGENT
 
-**Status**: ⚠️ IN PROGRESS - PARTIALLY COMPLETE, MAJOR WORK REMAINING  
-**Priority**: P1 (CRITICAL) - Ruff MUST be faster than Python  
-**Current State**: Small improvements made, but function-level JIT needed for breakthrough  
-**Timeline**: Extended - requires significant architectural changes
+**Status**: 🚨 IN PROGRESS - FUNCTION-LEVEL JIT REQUIRED NOW - BLOCKING v0.9.0  
+**Priority**: P0 (CRITICAL - HIGHEST) - Implementation MUST start immediately  
+**Current State**: String constant handling done, NOW IMPLEMENT FUNCTION-LEVEL JIT  
+**Timeline**: 2-4 weeks - START IMMEDIATELY in next session
 
 **🎯 MISSION: Make Ruff 5-10x FASTER than Python across ALL benchmarks**
 
@@ -365,63 +365,98 @@ cd examples/benchmarks && ./compare_languages.sh
 - Depends on Week 1 Function Call Support being complete
 - All Week 2 tasks require function-level JIT foundation
 
-**Path Forward - Realistic Assessment**:
+**🚨 DECISION: IMPLEMENT FUNCTION-LEVEL JIT NOW - NO DEFERRAL**:
 
-The fibonacci performance problem requires **function-level JIT compilation**, which is a major architectural change:
+**Management Decision**: Function-level JIT MUST be implemented NOW for v0.9.0.
+This is NOT optional, NOT deferred to v1.0. This is the IMMEDIATE next task.
 
-1. **Current Architecture**: JIT only triggers on `JumpBack` (backward jumps in loops)
-   - Works great for: `while` loops, `for` loops, computational kernels
-   - Doesn't work for: Recursive functions, functions without loops, call-heavy code
+**What Next Session MUST Implement**:
 
-2. **Required Architecture**: JIT should also trigger on:
-   - **Function entry**: After N calls, JIT-compile the entire function body
-   - **Function call sites**: Track hot call sites and inline/specialize
-   - **Return points**: Optimize return paths for common types
+The fibonacci performance problem requires **function-level JIT compilation**. Here's the implementation plan:
 
-3. **Implementation Complexity**: This requires:
-   - New JIT trigger mechanism (not just JumpBack)
-   - Function call tracking and profiling
-   - Call opcode JIT translation (jump to native code)
-   - Mixed execution model (some functions JIT'd, some interpreted)
-   - Proper handling of recursion and call chains
-   - **Estimated**: 2-4 weeks of focused development
+### IMMEDIATE IMPLEMENTATION PLAN (Start Next Session)
 
-**Recommendation for v0.9.0 Release**:
+**Week 1-2: Core Function-Level JIT Architecture**
 
-Option A (Ambitious): Complete function-level JIT before v0.9.0
-  - Timeline: +3-4 weeks
-  - Risk: HIGH - complex feature, many edge cases
-  - Reward: Meets all Phase 7 performance targets
+1. **Function Call Tracking** (2-3 days):
+   - Add `function_call_counts: HashMap<String, usize>` to VM
+   - Track every OpCode::Call execution
+   - Trigger JIT compilation after threshold (e.g., 100 calls)
+   - Location: `src/vm.rs` OpCode::Call handler
 
-Option B (Pragmatic): Ship v0.9.0 with current JIT, document limitations
-  - Timeline: Ready now
-  - Performance: Great for loops (matches Python), poor for recursive functions
-  - Document: "JIT optimizes computational loops, interpreter handles function calls"
-  - Defer: Function-level JIT to v0.10.0 or v1.0
+2. **Function Body Compilation** (3-4 days):
+   - Extend `JitCompiler::compile()` to handle function bodies (not just loops)
+   - Compile from function start to Return/ReturnNone
+   - Handle Call opcodes within functions (recursive calls)
+   - Create function registry: `compiled_functions: HashMap<String, CompiledFn>`
 
-Option C (Compromise): Quick interpreter optimizations for v0.9.0
-  - Optimize interpreter function call overhead (inline natives, reduce allocations)
-  - Target: 2-3x speedup for fibonacci (still slower than Python, but better)
-  - Timeline: 3-5 days
-  - Ship v0.9.0 with "good enough" performance, full JIT in v0.10.0
+3. **Call Opcode JIT Support** (2-3 days):
+   - Implement Call opcode translation in `translate_instruction`
+   - Generate native call instruction to jump to JIT-compiled functions
+   - Fallback to interpreter for non-JIT'd functions
+   - Handle argument passing (stack → native calling convention)
 
-**Recommended Choice**: Option B or C
-- Option A is too risky for v0.9.0 timeline
-- Current JIT is a huge win for computational workloads
-- Full function JIT is a v1.0-level feature
+**Week 3-4: Optimization & Polish**
 
-**Performance Targets** (Revised - Realistic):
+4. **Recursive Function Optimization** (3-4 days):
+   - Detect recursive patterns (fib calls fib)
+   - Optimize tail-recursive functions
+   - Memoization support for common patterns
+   - Guard against infinite recursion in JIT
+
+5. **Return Value Optimization** (2-3 days):
+   - Fast path for integer returns (no boxing/unboxing)
+   - Direct register return for primitives
+   - Optimize Return opcode in JIT
+
+6. **Testing & Validation** (3-4 days):
+   - Test recursive fibonacci (target: <50ms for n=30)
+   - Test iterative fibonacci (target: <20ms for 100k iterations)
+   - Ensure all existing tests pass
+   - Cross-language benchmarks
+
+**Required Architecture Changes**:
+
+1. **JIT Trigger Mechanism**: 
+   - Current: Only on JumpBack (loops)
+   - New: ALSO on function entry (after N calls)
+   
+2. **Function Registry**:
+   - Track which functions are JIT-compiled
+   - Map function names to native code pointers
+   
+3. **Call Opcode Handler**:
+   - Check if function is JIT-compiled
+   - If yes: Jump to native code
+   - If no: Use interpreter
+   
+4. **Mixed Execution**:
+   - Some functions JIT'd, some interpreted
+   - Seamless transitions between modes
+
+**Implementation Complexity**: 
+- **Estimated**: 2-4 weeks of focused development
+- **Risk**: MEDIUM - well-defined scope, clear path forward
+- **Reward**: Meets ALL Phase 7 performance targets
+
+**THIS IS NOT DEFERRED - START IMMEDIATELY NEXT SESSION**
+
+**Performance Targets** (MUST ACHIEVE for v0.9.0):
 ```
-CURRENT (v0.9.0 - Loop-Level JIT):
+CURRENT (Loop-Level JIT Only):
 - Array Sum (1M):        52ms (Ruff) vs 52ms (Python) - ✅ MATCHES!
 - Hash Map (100k):       34ms (Ruff) vs 34ms (Python) - ✅ MATCHES!
 - Fib Recursive (n=30):  11,782ms (Ruff) vs 282ms (Python) - ❌ 42x slower
 - Fib Iterative (100k):  918ms (Ruff) vs 118ms (Python) - ❌ 7.8x slower
 
-FUTURE (v1.0 - Function-Level JIT):
-- Fib Recursive (n=30):  <50ms  (5-10x faster than Python)
-- Fib Iterative (100k):  <20ms  (5-10x faster than Python)
-- All benchmarks:        5-10x faster than Python
+TARGET (v0.9.0 - After Function-Level JIT):
+- Fib Recursive (n=30):  <50ms  (5-10x FASTER than Python) - MUST ACHIEVE
+- Fib Iterative (100k):  <20ms  (5-10x FASTER than Python) - MUST ACHIEVE
+- Array Sum (1M):        <10ms  (5x faster than Python)
+- Hash Map (100k):       <20ms  (still faster than Python)
+- All benchmarks:        5-10x faster than Python - NON-NEGOTIABLE
+
+GOAL: Ruff >= 5x faster than Python, approaching Go performance
 ```
 
 **Performance Targets** (Non-Negotiable):
@@ -442,26 +477,26 @@ GOAL: Ruff >= 5x faster than Python, approaching Go performance
 4. [ ] Measure guard failure rates (infrastructure exists, needs analysis)
 5. ✅ Compare with Python, Go, Node.js on identical workloads (DONE)
 
-**Success Criteria** (Revised for v0.9.0):
+**Success Criteria** (BLOCKING v0.9.0 Release):
 - ✅ JIT compilation working for loops (ACHIEVED)
 - ✅ Performance matches Python for loop-heavy workloads (ACHIEVED)
 - ✅ String constants don't block loop compilation (ACHIEVED)  
 - ✅ All comparison operators supported (ACHIEVED)
-- ❌ Function-level JIT (DEFERRED to v1.0)
-- ❌ Fibonacci performance targets (DEFERRED to v1.0)
+- 🚨 Function-level JIT (MUST IMPLEMENT NOW - NOT DEFERRED)
+- 🚨 Fibonacci performance targets (MUST ACHIEVE - NOT DEFERRED)
 
-**v0.9.0 Deliverables** (What We Ship):
-- ✅ Working JIT for integer arithmetic loops
-- ✅ Matches Python performance on computational workloads
-- ✅ String constant handling for loops
-- 📝 Documentation of current JIT capabilities and limitations
-- 📝 Roadmap for function-level JIT in v1.0
+**v0.9.0 Deliverables** (REQUIRED):
+- ✅ Working JIT for integer arithmetic loops (DONE)
+- ✅ Matches Python performance on computational workloads (DONE)
+- ✅ String constant handling for loops (DONE)
+- 🚨 Function-level JIT compilation (IMPLEMENT NEXT SESSION)
+- 🚨 5-10x faster than Python on recursive functions (IMPLEMENT NEXT SESSION)
+- 🚨 Fibonacci benchmarks must beat Python (IMPLEMENT NEXT SESSION)
 
-**v1.0 Goals** (Future Work):
-- Function-level JIT compilation
-- 5-10x faster than Python across ALL benchmarks
-- Recursive function optimization
-- Inline caching and call-site optimization
+**v0.9.0 CANNOT SHIP WITHOUT**:
+- Function-level JIT working
+- Fibonacci faster than Python (minimum 2x, target 5-10x)
+- All benchmarks showing Ruff >= Python performance
 
 **Documentation Updates**:
 - ✅ Update CHANGELOG.md with Phase 7 progress (DONE)
@@ -470,7 +505,22 @@ GOAL: Ruff >= 5x faster than Python, approaching Go performance
 - [ ] Add "JIT Best Practices" guide for users
 - [ ] Document when JIT helps vs doesn't help
 
-**Note**: Phase 7 partially complete. Loop-level JIT is a major win, but function-level JIT is needed for dramatic fibonacci speedup. This is a v1.0-level feature requiring significant architectural work. Current v0.9.0 JIT provides excellent performance for computational loops, which covers most real-world use cases.
+**🚨 CRITICAL NOTE FOR NEXT SESSION**: 
+
+**START HERE**: Implement function-level JIT compilation IMMEDIATELY.
+- This is P0 priority, blocking v0.9.0 release
+- Follow the implementation plan above (Week 1-2 core architecture, Week 3-4 optimization)
+- Begin with function call tracking in VM
+- Timeline: 2-4 weeks, start NOW
+- Do NOT defer, do NOT skip, this MUST be done for v0.9.0
+
+**Why This Is Critical**:
+- Ruff cannot claim to be performant while being 42x slower than Python on common patterns
+- Function calls are everywhere in real code (not just fibonacci)
+- Loop-level JIT alone is insufficient for production use
+- This is the difference between "toy language" and "serious alternative to Python"
+
+**Management Decision**: Function-level JIT is NON-NEGOTIABLE for v0.9.0.
 
 ---
 

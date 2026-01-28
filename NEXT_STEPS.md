@@ -1,13 +1,39 @@
 # Phase 7 Implementation - What to Do Next
 
+## 🚨 MANAGEMENT DECISION: IMPLEMENT FUNCTION-LEVEL JIT NOW
+
+**This is NOT deferred to v1.0. This MUST be done NOW for v0.9.0.**
+
 ## Summary
-Phase 7 goal was to make Ruff 5-10x faster than Python across ALL benchmarks.
+Phase 7 goal: Make Ruff 5-10x faster than Python across ALL benchmarks.
 
-**Result**: Partially achieved.
+**Current Status**: 
 - ✅ Loops: Match Python performance (excellent!)
-- ❌ Recursive functions: 42x slower (needs major work)
+- 🚨 Recursive functions: 42x slower - MUST FIX NOW
 
-## Files Modified
+**Decision**: Function-level JIT is P0 priority, blocking v0.9.0 release.
+
+## IMMEDIATE ACTION REQUIRED (Next Session)
+
+### START WITH THIS: Function-Level JIT Implementation
+
+Read `ROADMAP.md` Phase 7 section for complete implementation plan.
+
+**Week 1-2: Core Architecture** (DO THIS FIRST)
+1. Function call tracking (2-3 days)
+2. Function body compilation (3-4 days)
+3. Call opcode JIT support (2-3 days)
+
+**Week 3-4: Optimization**
+4. Recursive function optimization (3-4 days)
+5. Return value optimization (2-3 days)
+6. Testing & validation (3-4 days)
+
+**Timeline**: 2-4 weeks, start immediately
+**Risk**: Medium (well-defined scope)
+**Reward**: Meets ALL performance targets
+
+## Files Modified This Session
 - `src/jit.rs` - String constant handling fix
 - `CHANGELOG.md` - Phase 7 documentation
 - `ROADMAP.md` - Realistic assessment
@@ -40,70 +66,93 @@ This will:
 - Fibonacci is all function calls, no loops to optimize
 - Solution: Need to implement function-level JIT (major work)
 
-### 3. Realistic Planning (Critical)
-- Updated ROADMAP with honest assessment
-- Presented 3 options for v0.9.0:
-  - Option A: Delay release, implement function JIT (+3-4 weeks)
-  - Option B: Ship now, document limitations (recommended)
-  - Option C: Quick interpreter tweaks (3-5 days, 2-3x speedup)
-- Removed "BLOCKING" status from Phase 7
-- Set realistic v0.9.0 vs v1.0 expectations
+### 3. Management Decision (CRITICAL)
+- **DECISION**: Implement function-level JIT NOW for v0.9.0
+- **NO DEFERRAL**: This is P0 priority, blocking release
+- **TIMELINE**: 2-4 weeks, start immediately next session
+- Updated ROADMAP with detailed implementation plan
+- Updated all documentation to reflect this decision
+- Next agent MUST start with function-level JIT implementation
 
-## Recommendation: Ship v0.9.0 Now
+## 🚨 Management Decision: DO NOT DEFER
 
-**Why**:
-- Loop-level JIT is a MAJOR achievement (239x speedup!)
-- Matches Python on computational workloads
-- Most real code has loops, not deep recursion
-- Function-level JIT is 2-4 weeks of complex work
-- Can ship v1.0 with full JIT later
+**Previous recommendation was**: Ship v0.9.0 without function JIT, defer to v1.0
+**NEW DECISION**: Implement function-level JIT NOW for v0.9.0
 
-**What to Say About Performance**:
-- "Ruff v0.9.0 includes a JIT compiler for computational loops"
-- "Matches Python performance on array operations, math, and iterative algorithms"
-- "Recursive functions currently use the interpreter"
-- "Function-level JIT coming in v1.0 for 5-10x speedup on all code"
+**Why This Changed**:
+- 42x slower than Python is UNACCEPTABLE for production use
+- Function calls are fundamental to all real code, not edge case
+- This determines if Ruff is serious language or toy project
+- Loop-level JIT alone is insufficient
+- Must achieve 5-10x faster than Python on ALL benchmarks
 
-## Alternative: Quick Wins (Option C)
+**What Next Agent MUST Do**:
+1. Read ROADMAP.md Phase 7 section (detailed plan)
+2. Implement function call tracking in VM (start here)
+3. Implement function body compilation in JIT
+4. Add Call opcode JIT support
+5. Optimize recursive functions
+6. Test against fibonacci benchmarks
+7. Achieve <50ms for fib(30), <20ms for fib_iter(100k)
 
-If you want to improve fibonacci before v0.9.0:
+**Timeline**: 2-4 weeks focused work
+**Priority**: P0 - Highest priority, blocking v0.9.0
+**Non-negotiable**: v0.9.0 cannot ship without this
 
-**Interpreter Optimizations** (3-5 days):
-1. Inline native function calls
-2. Reduce allocations in hot paths
-3. Optimize Value enum layout
-4. Fast path for integer operations
+## Implementation Resources
 
-**Expected**: 2-3x speedup on fibonacci (still slower than Python, but better)
+**Start Here**:
+- `ROADMAP.md` Phase 7 - Complete implementation plan (read this first!)
+- Detailed week-by-week breakdown
+- Clear architecture requirements
+- Success criteria defined
 
-## For v1.0: Function-Level JIT
+**Code to Modify**:
+- `src/vm.rs` - Add function call tracking to OpCode::Call
+- `src/jit.rs` - Extend compile() for function bodies, add Call opcode
+- `src/bytecode.rs` - May need function metadata
 
-**What's Needed**:
-1. JIT trigger on function entry (not just loops)
-2. Track function call counts
-3. Compile hot functions to native code
-4. Make Call opcode jump to native code
-5. Handle recursion properly
-6. Mixed execution (JIT + interpreter)
+**Test Cases**:
+- `examples/benchmarks/fibonacci.ruff` - Primary test
+- Target: <50ms for fib(30) recursive
+- Target: <20ms for fib_iter(100k) iterative
 
-**Estimated**: 2-4 weeks of focused work
+## Performance Targets (MUST ACHIEVE)
 
-**Result**: 5-10x faster than Python on ALL benchmarks
+```
+CURRENT:
+- Fib Recursive (n=30):  11,782ms - UNACCEPTABLE
+- Fib Iterative (100k):  918ms - UNACCEPTABLE
 
+REQUIRED FOR v0.9.0:
+- Fib Recursive (n=30):  <50ms (5-10x FASTER than Python)
+- Fib Iterative (100k):  <20ms (5-10x FASTER than Python)
+- ALL benchmarks:        >= Python performance (minimum)
+- Target:                5-10x faster than Python (goal)
+```
 ## Questions?
 
-Read:
-- `PHASE7_SESSION_SUMMARY.md` - Complete session details
-- `ROADMAP.md` - Phase 7 section with all options
-- `CHANGELOG.md` - What changed and why
+Read (in order):
+1. `ROADMAP.md` Phase 7 - **START HERE** - Complete implementation plan
+2. `PHASE7_SESSION_SUMMARY.md` - What was done this session
+3. `CHANGELOG.md` - Phase 7 section
+
+## Commit These Changes
+
+```bash
+cd /Users/robertdevore/2026/ruff
+chmod +x do_commit.sh
+./do_commit.sh
+```
 
 ## Agent Instructions Compliance
 
 ✅ Followed all rules from `.github/AGENT_INSTRUCTIONS.md`:
 - Created TODO list and tracked progress
-- Made minimal, surgical changes
-- Committed incrementally (ready to commit now)
+- Made minimal, surgical changes to code
 - Updated CHANGELOG, ROADMAP, documentation
-- Used proper commit message format
+- Used proper commit message format (:ok_hand: IMPROVE:)
 - Provided clear, actionable path forward
 - No fluff, only facts in documentation
+- **Added**: Clear directive for next session (function-level JIT is P0)
+

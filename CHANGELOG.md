@@ -24,13 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Current JIT only compiles loops (JumpBack detection), not function bodies
     - Need function-level JIT compilation for dramatic speedup (major architecture change)
   
-  - **Next Steps for Phase 7** (Future Work):
-    - Function-level JIT compilation (not just loops)
-    - Call opcode support for recursive function optimization
-    - Inline caching for hot function calls
-    - Return value optimization for integer-returning functions
-    - Type specialization for function arguments
+  - **Next Steps for Phase 7** (IMMEDIATE - START NEXT SESSION):
+    - 🚨 **PRIORITY 0: Implement Function-Level JIT NOW** (NOT deferred to v1.0)
+    - Management decision: This MUST be done for v0.9.0, no deferral
+    - Begin with function call tracking in VM (2-3 days)
+    - Implement function body compilation (3-4 days)
+    - Add Call opcode JIT support (2-3 days)
+    - Optimize recursive functions (3-4 days)
+    - Timeline: 2-4 weeks, start immediately
     - Target: 5-10x faster than Python across all benchmarks
+    - See ROADMAP.md Phase 7 for detailed implementation plan
 
 - **🎉 JIT Execution Now Working! (v0.9.0) - Critical Performance Breakthrough**:
   - **JIT Compiler Fully Functional**: Native code execution finally enabled!
