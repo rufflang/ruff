@@ -75,6 +75,12 @@ pub struct VM {
     /// Cache of JIT-compiled functions
     /// Maps function name to compiled native code
     compiled_functions: HashMap<String, CompiledFn>,
+    
+    /// Current recursion depth (for optimization and debugging)
+    recursion_depth: usize,
+    
+    /// Maximum recursion depth observed (for profiling)
+    max_recursion_depth: usize,
 }
 
 /// Exception handler frame for active try blocks
@@ -170,6 +176,8 @@ impl VM {
             function_call_stack: Vec::new(),
             function_call_counts: HashMap::new(),
             compiled_functions: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 0,
         }
     }
 
@@ -741,6 +749,11 @@ impl VM {
                         // Pop from function call stack for error reporting
                         self.function_call_stack.pop();
                         
+                        // Decrement recursion depth
+                        if self.recursion_depth > 0 {
+                            self.recursion_depth -= 1;
+                        }
+                        
                         // Restore previous state
                         self.ip = frame.return_ip;
                         if let Some(prev_chunk) = frame.prev_chunk {
@@ -776,6 +789,11 @@ impl VM {
 
                 OpCode::ReturnNone => {
                     if let Some(frame) = self.call_frames.pop() {
+                        // Decrement recursion depth
+                        if self.recursion_depth > 0 {
+                            self.recursion_depth -= 1;
+                        }
+                        
                         self.ip = frame.return_ip;
                         if let Some(prev_chunk) = frame.prev_chunk {
                             self.chunk = prev_chunk;
@@ -1637,6 +1655,12 @@ impl VM {
 
             self.call_frames.push(frame);
 
+            // Track recursion depth for optimization and profiling
+            self.recursion_depth += 1;
+            if self.recursion_depth > self.max_recursion_depth {
+                self.max_recursion_depth = self.recursion_depth;
+            }
+            
             // Track function call for error reporting
             let func_name = chunk.name.as_deref().unwrap_or("<anonymous>").to_string();
             self.function_call_stack.push(func_name);
@@ -1681,10 +1705,89 @@ impl VM {
         args: Vec<Value>,
     ) -> Result<Value, String> {
         match &function {
-            Value::BytecodeFunction { .. } => {
-                // For simplicity, always use interpreter path for now
-                // TODO: Support JIT → JIT calls in future optimization
+            Value::BytecodeFunction { chunk, captured: _ } => {
+                // OPTIMIZATION: Check if target function is JIT-compiled
+                // If so, make direct JIT → JIT call for maximum performance
+                if self.jit_enabled {
+                    let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
+                    
+                    // Copy the function pointer to avoid borrow checker issues
+                    let compiled_fn_opt = self.compiled_functions.get(func_name).copied();
+                    
+                    if let Some(compiled_fn) = compiled_fn_opt {
+                        // Fast path: Direct JIT → JIT call!
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: Direct JIT→JIT call to '{}'", func_name);
+                        }
+                        
+                        // Create locals HashMap for the function parameters
+                        let mut func_locals = HashMap::new();
+                        
+                        // Create var_names HashMap for JIT variable resolution
+                        let mut var_names = HashMap::new();
+                        
+                        // Bind arguments to parameter names
+                        for (i, param_name) in chunk.params.iter().enumerate() {
+                            if let Some(arg) = args.get(i) {
+                                func_locals.insert(param_name.clone(), arg.clone());
+                            }
+                            
+                            // Register the parameter name with its hash
+                            use std::collections::hash_map::DefaultHasher;
+                            use std::hash::{Hash, Hasher};
+                            let mut hasher = DefaultHasher::new();
+                            param_name.hash(&mut hasher);
+                            let hash = hasher.finish();
+                            var_names.insert(hash, param_name.clone());
+                        }
+                        
+                        // Get VM pointer
+                        let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+                        
+                        // Save stack size to detect return value
+                        let stack_size_before = self.stack.len();
+                        
+                        // Get mutable pointers to VM state for VMContext
+                        let stack_ptr: *mut Vec<Value> = &mut self.stack;
+                        
+                        // Get globals
+                        let mut globals_guard = self.globals.lock().unwrap();
+                        let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+                        
+                        let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
+                        let var_names_ptr: *mut HashMap<u64, String> = &mut var_names;
+                        
+                        // Create VMContext
+                        let mut vm_context = crate::jit::VMContext::with_var_names(
+                            stack_ptr,
+                            locals_ptr,
+                            globals_ptr,
+                            var_names_ptr,
+                        );
+                        vm_context.vm_ptr = vm_ptr;
+                        
+                        // Execute the compiled function!
+                        let result_code = unsafe {
+                            compiled_fn(&mut vm_context)
+                        };
+                        
+                        drop(globals_guard);
+                        
+                        if result_code != 0 {
+                            return Err(format!("JIT execution failed with code: {}", result_code));
+                        }
+                        
+                        // Get the return value from the stack
+                        if self.stack.len() <= stack_size_before {
+                            return Err("JIT-compiled function did not return a value".to_string());
+                        }
+                        
+                        let result = self.stack.pop().unwrap();
+                        return Ok(result);
+                    }
+                }
                 
+                // Slow path: Execute through interpreter
                 // Save current execution state
                 let saved_ip = self.ip;
                 let saved_chunk = self.chunk.clone();
