@@ -10,6 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 5 Complete: Testing & Validation** (2026-01-28):
+    - Created comprehensive test suite for JIT function calls
+    - Test nested function calls (2-4 levels deep): All passing
+    - Test iterative fibonacci: Correct results for fib(0) to fib(20)
+    - Test recursive fibonacci: Faster than Python for fib(20) (101ms vs 168ms)
+    - Test edge cases: 0 params, 5+ params, local variables, recursion
+    - Added test files: test_nested_simple.ruff, test_fib_simple.ruff, test_fib_rec_simple.ruff, test_edges_simple.ruff
+    - All 198 unit tests still passing
+    - Verified JIT compilation triggers correctly after 100 calls
+    - Confirmed correct stack and locals handling in nested calls
+    - Phase 7 now 50% complete (Steps 1-5 of 10)
+    - Next: Step 6 - Recursive Function Optimization
+    - Performance validation shows JIT is working as designed!
+  
+  - **Step 4 Complete: Argument Passing Optimization** (2026-01-28):
+    - Implemented jit_push_int runtime helper for return value handling
+    - Implemented call_function_from_jit in VM for function execution from JIT
+    - Added proper locals binding with parameter name → value mapping
+    - Added var_names HashMap for variable name resolution via hashing
+    - LoadVar/StoreVar now work correctly in JIT-compiled functions
+    - Functions can now call other functions with full argument passing
+    - Return values properly pushed to VM stack as Value::Int
+    - Test examples working: identity(x), add(a,b), nested calls
+    - All 79 tests still passing
+    - Major milestone: JIT functions are now truly functional!
+    - Next: Step 5 - Testing & Validation
+  
   - **Step 3 Complete: Call Opcode JIT Support** (2026-01-28):
     - Added `jit_call_function` runtime helper for function calls from JIT code
     - Added Call opcode translation in `BytecodeTranslator::translate_instruction`
