@@ -4,7 +4,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 > **Current Version**: v0.8.0 (Released January 2026)  
 > **Next Planned Release**: v0.9.0 (JIT Performance - Beat Python)  
-> **Status**: Phase 7 In Progress - Recursive JIT Working, Performance Optimization Needed
+> **Status**: Phase 7 - 90% Complete (Steps 1-9 of 10). Inline Caching Done, Value Unboxing Next.
 
 ---
 
@@ -60,7 +60,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 The JIT is **correct** but **slow** due to runtime overhead:
 
 1. ~~**HashMap Lookup per Variable** - Every `LoadVar`/`StoreVar` calls C function + HashMap lookup~~ ✅ FIXED (Step 7)
-2. **HashMap Clone per Call** - `var_names` HashMap cloned on every function invocation
+2. ~~**HashMap Clone per Call** - `var_names` HashMap cloned on every function invocation~~ ✅ FIXED (Step 9)
 3. ~~**Value Boxing/Unboxing** - Every operation wraps/unwraps `Value` enum~~ ✅ PARTIALLY FIXED (Step 8 - return values)
 4. **No Register Allocation** - All values go through memory, not CPU registers
 5. **Function Call Overhead** - Each recursive call goes through VM dispatch
@@ -84,12 +84,17 @@ The JIT is **correct** but **slow** due to runtime overhead:
 - [x] Comprehensive test for return value optimization
 - Status: Integer returns now bypass VM stack operations
 
-**Step 9: Inline Caching (P0 - NEXT)**
-- [ ] Cache resolved function pointers after first call
-- [ ] Avoid function lookup on subsequent calls
-- [ ] Target: 5-10x speedup on recursive functions
+**Step 9: Inline Caching (P0) - ✅ COMPLETE**
+- [x] Cache resolved function pointers after first call
+- [x] Avoid function lookup on subsequent calls
+- [x] Added `CallSiteId` and `InlineCacheEntry` structures
+- [x] Eliminated var_names HashMap clone in inline cache fast path
+- [x] Added hit/miss counters for profiling
+- [x] Comprehensive test suite added (`tests/jit_inline_cache.ruff`)
+- Status: Inline cache reduces per-call overhead for JIT functions
+- Note: Discovered JIT limitation with higher-order functions (functions as args)
 
-**Step 10: Value Unboxing (P1)**
+**Step 10: Value Unboxing (P1 - NEXT)**
 - [ ] Keep integers as raw i64 in JIT code
 - [ ] Only box when crossing JIT/interpreter boundary
 - [ ] Target: 2-5x speedup on arithmetic

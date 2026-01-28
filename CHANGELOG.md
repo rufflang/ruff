@@ -10,6 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 9 Complete: Inline Caching for Function Calls** (2026-01-28):
+    - Implemented inline caching to accelerate repeated function calls
+    - Added `CallSiteId` struct to uniquely identify call sites by (chunk_id, ip)
+    - Added `InlineCacheEntry` struct with cached function pointer and var_names
+    - Call sites now cache:
+      - JIT-compiled function pointer (no HashMap lookup after first call)
+      - Pre-computed var_names HashMap (avoids rebuilding on every call)
+      - Guard validation via function name comparison
+    - Eliminated var_names HashMap clone in inline cache fast path
+    - Added hit/miss counters for profiling and debugging
+    - Added comprehensive test suite (`tests/jit_inline_cache.ruff`):
+      - Test 1: Simple function called 200 times (cache warm-up)
+      - Test 2: Recursive Fibonacci with inline cache
+      - Test 3: Nested function calls (multiple call sites)
+      - Test 4: Different functions (guard validation)
+      - Test 5: Function with local variables
+      - Test 6: Higher-order function pattern (pre-JIT)
+      - Test 7: Deep call chain (4 levels)
+      - Test 8: Zero-parameter function
+    - All 198 unit tests passing
+    - Phase 7 now 90% complete (Steps 1-9 of 10)
+    - Note: Discovered JIT limitation with higher-order functions (functions as arguments)
+    - Next: Step 10 - Value Unboxing
+
   - **Step 8 Complete: Return Value Optimization** (2026-01-28):
     - Implemented fast return value path that bypasses VM stack operations
     - Added `return_value` and `has_return_value` fields to VMContext struct
