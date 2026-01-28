@@ -1,9 +1,0 @@
-func simple() {
-    print("Inside simple!")
-    return 42
-}
-
-print("Test start")
-result := simple()
-print("Result:", result)
-print("Test end")
