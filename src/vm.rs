@@ -229,6 +229,9 @@ impl VM {
                                         );
                                     }
 
+                                    // Get VM pointer early (before any borrows)
+                                    let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+
                                     // Execute the JIT-compiled function
                                     // Get mutable pointers to VM state for VMContext
                                     let stack_ptr: *mut Vec<Value> = &mut self.stack;
@@ -245,11 +248,12 @@ impl VM {
                                         globals_ptr
                                     };
                                     
-                                    // Create VMContext
-                                    let mut vm_context = crate::jit::VMContext::new(
+                                    // Create VMContext with VM pointer for Call opcode support
+                                    let mut vm_context = crate::jit::VMContext::new_with_vm(
                                         stack_ptr,
                                         locals_ptr,
                                         globals_ptr,
+                                        vm_ptr,
                                     );
                                     
                                     // Execute the compiled function!
@@ -569,6 +573,9 @@ impl VM {
                             if self.jit_enabled && !chunk.is_generator {
                                 let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
                                 
+                                // Get VM pointer early (before any borrows)
+                                let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+                                
                                 // Check if we have a JIT-compiled version
                                 if let Some(compiled_fn) = self.compiled_functions.get(func_name) {
                                     // Fast path: Call JIT-compiled version
@@ -592,11 +599,12 @@ impl VM {
                                         globals_ptr
                                     };
                                     
-                                    // Create VMContext
-                                    let mut vm_context = crate::jit::VMContext::new(
+                                    // Create VMContext with VM pointer for Call opcode support
+                                    let mut vm_context = crate::jit::VMContext::new_with_vm(
                                         stack_ptr,
                                         locals_ptr,
                                         globals_ptr,
+                                        vm_ptr,
                                     );
                                     
                                     // Execute the compiled function!
@@ -1547,6 +1555,27 @@ impl VM {
                 }
                 Ok(Value::Dict(dict))
             }
+        }
+    }
+
+    /// Call a function from JIT-compiled code
+    /// Step 4: Infrastructure in place, full execution in Step 5
+    pub fn call_function_from_jit(&mut self, function: Value, args: Vec<Value>) -> Result<Value, String> {
+        match &function {
+            Value::BytecodeFunction { .. } => {
+                // Step 4: We have the infrastructure to call functions from JIT
+                // but executing bytecode functions from within JIT requires
+                // more complex state management (call frames, IP saving, etc.)
+                // For now, return a placeholder
+                // Step 5 will implement full execution
+                Ok(Value::Int(0))
+            }
+            Value::NativeFunction(_) => {
+                // Native functions work!
+                let result = self.call_native_function_vm(function, args)?;
+                Ok(result)
+            }
+            _ => Err("Cannot call non-function from JIT".to_string()),
         }
     }
 

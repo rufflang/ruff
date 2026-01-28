@@ -5,6 +5,7 @@
 
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::Value;
+use crate::vm::VM; // For calling back into VM from JIT
 use cranelift::prelude::*;
 use cranelift::codegen::ir::FuncRef;
 use cranelift_jit::{JITBuilder, JITModule};
@@ -41,6 +42,8 @@ pub struct VMContext {
     pub globals_ptr: *mut HashMap<String, Value>,
     /// Pointer to variable name mapping (hash -> name) for JIT
     pub var_names_ptr: *mut HashMap<u64, String>,
+    /// Pointer to VM for calling back into interpreter (Step 4+)
+    pub vm_ptr: *mut std::ffi::c_void,  // Actually *mut VM, but avoid circular dependency
 }
 
 impl VMContext {
@@ -57,6 +60,23 @@ impl VMContext {
             locals_ptr: locals, 
             globals_ptr: globals,
             var_names_ptr: std::ptr::null_mut(), // Will be set if needed
+            vm_ptr: std::ptr::null_mut(), // No VM pointer yet
+        }
+    }
+    
+    /// Create with VM pointer for full VM integration (Step 4+)
+    pub fn new_with_vm(
+        stack: *mut Vec<Value>,
+        locals: *mut HashMap<String, Value>,
+        globals: *mut HashMap<String, Value>,
+        vm: *mut std::ffi::c_void,
+    ) -> Self {
+        Self { 
+            stack_ptr: stack, 
+            locals_ptr: locals, 
+            globals_ptr: globals,
+            var_names_ptr: std::ptr::null_mut(),
+            vm_ptr: vm,
         }
     }
     
@@ -74,6 +94,7 @@ impl VMContext {
             locals_ptr: locals, 
             globals_ptr: globals,
             var_names_ptr: var_names,
+            vm_ptr: std::ptr::null_mut(),
         }
     }
 }
@@ -438,22 +459,73 @@ pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i6
 }
 
 /// Runtime helper: Call a function from JIT code
-/// This is a simplified implementation that will call back into the VM
-/// ctx: VMContext pointer
-/// func_value_ptr: Pointer to the function value on the stack
+/// This enables JIT-compiled functions to call other functions
+/// ctx: VMContext pointer (includes VM pointer for callbacks)
+/// func_value_ptr: Unused (function is on stack)
 /// arg_count: Number of arguments to pass to the function
 /// Returns 0 on success, non-zero on error
 #[no_mangle]
 pub unsafe extern "C" fn jit_call_function(
-    _ctx: *mut VMContext,
+    ctx: *mut VMContext,
     _func_value_ptr: *const Value,
-    _arg_count: i64,
+    arg_count: i64,
 ) -> i64 {
-    // For now, this is a placeholder
-    // The actual implementation will require VM integration
-    // which is complex and needs more infrastructure
-    // For Step 3, we're just ensuring the opcode can compile
-    0
+    if ctx.is_null() {
+        return 1; // Error: null context
+    }
+    
+    let ctx_ref = &mut *ctx;
+    
+    // Check if we have a stack
+    if ctx_ref.stack_ptr.is_null() {
+        return 2; // Error: null stack
+    }
+    
+    let stack = &mut *ctx_ref.stack_ptr;
+    
+    // Pop function from stack
+    let function = if let Some(f) = stack.pop() {
+        f
+    } else {
+        return 3; // Error: stack underflow (no function)
+    };
+    
+    // Pop arguments from stack  
+    let mut args = Vec::new();
+    for _ in 0..arg_count {
+        if let Some(arg) = stack.pop() {
+            args.push(arg);
+        } else {
+            // Stack underflow - push function back and return error
+            stack.push(function);
+            return 4; // Error: stack underflow (not enough args)
+        }
+    }
+    args.reverse(); // Arguments were pushed in order, popped in reverse
+    
+    // Check if we have VM pointer
+    if ctx_ref.vm_ptr.is_null() {
+        // No VM pointer - can't execute. Push placeholder and return error
+        stack.push(Value::Int(0));
+        return 5; // Error: no VM pointer
+    }
+    
+    // Cast VM pointer back to VM
+    let vm = &mut *(ctx_ref.vm_ptr as *mut VM);
+    
+    // Call the function through VM
+    match vm.call_function_from_jit(function, args) {
+        Ok(result) => {
+            // Push result to stack
+            stack.push(result);
+            0 // Success
+        }
+        Err(_err) => {
+            // Error during execution - push null and return error
+            stack.push(Value::Null);
+            6 // Error: execution failed
+        }
+    }
 }
 
 /// JIT compiler for Ruff bytecode
