@@ -1,0 +1,2 @@
+print("Hello from Ruff!")
+print("Test:", 42)

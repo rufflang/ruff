@@ -1,0 +1,19 @@
+# Test Step 4: Very simple function call test
+
+func add(a, b) {
+    return a + b
+}
+
+# Call directly first
+result1 := add(2, 3)
+print("Direct call result:", result1)
+
+# Now do a loop to trigger JIT
+for i in range(150) {
+    result := add(i, 10)
+    if i == 149 {
+        print("Last iteration result:", result)
+    }
+}
+
+print("Done!")

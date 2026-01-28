@@ -1,0 +1,5 @@
+print("Test 1")
+for i in range(3) {
+    print("i:", i)
+}
+print("Test 2")

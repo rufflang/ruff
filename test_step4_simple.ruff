@@ -1,0 +1,33 @@
+# Test Step 4: Simple function calls from JIT
+
+func add(a, b) {
+    return a + b
+}
+
+func multiply(x, y) {
+    return x * y
+}
+
+# This loop should trigger JIT compilation after 100+ iterations
+# The loop calls functions, which should now work!
+sum := 0
+for i in range(200) {
+    result := add(i, 1)
+    sum := sum + result
+}
+
+print("Sum after 200 additions:", sum)
+print("Expected:", 200 * 201 / 2)
+
+# Test nested function call
+func double(n) {
+    return add(n, n)
+}
+
+func quadruple(n) {
+    return double(double(n))
+}
+
+result := quadruple(5)
+print("Quadruple of 5:", result)
+print("Expected: 20")

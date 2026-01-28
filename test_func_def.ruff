@@ -1,0 +1,10 @@
+print("Before function definition")
+
+func add(a, b) {
+    return a + b
+}
+
+print("After function definition")
+print("Calling add...")
+result := add(2, 3)
+print("Result:", result)

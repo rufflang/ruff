@@ -1,0 +1,7 @@
+func add(a, b) {
+    return a + b
+}
+
+print("Test 1")
+result := add(2, 3)
+print("Result:", result)

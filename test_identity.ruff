@@ -1,0 +1,20 @@
+# Test parameter passing
+
+func identity(x) {
+    return x
+}
+
+# Direct calls
+print("identity(5) =", identity(5))
+print("identity(10) =", identity(10))
+
+# Trigger JIT
+for i in range(150) {
+    result := identity(i)
+}
+
+# Test JIT
+print("After JIT:")
+print("identity(5) =", identity(5))
+print("identity(10) =", identity(10))
+print("identity(42) =", identity(42))

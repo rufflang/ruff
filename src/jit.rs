@@ -458,6 +458,24 @@ pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i6
     0
 }
 
+/// Runtime helper: Push an integer value to the VM stack as Value::Int
+/// Used by Return opcode to return integer results
+#[no_mangle]
+pub unsafe extern "C" fn jit_push_int(ctx: *mut VMContext, value: i64) -> i64 {
+    if ctx.is_null() {
+        return 1; // Error
+    }
+    
+    let ctx_ref = &mut *ctx;
+    if ctx_ref.stack_ptr.is_null() {
+        return 2; // Error
+    }
+    
+    let stack = &mut *ctx_ref.stack_ptr;
+    stack.push(Value::Int(value));
+    0 // Success
+}
+
 /// Runtime helper: Call a function from JIT code
 /// This enables JIT-compiled functions to call other functions
 /// ctx: VMContext pointer (includes VM pointer for callbacks)
@@ -572,6 +590,8 @@ struct BytecodeTranslator {
     check_type_float_func: Option<FuncRef>,
     /// Call function reference (for Call opcode)
     call_func: Option<FuncRef>,
+    /// Push int function reference (for Return opcode)
+    push_int_func: Option<FuncRef>,
     /// Specialization information for this compilation
     specialization: Option<SpecializationInfo>,
 }
@@ -590,6 +610,7 @@ impl BytecodeTranslator {
             check_type_int_func: None,
             check_type_float_func: None,
             call_func: None,
+            push_int_func: None,
             specialization: None,
         }
     }
@@ -615,6 +636,10 @@ impl BytecodeTranslator {
     
     fn set_call_function(&mut self, call_func: FuncRef) {
         self.call_func = Some(call_func);
+    }
+    
+    fn set_push_int_function(&mut self, push_int_func: FuncRef) {
+        self.push_int_func = Some(push_int_func);
     }
     
     fn set_specialization(&mut self, spec: SpecializationInfo) {
@@ -924,14 +949,20 @@ impl BytecodeTranslator {
             }
 
             OpCode::Return => {
-                if self.value_stack.last().is_some() {
-                    // Return the value (for now, just return 0 for success)
-                    let zero = builder.ins().iconst(types::I64, 0);
-                    builder.ins().return_(&[zero]);
-                } else {
-                    let zero = builder.ins().iconst(types::I64, 0);
-                    builder.ins().return_(&[zero]);
+                // Pop the return value from our stack
+                if let Some(return_value) = self.value_stack.pop() {
+                    // Call jit_push_int to push the value to VM stack
+                    if let Some(ctx) = self.ctx_param {
+                        if let Some(push_int_func) = self.push_int_func {
+                            let inst = builder.ins().call(push_int_func, &[ctx, return_value]);
+                            let _result = builder.inst_results(inst)[0];
+                            // TODO: Check result code for errors
+                        }
+                    }
                 }
+                // Return 0 (success)
+                let zero = builder.ins().iconst(types::I64, 0);
+                builder.ins().return_(&[zero]);
                 return Ok(true); // Terminates block
             }
 
@@ -1238,6 +1269,7 @@ impl JitCompiler {
         builder.symbol("jit_check_type_int", jit_check_type_int as *const u8);
         builder.symbol("jit_check_type_float", jit_check_type_float as *const u8);
         builder.symbol("jit_call_function", jit_call_function as *const u8);
+        builder.symbol("jit_push_int", jit_push_int as *const u8);
 
         let module = JITModule::new(builder);
 
@@ -1656,10 +1688,52 @@ impl JitCompiler {
             
             let call_func_ref = self.module.declare_func_in_func(call_func_id, &mut builder.func);
             
+            // Declare jit_push_int for Return opcode support
+            // jit_push_int: fn(*mut VMContext, i64) -> i64
+            let mut push_int_sig = self.module.make_signature();
+            push_int_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            push_int_sig.params.push(AbiParam::new(types::I64)); // value to push
+            push_int_sig.returns.push(AbiParam::new(types::I64)); // status code
+            
+            let push_int_id = self.module
+                .declare_function("jit_push_int", Linkage::Import, &push_int_sig)
+                .map_err(|e| format!("Failed to declare jit_push_int: {}", e))?;
+            
+            let push_int_ref = self.module.declare_func_in_func(push_int_id, &mut builder.func);
+            
+            // Declare jit_load_variable and jit_store_variable for variable operations
+            // jit_load_variable: fn(*mut VMContext, i64, usize) -> i64
+            let mut load_var_sig = self.module.make_signature();
+            load_var_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            load_var_sig.params.push(AbiParam::new(types::I64)); // name_hash
+            load_var_sig.params.push(AbiParam::new(types::I64)); // name_len
+            load_var_sig.returns.push(AbiParam::new(types::I64)); // value
+            
+            let load_var_id = self.module
+                .declare_function("jit_load_variable", Linkage::Import, &load_var_sig)
+                .map_err(|e| format!("Failed to declare jit_load_variable: {}", e))?;
+            
+            let load_var_ref = self.module.declare_func_in_func(load_var_id, &mut builder.func);
+            
+            // jit_store_variable: fn(*mut VMContext, i64, usize, i64)
+            let mut store_var_sig = self.module.make_signature();
+            store_var_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            store_var_sig.params.push(AbiParam::new(types::I64)); // name_hash
+            store_var_sig.params.push(AbiParam::new(types::I64)); // name_len
+            store_var_sig.params.push(AbiParam::new(types::I64)); // value
+            
+            let store_var_id = self.module
+                .declare_function("jit_store_variable", Linkage::Import, &store_var_sig)
+                .map_err(|e| format!("Failed to declare jit_store_variable: {}", e))?;
+            
+            let store_var_ref = self.module.declare_func_in_func(store_var_id, &mut builder.func);
+            
             // Create BytecodeTranslator for this function
             let mut translator = BytecodeTranslator::new();
             translator.set_context_param(vm_context_param);
             translator.set_call_function(call_func_ref);
+            translator.set_push_int_function(push_int_ref);
+            translator.set_external_functions(load_var_ref, store_var_ref);
             
             // Create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;

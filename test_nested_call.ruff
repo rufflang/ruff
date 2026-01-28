@@ -1,0 +1,13 @@
+print("Test start")
+
+func add(a, b) {
+    return a + b
+}
+
+func test() {
+    return add(2, 3)
+}
+
+print("Calling test...")
+result := test()
+print("Result:", result)

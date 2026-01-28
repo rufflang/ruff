@@ -583,6 +583,30 @@ impl VM {
                                         eprintln!("JIT: Calling compiled function: {}", func_name);
                                     }
                                     
+                                    // Create locals HashMap for the function parameters
+                                    let mut func_locals = HashMap::new();
+                                    
+                                    // Create var_names HashMap for JIT variable resolution
+                                    let mut var_names = HashMap::new();
+                                    
+                                    // Bind arguments to parameter names and register them
+                                    for (i, param_name) in chunk.params.iter().enumerate() {
+                                        if let Some(arg) = args.get(i) {
+                                            func_locals.insert(param_name.clone(), arg.clone());
+                                        }
+                                        
+                                        // Register the parameter name with its hash
+                                        use std::collections::hash_map::DefaultHasher;
+                                        use std::hash::{Hash, Hasher};
+                                        let mut hasher = DefaultHasher::new();
+                                        param_name.hash(&mut hasher);
+                                        let hash = hasher.finish();
+                                        var_names.insert(hash, param_name.clone());
+                                    }
+                                    
+                                    // Save stack size to detect return value
+                                    let stack_size_before = self.stack.len();
+                                    
                                     // Execute the JIT-compiled function
                                     // Get mutable pointers to VM state for VMContext
                                     let stack_ptr: *mut Vec<Value> = &mut self.stack;
@@ -591,21 +615,20 @@ impl VM {
                                     let mut globals_guard = self.globals.lock().unwrap();
                                     let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
                                     
-                                    // Get locals from current call frame, or use globals if at top level
-                                    let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
-                                        &mut frame.locals
-                                    } else {
-                                        // Top-level: use globals as locals
-                                        globals_ptr
-                                    };
+                                    // Use the function's locals (with bound parameters)
+                                    let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
                                     
-                                    // Create VMContext with VM pointer for Call opcode support
-                                    let mut vm_context = crate::jit::VMContext::new_with_vm(
+                                    // Set up var_names for JIT variable resolution
+                                    let var_names_ptr: *mut HashMap<u64, String> = &mut var_names;
+                                    
+                                    // Create VMContext with all necessary pointers
+                                    let mut vm_context = crate::jit::VMContext::with_var_names(
                                         stack_ptr,
                                         locals_ptr,
                                         globals_ptr,
-                                        vm_ptr,
+                                        var_names_ptr,
                                     );
+                                    vm_context.vm_ptr = vm_ptr; // Add VM pointer for Call opcode support
                                     
                                     // Execute the compiled function!
                                     let result_code = unsafe {
@@ -620,6 +643,11 @@ impl VM {
                                     }
                                     
                                     // The return value should be on the stack
+                                    // Verify we got a return value
+                                    if self.stack.len() <= stack_size_before {
+                                        return Err("JIT-compiled function did not return a value".to_string());
+                                    }
+                                    
                                     // Skip the normal bytecode execution
                                     continue;
                                 }
@@ -1558,26 +1586,6 @@ impl VM {
         }
     }
 
-    /// Call a function from JIT-compiled code
-    /// Step 4: Infrastructure in place, full execution in Step 5
-    pub fn call_function_from_jit(&mut self, function: Value, args: Vec<Value>) -> Result<Value, String> {
-        match &function {
-            Value::BytecodeFunction { .. } => {
-                // Step 4: We have the infrastructure to call functions from JIT
-                // but executing bytecode functions from within JIT requires
-                // more complex state management (call frames, IP saving, etc.)
-                // For now, return a placeholder
-                // Step 5 will implement full execution
-                Ok(Value::Int(0))
-            }
-            Value::NativeFunction(_) => {
-                // Native functions work!
-                let result = self.call_native_function_vm(function, args)?;
-                Ok(result)
-            }
-            _ => Err("Cannot call non-function from JIT".to_string()),
-        }
-    }
 
     /// Call a function
     /// Set up a call frame for a bytecode function (doesn't return - Return opcode will handle that)
@@ -1662,6 +1670,193 @@ impl VM {
             }
         } else {
             Err("Expected NativeFunction".to_string())
+        }
+    }
+
+    /// Call a function from JIT-compiled code
+    /// This is invoked by the jit_call_function runtime helper
+    pub fn call_function_from_jit(
+        &mut self,
+        function: Value,
+        args: Vec<Value>,
+    ) -> Result<Value, String> {
+        match &function {
+            Value::BytecodeFunction { .. } => {
+                // For simplicity, always use interpreter path for now
+                // TODO: Support JIT → JIT calls in future optimization
+                
+                // Save current execution state
+                let saved_ip = self.ip;
+                let saved_chunk = self.chunk.clone();
+                let call_frame_depth = self.call_frames.len();
+                
+                // Set up the call (creates call frame, switches chunk, resets IP)
+                self.call_bytecode_function(function, args)?;
+                
+                // Execute until this function returns
+                // (call_frames will pop back to call_frame_depth)
+                while self.call_frames.len() > call_frame_depth {
+                    // Check bounds
+                    if self.ip >= self.chunk.instructions.len() {
+                        return Err("Function execution reached end without return".to_string());
+                    }
+                    
+                    // Get instruction (clone to avoid borrow checker issues)
+                    let instruction = self.chunk.instructions[self.ip].clone();
+                    self.ip += 1;
+                    
+                    // Execute the instruction
+                    // We need to handle the most common opcodes inline
+                    // For complex ones, we could call back to the main run loop
+                    match instruction {
+                        OpCode::LoadConst(idx) => {
+                            let constant = &self.chunk.constants[idx];
+                            let value = match constant {
+                                Constant::Int(n) => Value::Int(*n),
+                                Constant::Float(f) => Value::Float(*f),
+                                Constant::String(s) => Value::Str(s.clone()),
+                                Constant::Bool(b) => Value::Bool(*b),
+                                Constant::None => Value::Null,
+                                Constant::Function(chunk) => {
+                                    Value::BytecodeFunction {
+                                        chunk: (**chunk).clone(),
+                                        captured: HashMap::new(),
+                                    }
+                                }
+                                _ => {
+                                    return Err("Unsupported constant type in JIT function call".to_string());
+                                }
+                            };
+                            self.stack.push(value);
+                        }
+                        
+                        OpCode::LoadVar(name) => {
+                            if let Some(frame) = self.call_frames.last() {
+                                if let Some(value) = frame.locals.get(&name) {
+                                    self.stack.push(value.clone());
+                                } else if let Some(value_ref) = frame.captured.get(&name) {
+                                    let value = value_ref.lock().unwrap().clone();
+                                    self.stack.push(value);
+                                } else {
+                                    return Err(format!("Undefined local variable: {}", name));
+                                }
+                            } else {
+                                return Err("No call frame for LoadVar".to_string());
+                            }
+                        }
+                        
+                        OpCode::StoreVar(name) => {
+                            let value = self.stack.pop().ok_or("Stack underflow")?;
+                            if let Some(frame) = self.call_frames.last_mut() {
+                                frame.locals.insert(name, value);
+                            }
+                        }
+                        
+                        OpCode::Add => {
+                            let right = self.stack.pop().ok_or("Stack underflow")?;
+                            let left = self.stack.pop().ok_or("Stack underflow")?;
+                            let result = self.binary_op(&left, "+", &right)?;
+                            self.stack.push(result);
+                        }
+                        
+                        OpCode::Sub => {
+                            let right = self.stack.pop().ok_or("Stack underflow")?;
+                            let left = self.stack.pop().ok_or("Stack underflow")?;
+                            let result = self.binary_op(&left, "-", &right)?;
+                            self.stack.push(result);
+                        }
+                        
+                        OpCode::Mul => {
+                            let right = self.stack.pop().ok_or("Stack underflow")?;
+                            let left = self.stack.pop().ok_or("Stack underflow")?;
+                            let result = self.binary_op(&left, "*", &right)?;
+                            self.stack.push(result);
+                        }
+                        
+                        OpCode::Div => {
+                            let right = self.stack.pop().ok_or("Stack underflow")?;
+                            let left = self.stack.pop().ok_or("Stack underflow")?;
+                            let result = self.binary_op(&left, "/", &right)?;
+                            self.stack.push(result);
+                        }
+                        
+                        OpCode::LessThan => {
+                            let right = self.stack.pop().ok_or("Stack underflow")?;
+                            let left = self.stack.pop().ok_or("Stack underflow")?;
+                            let result = self.compare_op(&left, "<", &right)?;
+                            self.stack.push(result);
+                        }
+                        
+                        OpCode::GreaterThan => {
+                            let right = self.stack.pop().ok_or("Stack underflow")?;
+                            let left = self.stack.pop().ok_or("Stack underflow")?;
+                            let result = self.compare_op(&left, ">", &right)?;
+                            self.stack.push(result);
+                        }
+                        
+                        OpCode::Return => {
+                            let return_value = self.stack.pop().ok_or("Stack underflow in return")?;
+                            
+                            if let Some(frame) = self.call_frames.pop() {
+                                // Pop from function call stack
+                                self.function_call_stack.pop();
+                                
+                                // Restore saved state
+                                self.ip = saved_ip;
+                                self.chunk = saved_chunk;
+                                
+                                // Clear stack to frame offset
+                                self.stack.truncate(frame.stack_offset);
+                                
+                                // Return the value
+                                return Ok(return_value);
+                            } else {
+                                return Ok(return_value);
+                            }
+                        }
+                        
+                        OpCode::ReturnNone => {
+                            if let Some(frame) = self.call_frames.pop() {
+                                self.function_call_stack.pop();
+                                self.ip = saved_ip;
+                                self.chunk = saved_chunk;
+                                self.stack.truncate(frame.stack_offset);
+                                return Ok(Value::Null);
+                            } else {
+                                return Ok(Value::Null);
+                            }
+                        }
+                        
+                        OpCode::Call(arg_count) => {
+                            // Nested function call from within JIT-called function
+                            // We can handle this recursively
+                            let func = self.stack.pop().ok_or("Stack underflow")?;
+                            let mut args = Vec::new();
+                            for _ in 0..arg_count {
+                                args.push(self.stack.pop().ok_or("Stack underflow")?);
+                            }
+                            args.reverse();
+                            
+                            // Recursive call
+                            let result = self.call_function_from_jit(func, args)?;
+                            self.stack.push(result);
+                        }
+                        
+                        _ => {
+                            // For now, unsupported opcodes in nested calls
+                            return Err(format!("Unsupported opcode in JIT function call: {:?}", instruction));
+                        }
+                    }
+                }
+                
+                // Should not reach here - function should have returned
+                Err("Function execution completed without explicit return".to_string())
+            }
+            Value::NativeFunction(_) => {
+                // Native function - call it directly
+                self.call_native_function_vm(function, args)
+            }
+            _ => Err("Cannot call non-function".to_string()),
         }
     }
 
