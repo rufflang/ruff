@@ -1,6 +1,6 @@
 # Phase 7 Implementation Checklist
 
-## Overall Progress: 70% Complete (Steps 1-7 of 10)
+## Overall Progress: 80% Complete (Steps 1-8 of 10)
 
 ---
 
@@ -119,18 +119,41 @@
 
 ---
 
-### Step 8: Return Value Optimization
-- [ ] Fast path for integer returns
-- [ ] Avoid boxing/unboxing
-- [ ] Direct register returns
-- [ ] Optimize Return opcode translation
-- [ ] Test return optimization
+### Step 8: Return Value Optimization ✅ COMPLETE (2026-01-28)
+- [x] Fast path for integer returns
+- [x] Avoid boxing/unboxing for return values
+- [x] Direct VMContext field access for returns
+- [x] Optimize Return opcode translation
+- [x] Test return optimization
+- [x] Update VM to read from VMContext.return_value
 
-**Estimated Time**: 2-3 hours
+**Status**: COMPLETE
+**Implementation Details**:
+- Added `return_value` (i64) and `has_return_value` (bool) fields to VMContext
+- Added `jit_set_return_int()` runtime helper that stores value directly in VMContext
+- Return opcode now uses `jit_set_return_int()` instead of `jit_push_int()`
+- VM checks `has_return_value` first and uses optimized path when available
+- Fallback to stack-based returns preserved for non-integer types
+- Comprehensive test suite validates all edge cases
+
+**Performance Notes**:
+- Reduces overhead for integer returns by eliminating stack operations
+- Main bottleneck remains recursive call overhead (function dispatch)
+- Next optimization needed: inline caching for function pointers
 
 ---
 
-### Step 9: Iterative Fibonacci & Benchmarks
+### Step 9: Inline Caching (P0 - NEXT)
+- [ ] Cache resolved function pointers after first call
+- [ ] Avoid function lookup on subsequent calls
+- [ ] Direct native-to-native calls for JIT functions
+- [ ] Target: 5-10x speedup on recursive functions
+
+**Estimated Time**: 3-4 hours
+
+---
+
+### Step 10: Iterative Fibonacci & Benchmarks
 - [ ] Test fibonacci iterative with JIT
 - [ ] Ensure loop JIT still works in functions
 - [ ] Verify both recursive and iterative fast
@@ -145,7 +168,7 @@
 
 ---
 
-### Step 10: Edge Cases & Polish
+### Step 11: Edge Cases & Polish
 - [ ] Test functions with exceptions
 - [ ] Test complex control flow
 - [ ] Test nested function calls

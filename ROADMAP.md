@@ -61,7 +61,7 @@ The JIT is **correct** but **slow** due to runtime overhead:
 
 1. ~~**HashMap Lookup per Variable** - Every `LoadVar`/`StoreVar` calls C function + HashMap lookup~~ ✅ FIXED (Step 7)
 2. **HashMap Clone per Call** - `var_names` HashMap cloned on every function invocation
-3. **Value Boxing/Unboxing** - Every operation wraps/unwraps `Value` enum
+3. ~~**Value Boxing/Unboxing** - Every operation wraps/unwraps `Value` enum~~ ✅ PARTIALLY FIXED (Step 8 - return values)
 4. **No Register Allocation** - All values go through memory, not CPU registers
 5. **Function Call Overhead** - Each recursive call goes through VM dispatch
 
@@ -76,17 +76,25 @@ The JIT is **correct** but **slow** due to runtime overhead:
 - [x] Comprehensive test suite added
 - Status: Local variable access now uses fast stack slots
 
-**Step 8: Inline Caching (P0 - NEXT)**
+**Step 8: Return Value Optimization (P0) - ✅ COMPLETE**
+- [x] Added `return_value` and `has_return_value` fields to VMContext
+- [x] Implemented `jit_set_return_int()` fast return helper
+- [x] Return opcode uses optimized path (avoids stack push)
+- [x] VM reads return value from VMContext when available
+- [x] Comprehensive test for return value optimization
+- Status: Integer returns now bypass VM stack operations
+
+**Step 9: Inline Caching (P0 - NEXT)**
 - [ ] Cache resolved function pointers after first call
 - [ ] Avoid function lookup on subsequent calls
 - [ ] Target: 5-10x speedup on recursive functions
 
-**Step 9: Value Unboxing (P1)**
+**Step 10: Value Unboxing (P1)**
 - [ ] Keep integers as raw i64 in JIT code
 - [ ] Only box when crossing JIT/interpreter boundary
 - [ ] Target: 2-5x speedup on arithmetic
 
-**Step 10: Loop Back-Edge Fix (P1)**
+**Step 11: Loop Back-Edge Fix (P1)**
 - [ ] Fix SSA block parameters for backward jumps
 - [ ] Enable JIT for `while` and `for` loops
 - [ ] Currently `test_compile_simple_loop` is ignored

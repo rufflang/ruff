@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 8 Complete: Return Value Optimization** (2026-01-28):
+    - Implemented fast return value path that bypasses VM stack operations
+    - Added `return_value` and `has_return_value` fields to VMContext struct
+    - Added `jit_set_return_int()` runtime helper for optimized integer returns
+    - Modified Return opcode translation to use fast path when available
+    - Updated VM to check `has_return_value` before reading from stack
+    - Fallback to stack-based returns for non-integer types preserved
+    - Added comprehensive test: `test_return_value_optimization`
+    - Optimization reduces overhead for integer returns by:
+      - Eliminating stack push/pop operations for return values
+      - Avoiding Value::Int boxing at the JIT/VM boundary
+      - Direct memory access to VMContext.return_value field
+    - All 198 unit tests passing
+    - Phase 7 now 80% complete (Steps 1-8 of 10)
+    - Next: Step 9 - Iterative Fibonacci & Full Benchmarks
+
   - **Step 7 Complete: Register-Based Locals** (2026-01-28):
     - Implemented register-based locals optimization for JIT-compiled functions
     - Added `local_slots` HashMap to BytecodeTranslator for stack slot mapping
