@@ -677,9 +677,15 @@ impl VM {
                                         return Err(format!("JIT execution failed with code: {}", result_code));
                                     }
                                     
-                                    // The return value should be on the stack
-                                    // Verify we got a return value
-                                    if self.stack.len() <= stack_size_before {
+                                    // Check for return value - prefer optimized VMContext.return_value
+                                    // This is the FAST PATH from Phase 7 Step 8 optimization
+                                    if vm_context.has_return_value {
+                                        // Use the optimized return value directly
+                                        self.stack.push(Value::Int(vm_context.return_value));
+                                    } else if self.stack.len() > stack_size_before {
+                                        // Fallback: return value was pushed to stack (old path)
+                                        // No action needed - value is already on stack
+                                    } else {
                                         return Err("JIT-compiled function did not return a value".to_string());
                                     }
                                     
@@ -1840,13 +1846,18 @@ impl VM {
                             return Err(format!("JIT execution failed with code: {}", result_code));
                         }
                         
-                        // Get the return value from the stack
-                        if self.stack.len() <= stack_size_before {
+                        // Check for return value - prefer optimized VMContext.return_value
+                        // This is the FAST PATH from Phase 7 Step 8 optimization
+                        if vm_context.has_return_value {
+                            // Use the optimized return value directly
+                            return Ok(Value::Int(vm_context.return_value));
+                        } else if self.stack.len() > stack_size_before {
+                            // Fallback: return value was pushed to stack (old path)
+                            let result = self.stack.pop().unwrap();
+                            return Ok(result);
+                        } else {
                             return Err("JIT-compiled function did not return a value".to_string());
                         }
-                        
-                        let result = self.stack.pop().unwrap();
-                        return Ok(result);
                     }
                 }
                 
