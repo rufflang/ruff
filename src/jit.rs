@@ -1471,6 +1471,162 @@ impl JitCompiler {
         Ok(compiled_fn)
     }
 
+    /// Compile an entire function to native code
+    /// Returns a compiled function pointer that can be called directly
+    pub fn compile_function(
+        &mut self, 
+        chunk: &BytecodeChunk, 
+        name: &str
+    ) -> Result<CompiledFn, String> {
+        // 1. Check if function is compilable
+        if !self.can_compile_function(chunk) {
+            return Err(format!("Function '{}' contains unsupported opcodes", name));
+        }
+        
+        // 2. Clear previous context
+        self.ctx.clear();
+        
+        // 3. Create Cranelift function signature
+        //    Takes VMContext pointer, returns status code (i64)
+        let mut sig = self.module.make_signature();
+        sig.params.push(AbiParam::new(types::I64)); // VMContext pointer
+        sig.returns.push(AbiParam::new(types::I64)); // Status code
+        
+        // 4. Declare function in module
+        let func_id = self.module
+            .declare_function(name, Linkage::Export, &sig)
+            .map_err(|e| format!("Failed to declare function: {}", e))?;
+        
+        // 5. Set function signature
+        self.ctx.func.signature = sig;
+        
+        // 6. Build function body
+        {
+            let mut builder_ctx = FunctionBuilderContext::new();
+            let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut builder_ctx);
+            
+            let entry_block = builder.create_block();
+            builder.append_block_params_for_function_params(entry_block);
+            builder.switch_to_block(entry_block);
+            
+            // Get VMContext parameter
+            let vm_context_param = builder.block_params(entry_block)[0];
+            
+            // Create BytecodeTranslator for this function
+            let mut translator = BytecodeTranslator::new();
+            translator.set_context_param(vm_context_param);
+            
+            // Create blocks for all jump targets
+            translator.create_blocks(&mut builder, &chunk.instructions)?;
+            
+            // Add entry block to block map
+            if !translator.blocks.contains_key(&0) {
+                translator.blocks.insert(0, entry_block);
+            }
+            
+            // Seal entry block
+            builder.seal_block(entry_block);
+            
+            let mut sealed_blocks = std::collections::HashSet::new();
+            sealed_blocks.insert(entry_block);
+            
+            let mut current_block = entry_block;
+            let mut block_terminated = false;
+            
+            // Translate all instructions from function body
+            for (pc, instr) in chunk.instructions.iter().enumerate() {
+                // If this PC has a block, switch to it
+                if let Some(&block) = translator.blocks.get(&pc) {
+                    if block != current_block {
+                        // If current block not terminated, add fallthrough jump
+                        if !block_terminated {
+                            builder.ins().jump(block, &[]);
+                        }
+                        
+                        // Seal previous block
+                        if !sealed_blocks.contains(&current_block) {
+                            builder.seal_block(current_block);
+                            sealed_blocks.insert(current_block);
+                        }
+                        
+                        builder.switch_to_block(block);
+                        current_block = block;
+                        block_terminated = false;
+                    }
+                }
+                
+                // Skip if block terminated
+                if block_terminated {
+                    continue;
+                }
+                
+                // Translate the instruction
+                match translator.translate_instruction(&mut builder, pc, instr, &chunk.constants) {
+                    Ok(terminates_block) => {
+                        if terminates_block {
+                            if !sealed_blocks.contains(&current_block) {
+                                builder.seal_block(current_block);
+                                sealed_blocks.insert(current_block);
+                            }
+                            block_terminated = true;
+                        }
+                    }
+                    Err(e) => {
+                        return Err(format!("Translation failed at PC {}: {}", pc, e));
+                    }
+                }
+            }
+            
+            // If last block not terminated, add return
+            if !block_terminated {
+                let zero = builder.ins().iconst(types::I64, 0);
+                builder.ins().return_(&[zero]);
+                if !sealed_blocks.contains(&current_block) {
+                    builder.seal_block(current_block);
+                }
+            }
+            
+            // Finalize the function
+            builder.finalize();
+        }
+        
+        // 7. Compile the function
+        self.module
+            .define_function(func_id, &mut self.ctx)
+            .map_err(|e| format!("Failed to define function: {}", e))?;
+        
+        self.module.clear_context(&mut self.ctx);
+        self.module.finalize_definitions()
+            .map_err(|e| format!("Failed to finalize: {}", e))?;
+        
+        // 8. Get function pointer
+        let code_ptr = self.module.get_finalized_function(func_id);
+        
+        // 9. Cast to our function type
+        let compiled_fn: CompiledFn = unsafe {
+            std::mem::transmute(code_ptr)
+        };
+        
+        Ok(compiled_fn)
+    }
+
+    /// Check if a function can be JIT-compiled
+    /// Returns true if all opcodes in the function are supported
+    pub fn can_compile_function(&self, chunk: &BytecodeChunk) -> bool {
+        for instr in &chunk.instructions {
+            if !self.is_supported_opcode(instr, &chunk.constants) {
+                return false;
+            }
+            
+            // Stop at Return - that's the end of the function body
+            match instr {
+                OpCode::Return | OpCode::ReturnNone => break,
+                _ => {}
+            }
+        }
+        true
+    }
+
     /// Enable or disable JIT compilation
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;

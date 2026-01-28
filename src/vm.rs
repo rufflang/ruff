@@ -631,9 +631,22 @@ impl VM {
                                         );
                                     }
                                     
-                                    // TODO: Implement function compilation
-                                    // For now, we'll add a placeholder
-                                    // self.compile_function(chunk, func_name)?;
+                                    // Attempt to compile the function
+                                    match self.jit_compiler.compile_function(chunk, func_name) {
+                                        Ok(compiled_fn) => {
+                                            // Successfully compiled!
+                                            if std::env::var("DEBUG_JIT").is_ok() {
+                                                eprintln!("JIT: Successfully compiled function '{}'", func_name);
+                                            }
+                                            self.compiled_functions.insert(func_name.to_string(), compiled_fn);
+                                        }
+                                        Err(e) => {
+                                            // Compilation failed - just log and continue with interpreter
+                                            if std::env::var("DEBUG_JIT").is_ok() {
+                                                eprintln!("JIT: Failed to compile function '{}': {}", func_name, e);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             
