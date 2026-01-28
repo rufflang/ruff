@@ -6,7 +6,7 @@
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{Environment, Interpreter, Value};
-use crate::jit::{JitCompiler, CompiledFn};
+use crate::jit::{JitCompiler, CompiledFn, CompiledFnInfo};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -75,6 +75,10 @@ pub struct VM {
     /// Cache of JIT-compiled functions
     /// Maps function name to compiled native code
     compiled_functions: HashMap<String, CompiledFn>,
+    
+    /// Enhanced cache with direct-arg variants for recursive functions
+    /// Maps function name to CompiledFnInfo (includes both standard and direct-arg)
+    compiled_fn_info: HashMap<String, CompiledFnInfo>,
     
     /// Cache of var_names for JIT-compiled functions
     /// This avoids re-computing hash mappings on every call
@@ -247,6 +251,7 @@ impl VM {
             function_call_stack: Vec::new(),
             function_call_counts: HashMap::new(),
             compiled_functions: HashMap::new(),
+            compiled_fn_info: HashMap::new(),
             jit_var_names_cache: HashMap::new(),
             recursion_depth: 0,
             max_recursion_depth: 0,
@@ -757,7 +762,60 @@ impl VM {
                                 }
                                 
                                 // === SLOW PATH - populate cache and execute ===
-                                // Check if we have a JIT-compiled version
+                                // PHASE 7 STEP 12: Check for direct-arg version FIRST for single-int-arg calls
+                                // This is the key optimization for recursive functions - avoids FFI on each call
+                                if args.len() == 1 {
+                                    if let Value::Int(arg_val) = args[0] {
+                                        if let Some(fn_info) = self.compiled_fn_info.get(func_name) {
+                                            if let Some(direct_fn) = fn_info.fn_with_arg {
+                                                // ULTRA-FAST PATH: Use direct-arg JIT variant!
+                                                // This function takes an i64 directly and returns the result
+                                                // WITHOUT going through VMContext arg fields or FFI for recursion
+                                                
+                                                // Create minimal VMContext for the function
+                                                let stack_ptr: *mut Vec<Value> = &mut self.stack;
+                                                let globals_ptr: *mut HashMap<String, Value> = {
+                                                    let mut globals_guard = self.globals.lock().unwrap();
+                                                    let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                                    drop(globals_guard);
+                                                    ptr
+                                                };
+                                                let mut func_locals = HashMap::new();
+                                                let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
+                                                
+                                                let mut vm_context = crate::jit::VMContext {
+                                                    stack_ptr,
+                                                    locals_ptr,
+                                                    globals_ptr,
+                                                    var_names_ptr: std::ptr::null_mut(),
+                                                    vm_ptr,
+                                                    return_value: 0,
+                                                    has_return_value: false,
+                                                    arg0: arg_val,
+                                                    arg1: 0,
+                                                    arg2: 0,
+                                                    arg3: 0,
+                                                    arg_count: 1,
+                                                };
+                                                
+                                                // Execute direct-arg function - result is returned directly!
+                                                let result = unsafe {
+                                                    direct_fn(&mut vm_context, arg_val)
+                                                };
+                                                
+                                                if std::env::var("DEBUG_JIT").is_ok() {
+                                                    eprintln!("JIT: Interpreter direct-arg call to '{}' with arg {} returned {}", 
+                                                        func_name, arg_val, result);
+                                                }
+                                                
+                                                self.stack.push(Value::Int(result));
+                                                continue; // Skip to next instruction
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Check if we have a JIT-compiled version (standard path)
                                 if let Some(compiled_fn) = self.compiled_functions.get(func_name) {
                                     // Fast path: Call JIT-compiled version
                                     
@@ -913,14 +971,18 @@ impl VM {
                                         }
                                     }
                                     
-                                    // Attempt to compile the function
-                                    match self.jit_compiler.compile_function(chunk, func_name) {
-                                        Ok(compiled_fn) => {
+                                    // Attempt to compile the function with enhanced info
+                                    // This creates both standard and direct-arg variants for recursion
+                                    match self.jit_compiler.compile_function_with_info(chunk, func_name) {
+                                        Ok(fn_info) => {
                                             // Successfully compiled!
                                             if std::env::var("DEBUG_JIT").is_ok() {
-                                                eprintln!("JIT: Successfully compiled function '{}'", func_name);
+                                                eprintln!("JIT: Successfully compiled function '{}' (direct_recursion={})", 
+                                                    func_name, fn_info.supports_direct_recursion);
                                             }
-                                            self.compiled_functions.insert(func_name.to_string(), compiled_fn);
+                                            // Store both the standard pointer and the enhanced info
+                                            self.compiled_functions.insert(func_name.to_string(), fn_info.fn_ptr);
+                                            self.compiled_fn_info.insert(func_name.to_string(), fn_info);
                                         }
                                         Err(e) => {
                                             // Compilation failed - just log and continue with interpreter
@@ -1948,6 +2010,66 @@ impl VM {
                 // If so, make direct JIT → JIT call for maximum performance
                 if self.jit_enabled {
                     let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
+                    
+                    // PHASE 7 STEP 12: Check for direct-arg optimized variant first
+                    // This enables direct JIT recursion without FFI boundary crossing
+                    if args.len() == 1 {
+                        if let Value::Int(arg_val) = args[0] {
+                            // Copy the function info to avoid borrow checker issues
+                            let fn_info_opt = self.compiled_fn_info.get(func_name).copied();
+                            
+                            if let Some(fn_info) = fn_info_opt {
+                                if let Some(direct_fn) = fn_info.fn_with_arg {
+                                    // ULTRA-FAST PATH: Call the direct-arg variant!
+                                    // This is the key optimization for recursive functions
+                                    
+                                    // Get VM pointer for VMContext
+                                    let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+                                    let stack_ptr: *mut Vec<Value> = &mut self.stack;
+                                    
+                                    // Get globals pointer
+                                    let globals_ptr: *mut HashMap<String, Value> = {
+                                        let mut globals_guard = self.globals.lock().unwrap();
+                                        let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                        drop(globals_guard);
+                                        ptr
+                                    };
+                                    
+                                    // Create minimal VMContext - direct-arg functions don't need HashMap
+                                    let mut func_locals = HashMap::new();
+                                    let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
+                                    
+                                    let mut vm_context = crate::jit::VMContext {
+                                        stack_ptr,
+                                        locals_ptr,
+                                        globals_ptr,
+                                        var_names_ptr: std::ptr::null_mut(),
+                                        vm_ptr,
+                                        return_value: 0,
+                                        has_return_value: false,
+                                        arg0: arg_val,
+                                        arg1: 0,
+                                        arg2: 0,
+                                        arg3: 0,
+                                        arg_count: 1,
+                                    };
+                                    
+                                    // Execute the direct-arg variant!
+                                    // The function returns the actual result (not a status code)
+                                    let result = unsafe {
+                                        direct_fn(&mut vm_context, arg_val)
+                                    };
+                                    
+                                    if std::env::var("DEBUG_JIT").is_ok() {
+                                        eprintln!("JIT: Direct-arg call to '{}' with arg {} returned {}", 
+                                            func_name, arg_val, result);
+                                    }
+                                    
+                                    return Ok(Value::Int(result));
+                                }
+                            }
+                        }
+                    }
                     
                     // Copy the function pointer to avoid borrow checker issues
                     let compiled_fn_opt = self.compiled_functions.get(func_name).copied();
