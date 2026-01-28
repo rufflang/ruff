@@ -85,6 +85,73 @@ pub struct VM {
     
     /// Maximum recursion depth observed (for profiling)
     max_recursion_depth: usize,
+    
+    /// Inline cache for function calls at specific call sites
+    /// Key: (chunk_id, instruction_pointer) uniquely identifies a call site
+    /// Value: Cached function pointer and metadata for fast dispatch
+    inline_cache: HashMap<CallSiteId, InlineCacheEntry>,
+}
+
+/// Unique identifier for a call site (location in bytecode where a Call occurs)
+/// Used as key for inline cache lookups
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct CallSiteId {
+    /// Unique identifier for the chunk/function containing this call site
+    /// We use the chunk name's hash for stability across executions
+    chunk_id: u64,
+    /// Instruction pointer within the chunk where the Call opcode is
+    ip: usize,
+}
+
+impl CallSiteId {
+    fn new(chunk_name: Option<&str>, ip: usize) -> Self {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let chunk_id = match chunk_name {
+            Some(name) => {
+                let mut hasher = DefaultHasher::new();
+                name.hash(&mut hasher);
+                hasher.finish()
+            }
+            None => 0, // Anonymous/top-level chunk
+        };
+        
+        Self { chunk_id, ip }
+    }
+}
+
+/// Cached information for a call site to enable fast function dispatch
+#[derive(Clone)]
+struct InlineCacheEntry {
+    /// The expected function name at this call site
+    /// Used to validate cache hit (guard against function reassignment)
+    expected_func_name: String,
+    
+    /// Cached JIT-compiled function pointer (if available)
+    /// None if function is not JIT-compiled yet
+    compiled_fn: Option<CompiledFn>,
+    
+    /// Cached var_names HashMap for this function (avoids rebuilding on every call)
+    var_names: HashMap<u64, String>,
+    
+    /// Cache hit count (for profiling and debugging)
+    hit_count: usize,
+    
+    /// Cache miss count (for profiling - indicates polymorphic call sites)
+    miss_count: usize,
+}
+
+impl InlineCacheEntry {
+    fn new(func_name: &str, compiled_fn: Option<CompiledFn>, var_names: HashMap<u64, String>) -> Self {
+        Self {
+            expected_func_name: func_name.to_string(),
+            compiled_fn,
+            var_names,
+            hit_count: 0,
+            miss_count: 0,
+        }
+    }
 }
 
 /// Exception handler frame for active try blocks
@@ -183,6 +250,7 @@ impl VM {
             jit_var_names_cache: HashMap::new(),
             recursion_depth: 0,
             max_recursion_depth: 0,
+            inline_cache: HashMap::new(),
         }
     }
 
@@ -568,6 +636,10 @@ impl VM {
 
                 // Function operations
                 OpCode::Call(arg_count) => {
+                    // Create call site ID for inline cache lookup
+                    // This identifies where in the bytecode this call occurs
+                    let call_site_id = CallSiteId::new(self.chunk.name.as_deref(), self.ip);
+                    
                     // Function is on top of stack, then arguments below it
                     // Stack layout: [... arg1, arg2, ..., argN, function]
                     let function = self.stack.pop().ok_or("Stack underflow in Call")?;
@@ -589,6 +661,82 @@ impl VM {
                                 // Get VM pointer early (before any borrows)
                                 let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
                                 
+                                // === INLINE CACHE FAST PATH ===
+                                // Check inline cache for this specific call site
+                                // This is faster than HashMap lookups because:
+                                // 1. We cache the compiled_fn pointer directly (no string hash)
+                                // 2. We cache var_names to avoid rebuilding on every call
+                                // 3. We validate with a simple string comparison (guard)
+                                if let Some(cache_entry) = self.inline_cache.get_mut(&call_site_id) {
+                                    // Cache hit! Validate that function hasn't changed (guard)
+                                    if cache_entry.expected_func_name == func_name {
+                                        cache_entry.hit_count += 1;
+                                        
+                                        // If we have a compiled function, use it directly
+                                        if let Some(compiled_fn) = cache_entry.compiled_fn {
+                                            // Create locals HashMap for the function parameters
+                                            let mut func_locals = HashMap::new();
+                                            
+                                            // Bind arguments to parameter names
+                                            for (i, param_name) in chunk.params.iter().enumerate() {
+                                                if let Some(arg) = args.get(i) {
+                                                    func_locals.insert(param_name.clone(), arg.clone());
+                                                }
+                                            }
+                                            
+                                            // Use cached var_names directly (no clone needed - we'll get a reference)
+                                            let mut var_names = cache_entry.var_names.clone();
+                                            
+                                            // Save stack size to detect return value
+                                            let stack_size_before = self.stack.len();
+                                            
+                                            // Execute the JIT-compiled function
+                                            let stack_ptr: *mut Vec<Value> = &mut self.stack;
+                                            
+                                            // Get globals - drop lock before execution
+                                            let globals_ptr: *mut HashMap<String, Value> = {
+                                                let mut globals_guard = self.globals.lock().unwrap();
+                                                let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                                drop(globals_guard);
+                                                ptr
+                                            };
+                                            
+                                            let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
+                                            let var_names_ptr: *mut HashMap<u64, String> = &mut var_names;
+                                            
+                                            let mut vm_context = crate::jit::VMContext::with_var_names(
+                                                stack_ptr,
+                                                locals_ptr,
+                                                globals_ptr,
+                                                var_names_ptr,
+                                            );
+                                            vm_context.vm_ptr = vm_ptr;
+                                            
+                                            let result_code = unsafe {
+                                                compiled_fn(&mut vm_context)
+                                            };
+                                            
+                                            if result_code != 0 {
+                                                return Err(format!("JIT execution failed with code: {}", result_code));
+                                            }
+                                            
+                                            if vm_context.has_return_value {
+                                                self.stack.push(Value::Int(vm_context.return_value));
+                                            } else if self.stack.len() > stack_size_before {
+                                                // Return value was pushed to stack
+                                            } else {
+                                                return Err("JIT-compiled function did not return a value".to_string());
+                                            }
+                                            
+                                            continue; // Skip to next instruction
+                                        }
+                                    } else {
+                                        // Cache miss - function at this call site changed (polymorphic)
+                                        cache_entry.miss_count += 1;
+                                    }
+                                }
+                                
+                                // === SLOW PATH - populate cache and execute ===
                                 // Check if we have a JIT-compiled version
                                 if let Some(compiled_fn) = self.compiled_functions.get(func_name) {
                                     // Fast path: Call JIT-compiled version
@@ -605,7 +753,7 @@ impl VM {
                                     
                                     // Get or create var_names from cache
                                     let func_name_owned = func_name.to_string();
-                                    let mut var_names = if let Some(cached) = self.jit_var_names_cache.get(&func_name_owned) {
+                                    let var_names = if let Some(cached) = self.jit_var_names_cache.get(&func_name_owned) {
                                         cached.clone()
                                     } else {
                                         // Build var_names once and cache it
@@ -637,6 +785,15 @@ impl VM {
                                         cached_var_names
                                     };
                                     
+                                    // === POPULATE INLINE CACHE ===
+                                    // Store in inline cache for faster lookup next time
+                                    self.inline_cache.insert(
+                                        call_site_id,
+                                        InlineCacheEntry::new(func_name, Some(*compiled_fn), var_names.clone()),
+                                    );
+                                    
+                                    let mut var_names_mut = var_names;
+                                    
                                     // Save stack size to detect return value
                                     let stack_size_before = self.stack.len();
                                     
@@ -656,7 +813,7 @@ impl VM {
                                     let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
                                     
                                     // Set up var_names for JIT variable resolution
-                                    let var_names_ptr: *mut HashMap<u64, String> = &mut var_names;
+                                    let var_names_ptr: *mut HashMap<u64, String> = &mut var_names_mut;
                                     
                                     // Create VMContext with all necessary pointers
                                     let mut vm_context = crate::jit::VMContext::with_var_names(
