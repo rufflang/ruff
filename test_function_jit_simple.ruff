@@ -1,0 +1,16 @@
+# Test file for function-level JIT compilation
+# This will test basic function call tracking
+
+func add(a, b) {
+    return a + b
+}
+
+# Call the function 150 times to trigger JIT compilation
+# (threshold is 100 calls)
+result := 0
+for i in range(150) {
+    result := add(i, 1)
+}
+
+print("Final result: ", result)
+print("Function called 150 times - should have triggered JIT compilation")

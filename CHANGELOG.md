@@ -9,7 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Phase 7: JIT Opcode Coverage Expansion (v0.9.0) - IN PROGRESS**:
+- **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 1 Complete: Function Call Tracking Infrastructure** (2026-01-28):
+    - Added `function_call_counts` HashMap to VM for tracking call frequency
+    - Added `compiled_functions` cache for storing JIT-compiled native code
+    - Added `JIT_FUNCTION_THRESHOLD` constant (100 calls before compilation)
+    - Modified `OpCode::Call` handler to count function calls and trigger JIT
+    - Implemented fast path for executing JIT-compiled functions
+    - Exported `CompiledFn` type from jit.rs for VM integration
+    - Foundation complete for function-level JIT compilation
+    - Next: Implement actual function compilation in JitCompiler (Step 2)
+    - See `notes/2026-01-28_phase7_step1_complete.md` for details
+    - See `START_HERE_PHASE7_STEP2.md` for next steps
+
+- **Phase 7: JIT Opcode Coverage Expansion (v0.9.0) - COMPLETED**:
   - **String Constant Handling Improved**: Loops can now JIT-compile with external strings
     - Modified `is_supported_opcode()` to accept all constant types (not just Int/Bool)
     - Modified `translate_instruction` LoadConst to push placeholder for non-Int/Bool

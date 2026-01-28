@@ -378,19 +378,24 @@ The fibonacci performance problem requires **function-level JIT compilation**. H
 
 **Week 1-2: Core Function-Level JIT Architecture**
 
-1. **Function Call Tracking** (2-3 days):
-   - Add `function_call_counts: HashMap<String, usize>` to VM
-   - Track every OpCode::Call execution
-   - Trigger JIT compilation after threshold (e.g., 100 calls)
-   - Location: `src/vm.rs` OpCode::Call handler
+1. **Function Call Tracking** (2-3 days) - ✅ COMPLETE (2026-01-28):
+   - ✅ Add `function_call_counts: HashMap<String, usize>` to VM
+   - ✅ Track every OpCode::Call execution
+   - ✅ Trigger JIT compilation after threshold (100 calls)
+   - ✅ Location: `src/vm.rs` OpCode::Call handler
+   - ✅ Add `compiled_functions` cache to VM
+   - ✅ Implement fast path for JIT-compiled functions
+   - ✅ Export CompiledFn type from jit.rs
+   - See: `notes/2026-01-28_phase7_step1_complete.md`
 
-2. **Function Body Compilation** (3-4 days):
-   - Extend `JitCompiler::compile()` to handle function bodies (not just loops)
-   - Compile from function start to Return/ReturnNone
-   - Handle Call opcodes within functions (recursive calls)
-   - Create function registry: `compiled_functions: HashMap<String, CompiledFn>`
+2. **Function Body Compilation** (3-4 days) - IN PROGRESS:
+   - [ ] Add `compile_function()` method to JitCompiler
+   - [ ] Compile from function start to Return/ReturnNone
+   - [ ] Add `can_compile_function()` opcode checking
+   - [ ] Wire up compilation trigger in VM
+   - See: `START_HERE_PHASE7_STEP2.md` for implementation guide
 
-3. **Call Opcode JIT Support** (2-3 days):
+3. **Call Opcode JIT Support** (2-3 days) - TODO:
    - Implement Call opcode translation in `translate_instruction`
    - Generate native call instruction to jump to JIT-compiled functions
    - Fallback to interpreter for non-JIT'd functions

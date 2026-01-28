@@ -6,9 +6,13 @@
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{Environment, Interpreter, Value};
-use crate::jit::JitCompiler;
+use crate::jit::{JitCompiler, CompiledFn};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+/// JIT compilation threshold for functions
+/// A function will be JIT-compiled after being called this many times
+const JIT_FUNCTION_THRESHOLD: usize = 100;
 
 /// Upvalue: heap-allocated captured variable for closures
 #[derive(Debug, Clone)]
@@ -63,6 +67,14 @@ pub struct VM {
 
     /// Function call stack for error reporting (tracks function names)
     function_call_stack: Vec<String>,
+
+    /// Function call counts for JIT compilation threshold
+    /// Maps function name to number of times it has been called
+    function_call_counts: HashMap<String, usize>,
+
+    /// Cache of JIT-compiled functions
+    /// Maps function name to compiled native code
+    compiled_functions: HashMap<String, CompiledFn>,
 }
 
 /// Exception handler frame for active try blocks
@@ -156,6 +168,8 @@ impl VM {
             }),
             jit_enabled: true,
             function_call_stack: Vec::new(),
+            function_call_counts: HashMap::new(),
+            compiled_functions: HashMap::new(),
         }
     }
 
@@ -199,71 +213,84 @@ impl VM {
                 // For loops (backward jumps), check if we should compile
                 if let Some(OpCode::JumpBack(jump_target)) = self.chunk.instructions.get(self.ip) {
                     if self.jit_compiler.should_compile(self.ip) {
-                        // Try to compile this hot loop
-                        // IMPORTANT: Compile from the loop START (jump_target), not from the JumpBack!
-                        // The JumpBack just marks the end of the loop
-                        match self.jit_compiler.compile(&self.chunk, *jump_target) {
-                            Ok(compiled_fn) => {
-                                // Successfully compiled! Now EXECUTE the compiled function
-                                if std::env::var("DEBUG_JIT").is_ok() {
-                                    eprintln!(
-                                        "JIT: Successfully compiled hot loop starting at offset {} - EXECUTING NOW!",
-                                        jump_target
-                                    );
-                                }
+                        // PRE-SCAN: Check if loop contains only supported opcodes
+                        // This prevents compilation failures and maintains correctness
+                        if self.jit_compiler.can_compile_loop(&self.chunk, *jump_target, self.ip) {
+                            // Try to compile this hot loop
+                            // IMPORTANT: Compile from the loop START (jump_target), not from the JumpBack!
+                            // The JumpBack just marks the end of the loop
+                            match self.jit_compiler.compile(&self.chunk, *jump_target) {
+                                Ok(compiled_fn) => {
+                                    // Successfully compiled! Now EXECUTE the compiled function
+                                    if std::env::var("DEBUG_JIT").is_ok() {
+                                        eprintln!(
+                                            "JIT: Successfully compiled hot loop starting at offset {} - EXECUTING NOW!",
+                                            jump_target
+                                        );
+                                    }
 
-                                // Execute the JIT-compiled function
-                                // Get mutable pointers to VM state for VMContext
-                                let stack_ptr: *mut Vec<Value> = &mut self.stack;
-                                
-                                // Get globals - lock and get mutable reference to the first scope
-                                let mut globals_guard = self.globals.lock().unwrap();
-                                let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
-                                
-                                // Get locals from current call frame, or use globals if at top level
-                                let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
-                                    &mut frame.locals
-                                } else {
-                                    // Top-level: use globals as locals
-                                    globals_ptr
-                                };
-                                
-                                // Create VMContext
-                                let mut vm_context = crate::jit::VMContext::new(
-                                    stack_ptr,
-                                    locals_ptr,
-                                    globals_ptr,
-                                );
-                                
-                                // Execute the compiled function!
-                                let result_code = unsafe {
-                                    (compiled_fn)(&mut vm_context)
-                                };
-                                
-                                // Drop the globals lock
-                                drop(globals_guard);
-                                
-                                if result_code != 0 {
-                                    return Err(format!("JIT execution failed with code: {}", result_code));
-                                }
-                                
-                                if std::env::var("DEBUG_JIT").is_ok() {
-                                    eprintln!("JIT: Execution completed successfully!");
-                                }
-                                
-                                // The JIT function executed the loop completely
-                                // Skip past the JumpBack instruction to avoid re-executing the loop
-                                self.ip += 1;
-                                continue;
-                            }
-                            Err(e) => {
-                                // Compilation failed - this is expected for complex code
-                                if std::env::var("DEBUG_JIT").is_ok() {
-                                    eprintln!(
-                                        "JIT: Could not compile at offset {}: {}",
-                                        jump_target, e
+                                    // Execute the JIT-compiled function
+                                    // Get mutable pointers to VM state for VMContext
+                                    let stack_ptr: *mut Vec<Value> = &mut self.stack;
+                                    
+                                    // Get globals - lock and get mutable reference to the first scope
+                                    let mut globals_guard = self.globals.lock().unwrap();
+                                    let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+                                    
+                                    // Get locals from current call frame, or use globals if at top level
+                                    let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
+                                        &mut frame.locals
+                                    } else {
+                                        // Top-level: use globals as locals
+                                        globals_ptr
+                                    };
+                                    
+                                    // Create VMContext
+                                    let mut vm_context = crate::jit::VMContext::new(
+                                        stack_ptr,
+                                        locals_ptr,
+                                        globals_ptr,
                                     );
+                                    
+                                    // Execute the compiled function!
+                                    let result_code = unsafe {
+                                        (compiled_fn)(&mut vm_context)
+                                    };
+                                    
+                                    // Drop the globals lock
+                                    drop(globals_guard);
+                                    
+                                    if result_code != 0 {
+                                        return Err(format!("JIT execution failed with code: {}", result_code));
+                                    }
+                                    
+                                    if std::env::var("DEBUG_JIT").is_ok() {
+                                        eprintln!("JIT: Execution completed successfully!");
+                                    }
+                                    
+                                    // The JIT function executed the loop completely
+                                    // Skip past the JumpBack instruction to avoid re-executing the loop
+                                    self.ip += 1;
+                                    continue;
                                 }
+                                Err(e) => {
+                                    // Compilation failed - this shouldn't happen if pre-scan worked
+                                    if std::env::var("DEBUG_JIT").is_ok() {
+                                        eprintln!(
+                                            "JIT: Unexpected compilation failure at offset {}: {}",
+                                            jump_target, e
+                                        );
+                                    }
+                                }
+                            }
+                        } else {
+                            // Loop contains unsupported opcodes - skip JIT compilation
+                            // This is normal for loops with function calls, strings, etc.
+                            if std::env::var("DEBUG_JIT").is_ok() {
+                                eprintln!(
+                                    "JIT: Loop at offset {} contains unsupported opcodes, using interpreter",
+                                    jump_target
+                                );
                             }
                         }
                     }
@@ -538,6 +565,78 @@ impl VM {
                     // Check if this is a bytecode function or native function
                     match &function {
                         Value::BytecodeFunction { chunk, captured } => {
+                            // Track function calls for JIT compilation
+                            if self.jit_enabled && !chunk.is_generator {
+                                let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
+                                
+                                // Check if we have a JIT-compiled version
+                                if let Some(compiled_fn) = self.compiled_functions.get(func_name) {
+                                    // Fast path: Call JIT-compiled version
+                                    if std::env::var("DEBUG_JIT").is_ok() {
+                                        eprintln!("JIT: Calling compiled function: {}", func_name);
+                                    }
+                                    
+                                    // Execute the JIT-compiled function
+                                    // Get mutable pointers to VM state for VMContext
+                                    let stack_ptr: *mut Vec<Value> = &mut self.stack;
+                                    
+                                    // Get globals - lock and get mutable reference to the first scope
+                                    let mut globals_guard = self.globals.lock().unwrap();
+                                    let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+                                    
+                                    // Get locals from current call frame, or use globals if at top level
+                                    let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
+                                        &mut frame.locals
+                                    } else {
+                                        // Top-level: use globals as locals
+                                        globals_ptr
+                                    };
+                                    
+                                    // Create VMContext
+                                    let mut vm_context = crate::jit::VMContext::new(
+                                        stack_ptr,
+                                        locals_ptr,
+                                        globals_ptr,
+                                    );
+                                    
+                                    // Execute the compiled function!
+                                    let result_code = unsafe {
+                                        (*compiled_fn)(&mut vm_context)
+                                    };
+                                    
+                                    // Drop the globals lock
+                                    drop(globals_guard);
+                                    
+                                    if result_code != 0 {
+                                        return Err(format!("JIT execution failed with code: {}", result_code));
+                                    }
+                                    
+                                    // The return value should be on the stack
+                                    // Skip the normal bytecode execution
+                                    continue;
+                                }
+                                
+                                // Increment call counter
+                                let count = self.function_call_counts
+                                    .entry(func_name.to_string())
+                                    .or_insert(0);
+                                *count += 1;
+                                
+                                // Check if we should JIT-compile this function
+                                if *count == JIT_FUNCTION_THRESHOLD {
+                                    if std::env::var("DEBUG_JIT").is_ok() {
+                                        eprintln!(
+                                            "JIT: Function '{}' hit threshold ({} calls), attempting compilation...",
+                                            func_name, JIT_FUNCTION_THRESHOLD
+                                        );
+                                    }
+                                    
+                                    // TODO: Implement function compilation
+                                    // For now, we'll add a placeholder
+                                    // self.compile_function(chunk, func_name)?;
+                                }
+                            }
+                            
                             // Check if this is a generator function
                             if chunk.is_generator {
                                 // Generator functions don't execute immediately

@@ -79,7 +79,7 @@ impl VMContext {
 }
 
 /// Compiled function type: takes VMContext pointer, returns status code
-type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
+pub type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
 
 /// Type profile for a variable or operation
 /// Infrastructure for Phase 4A adaptive specialization
