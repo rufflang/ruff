@@ -8,6 +8,8 @@ use crate::interpreter::Value;
 use crate::vm::VM; // For calling back into VM from JIT
 use cranelift::prelude::*;
 use cranelift::codegen::ir::FuncRef;
+use cranelift::codegen::ir::stackslot::{StackSlotData, StackSlotKind};
+use cranelift::codegen::ir::StackSlot;
 use cranelift_jit::{JITBuilder, JITModule};
 // FuncId used for future multi-function JIT optimization
 #[allow(unused_imports)]
@@ -669,6 +671,14 @@ struct BytecodeTranslator {
     specialization: Option<SpecializationInfo>,
     /// End of function body (PC index, exclusive)
     function_end: usize,
+    /// Local variable slots - maps variable name to stack slot
+    /// This enables register-based locals optimization (Phase 7 Step 7)
+    /// Instead of calling runtime functions for every LoadVar/StoreVar,
+    /// we use direct memory access via Cranelift stack slots
+    local_slots: HashMap<String, StackSlot>,
+    /// Flag to enable register-based locals optimization
+    /// When true, LoadVar/StoreVar use stack slots instead of runtime calls
+    use_local_slots: bool,
 }
 
 impl BytecodeTranslator {
@@ -691,6 +701,130 @@ impl BytecodeTranslator {
             stack_push_func: None,
             specialization: None,
             function_end: 0,
+            local_slots: HashMap::new(),
+            use_local_slots: false,
+        }
+    }
+    
+    /// Scan bytecode to discover all local variables and pre-allocate stack slots
+    /// This enables register-based locals optimization - avoiding HashMap lookups
+    /// and C function calls for every variable access
+    fn allocate_local_slots(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        instructions: &[OpCode],
+        function_end: usize,
+    ) {
+        // Collect variable names that are WRITTEN to (StoreVar targets)
+        // We only create stack slots for variables that are actually assigned
+        // Variables that are only read (like recursive function references)
+        // should be loaded via runtime calls from globals
+        let mut store_var_names: Vec<String> = Vec::new();
+        
+        for (pc, instruction) in instructions.iter().enumerate() {
+            if pc >= function_end {
+                break;
+            }
+            
+            // Only allocate slots for variables that have StoreVar operations
+            // This ensures we don't create slots for function references that
+            // should be loaded from globals (like 'fib' in recursive calls)
+            if let OpCode::StoreVar(name) = instruction {
+                if !store_var_names.contains(name) {
+                    store_var_names.push(name.clone());
+                }
+            }
+        }
+        
+        // Create a stack slot for each locally-assigned variable
+        // Each slot is 8 bytes (i64) to store integer values
+        for name in store_var_names {
+            let slot = builder.create_sized_stack_slot(StackSlotData::new(
+                StackSlotKind::ExplicitSlot,
+                8, // 8 bytes for i64
+                0, // No alignment padding needed for single slot
+            ));
+            self.local_slots.insert(name.clone(), slot);
+            
+            if std::env::var("DEBUG_JIT").is_ok() {
+                eprintln!("JIT: Allocated stack slot {:?} for local '{}'", slot, name);
+            }
+        }
+        
+        // Enable local slot optimization if we have any locals
+        self.use_local_slots = !self.local_slots.is_empty();
+        
+        if std::env::var("DEBUG_JIT").is_ok() {
+            eprintln!("JIT: Allocated {} local slots, optimization enabled: {}", 
+                self.local_slots.len(), self.use_local_slots);
+        }
+    }
+    
+    /// Allocate stack slots for function parameters
+    /// This is called separately to ensure parameters have slots for the fast path
+    fn allocate_parameter_slots(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        params: &[String],
+    ) {
+        for param_name in params {
+            // Only allocate if not already allocated (may be assigned in function)
+            if !self.local_slots.contains_key(param_name) {
+                let slot = builder.create_sized_stack_slot(StackSlotData::new(
+                    StackSlotKind::ExplicitSlot,
+                    8, // 8 bytes for i64
+                    0, // No alignment padding needed for single slot
+                ));
+                self.local_slots.insert(param_name.clone(), slot);
+                
+                if std::env::var("DEBUG_JIT").is_ok() {
+                    eprintln!("JIT: Allocated stack slot {:?} for parameter '{}'", slot, param_name);
+                }
+            }
+        }
+        
+        // Re-enable local slots optimization if we have any
+        if !self.local_slots.is_empty() {
+            self.use_local_slots = true;
+        }
+    }
+    
+    /// Initialize parameter stack slots with values from the HashMap
+    /// This is called at function entry to copy parameter values from the
+    /// func_locals HashMap (passed via VMContext) into the fast stack slots
+    fn initialize_parameter_slots(
+        &mut self,
+        builder: &mut FunctionBuilder,
+        params: &[String],
+        load_var_func: FuncRef,
+    ) {
+        if !self.use_local_slots || params.is_empty() {
+            return;
+        }
+        
+        let ctx = match self.ctx_param {
+            Some(ctx) => ctx,
+            None => return,
+        };
+        
+        for param_name in params {
+            if let Some(&slot) = self.local_slots.get(param_name) {
+                // Load parameter value from HashMap via runtime call
+                let name_hash = Self::hash_var_name(param_name) as i64;
+                let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                let zero = builder.ins().iconst(types::I64, 0);
+                
+                // Call jit_load_variable to get the parameter value from func_locals
+                let call = builder.ins().call(load_var_func, &[ctx, name_hash_val, zero]);
+                let param_value = builder.inst_results(call)[0];
+                
+                // Store the parameter value into the stack slot
+                builder.ins().stack_store(param_value, slot, 0);
+                
+                if std::env::var("DEBUG_JIT").is_ok() {
+                    eprintln!("JIT: Initialized parameter '{}' in stack slot {:?}", param_name, slot);
+                }
+            }
         }
     }
     
@@ -1147,11 +1281,37 @@ impl BytecodeTranslator {
                 return Ok(true); // Terminates block
             }
 
-            // Variable operations - call runtime helpers
+            // Variable operations - use stack slots for locals (fast path) or runtime helpers (fallback)
             OpCode::LoadVar(name) => {
-                if let (Some(ctx), Some(load_func)) = (self.ctx_param, self.load_var_func) {
-                    // For simplicity, we'll use a hash of the variable name
-                    // In a full implementation, we'd pass the string pointer
+                // OPTIMIZATION: Use stack slots for local variables (register-based locals)
+                // This avoids C function calls and HashMap lookups for every variable access
+                if self.use_local_slots {
+                    if let Some(&slot) = self.local_slots.get(name) {
+                        // Fast path: Direct stack slot load
+                        // Load the i64 value directly from the stack slot
+                        let value = builder.ins().stack_load(types::I64, slot, 0);
+                        self.push_value(value);
+                        
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: LoadVar '{}' using fast stack slot {:?}", name, slot);
+                        }
+                    } else {
+                        // Variable not in local slots - fall back to runtime call
+                        // This handles globals and captured variables
+                        if let (Some(ctx), Some(load_func)) = (self.ctx_param, self.load_var_func) {
+                            let name_hash = Self::hash_var_name(name) as i64;
+                            let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let call = builder.ins().call(load_func, &[ctx, name_hash_val, zero]);
+                            let result = builder.inst_results(call)[0];
+                            self.push_value(result);
+                        } else {
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            self.push_value(zero);
+                        }
+                    }
+                } else if let (Some(ctx), Some(load_func)) = (self.ctx_param, self.load_var_func) {
+                    // Original slow path: Call runtime helper
                     let name_hash = {
                         use std::collections::hash_map::DefaultHasher;
                         use std::hash::{Hash, Hasher};
@@ -1175,12 +1335,32 @@ impl BytecodeTranslator {
             }
 
             OpCode::StoreVar(name) => {
-                if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
-                    // IMPORTANT: StoreVar PEEKS at the stack (doesn't pop)
-                    // The value remains on stack after assignment
-                    let value = self.peek_value()?;
-                    
-                    // Use hash of variable name
+                // IMPORTANT: StoreVar PEEKS at the stack (doesn't pop)
+                // The value remains on stack after assignment
+                let value = self.peek_value()?;
+                
+                // OPTIMIZATION: Use stack slots for local variables (register-based locals)
+                if self.use_local_slots {
+                    if let Some(&slot) = self.local_slots.get(name) {
+                        // Fast path: Direct stack slot store
+                        // Store the i64 value directly to the stack slot
+                        builder.ins().stack_store(value, slot, 0);
+                        
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: StoreVar '{}' using fast stack slot {:?}", name, slot);
+                        }
+                        // Value stays on stack - do NOT pop
+                    } else {
+                        // Variable not in local slots - fall back to runtime call
+                        if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
+                            let name_hash = Self::hash_var_name(name) as i64;
+                            let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
+                        }
+                    }
+                } else if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
+                    // Original slow path: Call runtime helper
                     let name_hash = {
                         use std::collections::hash_map::DefaultHasher;
                         use std::hash::{Hash, Hasher};
@@ -1195,9 +1375,8 @@ impl BytecodeTranslator {
                     // Call jit_store_variable(ctx, name_hash, 0, value)
                     builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
                     // Value stays on stack - do NOT pop
-                } else {
-                    // Can't store without context - just leave value on stack
                 }
+                // If no context, just leave value on stack
             }
 
             OpCode::LoadGlobal(name) => {
@@ -1961,6 +2140,22 @@ impl JitCompiler {
             // Create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
             
+            // OPTIMIZATION: Pre-allocate stack slots for local variables
+            // This enables register-based locals - direct memory access instead of
+            // runtime function calls and HashMap lookups for every variable access
+            // This is the key optimization for Phase 7 Step 7 - targeting 10-50x speedup
+            let function_end = translator.function_end;
+            translator.allocate_local_slots(&mut builder, &chunk.instructions, function_end);
+            
+            // Also allocate stack slots for function parameters
+            // Parameters need slots so they can be accessed via the fast path
+            translator.allocate_parameter_slots(&mut builder, &chunk.params);
+            
+            // Initialize parameter slots with values from the func_locals HashMap
+            // This copies parameter values from the HashMap into fast stack slots
+            // at function entry, enabling fast access during function execution
+            translator.initialize_parameter_slots(&mut builder, &chunk.params, load_var_ref);
+            
             // Add entry block to block map
             if !translator.blocks.contains_key(&0) {
                 translator.blocks.insert(0, entry_block);
@@ -1974,7 +2169,6 @@ impl JitCompiler {
             
             let mut current_block = entry_block;
             let mut block_terminated = false;
-            let function_end = translator.function_end;
             
             // Translate all instructions from function body
             for (pc, instr) in chunk.instructions.iter().enumerate() {
