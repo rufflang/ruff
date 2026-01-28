@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 12 Partial: Direct JIT Recursion** (2026-01-30):
+    - Added `CompiledFnWithArg` type for functions that take args directly
+    - Added `CompiledFnInfo` struct tracking standard + direct-arg variants
+    - Implemented `function_has_self_recursion()` for bytecode analysis
+    - Implemented `compile_function_with_direct_arg()` Cranelift compilation
+    - Implemented `translate_direct_arg_instruction()` for direct-arg mode
+    - Updated interpreter to prefer direct-arg variant for 1-int-arg calls
+    - Self-recursion detection correctly identifies recursive patterns
+    - Infrastructure complete but performance optimization needs debugging
+    - Note: Direct-arg functions being called but not achieving expected speedup
+
   - **Step 10 Partial: Fast Argument Passing** (2026-01-29):
     - Implemented fast argument passing via VMContext.argN fields
     - Added arg0-arg3 and arg_count fields to VMContext struct

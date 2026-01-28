@@ -110,12 +110,19 @@ The JIT is **correct** but **slow** due to runtime overhead:
 - [ ] Enable JIT for `while` and `for` loops
 - [ ] Currently `test_compile_simple_loop` is ignored
 
-**Step 12: Direct JIT Recursion (P0 - CRITICAL)**
-- [ ] Change JIT function signature to pass arguments directly
-- [ ] Generate direct Cranelift calls for self-recursion
-- [ ] Avoid FFI boundary crossing for recursive calls
-- [ ] Target: 30-50x speedup on recursive functions
-- This is required to match Python performance
+**Step 12: Direct JIT Recursion (P0 - CRITICAL) - IN PROGRESS**
+- [x] Added `CompiledFnWithArg` type for direct-arg functions
+- [x] Added `CompiledFnInfo` struct to track both variants
+- [x] Implemented `function_has_self_recursion()` detection
+- [x] Implemented `compile_function_with_direct_arg()` method
+- [x] Implemented `translate_direct_arg_instruction()` for direct-arg mode
+- [x] Updated interpreter to prefer direct-arg variant for 1-int-arg calls
+- [x] Self-recursion detection correctly identifies recursive calls
+- [ ] **ISSUE**: Internal Cranelift recursion not achieving expected speedup
+- [ ] **TODO**: Debug why generated native calls are still slow
+- Status: Infrastructure complete, performance optimization needs debugging
+- Current: fib(30) still taking minutes instead of milliseconds
+- Note: The direct-arg function IS being called but internal recursion appears problematic
 
 #### Performance Targets (Non-Negotiable for v0.9.0):
 
