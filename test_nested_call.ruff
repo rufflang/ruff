@@ -1,13 +1,98 @@
-print("Test start")
+# Test nested function calls with JIT compilation
+# This tests the ability for JIT-compiled functions to call other functions
 
+print("=== Testing Nested Function Calls ===")
+print("")
+
+# Basic helper function
 func add(a, b) {
     return a + b
 }
 
-func test() {
-    return add(2, 3)
+# Function calling another function once
+func double_add(x, y) {
+    return add(x, y) + add(x, y)
 }
 
-print("Calling test...")
-result := test()
-print("Result:", result)
+# Function calling another function multiple times
+func quadruple(n) {
+    return add(add(n, n), add(n, n))
+}
+
+# Three-level nesting
+func triple_nested(x) {
+    return quadruple(add(x, 1))
+}
+
+# Four-level nesting
+func quad_nested(x) {
+    return triple_nested(add(x, 2))
+}
+
+# Test basic nested calls
+print("Test 1: Basic nested calls")
+result1 := double_add(5, 3)
+print("double_add(5, 3) =", result1)
+assert result1 == 16, "Test 1 failed"
+print("✓ Test 1 passed")
+print("")
+
+# Test multiple nested calls
+print("Test 2: Multiple nested calls (quadruple)")
+result2 := quadruple(10)
+print("quadruple(10) =", result2)
+assert result2 == 40, "Test 2 failed"
+print("✓ Test 2 passed")
+print("")
+
+# Test three-level nesting
+print("Test 3: Three-level nesting")
+result3 := triple_nested(5)
+print("triple_nested(5) =", result3)
+assert result3 == 24, "Test 3 failed"
+print("✓ Test 3 passed")
+print("")
+
+# Test four-level nesting
+print("Test 4: Four-level nesting")
+result4 := quad_nested(3)
+print("quad_nested(3) =", result4)
+assert result4 == 24, "Test 4 failed"
+print("✓ Test 4 passed")
+print("")
+
+# Trigger JIT compilation with repeated calls
+print("Test 5: Triggering JIT compilation (100+ calls)")
+sum := 0
+for i in range(150) {
+    sum := sum + add(i, 1)
+}
+print("Sum after 150 iterations:", sum)
+assert sum == 11325, "Test 5 failed"
+print("✓ Test 5 passed - JIT should be triggered!")
+print("")
+
+# Now test nested calls with JIT-compiled functions
+print("Test 6: Nested calls with JIT-compiled functions")
+jit_sum := 0
+for i in range(50) {
+    jit_sum := jit_sum + quadruple(i)
+}
+print("JIT sum:", jit_sum)
+assert jit_sum == 4900, "Test 6 failed"
+print("✓ Test 6 passed - JIT nested calls work!")
+print("")
+
+# Test with varying inputs
+print("Test 7: Varying inputs to ensure correctness")
+test_values := [1, 5, 10, 20, 50, 100]
+for val in test_values {
+    result := quadruple(val)
+    expected := val * 4
+    assert result == expected, "Test 7 failed"
+    print("quadruple(", val, ") =", result, "✓")
+}
+print("✓ Test 7 passed")
+print("")
+
+print("=== All Nested Function Call Tests PASSED! ===")

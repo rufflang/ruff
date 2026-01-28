@@ -1,0 +1,39 @@
+# Simple nested function call test without assert
+
+print("=== Testing Nested Function Calls ===")
+
+func add(a, b) {
+    return a + b
+}
+
+func double_add(x, y) {
+    return add(x, y) + add(x, y)
+}
+
+func quadruple(n) {
+    return add(add(n, n), add(n, n))
+}
+
+print("Test 1: Basic nested calls")
+result1 := double_add(5, 3)
+print("double_add(5, 3) =", result1, "(expected 16)")
+
+print("Test 2: Quadruple")
+result2 := quadruple(10)
+print("quadruple(10) =", result2, "(expected 40)")
+
+print("Test 3: Trigger JIT with 150 calls")
+sum := 0
+for i in range(150) {
+    sum := sum + add(i, 1)
+}
+print("Sum after 150 iterations:", sum, "(expected 11325)")
+
+print("Test 4: Nested calls with JIT")
+jit_sum := 0
+for i in range(50) {
+    jit_sum := jit_sum + quadruple(i)
+}
+print("JIT sum:", jit_sum, "(expected 4900)")
+
+print("=== Tests Complete ===")
