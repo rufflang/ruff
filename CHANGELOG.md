@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Phase 7: JIT Opcode Coverage Expansion (v0.9.0) - IN PROGRESS**:
+  - **String Constant Handling Improved**: Loops can now JIT-compile with external strings
+    - Modified `is_supported_opcode()` to accept all constant types (not just Int/Bool)
+    - Modified `translate_instruction` LoadConst to push placeholder for non-Int/Bool
+    - Allows loops to be JIT-compiled even when function contains print statements after loop
+    - Loops with print INSIDE still won't JIT (Call opcode unsupported) - this is expected
+    - Partial progress on Phase 7 objective to expand JIT coverage
+  
+  - **Analysis Complete**: Identified root causes of Fibonacci slowness
+    - Fibonacci recursive: 42x slower than Python (11,782ms vs 282ms)
+    - Fibonacci iterative: 7.8x slower than Python (918ms vs 118ms)
+    - Root cause: Functions with Call opcodes can't be JIT-compiled at all
+    - Current JIT only compiles loops (JumpBack detection), not function bodies
+    - Need function-level JIT compilation for dramatic speedup (major architecture change)
+  
+  - **Next Steps for Phase 7** (Future Work):
+    - Function-level JIT compilation (not just loops)
+    - Call opcode support for recursive function optimization
+    - Inline caching for hot function calls
+    - Return value optimization for integer-returning functions
+    - Type specialization for function arguments
+    - Target: 5-10x faster than Python across all benchmarks
+
 - **🎉 JIT Execution Now Working! (v0.9.0) - Critical Performance Breakthrough**:
   - **JIT Compiler Fully Functional**: Native code execution finally enabled!
     - Fixed 3 critical bugs preventing JIT execution

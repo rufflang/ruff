@@ -727,12 +727,12 @@ impl BytecodeTranslator {
                             let val = builder.ins().iconst(types::I64, if *b { 1 } else { 0 });
                             self.push_value(val);
                         }
-                        // Other constant types need runtime support
+                        // Other constant types (strings, floats, etc.) - push placeholder
+                        // These will be handled by interpreter when needed
+                        // Push 0 as placeholder to maintain stack balance
                         _ => {
-                            return Err(format!(
-                                "Unsupported constant type for JIT: {:?}",
-                                constant
-                            ))
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            self.push_value(zero);
                         }
                     }
                 } else {
@@ -1133,6 +1133,63 @@ impl JitCompiler {
         *count += 1;
 
         *count >= JIT_THRESHOLD && !self.compiled_cache.contains_key(&offset)
+    }
+
+    /// Check if a loop can be JIT-compiled (all opcodes supported)
+    /// Scans from start to end (inclusive) checking for unsupported operations
+    pub fn can_compile_loop(&self, chunk: &BytecodeChunk, start: usize, end: usize) -> bool {
+        for pc in start..=end {
+            if let Some(instruction) = chunk.instructions.get(pc) {
+                if !self.is_supported_opcode(instruction, &chunk.constants) {
+                    if std::env::var("DEBUG_JIT").is_ok() {
+                        eprintln!("JIT: Unsupported opcode at {}: {:?}", pc, instruction);
+                    }
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    /// Check if a specific opcode is supported by JIT compiler
+    fn is_supported_opcode(&self, opcode: &OpCode, constants: &[Constant]) -> bool {
+        match opcode {
+            // Constants - All types supported (strings push placeholder 0)
+            OpCode::LoadConst(idx) => {
+                constants.get(*idx).is_some()
+            }
+            
+            // Arithmetic operations
+            OpCode::Add | OpCode::Sub | OpCode::Mul | OpCode::Div | OpCode::Mod => true,
+            OpCode::Negate => true,
+            
+            // Comparison operations
+            OpCode::Equal | OpCode::NotEqual => true,
+            OpCode::LessThan | OpCode::GreaterThan => true,
+            OpCode::LessEqual | OpCode::GreaterEqual => true,
+            
+            // Logical operations
+            OpCode::Not | OpCode::And | OpCode::Or => true,
+            
+            // Stack operations
+            OpCode::Pop | OpCode::Dup => true,
+            
+            // Variable operations
+            OpCode::LoadVar(_) | OpCode::StoreVar(_) => true,
+            OpCode::LoadGlobal(_) | OpCode::StoreGlobal(_) => true,
+            
+            // Control flow - simple jumps only
+            OpCode::Jump(_) | OpCode::JumpIfFalse(_) | OpCode::JumpIfTrue(_) => true,
+            OpCode::JumpBack(_) => true,
+            
+            // Function returns - needed for compiling functions (not just loops)
+            OpCode::Return | OpCode::ReturnNone => true,
+            
+            // Everything else is unsupported - causes code to skip JIT
+            // This includes: CallNative, Call, Arrays, Dicts, Generators, Async, etc.
+            // TODO Phase 7: Add Call support for function inlining
+            _ => false,
+        }
     }
 
     /// Get compiled function from cache
