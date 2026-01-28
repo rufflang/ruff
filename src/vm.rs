@@ -684,8 +684,9 @@ impl VM {
                                                 }
                                             }
                                             
-                                            // Use cached var_names directly (no clone needed - we'll get a reference)
-                                            let mut var_names = cache_entry.var_names.clone();
+                                            // OPTIMIZATION: Get mutable pointer directly to cached var_names
+                                            // This avoids HashMap clone on every call!
+                                            let var_names_ptr: *mut HashMap<u64, String> = &mut cache_entry.var_names;
                                             
                                             // Save stack size to detect return value
                                             let stack_size_before = self.stack.len();
@@ -702,7 +703,7 @@ impl VM {
                                             };
                                             
                                             let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
-                                            let var_names_ptr: *mut HashMap<u64, String> = &mut var_names;
+                                            // var_names_ptr already created above from cache entry
                                             
                                             let mut vm_context = crate::jit::VMContext::with_var_names(
                                                 stack_ptr,
