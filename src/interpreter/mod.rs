@@ -394,6 +394,13 @@ impl Interpreter {
             // Async operations
             "async_sleep",
             "async_timeout",
+            "async_http_get",
+            "async_http_post",
+            "async_read_file",
+            "async_write_file",
+            "spawn_task",
+            "await_task",
+            "cancel_task",
             "Promise.all",
             "promise_all",
             // Testing assertion functions
@@ -913,6 +920,13 @@ impl Interpreter {
         // Async operations
         self.env.define("async_sleep".to_string(), Value::NativeFunction("async_sleep".to_string()));
         self.env.define("async_timeout".to_string(), Value::NativeFunction("async_timeout".to_string()));
+        self.env.define("async_http_get".to_string(), Value::NativeFunction("async_http_get".to_string()));
+        self.env.define("async_http_post".to_string(), Value::NativeFunction("async_http_post".to_string()));
+        self.env.define("async_read_file".to_string(), Value::NativeFunction("async_read_file".to_string()));
+        self.env.define("async_write_file".to_string(), Value::NativeFunction("async_write_file".to_string()));
+        self.env.define("spawn_task".to_string(), Value::NativeFunction("spawn_task".to_string()));
+        self.env.define("await_task".to_string(), Value::NativeFunction("await_task".to_string()));
+        self.env.define("cancel_task".to_string(), Value::NativeFunction("cancel_task".to_string()));
         self.env.define("Promise.all".to_string(), Value::NativeFunction("Promise.all".to_string()));
         self.env.define("promise_all".to_string(), Value::NativeFunction("promise_all".to_string())); // Alias
 
