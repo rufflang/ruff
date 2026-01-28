@@ -874,7 +874,9 @@ impl BytecodeTranslator {
             }
 
             OpCode::JumpIfFalse(target) => {
-                let condition = self.pop_value()?;
+                // IMPORTANT: VM semantics PEEK at condition (doesn't pop)
+                // A subsequent Pop instruction will remove it
+                let condition = self.peek_value()?;
                 let zero = builder.ins().iconst(types::I64, 0);
                 let is_false = builder.ins().icmp(IntCC::Equal, condition, zero);
 
@@ -892,7 +894,9 @@ impl BytecodeTranslator {
             }
 
             OpCode::JumpIfTrue(target) => {
-                let condition = self.pop_value()?;
+                // IMPORTANT: VM semantics PEEK at condition (doesn't pop)
+                // A subsequent Pop instruction will remove it
+                let condition = self.peek_value()?;
                 let zero = builder.ins().iconst(types::I64, 0);
                 let is_true = builder.ins().icmp(IntCC::NotEqual, condition, zero);
 
@@ -1753,7 +1757,30 @@ impl JitCompiler {
             let mut block_terminated = false;
             
             // Translate all instructions from function body
+            // IMPORTANT: Stop at Return/ReturnNone - that's the end of the function
             for (pc, instr) in chunk.instructions.iter().enumerate() {
+                // Stop at Return - we don't want to translate code after the function body
+                match instr {
+                    OpCode::Return | OpCode::ReturnNone => {
+                        // Translate this Return instruction and then stop
+                        match translator.translate_instruction(&mut builder, pc, instr, &chunk.constants) {
+                            Ok(_terminates_block) => {
+                                // Seal the current block
+                                if !sealed_blocks.contains(&current_block) {
+                                    builder.seal_block(current_block);
+                                    sealed_blocks.insert(current_block);
+                                }
+                            }
+                            Err(e) => {
+                                return Err(format!("Translation failed at PC {}: {}", pc, e));
+                            }
+                        }
+                        // Stop translating - we've reached the end of the function
+                        break;
+                    }
+                    _ => {}
+                }
+                
                 // If this PC has a block, switch to it
                 if let Some(&block) = translator.blocks.get(&pc) {
                     if block != current_block {
@@ -1782,6 +1809,9 @@ impl JitCompiler {
                 // Translate the instruction
                 match translator.translate_instruction(&mut builder, pc, instr, &chunk.constants) {
                     Ok(terminates_block) => {
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: PC {} OK, stack depth now: {}", pc, translator.value_stack.len());
+                        }
                         if terminates_block {
                             if !sealed_blocks.contains(&current_block) {
                                 builder.seal_block(current_block);
@@ -1791,6 +1821,10 @@ impl JitCompiler {
                         }
                     }
                     Err(e) => {
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: PC {} FAILED: {}, instruction: {:?}, stack depth: {}", 
+                                pc, e, instr, translator.value_stack.len());
+                        }
                         return Err(format!("Translation failed at PC {}: {}", pc, e));
                     }
                 }
