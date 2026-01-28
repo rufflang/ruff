@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
+  - **Step 10 Partial: Fast Argument Passing** (2026-01-29):
+    - Implemented fast argument passing via VMContext.argN fields
+    - Added arg0-arg3 and arg_count fields to VMContext struct
+    - Added `jit_get_arg()` runtime helper for parameter access
+    - JIT now reads parameters from VMContext.argN (≤4 integer args)
+    - Eliminated var_names HashMap clone on recursive calls
+    - Skipped HashMap population for simple integer functions
+    - Performance improved from ~1.03s to ~0.81s for fib(25) (~20% faster)
+    - Note: Still 29x slower than Python (~28ms) due to call overhead
+    - Architecture limitation: Each JIT call goes through FFI boundary
+    - Future work needed: True direct JIT-to-JIT recursion requires
+      changing function signature to pass args directly in Cranelift
+
   - **Step 9 Complete: Inline Caching for Function Calls** (2026-01-28):
     - Implemented inline caching to accelerate repeated function calls
     - Added `CallSiteId` struct to uniquely identify call sites by (chunk_id, ip)

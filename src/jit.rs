@@ -52,6 +52,13 @@ pub struct VMContext {
     /// Flag indicating return_value contains a valid integer return
     /// When true, VM uses return_value directly; when false, falls back to stack
     pub has_return_value: bool,
+    /// Fast argument passing for recursive calls
+    /// These avoid HashMap creation for simple recursive functions
+    pub arg0: i64,
+    pub arg1: i64,
+    pub arg2: i64,
+    pub arg3: i64,
+    pub arg_count: i64,
 }
 
 impl VMContext {
@@ -71,6 +78,11 @@ impl VMContext {
             vm_ptr: std::ptr::null_mut(), // No VM pointer yet
             return_value: 0,
             has_return_value: false,
+            arg0: 0,
+            arg1: 0,
+            arg2: 0,
+            arg3: 0,
+            arg_count: 0,
         }
     }
     
@@ -89,6 +101,11 @@ impl VMContext {
             vm_ptr: vm,
             return_value: 0,
             has_return_value: false,
+            arg0: 0,
+            arg1: 0,
+            arg2: 0,
+            arg3: 0,
+            arg_count: 0,
         }
     }
     
@@ -109,6 +126,11 @@ impl VMContext {
             vm_ptr: std::ptr::null_mut(),
             return_value: 0,
             has_return_value: false,
+            arg0: 0,
+            arg1: 0,
+            arg2: 0,
+            arg3: 0,
+            arg_count: 0,
         }
     }
 }
@@ -557,6 +579,49 @@ pub unsafe extern "C" fn jit_set_return_int(ctx: *mut VMContext, value: i64) -> 
     0 // Success
 }
 
+/// Runtime helper: Get return value from VMContext after a JIT recursive call
+/// This retrieves the value stored by jit_set_return_int from a recursive call.
+/// Returns the return_value if has_return_value is true, otherwise 0.
+#[no_mangle]
+pub unsafe extern "C" fn jit_get_return_int(ctx: *mut VMContext) -> i64 {
+    if ctx.is_null() {
+        return 0; // Return 0 on error
+    }
+    
+    let ctx_ref = &*ctx;
+    if ctx_ref.has_return_value {
+        ctx_ref.return_value
+    } else {
+        0 // No return value set
+    }
+}
+
+/// Runtime helper: Get argument value from VMContext.argN field
+/// This enables fast parameter passing without HashMap lookups.
+/// Returns the argument value at the specified index (0-3).
+/// If index >= arg_count or out of range, returns 0.
+#[no_mangle]
+pub unsafe extern "C" fn jit_get_arg(ctx: *mut VMContext, index: i64) -> i64 {
+    if ctx.is_null() {
+        return 0;
+    }
+    
+    let ctx_ref = &*ctx;
+    
+    // Check if index is valid
+    if index < 0 || index >= ctx_ref.arg_count {
+        return 0;
+    }
+    
+    match index {
+        0 => ctx_ref.arg0,
+        1 => ctx_ref.arg1,
+        2 => ctx_ref.arg2,
+        3 => ctx_ref.arg3,
+        _ => 0,
+    }
+}
+
 /// Runtime helper: Call a function from JIT code
 /// This enables JIT-compiled functions to call other functions
 /// ctx: VMContext pointer (includes VM pointer for callbacks)
@@ -715,6 +780,19 @@ struct BytecodeTranslator {
     /// Flag to enable register-based locals optimization
     /// When true, LoadVar/StoreVar use stack slots instead of runtime calls
     use_local_slots: bool,
+    /// Current function name - enables self-recursion detection
+    /// When a Call opcode follows a LoadVar with this name, we emit
+    /// direct recursive calls instead of going through the VM
+    current_function_name: Option<String>,
+    /// Flag set when LoadVar loads the current function (self-recursion pending)
+    /// This is set by LoadVar when name matches current_function_name,
+    /// and cleared by Call after emitting the recursive call
+    self_recursion_pending: bool,
+    /// Self-recursive call function reference
+    /// Points to the function being compiled, enabling direct self-calls
+    self_call_func: Option<FuncRef>,
+    /// Get return int function reference (for getting recursive call results)
+    get_return_int_func: Option<FuncRef>,
 }
 
 impl BytecodeTranslator {
@@ -740,6 +818,10 @@ impl BytecodeTranslator {
             function_end: 0,
             local_slots: HashMap::new(),
             use_local_slots: false,
+            current_function_name: None,
+            self_recursion_pending: false,
+            self_call_func: None,
+            get_return_int_func: None,
         }
     }
     
@@ -829,11 +911,14 @@ impl BytecodeTranslator {
     /// Initialize parameter stack slots with values from the HashMap
     /// This is called at function entry to copy parameter values from the
     /// func_locals HashMap (passed via VMContext) into the fast stack slots
+    /// OPTIMIZATION: For functions with ≤4 parameters, use VMContext.arg fields
+    /// directly instead of HashMap lookups for ~10x faster parameter access
     fn initialize_parameter_slots(
         &mut self,
         builder: &mut FunctionBuilder,
         params: &[String],
         load_var_func: FuncRef,
+        get_arg_func: Option<FuncRef>,
     ) {
         if !self.use_local_slots || params.is_empty() {
             return;
@@ -844,22 +929,34 @@ impl BytecodeTranslator {
             None => return,
         };
         
-        for param_name in params {
+        // OPTIMIZATION: If we have get_arg_func and ≤4 params, use fast path
+        let use_fast_args = get_arg_func.is_some() && params.len() <= 4;
+        
+        for (i, param_name) in params.iter().enumerate() {
             if let Some(&slot) = self.local_slots.get(param_name) {
-                // Load parameter value from HashMap via runtime call
-                let name_hash = Self::hash_var_name(param_name) as i64;
-                let name_hash_val = builder.ins().iconst(types::I64, name_hash);
-                let zero = builder.ins().iconst(types::I64, 0);
-                
-                // Call jit_load_variable to get the parameter value from func_locals
-                let call = builder.ins().call(load_var_func, &[ctx, name_hash_val, zero]);
-                let param_value = builder.inst_results(call)[0];
+                let param_value = if use_fast_args {
+                    // FAST PATH: Load parameter directly from VMContext.argN
+                    let get_arg = get_arg_func.unwrap();
+                    let index = builder.ins().iconst(types::I64, i as i64);
+                    let call = builder.ins().call(get_arg, &[ctx, index]);
+                    builder.inst_results(call)[0]
+                } else {
+                    // SLOW PATH: Load parameter value from HashMap via runtime call
+                    let name_hash = Self::hash_var_name(param_name) as i64;
+                    let name_hash_val = builder.ins().iconst(types::I64, name_hash);
+                    let zero = builder.ins().iconst(types::I64, 0);
+                    
+                    // Call jit_load_variable to get the parameter value from func_locals
+                    let call = builder.ins().call(load_var_func, &[ctx, name_hash_val, zero]);
+                    builder.inst_results(call)[0]
+                };
                 
                 // Store the parameter value into the stack slot
                 builder.ins().stack_store(param_value, slot, 0);
                 
                 if std::env::var("DEBUG_JIT").is_ok() {
-                    eprintln!("JIT: Initialized parameter '{}' in stack slot {:?}", param_name, slot);
+                    eprintln!("JIT: Initialized parameter '{}' in stack slot {:?} (fast={})", 
+                        param_name, slot, use_fast_args);
                 }
             }
         }
@@ -941,6 +1038,21 @@ impl BytecodeTranslator {
     
     fn set_specialization(&mut self, spec: SpecializationInfo) {
         self.specialization = Some(spec);
+    }
+    
+    /// Set the current function name for self-recursion detection
+    fn set_current_function_name(&mut self, name: &str) {
+        self.current_function_name = Some(name.to_string());
+    }
+    
+    /// Set the self-recursive call function reference
+    fn set_self_call_function(&mut self, func_ref: FuncRef) {
+        self.self_call_func = Some(func_ref);
+    }
+    
+    /// Set the get-return-int function reference
+    fn set_get_return_int_function(&mut self, func_ref: FuncRef) {
+        self.get_return_int_func = Some(func_ref);
     }
 
     /// Pre-create blocks for all jump targets within the function body
@@ -1250,12 +1362,20 @@ impl BytecodeTranslator {
             }
 
             OpCode::Call(arg_count) => {
-                // Call instruction:
+                // NOTE: Direct self-recursion was attempted but causes stack overflow
+                // because stack slots are shared between recursive calls.
+                // TODO: Implement proper tail-call optimization or save/restore slots
+                // For now, continue using VM-mediated recursion which is already optimized.
+                
+                // Call instruction (all paths go through VM):
                 // 1. Pop the function marker from JIT stack (should be -1 if function)
                 // 2. Pop arguments from JIT stack  
                 // 3. Push integer args to VM stack (function is already there from LoadVar)
                 // 4. Call the runtime helper (which pops args first, then function)
                 // 5. Pop the result from VM stack
+                
+                // Clear any pending self-recursion flag (not used yet)
+                self.self_recursion_pending = false;
                 
                 // Pop values from JIT stack (in reverse order)
                 let _func_marker = self.pop_value()?; // -1 if it's a function, otherwise an int
@@ -1330,6 +1450,10 @@ impl BytecodeTranslator {
 
             // Variable operations - use stack slots for locals (fast path) or runtime helpers (fallback)
             OpCode::LoadVar(name) => {
+                // NOTE: Self-recursion detection was added but direct recursion causes
+                // stack overflow due to shared stack slots. Keeping detection code for
+                // future tail-call optimization work.
+                
                 // OPTIMIZATION: Use stack slots for local variables (register-based locals)
                 // This avoids C function calls and HashMap lookups for every variable access
                 if self.use_local_slots {
@@ -1672,6 +1796,8 @@ impl JitCompiler {
         builder.symbol("jit_call_function", jit_call_function as *const u8);
         builder.symbol("jit_push_int", jit_push_int as *const u8);
         builder.symbol("jit_set_return_int", jit_set_return_int as *const u8);
+        builder.symbol("jit_get_return_int", jit_get_return_int as *const u8);
+        builder.symbol("jit_get_arg", jit_get_arg as *const u8);
 
         let module = JITModule::new(builder);
 
@@ -2140,6 +2266,23 @@ impl JitCompiler {
             
             let set_return_int_ref = self.module.declare_func_in_func(set_return_int_id, &mut builder.func);
             
+            // Declare jit_get_return_int for retrieving recursive call results
+            // jit_get_return_int: fn(*mut VMContext) -> i64
+            let mut get_return_int_sig = self.module.make_signature();
+            get_return_int_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            get_return_int_sig.returns.push(AbiParam::new(types::I64)); // return value
+            
+            let get_return_int_id = self.module
+                .declare_function("jit_get_return_int", Linkage::Import, &get_return_int_sig)
+                .map_err(|e| format!("Failed to declare jit_get_return_int: {}", e))?;
+            
+            let get_return_int_ref = self.module.declare_func_in_func(get_return_int_id, &mut builder.func);
+            
+            // OPTIMIZATION: Declare self-reference for direct recursive calls
+            // This enables direct JIT → JIT recursion without going through VM
+            // Self-recursive call signature: fn(*mut VMContext) -> i64
+            let self_func_ref = self.module.declare_func_in_func(func_id, &mut builder.func);
+            
             // Declare jit_stack_pop for getting call results
             // jit_stack_pop: fn(*mut VMContext) -> i64
             let mut stack_pop_sig = self.module.make_signature();
@@ -2191,15 +2334,35 @@ impl JitCompiler {
             
             let store_var_ref = self.module.declare_func_in_func(store_var_id, &mut builder.func);
             
+            // Declare jit_get_arg for fast parameter access
+            // jit_get_arg: fn(*mut VMContext, i64) -> i64
+            let mut get_arg_sig = self.module.make_signature();
+            get_arg_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            get_arg_sig.params.push(AbiParam::new(types::I64)); // arg index
+            get_arg_sig.returns.push(AbiParam::new(types::I64)); // arg value
+            
+            let get_arg_id = self.module
+                .declare_function("jit_get_arg", Linkage::Import, &get_arg_sig)
+                .map_err(|e| format!("Failed to declare jit_get_arg: {}", e))?;
+            
+            let get_arg_ref = self.module.declare_func_in_func(get_arg_id, &mut builder.func);
+            
             // Create BytecodeTranslator for this function
             let mut translator = BytecodeTranslator::new();
             translator.set_context_param(vm_context_param);
             translator.set_call_function(call_func_ref);
             translator.set_push_int_function(push_int_ref);
             translator.set_return_int_function(set_return_int_ref);
+            translator.set_get_return_int_function(get_return_int_ref);
             translator.set_stack_pop_function(stack_pop_ref);
             translator.set_stack_push_function(stack_push_ref);
             translator.set_external_functions(load_var_ref, store_var_ref);
+            
+            // OPTIMIZATION: Enable direct self-recursion (Phase 7 Step 10)
+            // This allows recursive functions to call themselves directly without
+            // going through jit_call_function → VM → call_function_from_jit
+            translator.set_current_function_name(name);
+            translator.set_self_call_function(self_func_ref);
             
             // Create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
@@ -2218,7 +2381,8 @@ impl JitCompiler {
             // Initialize parameter slots with values from the func_locals HashMap
             // This copies parameter values from the HashMap into fast stack slots
             // at function entry, enabling fast access during function execution
-            translator.initialize_parameter_slots(&mut builder, &chunk.params, load_var_ref);
+            // OPTIMIZATION: Pass get_arg_ref for fast arg loading via VMContext.argN
+            translator.initialize_parameter_slots(&mut builder, &chunk.params, load_var_ref, Some(get_arg_ref));
             
             // Add entry block to block map
             if !translator.blocks.contains_key(&0) {

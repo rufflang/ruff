@@ -677,6 +677,9 @@ impl VM {
                                             // Create locals HashMap for the function parameters
                                             let mut func_locals = HashMap::new();
                                             
+                                            // Check if we can use fast arg passing (≤4 integer args)
+                                            let use_fast_args = args.len() <= 4 && args.iter().all(|a| matches!(a, Value::Int(_)));
+                                            
                                             // Bind arguments to parameter names
                                             for (i, param_name) in chunk.params.iter().enumerate() {
                                                 if let Some(arg) = args.get(i) {
@@ -705,13 +708,29 @@ impl VM {
                                             let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
                                             // var_names_ptr already created above from cache entry
                                             
-                                            let mut vm_context = crate::jit::VMContext::with_var_names(
+                                            // Create VMContext with fast arg fields
+                                            let mut vm_context = crate::jit::VMContext {
                                                 stack_ptr,
                                                 locals_ptr,
                                                 globals_ptr,
                                                 var_names_ptr,
-                                            );
-                                            vm_context.vm_ptr = vm_ptr;
+                                                vm_ptr,
+                                                return_value: 0,
+                                                has_return_value: false,
+                                                arg0: if use_fast_args && args.len() > 0 { 
+                                                    if let Value::Int(n) = args[0] { n } else { 0 }
+                                                } else { 0 },
+                                                arg1: if use_fast_args && args.len() > 1 { 
+                                                    if let Value::Int(n) = args[1] { n } else { 0 }
+                                                } else { 0 },
+                                                arg2: if use_fast_args && args.len() > 2 { 
+                                                    if let Value::Int(n) = args[2] { n } else { 0 }
+                                                } else { 0 },
+                                                arg3: if use_fast_args && args.len() > 3 { 
+                                                    if let Value::Int(n) = args[3] { n } else { 0 }
+                                                } else { 0 },
+                                                arg_count: args.len() as i64,
+                                            };
                                             
                                             let result_code = unsafe {
                                                 compiled_fn(&mut vm_context)
@@ -816,14 +835,32 @@ impl VM {
                                     // Set up var_names for JIT variable resolution
                                     let var_names_ptr: *mut HashMap<u64, String> = &mut var_names_mut;
                                     
-                                    // Create VMContext with all necessary pointers
-                                    let mut vm_context = crate::jit::VMContext::with_var_names(
+                                    // Check if we can use fast arg passing (≤4 integer args)
+                                    let use_fast_args = args.len() <= 4 && args.iter().all(|a| matches!(a, Value::Int(_)));
+                                    
+                                    // Create VMContext with fast arg fields
+                                    let mut vm_context = crate::jit::VMContext {
                                         stack_ptr,
                                         locals_ptr,
                                         globals_ptr,
                                         var_names_ptr,
-                                    );
-                                    vm_context.vm_ptr = vm_ptr; // Add VM pointer for Call opcode support
+                                        vm_ptr,
+                                        return_value: 0,
+                                        has_return_value: false,
+                                        arg0: if use_fast_args && args.len() > 0 { 
+                                            if let Value::Int(n) = args[0] { n } else { 0 }
+                                        } else { 0 },
+                                        arg1: if use_fast_args && args.len() > 1 { 
+                                            if let Value::Int(n) = args[1] { n } else { 0 }
+                                        } else { 0 },
+                                        arg2: if use_fast_args && args.len() > 2 { 
+                                            if let Value::Int(n) = args[2] { n } else { 0 }
+                                        } else { 0 },
+                                        arg3: if use_fast_args && args.len() > 3 { 
+                                            if let Value::Int(n) = args[3] { n } else { 0 }
+                                        } else { 0 },
+                                        arg_count: args.len() as i64,
+                                    };
                                     
                                     // Execute the compiled function!
                                     // Lock is NOT held during execution to allow recursive calls
@@ -1918,22 +1955,38 @@ impl VM {
                     if let Some(compiled_fn) = compiled_fn_opt {
                         // Fast path: Direct JIT → JIT call!
                         
-                        // Create locals HashMap for the function parameters
-                        let mut func_locals = HashMap::new();
+                        // OPTIMIZATION: For simple integer-only functions with ≤4 args,
+                        // pass arguments directly via VMContext fields instead of HashMap
+                        let use_fast_args = args.len() <= 4 && args.iter().all(|a| matches!(a, Value::Int(_)));
                         
-                        // Bind arguments to parameter names
-                        for (i, param_name) in chunk.params.iter().enumerate() {
-                            if let Some(arg) = args.get(i) {
-                                func_locals.insert(param_name.clone(), arg.clone());
+                        // ULTRA-FAST PATH: Skip HashMap entirely for simple integer functions
+                        // The JIT uses jit_get_arg to read parameters directly from VMContext
+                        // We only need the HashMap for functions with non-integer args or >4 args
+                        let mut func_locals: HashMap<String, Value>;
+                        let use_empty_locals = use_fast_args && chunk.params.len() == args.len();
+                        
+                        if use_empty_locals {
+                            // Ultra-fast: Use empty HashMap - JIT will use VMContext.argN
+                            func_locals = HashMap::new();
+                        } else {
+                            // Normal path: Create locals HashMap for the function parameters
+                            func_locals = HashMap::new();
+                            
+                            // Bind arguments to parameter names
+                            for (i, param_name) in chunk.params.iter().enumerate() {
+                                if let Some(arg) = args.get(i) {
+                                    func_locals.insert(param_name.clone(), arg.clone());
+                                }
                             }
                         }
                         
                         // Get or create var_names from cache (avoids re-hashing on every call)
                         let func_name_owned = func_name.to_string();
-                        let mut var_names = if let Some(cached) = self.jit_var_names_cache.get(&func_name_owned) {
-                            // Use cached version (clone is fast since it's small)
-                            cached.clone()
-                        } else {
+                        
+                        // OPTIMIZATION: Get reference to cached var_names instead of cloning
+                        // This avoids HashMap clone on every recursive call
+                        let cached_var_names_exists = self.jit_var_names_cache.contains_key(&func_name_owned);
+                        if !cached_var_names_exists {
                             // Build var_names once and cache it
                             let mut cached_var_names = HashMap::new();
                             
@@ -1959,9 +2012,14 @@ impl VM {
                                 }
                             }
                             
-                            self.jit_var_names_cache.insert(func_name_owned.clone(), cached_var_names.clone());
-                            cached_var_names
-                        };
+                            self.jit_var_names_cache.insert(func_name_owned.clone(), cached_var_names);
+                        }
+                        
+                        // Get pointer to cached var_names (no clone!)
+                        let var_names_ptr: *mut HashMap<u64, String> = self.jit_var_names_cache
+                            .get_mut(&func_name_owned)
+                            .map(|v| v as *mut HashMap<u64, String>)
+                            .unwrap_or(std::ptr::null_mut());
                         
                         let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
                         
@@ -1983,16 +2041,30 @@ impl VM {
                         };
                         
                         let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
-                        let var_names_ptr: *mut HashMap<u64, String> = &mut var_names;
                         
-                        // Create VMContext
-                        let mut vm_context = crate::jit::VMContext::with_var_names(
+                        // Create VMContext with fast argument fields
+                        let mut vm_context = crate::jit::VMContext {
                             stack_ptr,
                             locals_ptr,
                             globals_ptr,
                             var_names_ptr,
-                        );
-                        vm_context.vm_ptr = vm_ptr;
+                            vm_ptr,
+                            return_value: 0,
+                            has_return_value: false,
+                            arg0: if use_fast_args && args.len() > 0 { 
+                                if let Value::Int(n) = args[0] { n } else { 0 }
+                            } else { 0 },
+                            arg1: if use_fast_args && args.len() > 1 { 
+                                if let Value::Int(n) = args[1] { n } else { 0 }
+                            } else { 0 },
+                            arg2: if use_fast_args && args.len() > 2 { 
+                                if let Value::Int(n) = args[2] { n } else { 0 }
+                            } else { 0 },
+                            arg3: if use_fast_args && args.len() > 3 { 
+                                if let Value::Int(n) = args[3] { n } else { 0 }
+                            } else { 0 },
+                            arg_count: args.len() as i64,
+                        };
                         
                         // Execute the compiled function!
                         // Lock is NOT held during execution to allow recursive calls

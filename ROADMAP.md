@@ -94,15 +94,28 @@ The JIT is **correct** but **slow** due to runtime overhead:
 - Status: Inline cache reduces per-call overhead for JIT functions
 - Note: Discovered JIT limitation with higher-order functions (functions as args)
 
-**Step 10: Value Unboxing (P1 - NEXT)**
-- [ ] Keep integers as raw i64 in JIT code
-- [ ] Only box when crossing JIT/interpreter boundary
-- [ ] Target: 2-5x speedup on arithmetic
+**Step 10: Fast Argument Passing (P1) - PARTIAL**
+- [x] Added VMContext.argN fields (arg0-arg3, arg_count)
+- [x] Added `jit_get_arg()` runtime helper
+- [x] JIT reads parameters from VMContext.argN for ≤4 int args
+- [x] Eliminated var_names HashMap clone on recursive calls
+- [x] Skip HashMap population for simple integer functions
+- [ ] **BLOCKED**: True direct JIT recursion requires signature change
+- Status: 20% speedup (1.03s → 0.81s for fib(25))
+- Gap: Still 29x slower than Python (28ms) due to FFI call overhead
+- Architecture issue: Each recursive call crosses FFI boundary
 
 **Step 11: Loop Back-Edge Fix (P1)**
 - [ ] Fix SSA block parameters for backward jumps
 - [ ] Enable JIT for `while` and `for` loops
 - [ ] Currently `test_compile_simple_loop` is ignored
+
+**Step 12: Direct JIT Recursion (P0 - CRITICAL)**
+- [ ] Change JIT function signature to pass arguments directly
+- [ ] Generate direct Cranelift calls for self-recursion
+- [ ] Avoid FFI boundary crossing for recursive calls
+- [ ] Target: 30-50x speedup on recursive functions
+- This is required to match Python performance
 
 #### Performance Targets (Non-Negotiable for v0.9.0):
 
