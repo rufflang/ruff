@@ -20,11 +20,18 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
    - JumpBack correctly passes stack values to loop headers
    - All 31 JIT tests passing
 
-3. **v1.0 Release Preparation** - Finalize APIs, comprehensive documentation
+3. **🔥 Parallel Processing / Concurrency (P0)** - CRITICAL for Real-World Performance
+   - Current Bottleneck: SSG benchmark shows 49s loop overhead for 10K iterations (~5ms/iteration)
+   - Python SSG does 10K builds in 0.05s using `ProcessPoolExecutor` (multicore parallelism)
+   - **Goal**: Add goroutine-style concurrency or async/await for I/O-bound workloads
+   - **Impact**: Would enable 8-10x speedup on multicore systems for file processing
+   - **Priority**: P0 - Without this, Ruff appears slow on real-world workloads despite fast JIT
+
+4. **v1.0 Release Preparation** - Finalize APIs, comprehensive documentation
 
 **AFTER v0.9.0**:
-3. **Developer Experience** - LSP, Formatter, Linter, Package Manager (v0.11.0)
-4. **Optional Static Typing** - Gradual typing for additional performance (v0.10.0, exploratory)
+5. **Developer Experience** - LSP, Formatter, Linter, Package Manager (v0.11.0)
+6. **Optional Static Typing** - Gradual typing for additional performance (v0.10.0, exploratory)
 
 ---
 
@@ -183,6 +190,174 @@ These run in parallel with JIT work and don't block v0.9.0:
 **Problem**: Runtime `Value::Function` contains raw AST (`Vec<Stmt>`).
 
 **Solution**: Compile functions to IR/bytecode, don't store AST in runtime values.
+
+---
+
+## v0.9.0 - Parallel Processing & Concurrency (P0)
+
+**Focus**: Enable multicore parallelism for real-world I/O-bound workloads  
+**Timeline**: Q1 2026 (Before v1.0)  
+**Priority**: P0 - CRITICAL for production performance perception
+
+### Problem Statement
+
+**Current Situation**: 
+- JIT makes compute-heavy code 30-50x faster than Python ✅
+- Ruff has `async`/`await` **syntax** but it's not truly concurrent (functions execute synchronously)
+- Real-world file processing workloads show poor performance:
+  - SSG benchmark: 10,000 files processed in ~55 seconds
+  - Python equivalent: 0.05 seconds (1000x faster!)
+  - Profiling shows 49s "loop overhead" (~5ms per iteration)
+
+**Root Cause**:
+- Single-threaded execution on I/O-bound workloads (async functions run synchronously!)
+- Python's `ProcessPoolExecutor` uses all CPU cores (8-10x parallel speedup)
+- Ruff processes files sequentially, despite having async/await syntax
+
+**Impact**: Without real concurrency, Ruff appears "slow" on practical workloads even though JIT is fast.
+
+### Proposed Solutions (Choose One)
+
+#### Option 1: Goroutine-Style Concurrency (Recommended)
+
+**Inspired by**: Go, Erlang  
+**API Design**:
+
+```ruff
+# Spawn lightweight concurrent tasks
+spawn {
+    process_file(file1)
+}
+
+spawn {
+    process_file(file2)
+}
+
+# Wait for all spawned tasks
+await_all()
+
+# Or with channels for communication
+let ch := channel()
+
+spawn {
+    ch.send(process_file(file1))
+}
+
+let result := ch.receive()
+```
+
+**Advantages**:
+- Lightweight green threads (thousands possible)
+- Familiar to developers from Go/Erlang
+- Great for I/O-bound workloads
+- No data race concerns with proper channel semantics
+
+**Implementation**:
+- Use tokio or smol runtime for async execution
+- M:N threading model (many green threads on few OS threads)
+- Work-stealing scheduler
+
+#### Option 2: True Async/Await (Make it Real)
+
+**Current State**: Ruff has `async func` and `await` **syntax** but functions execute synchronously  
+**Inspired by**: JavaScript, Python, Rust  
+**What's Needed**: Make async actually asynchronous!
+
+**API Design** (syntax already exists, just need to make it work):
+
+```ruff
+async func process_files(files) {
+    let tasks := []
+    for file in files {
+        push(tasks, process_file(file))  # Start async task
+    }
+    return await_all(tasks)  # Wait for all to complete
+}
+```
+
+**Advantages**:
+- **Syntax already exists** - just need to implement real concurrency
+- Clear async boundaries
+- Explicit await points
+- Good ecosystem support (tokio)
+- Familiar to JavaScript/Python/Rust developers
+
+**Disadvantages**:
+- Function coloring problem (async functions can't call sync)
+- More verbose than goroutines
+- Requires refactoring existing async code
+
+**Implementation Changes Needed**:
+- Replace synchronous Promise execution with tokio runtime
+- Make `await` actually poll futures instead of just unwrapping
+- Add task spawning mechanism
+- Make I/O operations truly async (non-blocking)
+
+#### Option 3: Parallel Map/Reduce
+
+**Inspired by**: Rayon (Rust)  
+**API Design**:
+
+```ruff
+# Parallel map over collection
+let results := files.par_map(func(f) {
+    return process_file(f)
+})
+
+# Process collection in parallel
+files.par_each(func(f) {
+    process_file(f)
+})
+```
+
+**Advantages**:
+- Simple API for common patterns
+- Automatic work distribution
+- No explicit threading
+
+**Disadvantages**:
+- Less flexible than spawn/goroutines
+- Limited to data-parallel workloads
+
+### Implementation Plan
+
+**Phase 1: Core Concurrency Primitives (2-3 weeks)**
+- [ ] Choose concurrency model (Recommendation: Option 1 - Goroutines)
+- [ ] Implement `spawn` keyword and scheduler
+- [ ] Add `channel()` for message passing
+- [ ] Implement `await_all()` for synchronization
+- [ ] Thread-safe Value type operations
+
+**Phase 2: Runtime Integration (1-2 weeks)**
+- [ ] Integrate async runtime (tokio/smol)
+- [ ] Make file I/O operations async-aware
+- [ ] Add thread pool for blocking operations
+- [ ] Ensure JIT-compiled code can run on any thread
+
+**Phase 3: Testing & Benchmarks (1 week)**
+- [ ] Add concurrency test suite
+- [ ] Re-run SSG benchmark with parallelism
+- [ ] Target: 10K file SSG build in <1 second (using all cores)
+- [ ] Ensure no race conditions or deadlocks
+
+### Success Criteria
+
+- [ ] SSG benchmark: 10,000 files in <1 second (vs current 55s)
+- [ ] Parallel overhead: <100ms for spawning 10,000 tasks
+- [ ] No data races or deadlocks in test suite
+- [ ] Clean API that's easy to understand and use
+
+### Performance Targets
+
+**SSG Benchmark**:
+- Current: 55 seconds (single-threaded)
+- With 8 cores: Target <7 seconds (8x speedup)
+- With I/O overlap: Target <1 second (optimal)
+
+**Microbenchmarks**:
+- Spawn 10,000 goroutines: <100ms
+- Channel send/receive: <1μs per message
+- Context switching: <10μs
 
 ---
 

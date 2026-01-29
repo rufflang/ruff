@@ -90,6 +90,7 @@ Icon?
 /organize_test/
 /test_dir/
 test_roadmap_spec.ruff
+/examples/ssg/
 
 # === DATABASES ===
 *.db
