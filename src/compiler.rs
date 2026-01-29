@@ -105,6 +105,10 @@ impl Compiler {
 
                 // Bind the pattern
                 self.compile_pattern_binding(pattern)?;
+                
+                // Pop the value from stack - StoreVar peeks, doesn't pop
+                // This keeps the stack clean between statements
+                self.chunk.emit(OpCode::Pop);
 
                 Ok(())
             }
@@ -115,6 +119,10 @@ impl Compiler {
 
                 // Compile the assignment target
                 self.compile_assignment(target)?;
+                
+                // Pop the value from stack - StoreVar peeks, doesn't pop
+                // This keeps the stack clean between statements
+                self.chunk.emit(OpCode::Pop);
 
                 Ok(())
             }
