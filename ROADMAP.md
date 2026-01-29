@@ -197,131 +197,140 @@ These run in parallel with JIT work and don't block v0.9.0:
 
 **Focus**: Enable multicore parallelism for real-world I/O-bound workloads  
 **Timeline**: Q1 2026 (Before v1.0)  
-**Priority**: P0 - CRITICAL for production performance perception
+**Priority**: P0 - CRITICAL for production performance perception  
+**Status**: ⚠️ IN PROGRESS - Async I/O infrastructure complete, but architecture limits prevent full performance gains
+
+### Current Implementation Status (2026-01-29)
+
+**✅ COMPLETED**:
+- Tokio runtime integration (tokio 1.x)
+- VM stores tokio::runtime::Handle for spawning async tasks
+- Promise Value type includes task_handle for true async execution
+- File I/O operations now truly async using tokio::fs:
+  - `read_file()` - async file reading
+  - `write_file()` - async file writing
+  - `list_dir()` - async directory listing
+- `await_all()` utility function for concurrent promise execution
+- Promises work correctly with await syntax
+- Small-scale concurrency performs well (10 files in 1.26ms = 126μs/file)
+
+**❌ LIMITATIONS DISCOVERED**:
+- **VM Architecture Bottleneck**: Each `await` blocks the entire VM with `block_on()` (synchronous execution model)
+- **Large-scale concurrency overhead**: Spawning 10K+ tokio tasks has excessive overhead
+  - 10,001 files: 91 seconds (worse than 55s synchronous baseline!)
+  - Batching helps per-batch speed but batches process serially (196s total)
+- **Async functions still synchronous**: User-defined async functions don't spawn concurrent tasks
+- **No true parallelism**: Cannot utilize multiple CPU cores for parallel execution
 
 ### Problem Statement
 
 **Current Situation**: 
 - JIT makes compute-heavy code 30-50x faster than Python ✅
-- Ruff has `async`/`await` **syntax** but it's not truly concurrent (functions execute synchronously)
-- Real-world file processing workloads show poor performance:
-  - SSG benchmark: 10,000 files processed in ~55 seconds
+- File I/O operations are now truly async with tokio ✅
+- Small concurrent workloads perform well (10 files in 1.26ms) ✅
+- BUT: Large-scale concurrency is slower than sequential execution ❌
+  - SSG benchmark: 10,000 files processed in 91-196 seconds (async)
+  - SSG baseline: 55 seconds (synchronous)
   - Python equivalent: 0.05 seconds (1000x faster!)
-  - Profiling shows 49s "loop overhead" (~5ms per iteration)
 
 **Root Cause**:
-- Single-threaded execution on I/O-bound workloads (async functions run synchronously!)
+- VM's synchronous execution model: `block_on()` serializes all awaits
+- Each await opcode blocks the entire VM thread
+- Spawning 10K+ tasks simultaneously creates massive overhead
 - Python's `ProcessPoolExecutor` uses all CPU cores (8-10x parallel speedup)
-- Ruff processes files sequentially, despite having async/await syntax
+- Async functions in Ruff code still execute synchronously (not spawned as tasks)
 
-**Impact**: Without real concurrency, Ruff appears "slow" on practical workloads even though JIT is fast.
+**Impact**: Without true async VM execution, Ruff appears "slow" on I/O-bound workloads despite having async infrastructure.
 
-### Proposed Solutions (Choose One)
+### Next Steps to Complete Async Implementation
 
-#### Option 1: Goroutine-Style Concurrency (Recommended)
+The async infrastructure is in place but the VM architecture prevents full performance gains. Here are the options to proceed:
 
-**Inspired by**: Go, Erlang  
-**API Design**:
+#### ⭐ Recommended: Option 1 - Async VM Execution Model
 
-```ruff
-# Spawn lightweight concurrent tasks
-spawn {
-    process_file(file1)
-}
+**Goal**: Remove `block_on()` from the VM's Await opcode to allow true concurrent execution.
 
-spawn {
-    process_file(file2)
-}
+**What's Working Now**:
+- ✅ File I/O operations spawn tokio tasks and return Promises immediately
+- ✅ `await_all()` can wait for multiple promises concurrently
+- ✅ Small-scale concurrency performs well
 
-# Wait for all spawned tasks
-await_all()
-
-# Or with channels for communication
-let ch := channel()
-
-spawn {
-    ch.send(process_file(file1))
-}
-
-let result := ch.receive()
-```
-
-**Advantages**:
-- Lightweight green threads (thousands possible)
-- Familiar to developers from Go/Erlang
-- Great for I/O-bound workloads
-- No data race concerns with proper channel semantics
-
-**Implementation**:
-- Use tokio or smol runtime for async execution
-- M:N threading model (many green threads on few OS threads)
-- Work-stealing scheduler
-
-#### Option 2: True Async/Await (Make it Real)
-
-**Current State**: Ruff has `async func` and `await` **syntax** but functions execute synchronously  
-**Inspired by**: JavaScript, Python, Rust  
-**What's Needed**: Make async actually asynchronous!
-
-**API Design** (syntax already exists, just need to make it work):
-
-```ruff
-async func process_files(files) {
-    let tasks := []
-    for file in files {
-        push(tasks, process_file(file))  # Start async task
-    }
-    return await_all(tasks)  # Wait for all to complete
+**The Bottleneck**:
+```rust
+// Current approach in vm.rs Await opcode (BLOCKS THE VM!)
+Value::Promise { receiver, .. } => {
+    self.runtime_handle.block_on(async {
+        receiver.recv().await  // This blocks the entire VM thread!
+    })
 }
 ```
 
-**Advantages**:
-- **Syntax already exists** - just need to implement real concurrency
-- Clear async boundaries
-- Explicit await points
-- Good ecosystem support (tokio)
-- Familiar to JavaScript/Python/Rust developers
+**Solution**:
+1. **Make the VM itself async**: The entire VM execution loop needs to be async-aware
+2. **Replace `block_on()` with polling**: When hitting an await, save VM state and yield control
+3. **Implement cooperative scheduling**: VM can execute other tasks while waiting for I/O
+4. **Use tokio's select!/join! patterns**: Multiple VM contexts can run concurrently
 
-**Disadvantages**:
-- Function coloring problem (async functions can't call sync)
-- More verbose than goroutines
-- Requires refactoring existing async code
+**Implementation Steps**:
+- [ ] Refactor VM to support suspendable execution (save/restore VM state)
+- [ ] Implement VM context switching for concurrent execution
+- [ ] Change Await opcode to yield instead of block
+- [ ] Add VM scheduler to manage multiple concurrent VM contexts
+- [ ] Test with SSG benchmark (target: <5 seconds for 10K files)
 
-**Implementation Changes Needed**:
-- Replace synchronous Promise execution with tokio runtime
-- Make `await` actually poll futures instead of just unwrapping
-- Add task spawning mechanism
-- Make I/O operations truly async (non-blocking)
+**Estimated Effort**: 2-3 weeks  
+**Complexity**: High (requires VM architecture changes)  
+**Impact**: Would enable true async/await performance
 
-#### Option 3: Parallel Map/Reduce
+#### Option 2 - Task Batching & Concurrency Limits
 
-**Inspired by**: Rayon (Rust)  
-**API Design**:
+**Goal**: Work within current VM constraints but optimize task spawning.
 
-```ruff
-# Parallel map over collection
-let results := files.par_map(func(f) {
-    return process_file(f)
-})
+**Approach**:
+- Implement semaphore-based concurrency limiting (e.g., max 100 concurrent tasks)
+- Batch large operations to avoid spawning 10K+ tasks at once
+- Add native functions for controlled parallel execution
 
-# Process collection in parallel
-files.par_each(func(f) {
-    process_file(f)
-})
-```
+**Implementation Steps**:
+- [ ] Add `parallel_map(array, func, concurrency_limit)` native function
+- [ ] Implement semaphore-based task limiting in Promise.all
+- [ ] Add configurable task pool sizing
+- [ ] Optimize Promise.all for large arrays
 
-**Advantages**:
-- Simple API for common patterns
-- Automatic work distribution
-- No explicit threading
+**Estimated Effort**: 1 week  
+**Complexity**: Medium  
+**Impact**: Would improve large-scale performance but still limited by VM blocking
 
-**Disadvantages**:
-- Less flexible than spawn/goroutines
-- Limited to data-parallel workloads
+#### Option 3 - Hybrid JIT + Parallel Execution
 
-### Implementation Plan
+**Goal**: Combine JIT compilation with parallel task execution.
 
-**Phase 1: Core Concurrency Primitives (2-3 weeks)**
+**Approach**:
+- Use Rayon-style parallel iterators for compute-heavy loops
+- JIT-compile loop bodies, execute in parallel across threads
+- Keep async I/O for truly async operations
+
+**Implementation Steps**:
+- [ ] Add `par_map()` and `par_each()` native functions
+- [ ] Integrate rayon for parallel iteration
+- [ ] JIT-compile closures passed to parallel iterators
+- [ ] Benchmark against Python's ProcessPoolExecutor
+
+**Estimated Effort**: 2-3 weeks  
+**Complexity**: High (JIT + threading)  
+**Impact**: Best of both worlds (JIT speed + parallelism)
+
+### Implementation Priority
+
+**RECOMMENDED PATH**: Start with **Option 2** (Task Batching) as a quick win, then pursue **Option 1** (Async VM) for full async/await performance.
+
+**Rationale**:
+- Option 2 can be completed in 1 week and provide immediate improvements
+- Option 2 doesn't require VM architecture changes
+- Option 1 is the "correct" long-term solution but requires significant refactoring
+- Option 3 is interesting but doesn't address async I/O bottleneck
+
+**Phase 1: Quick Wins (1 week) - Task Batching**
 - [ ] Choose concurrency model (Recommendation: Option 1 - Goroutines)
 - [ ] Implement `spawn` keyword and scheduler
 - [ ] Add `channel()` for message passing
@@ -338,26 +347,43 @@ files.par_each(func(f) {
 - [ ] Add concurrency test suite
 - [ ] Re-run SSG benchmark with parallelism
 - [ ] Target: 10K file SSG build in <1 second (using all cores)
-- [ ] Ensure no race conditions or deadlocks
+- [ ] Add `parallel_map(array, func, limit)` with concurrency control
+- [ ] Implement semaphore-based task limiting in await_all
+- [ ] Test with SSG benchmark (target: <10 seconds)
+
+**Phase 2: Async VM (2-3 weeks) - True Async/Await**
+- [ ] Design VM state save/restore mechanism
+- [ ] Implement VM context for suspendable execution
+- [ ] Change Await opcode from block_on() to yield/resume
+- [ ] Add VM scheduler for managing concurrent contexts
+- [ ] Test with SSG benchmark (target: <5 seconds)
+
+**Phase 3: Optimization (1 week)**
+- [ ] Profile async execution to find bottlenecks
+- [ ] Optimize Promise creation/resolution overhead
+- [ ] Add caching for frequently-awaited operations
+- [ ] Test scalability with 10K+ concurrent operations
 
 ### Success Criteria
 
-- [ ] SSG benchmark: 10,000 files in <1 second (vs current 55s)
-- [ ] Parallel overhead: <100ms for spawning 10,000 tasks
-- [ ] No data races or deadlocks in test suite
-- [ ] Clean API that's easy to understand and use
+- [ ] SSG benchmark: 10,000 files in <5 seconds (vs current 91s async, 55s sync)
+- [ ] Small concurrent operations maintain good performance (10 files in ~1ms) ✅
+- [ ] No regressions in correctness (all tests passing)
+- [ ] Clean API that's easy to understand and use ✅
 
 ### Performance Targets
 
 **SSG Benchmark**:
-- Current: 55 seconds (single-threaded)
-- With 8 cores: Target <7 seconds (8x speedup)
-- With I/O overlap: Target <1 second (optimal)
+- Baseline (synchronous): 55 seconds
+- Current (async with blocking): 91 seconds ❌
+- Phase 1 target (batching): <10 seconds
+- Phase 2 target (async VM): <5 seconds
+- Stretch goal (optimal): <1 second
 
 **Microbenchmarks**:
-- Spawn 10,000 goroutines: <100ms
-- Channel send/receive: <1μs per message
-- Context switching: <10μs
+- Small concurrency (10 files): ~1.26ms ✅
+- Spawn overhead: <10ms per 100 tasks
+- Promise resolution: <100μs per promise
 
 ---
 

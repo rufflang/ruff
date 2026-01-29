@@ -368,6 +368,8 @@ pub enum Value {
         receiver: Arc<Mutex<tokio::sync::oneshot::Receiver<Result<Value, String>>>>,
         is_polled: Arc<Mutex<bool>>,
         cached_result: Arc<Mutex<Option<Result<Value, String>>>>,
+        /// Optional join handle for spawned async task (None for already-resolved promises)
+        task_handle: Option<Arc<Mutex<Option<tokio::task::JoinHandle<Result<Value, String>>>>>>,
     },
     /// Task handle for spawned async tasks
     TaskHandle {

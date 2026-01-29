@@ -110,7 +110,8 @@ enum Commands {
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
@@ -147,33 +148,37 @@ fn main() {
                 let mut compiler = compiler::Compiler::new();
                 match compiler.compile(&stmts) {
                     Ok(chunk) => {
-                        let mut vm = vm::VM::new();
+                        // Spawn VM execution in a blocking task to avoid runtime conflicts
+                        let result = tokio::task::spawn_blocking(move || {
+                            let mut vm = vm::VM::new();
 
-                        // Set up global environment with built-in functions
-                        // We need to populate it with NativeFunction values for all built-ins
-                        let env = Arc::new(Mutex::new(interpreter::Environment::new()));
+                            // Set up global environment with built-in functions
+                            // We need to populate it with NativeFunction values for all built-ins
+                            let env = Arc::new(Mutex::new(interpreter::Environment::new()));
 
-                        // Register all built-in functions as NativeFunction values
-                        // Get the complete list from the interpreter
-                        let builtins = interpreter::Interpreter::get_builtin_names();
+                            // Register all built-in functions as NativeFunction values
+                            // Get the complete list from the interpreter
+                            let builtins = interpreter::Interpreter::get_builtin_names();
 
-                        for builtin_name in builtins {
-                            env.lock().unwrap().set(
-                                builtin_name.to_string(),
-                                interpreter::Value::NativeFunction(builtin_name.to_string()),
-                            );
-                        }
+                            for builtin_name in builtins {
+                                env.lock().unwrap().set(
+                                    builtin_name.to_string(),
+                                    interpreter::Value::NativeFunction(builtin_name.to_string()),
+                                );
+                            }
 
-                        vm.set_globals(env);
-
-                        match vm.execute(chunk) {
-                            Ok(_result) => {
+                            vm.set_globals(env);
+                            
+                            (vm.execute(chunk), vm.get_call_stack())
+                        }).await;
+                        
+                        match result {
+                            Ok((Ok(_result), _)) => {
                                 // Success - program executed
                             }
-                            Err(e) => {
+                            Ok((Err(e), call_stack)) => {
                                 // Create a proper error with call stack
                                 use crate::errors::{RuffError, SourceLocation};
-                                let call_stack = vm.get_call_stack();
                                 let error = RuffError::runtime_error(
                                     e,
                                     SourceLocation::unknown(),
@@ -181,6 +186,10 @@ fn main() {
                                 .with_call_stack(call_stack);
                                 
                                 eprintln!("{}", error);
+                                std::process::exit(1);
+                            }
+                            Err(e) => {
+                                eprintln!("VM execution panicked: {}", e);
                                 std::process::exit(1);
                             }
                         }

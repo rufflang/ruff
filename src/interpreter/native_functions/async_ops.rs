@@ -48,6 +48,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                 is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                 cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
             })
         }
 
@@ -79,7 +80,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
 
             // Extract the promise
             match &args[0] {
-                Value::Promise { receiver, is_polled, cached_result } => {
+                Value::Promise { receiver, is_polled, cached_result, .. } => {
                     // Clone the Arc pointers to move into async task
                     let receiver = receiver.clone();
                     let is_polled = is_polled.clone();
@@ -151,6 +152,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                         is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                         cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                        task_handle: None,
                     })
                 }
                 _ => Some(Value::Error(
@@ -217,6 +219,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                 is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                 cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
             })
         }
 
@@ -312,6 +315,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                 is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                 cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
             })
         }
 
@@ -355,6 +359,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                 is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                 cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
             })
         }
 
@@ -407,6 +412,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                 is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                 cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
             })
         }
 
@@ -526,6 +532,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                         is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                         cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                        task_handle: None,
                     })
                 }
                 _ => Some(Value::Error(
@@ -588,6 +595,11 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 }
             };
 
+            // Debug logging
+            if std::env::var("DEBUG_ASYNC").is_ok() {
+                eprintln!("Promise.all: received {} promises", promises.len());
+            }
+
             if promises.is_empty() {
                 // Empty array - return immediately resolved promise with empty array
                 let (tx, rx) = tokio::sync::oneshot::channel();
@@ -596,6 +608,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                     is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                     cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                    task_handle: None,
                 });
             }
 
@@ -604,6 +617,9 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             for (idx, promise) in promises.iter().enumerate() {
                 match promise {
                     Value::Promise { receiver, .. } => {
+                        if std::env::var("DEBUG_ASYNC").is_ok() {
+                            eprintln!("Promise.all: extracting receiver from promise {}", idx);
+                        }
                         receivers.push((idx, receiver.clone()));
                     }
                     _ => {
@@ -615,12 +631,20 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 }
             }
 
+            if std::env::var("DEBUG_ASYNC").is_ok() {
+                eprintln!("Promise.all: extracted {} receivers, spawning task", receivers.len());
+            }
+
             // Create channel for final result
             let (tx, rx) = tokio::sync::oneshot::channel();
             let count = receivers.len();
 
             // Spawn task that awaits all promises concurrently
             AsyncRuntime::spawn_task(async move {
+                if std::env::var("DEBUG_ASYNC").is_ok() {
+                    eprintln!("Promise.all: inside spawned task, extracting {} receivers", receivers.len());
+                }
+                
                 // Extract all receivers
                 let mut futures = Vec::new();
                 for (idx, receiver_arc) in receivers {
@@ -633,6 +657,10 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     futures.push((idx, actual_rx));
                 }
 
+                if std::env::var("DEBUG_ASYNC").is_ok() {
+                    eprintln!("Promise.all: prepared {} futures, spawning await tasks", futures.len());
+                }
+
                 // Await all futures concurrently using tokio::join! or futures combinator
                 // We'll use a simple loop that spawns and collects
                 let mut tasks = Vec::new();
@@ -642,22 +670,52 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     }));
                 }
 
+                if std::env::var("DEBUG_ASYNC").is_ok() {
+                    eprintln!("Promise.all: awaiting {} tasks", tasks.len());
+                }
+
                 // Collect all results
                 let mut results = vec![Value::Null; count];
+                let mut completed = 0;
                 for task in tasks {
+                    if std::env::var("DEBUG_ASYNC").is_ok() {
+                        eprintln!("Promise.all: awaiting task {}/{}", completed + 1, count);
+                    }
+                    
                     match task.await {
                         Ok((idx, Ok(Ok(value)))) => {
+                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                                eprintln!("Promise.all: task {} resolved successfully", idx);
+                            }
                             results[idx] = value;
+                            completed += 1;
                         }
                         Ok((idx, Ok(Err(err)))) => {
+                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                                eprintln!("Promise.all: task {} rejected: {}", idx, err);
+                            }
                             let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
                             return Value::Null;
                         }
-                        Ok((_, Err(_))) | Err(_) => {
-                            let _ = tx.send(Err("Promise never resolved".to_string()));
+                        Ok((idx, Err(_))) => {
+                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                                eprintln!("Promise.all: task {} channel closed (Err from oneshot)", idx);
+                            }
+                            let _ = tx.send(Err(format!("Promise {} never resolved (channel closed)", idx)));
+                            return Value::Null;
+                        }
+                        Err(e) => {
+                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                                eprintln!("Promise.all: task join error: {:?}", e);
+                            }
+                            let _ = tx.send(Err("Promise task panicked or was cancelled".to_string()));
                             return Value::Null;
                         }
                     }
+                }
+
+                if std::env::var("DEBUG_ASYNC").is_ok() {
+                    eprintln!("Promise.all: all tasks resolved, sending {} results", results.len());
                 }
 
                 // All promises resolved successfully
@@ -670,7 +728,14 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                 is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
                 cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
             })
+        }
+
+        "await_all" => {
+            // await_all is an alias for Promise.all
+            // Redirect to Promise.all handler
+            handle(_interp, "Promise.all", args)
         }
 
         _ => None, // Not handled by this module

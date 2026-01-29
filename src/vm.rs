@@ -94,6 +94,10 @@ pub struct VM {
     /// Key: (chunk_id, instruction_pointer) uniquely identifies a call site
     /// Value: Cached function pointer and metadata for fast dispatch
     inline_cache: HashMap<CallSiteId, InlineCacheEntry>,
+    
+    /// Tokio runtime handle for spawning async tasks
+    /// This allows the VM to spawn truly concurrent async tasks
+    runtime_handle: tokio::runtime::Handle,
 }
 
 /// Unique identifier for a call site (location in bytecode where a Call occurs)
@@ -256,6 +260,11 @@ impl VM {
             recursion_depth: 0,
             max_recursion_depth: 0,
             inline_cache: HashMap::new(),
+            runtime_handle: tokio::runtime::Handle::try_current()
+                .unwrap_or_else(|_| {
+                    // If not in a tokio runtime, create one
+                    crate::interpreter::AsyncRuntime::runtime().handle().clone()
+                }),
         }
     }
 
@@ -1074,6 +1083,7 @@ impl VM {
                                 receiver: Arc::new(Mutex::new(rx)),
                                 is_polled: Arc::new(Mutex::new(false)),
                                 cached_result: Arc::new(Mutex::new(None)),
+                task_handle: None,
                             }
                         } else {
                             return_value
@@ -1110,6 +1120,7 @@ impl VM {
                                 receiver: Arc::new(Mutex::new(rx)),
                                 is_polled: Arc::new(Mutex::new(false)),
                                 cached_result: Arc::new(Mutex::new(None)),
+                task_handle: None,
                             }
                         } else {
                             Value::Null
@@ -1528,7 +1539,7 @@ impl VM {
                     let promise = self.stack.pop().ok_or("Stack underflow in Await")?;
 
                     match promise {
-                        Value::Promise { receiver, is_polled, cached_result } => {
+                        Value::Promise { receiver, is_polled, cached_result, .. } => {
                             // Check if we've already polled this promise
                             {
                                 let polled = is_polled.lock().unwrap();
@@ -1562,9 +1573,28 @@ impl VM {
                                 let actual_rx = std::mem::replace(&mut *recv_guard, dummy_rx);
                                 drop(recv_guard); // Release lock before blocking
                                 
-                                // Block on the receiver using tokio runtime
-                                use crate::interpreter::AsyncRuntime;
-                                AsyncRuntime::block_on(actual_rx)
+                                // Debug logging
+                                if std::env::var("DEBUG_ASYNC").is_ok() {
+                                    eprintln!("VM Await: about to block_on receiver");
+                                }
+                                
+                                // Use the runtime handle to block on the receiver
+                                // This works even when we're already inside a tokio runtime
+                                let result = self.runtime_handle.block_on(actual_rx);
+                                
+                                if std::env::var("DEBUG_ASYNC").is_ok() {
+                                    eprintln!("VM Await: block_on completed with result: {:?}", 
+                                        match &result {
+                                            Ok(Ok(_)) => "Ok(Ok(value))",
+                                            Ok(Err(e)) => {
+                                                eprintln!("VM Await: Promise rejected: {}", e);
+                                                "Ok(Err(...))"
+                                            }
+                                            Err(_) => "Err (channel closed)",
+                                        });
+                                }
+                                
+                                result
                             };
 
                             // Update cache
@@ -1611,6 +1641,7 @@ impl VM {
                         receiver: Arc::new(Mutex::new(rx)),
                         is_polled: Arc::new(Mutex::new(false)),
                         cached_result: Arc::new(Mutex::new(None)),
+                task_handle: None,
                     };
 
                     self.stack.push(promise);

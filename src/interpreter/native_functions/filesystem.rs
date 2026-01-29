@@ -2,14 +2,124 @@
 //
 // Filesystem operation native functions
 
-use crate::interpreter::{Interpreter, Value};
+use crate::interpreter::{AsyncRuntime, Interpreter, Value};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
-        "read_file" => {
+        // Async file operations - return Promises for true concurrency
+        "read_file_async" | "read_file" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                let path_clone = path.clone();
+                
+                // Create oneshot channel for result
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                
+                // Spawn async task to read file
+                AsyncRuntime::spawn_task(async move {
+                    match tokio::fs::read_to_string(&path_clone).await {
+                        Ok(content) => {
+                            let _ = tx.send(Ok(Value::Str(content)));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(format!("Cannot read file '{}': {}", path_clone, e)));
+                        }
+                    }
+                    Value::Null
+                });
+                
+                Value::Promise {
+                    receiver: Arc::new(Mutex::new(rx)),
+                    is_polled: Arc::new(Mutex::new(false)),
+                    cached_result: Arc::new(Mutex::new(None)),
+                task_handle: None,
+                }
+            } else {
+                Value::Error("read_file requires a string path argument".to_string())
+            }
+        }
+
+        "write_file_async" | "write_file" => {
+            if arg_values.len() < 2 {
+                return Some(Value::Error(
+                    "write_file requires two arguments: path and content".to_string(),
+                ));
+            }
+            if let (Some(Value::Str(path)), Some(Value::Str(content))) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let path_clone = path.clone();
+                let content_clone = content.clone();
+                
+                // Create oneshot channel for result
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                
+                // Spawn async task to write file
+                AsyncRuntime::spawn_task(async move {
+                    match tokio::fs::write(&path_clone, &content_clone).await {
+                        Ok(_) => {
+                            let _ = tx.send(Ok(Value::Bool(true)));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(format!("Cannot write file '{}': {}", path_clone, e)));
+                        }
+                    }
+                    Value::Null
+                });
+                
+                Value::Promise {
+                    receiver: Arc::new(Mutex::new(rx)),
+                    is_polled: Arc::new(Mutex::new(false)),
+                    cached_result: Arc::new(Mutex::new(None)),
+                task_handle: None,
+                }
+            } else {
+                Value::Error("write_file requires string arguments".to_string())
+            }
+        }
+
+        "list_dir_async" | "list_dir" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                let path_clone = path.clone();
+                
+                // Create oneshot channel for result
+                let (tx, rx) = tokio::sync::oneshot::channel();
+                
+                // Spawn async task to list directory
+                AsyncRuntime::spawn_task(async move {
+                    match tokio::fs::read_dir(&path_clone).await {
+                        Ok(mut entries) => {
+                            let mut files = Vec::new();
+                            while let Ok(Some(entry)) = entries.next_entry().await {
+                                if let Some(name) = entry.file_name().to_str() {
+                                    files.push(Value::Str(name.to_string()));
+                                }
+                            }
+                            let _ = tx.send(Ok(Value::Array(files)));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(format!("Cannot list directory '{}': {}", path_clone, e)));
+                        }
+                    }
+                    Value::Null
+                });
+                
+                Value::Promise {
+                    receiver: Arc::new(Mutex::new(rx)),
+                    is_polled: Arc::new(Mutex::new(false)),
+                    cached_result: Arc::new(Mutex::new(None)),
+                task_handle: None,
+                }
+            } else {
+                Value::Error("list_dir requires a string path argument".to_string())
+            }
+        }
+
+        // Synchronous fallback versions for compatibility
+        "read_file_sync" => {
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read_to_string(path) {
                     Ok(content) => Value::Str(content),
@@ -35,6 +145,55 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 }
             } else {
                 Value::Error("write_file requires string arguments".to_string())
+            }
+        }
+
+        // Synchronous fallback versions for compatibility
+        "read_file_sync" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match std::fs::read_to_string(path) {
+                    Ok(content) => Value::Str(content),
+                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path, e)),
+                }
+            } else {
+                Value::Error("read_file_sync requires a string path argument".to_string())
+            }
+        }
+
+        "write_file_sync" => {
+            if arg_values.len() < 2 {
+                return Some(Value::Error(
+                    "write_file_sync requires two arguments: path and content".to_string(),
+                ));
+            }
+            if let (Some(Value::Str(path)), Some(Value::Str(content))) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                match std::fs::write(path, content) {
+                    Ok(_) => Value::Bool(true),
+                    Err(e) => Value::Error(format!("Cannot write file '{}': {}", path, e)),
+                }
+            } else {
+                Value::Error("write_file_sync requires string arguments".to_string())
+            }
+        }
+
+        "list_dir_sync" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match std::fs::read_dir(path) {
+                    Ok(entries) => {
+                        let mut files = Vec::new();
+                        for entry in entries.flatten() {
+                            if let Some(name) = entry.file_name().to_str() {
+                                files.push(Value::Str(name.to_string()));
+                            }
+                        }
+                        Value::Array(files)
+                    }
+                    Err(e) => Value::Error(format!("Cannot list directory '{}': {}", path, e)),
+                }
+            } else {
+                Value::Error("list_dir_sync requires a string path argument".to_string())
             }
         }
 
