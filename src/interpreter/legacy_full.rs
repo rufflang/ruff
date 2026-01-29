@@ -9683,6 +9683,7 @@ impl Interpreter {
                             receiver: Arc::new(Mutex::new(rx)),
                             is_polled: Arc::new(Mutex::new(false)),
                             cached_result: Arc::new(Mutex::new(None)),
+                task_handle: None,
                         }
                     }
                     Value::GeneratorDef(ref params, ref body) => {
@@ -10010,7 +10011,7 @@ impl Interpreter {
                 
                 // If it's a promise, wait for it to resolve
                 match promise_value {
-                    Value::Promise { receiver, is_polled, cached_result } => {
+                    Value::Promise { receiver, is_polled, cached_result, .. } => {
                         // Check if we've already polled this promise
                         {
                             let polled = is_polled.lock().unwrap();
