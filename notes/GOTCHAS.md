@@ -6,38 +6,21 @@ If you are new to the project, read this first.
 
 ---
 
-## 🚨 CRITICAL PERFORMANCE ISSUE
+## ✅ RESOLVED: JIT Now Executes Correctly (as of 2026-01-28)
 
-### JIT Compiles But Doesn't Execute - 100-400x Performance Loss!
+### ~~JIT Compiles But Doesn't Execute~~ — FIXED!
 
-- **Problem:** Ruff is 45-200x SLOWER than Python instead of 5-10x FASTER
-- **Root Cause:** JIT compiler successfully compiles hot loops to native code, then THROWS IT AWAY and continues with bytecode interpretation
-- **Location:** `src/vm.rs` lines 204-227 - compiled functions are cached but never called
-- **Symptom:** Benchmarks show catastrophic performance (11,990ms for fib(30) vs Python's 265ms)
-- **Impact:** Ruff is running at **0.25-1% of expected performance** - essentially pure interpretation
-- **Evidence:** Simple operations (string concat, object creation) match Python because they're not compute-bound
-- **Fix Needed:** Actually execute the `compiled_fn` instead of just caching it and continuing interpretation
-- **Challenge:** Must create proper VMContext and handle transition between interpreted and JIT code
-- **Expected Result:** After fix, Ruff should be 5-10x FASTER than Python (not 45x slower!)
-- **Why This Happened:** JIT infrastructure is complete but final execution step was never wired up
-- **Good News:** The hard work is done (VM, JIT compiler, Cranelift integration all work) - just need to flip the switch!
+- **STATUS:** ✅ RESOLVED
+- **Original Problem:** JIT compiled functions weren't being executed
+- **Fix Applied:** Wired up JIT execution path in `src/vm.rs`
+- **Current Performance:** Ruff is now **52-68x FASTER** than Python on compute-heavy benchmarks
+- **Benchmark Results (2026-01-28):**
+  - fib(25): 0.54ms (Python: 35.45ms) — **66x faster**
+  - fib(30): 6.14ms (Python: 323ms) — **53x faster**
+  - array_sum(100k): 0.2ms (Python: 10.36ms) — **52x faster**
+  - nested_loops(500): 0.36ms (Python: 24.13ms) — **68x faster**
 
-**Code that needs to change:**
-```rust
-// Current (line 204-206):
-Ok(_compiled_fn) => {
-    // For now, we just cache it and continue with bytecode interpretation
-
-// Should be:
-Ok(compiled_fn) => {
-    unsafe {
-        let result = (compiled_fn)(&mut vm_context);
-        // Handle result, skip interpreted version
-    }
-}
-```
-
-(Discovered during: 2026-01-28_03-36_jit-not-executing.md - Cross-language benchmarking)
+(Resolved during: 2026-01-28_04-08_jit-execution-success.md, 2026-01-28_18-50_compiler-stack-pop-fix.md)
 
 ---
 
@@ -183,14 +166,26 @@ Ok(compiled_fn) => {
 
 (Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
 
-### StoreVar consumes stack value - need Dup for read-after-write optimization
+### 🚨 StoreVar uses PEEK semantics - NOT POP! (CRITICAL for JIT)
 
-- **Problem:** Replacing `StoreVar(x) + LoadVar(x)` with just `StoreVar(x)` removes value from stack
-- **Rule:** `StoreVar`/`StoreGlobal` are consuming operations (pop value from stack). To keep value available, must `Dup` before storing
-- **Why:** Stack discipline requires maintaining correct values. Store pops, Load pushes. Removing Load without duplicating loses the value.
-- **Correct pattern:** `StoreVar(x) + LoadVar(x)` → `Dup + StoreVar(x)` (leaves copy on stack)
-- **Incorrect pattern:** `StoreVar(x) + LoadVar(x)` → `StoreVar(x)` (value disappears)
-- **Prevention:** Understand stack effect of each opcode (push/pop semantics) before pattern-matching optimizations
+- **Problem:** Loop JIT fails with "Stack empty" errors at loop headers
+- **Root cause:** `StoreVar`/`StoreGlobal` use **PEEK** semantics (store TOS but LEAVE it on stack), not POP
+- **Why this breaks JIT:** Without explicit `Pop` after `let`/`assign` statements, values accumulate on stack between statements. JIT loop headers expect identical stack state on every entry, but stack pollution causes mismatch.
+- **Symptom:** Functions with loops fall back to interpreter; benchmarks show 1000x+ slower than expected
+- **Rule:** Every `Stmt::Let` and `Stmt::Assign` MUST emit `Pop` after `compile_pattern_binding()` / `compile_assignment()`
+- **Code location:** `src/compiler.rs` lines ~102-128
+- **Prevention:** Remember: **StoreVar = PEEK, not POP**. Statement hygiene requires explicit Pop.
+- **Performance impact:** Without fix: loops at interpreter speed (~1800ms). With fix: JIT speed (~0.2ms) - **9000x improvement**
+
+(Discovered during: 2026-01-28_18-50_compiler-stack-pop-fix.md)
+
+### Peephole optimizer StoreVar+LoadVar pattern
+
+- **Problem:** Replacing `StoreVar(x) + LoadVar(x)` optimization needs Dup
+- **Rule:** Since StoreVar PEEKs (leaves value on stack), the pattern `StoreVar(x); LoadVar(x)` can become `Dup; StoreVar(x)` - the Dup ensures a copy remains after store.
+- **Why:** This is an optimization. StoreVar leaves value, LoadVar would push same value again. Dup+StoreVar achieves same effect with one less opcode.
+- **Correct pattern:** `StoreVar(x) + LoadVar(x)` → `Dup + StoreVar(x)` 
+- **Prevention:** Understand stack effect of each opcode before pattern-matching optimizations
 
 (Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
 
@@ -787,6 +782,18 @@ Ok(compiled_fn) => {
 - **Implication:** Current solution sufficient; don't over-engineer unless profiling shows problem
 
 (Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+
+### Loop headers require consistent stack state (SSA block parameters)
+
+- **Problem:** Loop JIT fails with "Stack empty" or "block parameter count mismatch" errors
+- **Rule:** SSA block parameters for loop headers are determined by stack state at FIRST entry. Every subsequent entry (via JumpBack) must have IDENTICAL stack state.
+- **Why:** Cranelift loop headers are SSA blocks with parameters representing live values. If loop entry and loop iteration have different stack depths, block parameters don't match.
+- **Symptom:** Functions with loops silently fall back to interpreter; no compilation errors but huge performance loss
+- **Root cause (usually):** Stack pollution from missing Pop after statements. See "StoreVar uses PEEK semantics" gotcha.
+- **Debug technique:** Use `DEBUG_JIT=1` and trace stack depths at loop header vs JumpBack instruction
+- **Prevention:** Ensure bytecode compiler maintains clean stack between statements
+
+(Discovered during: 2026-01-28_18-50_compiler-stack-pop-fix.md)
 
 ---
 
