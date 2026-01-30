@@ -1307,6 +1307,123 @@ impl VM {
                     }
                 }
 
+                OpCode::IndexGetInPlace(var_name) => {
+                    // Pop index from stack
+                    let index = self.stack.pop().ok_or("Stack underflow")?;
+
+                    // Get reference to local variable without cloning
+                    let frame = self
+                        .call_frames
+                        .last_mut()
+                        .ok_or("IndexGetInPlace requires call frame")?;
+
+                    // Check if variable exists in captured or locals
+                    let value_opt = if let Some(captured_ref) = frame.captured.get(&var_name) {
+                        Some(captured_ref.lock().unwrap().clone())
+                    } else {
+                        frame.locals.get(&var_name).cloned()
+                    };
+
+                    let object =
+                        value_opt.ok_or_else(|| format!("Undefined variable: {}", var_name))?;
+
+                    // Perform the index access
+                    let result = match (&object, &index) {
+                        (Value::Array(arr), Value::Int(i)) => {
+                            let idx =
+                                if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
+                            arr.get(idx)
+                                .cloned()
+                                .ok_or_else(|| format!("Index out of bounds: {}", i))?
+                        }
+                        (Value::Dict(dict), Value::Str(key)) => {
+                            dict.get(key).cloned().unwrap_or(Value::Null)
+                        }
+                        (Value::Dict(dict), Value::Int(i)) => {
+                            dict.get(&i.to_string()).cloned().unwrap_or(Value::Null)
+                        }
+                        (Value::Str(s), Value::Int(i)) => {
+                            let idx =
+                                if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
+                            s.chars()
+                                .nth(idx)
+                                .map(|c| Value::Str(c.to_string()))
+                                .ok_or_else(|| format!("Index out of bounds: {}", i))?
+                        }
+                        _ => return Err("Invalid index operation".to_string()),
+                    };
+
+                    self.stack.push(result);
+                }
+
+                OpCode::IndexSetInPlace(var_name) => {
+                    // Stack layout: [... value, index] (index on top)
+                    // Pop index and value from stack
+                    let index = self.stack.pop().ok_or("Stack underflow")?;
+                    let value = self.stack.pop().ok_or("Stack underflow")?;
+
+                    // Get mutable reference to local variable
+                    let frame = self
+                        .call_frames
+                        .last_mut()
+                        .ok_or("IndexSetInPlace requires call frame")?;
+
+                    // Check if variable is in captured or locals and modify in-place
+                    if let Some(captured_ref) = frame.captured.get(&var_name) {
+                        // Modify captured variable in-place
+                        let mut object = captured_ref.lock().unwrap();
+                        match (&mut *object, index) {
+                            (Value::Array(arr), Value::Int(i)) => {
+                                let idx = if i < 0 {
+                                    (arr.len() as i64 + i) as usize
+                                } else {
+                                    i as usize
+                                };
+                                if idx < arr.len() {
+                                    arr[idx] = value;
+                                } else {
+                                    return Err(format!("Index out of bounds: {}", i));
+                                }
+                            }
+                            (Value::Dict(dict), Value::Str(key)) => {
+                                dict.insert(key, value);
+                            }
+                            (Value::Dict(dict), Value::Int(i)) => {
+                                dict.insert(i.to_string(), value);
+                            }
+                            _ => return Err("Invalid index assignment".to_string()),
+                        }
+                    } else if let Some(object) = frame.locals.get_mut(&var_name) {
+                        // Modify local variable in-place
+                        match (object, index) {
+                            (Value::Array(arr), Value::Int(i)) => {
+                                let idx = if i < 0 {
+                                    (arr.len() as i64 + i) as usize
+                                } else {
+                                    i as usize
+                                };
+                                if idx < arr.len() {
+                                    arr[idx] = value;
+                                } else {
+                                    return Err(format!("Index out of bounds: {}", i));
+                                }
+                            }
+                            (Value::Dict(dict), Value::Str(key)) => {
+                                dict.insert(key, value);
+                            }
+                            (Value::Dict(dict), Value::Int(i)) => {
+                                dict.insert(i.to_string(), value);
+                            }
+                            _ => return Err("Invalid index assignment".to_string()),
+                        }
+                    } else {
+                        return Err(format!("Undefined variable: {}", var_name));
+                    }
+
+                    // Push a null value to keep stack balanced (will be popped by following Pop instruction)
+                    self.stack.push(Value::Null);
+                }
+
                 OpCode::FieldGet(field) => {
                     let object = self.stack.pop().ok_or("Stack underflow")?;
 

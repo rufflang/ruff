@@ -726,6 +726,17 @@ impl Compiler {
             }
 
             Expr::IndexAccess { object, index } => {
+                // Optimization: if object is a local variable identifier, use IndexGetInPlace
+                if let Expr::Identifier(name) = &**object {
+                    if self.is_local(name) {
+                        // Compile index and emit optimized opcode
+                        self.compile_expr(index)?;
+                        self.chunk.emit(OpCode::IndexGetInPlace(name.clone()));
+                        return Ok(());
+                    }
+                }
+
+                // Default path: load object, then index
                 self.compile_expr(object)?;
                 self.compile_expr(index)?;
                 self.chunk.emit(OpCode::IndexGet);
@@ -995,6 +1006,18 @@ impl Compiler {
             }
 
             Expr::IndexAccess { object, index } => {
+                // Optimization: if object is a local variable identifier, use IndexSetInPlace
+                if let Expr::Identifier(name) = &**object {
+                    if self.is_local(name) {
+                        // Value is already on stack from assignment
+                        // Compile index and emit optimized opcode
+                        self.compile_expr(index)?;
+                        self.chunk.emit(OpCode::IndexSetInPlace(name.clone()));
+                        return Ok(());
+                    }
+                }
+
+                // Default path: load object, index, then set
                 // Value is already on stack
                 // Need: [value, object, index]
                 self.compile_expr(object)?;

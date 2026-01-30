@@ -145,6 +145,18 @@ pub enum OpCode {
     /// Operand: field name
     FieldSet(String),
 
+    /// Get value from local variable dict/array in-place (no cloning)
+    /// Operand: variable name
+    /// Stack: [index] -> [value]
+    /// Optimized version of LoadVar + IndexGet for local variables
+    IndexGetInPlace(String),
+
+    /// Set value in local variable dict/array in-place (no cloning)
+    /// Operand: variable name
+    /// Stack: [index, value] -> []
+    /// Optimized version of LoadVar + IndexSet + StoreVar for local variables
+    IndexSetInPlace(String),
+
     // === Spread Operations ===
     /// Spread an array/dict onto stack for collection construction
     /// Pops one collection, pushes all its elements
