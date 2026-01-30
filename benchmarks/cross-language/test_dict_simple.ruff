@@ -1,0 +1,15 @@
+# Minimal test case
+func test(n) {
+    map := {}
+    i := 0
+    while i < n {
+        map[i] := i
+        i := i + 1
+    }
+    return len(map)
+}
+
+print("Testing...")
+result := test(3)
+print("Result: ")
+print(result)
