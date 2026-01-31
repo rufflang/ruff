@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -490,7 +490,7 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
                         's' => {
                             // %s - string
                             match &args[arg_index] {
-                                Value::Str(s) => s.clone(),
+                                Value::Str(s) => s.as_ref().clone(),
                                 Value::Int(n) => n.to_string(),
                                 Value::Float(f) => f.to_string(),
                                 Value::Bool(b) => b.to_string(),
@@ -583,17 +583,17 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
                 Value::Int(0)
             }
         }
-        serde_json::Value::String(s) => Value::Str(s),
+        serde_json::Value::String(s) => Value::Str(Arc::new(s)),
         serde_json::Value::Array(arr) => {
             let ruff_arr: Vec<Value> = arr.into_iter().map(json_to_ruff_value).collect();
-            Value::Array(ruff_arr)
+            Value::Array(Arc::new(ruff_arr))
         }
         serde_json::Value::Object(obj) => {
             let mut ruff_dict = HashMap::new();
             for (key, val) in obj {
                 ruff_dict.insert(key, json_to_ruff_value(val));
             }
-            Value::Dict(ruff_dict)
+            Value::Dict(Arc::new(ruff_dict))
         }
     }
 }
@@ -606,18 +606,19 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
         Value::Float(n) => Ok(serde_json::Value::Number(
             serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0)),
         )),
-        Value::Str(s) => Ok(serde_json::Value::String(s.clone())),
+        Value::Str(s) => Ok(serde_json::Value::String(s.as_ref().clone())),
         Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
         Value::Array(arr) => {
             let mut json_arr = Vec::new();
-            for item in arr {
+            for item in arr.iter() {
+                json_arr.push(ruff_value_to_json(item)?);
                 json_arr.push(ruff_value_to_json(item)?);
             }
             Ok(serde_json::Value::Array(json_arr))
         }
         Value::Dict(dict) => {
             let mut json_obj = serde_json::Map::new();
-            for (key, val) in dict {
+            for (key, val) in dict.iter() {
                 json_obj.insert(key.clone(), ruff_value_to_json(val)?);
             }
             Ok(serde_json::Value::Object(json_obj))
@@ -652,21 +653,21 @@ pub fn to_toml(value: &Value) -> Result<String, String> {
 #[allow(dead_code)]
 fn toml_to_ruff_value(toml: toml::Value) -> Value {
     match toml {
-        toml::Value::String(s) => Value::Str(s),
+        toml::Value::String(s) => Value::Str(Arc::new(s)),
         toml::Value::Integer(i) => Value::Int(i),
         toml::Value::Float(f) => Value::Float(f),
         toml::Value::Boolean(b) => Value::Bool(b),
-        toml::Value::Datetime(dt) => Value::Str(dt.to_string()),
+        toml::Value::Datetime(dt) => Value::Str(Arc::new(dt.to_string())),
         toml::Value::Array(arr) => {
             let ruff_arr: Vec<Value> = arr.into_iter().map(toml_to_ruff_value).collect();
-            Value::Array(ruff_arr)
+            Value::Array(Arc::new(ruff_arr))
         }
         toml::Value::Table(table) => {
             let mut ruff_dict = HashMap::new();
             for (key, val) in table {
                 ruff_dict.insert(key, toml_to_ruff_value(val));
             }
-            Value::Dict(ruff_dict)
+            Value::Dict(Arc::new(ruff_dict))
         }
     }
 }
@@ -678,18 +679,18 @@ fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
         Value::Null => Ok(toml::Value::String(String::new())), // TOML doesn't have null, use empty string
         Value::Int(n) => Ok(toml::Value::Integer(*n)),
         Value::Float(n) => Ok(toml::Value::Float(*n)),
-        Value::Str(s) => Ok(toml::Value::String(s.clone())),
+        Value::Str(s) => Ok(toml::Value::String(s.as_ref().clone())),
         Value::Bool(b) => Ok(toml::Value::Boolean(*b)),
         Value::Array(arr) => {
             let mut toml_arr = Vec::new();
-            for item in arr {
+            for item in arr.iter() {
                 toml_arr.push(ruff_value_to_toml(item)?);
             }
             Ok(toml::Value::Array(toml_arr))
         }
         Value::Dict(dict) => {
             let mut toml_table = toml::map::Map::new();
-            for (key, val) in dict {
+            for (key, val) in dict.iter() {
                 toml_table.insert(key.clone(), ruff_value_to_toml(val)?);
             }
             Ok(toml::Value::Table(toml_table))
@@ -736,10 +737,10 @@ fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
                 Value::Int(0)
             }
         }
-        serde_yaml::Value::String(s) => Value::Str(s),
+        serde_yaml::Value::String(s) => Value::Str(Arc::new(s)),
         serde_yaml::Value::Sequence(arr) => {
             let ruff_arr: Vec<Value> = arr.into_iter().map(yaml_to_ruff_value).collect();
-            Value::Array(ruff_arr)
+            Value::Array(Arc::new(ruff_arr))
         }
         serde_yaml::Value::Mapping(map) => {
             let mut ruff_dict = HashMap::new();
@@ -752,7 +753,7 @@ fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
                     ruff_dict.insert(key_str, yaml_to_ruff_value(val));
                 }
             }
-            Value::Dict(ruff_dict)
+            Value::Dict(Arc::new(ruff_dict))
         }
         serde_yaml::Value::Tagged(tagged) => {
             // Handle tagged values by converting the value itself
@@ -768,18 +769,18 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
         Value::Null => Ok(serde_yaml::Value::Null),
         Value::Int(n) => Ok(serde_yaml::Value::Number((*n).into())),
         Value::Float(n) => Ok(serde_yaml::Value::Number(serde_yaml::Number::from(*n))),
-        Value::Str(s) => Ok(serde_yaml::Value::String(s.clone())),
+        Value::Str(s) => Ok(serde_yaml::Value::String(s.as_ref().clone())),
         Value::Bool(b) => Ok(serde_yaml::Value::Bool(*b)),
         Value::Array(arr) => {
             let mut yaml_arr = Vec::new();
-            for item in arr {
+            for item in arr.iter() {
                 yaml_arr.push(ruff_value_to_yaml(item)?);
             }
             Ok(serde_yaml::Value::Sequence(yaml_arr))
         }
         Value::Dict(dict) => {
             let mut yaml_map = serde_yaml::Mapping::new();
-            for (key, val) in dict {
+            for (key, val) in dict.iter() {
                 yaml_map.insert(serde_yaml::Value::String(key.clone()), ruff_value_to_yaml(val)?);
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
@@ -816,17 +817,17 @@ pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
                     } else if let Ok(num) = field.parse::<f64>() {
                         Value::Float(num)
                     } else {
-                        Value::Str(field.to_string())
+                        Value::Str(Arc::new(field.to_string()))
                     };
                     row_dict.insert(header.to_string(), value);
                 }
-                rows.push(Value::Dict(row_dict));
+                rows.push(Value::Dict(Arc::new(row_dict)));
             }
             Err(e) => return Err(format!("CSV parse error: {}", e)),
         }
     }
 
-    Ok(Value::Array(rows))
+    Ok(Value::Array(Arc::new(rows)))
 }
 
 /// Convert a Ruff array of dictionaries to a CSV string
@@ -846,14 +847,14 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
                 }
 
                 // Write each row
-                for row_val in rows {
+                for row_val in rows.iter() {
                     if let Value::Dict(row) = row_val {
                         let mut record = Vec::new();
                         for header in &headers {
                             let value_str = match row.get(header) {
                                 Some(Value::Int(n)) => n.to_string(),
                                 Some(Value::Float(n)) => n.to_string(),
-                                Some(Value::Str(s)) => s.clone(),
+                                Some(Value::Str(s)) => s.as_ref().clone(),
                                 Some(Value::Bool(b)) => b.to_string(),
                                 Some(Value::Null) => String::new(),
                                 _ => String::new(),
@@ -1203,16 +1204,16 @@ pub fn regex_split(text: &str, pattern: &str) -> Vec<String> {
 
 /// Array functions
 /// Insert an item at a specific index
-pub fn array_insert(arr: Vec<Value>, index: i64, item: Value) -> Result<Vec<Value>, String> {
+pub fn array_insert(arr: Vec<Value>, index: i64, item: Value) -> Result<Vec<Value>, Arc<String>> {
     let idx = index as usize;
     let mut new_arr = arr;
 
     if idx > new_arr.len() {
-        return Err(format!(
+        return Err(Arc::new(format!(
             "insert() index {} out of bounds for array of length {}",
             idx,
             new_arr.len()
-        ));
+        )));
     }
 
     new_arr.insert(idx, item);
@@ -1226,7 +1227,7 @@ pub fn array_remove(arr: Vec<Value>, item: &Value) -> Vec<Value> {
     let pos = new_arr.iter().position(|x| match (x, item) {
         (Value::Int(a), Value::Int(b)) => a == b,
         (Value::Float(a), Value::Float(b)) => a == b,
-        (Value::Str(a), Value::Str(b)) => a == b,
+        (Value::Str(a), Value::Str(b)) => a.as_ref() == b.as_ref(),
         (Value::Bool(a), Value::Bool(b)) => a == b,
         (Value::Null, Value::Null) => true,
         _ => false,
@@ -1239,16 +1240,16 @@ pub fn array_remove(arr: Vec<Value>, item: &Value) -> Vec<Value> {
 }
 
 /// Remove an item at a specific index
-pub fn array_remove_at(arr: Vec<Value>, index: i64) -> Result<(Vec<Value>, Value), String> {
+pub fn array_remove_at(arr: Vec<Value>, index: i64) -> Result<(Vec<Value>, Value), Arc<String>> {
     let idx = index as usize;
     let mut new_arr = arr;
 
     if idx >= new_arr.len() {
-        return Err(format!(
+        return Err(Arc::new(format!(
             "remove_at() index {} out of bounds for array of length {}",
             idx,
             new_arr.len()
-        ));
+        )));
     }
 
     let removed = new_arr.remove(idx);
@@ -1291,11 +1292,11 @@ pub fn array_contains(arr: &[Value], item: &Value) -> bool {
 /// Last chunk may be smaller if array length is not divisible by chunk_size
 pub fn array_chunk(arr: &[Value], chunk_size: i64) -> Vec<Value> {
     if chunk_size <= 0 {
-        return vec![Value::Array(arr.to_vec())];
+        return vec![Value::Array(Arc::new(arr.to_vec()))];
     }
 
     let size = chunk_size as usize;
-    let chunks: Vec<Value> = arr.chunks(size).map(|chunk| Value::Array(chunk.to_vec())).collect();
+    let chunks: Vec<Value> = arr.chunks(size).map(|chunk| Value::Array(Arc::new(chunk.to_vec()))).collect();
 
     chunks
 }
@@ -1307,7 +1308,7 @@ pub fn array_flatten(arr: &[Value]) -> Vec<Value> {
 
     for item in arr {
         match item {
-            Value::Array(inner) => result.extend(inner.clone()),
+            Value::Array(inner) => result.extend(inner.iter().cloned()),
             other => result.push(other.clone()),
         }
     }
@@ -1318,7 +1319,7 @@ pub fn array_flatten(arr: &[Value]) -> Vec<Value> {
 /// Zip two arrays together into array of pairs
 /// [1,2,3].zip([4,5,6]) → [[1,4], [2,5], [3,6]]
 pub fn array_zip(arr1: &[Value], arr2: &[Value]) -> Vec<Value> {
-    arr1.iter().zip(arr2.iter()).map(|(a, b)| Value::Array(vec![a.clone(), b.clone()])).collect()
+    arr1.iter().zip(arr2.iter()).map(|(a, b)| Value::Array(Arc::new(vec![a.clone(), b.clone()]))).collect()
 }
 
 /// Add index to each element
@@ -1326,7 +1327,7 @@ pub fn array_zip(arr1: &[Value], arr2: &[Value]) -> Vec<Value> {
 pub fn array_enumerate(arr: &[Value]) -> Vec<Value> {
     arr.iter()
         .enumerate()
-        .map(|(i, v)| Value::Array(vec![Value::Int(i as i64), v.clone()]))
+        .map(|(i, v)| Value::Array(Arc::new(vec![Value::Int(i as i64), v.clone()])))
         .collect()
 }
 
@@ -1358,7 +1359,7 @@ pub fn array_windows(arr: &[Value], window_size: i64) -> Vec<Value> {
     }
 
     let size = window_size as usize;
-    arr.windows(size).map(|window| Value::Array(window.to_vec())).collect()
+    arr.windows(size).map(|window| Value::Array(Arc::new(window.to_vec()))).collect()
 }
 
 /// Advanced dict methods
@@ -1369,13 +1370,13 @@ pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
 
     for (key, value) in dict {
         let new_key = match value {
-            Value::Str(s) => s.clone(),
+            Value::Str(s) => s.as_ref().clone(),
             Value::Int(n) => n.to_string(),
             Value::Float(n) => n.to_string(),
             Value::Bool(b) => b.to_string(),
             _ => continue, // Skip non-primitive values
         };
-        result.insert(new_key, Value::Str(key.clone()));
+        result.insert(new_key, Value::Str(Arc::new(key.clone())));
     }
 
     result
@@ -1394,7 +1395,7 @@ pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
 
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(body));
+            result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1421,7 +1422,7 @@ pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, S
 
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(body));
+            result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1447,7 +1448,7 @@ pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, St
 
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(body));
+            result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1468,7 +1469,7 @@ pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
 
             let mut result = HashMap::new();
             result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(body));
+            result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1670,7 +1671,7 @@ pub fn format_debug_value(value: &Value) -> String {
     match value {
         Value::Int(n) => format!("Int({})", n),
         Value::Float(n) => format!("Float({})", n),
-        Value::Str(s) => format!("String(\"{}\")", s),
+        Value::Str(s) => format!("String(\"{}\")", s.as_ref()),
         Value::Bool(b) => format!("Bool({})", b),
         Value::Null => "Null".to_string(),
         Value::Array(arr) => {
@@ -1820,7 +1821,7 @@ pub fn parse_arguments(
                             // Consume next argument as string value
                             if i + 1 < args.len() {
                                 i += 1;
-                                result.insert(key, Value::Str(args[i].clone()));
+                                result.insert(key, Value::Str(Arc::new(args[i].clone())));
                             } else {
                                 return Err(format!("Argument {} requires a value", def.long_name));
                             }
@@ -1894,10 +1895,10 @@ pub fn parse_arguments(
             if let Some(default_val) = &def.default {
                 let value = match def.arg_type.as_str() {
                     "bool" => Value::Bool(default_val == "true"),
-                    "string" => Value::Str(default_val.clone()),
+                    "string" => Value::Str(Arc::new(default_val.clone())),
                     "int" => Value::Int(default_val.parse().unwrap_or(0)),
                     "float" => Value::Float(default_val.parse().unwrap_or(0.0)),
-                    _ => Value::Str(default_val.clone()),
+                    _ => Value::Str(Arc::new(default_val.clone())),
                 };
                 result.insert(key, value);
             } else if def.arg_type == "bool" {
@@ -1914,7 +1915,7 @@ pub fn parse_arguments(
     if !positional_args.is_empty() {
         result.insert(
             "_positional".to_string(),
-            Value::Array(positional_args.into_iter().map(Value::Str).collect()),
+            Value::Array(Arc::new(positional_args.into_iter().map(|s| Value::Str(Arc::new(s))).collect())),
         );
     }
 

@@ -4,6 +4,7 @@
 
 use crate::builtins;
 use crate::interpreter::Value;
+use std::sync::Arc;
 
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -84,7 +85,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         ))
                     }
                 };
-                Value::Str(builtins::format_duration(ms))
+                Value::Str(Arc::new(builtins::format_duration(ms)))
             } else {
                 Value::Error(
                     "format_duration requires a number argument (milliseconds)".to_string(),
@@ -127,7 +128,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         ))
                     }
                 };
-                Value::Str(builtins::format_date(timestamp, format))
+                Value::Str(Arc::new(builtins::format_date(timestamp, format.as_ref())))
             } else {
                 Value::Error(
                     "format_date requires timestamp (number) and format (string)".to_string(),

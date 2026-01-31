@@ -2,6 +2,7 @@
 //
 // String manipulation native functions
 
+use std::sync::Arc;
 use crate::builtins;
 use crate::interpreter::Value;
 
@@ -9,7 +10,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
     let result = match name {
         "len" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Int(builtins::str_len(s) as i64)
+                Value::Int(builtins::str_len(&**s) as i64)
             } else {
                 return None; // Let collections module handle other types
             }
@@ -17,49 +18,49 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "to_upper" | "upper" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::to_upper(s))
+                Value::Str(Arc::new(builtins::to_upper(&**s)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "to_lower" | "lower" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::to_lower(s))
+                Value::Str(Arc::new(builtins::to_lower(&**s)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "capitalize" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::capitalize(s))
+                Value::Str(Arc::new(builtins::capitalize(&**s)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "trim" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::trim(s))
+                Value::Str(Arc::new(builtins::trim(&**s)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "trim_start" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::trim_start(s))
+                Value::Str(Arc::new(builtins::trim_start(&**s)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "trim_end" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::trim_end(s))
+                Value::Str(Arc::new(builtins::trim_end(&**s)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
@@ -70,15 +71,15 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     Value::Float(n) => *n,
                     _ => 0.0,
                 };
-                Value::Str(builtins::char_at(s, index))
+                Value::Str(Arc::new(builtins::char_at(&**s, index)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "is_empty" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Bool(builtins::is_empty(s))
+                Value::Bool(builtins::is_empty(&**s))
             } else {
                 Value::Bool(true)
             }
@@ -86,7 +87,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "count_chars" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Int(builtins::count_chars(s))
+                Value::Int(builtins::count_chars(&**s))
             } else {
                 Value::Int(0)
             }
@@ -96,7 +97,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             // Polymorphic: works with strings (other types handled in collections)
             match (args.first(), args.get(1)) {
                 (Some(Value::Str(s)), Some(Value::Str(substr))) => {
-                    Value::Int(if builtins::contains(s, substr) { 1 } else { 0 })
+                    Value::Int(if builtins::contains(&**s, &**substr) { 1 } else { 0 })
                 }
                 _ => return None, // Let collections.rs handle array case
             }
@@ -116,9 +117,9 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     Value::Float(n) => *n,
                     _ => 0.0,
                 };
-                Value::Str(builtins::substring(s, start, end))
+                Value::Str(Arc::new(builtins::substring(&**s, start, end)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
@@ -126,15 +127,15 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let (Some(Value::Str(s)), Some(Value::Str(old)), Some(Value::Str(new))) =
                 (args.first(), args.get(1), args.get(2))
             {
-                Value::Str(builtins::replace(s, old, new))
+                Value::Str(Arc::new(builtins::replace(&**s, &**old, &**new)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "starts_with" => {
             if let (Some(Value::Str(s)), Some(Value::Str(prefix))) = (args.first(), args.get(1)) {
-                Value::Bool(builtins::starts_with(s, prefix))
+                Value::Bool(builtins::starts_with(&**s, &**prefix))
             } else {
                 Value::Bool(false)
             }
@@ -142,7 +143,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "ends_with" => {
             if let (Some(Value::Str(s)), Some(Value::Str(suffix))) = (args.first(), args.get(1)) {
-                Value::Bool(builtins::ends_with(s, suffix))
+                Value::Bool(builtins::ends_with(&**s, &**suffix))
             } else {
                 Value::Bool(false)
             }
@@ -152,7 +153,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             // Polymorphic: works with strings (other types handled in collections)
             match (args.first(), args.get(1)) {
                 (Some(Value::Str(s)), Some(Value::Str(substr))) => {
-                    Value::Int(builtins::index_of(s, substr) as i64)
+                    Value::Int(builtins::index_of(&**s, &**substr) as i64)
                 }
                 _ => return None, // Let collections.rs handle array case
             }
@@ -165,20 +166,20 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     Value::Float(n) => *n,
                     _ => 0.0,
                 };
-                Value::Str(builtins::repeat(s, count))
+                Value::Str(Arc::new(builtins::repeat(&**s, count)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
         "split" => {
             if let (Some(Value::Str(s)), Some(Value::Str(delimiter))) = (args.first(), args.get(1))
             {
-                let parts = builtins::split(s, delimiter);
-                let values: Vec<Value> = parts.into_iter().map(Value::Str).collect();
-                Value::Array(values)
+                let parts = builtins::split(&**s, &**delimiter);
+                let values: Vec<Value> = parts.into_iter().map(|s| Value::Str(Arc::new(s))).collect();
+                Value::Array(Arc::new(values))
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
@@ -190,16 +191,16 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                 let strings: Vec<String> = arr
                     .iter()
                     .map(|v| match v {
-                        Value::Str(s) => s.clone(),
+                        Value::Str(s) => (&**s).to_string(),
                         Value::Int(n) => n.to_string(),
                         Value::Float(n) => n.to_string(),
                         Value::Bool(b) => b.to_string(),
                         _ => format!("{:?}", v),
                     })
                     .collect();
-                Value::Str(builtins::join(&strings, separator))
+                Value::Str(Arc::new(builtins::join(&strings, &**separator)))
             } else {
-                Value::Str(String::new())
+                Value::Str(Arc::new(String::new()))
             }
         }
 
@@ -212,7 +213,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     Value::Float(n) => *n as i64,
                     _ => 0,
                 };
-                Value::Str(builtins::str_pad_left(s, width, pad_char))
+                Value::Str(Arc::new(builtins::str_pad_left(&**s, width, &**pad_char)))
             } else {
                 Value::Error("pad_left() requires 3 arguments: string, width, char".to_string())
             }
@@ -227,7 +228,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     Value::Float(n) => *n as i64,
                     _ => 0,
                 };
-                Value::Str(builtins::str_pad_right(s, width, pad_char))
+                Value::Str(Arc::new(builtins::str_pad_right(&**s, width, &**pad_char)))
             } else {
                 Value::Error("pad_right() requires 3 arguments: string, width, char".to_string())
             }
@@ -235,8 +236,8 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "lines" => {
             if let Some(Value::Str(s)) = args.first() {
-                let lines = builtins::str_lines(s);
-                Value::Array(lines.into_iter().map(Value::Str).collect())
+                let lines = builtins::str_lines(&**s);
+                Value::Array(Arc::new(lines.into_iter().map(|s| Value::Str(Arc::new(s))).collect()))
             } else {
                 Value::Error("lines() requires a string argument".to_string())
             }
@@ -244,8 +245,8 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "words" => {
             if let Some(Value::Str(s)) = args.first() {
-                let words = builtins::str_words(s);
-                Value::Array(words.into_iter().map(Value::Str).collect())
+                let words = builtins::str_words(&**s);
+                Value::Array(Arc::new(words.into_iter().map(|s| Value::Str(Arc::new(s))).collect()))
             } else {
                 Value::Error("words() requires a string argument".to_string())
             }
@@ -253,7 +254,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "str_reverse" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::str_reverse(s))
+                Value::Str(Arc::new(builtins::str_reverse(&**s)))
             } else {
                 Value::Error("str_reverse() requires a string argument".to_string())
             }
@@ -261,7 +262,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "slugify" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::str_slugify(s))
+                Value::Str(Arc::new(builtins::str_slugify(&**s)))
             } else {
                 Value::Error("slugify() requires a string argument".to_string())
             }
@@ -276,7 +277,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     Value::Float(n) => *n as i64,
                     _ => 0,
                 };
-                Value::Str(builtins::str_truncate(s, max_len, suffix))
+                Value::Str(Arc::new(builtins::str_truncate(&**s, max_len, &**suffix)))
             } else {
                 Value::Error("truncate() requires 3 arguments: string, length, suffix".to_string())
             }
@@ -284,7 +285,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "to_camel_case" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::str_to_camel_case(s))
+                Value::Str(Arc::new(builtins::str_to_camel_case(&**s)))
             } else {
                 Value::Error("to_camel_case() requires a string argument".to_string())
             }
@@ -292,7 +293,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "to_snake_case" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::str_to_snake_case(s))
+                Value::Str(Arc::new(builtins::str_to_snake_case(&**s)))
             } else {
                 Value::Error("to_snake_case() requires a string argument".to_string())
             }
@@ -300,7 +301,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
         "to_kebab_case" => {
             if let Some(Value::Str(s)) = args.first() {
-                Value::Str(builtins::str_to_kebab_case(s))
+                Value::Str(Arc::new(builtins::str_to_kebab_case(&**s)))
             } else {
                 Value::Error("to_kebab_case() requires a string argument".to_string())
             }

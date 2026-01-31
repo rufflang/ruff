@@ -4,6 +4,7 @@
 
 use crate::builtins;
 use crate::interpreter::{Interpreter, Value};
+use std::sync::Arc;
 
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -82,7 +83,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         "to_string" => {
             if let Some(val) = arg_values.first() {
-                Value::Str(Interpreter::stringify_value(val))
+                Value::Str(Arc::new(Interpreter::stringify_value(val)))
             } else {
                 Value::Error("to_string() requires one argument".to_string())
             }
@@ -95,7 +96,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Int(n) => Value::Bool(*n != 0),
                     Value::Float(f) => Value::Bool(*f != 0.0),
                     Value::Str(s) => {
-                        let s_lower = s.to_lowercase();
+                        let s_lower = s.as_ref().to_lowercase();
                         Value::Bool(!s.is_empty() && s_lower != "false" && s_lower != "0")
                     }
                     Value::Null => Value::Bool(false),
@@ -111,7 +112,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         "bytes" => {
             if let Some(Value::Array(arr)) = arg_values.first() {
                 let mut byte_vec = Vec::new();
-                for val in arr {
+                for val in arr.iter() {
                     match val {
                         Value::Int(n) => {
                             if *n < 0 || *n > 255 {
@@ -180,7 +181,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Promise { .. } => "promise",
                     Value::TaskHandle { .. } => "taskhandle",
                 };
-                Value::Str(type_name.to_string())
+                Value::Str(Arc::new(type_name.to_string()))
             } else {
                 Value::Error("type() requires one argument".to_string())
             }
@@ -267,8 +268,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             };
 
             let format_args = &arg_values[1..];
-            match builtins::format_string(template, format_args) {
-                Ok(s) => Value::Str(s),
+            match builtins::format_string(template.as_ref(), format_args) {
+                Ok(s) => Value::Str(Arc::new(s)),
                 Err(e) => Value::Error(e),
             }
         }
@@ -364,14 +365,14 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 Value::Array(arr) => arr.iter().any(|v| Interpreter::values_equal(v, item)),
                 Value::Str(s) => {
                     if let Value::Str(needle) = item {
-                        s.contains(needle)
+                        s.as_ref().contains(needle.as_ref())
                     } else {
                         false
                     }
                 }
                 Value::Dict(map) => {
                     if let Value::Str(key) = item {
-                        map.contains_key(key)
+                        map.contains_key(key.as_ref())
                     } else {
                         false
                     }

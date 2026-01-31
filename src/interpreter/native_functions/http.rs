@@ -5,6 +5,7 @@
 use crate::builtins;
 use crate::interpreter::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -12,7 +13,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             if let Some(Value::Array(urls)) = arg_values.first() {
                 let url_strings: Vec<String> = urls
                     .iter()
-                    .filter_map(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                    .filter_map(|v| if let Value::Str(s) = v { Some(s.as_ref().clone()) } else { None })
                     .collect();
 
                 let mut handles = Vec::new();
@@ -36,15 +37,15 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         Ok(Ok((status, body))) => {
                             let mut result_map = HashMap::new();
                             result_map.insert("status".to_string(), Value::Int(status as i64));
-                            result_map.insert("body".to_string(), Value::Str(body));
-                            results.push(Value::Dict(result_map));
+                            result_map.insert("body".to_string(), Value::Str(Arc::new(body)));
+                            results.push(Value::Dict(Arc::new(result_map)));
                         }
                         Ok(Err(e)) => results.push(Value::Error(e)),
                         Err(_) => results.push(Value::Error("Thread panicked".to_string())),
                     }
                 }
 
-                Value::Array(results)
+                Value::Array(Arc::new(results))
             } else {
                 Value::Error("parallel_http requires an array of URL strings".to_string())
             }
@@ -55,7 +56,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 (arg_values.first(), arg_values.get(1))
             {
                 match builtins::jwt_encode(payload, secret) {
-                    Ok(token) => Value::Str(token),
+                    Ok(token) => Value::Str(Arc::new(token)),
                     Err(e) => Value::Error(e),
                 }
             } else {
@@ -70,7 +71,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 (arg_values.first(), arg_values.get(1))
             {
                 match builtins::jwt_decode(token, secret) {
-                    Ok(payload) => Value::Dict(payload),
+                    Ok(payload) => Value::Dict(Arc::new(payload)),
                     Err(e) => Value::Error(e),
                 }
             } else {
@@ -86,7 +87,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 Some(Value::Str(scope)),
             ) = (arg_values.first(), arg_values.get(1), arg_values.get(2), arg_values.get(3))
             {
-                Value::Str(builtins::oauth2_auth_url(client_id, redirect_uri, auth_url, scope))
+                Value::Str(Arc::new(builtins::oauth2_auth_url(client_id.as_ref(), redirect_uri.as_ref(), auth_url.as_ref(), scope.as_ref())))
             } else {
                 Value::Error(
                     "oauth2_auth_url requires client_id, redirect_uri, auth_url, and scope strings"
@@ -116,7 +117,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     token_url,
                     redirect_uri,
                 ) {
-                    Ok(token_data) => Value::Dict(token_data),
+                    Ok(token_data) => Value::Dict(Arc::new(token_data)),
                     Err(e) => Value::Error(e),
                 }
             } else {

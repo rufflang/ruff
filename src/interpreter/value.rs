@@ -247,8 +247,8 @@ pub enum Value {
     Int(i64),
     /// 64-bit floating point number
     Float(f64),
-    /// String value
-    Str(String),
+    /// String value (reference-counted for cheap cloning)
+    Str(Arc<String>),
     /// Boolean value
     Bool(bool),
     /// Null value for optional chaining and null coalescing
@@ -291,10 +291,10 @@ pub enum Value {
     Struct { name: String, fields: HashMap<String, Value> },
     /// Struct definition with methods
     StructDef { name: String, field_names: Vec<String>, methods: HashMap<String, Value> },
-    /// Array of values
-    Array(Vec<Value>),
-    /// Dictionary (hash map) of string keys to values
-    Dict(HashMap<String, Value>),
+    /// Array of values (reference-counted for cheap cloning)
+    Array(Arc<Vec<Value>>),
+    /// Dictionary (hash map) of string keys to values (reference-counted for cheap cloning)
+    Dict(Arc<HashMap<String, Value>>),
     /// Set of unique values
     Set(Vec<Value>),
     /// FIFO queue
@@ -387,7 +387,7 @@ impl std::fmt::Debug for Value {
             }
             Value::Int(n) => write!(f, "Int({})", n),
             Value::Float(n) => write!(f, "Float({})", n),
-            Value::Str(s) => write!(f, "Str({:?})", s),
+            Value::Str(s) => write!(f, "Str({:?})", s.as_ref()),
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::Null => write!(f, "Null"),
             Value::Bytes(bytes) => write!(f, "Bytes({} bytes)", bytes.len()),
@@ -513,5 +513,27 @@ impl std::fmt::Debug for Value {
                 }
             }
         }
+    }
+}
+
+impl Value {
+    /// Helper to create a Str value from a String
+    pub fn str(s: String) -> Self {
+        Value::Str(Arc::new(s))
+    }
+
+    /// Helper to create a Str value from a &str
+    pub fn str_ref(s: &str) -> Self {
+        Value::Str(Arc::new(s.to_string()))
+    }
+
+    /// Helper to create an Array value from a Vec<Value>
+    pub fn array(vec: Vec<Value>) -> Self {
+        Value::Array(Arc::new(vec))
+    }
+
+    /// Helper to create a Dict value from a HashMap<String, Value>
+    pub fn dict(map: HashMap<String, Value>) -> Self {
+        Value::Dict(Arc::new(map))
     }
 }

@@ -20,12 +20,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 
                 // Spawn async task to read file
                 AsyncRuntime::spawn_task(async move {
-                    match tokio::fs::read_to_string(&path_clone).await {
+                    match tokio::fs::read_to_string(path_clone.as_ref()).await {
                         Ok(content) => {
-                            let _ = tx.send(Ok(Value::Str(content)));
+                            let _ = tx.send(Ok(Value::Str(Arc::new(content))));
                         }
                         Err(e) => {
-                            let _ = tx.send(Err(format!("Cannot read file '{}': {}", path_clone, e)));
+                            let path_str = path_clone.as_ref().clone();
+                            let _ = tx.send(Err(format!("Cannot read file '{}': {}", path_str, e)));
                         }
                     }
                     Value::Null
@@ -59,12 +60,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 
                 // Spawn async task to write file
                 AsyncRuntime::spawn_task(async move {
-                    match tokio::fs::write(&path_clone, &content_clone).await {
+                    match tokio::fs::write(path_clone.as_ref(), content_clone.as_ref()).await {
                         Ok(_) => {
                             let _ = tx.send(Ok(Value::Bool(true)));
                         }
                         Err(e) => {
-                            let _ = tx.send(Err(format!("Cannot write file '{}': {}", path_clone, e)));
+                            let path_str = path_clone.as_ref().clone();
+                            let _ = tx.send(Err(format!("Cannot write file '{}': {}", path_str, e)));
                         }
                     }
                     Value::Null
@@ -90,18 +92,19 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 
                 // Spawn async task to list directory
                 AsyncRuntime::spawn_task(async move {
-                    match tokio::fs::read_dir(&path_clone).await {
+                    match tokio::fs::read_dir(path_clone.as_ref()).await {
                         Ok(mut entries) => {
                             let mut files = Vec::new();
                             while let Ok(Some(entry)) = entries.next_entry().await {
                                 if let Some(name) = entry.file_name().to_str() {
-                                    files.push(Value::Str(name.to_string()));
+                                    files.push(Value::Str(Arc::new(name.to_string())));
                                 }
                             }
-                            let _ = tx.send(Ok(Value::Array(files)));
+                            let _ = tx.send(Ok(Value::Array(Arc::new(files))));
                         }
                         Err(e) => {
-                            let _ = tx.send(Err(format!("Cannot list directory '{}': {}", path_clone, e)));
+                            let path_str = path_clone.as_ref().clone();
+                            let _ = tx.send(Err(format!("Cannot list directory '{}': {}", path_str, e)));
                         }
                     }
                     Value::Null
@@ -121,9 +124,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         // Synchronous fallback versions for compatibility
         "read_file_sync" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::read_to_string(path) {
-                    Ok(content) => Value::Str(content),
-                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path, e)),
+                match std::fs::read_to_string(path.as_ref()) {
+                    Ok(content) => Value::Str(Arc::new(content)),
+                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("read_file requires a string path argument".to_string())
@@ -139,9 +142,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             if let (Some(Value::Str(path)), Some(Value::Str(content))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                match std::fs::write(path, content) {
+                match std::fs::write(path.as_ref(), content.as_ref()) {
                     Ok(_) => Value::Bool(true),
-                    Err(e) => Value::Error(format!("Cannot write file '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot write file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("write_file requires string arguments".to_string())
@@ -151,9 +154,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         // Synchronous fallback versions for compatibility
         "read_file_sync" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::read_to_string(path) {
-                    Ok(content) => Value::Str(content),
-                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path, e)),
+                match std::fs::read_to_string(path.as_ref()) {
+                    Ok(content) => Value::Str(Arc::new(content)),
+                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("read_file_sync requires a string path argument".to_string())
@@ -169,9 +172,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             if let (Some(Value::Str(path)), Some(Value::Str(content))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                match std::fs::write(path, content) {
+                match std::fs::write(path.as_ref(), content.as_ref()) {
                     Ok(_) => Value::Bool(true),
-                    Err(e) => Value::Error(format!("Cannot write file '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot write file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("write_file_sync requires string arguments".to_string())
@@ -180,17 +183,17 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "list_dir_sync" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::read_dir(path) {
+                match std::fs::read_dir(path.as_ref()) {
                     Ok(entries) => {
                         let mut files = Vec::new();
                         for entry in entries.flatten() {
                             if let Some(name) = entry.file_name().to_str() {
-                                files.push(Value::Str(name.to_string()));
+                                files.push(Value::Str(Arc::new(name.to_string())));
                             }
                         }
-                        Value::Array(files)
+                        Value::Array(Arc::new(files))
                     }
-                    Err(e) => Value::Error(format!("Cannot list directory '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot list directory '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("list_dir_sync requires a string path argument".to_string())
@@ -199,9 +202,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "read_binary_file" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::read(path) {
+                match std::fs::read(path.as_ref()) {
                     Ok(bytes) => Value::Bytes(bytes),
-                    Err(e) => Value::Error(format!("Cannot read binary file '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot read binary file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("read_binary_file requires a string path argument".to_string())
@@ -217,9 +220,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                match std::fs::write(path, bytes) {
+                match std::fs::write(path.as_ref(), bytes) {
                     Ok(_) => Value::Bool(true),
-                    Err(e) => Value::Error(format!("Cannot write binary file '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot write binary file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error(
@@ -237,12 +240,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             if let (Some(Value::Str(path)), Some(Value::Str(content))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                match OpenOptions::new().create(true).append(true).open(path) {
-                    Ok(mut file) => match file.write_all(content.as_bytes()) {
+                match OpenOptions::new().create(true).append(true).open(path.as_ref()) {
+                    Ok(mut file) => match file.write_all(content.as_ref().as_bytes()) {
                         Ok(_) => Value::Bool(true),
-                        Err(e) => Value::Error(format!("Cannot append to file '{}': {}", path, e)),
+                        Err(e) => Value::Error(format!("Cannot append to file '{}': {}", path.as_ref(), e)),
                     },
-                    Err(e) => Value::Error(format!("Cannot open file '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot open file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("append_file requires string arguments".to_string())
@@ -251,7 +254,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "file_exists" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                if Path::new(path).exists() {
+                if Path::new(path.as_ref()).exists() {
                     Value::Bool(true)
                 } else {
                     Value::Bool(false)
@@ -263,13 +266,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "read_lines" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::read_to_string(path) {
+                match std::fs::read_to_string(path.as_ref()) {
                     Ok(content) => {
                         let lines: Vec<Value> =
-                            content.lines().map(|line| Value::Str(line.to_string())).collect();
-                        Value::Array(lines)
+                            content.lines().map(|line| Value::Str(Arc::new(line.to_string()))).collect();
+                        Value::Array(Arc::new(lines))
                     }
-                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("read_lines requires a string path argument".to_string())
@@ -278,17 +281,17 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "list_dir" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::read_dir(path) {
+                match std::fs::read_dir(path.as_ref()) {
                     Ok(entries) => {
                         let mut files = Vec::new();
                         for entry in entries.flatten() {
                             if let Some(name) = entry.file_name().to_str() {
-                                files.push(Value::Str(name.to_string()));
+                                files.push(Value::Str(Arc::new(name.to_string())));
                             }
                         }
-                        Value::Array(files)
+                        Value::Array(Arc::new(files))
                     }
-                    Err(e) => Value::Error(format!("Cannot list directory '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot list directory '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("list_dir requires a string path argument".to_string())
@@ -297,9 +300,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "create_dir" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::create_dir_all(path) {
+                match std::fs::create_dir_all(path.as_ref()) {
                     Ok(_) => Value::Bool(true),
-                    Err(e) => Value::Error(format!("Cannot create directory '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot create directory '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("create_dir requires a string path argument".to_string())
@@ -308,9 +311,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "file_size" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::metadata(path) {
+                match std::fs::metadata(path.as_ref()) {
                     Ok(metadata) => Value::Int(metadata.len() as i64),
-                    Err(e) => Value::Error(format!("Cannot get file size for '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot get file size for '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("file_size requires a string path argument".to_string())
@@ -319,9 +322,9 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         "delete_file" => {
             if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::remove_file(path) {
+                match std::fs::remove_file(path.as_ref()) {
                     Ok(_) => Value::Bool(true),
-                    Err(e) => Value::Error(format!("Cannot delete file '{}': {}", path, e)),
+                    Err(e) => Value::Error(format!("Cannot delete file '{}': {}", path.as_ref(), e)),
                 }
             } else {
                 Value::Error("delete_file requires a string path argument".to_string())
@@ -337,11 +340,11 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             if let (Some(Value::Str(old_path)), Some(Value::Str(new_path))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                match std::fs::rename(old_path, new_path) {
+                match std::fs::rename(old_path.as_ref(), new_path.as_ref()) {
                     Ok(_) => Value::Bool(true),
                     Err(e) => Value::Error(format!(
                         "Cannot rename file '{}' to '{}': {}",
-                        old_path, new_path, e
+                        old_path.as_ref(), new_path.as_ref(), e
                     )),
                 }
             } else {
@@ -358,10 +361,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             if let (Some(Value::Str(source)), Some(Value::Str(dest))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                match std::fs::copy(source, dest) {
+                match std::fs::copy(source.as_ref(), dest.as_ref()) {
                     Ok(_) => Value::Bool(true),
                     Err(e) => {
-                        Value::Error(format!("Cannot copy file '{}' to '{}': {}", source, dest, e))
+                        Value::Error(format!("Cannot copy file '{}' to '{}': {}", source.as_ref(), dest.as_ref(), e))
                     }
                 }
             } else {

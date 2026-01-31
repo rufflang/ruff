@@ -1221,7 +1221,7 @@ impl VM {
                     }
 
                     elements.reverse();
-                    self.stack.push(Value::Array(elements));
+                    self.stack.push(Value::Array(Arc::new(elements)));
                 }
 
                 OpCode::PushArrayMarker => {
@@ -1235,13 +1235,13 @@ impl VM {
                         let key = self.stack.pop().ok_or("Stack underflow")?;
 
                         let key_str = match key {
-                            Value::Str(s) => s,
+                            Value::Str(s) => s.as_ref().clone(),
                             _ => return Err("Dict keys must be strings".to_string()),
                         };
 
                         dict.insert(key_str, value);
                     }
-                    self.stack.push(Value::Dict(dict));
+                    self.stack.push(Value::Dict(Arc::new(dict)));
                 }
 
                 OpCode::IndexGet => {
@@ -1257,7 +1257,7 @@ impl VM {
                                 .ok_or_else(|| format!("Index out of bounds: {}", i))?
                         }
                         (Value::Dict(dict), Value::Str(key)) => {
-                            dict.get(key).cloned().unwrap_or(Value::Null)
+                            dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
                         }
                         (Value::Dict(dict), Value::Int(i)) => {
                             // Support integer keys by converting to string
@@ -1268,7 +1268,7 @@ impl VM {
                                 if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
                             s.chars()
                                 .nth(idx)
-                                .map(|c| Value::Str(c.to_string()))
+                                .map(|c| Value::Str(Arc::new(c.to_string())))
                                 .ok_or_else(|| format!("Index out of bounds: {}", i))?
                         }
                         _ => return Err("Invalid index operation".to_string()),
@@ -1283,25 +1283,28 @@ impl VM {
                     let value = self.stack.pop().ok_or("Stack underflow")?;
 
                     match (object, index) {
-                        (Value::Array(mut arr), Value::Int(i)) => {
+                        (Value::Array(arr), Value::Int(i)) => {
+                            let mut arr_clone = Arc::try_unwrap(arr).unwrap_or_else(|arc| (*arc).clone());
                             let idx =
-                                if i < 0 { (arr.len() as i64 + i) as usize } else { i as usize };
+                                if i < 0 { (arr_clone.len() as i64 + i) as usize } else { i as usize };
 
-                            if idx < arr.len() {
-                                arr[idx] = value;
-                                self.stack.push(Value::Array(arr));
+                            if idx < arr_clone.len() {
+                                arr_clone[idx] = value;
+                                self.stack.push(Value::Array(Arc::new(arr_clone)));
                             } else {
                                 return Err(format!("Index out of bounds: {}", i));
                             }
                         }
-                        (Value::Dict(mut dict), Value::Str(key)) => {
-                            dict.insert(key, value);
-                            self.stack.push(Value::Dict(dict));
+                        (Value::Dict(dict), Value::Str(key)) => {
+                            let mut dict_clone = Arc::try_unwrap(dict).unwrap_or_else(|arc| (*arc).clone());
+                            dict_clone.insert(key.as_ref().clone(), value);
+                            self.stack.push(Value::Dict(Arc::new(dict_clone)));
                         }
-                        (Value::Dict(mut dict), Value::Int(i)) => {
+                        (Value::Dict(dict), Value::Int(i)) => {
+                            let mut dict_clone = Arc::try_unwrap(dict).unwrap_or_else(|arc| (*arc).clone());
                             // Support integer keys by converting to string
-                            dict.insert(i.to_string(), value);
-                            self.stack.push(Value::Dict(dict));
+                            dict_clone.insert(i.to_string(), value);
+                            self.stack.push(Value::Dict(Arc::new(dict_clone)));
                         }
                         _ => return Err("Invalid index assignment".to_string()),
                     }
@@ -1337,7 +1340,7 @@ impl VM {
                                 .ok_or_else(|| format!("Index out of bounds: {}", i))?
                         }
                         (Value::Dict(dict), Value::Str(key)) => {
-                            dict.get(key).cloned().unwrap_or(Value::Null)
+                            dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
                         }
                         (Value::Dict(dict), Value::Int(i)) => {
                             dict.get(&i.to_string()).cloned().unwrap_or(Value::Null)
@@ -1347,7 +1350,7 @@ impl VM {
                                 if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
                             s.chars()
                                 .nth(idx)
-                                .map(|c| Value::Str(c.to_string()))
+                                .map(|c| Value::Str(Arc::new(c.to_string())))
                                 .ok_or_else(|| format!("Index out of bounds: {}", i))?
                         }
                         _ => return Err("Invalid index operation".to_string()),
@@ -1374,22 +1377,25 @@ impl VM {
                         let mut object = captured_ref.lock().unwrap();
                         match (&mut *object, index) {
                             (Value::Array(arr), Value::Int(i)) => {
+                                let arr_mut = Arc::make_mut(arr);
                                 let idx = if i < 0 {
-                                    (arr.len() as i64 + i) as usize
+                                    (arr_mut.len() as i64 + i) as usize
                                 } else {
                                     i as usize
                                 };
-                                if idx < arr.len() {
-                                    arr[idx] = value;
+                                if idx < arr_mut.len() {
+                                    arr_mut[idx] = value;
                                 } else {
                                     return Err(format!("Index out of bounds: {}", i));
                                 }
                             }
                             (Value::Dict(dict), Value::Str(key)) => {
-                                dict.insert(key, value);
+                                let dict_mut = Arc::make_mut(dict);
+                                dict_mut.insert(key.as_ref().clone(), value);
                             }
                             (Value::Dict(dict), Value::Int(i)) => {
-                                dict.insert(i.to_string(), value);
+                                let dict_mut = Arc::make_mut(dict);
+                                dict_mut.insert(i.to_string(), value);
                             }
                             _ => return Err("Invalid index assignment".to_string()),
                         }
@@ -1397,22 +1403,25 @@ impl VM {
                         // Modify local variable in-place
                         match (object, index) {
                             (Value::Array(arr), Value::Int(i)) => {
+                                let arr_mut = Arc::make_mut(arr);
                                 let idx = if i < 0 {
-                                    (arr.len() as i64 + i) as usize
+                                    (arr_mut.len() as i64 + i) as usize
                                 } else {
                                     i as usize
                                 };
-                                if idx < arr.len() {
-                                    arr[idx] = value;
+                                if idx < arr_mut.len() {
+                                    arr_mut[idx] = value;
                                 } else {
                                     return Err(format!("Index out of bounds: {}", i));
                                 }
                             }
                             (Value::Dict(dict), Value::Str(key)) => {
-                                dict.insert(key, value);
+                                let dict_mut = Arc::make_mut(dict);
+                                dict_mut.insert(key.as_ref().clone(), value);
                             }
                             (Value::Dict(dict), Value::Int(i)) => {
-                                dict.insert(i.to_string(), value);
+                                let dict_mut = Arc::make_mut(dict);
+                                dict_mut.insert(i.to_string(), value);
                             }
                             _ => return Err("Invalid index assignment".to_string()),
                         }
@@ -1448,9 +1457,10 @@ impl VM {
                             fields.insert(field, value);
                             self.stack.push(Value::Struct { name, fields });
                         }
-                        Value::Dict(mut dict) => {
-                            dict.insert(field, value);
-                            self.stack.push(Value::Dict(dict));
+                        Value::Dict(dict) => {
+                            let mut dict_clone = Arc::try_unwrap(dict).unwrap_or_else(|arc| (*arc).clone());
+                            dict_clone.insert(field, value);
+                            self.stack.push(Value::Dict(Arc::new(dict_clone)));
                         }
                         _ => return Err("Cannot set field on non-struct".to_string()),
                     }
@@ -1476,7 +1486,7 @@ impl VM {
                     match dict {
                         Value::Dict(d) => {
                             for (key, value) in d.iter() {
-                                self.stack.push(Value::Str(key.clone()));
+                                self.stack.push(Value::Str(Arc::new(key.clone())));
                                 self.stack.push(value.clone());
                             }
                         }
@@ -1842,7 +1852,7 @@ impl VM {
                     } else {
                         // No exception handler found - uncaught exception
                         let error_msg = match error_value {
-                            Value::Str(s) => s,
+                            Value::Str(s) => s.as_ref().clone(),
                             Value::Error(e) => e,
                             Value::ErrorObject { message, .. } => message,
                             other => format!("Uncaught exception: {:?}", other),
@@ -1861,25 +1871,25 @@ impl VM {
                             // Simple string error - wrap in error struct
                             let mut fields = HashMap::new();
                             fields.insert("message".to_string(), Value::Str(msg));
-                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                            fields.insert("stack".to_string(), Value::Array(Arc::new(Vec::new())));
                             fields.insert("line".to_string(), Value::Int(0));
                             Value::Struct { name: "Error".to_string(), fields }
                         }
                         Value::Error(msg) => {
                             // Legacy Error type - wrap in struct
                             let mut fields = HashMap::new();
-                            fields.insert("message".to_string(), Value::Str(msg));
-                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                            fields.insert("message".to_string(), Value::Str(Arc::new(msg)));
+                            fields.insert("stack".to_string(), Value::Array(Arc::new(Vec::new())));
                             fields.insert("line".to_string(), Value::Int(0));
                             Value::Struct { name: "Error".to_string(), fields }
                         }
                         Value::ErrorObject { message, stack, line, cause } => {
                             // Full error object - convert to struct
                             let mut fields = HashMap::new();
-                            fields.insert("message".to_string(), Value::Str(message));
+                            fields.insert("message".to_string(), Value::Str(Arc::new(message)));
                             fields.insert(
                                 "stack".to_string(),
-                                Value::Array(stack.iter().map(|s| Value::Str(s.clone())).collect()),
+                                Value::Array(Arc::new(stack.iter().map(|s| Value::Str(Arc::new(s.clone()))).collect())),
                             );
                             fields.insert("line".to_string(), Value::Int(line.unwrap_or(0) as i64));
                             if let Some(cause_val) = cause {
@@ -1891,8 +1901,8 @@ impl VM {
                             // Any other value - wrap as message
                             let mut fields = HashMap::new();
                             fields
-                                .insert("message".to_string(), Value::Str(format!("{:?}", other)));
-                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                                .insert("message".to_string(), Value::Str(Arc::new(format!("{:?}", other))));
+                            fields.insert("stack".to_string(), Value::Array(Arc::new(Vec::new())));
                             fields.insert("line".to_string(), Value::Int(0));
                             Value::Struct { name: "Error".to_string(), fields }
                         }
@@ -2019,7 +2029,7 @@ impl VM {
         match constant {
             Constant::Int(n) => Ok(Value::Int(*n)),
             Constant::Float(f) => Ok(Value::Float(*f)),
-            Constant::String(s) => Ok(Value::Str(s.clone())),
+            Constant::String(s) => Ok(Value::Str(Arc::new(s.clone()))),
             Constant::Bool(b) => Ok(Value::Bool(*b)),
             Constant::None => Ok(Value::Null),
             Constant::Function(chunk) => {
@@ -2032,7 +2042,7 @@ impl VM {
                 for elem in elements {
                     array.push(self.constant_to_value(elem)?);
                 }
-                Ok(Value::Array(array))
+                Ok(Value::Array(Arc::new(array)))
             }
             Constant::Dict(pairs) => {
                 let mut dict = HashMap::new();
@@ -2042,12 +2052,12 @@ impl VM {
 
                     // Key must be a string
                     if let Value::Str(key_str) = key {
-                        dict.insert(key_str, value);
+                        dict.insert(key_str.as_ref().clone(), value);
                     } else {
                         return Err("Dict constant keys must be strings".to_string());
                     }
                 }
-                Ok(Value::Dict(dict))
+                Ok(Value::Dict(Arc::new(dict)))
             }
         }
     }
@@ -2391,7 +2401,7 @@ impl VM {
                             let value = match constant {
                                 Constant::Int(n) => Value::Int(*n),
                                 Constant::Float(f) => Value::Float(*f),
-                                Constant::String(s) => Value::Str(s.clone()),
+                                Constant::String(s) => Value::Str(Arc::new(s.clone())),
                                 Constant::Bool(b) => Value::Bool(*b),
                                 Constant::None => Value::Null,
                                 Constant::Function(chunk) => {
@@ -2542,7 +2552,7 @@ impl VM {
         match value {
             Value::Int(n) => n.to_string(),
             Value::Float(f) => f.to_string(),
-            Value::Str(s) => s.clone(),
+            Value::Str(s) => s.as_ref().clone(),
             Value::Bool(b) => b.to_string(),
             Value::Null => "null".to_string(),
             Value::Array(arr) => {
@@ -2587,7 +2597,7 @@ impl VM {
                 "%" => Ok(Value::Float(a % b)),
                 _ => Err(format!("Unknown operator: {}", op)),
             },
-            (Value::Str(a), Value::Str(b)) if op == "+" => Ok(Value::Str(format!("{}{}", a, b))),
+            (Value::Str(a), Value::Str(b)) if op == "+" => Ok(Value::Str(Arc::new(format!("{}{}", a.as_ref(), b.as_ref())))),
             _ => Err("Type mismatch in binary operation".to_string()),
         }
     }
@@ -2959,7 +2969,7 @@ mod tests {
         "#;
 
         match run_vm_code(code) {
-            Ok(Value::Str(s)) => assert_eq!(s, "Data for ID"),
+            Ok(Value::Str(s)) => assert_eq!(s.as_ref(), "Data for ID"),
             Ok(other) => panic!("Expected string, got: {:?}", other),
             Err(e) => panic!("VM error: {}", e),
         }

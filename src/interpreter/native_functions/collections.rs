@@ -5,6 +5,7 @@
 use crate::builtins;
 use crate::interpreter::{Interpreter, Value};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::Arc;
 
 pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -23,7 +24,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         // Polymorphic contains - handles both strings and arrays
         "contains" => match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Array(arr)), Some(item)) => {
-                Value::Bool(builtins::array_contains(arr, item))
+                Value::Bool(builtins::array_contains(&**arr, item))
             }
             _ => return None, // Let strings module handle string case
         },
@@ -31,31 +32,33 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         // Polymorphic index_of - handles both strings and arrays
         "index_of" => match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Array(arr)), Some(item)) => {
-                Value::Int(builtins::array_index_of(arr, item))
+                Value::Int(builtins::array_index_of(&**arr, item))
             }
             _ => return None, // Let strings module handle string case
         },
 
         // Array functions
         "push" | "append" => {
-            if let Some(Value::Array(mut arr)) = arg_values.first().cloned() {
+            if let Some(Value::Array(arr)) = arg_values.first().cloned() {
                 if let Some(item) = arg_values.get(1).cloned() {
-                    arr.push(item);
-                    Value::Array(arr)
+                    let mut vec = (*arr).clone();
+                    vec.push(item);
+                    Value::Array(Arc::new(vec))
                 } else {
                     Value::Array(arr)
                 }
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
         "pop" => {
-            if let Some(Value::Array(mut arr)) = arg_values.first().cloned() {
-                let popped = arr.pop().unwrap_or(Value::Int(0));
-                Value::Array(vec![Value::Array(arr), popped])
+            if let Some(Value::Array(arr)) = arg_values.first().cloned() {
+                let mut vec = (*arr).clone();
+                let popped = vec.pop().unwrap_or(Value::Int(0));
+                Value::Array(Arc::new(vec![Value::Array(Arc::new(vec)), popped]))
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
@@ -65,9 +68,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             {
                 let start_idx = (*start as usize).max(0).min(arr.len());
                 let end_idx = (*end as usize).max(start_idx).min(arr.len());
-                Value::Array(arr[start_idx..end_idx].to_vec())
+                Value::Array(Arc::new(arr[start_idx..end_idx].to_vec()))
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
@@ -75,11 +78,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                let mut result = arr1.clone();
-                result.extend(arr2.clone());
-                Value::Array(result)
+                let mut result = (**arr1).clone();
+                result.extend((**arr2).clone());
+                Value::Array(Arc::new(result))
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
@@ -93,9 +96,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     _ => return Some(Value::Error("insert() index must be a number".to_string())),
                 };
 
-                match builtins::array_insert(arr, index, item) {
-                    Ok(new_arr) => Value::Array(new_arr),
-                    Err(e) => Value::Error(e),
+                match builtins::array_insert((*arr).clone(), index, item) {
+                    Ok(new_arr) => Value::Array(Arc::new(new_arr)),
+                    Err(e) => Value::Error((*e).clone()),
                 }
             } else {
                 Value::Error("insert() requires 3 arguments: array, index, and item".to_string())
@@ -104,13 +107,14 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "remove" => match (arg_values.first().cloned(), arg_values.get(1)) {
             (Some(Value::Array(arr)), Some(item)) => {
-                Value::Array(builtins::array_remove(arr, item))
+                Value::Array(Arc::new(builtins::array_remove((*arr).clone(), item)))
             }
-            (Some(Value::Dict(mut dict)), Some(Value::Str(key))) => {
-                let removed = dict.remove(key).unwrap_or(Value::Int(0));
-                Value::Array(vec![Value::Dict(dict), removed])
+            (Some(Value::Dict(dict)), Some(Value::Str(key))) => {
+                let mut dict_clone = (*dict).clone();
+                let removed = dict_clone.remove(key.as_ref()).unwrap_or(Value::Int(0));
+                Value::Array(Arc::new(vec![Value::Dict(Arc::new(dict_clone)), removed]))
             }
-            _ => Value::Array(vec![]),
+            _ => Value::Array(Arc::new(vec![])),
         },
 
         "remove_at" => {
@@ -125,9 +129,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     }
                 };
 
-                match builtins::array_remove_at(arr, index) {
-                    Ok((new_arr, removed)) => Value::Array(vec![Value::Array(new_arr), removed]),
-                    Err(e) => Value::Error(e),
+                match builtins::array_remove_at((*arr).clone(), index) {
+                    Ok((new_arr, removed)) => Value::Array(Arc::new(vec![Value::Array(Arc::new(new_arr)), removed])),
+                    Err(e) => Value::Error((*e).clone()),
                 }
             } else {
                 Value::Error("remove_at() requires 2 arguments: array and index".to_string())
@@ -135,9 +139,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "clear" => match arg_values.first() {
-            Some(Value::Array(_)) => Value::Array(builtins::array_clear()),
-            Some(Value::Dict(_)) => Value::Dict(HashMap::new()),
-            _ => Value::Array(vec![]),
+            Some(Value::Array(_)) => Value::Array(Arc::new(builtins::array_clear())),
+            Some(Value::Dict(_)) => Value::Dict(Arc::new(HashMap::new())),
+            _ => Value::Array(Arc::new(vec![])),
         },
 
         // Array higher-order functions that need interpreter
@@ -156,11 +160,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             };
 
             let mut result = Vec::new();
-            for element in array {
-                let func_result = interp.call_user_function(&func, &[element]);
+            for element in array.iter() {
+                let func_result = interp.call_user_function(&func, &[element.clone()]);
                 result.push(func_result);
             }
-            Value::Array(result)
+            Value::Array(Arc::new(result))
         }
 
         "filter" => {
@@ -180,7 +184,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             };
 
             let mut result = Vec::new();
-            for element in array {
+            for element in array.iter() {
                 let func_result = interp.call_user_function(&func, &[element.clone()]);
 
                 let is_truthy = match func_result {
@@ -192,10 +196,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 };
 
                 if is_truthy {
-                    result.push(element);
+                    result.push(element.clone());
                 }
             }
-            Value::Array(result)
+            Value::Array(Arc::new(result))
         }
 
         "reduce" => {
@@ -221,8 +225,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 };
 
             let mut accumulator = initial;
-            for element in array {
-                accumulator = interp.call_user_function(&func, &[accumulator, element]);
+            for element in array.iter() {
+                accumulator = interp.call_user_function(&func, &[accumulator, element.clone()]);
             }
             accumulator
         }
@@ -241,7 +245,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 _ => return Some(Value::Error("find expects an array and a function".to_string())),
             };
 
-            for element in array {
+            for element in array.iter() {
                 let func_result = interp.call_user_function(&func, &[element.clone()]);
 
                 let is_truthy = match func_result {
@@ -253,7 +257,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 };
 
                 if is_truthy {
-                    return Some(element);
+                    return Some(element.clone());
                 }
             }
             Value::Int(0)
@@ -273,8 +277,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 _ => return Some(Value::Error("any expects an array and a function".to_string())),
             };
 
-            for element in array {
-                let func_result = interp.call_user_function(&func, &[element]);
+            for element in array.iter() {
+                let func_result = interp.call_user_function(&func, &[element.clone()]);
 
                 let is_truthy = match func_result {
                     Value::Bool(b) => b,
@@ -305,8 +309,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 _ => return Some(Value::Error("all expects an array and a function".to_string())),
             };
 
-            for element in array {
-                let func_result = interp.call_user_function(&func, &[element]);
+            for element in array.iter() {
+                let func_result = interp.call_user_function(&func, &[element.clone()]);
 
                 let is_truthy = match func_result {
                     Value::Bool(b) => b,
@@ -325,7 +329,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "sort" => {
             if let Some(Value::Array(arr)) = arg_values.first() {
-                let mut sorted = arr.clone();
+                let mut sorted = (**arr).clone();
                 sorted.sort_by(|a, b| match (a, b) {
                     (Value::Int(x), Value::Int(y)) => x.cmp(y),
                     (Value::Float(x), Value::Float(y)) => {
@@ -337,10 +341,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     (Value::Float(x), Value::Int(y)) => {
                         x.partial_cmp(&(*y as f64)).unwrap_or(std::cmp::Ordering::Equal)
                     }
-                    (Value::Str(x), Value::Str(y)) => x.cmp(y),
+                    (Value::Str(x), Value::Str(y)) => x.as_ref().cmp(y.as_ref()),
                     _ => std::cmp::Ordering::Equal,
                 });
-                Value::Array(sorted)
+                Value::Array(Arc::new(sorted))
             } else {
                 Value::Error("sort requires an array argument".to_string())
             }
@@ -348,9 +352,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "reverse" => {
             if let Some(Value::Array(arr)) = arg_values.first() {
-                let mut reversed = arr.clone();
+                let mut reversed = (**arr).clone();
                 reversed.reverse();
-                Value::Array(reversed)
+                Value::Array(Arc::new(reversed))
             } else {
                 Value::Error("reverse requires an array argument".to_string())
             }
@@ -361,13 +365,13 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let mut seen = HashSet::new();
                 let mut result = Vec::new();
 
-                for element in arr {
+                for element in arr.iter() {
                     let key = format!("{:?}", element);
                     if seen.insert(key) {
                         result.push(element.clone());
                     }
                 }
-                Value::Array(result)
+                Value::Array(Arc::new(result))
             } else {
                 Value::Error("unique requires an array argument".to_string())
             }
@@ -379,7 +383,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let mut float_sum: f64 = 0.0;
                 let mut has_float = false;
 
-                for element in arr {
+                for element in arr.iter() {
                     match element {
                         Value::Int(n) => {
                             if has_float {
@@ -418,7 +422,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Float(n) => *n as i64,
                     _ => return Some(Value::Error("chunk() size must be a number".to_string())),
                 };
-                Value::Array(builtins::array_chunk(arr, size))
+                Value::Array(Arc::new(builtins::array_chunk(&**arr, size)))
             } else {
                 Value::Error("chunk() requires 2 arguments: array and size".to_string())
             }
@@ -426,7 +430,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "flatten" => {
             if let Some(Value::Array(arr)) = arg_values.first() {
-                Value::Array(builtins::array_flatten(arr))
+                Value::Array(Arc::new(builtins::array_flatten(&**arr)))
             } else {
                 Value::Error("flatten() requires an array argument".to_string())
             }
@@ -436,7 +440,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                Value::Array(builtins::array_zip(arr1, arr2))
+                Value::Array(Arc::new(builtins::array_zip(&**arr1, &**arr2)))
             } else {
                 Value::Error("zip() requires 2 array arguments".to_string())
             }
@@ -444,7 +448,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "enumerate" => {
             if let Some(Value::Array(arr)) = arg_values.first() {
-                Value::Array(builtins::array_enumerate(arr))
+                Value::Array(Arc::new(builtins::array_enumerate(&**arr)))
             } else {
                 Value::Error("enumerate() requires an array argument".to_string())
             }
@@ -458,7 +462,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Float(n) => *n as i64,
                     _ => return Some(Value::Error("take() count must be a number".to_string())),
                 };
-                Value::Array(builtins::array_take(arr, n))
+                Value::Array(Arc::new(builtins::array_take(&**arr, n)))
             } else {
                 Value::Error("take() requires 2 arguments: array and count".to_string())
             }
@@ -472,7 +476,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Float(n) => *n as i64,
                     _ => return Some(Value::Error("skip() count must be a number".to_string())),
                 };
-                Value::Array(builtins::array_skip(arr, n))
+                Value::Array(Arc::new(builtins::array_skip(&**arr, n)))
             } else {
                 Value::Error("skip() requires 2 arguments: array and count".to_string())
             }
@@ -487,14 +491,14 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Float(n) => *n as i64,
                     _ => return Some(Value::Error("windows() size must be a number".to_string())),
                 };
-                Value::Array(builtins::array_windows(arr, size))
+                Value::Array(Arc::new(builtins::array_windows(&**arr, size)))
             } else {
                 Value::Error("windows() requires 2 arguments: array and size".to_string())
             }
         }
 
         "range" => match builtins::range(&arg_values) {
-            Ok(arr) => Value::Array(arr),
+            Ok(arr) => Value::Array(Arc::new(arr)),
             Err(e) => Value::Error(e),
         },
 
@@ -503,10 +507,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let Some(Value::Dict(dict)) = arg_values.first() {
                 let mut keys: Vec<String> = dict.keys().cloned().collect();
                 keys.sort();
-                let keys: Vec<Value> = keys.into_iter().map(|k| Value::Str(k)).collect();
-                Value::Array(keys)
+                let keys: Vec<Value> = keys.into_iter().map(|k| Value::Str(Arc::new(k))).collect();
+                Value::Array(Arc::new(keys))
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
@@ -515,9 +519,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let mut keys: Vec<&String> = dict.keys().collect();
                 keys.sort();
                 let vals: Vec<Value> = keys.iter().map(|k| dict.get(*k).unwrap().clone()).collect();
-                Value::Array(vals)
+                Value::Array(Arc::new(vals))
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
@@ -525,7 +529,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let (Some(Value::Dict(dict)), Some(Value::Str(key))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                Value::Int(if dict.contains_key(key) { 1 } else { 0 })
+                Value::Int(if dict.contains_key(key.as_ref()) { 1 } else { 0 })
             } else {
                 Value::Int(0)
             }
@@ -538,12 +542,12 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let items: Vec<Value> = keys
                     .iter()
                     .map(|k| {
-                        Value::Array(vec![Value::Str((*k).clone()), dict.get(*k).unwrap().clone()])
+                        Value::Array(Arc::new(vec![Value::Str(Arc::new((*k).clone())), dict.get(*k).unwrap().clone()]))
                     })
                     .collect();
-                Value::Array(items)
+                Value::Array(Arc::new(items))
             } else {
-                Value::Array(vec![])
+                Value::Array(Arc::new(vec![]))
             }
         }
 
@@ -552,7 +556,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 (arg_values.first(), arg_values.get(1))
             {
                 let default = arg_values.get(2).cloned().unwrap_or(Value::Null);
-                dict.get(key).cloned().unwrap_or(default)
+                dict.get(key.as_ref()).cloned().unwrap_or(default)
             } else {
                 Value::Null
             }
@@ -562,19 +566,19 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let (Some(Value::Dict(dict1)), Some(Value::Dict(dict2))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                let mut result = dict1.clone();
+                let mut result = (**dict1).clone();
                 for (k, v) in dict2.iter() {
                     result.insert(k.clone(), v.clone());
                 }
-                Value::Dict(result)
+                Value::Dict(Arc::new(result))
             } else {
-                Value::Dict(HashMap::new())
+                Value::Dict(Arc::new(HashMap::new()))
             }
         }
 
         "invert" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
-                Value::Dict(builtins::dict_invert(dict))
+                Value::Dict(Arc::new(builtins::dict_invert(&**dict)))
             } else {
                 Value::Error("invert() requires a dict argument".to_string())
             }
@@ -584,13 +588,13 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let (Some(Value::Dict(dict1)), Some(Value::Dict(dict2))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                let mut result = dict1.clone();
+                let mut result = (**dict1).clone();
                 for (k, v) in dict2.iter() {
                     result.insert(k.clone(), v.clone());
                 }
-                Value::Dict(result)
+                Value::Dict(Arc::new(result))
             } else {
-                Value::Dict(HashMap::new())
+                Value::Dict(Arc::new(HashMap::new()))
             }
         }
 
@@ -598,7 +602,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let (Some(Value::Dict(dict)), Some(Value::Str(key)), Some(default_val)) =
                 (arg_values.first(), arg_values.get(1), arg_values.get(2))
             {
-                if let Some(value) = dict.get(key) {
+                if let Some(value) = dict.get(key.as_ref()) {
                     value.clone()
                 } else {
                     default_val.clone()
@@ -694,9 +698,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "set_to_array" => {
             if let Some(Value::Set(set)) = arg_values.first() {
-                Value::Array(set.clone())
+                Value::Array(Arc::new(set.clone()))
             } else {
-                Value::Array(Vec::new())
+                Value::Array(Arc::new(Vec::new()))
             }
         }
 
@@ -704,7 +708,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "Queue" => {
             if let Some(Value::Array(arr)) = arg_values.first() {
                 let mut queue = VecDeque::new();
-                for item in arr {
+                for item in arr.iter() {
                     queue.push_back(item.clone());
                 }
                 Value::Queue(queue)
@@ -727,12 +731,12 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "queue_dequeue" => {
             if let Some(Value::Queue(mut queue)) = arg_values.first().cloned() {
                 if let Some(item) = queue.pop_front() {
-                    Value::Array(vec![Value::Queue(queue), item])
+                    Value::Array(Arc::new(vec![Value::Queue(queue), item]))
                 } else {
-                    Value::Array(vec![Value::Queue(queue), Value::Null])
+                    Value::Array(Arc::new(vec![Value::Queue(queue), Value::Null]))
                 }
             } else {
-                Value::Array(vec![Value::Queue(VecDeque::new()), Value::Null])
+                Value::Array(Arc::new(vec![Value::Queue(VecDeque::new()), Value::Null]))
             }
         }
 
@@ -754,16 +758,16 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "queue_to_array" => {
             if let Some(Value::Queue(queue)) = arg_values.first() {
-                Value::Array(queue.iter().cloned().collect())
+                Value::Array(Arc::new(queue.iter().cloned().collect()))
             } else {
-                Value::Array(Vec::new())
+                Value::Array(Arc::new(Vec::new()))
             }
         }
 
         // Stack functions
         "Stack" => {
             if let Some(Value::Array(arr)) = arg_values.first() {
-                Value::Stack(arr.clone())
+                Value::Stack((**arr).clone())
             } else {
                 Value::Stack(Vec::new())
             }
@@ -783,12 +787,12 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "stack_pop" => {
             if let Some(Value::Stack(mut stack)) = arg_values.first().cloned() {
                 if let Some(item) = stack.pop() {
-                    Value::Array(vec![Value::Stack(stack), item])
+                    Value::Array(Arc::new(vec![Value::Stack(stack), item]))
                 } else {
-                    Value::Array(vec![Value::Stack(stack), Value::Null])
+                    Value::Array(Arc::new(vec![Value::Stack(stack), Value::Null]))
                 }
             } else {
-                Value::Array(vec![Value::Stack(Vec::new()), Value::Null])
+                Value::Array(Arc::new(vec![Value::Stack(Vec::new()), Value::Null]))
             }
         }
 
@@ -810,9 +814,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "stack_to_array" => {
             if let Some(Value::Stack(stack)) = arg_values.first() {
-                Value::Array(stack.clone())
+                Value::Array(Arc::new(stack.clone()))
             } else {
-                Value::Array(Vec::new())
+                Value::Array(Arc::new(Vec::new()))
             }
         }
 

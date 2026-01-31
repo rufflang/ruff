@@ -4,6 +4,7 @@
 // Provides async functions for sleep, timeouts, Promise.all, Promise.race, etc.
 
 use crate::interpreter::{AsyncRuntime, Value};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Handle async operations native functions
@@ -187,7 +188,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             AsyncRuntime::spawn_task(async move {
                 let result = async {
                     let client = reqwest::Client::new();
-                    let response = client.get(&url).send().await.map_err(|e| format!("HTTP GET failed: {}", e))?;
+                    let response = client.get(url.as_ref()).send().await.map_err(|e| format!("HTTP GET failed: {}", e))?;
                     
                     let status = response.status().as_u16() as i64;
                     let headers_map = response.headers().clone();
@@ -196,18 +197,18 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     // Build result dictionary
                     let mut result_dict = std::collections::HashMap::new();
                     result_dict.insert("status".to_string(), Value::Int(status));
-                    result_dict.insert("body".to_string(), Value::Str(body));
+                    result_dict.insert("body".to_string(), Value::Str(Arc::new(body)));
                     
                     // Convert headers to dict
                     let mut headers_dict = std::collections::HashMap::new();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
-                            headers_dict.insert(name.to_string(), Value::Str(value_str.to_string()));
+                            headers_dict.insert(name.to_string(), Value::Str(Arc::new(value_str.to_string())));
                         }
                     }
-                    result_dict.insert("headers".to_string(), Value::Dict(headers_dict));
+                    result_dict.insert("headers".to_string(), Value::Dict(Arc::new(headers_dict)));
                     
-                    Ok::<Value, String>(Value::Dict(result_dict))
+                    Ok::<Value, String>(Value::Dict(Arc::new(result_dict)))
                 }.await;
                 
                 let _ = tx.send(result);
@@ -272,13 +273,13 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             AsyncRuntime::spawn_task(async move {
                 let result = async {
                     let client = reqwest::Client::new();
-                    let mut request = client.post(&url).body(body);
+                    let mut request = client.post(url.as_ref()).body(body.as_ref().clone());
                     
                     // Add custom headers if provided
                     if let Some(headers_dict) = headers {
                         for (key, value) in headers_dict.iter() {
                             if let Value::Str(value_str) = value {
-                                request = request.header(key, value_str);
+                                request = request.header(key, value_str.as_ref());
                             }
                         }
                     }
@@ -292,18 +293,18 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     // Build result dictionary
                     let mut result_dict = std::collections::HashMap::new();
                     result_dict.insert("status".to_string(), Value::Int(status));
-                    result_dict.insert("body".to_string(), Value::Str(response_body));
+                    result_dict.insert("body".to_string(), Value::Str(Arc::new(response_body)));
                     
                     // Convert headers to dict
                     let mut headers_dict = std::collections::HashMap::new();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
-                            headers_dict.insert(name.to_string(), Value::Str(value_str.to_string()));
+                            headers_dict.insert(name.to_string(), Value::Str(Arc::new(value_str.to_string())));
                         }
                     }
-                    result_dict.insert("headers".to_string(), Value::Dict(headers_dict));
+                    result_dict.insert("headers".to_string(), Value::Dict(Arc::new(headers_dict)));
                     
-                    Ok::<Value, String>(Value::Dict(result_dict))
+                    Ok::<Value, String>(Value::Dict(Arc::new(result_dict)))
                 }.await;
                 
                 let _ = tx.send(result);
@@ -344,10 +345,10 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             // Spawn async file read
             AsyncRuntime::spawn_task(async move {
                 let result = async {
-                    tokio::fs::read_to_string(&path)
+                    tokio::fs::read_to_string(path.as_ref())
                         .await
-                        .map(Value::Str)
-                        .map_err(|e| format!("Failed to read file '{}': {}", path, e))
+                        .map(|s| Value::Str(Arc::new(s)))
+                        .map_err(|e| format!("Failed to read file '{}': {}", path.as_ref(), e))
                 }.await;
                 
                 let _ = tx.send(result);
@@ -397,10 +398,10 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             // Spawn async file write
             AsyncRuntime::spawn_task(async move {
                 let result = async {
-                    tokio::fs::write(&path, content)
+                    tokio::fs::write(path.as_ref(), content.as_ref())
                         .await
                         .map(|_| Value::Bool(true))
-                        .map_err(|e| format!("Failed to write file '{}': {}", path, e))
+                        .map_err(|e| format!("Failed to write file '{}': {}", path.as_ref(), e))
                 }.await;
                 
                 let _ = tx.send(result);
@@ -603,7 +604,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             if promises.is_empty() {
                 // Empty array - return immediately resolved promise with empty array
                 let (tx, rx) = tokio::sync::oneshot::channel();
-                let _ = tx.send(Ok(Value::Array(vec![])));
+                let _ = tx.send(Ok(Value::Array(Arc::new(vec![]))));
                 return Some(Value::Promise {
                     receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                     is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
@@ -719,7 +720,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 }
 
                 // All promises resolved successfully
-                let _ = tx.send(Ok(Value::Array(results)));
+                let _ = tx.send(Ok(Value::Array(Arc::new(results))));
                 Value::Null
             });
 

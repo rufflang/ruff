@@ -1373,26 +1373,26 @@ impl Interpreter {
                 // Create params dict for request object
                 let mut params_dict = HashMap::new();
                 for (key, value) in &path_params {
-                    params_dict.insert(key.clone(), Value::Str(value.clone()));
+                    params_dict.insert(key.clone(), Value::Str(Arc::new(value.clone())));
                 }
 
                 // Create request object as a Dict (not Struct) so has_key() and bracket access work
                 let mut req_fields = HashMap::new();
-                req_fields.insert("method".to_string(), Value::Str(method.clone()));
-                req_fields.insert("path".to_string(), Value::Str(url_path.clone()));
-                req_fields.insert("body".to_string(), Value::Str(body_content.clone()));
-                req_fields.insert("params".to_string(), Value::Dict(params_dict));
+                req_fields.insert("method".to_string(), Value::Str(Arc::new(method.clone())));
+                req_fields.insert("path".to_string(), Value::Str(Arc::new(url_path.clone())));
+                req_fields.insert("body".to_string(), Value::Str(Arc::new(body_content.clone())));
+                req_fields.insert("params".to_string(), Value::Dict(Arc::new(params_dict)));
 
                 // Extract headers from request
                 let mut headers_dict = HashMap::new();
                 for header in request.headers() {
                     let header_name = header.field.as_str().to_string();
                     let header_value = header.value.as_str().to_string();
-                    headers_dict.insert(header_name, Value::Str(header_value));
+                    headers_dict.insert(header_name, Value::Str(Arc::new(header_value)));
                 }
-                req_fields.insert("headers".to_string(), Value::Dict(headers_dict));
+                req_fields.insert("headers".to_string(), Value::Dict(Arc::new(headers_dict)));
 
-                let req_obj = Value::Dict(req_fields);
+                let req_obj = Value::Dict(Arc::new(req_fields));
 
                 // Call handler function
                 if let Value::Function(params, body, _captured_env) = handler {
@@ -1525,7 +1525,7 @@ impl Interpreter {
                     if let Some(rest_name) = rest {
                         let rest_values: Vec<Value> =
                             if i < arr_len { arr[i..].to_vec() } else { vec![] };
-                        self.env.define(rest_name.clone(), Value::Array(rest_values));
+                        self.env.define(rest_name.clone(), Value::Array(Arc::new(rest_values)));
                     }
                 } else {
                     // Not an array - bind all patterns to null
@@ -1533,7 +1533,7 @@ impl Interpreter {
                         self.bind_pattern(pattern_elem, Value::Null);
                     }
                     if let Some(rest_name) = rest {
-                        self.env.define(rest_name.clone(), Value::Array(vec![]));
+                        self.env.define(rest_name.clone(), Value::Array(Arc::new(vec![])));
                     }
                 }
             }
@@ -1554,7 +1554,7 @@ impl Interpreter {
                                 rest_dict.insert(k.clone(), v.clone());
                             }
                         }
-                        self.env.define(rest_name.clone(), Value::Dict(rest_dict));
+                        self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
                     }
                 } else {
                     // Not a dict - bind all to null
@@ -1564,7 +1564,7 @@ impl Interpreter {
                     if let Some(rest_name) = rest {
                         self.env.define(
                             rest_name.clone(),
-                            Value::Dict(std::collections::HashMap::new()),
+                            Value::Dict(Arc::new(std::collections::HashMap::new())),
                         );
                     }
                 }
@@ -1654,9 +1654,9 @@ impl Interpreter {
                     Value::Float(n) => n != 0.0,
                     Value::Str(s) => {
                         // Handle string representations of booleans for backward compatibility
-                        if s == "true" {
+                        if s.as_ref() == "true" {
                             true
-                        } else if s == "false" {
+                        } else if s.as_ref() == "false" {
                             false
                         } else {
                             !s.is_empty()
@@ -1718,21 +1718,22 @@ impl Interpreter {
                             let val_clone = val.clone();
                             let idx_clone = index_val.clone();
                             self.env.mutate(container_name.as_str(), |container| match container {
-                                Value::Array(ref mut arr) => {
+                                Value::Array(arr) => {
                                     let i = match &idx_clone {
                                         Value::Int(n) => *n as usize,
                                         Value::Float(n) => *n as usize,
                                         _ => return,
                                     };
-                                    if i < arr.len() {
-                                        arr[i] = val_clone.clone();
+                                    let arr_mut = Arc::make_mut(arr);
+                                    if i < arr_mut.len() {
+                                        arr_mut[i] = val_clone.clone();
                                     } else {
                                         eprintln!("Array index out of bounds: {}", i);
                                     }
                                 }
-                                Value::Dict(ref mut dict) => {
+                                Value::Dict(dict) => {
                                     let key = Self::stringify_value(&idx_clone);
-                                    dict.insert(key, val_clone.clone());
+                                    Arc::make_mut(dict).insert(key, val_clone.clone());
                                 }
                                 _ => {
                                     eprintln!("Cannot index non-collection type");
@@ -1771,15 +1772,16 @@ impl Interpreter {
 
                                     self.env.mutate(container_name.as_str(), |container| {
                                         match container {
-                                            Value::Array(ref mut arr) => {
+                                            Value::Array(arr) => {
                                                 let i = match &idx_clone {
                                                     Value::Int(n) => *n as usize,
                                                     Value::Float(n) => *n as usize,
                                                     _ => return,
                                                 };
-                                                if i < arr.len() {
+                                                let arr_mut = Arc::make_mut(arr);
+                                                if i < arr_mut.len() {
                                                     if let Value::Struct { name: _, fields } =
-                                                        &mut arr[i]
+                                                        &mut arr_mut[i]
                                                     {
                                                         fields.insert(field_clone, val_clone);
                                                     } else {
@@ -1789,10 +1791,10 @@ impl Interpreter {
                                                     eprintln!("Array index out of bounds: {}", i);
                                                 }
                                             }
-                                            Value::Dict(ref mut dict) => {
+                                            Value::Dict(dict) => {
                                                 let key = Self::stringify_value(&idx_clone);
                                                 if let Some(Value::Struct { name: _, fields }) =
-                                                    dict.get_mut(&key)
+                                                    Arc::make_mut(dict).get_mut(&key)
                                                 {
                                                     fields.insert(field_clone, val_clone);
                                                 } else {
@@ -1962,7 +1964,7 @@ impl Interpreter {
                 let (tag, fields): (String, &HashMap<String, Value>) = match &val {
                     Value::Tagged { tag, fields } => (tag.clone(), fields),
                     Value::Enum(e) => (e.clone(), &empty_map),
-                    Value::Str(s) => (s.clone(), &empty_map),
+                    Value::Str(s) => (s.as_ref().clone(), &empty_map),
                     Value::Float(n) => (n.to_string(), &empty_map),
                     _ => {
                         if let Some(default_body) = default_clone {
@@ -2144,7 +2146,7 @@ impl Interpreter {
                     }
                     Value::Array(arr) => {
                         // Array iteration: for item in [1, 2, 3] { ... }
-                        let arr_clone = arr.clone();
+                        let arr_clone = arr.as_ref().clone();
                         for item in arr_clone {
                             // Create new scope for loop iteration
                             // Push new scope
@@ -2178,7 +2180,7 @@ impl Interpreter {
                             // Create new scope for loop iteration
                             // Push new scope
                             self.env.push_scope();
-                            self.env.define(var.clone(), Value::Str(key));
+                            self.env.define(var.clone(), Value::Str(Arc::new(key)));
 
                             self.eval_stmts(body);
 
@@ -2206,7 +2208,7 @@ impl Interpreter {
                             // Create new scope for loop iteration
                             // Push new scope
                             self.env.push_scope();
-                            self.env.define(var.clone(), Value::Str(ch.to_string()));
+                            self.env.define(var.clone(), Value::Str(Arc::new(ch.to_string())));
 
                             self.eval_stmts(body);
 
@@ -2240,9 +2242,9 @@ impl Interpreter {
                         Value::Bool(b) => b,
                         Value::Float(n) => n != 0.0,
                         Value::Str(s) => {
-                            if s == "true" {
+                            if s.as_ref() == "true" {
                                 true
-                            } else if s == "false" {
+                            } else if s.as_ref() == "false" {
                                 false
                             } else {
                                 !s.is_empty()
@@ -2308,8 +2310,8 @@ impl Interpreter {
                         Value::Error(msg) => {
                             // Legacy simple error - convert to struct-like object
                             let mut fields = HashMap::new();
-                            fields.insert("message".to_string(), Value::Str(msg));
-                            fields.insert("stack".to_string(), Value::Array(Vec::new()));
+                            fields.insert("message".to_string(), Value::Str(Arc::new(msg)));
+                            fields.insert("stack".to_string(), Value::Array(Arc::new(Vec::new())));
                             fields.insert("line".to_string(), Value::Int(0));
 
                             self.env.define(
@@ -2320,10 +2322,10 @@ impl Interpreter {
                         Value::ErrorObject { message, stack, line, cause } => {
                             // New error object with full info
                             let mut fields = HashMap::new();
-                            fields.insert("message".to_string(), Value::Str(message));
+                            fields.insert("message".to_string(), Value::Str(Arc::new(message)));
                             fields.insert(
                                 "stack".to_string(),
-                                Value::Array(stack.iter().map(|s| Value::Str(s.clone())).collect()),
+                                Value::Array(Arc::new(stack.iter().map(|s| Value::Str(Arc::new(s.clone()))).collect())),
                             );
                             fields.insert("line".to_string(), Value::Int(line.unwrap_or(0) as i64));
                             if let Some(cause_val) = cause {
@@ -2368,7 +2370,7 @@ impl Interpreter {
                                 Value::Str(s) => {
                                     // Simple string error - create ErrorObject
                                     self.return_value = Some(Value::ErrorObject {
-                                        message: s,
+                                        message: s.as_ref().clone(),
                                         stack: self.call_stack.clone(),
                                         line: None,
                                         cause: None,
@@ -2378,7 +2380,7 @@ impl Interpreter {
                                     // Custom error struct - wrap it in ErrorObject
                                     let message =
                                         if let Some(Value::Str(msg)) = fields.get("message") {
-                                            msg.clone()
+                                            msg.as_ref().clone()
                                         } else {
                                             format!("{} error", name)
                                         };
@@ -2492,7 +2494,7 @@ impl Interpreter {
         let result = match expr {
             Expr::Int(n) => Value::Int(*n),
             Expr::Float(n) => Value::Float(*n),
-            Expr::String(s) => Value::Str(s.clone()),
+            Expr::String(s) => Value::Str(Arc::new(s.clone())),
             Expr::Bool(b) => Value::Bool(*b),
             Expr::InterpolatedString(parts) => {
                 use crate::ast::InterpolatedStringPart;
@@ -2508,13 +2510,13 @@ impl Interpreter {
                         }
                     }
                 }
-                Value::Str(result)
+                Value::Str(Arc::new(result))
             }
             Expr::Identifier(name) => {
                 if name == "null" {
                     Value::Null
                 } else {
-                    self.env.get(name).unwrap_or(Value::Str(name.clone()))
+                    self.env.get(name).unwrap_or(Value::Str(Arc::new(name.clone())))
                 }
             }
             Expr::Function {
@@ -2640,7 +2642,7 @@ impl Interpreter {
                             let arg_expr = match value {
                                 Value::Int(n) => Expr::Int(n),
                                 Value::Float(n) => Expr::Float(n),
-                                Value::Str(s) => Expr::String(s),
+                                Value::Str(s) => Expr::String(s.as_ref().clone()),
                                 Value::Bool(b) => Expr::Bool(b),
                                 _ => {
                                     return Value::Error(
@@ -2750,9 +2752,9 @@ impl Interpreter {
                         }
                     }
                     (Value::Str(a), Value::Str(b)) => match op.as_str() {
-                        "+" => Value::Str(a + &b),
-                        "==" => Value::Bool(a == b),
-                        "!=" => Value::Bool(a != b),
+                        "+" => Value::Str(Arc::new(a.as_ref().to_string() + b.as_ref())),
+                        "==" => Value::Bool(a.as_ref() == b.as_ref()),
+                        "!=" => Value::Bool(a.as_ref() != b.as_ref()),
                         _ => Value::Int(0),
                     },
                     (Value::Bool(a), Value::Bool(b)) => match op.as_str() {
@@ -2788,8 +2790,8 @@ impl Interpreter {
                                     {
                                         let mut new_routes = routes.clone();
                                         new_routes.push((
-                                            method.clone(),
-                                            path.clone(),
+                                            method.as_ref().clone(),
+                                            path.as_ref().clone(),
                                             handler_val,
                                         ));
                                         return Value::HttpServer {
@@ -2834,7 +2836,7 @@ impl Interpreter {
                                     let resized = if args.len() >= 3 {
                                         let mode_val = self.eval_expr(&args[2]);
                                         if let Value::Str(mode) = mode_val {
-                                            if mode == "fit" {
+                                            if mode.as_ref() == "fit" {
                                                 // Maintain aspect ratio
                                                 img.resize(
                                                     width,
@@ -2989,7 +2991,7 @@ impl Interpreter {
 
                                     // The image crate will auto-detect format from extension
                                     // No need to manually specify the format
-                                    match img.save(&path) {
+                                    match img.save(path.as_ref()) {
                                         Ok(_) => return Value::Bool(true),
                                         Err(e) => {
                                             return Value::Error(format!(
@@ -3158,7 +3160,7 @@ impl Interpreter {
                                     // First argument is always the long name
                                     if !args.is_empty() {
                                         if let Value::Str(s) = self.eval_expr(&args[0]) {
-                                            long_name = s;
+                                            long_name = s.as_ref().clone();
                                         }
                                     }
 
@@ -3172,12 +3174,12 @@ impl Interpreter {
                                                 match key.as_str() {
                                                     "short" => {
                                                         if let Value::Str(s) = value {
-                                                            short_name = Some(s);
+                                                            short_name = Some(s.as_ref().clone());
                                                         }
                                                     }
                                                     "type" => {
                                                         if let Value::Str(s) = value {
-                                                            arg_type = s;
+                                                            arg_type = s.as_ref().clone();
                                                         }
                                                     }
                                                     "required" => {
@@ -3187,12 +3189,12 @@ impl Interpreter {
                                                     }
                                                     "help" => {
                                                         if let Value::Str(s) = value {
-                                                            help = s;
+                                                            help = s.as_ref().clone();
                                                         }
                                                     }
                                                     "default" => {
                                                         if let Value::Str(s) = value {
-                                                            default = Some(s);
+                                                            default = Some(s.as_ref().clone());
                                                         }
                                                     }
                                                     _ => {}
@@ -3208,25 +3210,27 @@ impl Interpreter {
 
                                     // Create argument definition
                                     let mut arg_def = HashMap::new();
-                                    arg_def.insert("long".to_string(), Value::Str(long_name));
+                                    arg_def.insert("long".to_string(), Value::Str(Arc::new(long_name)));
                                     if let Some(short) = short_name {
-                                        arg_def.insert("short".to_string(), Value::Str(short));
+                                        arg_def.insert("short".to_string(), Value::Str(Arc::new(short)));
                                     }
-                                    arg_def.insert("type".to_string(), Value::Str(arg_type));
+                                    arg_def.insert("type".to_string(), Value::Str(Arc::new(arg_type)));
                                     arg_def.insert("required".to_string(), Value::Bool(required));
-                                    arg_def.insert("help".to_string(), Value::Str(help));
+                                    arg_def.insert("help".to_string(), Value::Str(Arc::new(help)));
                                     if let Some(def) = default {
-                                        arg_def.insert("default".to_string(), Value::Str(def));
+                                        arg_def.insert("default".to_string(), Value::Str(Arc::new(def)));
                                     }
 
                                     // Add to the parser's argument list
                                     let mut new_fields = fields.clone();
-                                    if let Some(Value::Array(mut arg_list)) =
+                                    if let Some(Value::Array(arg_list)) =
                                         new_fields.get("_args").cloned()
                                     {
-                                        arg_list.push(Value::Dict(arg_def));
+                                        let mut arg_list_vec = Arc::try_unwrap(arg_list)
+                                            .unwrap_or_else(|arc| (*arc).clone());
+                                        arg_list_vec.push(Value::Dict(Arc::new(arg_def)));
                                         new_fields
-                                            .insert("_args".to_string(), Value::Array(arg_list));
+                                            .insert("_args".to_string(), Value::Array(Arc::new(arg_list_vec)));
                                     }
 
                                     return Value::Struct {
@@ -3240,20 +3244,20 @@ impl Interpreter {
                                     let mut arg_defs = Vec::new();
 
                                     if let Some(Value::Array(arg_list)) = fields.get("_args") {
-                                        for arg_val in arg_list {
+                                        for arg_val in arg_list.iter() {
                                             if let Value::Dict(arg_dict) = arg_val {
                                                 let long_name = match arg_dict.get("long") {
-                                                    Some(Value::Str(s)) => s.clone(),
+                                                    Some(Value::Str(s)) => s.as_ref().clone(),
                                                     _ => continue,
                                                 };
 
                                                 let short_name = match arg_dict.get("short") {
-                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    Some(Value::Str(s)) => Some(s.as_ref().clone()),
                                                     _ => None,
                                                 };
 
                                                 let arg_type = match arg_dict.get("type") {
-                                                    Some(Value::Str(s)) => s.clone(),
+                                                    Some(Value::Str(s)) => s.as_ref().clone(),
                                                     _ => "string".to_string(),
                                                 };
 
@@ -3263,12 +3267,12 @@ impl Interpreter {
                                                 };
 
                                                 let help = match arg_dict.get("help") {
-                                                    Some(Value::Str(s)) => s.clone(),
+                                                    Some(Value::Str(s)) => s.as_ref().clone(),
                                                     _ => String::new(),
                                                 };
 
                                                 let default = match arg_dict.get("default") {
-                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    Some(Value::Str(s)) => Some(s.as_ref().clone()),
                                                     _ => None,
                                                 };
 
@@ -3289,7 +3293,7 @@ impl Interpreter {
 
                                     // Parse arguments
                                     match builtins::parse_arguments(&arg_defs, &cli_args) {
-                                        Ok(parsed) => return Value::Dict(parsed),
+                                        Ok(parsed) => return Value::Dict(Arc::new(parsed)),
                                         Err(msg) => {
                                             return Value::ErrorObject {
                                                 message: msg,
@@ -3305,20 +3309,20 @@ impl Interpreter {
                                     let mut arg_defs = Vec::new();
 
                                     if let Some(Value::Array(arg_list)) = fields.get("_args") {
-                                        for arg_val in arg_list {
+                                        for arg_val in arg_list.iter() {
                                             if let Value::Dict(arg_dict) = arg_val {
                                                 let long_name = match arg_dict.get("long") {
-                                                    Some(Value::Str(s)) => s.clone(),
+                                                    Some(Value::Str(s)) => s.as_ref().clone(),
                                                     _ => continue,
                                                 };
 
                                                 let short_name = match arg_dict.get("short") {
-                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    Some(Value::Str(s)) => Some(s.as_ref().clone()),
                                                     _ => None,
                                                 };
 
                                                 let arg_type = match arg_dict.get("type") {
-                                                    Some(Value::Str(s)) => s.clone(),
+                                                    Some(Value::Str(s)) => s.as_ref().clone(),
                                                     _ => "string".to_string(),
                                                 };
 
@@ -3328,12 +3332,12 @@ impl Interpreter {
                                                 };
 
                                                 let help = match arg_dict.get("help") {
-                                                    Some(Value::Str(s)) => s.clone(),
+                                                    Some(Value::Str(s)) => s.as_ref().clone(),
                                                     _ => String::new(),
                                                 };
 
                                                 let default = match arg_dict.get("default") {
-                                                    Some(Value::Str(s)) => Some(s.clone()),
+                                                    Some(Value::Str(s)) => Some(s.as_ref().clone()),
                                                     _ => None,
                                                 };
 
@@ -3350,18 +3354,18 @@ impl Interpreter {
                                     }
 
                                     let app_name = match fields.get("_app_name") {
-                                        Some(Value::Str(s)) => s.clone(),
+                                        Some(Value::Str(s)) => s.as_ref().clone(),
                                         _ => "program".to_string(),
                                     };
 
                                     let description = match fields.get("_description") {
-                                        Some(Value::Str(s)) => s.clone(),
+                                        Some(Value::Str(s)) => s.as_ref().clone(),
                                         _ => String::new(),
                                     };
 
                                     let help_text =
                                         builtins::generate_help(&arg_defs, &app_name, &description);
-                                    return Value::Str(help_text);
+                                    return Value::Str(Arc::new(help_text));
                                 }
                                 _ => {
                                     return Value::Error(format!(
@@ -3773,7 +3777,7 @@ impl Interpreter {
                                 let img = data.lock().unwrap();
                                 Value::Float(img.height() as f64)
                             }
-                            "format" => Value::Str(format),
+                            "format" => Value::Str(Arc::new(format)),
                             _ => Value::Error(format!("Image has no field '{}'", field)),
                         }
                     }
@@ -3793,14 +3797,14 @@ impl Interpreter {
                             // Evaluate spread expression and merge its elements
                             let spread_val = self.eval_expr(expr);
                             if let Value::Array(arr) = spread_val {
-                                values.extend(arr);
+                                values.extend(arr.iter().cloned());
                             }
                             // If not an array, ignore the spread
                         }
                     }
                 }
 
-                Value::Array(values)
+                Value::Array(Arc::new(values))
             }
             Expr::DictLiteral(pairs) => {
                 use crate::ast::DictElement;
@@ -3810,7 +3814,7 @@ impl Interpreter {
                     match elem {
                         DictElement::Pair(key_expr, val_expr) => {
                             let key = match self.eval_expr(key_expr) {
-                                Value::Str(s) => s,
+                                Value::Str(s) => s.as_ref().clone(),
                                 Value::Int(n) => n.to_string(),
                                 Value::Float(n) => n.to_string(),
                                 _ => continue,
@@ -3822,8 +3826,8 @@ impl Interpreter {
                             // Evaluate spread expression and merge its entries
                             let spread_val = self.eval_expr(expr);
                             if let Value::Dict(dict) = spread_val {
-                                for (k, v) in dict {
-                                    map.insert(k, v);
+                                for (k, v) in dict.iter() {
+                                    map.insert(k.clone(), v.clone());
                                 }
                             }
                             // If not a dict, ignore the spread
@@ -3831,7 +3835,7 @@ impl Interpreter {
                     }
                 }
 
-                Value::Dict(map)
+                Value::Dict(Arc::new(map))
             }
             Expr::IndexAccess { object, index } => {
                 let obj_val = self.eval_expr(object);
@@ -3847,21 +3851,21 @@ impl Interpreter {
                         arr.get(idx).cloned().unwrap_or(Value::Int(0))
                     }
                     (Value::Dict(map), Value::Str(key)) => {
-                        map.get(&key).cloned().unwrap_or(Value::Int(0))
+                        map.get(key.as_ref()).cloned().unwrap_or(Value::Int(0))
                     }
                     (Value::Str(s), Value::Int(n)) => {
                         let idx = n as usize;
                         s.chars()
                             .nth(idx)
-                            .map(|c| Value::Str(c.to_string()))
-                            .unwrap_or(Value::Str(String::new()))
+                            .map(|c| Value::Str(Arc::new(c.to_string())))
+                            .unwrap_or(Value::Str(Arc::new(String::new())))
                     }
                     (Value::Str(s), Value::Float(n)) => {
                         let idx = n as usize;
                         s.chars()
                             .nth(idx)
-                            .map(|c| Value::Str(c.to_string()))
-                            .unwrap_or(Value::Str(String::new()))
+                            .map(|c| Value::Str(Arc::new(c.to_string())))
+                            .unwrap_or(Value::Str(Arc::new(String::new())))
                     }
                     _ => Value::Int(0),
                 }
@@ -4152,7 +4156,7 @@ impl Interpreter {
                     // Check if we've reached the take limit
                     if let Some(limit) = take_count {
                         if result.len() >= *limit {
-                            return Value::Array(result);
+                            return Value::Array(Arc::new(result));
                         }
                     }
 
@@ -4163,7 +4167,7 @@ impl Interpreter {
                             loop {
                                 if *index >= items.len() {
                                     // No more items
-                                    return Value::Array(result);
+                                    return Value::Array(Arc::new(result));
                                 }
 
                                 let mut item = items[*index].clone();
@@ -4196,7 +4200,7 @@ impl Interpreter {
                                 // Check take limit after adding
                                 if let Some(limit) = take_count {
                                     if result.len() >= *limit {
-                                        return Value::Array(result);
+                                        return Value::Array(Arc::new(result));
                                     }
                                 }
 
@@ -4235,14 +4239,14 @@ impl Interpreter {
                                     // Check take limit after adding
                                     if let Some(limit) = take_count {
                                         if result.len() >= *limit {
-                                            return Value::Array(result);
+                                            return Value::Array(Arc::new(result));
                                         }
                                     }
                                     // Continue to next iteration of outer loop
                                 }
                                 Value::Option { is_some: false, .. } => {
                                     // Generator exhausted
-                                    return Value::Array(result);
+                                    return Value::Array(Arc::new(result));
                                 }
                                 Value::Error(msg) => {
                                     return Value::Error(msg);
@@ -4431,7 +4435,7 @@ impl Interpreter {
     /// Converts a runtime value to a string for display
     fn stringify_value(value: &Value) -> String {
         match value {
-            Value::Str(s) => s.clone(),
+            Value::Str(s) => s.as_ref().clone(),
             Value::Int(n) => n.to_string(),
             Value::Float(n) => n.to_string(),
             Value::Bool(b) => b.to_string(),
