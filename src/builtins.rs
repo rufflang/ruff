@@ -4,7 +4,7 @@
 // These are implemented in Rust for performance and provide
 // core functionality for math, strings, arrays, I/O operations, and JSON.
 
-use crate::interpreter::Value;
+use crate::interpreter::{DictMap, Value};
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, TimeZone, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -589,7 +589,7 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
             Value::Array(Arc::new(ruff_arr))
         }
         serde_json::Value::Object(obj) => {
-            let mut ruff_dict = HashMap::new();
+            let mut ruff_dict = DictMap::default();
             for (key, val) in obj {
                 ruff_dict.insert(key, json_to_ruff_value(val));
             }
@@ -663,7 +663,7 @@ fn toml_to_ruff_value(toml: toml::Value) -> Value {
             Value::Array(Arc::new(ruff_arr))
         }
         toml::Value::Table(table) => {
-            let mut ruff_dict = HashMap::new();
+            let mut ruff_dict = DictMap::default();
             for (key, val) in table {
                 ruff_dict.insert(key, toml_to_ruff_value(val));
             }
@@ -743,7 +743,7 @@ fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
             Value::Array(Arc::new(ruff_arr))
         }
         serde_yaml::Value::Mapping(map) => {
-            let mut ruff_dict = HashMap::new();
+            let mut ruff_dict = DictMap::default();
             for (key, val) in map {
                 if let serde_yaml::Value::String(key_str) = key {
                     ruff_dict.insert(key_str, yaml_to_ruff_value(val));
@@ -808,7 +808,7 @@ pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
     for result in reader.records() {
         match result {
             Ok(record) => {
-                let mut row_dict = HashMap::new();
+                let mut row_dict = DictMap::default();
                 for (i, field) in record.iter().enumerate() {
                     let header = headers.get(i).unwrap_or("unknown");
                     // Try to parse as number, otherwise keep as string
@@ -1365,8 +1365,8 @@ pub fn array_windows(arr: &[Value], window_size: i64) -> Vec<Value> {
 /// Advanced dict methods
 /// Invert a dictionary (swap keys and values)
 /// Keys must convert to valid dict keys
-pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
-    let mut result = HashMap::new();
+pub fn dict_invert(dict: &DictMap) -> DictMap {
+    let mut result = DictMap::default();
 
     for (key, value) in dict {
         let new_key = match value {
@@ -1387,13 +1387,13 @@ pub fn dict_invert(dict: &HashMap<String, Value>) -> HashMap<String, Value> {
 /// Returns a dictionary with status, body, and headers
 /// Infrastructure for http.get() builtin
 #[allow(dead_code)]
-pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
+pub fn http_get(url: &str) -> Result<DictMap, String> {
     match reqwest::blocking::get(url) {
         Ok(response) => {
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
 
-            let mut result = HashMap::new();
+            let mut result = DictMap::default();
             result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
@@ -1407,7 +1407,7 @@ pub fn http_get(url: &str) -> Result<HashMap<String, Value>, String> {
 /// body_json should be a stringified JSON
 /// Infrastructure for http.post() builtin
 #[allow(dead_code)]
-pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
+pub fn http_post(url: &str, body_json: &str) -> Result<DictMap, String> {
     let client = reqwest::blocking::Client::new();
 
     match client
@@ -1420,7 +1420,7 @@ pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, S
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
 
-            let mut result = HashMap::new();
+            let mut result = DictMap::default();
             result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
@@ -1433,7 +1433,7 @@ pub fn http_post(url: &str, body_json: &str) -> Result<HashMap<String, Value>, S
 /// Make an HTTP PUT request with JSON body
 /// Infrastructure for http.put() builtin
 #[allow(dead_code)]
-pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, String> {
+pub fn http_put(url: &str, body_json: &str) -> Result<DictMap, String> {
     let client = reqwest::blocking::Client::new();
 
     match client
@@ -1446,7 +1446,7 @@ pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, St
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
 
-            let mut result = HashMap::new();
+            let mut result = DictMap::default();
             result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
@@ -1459,7 +1459,7 @@ pub fn http_put(url: &str, body_json: &str) -> Result<HashMap<String, Value>, St
 /// Make an HTTP DELETE request
 /// Infrastructure for http.delete() builtin
 #[allow(dead_code)]
-pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
+pub fn http_delete(url: &str) -> Result<DictMap, String> {
     let client = reqwest::blocking::Client::new();
 
     match client.delete(url).send() {
@@ -1467,7 +1467,7 @@ pub fn http_delete(url: &str) -> Result<HashMap<String, Value>, String> {
             let status = response.status().as_u16() as f64;
             let body = response.text().unwrap_or_default();
 
-            let mut result = HashMap::new();
+            let mut result = DictMap::default();
             result.insert("status".to_string(), Value::Int(status as i64));
             result.insert("body".to_string(), Value::Str(Arc::new(body)));
 
@@ -1519,7 +1519,7 @@ struct Claims {
 
 /// Encode a JWT token from a dictionary payload and secret key
 /// jwt_encode(payload_dict, secret_key) -> token string
-pub fn jwt_encode(payload: &HashMap<String, Value>, secret: &str) -> Result<String, String> {
+pub fn jwt_encode(payload: &DictMap, secret: &str) -> Result<String, String> {
     // Convert Ruff dictionary to JSON claims
     let mut claims_data = HashMap::new();
     for (key, value) in payload {
@@ -1537,7 +1537,7 @@ pub fn jwt_encode(payload: &HashMap<String, Value>, secret: &str) -> Result<Stri
 
 /// Decode a JWT token and return the payload as a dictionary
 /// jwt_decode(token, secret_key) -> payload dictionary
-pub fn jwt_decode(token: &str, secret: &str) -> Result<HashMap<String, Value>, String> {
+pub fn jwt_decode(token: &str, secret: &str) -> Result<DictMap, String> {
     // Create validation without requiring expiry
     let mut validation = Validation::new(Algorithm::HS256);
     validation.required_spec_claims.clear(); // Don't require any specific claims
@@ -1549,7 +1549,7 @@ pub fn jwt_decode(token: &str, secret: &str) -> Result<HashMap<String, Value>, S
             .map_err(|e| format!("JWT decoding error: {}", e))?;
 
     // Convert claims back to Ruff dictionary
-    let mut result = HashMap::new();
+    let mut result = DictMap::default();
     for (key, json_value) in token_data.claims.data {
         result.insert(key, json_to_ruff_value(json_value));
     }
@@ -1582,7 +1582,7 @@ pub fn oauth2_get_token(
     client_secret: &str,
     token_url: &str,
     redirect_uri: &str,
-) -> Result<HashMap<String, Value>, String> {
+) -> Result<DictMap, String> {
     let client = reqwest::blocking::Client::new();
 
     let params = [
@@ -1609,7 +1609,7 @@ pub fn oauth2_get_token(
             // Parse the JSON response
             match serde_json::from_str::<serde_json::Value>(&body) {
                 Ok(json) => {
-                    let mut result = HashMap::new();
+                    let mut result = DictMap::default();
                     if let Some(obj) = json.as_object() {
                         for (key, val) in obj {
                             result.insert(key.clone(), json_to_ruff_value(val.clone()));
@@ -1797,8 +1797,8 @@ pub struct ArgumentDef {
 pub fn parse_arguments(
     arg_defs: &[ArgumentDef],
     args: &[String],
-) -> Result<HashMap<String, Value>, String> {
-    let mut result = HashMap::new();
+) -> Result<DictMap, String> {
+    let mut result = DictMap::default();
     let mut i = 0;
     let mut positional_args: Vec<String> = Vec::new();
 

@@ -3,8 +3,7 @@
 // HTTP client native functions
 
 use crate::builtins;
-use crate::interpreter::Value;
-use std::collections::HashMap;
+use crate::interpreter::{DictMap, Value};
 use std::sync::Arc;
 
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
@@ -35,7 +34,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 for handle in handles {
                     match handle.join() {
                         Ok(Ok((status, body))) => {
-                            let mut result_map = HashMap::new();
+                            let mut result_map = DictMap::default();
                             result_map.insert("status".to_string(), Value::Int(status as i64));
                             result_map.insert("body".to_string(), Value::Str(Arc::new(body)));
                             results.push(Value::Dict(Arc::new(result_map)));

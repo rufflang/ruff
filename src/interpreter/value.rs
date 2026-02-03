@@ -14,6 +14,7 @@ use std::hash::BuildHasherDefault;
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use nohash_hasher::NoHashHasher;
+use ahash::AHasher;
 use zip::ZipWriter;
 
 // Forward declaration - Environment is in a sibling module
@@ -21,6 +22,9 @@ use super::environment::Environment;
 
 /// Hash map for integer-keyed dictionaries.
 pub type IntDictMap = HashMap<i64, Value, BuildHasherDefault<NoHashHasher<i64>>>;
+
+/// Hash map for string-keyed dictionaries.
+pub type DictMap = HashMap<String, Value, BuildHasherDefault<AHasher>>;
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
 ///
@@ -299,7 +303,7 @@ pub enum Value {
     /// Array of values (reference-counted for cheap cloning)
     Array(Arc<Vec<Value>>),
     /// Dictionary (hash map) of string keys to values (reference-counted for cheap cloning)
-    Dict(Arc<HashMap<String, Value>>),
+    Dict(Arc<DictMap>),
     /// Dictionary (hash map) of integer keys to values (reference-counted for cheap cloning)
     IntDict(Arc<IntDictMap>),
     /// Set of unique values
@@ -541,7 +545,7 @@ impl Value {
     }
 
     /// Helper to create a Dict value from a HashMap<String, Value>
-    pub fn dict(map: HashMap<String, Value>) -> Self {
+    pub fn dict(map: DictMap) -> Self {
         Value::Dict(Arc::new(map))
     }
 }

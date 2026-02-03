@@ -3,8 +3,8 @@
 // Collection manipulation native functions (arrays, dicts, sets)
 
 use crate::builtins;
-use crate::interpreter::{Interpreter, Value};
-use std::collections::{HashMap, HashSet, VecDeque};
+use crate::interpreter::{DictMap, Interpreter, Value};
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
@@ -145,7 +145,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "clear" => match arg_values.first() {
             Some(Value::Array(_)) => Value::Array(Arc::new(builtins::array_clear())),
-            Some(Value::Dict(_)) => Value::Dict(Arc::new(HashMap::new())),
+            Some(Value::Dict(_)) => Value::Dict(Arc::new(DictMap::default())),
             _ => Value::Array(Arc::new(vec![])),
         },
 
@@ -659,7 +659,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 }
                 Value::IntDict(Arc::new(result))
             } else {
-                Value::Dict(Arc::new(HashMap::new()))
+                Value::Dict(Arc::new(DictMap::default()))
             }
         }
 
@@ -667,7 +667,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let Some(Value::Dict(dict)) = arg_values.first() {
                 Value::Dict(Arc::new(builtins::dict_invert(&**dict)))
             } else if let Some(Value::IntDict(dict)) = arg_values.first() {
-                let mut inverted = HashMap::new();
+                let mut inverted = DictMap::default();
                 for (k, v) in dict.iter() {
                     inverted.insert(k.to_string(), v.clone());
                 }
@@ -695,7 +695,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 }
                 Value::IntDict(Arc::new(result))
             } else {
-                Value::Dict(Arc::new(HashMap::new()))
+                Value::Dict(Arc::new(DictMap::default()))
             }
         }
 

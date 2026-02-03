@@ -9,6 +9,7 @@ readme = "README.md"
 repository = "https://github.com/rufflang/ruff"
 
 [dependencies]
+ahash = "0.8"
 clap = { version = "4", features = ["derive"] }
 once_cell = "1.21.3"
 colored = "2.1"

@@ -5,7 +5,7 @@
 
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
-use crate::interpreter::{Environment, Interpreter, IntDictMap, Value};
+use crate::interpreter::{DictMap, Environment, Interpreter, IntDictMap, Value};
 use crate::jit::{JitCompiler, CompiledFn, CompiledFnInfo};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -97,6 +97,10 @@ pub struct VM {
 
     /// Cache of integer keys converted to strings for dict operations
     int_key_cache: HashMap<i64, String>,
+
+    /// Object stack for JIT non-int values (strings, dicts)
+    jit_obj_stack: Vec<Value>,
+
 
     
     /// Tokio runtime handle for spawning async tasks
@@ -269,6 +273,7 @@ impl VM {
             max_recursion_depth: 0,
             inline_cache: HashMap::new(),
             int_key_cache: HashMap::new(),
+            jit_obj_stack: Vec::new(),
             runtime_handle: tokio::runtime::Handle::try_current()
                 .unwrap_or_else(|_| {
                     // If not in a tokio runtime, create one
@@ -376,6 +381,7 @@ impl VM {
                         Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
                         None => std::ptr::null_mut(),
                     };
+                    vm_context.obj_stack_ptr = &mut self.jit_obj_stack as *mut Vec<Value>;
                     
                     let chunk_name = self.chunk.name.as_deref().unwrap_or("<script>");
                     let cache_key = format!("script:{}", chunk_name);
@@ -449,7 +455,7 @@ impl VM {
                         // PRE-SCAN: Check if loop contains only supported opcodes
                         // This prevents compilation failures and maintains correctness
                         let mut int_dict_slots = std::collections::HashSet::new();
-                        let mut int_dict_loop_valid = std::env::var("ENABLE_JIT_INT_DICT_FAST_PATH").is_ok();
+                        let mut int_dict_loop_valid = std::env::var("ENABLE_INT_DICT_LOOP_JIT").is_ok();
 
                         if int_dict_loop_valid {
                             for instr in self.chunk.instructions.iter().take(self.ip + 1).skip(*jump_target) {
@@ -586,6 +592,7 @@ impl VM {
                                         Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
                                         None => std::ptr::null_mut(),
                                     };
+                                    vm_context.obj_stack_ptr = &mut self.jit_obj_stack as *mut Vec<Value>;
                                     
                                     let chunk_name = self.chunk.name.as_deref().unwrap_or("<script>");
                                     let cache_key = format!("loop:{}", chunk_name);
@@ -1073,6 +1080,7 @@ impl VM {
                                                 globals_ptr,
                                                 var_names_ptr,
                                                 local_slots_ptr,
+                                                obj_stack_ptr: &mut self.jit_obj_stack as *mut Vec<Value>,
                                                 vm_ptr,
                                                 return_value: 0,
                                                 has_return_value: false,
@@ -1147,6 +1155,7 @@ impl VM {
                                                     globals_ptr,
                                                     var_names_ptr: std::ptr::null_mut(),
                                                     local_slots_ptr,
+                                                    obj_stack_ptr: &mut self.jit_obj_stack as *mut Vec<Value>,
                                                     vm_ptr,
                                                     return_value: 0,
                                                     has_return_value: false,
@@ -1272,6 +1281,7 @@ impl VM {
                                         globals_ptr,
                                         var_names_ptr,
                                         local_slots_ptr,
+                                        obj_stack_ptr: &mut self.jit_obj_stack as *mut Vec<Value>,
                                         vm_ptr,
                                         return_value: 0,
                                         has_return_value: false,
@@ -1565,7 +1575,8 @@ impl VM {
                 }
 
                 OpCode::MakeDict(count) => {
-                    let mut dict = HashMap::with_capacity(count);
+                    let mut dict = DictMap::default();
+                    dict.reserve(count);
                     for _ in 0..count {
                         let value = self.stack.pop().ok_or("Stack underflow")?;
                         let key = self.stack.pop().ok_or("Stack underflow")?;
@@ -1581,7 +1592,8 @@ impl VM {
                 }
 
                 OpCode::MakeDictWithKeys(keys) => {
-                    let mut dict = HashMap::with_capacity(keys.len());
+                    let mut dict = DictMap::default();
+                    dict.reserve(keys.len());
                     for key in keys.iter().rev() {
                         let value = self.stack.pop().ok_or("Stack underflow")?;
                         dict.insert(key.clone(), value);
@@ -1604,7 +1616,7 @@ impl VM {
                         (Value::Dict(dict), Value::Str(key)) => {
                             dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
                         }
-                        (Value::Dict(dict), Value::Int(i)) => {
+                        (Value::Dict(dict), Value::Int(_i)) => {
                             // Support integer keys by converting to string
                             let key = self.int_key_string(*i);
                             dict.get(&key).cloned().unwrap_or(Value::Null)
@@ -1660,6 +1672,7 @@ impl VM {
                         (Value::Dict(dict), Value::Int(i)) => {
                             if dict.is_empty() {
                                 let mut int_dict = IntDictMap::default();
+                                int_dict.reserve(1024);
                                 int_dict.insert(i, value);
                                 self.stack.push(Value::IntDict(Arc::new(int_dict)));
                             } else {
@@ -1678,7 +1691,7 @@ impl VM {
                             self.stack.push(Value::IntDict(dict_clone));
                         }
                         (Value::IntDict(dict), Value::Str(key)) => {
-                            let mut dict_clone = HashMap::new();
+                            let mut dict_clone = DictMap::default();
                             for (k, v) in dict.iter() {
                                 dict_clone.insert(k.to_string(), v.clone());
                             }
@@ -1693,6 +1706,11 @@ impl VM {
                     // Pop index from stack
                     let index = self.stack.pop().ok_or("Stack underflow")?;
 
+                    let key_string = match index {
+                        Value::Int(i) => Some(self.int_key_string(i)),
+                        _ => None,
+                    };
+
                     let frame = self
                         .call_frames
                         .last()
@@ -1701,11 +1719,10 @@ impl VM {
                     let object = frame
                         .local_slots
                         .get(slot)
-                        .cloned()
                         .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
 
                     // Perform the index access
-                    let result = match (&object, &index) {
+                    let result = match (object, &index) {
                         (Value::Array(arr), Value::Int(i)) => {
                             let idx =
                                 if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
@@ -1717,8 +1734,8 @@ impl VM {
                             dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
                         }
                         (Value::Dict(dict), Value::Int(i)) => {
-                            let key = self.int_key_string(*i);
-                            dict.get(&key).cloned().unwrap_or(Value::Null)
+                            let key = key_string.as_ref().ok_or("Invalid index operation")?;
+                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
                         }
                         (Value::IntDict(dict), Value::Int(i)) => {
                             dict.get(i).cloned().unwrap_or(Value::Null)
@@ -1777,6 +1794,7 @@ impl VM {
                             Value::Dict(dict) => {
                                 if dict.is_empty() {
                                     let mut int_dict = IntDictMap::default();
+                                    int_dict.reserve(1024);
                                     int_dict.insert(i, value);
                                     *object = Value::IntDict(Arc::new(int_dict));
                                 } else {
@@ -1798,7 +1816,7 @@ impl VM {
                                 dict_mut.insert(key.as_ref().clone(), value);
                             }
                             Value::IntDict(dict) => {
-                                let mut dict_clone = HashMap::new();
+                                let mut dict_clone = DictMap::default();
                                 for (k, v) in dict.iter() {
                                     dict_clone.insert(k.to_string(), v.clone());
                                 }
@@ -1859,7 +1877,7 @@ impl VM {
                             self.stack.push(Value::Dict(dict_clone));
                         }
                         Value::IntDict(dict) => {
-                            let mut dict_clone = HashMap::new();
+                            let mut dict_clone = DictMap::default();
                             for (k, v) in dict.iter() {
                                 dict_clone.insert(k.to_string(), v.clone());
                             }
@@ -2455,7 +2473,7 @@ impl VM {
                 Ok(Value::Array(Arc::new(array)))
             }
             Constant::Dict(pairs) => {
-                let mut dict = HashMap::new();
+                let mut dict = DictMap::default();
                 for (key_const, value_const) in pairs {
                     let key = self.constant_to_value(key_const)?;
                     let value = self.constant_to_value(value_const)?;
@@ -2862,6 +2880,7 @@ impl VM {
                                         globals_ptr,
                                         var_names_ptr: std::ptr::null_mut(),
                                         local_slots_ptr,
+                                        obj_stack_ptr: &mut self.jit_obj_stack as *mut Vec<Value>,
                                         vm_ptr,
                                         return_value: 0,
                                         has_return_value: false,
@@ -2999,6 +3018,7 @@ impl VM {
                             globals_ptr,
                             var_names_ptr,
                             local_slots_ptr,
+                            obj_stack_ptr: &mut self.jit_obj_stack as *mut Vec<Value>,
                             vm_ptr,
                             return_value: 0,
                             has_return_value: false,

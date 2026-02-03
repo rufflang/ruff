@@ -3,7 +3,7 @@
 // Asynchronous operations native functions for Ruff.
 // Provides async functions for sleep, timeouts, Promise.all, Promise.race, etc.
 
-use crate::interpreter::{AsyncRuntime, Value};
+use crate::interpreter::{AsyncRuntime, DictMap, Value};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -195,12 +195,12 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     let body = response.text().await.map_err(|e| format!("Failed to read response body: {}", e))?;
                     
                     // Build result dictionary
-                    let mut result_dict = std::collections::HashMap::new();
+                    let mut result_dict = DictMap::default();
                     result_dict.insert("status".to_string(), Value::Int(status));
                     result_dict.insert("body".to_string(), Value::Str(Arc::new(body)));
                     
                     // Convert headers to dict
-                    let mut headers_dict = std::collections::HashMap::new();
+                    let mut headers_dict = DictMap::default();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
                             headers_dict.insert(name.to_string(), Value::Str(Arc::new(value_str.to_string())));
@@ -291,12 +291,12 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     let response_body = response.text().await.map_err(|e| format!("Failed to read response body: {}", e))?;
                     
                     // Build result dictionary
-                    let mut result_dict = std::collections::HashMap::new();
+                    let mut result_dict = DictMap::default();
                     result_dict.insert("status".to_string(), Value::Int(status));
                     result_dict.insert("body".to_string(), Value::Str(Arc::new(response_body)));
                     
                     // Convert headers to dict
-                    let mut headers_dict = std::collections::HashMap::new();
+                    let mut headers_dict = DictMap::default();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
                             headers_dict.insert(name.to_string(), Value::Str(Arc::new(value_str.to_string())));

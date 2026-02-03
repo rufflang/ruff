@@ -32,7 +32,7 @@ pub use environment::Environment;
 pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
 // Database infrastructure - used by stub database.rs module
 #[allow(unused_imports)]
-pub use value::{ConnectionPool, DatabaseConnection, IntDictMap, LeakyFunctionBody, Value};
+pub use value::{ConnectionPool, DatabaseConnection, DictMap, IntDictMap, LeakyFunctionBody, Value};
 
 // Internal-only imports
 use control_flow::ControlFlow;
@@ -1372,20 +1372,20 @@ impl Interpreter {
 
             if let Some((handler, path_params)) = matched_handler {
                 // Create params dict for request object
-                let mut params_dict = HashMap::new();
+                let mut params_dict = DictMap::default();
                 for (key, value) in &path_params {
                     params_dict.insert(key.clone(), Value::Str(Arc::new(value.clone())));
                 }
 
                 // Create request object as a Dict (not Struct) so has_key() and bracket access work
-                let mut req_fields = HashMap::new();
+                let mut req_fields = DictMap::default();
                 req_fields.insert("method".to_string(), Value::Str(Arc::new(method.clone())));
                 req_fields.insert("path".to_string(), Value::Str(Arc::new(url_path.clone())));
                 req_fields.insert("body".to_string(), Value::Str(Arc::new(body_content.clone())));
                 req_fields.insert("params".to_string(), Value::Dict(Arc::new(params_dict)));
 
                 // Extract headers from request
-                let mut headers_dict = HashMap::new();
+                let mut headers_dict = DictMap::default();
                 for header in request.headers() {
                     let header_name = header.field.as_str().to_string();
                     let header_value = header.value.as_str().to_string();
@@ -1549,7 +1549,7 @@ impl Interpreter {
 
                     // Bind rest elements if present
                     if let Some(rest_name) = rest {
-                        let mut rest_dict = std::collections::HashMap::new();
+                        let mut rest_dict = DictMap::default();
                         for (k, v) in dict.iter() {
                             if !keys.contains(k) {
                                 rest_dict.insert(k.clone(), v.clone());
@@ -1565,7 +1565,7 @@ impl Interpreter {
                     if let Some(rest_name) = rest {
                         self.env.define(
                             rest_name.clone(),
-                            Value::Dict(Arc::new(std::collections::HashMap::new())),
+                            Value::Dict(Arc::new(DictMap::default())),
                         );
                     }
                 }
@@ -3215,7 +3215,7 @@ impl Interpreter {
                                     }
 
                                     // Create argument definition
-                                    let mut arg_def = HashMap::new();
+                                    let mut arg_def = DictMap::default();
                                     arg_def.insert("long".to_string(), Value::Str(Arc::new(long_name)));
                                     if let Some(short) = short_name {
                                         arg_def.insert("short".to_string(), Value::Str(Arc::new(short)));
@@ -3814,7 +3814,7 @@ impl Interpreter {
             }
             Expr::DictLiteral(pairs) => {
                 use crate::ast::DictElement;
-                let mut map = HashMap::new();
+                let mut map = DictMap::default();
 
                 for elem in pairs {
                     match elem {
