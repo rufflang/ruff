@@ -147,6 +147,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Null => "null",
                     Value::Array(_) => "array",
                     Value::Dict(_) => "dict",
+                    Value::IntDict(_) => "dict",
                     Value::Set(_) => "set",
                     Value::Queue(_) => "queue",
                     Value::Stack(_) => "stack",

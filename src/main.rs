@@ -151,6 +151,9 @@ async fn main() {
                         // Spawn VM execution in a blocking task to avoid runtime conflicts
                         let result = tokio::task::spawn_blocking(move || {
                             let mut vm = vm::VM::new();
+                            if std::env::var("DISABLE_JIT").is_ok() {
+                                vm.set_jit_enabled(false);
+                            }
 
                             // Set up global environment with built-in functions
                             // We need to populate it with NativeFunction values for all built-ins

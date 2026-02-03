@@ -41,6 +41,7 @@ bcrypt = "0.15"
 aes-gcm = "0.10"
 rsa = { version = "0.9", features = ["sha2"] }
 pkcs8 = "0.10"
+nohash-hasher = "0.2"
 
 # JIT Compilation
 cranelift = "0.112"

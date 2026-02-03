@@ -6,6 +6,7 @@
 use crate::ast::{ArrayElement, DictElement, Expr, Pattern, Stmt};
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::optimizer::Optimizer;
+use std::collections::HashSet;
 
 /// Compiler state for generating bytecode from AST
 #[allow(dead_code)] // Compiler not yet integrated into execution path
@@ -25,6 +26,12 @@ pub struct Compiler {
     /// Local variables in current scope
     locals: Vec<Local>,
 
+    /// Next available local slot index
+    next_local_slot: usize,
+
+    /// Names of captured variables for this compiler
+    upvalue_names: HashSet<String>,
+
     /// Parent compiler (for nested functions/closures)
     parent: Option<Box<Compiler>>,
 }
@@ -34,6 +41,7 @@ pub struct Compiler {
 struct Local {
     name: String,
     depth: usize,
+    slot: usize,
 }
 
 #[allow(dead_code)] // Compiler not yet integrated into execution path
@@ -45,6 +53,8 @@ impl Compiler {
             loop_ends: Vec::new(),
             scope_depth: 0,
             locals: Vec::new(),
+            next_local_slot: 0,
+            upvalue_names: HashSet::new(),
             parent: None,
         }
     }
@@ -67,6 +77,9 @@ impl Compiler {
         // Ensure we return None at the end if no explicit return
         self.chunk.emit(OpCode::ReturnNone);
 
+        // Record local slot count
+        self.chunk.local_count = self.next_local_slot;
+
         // Apply optimizations if enabled
         let mut chunk = self.chunk.clone();
         if optimize {
@@ -88,6 +101,32 @@ impl Compiler {
         }
 
         Ok(chunk)
+    }
+
+    fn add_local(&mut self, name: &str, depth: usize) -> usize {
+        let slot = self.next_local_slot;
+        self.next_local_slot += 1;
+        self.locals.push(Local { name: name.to_string(), depth, slot });
+
+        if slot == self.chunk.local_names.len() {
+            self.chunk.local_names.push(name.to_string());
+        } else if slot < self.chunk.local_names.len() {
+            self.chunk.local_names[slot] = name.to_string();
+        }
+
+        slot
+    }
+
+    fn resolve_local_slot(&self, name: &str) -> Option<usize> {
+        self.locals
+            .iter()
+            .rev()
+            .find(|local| local.name == name && local.depth <= self.scope_depth)
+            .map(|local| local.slot)
+    }
+
+    fn is_upvalue(&self, name: &str) -> bool {
+        self.upvalue_names.contains(name)
     }
 
     /// Compile a single statement
@@ -114,6 +153,25 @@ impl Compiler {
             }
 
             Stmt::Assign { target, value } => {
+                if let (Expr::Identifier(target_name), Expr::BinaryOp { left, op, right }) =
+                    (target, value)
+                {
+                    if op == "+" {
+                        if let (Expr::Identifier(left_name), Expr::String(_)) = (&**left, &**right)
+                        {
+                            if left_name == target_name {
+                                if let Some(slot) = self.resolve_local_slot(target_name) {
+                                    // Compile RHS only and use in-place add for string literals
+                                    self.compile_expr(right)?;
+                                    self.chunk.emit(OpCode::AddInPlace(slot));
+                                    self.chunk.emit(OpCode::Pop);
+                                    return Ok(());
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Compile the value
                 self.compile_expr(value)?;
 
@@ -196,6 +254,13 @@ impl Compiler {
             }
 
             Stmt::For { var, iterable, body } => {
+                if self.resolve_local_slot(var).is_none()
+                    && self.scope_depth > 0
+                    && !self.is_upvalue(var)
+                {
+                    self.add_local(var, self.scope_depth);
+                }
+
                 // For now, compile as a while loop with an iterator
                 // This is a simplified implementation
 
@@ -236,7 +301,11 @@ impl Compiler {
                 self.chunk.emit(OpCode::IndexGet);
 
                 // Store in loop variable
-                self.chunk.emit(OpCode::StoreVar(var.clone()));
+                if let Some(slot) = self.resolve_local_slot(var) {
+                    self.chunk.emit(OpCode::StoreLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::StoreVar(var.clone()));
+                }
 
                 // Compile body
                 for stmt in body {
@@ -306,17 +375,14 @@ impl Compiler {
 
                 // Add parameters as locals
                 for param in params {
-                    func_compiler.locals.push(Local { name: param.clone(), depth: 1 });
+                    func_compiler.add_local(param, 1);
                 }
 
                 // Analyze the function body to find free variables (captures)
                 let free_vars = Self::find_free_variables(body, params, &self.locals);
                 func_compiler.chunk.upvalues = free_vars.clone();
 
-                // Add captured variables as locals so the compiler knows they exist
-                for upvalue_name in &free_vars {
-                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 1 });
-                }
+                func_compiler.upvalue_names = free_vars.iter().cloned().collect();
 
                 // Compile function body
                 for stmt in body {
@@ -325,6 +391,9 @@ impl Compiler {
 
                 // Ensure function returns None if no explicit return
                 func_compiler.chunk.emit(OpCode::ReturnNone);
+
+                // Record local slot count
+                func_compiler.chunk.local_count = func_compiler.next_local_slot;
 
                 // Add function as constant
                 let func_index =
@@ -337,9 +406,51 @@ impl Compiler {
                 Ok(())
             }
 
-            Stmt::StructDef { .. } => {
-                // Struct definitions are handled at runtime for now
-                // TODO: Optimize struct construction in bytecode
+            Stmt::StructDef { name, fields: _, methods } => {
+                // Compile struct methods into global bytecode functions
+                for method_stmt in methods {
+                    if let Stmt::FuncDef {
+                        name: method_name,
+                        params,
+                        body,
+                        is_async,
+                        is_generator,
+                        ..
+                    } = method_stmt
+                    {
+                        let mut func_compiler = Compiler::new();
+                        func_compiler.chunk.name = Some(format!("{}.{}", name, method_name));
+                        func_compiler.chunk.params = params.clone();
+                        func_compiler.chunk.is_async = *is_async;
+                        func_compiler.chunk.is_generator = *is_generator;
+                        func_compiler.scope_depth = 1;
+
+                        for param in params {
+                            func_compiler.add_local(param, 1);
+                        }
+
+                        let free_vars = Self::find_free_variables(body, params, &self.locals);
+                        func_compiler.chunk.upvalues = free_vars.clone();
+
+                        func_compiler.upvalue_names = free_vars.iter().cloned().collect();
+
+                        for stmt in body {
+                            func_compiler.compile_stmt(stmt)?;
+                        }
+
+                        func_compiler.chunk.emit(OpCode::ReturnNone);
+
+                        func_compiler.chunk.local_count = func_compiler.next_local_slot;
+                        let func_index = self
+                            .chunk
+                            .add_constant(Constant::Function(Box::new(func_compiler.chunk)));
+
+                        let global_name = format!("{}.{}", name, method_name);
+                        self.chunk.emit(OpCode::MakeClosure(func_index));
+                        self.chunk.emit(OpCode::StoreGlobal(global_name));
+                    }
+                }
+
                 Ok(())
             }
 
@@ -611,11 +722,14 @@ impl Compiler {
             }
 
             Expr::Identifier(name) => {
-                // Check if it's a local variable
-                if self.is_local(name) {
+                if self.is_upvalue(name) {
                     self.chunk.emit(OpCode::LoadVar(name.clone()));
-                } else {
+                } else if let Some(slot) = self.resolve_local_slot(name) {
+                    self.chunk.emit(OpCode::LoadLocal(slot));
+                } else if self.scope_depth == 0 {
                     self.chunk.emit(OpCode::LoadGlobal(name.clone()));
+                } else {
+                    self.chunk.emit(OpCode::LoadVar(name.clone()));
                 }
                 Ok(())
             }
@@ -705,13 +819,41 @@ impl Compiler {
 
             Expr::DictLiteral(elements) => {
                 let mut pair_count = 0;
+                let mut const_keys = Vec::new();
+                let mut all_string_keys = true;
+                let mut has_spread = false;
+
+                for element in elements {
+                    match element {
+                        DictElement::Pair(key, _value) => {
+                            if let Expr::String(s) = key {
+                                const_keys.push(s.clone());
+                            } else {
+                                all_string_keys = false;
+                            }
+                            pair_count += 1;
+                        }
+                        DictElement::Spread(_) => {
+                            has_spread = true;
+                        }
+                    }
+                }
+
+                if all_string_keys && !has_spread {
+                    for element in elements {
+                        if let DictElement::Pair(_, value) = element {
+                            self.compile_expr(value)?;
+                        }
+                    }
+                    self.chunk.emit(OpCode::MakeDictWithKeys(const_keys));
+                    return Ok(());
+                }
 
                 for element in elements {
                     match element {
                         DictElement::Pair(key, value) => {
                             self.compile_expr(key)?;
                             self.compile_expr(value)?;
-                            pair_count += 1;
                         }
                         DictElement::Spread(expr) => {
                             self.compile_expr(expr)?;
@@ -728,10 +870,10 @@ impl Compiler {
             Expr::IndexAccess { object, index } => {
                 // Optimization: if object is a local variable identifier, use IndexGetInPlace
                 if let Expr::Identifier(name) = &**object {
-                    if self.is_local(name) {
+                    if let Some(slot) = self.resolve_local_slot(name) {
                         // Compile index and emit optimized opcode
                         self.compile_expr(index)?;
-                        self.chunk.emit(OpCode::IndexGetInPlace(name.clone()));
+                        self.chunk.emit(OpCode::IndexGetInPlace(slot));
                         return Ok(());
                     }
                 }
@@ -758,18 +900,15 @@ impl Compiler {
 
                 // Add parameters as locals
                 for param in params {
-                    func_compiler.locals.push(Local { name: param.clone(), depth: 1 });
+                    func_compiler.add_local(param, 1);
                 }
 
                 // Analyze the function body to find free variables (captures)
                 let free_vars = Self::find_free_variables(body, params, &self.locals);
                 func_compiler.chunk.upvalues = free_vars.clone();
 
-                // Add captured variables as locals so the compiler knows they exist
-                // They will be resolved from the closure's captured map at runtime
-                for upvalue_name in &free_vars {
-                    func_compiler.locals.push(Local { name: upvalue_name.clone(), depth: 1 });
-                }
+                // Captured variables are resolved from the closure's captured map at runtime
+                func_compiler.upvalue_names = free_vars.iter().cloned().collect();
 
                 // Compile function body
                 for stmt in body {
@@ -778,6 +917,7 @@ impl Compiler {
 
                 func_compiler.chunk.emit(OpCode::ReturnNone);
 
+                func_compiler.chunk.local_count = func_compiler.next_local_slot;
                 let func_index =
                     self.chunk.add_constant(Constant::Function(Box::new(func_compiler.chunk)));
                 self.chunk.emit(OpCode::MakeClosure(func_index));
@@ -962,9 +1102,11 @@ impl Compiler {
             Pattern::Identifier(name) => {
                 if self.scope_depth == 0 {
                     self.chunk.emit(OpCode::StoreGlobal(name.clone()));
-                } else {
+                } else if self.is_upvalue(name) {
                     self.chunk.emit(OpCode::StoreVar(name.clone()));
-                    self.locals.push(Local { name: name.clone(), depth: self.scope_depth });
+                } else {
+                    let slot = self.add_local(name, self.scope_depth);
+                    self.chunk.emit(OpCode::StoreLocal(slot));
                 }
                 Ok(())
             }
@@ -997,10 +1139,15 @@ impl Compiler {
     fn compile_assignment(&mut self, target: &Expr) -> Result<(), String> {
         match target {
             Expr::Identifier(name) => {
-                if self.is_local(name) {
+                if self.is_upvalue(name) {
                     self.chunk.emit(OpCode::StoreVar(name.clone()));
-                } else {
+                } else if let Some(slot) = self.resolve_local_slot(name) {
+                    self.chunk.emit(OpCode::StoreLocal(slot));
+                } else if self.scope_depth == 0 {
                     self.chunk.emit(OpCode::StoreGlobal(name.clone()));
+                } else {
+                    let slot = self.add_local(name, self.scope_depth);
+                    self.chunk.emit(OpCode::StoreLocal(slot));
                 }
                 Ok(())
             }
@@ -1008,11 +1155,11 @@ impl Compiler {
             Expr::IndexAccess { object, index } => {
                 // Optimization: if object is a local variable identifier, use IndexSetInPlace
                 if let Expr::Identifier(name) = &**object {
-                    if self.is_local(name) {
+                    if let Some(slot) = self.resolve_local_slot(name) {
                         // Value is already on stack from assignment
                         // Compile index and emit optimized opcode
                         self.compile_expr(index)?;
-                        self.chunk.emit(OpCode::IndexSetInPlace(name.clone()));
+                        self.chunk.emit(OpCode::IndexSetInPlace(slot));
                         return Ok(());
                     }
                 }
@@ -1052,7 +1199,7 @@ impl Compiler {
 
     /// Check if a variable is a local
     fn is_local(&self, name: &str) -> bool {
-        self.locals.iter().any(|local| local.name == name)
+        self.resolve_local_slot(name).is_some()
     }
 
     /// Find free variables in a function body
@@ -1168,7 +1315,21 @@ impl Compiler {
                 }
                 Stmt::Assign { target, value } => {
                     collect_expr_vars(value, used);
-                    collect_expr_vars(target, used);
+                    match target {
+                        Expr::Identifier(name) => {
+                            defined.insert(name.clone());
+                        }
+                        Expr::IndexAccess { object, index } => {
+                            collect_expr_vars(object, used);
+                            collect_expr_vars(index, used);
+                        }
+                        Expr::FieldAccess { object, .. } => {
+                            collect_expr_vars(object, used);
+                        }
+                        _ => {
+                            collect_expr_vars(target, used);
+                        }
+                    }
                 }
                 Stmt::ExprStmt(expr) => {
                     collect_expr_vars(expr, used);

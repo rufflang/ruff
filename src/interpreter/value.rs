@@ -10,12 +10,17 @@ use postgres::Client as PostgresClient;
 use rusqlite::Connection as SqliteConnection;
 use std::collections::HashMap;
 use std::fs::File;
+use std::hash::BuildHasherDefault;
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
+use nohash_hasher::NoHashHasher;
 use zip::ZipWriter;
 
 // Forward declaration - Environment is in a sibling module
 use super::environment::Environment;
+
+/// Hash map for integer-keyed dictionaries.
+pub type IntDictMap = HashMap<i64, Value, BuildHasherDefault<NoHashHasher<i64>>>;
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
 ///
@@ -295,6 +300,8 @@ pub enum Value {
     Array(Arc<Vec<Value>>),
     /// Dictionary (hash map) of string keys to values (reference-counted for cheap cloning)
     Dict(Arc<HashMap<String, Value>>),
+    /// Dictionary (hash map) of integer keys to values (reference-counted for cheap cloning)
+    IntDict(Arc<IntDictMap>),
     /// Set of unique values
     Set(Vec<Value>),
     /// FIFO queue
@@ -440,6 +447,7 @@ impl std::fmt::Debug for Value {
                 .finish(),
             Value::Array(elements) => write!(f, "Array[{}]", elements.len()),
             Value::Dict(map) => write!(f, "Dict{{{} keys}}", map.len()),
+            Value::IntDict(map) => write!(f, "IntDict{{{} keys}}", map.len()),
             Value::Set(elements) => write!(f, "Set{{{} items}}", elements.len()),
             Value::Queue(queue) => write!(f, "Queue({} items)", queue.len()),
             Value::Stack(stack) => write!(f, "Stack({} items)", stack.len()),

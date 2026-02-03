@@ -10,13 +10,19 @@ while i < 100 {
 }
 
 # Map: square all numbers
-let squared := map(nums, |x| x * x)
+let squared := map(nums, func(x) {
+    return x * x
+})
 
 # Filter: keep even numbers
-let evens := filter(squared, |x| x % 2 == 0)
+let evens := filter(squared, func(x) {
+    return x % 2 == 0
+})
 
 # Reduce: sum all values
-let sum := reduce(evens, 0, |acc, x| acc + x)
+let sum := reduce(evens, 0, func(acc, x) {
+    return acc + x
+})
 
 # Result
 let result := sum

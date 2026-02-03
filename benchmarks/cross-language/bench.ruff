@@ -99,6 +99,11 @@ print("")
 
 fib_recursive(10)
 fib_iterative(100)
+array_sum(1000)
+hash_map_ops(1000)
+nested_loops(20)
+build_array(1000)
+object_creation(1000)
 
 print("1. Fibonacci Recursive (n=30)...")
 start := performance_now()

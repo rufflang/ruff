@@ -1687,6 +1687,15 @@ pub fn format_debug_value(value: &Value) -> String {
                 .collect();
             format!("Dict{{{}}}", items.join(", "))
         }
+        Value::IntDict(dict) => {
+            let mut keys: Vec<i64> = dict.keys().copied().collect();
+            keys.sort();
+            let items: Vec<String> = keys
+                .iter()
+                .map(|k| format!("{}: {}", k, format_debug_value(dict.get(k).unwrap())))
+                .collect();
+            format!("Dict{{{}}}", items.join(", "))
+        }
         Value::Function(_, _, _) => "Function".to_string(),
         Value::AsyncFunction(_, _, _) => "AsyncFunction".to_string(),
         Value::NativeFunction(name) => format!("NativeFunction({})", name),

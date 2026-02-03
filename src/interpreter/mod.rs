@@ -32,7 +32,7 @@ pub use environment::Environment;
 pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
 // Database infrastructure - used by stub database.rs module
 #[allow(unused_imports)]
-pub use value::{ConnectionPool, DatabaseConnection, LeakyFunctionBody, Value};
+pub use value::{ConnectionPool, DatabaseConnection, IntDictMap, LeakyFunctionBody, Value};
 
 // Internal-only imports
 use control_flow::ControlFlow;
@@ -117,6 +117,7 @@ impl Interpreter {
         let locked_env = env.lock().unwrap();
         self.env = locked_env.clone();
     }
+
 
     /// Get the current call stack for error reporting
     pub fn get_call_stack(&self) -> Vec<String> {
@@ -2752,7 +2753,12 @@ impl Interpreter {
                         }
                     }
                     (Value::Str(a), Value::Str(b)) => match op.as_str() {
-                        "+" => Value::Str(Arc::new(a.as_ref().to_string() + b.as_ref())),
+                        "+" => {
+                            let mut result = a.clone();
+                            let result_str = Arc::make_mut(&mut result);
+                            result_str.push_str(b.as_ref());
+                            Value::Str(result)
+                        }
                         "==" => Value::Bool(a.as_ref() == b.as_ref()),
                         "!=" => Value::Bool(a.as_ref() != b.as_ref()),
                         _ => Value::Int(0),

@@ -1,0 +1,49 @@
+╔════════════════════════════════════════════════════════════════╗
+║         RUFF vs PYTHON vs GO - PERFORMANCE BENCHMARK          ║
+╚════════════════════════════════════════════════════════════════╝
+
+Generated: Sat Jan 31 12:56:44 EST 2026
+System: Darwin x86_64
+
+────────────────────────────────────────────────────────────────
+RUFF BENCHMARK
+────────────────────────────────────────────────────────────────
+=== RUFF BENCHMARK SUITE ===
+
+1. Fibonacci Recursive (n=30)...
+   Result:
+832040
+   Time:
+6.435581999999999
+ms
+
+2. Fibonacci Iterative (n=100000)...
+   Result:
+1
+   Time:
+0.7667130000000011
+ms
+
+3. Array Sum (1M elements)...
+   Result:
+4950
+   Time:
+0.6261799999999997
+ms
+
+4. Hash Map Operations (100k items)...
+   Result:
+9999900000
+   Time:
+693.1563980000001
+ms
+
+5. String Concatenation (10k chars)...
+   Result:
+10000
+ chars
+   Time:
+197.84687399999996
+ms
+
+6. Nested Loops (1000x1000)...

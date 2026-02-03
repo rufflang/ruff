@@ -13,6 +13,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "len" => match arg_values.first() {
             Some(Value::Array(arr)) => Value::Int(arr.len() as i64),
             Some(Value::Dict(dict)) => Value::Int(dict.len() as i64),
+            Some(Value::IntDict(dict)) => Value::Int(dict.len() as i64),
             Some(Value::Bytes(bytes)) => Value::Int(bytes.len() as i64),
             Some(Value::Set(set)) => Value::Int(set.len() as i64),
             Some(Value::Queue(queue)) => Value::Int(queue.len() as i64),
@@ -41,9 +42,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "push" | "append" => {
             if let Some(Value::Array(arr)) = arg_values.first().cloned() {
                 if let Some(item) = arg_values.get(1).cloned() {
-                    let mut vec = (*arr).clone();
-                    vec.push(item);
-                    Value::Array(Arc::new(vec))
+                    let mut arr_clone = arr;
+                    let arr_mut = Arc::make_mut(&mut arr_clone);
+                    arr_mut.push(item);
+                    Value::Array(arr_clone)
                 } else {
                     Value::Array(arr)
                 }
@@ -54,9 +56,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "pop" => {
             if let Some(Value::Array(arr)) = arg_values.first().cloned() {
-                let mut vec = (*arr).clone();
-                let popped = vec.pop().unwrap_or(Value::Int(0));
-                Value::Array(Arc::new(vec![Value::Array(Arc::new(vec)), popped]))
+                let mut arr_clone = arr;
+                let arr_mut = Arc::make_mut(&mut arr_clone);
+                let popped = arr_mut.pop().unwrap_or(Value::Int(0));
+                Value::Array(Arc::new(vec![Value::Array(arr_clone), popped]))
             } else {
                 Value::Array(Arc::new(vec![]))
             }
@@ -78,8 +81,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                let mut result = (**arr1).clone();
-                result.extend((**arr2).clone());
+                let mut result = Vec::with_capacity(arr1.len() + arr2.len());
+                result.extend((**arr1).iter().cloned());
+                result.extend((**arr2).iter().cloned());
                 Value::Array(Arc::new(result))
             } else {
                 Value::Array(Arc::new(vec![]))
@@ -110,9 +114,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 Value::Array(Arc::new(builtins::array_remove((*arr).clone(), item)))
             }
             (Some(Value::Dict(dict)), Some(Value::Str(key))) => {
-                let mut dict_clone = (*dict).clone();
-                let removed = dict_clone.remove(key.as_ref()).unwrap_or(Value::Int(0));
-                Value::Array(Arc::new(vec![Value::Dict(Arc::new(dict_clone)), removed]))
+                let mut dict_clone = dict.clone();
+                let dict_mut = Arc::make_mut(&mut dict_clone);
+                let removed = dict_mut.remove(key.as_ref()).unwrap_or(Value::Int(0));
+                Value::Array(Arc::new(vec![Value::Dict(dict_clone), removed]))
             }
             _ => Value::Array(Arc::new(vec![])),
         },
@@ -153,10 +158,17 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
 
             let (array, func) = match (arg_values.first(), arg_values.get(1)) {
-                (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
-                    (arr.clone(), func.clone())
+                (
+                    Some(Value::Array(arr)),
+                    Some(func @ Value::Function(_, _, _))
+                    | Some(func @ Value::BytecodeFunction { .. }),
+                ) => (arr.clone(), func.clone()),
+                _ => {
+                    if std::env::var("DEBUG_VM").is_ok() {
+                        eprintln!("map arg types: first={:?}, second={:?}", arg_values.first(), arg_values.get(1));
+                    }
+                    return Some(Value::Error("map expects an array and a function".to_string()));
                 }
-                _ => return Some(Value::Error("map expects an array and a function".to_string())),
             };
 
             let mut result = Vec::new();
@@ -175,9 +187,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
 
             let (array, func) = match (arg_values.first(), arg_values.get(1)) {
-                (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
-                    (arr.clone(), func.clone())
-                }
+                (
+                    Some(Value::Array(arr)),
+                    Some(func @ Value::Function(_, _, _))
+                    | Some(func @ Value::BytecodeFunction { .. }),
+                ) => (arr.clone(), func.clone()),
                 _ => {
                     return Some(Value::Error("filter expects an array and a function".to_string()))
                 }
@@ -215,7 +229,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     (
                         Some(Value::Array(arr)),
                         Some(init),
-                        Some(func @ Value::Function(_, _, _)),
+                        Some(func @ Value::Function(_, _, _))
+                        | Some(func @ Value::BytecodeFunction { .. }),
                     ) => (arr.clone(), init.clone(), func.clone()),
                     _ => {
                         return Some(Value::Error(
@@ -239,9 +254,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
 
             let (array, func) = match (arg_values.first(), arg_values.get(1)) {
-                (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
-                    (arr.clone(), func.clone())
-                }
+                (
+                    Some(Value::Array(arr)),
+                    Some(func @ Value::Function(_, _, _))
+                    | Some(func @ Value::BytecodeFunction { .. }),
+                ) => (arr.clone(), func.clone()),
                 _ => return Some(Value::Error("find expects an array and a function".to_string())),
             };
 
@@ -271,9 +288,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
 
             let (array, func) = match (arg_values.first(), arg_values.get(1)) {
-                (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
-                    (arr.clone(), func.clone())
-                }
+                (
+                    Some(Value::Array(arr)),
+                    Some(func @ Value::Function(_, _, _))
+                    | Some(func @ Value::BytecodeFunction { .. }),
+                ) => (arr.clone(), func.clone()),
                 _ => return Some(Value::Error("any expects an array and a function".to_string())),
             };
 
@@ -303,9 +322,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
 
             let (array, func) = match (arg_values.first(), arg_values.get(1)) {
-                (Some(Value::Array(arr)), Some(func @ Value::Function(_, _, _))) => {
-                    (arr.clone(), func.clone())
-                }
+                (
+                    Some(Value::Array(arr)),
+                    Some(func @ Value::Function(_, _, _))
+                    | Some(func @ Value::BytecodeFunction { .. }),
+                ) => (arr.clone(), func.clone()),
                 _ => return Some(Value::Error("all expects an array and a function".to_string())),
             };
 
@@ -505,9 +526,20 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         // Dict functions
         "keys" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
-                let mut keys: Vec<String> = dict.keys().cloned().collect();
+                let mut keys: Vec<String> = Vec::with_capacity(dict.len());
+                for key in dict.keys() {
+                    keys.push(key.clone());
+                }
                 keys.sort();
                 let keys: Vec<Value> = keys.into_iter().map(|k| Value::Str(Arc::new(k))).collect();
+                Value::Array(Arc::new(keys))
+            } else if let Some(Value::IntDict(dict)) = arg_values.first() {
+                let mut keys: Vec<i64> = dict.keys().copied().collect();
+                keys.sort();
+                let keys: Vec<Value> = keys
+                    .into_iter()
+                    .map(|k| Value::Str(Arc::new(k.to_string())))
+                    .collect();
                 Value::Array(Arc::new(keys))
             } else {
                 Value::Array(Arc::new(vec![]))
@@ -516,9 +548,17 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "values" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
-                let mut keys: Vec<&String> = dict.keys().collect();
+                let mut keys: Vec<&String> = Vec::with_capacity(dict.len());
+                for key in dict.keys() {
+                    keys.push(key);
+                }
                 keys.sort();
                 let vals: Vec<Value> = keys.iter().map(|k| dict.get(*k).unwrap().clone()).collect();
+                Value::Array(Arc::new(vals))
+            } else if let Some(Value::IntDict(dict)) = arg_values.first() {
+                let mut keys: Vec<i64> = dict.keys().copied().collect();
+                keys.sort();
+                let vals: Vec<Value> = keys.iter().map(|k| dict.get(k).unwrap().clone()).collect();
                 Value::Array(Arc::new(vals))
             } else {
                 Value::Array(Arc::new(vec![]))
@@ -530,6 +570,15 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 (arg_values.first(), arg_values.get(1))
             {
                 Value::Int(if dict.contains_key(key.as_ref()) { 1 } else { 0 })
+            } else if let (Some(Value::IntDict(dict)), Some(key_val)) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let int_key = match key_val {
+                    Value::Int(i) => Some(*i),
+                    Value::Str(key) => key.parse::<i64>().ok(),
+                    _ => None,
+                };
+                Value::Int(if int_key.is_some() && dict.contains_key(&int_key.unwrap()) { 1 } else { 0 })
             } else {
                 Value::Int(0)
             }
@@ -537,12 +586,28 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         "items" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
-                let mut keys: Vec<&String> = dict.keys().collect();
+                let mut keys: Vec<&String> = Vec::with_capacity(dict.len());
+                for key in dict.keys() {
+                    keys.push(key);
+                }
                 keys.sort();
                 let items: Vec<Value> = keys
                     .iter()
                     .map(|k| {
                         Value::Array(Arc::new(vec![Value::Str(Arc::new((*k).clone())), dict.get(*k).unwrap().clone()]))
+                    })
+                    .collect();
+                Value::Array(Arc::new(items))
+            } else if let Some(Value::IntDict(dict)) = arg_values.first() {
+                let mut keys: Vec<i64> = dict.keys().copied().collect();
+                keys.sort();
+                let items: Vec<Value> = keys
+                    .iter()
+                    .map(|k| {
+                        Value::Array(Arc::new(vec![
+                            Value::Str(Arc::new(k.to_string())),
+                            dict.get(k).unwrap().clone(),
+                        ]))
                     })
                     .collect();
                 Value::Array(Arc::new(items))
@@ -557,6 +622,20 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             {
                 let default = arg_values.get(2).cloned().unwrap_or(Value::Null);
                 dict.get(key.as_ref()).cloned().unwrap_or(default)
+            } else if let (Some(Value::IntDict(dict)), Some(key_val)) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let default = arg_values.get(2).cloned().unwrap_or(Value::Null);
+                let int_key = match key_val {
+                    Value::Int(i) => Some(*i),
+                    Value::Str(key) => key.parse::<i64>().ok(),
+                    _ => None,
+                };
+                if let Some(key) = int_key {
+                    dict.get(&key).cloned().unwrap_or(default)
+                } else {
+                    default
+                }
             } else {
                 Value::Null
             }
@@ -571,6 +650,14 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result.insert(k.clone(), v.clone());
                 }
                 Value::Dict(Arc::new(result))
+            } else if let (Some(Value::IntDict(dict1)), Some(Value::IntDict(dict2))) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = (**dict1).clone();
+                for (k, v) in dict2.iter() {
+                    result.insert(*k, v.clone());
+                }
+                Value::IntDict(Arc::new(result))
             } else {
                 Value::Dict(Arc::new(HashMap::new()))
             }
@@ -579,6 +666,12 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "invert" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
                 Value::Dict(Arc::new(builtins::dict_invert(&**dict)))
+            } else if let Some(Value::IntDict(dict)) = arg_values.first() {
+                let mut inverted = HashMap::new();
+                for (k, v) in dict.iter() {
+                    inverted.insert(k.to_string(), v.clone());
+                }
+                Value::Dict(Arc::new(inverted))
             } else {
                 Value::Error("invert() requires a dict argument".to_string())
             }
@@ -593,6 +686,14 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result.insert(k.clone(), v.clone());
                 }
                 Value::Dict(Arc::new(result))
+            } else if let (Some(Value::IntDict(dict1)), Some(Value::IntDict(dict2))) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = (**dict1).clone();
+                for (k, v) in dict2.iter() {
+                    result.insert(*k, v.clone());
+                }
+                Value::IntDict(Arc::new(result))
             } else {
                 Value::Dict(Arc::new(HashMap::new()))
             }
@@ -604,6 +705,19 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             {
                 if let Some(value) = dict.get(key.as_ref()) {
                     value.clone()
+                } else {
+                    default_val.clone()
+                }
+            } else if let (Some(Value::IntDict(dict)), Some(key_val), Some(default_val)) =
+                (arg_values.first(), arg_values.get(1), arg_values.get(2))
+            {
+                let int_key = match key_val {
+                    Value::Int(i) => Some(*i),
+                    Value::Str(key) => key.parse::<i64>().ok(),
+                    _ => None,
+                };
+                if let Some(key) = int_key {
+                    dict.get(&key).cloned().unwrap_or(default_val.clone())
                 } else {
                     default_val.clone()
                 }

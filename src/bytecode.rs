@@ -19,6 +19,10 @@ pub enum OpCode {
     /// Operand: variable name
     LoadVar(String),
 
+    /// Load a local variable value onto the stack
+    /// Operand: local slot index
+    LoadLocal(usize),
+
     /// Load a global variable value onto the stack
     /// Operand: variable name
     LoadGlobal(String),
@@ -26,6 +30,10 @@ pub enum OpCode {
     /// Store top of stack to a variable (creates or updates)
     /// Operand: variable name
     StoreVar(String),
+
+    /// Store top of stack to a local variable slot
+    /// Operand: local slot index
+    StoreLocal(usize),
 
     /// Store top of stack to a global variable
     /// Operand: variable name
@@ -40,6 +48,11 @@ pub enum OpCode {
     // === Arithmetic Operations ===
     /// Pop two values, add them, push result
     Add,
+
+    /// Add to variable in-place (avoids LoadVar/StoreVar)
+    /// Operand: local slot index
+    /// Stack: [rhs] -> [result]
+    AddInPlace(usize),
 
     /// Pop two values, subtract (top from second), push result
     Sub,
@@ -131,6 +144,11 @@ pub enum OpCode {
     /// Operand: number of key-value pairs
     MakeDict(usize),
 
+    /// Create a dict from N values on stack with constant string keys
+    /// Operand: ordered list of string keys
+    /// Stack: [val1, val2, ...] -> [dict]
+    MakeDictWithKeys(Vec<String>),
+
     /// Pop index and object, push object[index]
     IndexGet,
 
@@ -146,16 +164,16 @@ pub enum OpCode {
     FieldSet(String),
 
     /// Get value from local variable dict/array in-place (no cloning)
-    /// Operand: variable name
+    /// Operand: local slot index
     /// Stack: [index] -> [value]
     /// Optimized version of LoadVar + IndexGet for local variables
-    IndexGetInPlace(String),
+    IndexGetInPlace(usize),
 
     /// Set value in local variable dict/array in-place (no cloning)
-    /// Operand: variable name
+    /// Operand: local slot index
     /// Stack: [index, value] -> []
     /// Optimized version of LoadVar + IndexSet + StoreVar for local variables
-    IndexSetInPlace(String),
+    IndexSetInPlace(usize),
 
     // === Spread Operations ===
     /// Spread an array/dict onto stack for collection construction
@@ -355,6 +373,12 @@ pub struct BytecodeChunk {
     /// Parameter names for functions
     pub params: Vec<String>,
 
+    /// Local variable names by slot index
+    pub local_names: Vec<String>,
+
+    /// Number of local slots allocated for this chunk
+    pub local_count: usize,
+
     /// Exception handlers for try/catch blocks
     pub exception_handlers: Vec<ExceptionHandler>,
 
@@ -377,6 +401,8 @@ impl BytecodeChunk {
             source_map: HashMap::new(),
             name: None,
             params: Vec::new(),
+            local_names: Vec::new(),
+            local_count: 0,
             exception_handlers: Vec::new(),
             upvalues: Vec::new(),
             is_generator: false,
