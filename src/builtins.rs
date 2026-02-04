@@ -591,7 +591,7 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
         serde_json::Value::Object(obj) => {
             let mut ruff_dict = DictMap::default();
             for (key, val) in obj {
-                ruff_dict.insert(key, json_to_ruff_value(val));
+                ruff_dict.insert(key.into(), json_to_ruff_value(val));
             }
             Value::Dict(Arc::new(ruff_dict))
         }
@@ -619,7 +619,7 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
         Value::Dict(dict) => {
             let mut json_obj = serde_json::Map::new();
             for (key, val) in dict.iter() {
-                json_obj.insert(key.clone(), ruff_value_to_json(val)?);
+                json_obj.insert(key.to_string(), ruff_value_to_json(val)?);
             }
             Ok(serde_json::Value::Object(json_obj))
         }
@@ -665,7 +665,7 @@ fn toml_to_ruff_value(toml: toml::Value) -> Value {
         toml::Value::Table(table) => {
             let mut ruff_dict = DictMap::default();
             for (key, val) in table {
-                ruff_dict.insert(key, toml_to_ruff_value(val));
+                ruff_dict.insert(key.into(), toml_to_ruff_value(val));
             }
             Value::Dict(Arc::new(ruff_dict))
         }
@@ -691,7 +691,7 @@ fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
         Value::Dict(dict) => {
             let mut toml_table = toml::map::Map::new();
             for (key, val) in dict.iter() {
-                toml_table.insert(key.clone(), ruff_value_to_toml(val)?);
+                toml_table.insert(key.to_string(), ruff_value_to_toml(val)?);
             }
             Ok(toml::Value::Table(toml_table))
         }
@@ -746,11 +746,11 @@ fn yaml_to_ruff_value(yaml: serde_yaml::Value) -> Value {
             let mut ruff_dict = DictMap::default();
             for (key, val) in map {
                 if let serde_yaml::Value::String(key_str) = key {
-                    ruff_dict.insert(key_str, yaml_to_ruff_value(val));
+                    ruff_dict.insert(key_str.into(), yaml_to_ruff_value(val));
                 } else {
                     // Convert non-string keys to strings
                     let key_str = format!("{:?}", key);
-                    ruff_dict.insert(key_str, yaml_to_ruff_value(val));
+                    ruff_dict.insert(key_str.into(), yaml_to_ruff_value(val));
                 }
             }
             Value::Dict(Arc::new(ruff_dict))
@@ -781,7 +781,7 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
         Value::Dict(dict) => {
             let mut yaml_map = serde_yaml::Mapping::new();
             for (key, val) in dict.iter() {
-                yaml_map.insert(serde_yaml::Value::String(key.clone()), ruff_value_to_yaml(val)?);
+                yaml_map.insert(serde_yaml::Value::String(key.to_string()), ruff_value_to_yaml(val)?);
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
         }
@@ -819,7 +819,7 @@ pub fn parse_csv(csv_str: &str) -> Result<Value, String> {
                     } else {
                         Value::Str(Arc::new(field.to_string()))
                     };
-                    row_dict.insert(header.to_string(), value);
+                    row_dict.insert(header.to_string().into(), value);
                 }
                 rows.push(Value::Dict(Arc::new(row_dict)));
             }
@@ -840,7 +840,7 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
 
             // Get headers from first row
             if let Some(Value::Dict(first_row)) = rows.first() {
-                let headers: Vec<String> = first_row.keys().cloned().collect();
+                let headers: Vec<String> = first_row.keys().map(|key| key.to_string()).collect();
 
                 if let Err(e) = wtr.write_record(&headers) {
                     return Err(format!("CSV write error: {}", e));
@@ -851,7 +851,7 @@ pub fn to_csv(value: &Value) -> Result<String, String> {
                     if let Value::Dict(row) = row_val {
                         let mut record = Vec::new();
                         for header in &headers {
-                            let value_str = match row.get(header) {
+                            let value_str = match row.get(header.as_str()) {
                                 Some(Value::Int(n)) => n.to_string(),
                                 Some(Value::Float(n)) => n.to_string(),
                                 Some(Value::Str(s)) => s.as_ref().clone(),
@@ -1376,7 +1376,7 @@ pub fn dict_invert(dict: &DictMap) -> DictMap {
             Value::Bool(b) => b.to_string(),
             _ => continue, // Skip non-primitive values
         };
-        result.insert(new_key, Value::Str(Arc::new(key.clone())));
+        result.insert(Arc::from(new_key), Value::Str(Arc::new(key.to_string())));
     }
 
     result
@@ -1394,8 +1394,8 @@ pub fn http_get(url: &str) -> Result<DictMap, String> {
             let body = response.text().unwrap_or_default();
 
             let mut result = DictMap::default();
-            result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(Arc::new(body)));
+            result.insert("status".into(), Value::Int(status as i64));
+            result.insert("body".into(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1421,8 +1421,8 @@ pub fn http_post(url: &str, body_json: &str) -> Result<DictMap, String> {
             let body = response.text().unwrap_or_default();
 
             let mut result = DictMap::default();
-            result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(Arc::new(body)));
+            result.insert("status".into(), Value::Int(status as i64));
+            result.insert("body".into(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1447,8 +1447,8 @@ pub fn http_put(url: &str, body_json: &str) -> Result<DictMap, String> {
             let body = response.text().unwrap_or_default();
 
             let mut result = DictMap::default();
-            result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(Arc::new(body)));
+            result.insert("status".into(), Value::Int(status as i64));
+            result.insert("body".into(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1468,8 +1468,8 @@ pub fn http_delete(url: &str) -> Result<DictMap, String> {
             let body = response.text().unwrap_or_default();
 
             let mut result = DictMap::default();
-            result.insert("status".to_string(), Value::Int(status as i64));
-            result.insert("body".to_string(), Value::Str(Arc::new(body)));
+            result.insert("status".into(), Value::Int(status as i64));
+            result.insert("body".into(), Value::Str(Arc::new(body)));
 
             Ok(result)
         }
@@ -1525,7 +1525,7 @@ pub fn jwt_encode(payload: &DictMap, secret: &str) -> Result<String, String> {
     for (key, value) in payload {
         let json_value = ruff_value_to_json(value)
             .map_err(|e| format!("Failed to convert payload to JSON: {}", e))?;
-        claims_data.insert(key.clone(), json_value);
+        claims_data.insert(key.to_string(), json_value);
     }
 
     let claims = Claims { data: claims_data };
@@ -1551,7 +1551,7 @@ pub fn jwt_decode(token: &str, secret: &str) -> Result<DictMap, String> {
     // Convert claims back to Ruff dictionary
     let mut result = DictMap::default();
     for (key, json_value) in token_data.claims.data {
-        result.insert(key, json_to_ruff_value(json_value));
+        result.insert(key.into(), json_to_ruff_value(json_value));
     }
 
     Ok(result)
@@ -1612,7 +1612,7 @@ pub fn oauth2_get_token(
                     let mut result = DictMap::default();
                     if let Some(obj) = json.as_object() {
                         for (key, val) in obj {
-                            result.insert(key.clone(), json_to_ruff_value(val.clone()));
+                            result.insert(key.clone().into(), json_to_ruff_value(val.clone()));
                         }
                     }
                     Ok(result)
@@ -1679,11 +1679,20 @@ pub fn format_debug_value(value: &Value) -> String {
             format!("Array[{}]", items.join(", "))
         }
         Value::Dict(dict) => {
-            let mut keys: Vec<&String> = dict.keys().collect();
-            keys.sort();
+            let mut keys: Vec<&Arc<str>> = dict.keys().collect();
+            keys.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
             let items: Vec<String> = keys
                 .iter()
-                .map(|k| format!("{}: {}", k, format_debug_value(dict.get(*k).unwrap())))
+                .map(|k| format!("{}: {}", k, format_debug_value(dict.get(k.as_ref()).unwrap())))
+                .collect();
+            format!("Dict{{{}}}", items.join(", "))
+        }
+        Value::FixedDict { keys, values } => {
+            let mut pairs: Vec<(&Arc<str>, &Value)> = keys.iter().zip(values.iter()).collect();
+            pairs.sort_by(|(a, _), (b, _)| a.as_ref().cmp(b.as_ref()));
+            let items: Vec<String> = pairs
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, format_debug_value(v)))
                 .collect();
             format!("Dict{{{}}}", items.join(", "))
         }
@@ -1693,6 +1702,27 @@ pub fn format_debug_value(value: &Value) -> String {
             let items: Vec<String> = keys
                 .iter()
                 .map(|k| format!("{}: {}", k, format_debug_value(dict.get(k).unwrap())))
+                .collect();
+            format!("Dict{{{}}}", items.join(", "))
+        }
+        Value::DenseIntDict(values) => {
+            let items: Vec<String> = values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| format!("{}: {}", index, format_debug_value(value)))
+                .collect();
+            format!("Dict{{{}}}", items.join(", "))
+        }
+        Value::DenseIntDictInt(values) => {
+            let items: Vec<String> = values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    match value {
+                        Some(value) => format!("{}: {}", index, value),
+                        None => format!("{}: null", index),
+                    }
+                })
                 .collect();
             format!("Dict{{{}}}", items.join(", "))
         }
@@ -1824,13 +1854,13 @@ pub fn parse_arguments(
                     match def.arg_type.as_str() {
                         "bool" => {
                             // Flags don't consume next argument
-                            result.insert(key, Value::Bool(true));
+                            result.insert(key.into(), Value::Bool(true));
                         }
                         "string" => {
                             // Consume next argument as string value
                             if i + 1 < args.len() {
                                 i += 1;
-                                result.insert(key, Value::Str(Arc::new(args[i].clone())));
+                                result.insert(key.into(), Value::Str(Arc::new(args[i].clone())));
                             } else {
                                 return Err(format!("Argument {} requires a value", def.long_name));
                             }
@@ -1841,7 +1871,7 @@ pub fn parse_arguments(
                                 i += 1;
                                 match args[i].parse::<i64>() {
                                     Ok(val) => {
-                                        result.insert(key, Value::Int(val));
+                                        result.insert(key.into(), Value::Int(val));
                                     }
                                     Err(_) => {
                                         return Err(format!(
@@ -1860,7 +1890,7 @@ pub fn parse_arguments(
                                 i += 1;
                                 match args[i].parse::<f64>() {
                                     Ok(val) => {
-                                        result.insert(key, Value::Float(val));
+                                        result.insert(key.into(), Value::Float(val));
                                     }
                                     Err(_) => {
                                         return Err(format!(
@@ -1909,13 +1939,13 @@ pub fn parse_arguments(
                     "float" => Value::Float(default_val.parse().unwrap_or(0.0)),
                     _ => Value::Str(Arc::new(default_val.clone())),
                 };
-                result.insert(key, value);
+                result.insert(key.into(), value);
             } else if def.arg_type == "bool" {
                 // Bool flags default to false if not provided
-                result.insert(key, Value::Bool(false));
+                result.insert(key.into(), Value::Bool(false));
             } else {
                 // For non-bool optional arguments without defaults, use Null
-                result.insert(key, Value::Null);
+                result.insert(key.into(), Value::Null);
             }
         }
     }
@@ -1923,7 +1953,7 @@ pub fn parse_arguments(
     // Store positional arguments if any
     if !positional_args.is_empty() {
         result.insert(
-            "_positional".to_string(),
+            "_positional".into(),
             Value::Array(Arc::new(positional_args.into_iter().map(|s| Value::Str(Arc::new(s))).collect())),
         );
     }

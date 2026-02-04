@@ -23,8 +23,14 @@ use super::environment::Environment;
 /// Hash map for integer-keyed dictionaries.
 pub type IntDictMap = HashMap<i64, Value, BuildHasherDefault<NoHashHasher<i64>>>;
 
+/// Dense vector for integer-keyed dictionaries with non-negative keys.
+pub type DenseIntDict = Vec<Value>;
+
+/// Dense vector for integer-keyed dictionaries with optional int values.
+pub type DenseIntDictInt = Vec<Option<i64>>;
+
 /// Hash map for string-keyed dictionaries.
-pub type DictMap = HashMap<String, Value, BuildHasherDefault<AHasher>>;
+pub type DictMap = HashMap<Arc<str>, Value, BuildHasherDefault<AHasher>>;
 
 /// Wrapper type for function bodies that prevents deep recursion during drop.
 ///
@@ -304,8 +310,14 @@ pub enum Value {
     Array(Arc<Vec<Value>>),
     /// Dictionary (hash map) of string keys to values (reference-counted for cheap cloning)
     Dict(Arc<DictMap>),
+    /// Fixed-key dictionary for fast literal construction
+    FixedDict { keys: Arc<Vec<Arc<str>>>, values: Vec<Value> },
     /// Dictionary (hash map) of integer keys to values (reference-counted for cheap cloning)
     IntDict(Arc<IntDictMap>),
+    /// Dense integer dictionary for non-negative integer keys
+    DenseIntDict(Arc<DenseIntDict>),
+    /// Dense integer dictionary for non-negative integer keys with int values only
+    DenseIntDictInt(Arc<DenseIntDictInt>),
     /// Set of unique values
     Set(Vec<Value>),
     /// FIFO queue
@@ -451,7 +463,10 @@ impl std::fmt::Debug for Value {
                 .finish(),
             Value::Array(elements) => write!(f, "Array[{}]", elements.len()),
             Value::Dict(map) => write!(f, "Dict{{{} keys}}", map.len()),
+            Value::FixedDict { keys, .. } => write!(f, "FixedDict{{{} keys}}", keys.len()),
             Value::IntDict(map) => write!(f, "IntDict{{{} keys}}", map.len()),
+            Value::DenseIntDict(values) => write!(f, "DenseIntDict{{{} keys}}", values.len()),
+            Value::DenseIntDictInt(values) => write!(f, "DenseIntDictInt{{{} keys}}", values.len()),
             Value::Set(elements) => write!(f, "Set{{{} items}}", elements.len()),
             Value::Queue(queue) => write!(f, "Queue({} items)", queue.len()),
             Value::Stack(stack) => write!(f, "Stack({} items)", stack.len()),

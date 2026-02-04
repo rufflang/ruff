@@ -35,8 +35,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     match handle.join() {
                         Ok(Ok((status, body))) => {
                             let mut result_map = DictMap::default();
-                            result_map.insert("status".to_string(), Value::Int(status as i64));
-                            result_map.insert("body".to_string(), Value::Str(Arc::new(body)));
+                            result_map.insert("status".into(), Value::Int(status as i64));
+                            result_map.insert("body".into(), Value::Str(Arc::new(body)));
                             results.push(Value::Dict(Arc::new(result_map)));
                         }
                         Ok(Err(e)) => results.push(Value::Error(e)),

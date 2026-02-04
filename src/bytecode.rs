@@ -4,6 +4,7 @@
 // Defines OpCode enum representing all bytecode instructions and supporting types.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Bytecode instruction opcodes for the Ruff VM
 /// Stack-based virtual machine with separate value and call stacks
@@ -147,7 +148,7 @@ pub enum OpCode {
     /// Create a dict from N values on stack with constant string keys
     /// Operand: ordered list of string keys
     /// Stack: [val1, val2, ...] -> [dict]
-    MakeDictWithKeys(Vec<String>),
+    MakeDictWithKeys(Arc<Vec<Arc<str>>>),
 
     /// Pop index and object, push object[index]
     IndexGet,

@@ -196,17 +196,17 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     
                     // Build result dictionary
                     let mut result_dict = DictMap::default();
-                    result_dict.insert("status".to_string(), Value::Int(status));
-                    result_dict.insert("body".to_string(), Value::Str(Arc::new(body)));
+                    result_dict.insert("status".into(), Value::Int(status));
+                    result_dict.insert("body".into(), Value::Str(Arc::new(body)));
                     
                     // Convert headers to dict
                     let mut headers_dict = DictMap::default();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
-                            headers_dict.insert(name.to_string(), Value::Str(Arc::new(value_str.to_string())));
+                            headers_dict.insert(name.to_string().into(), Value::Str(Arc::new(value_str.to_string())));
                         }
                     }
-                    result_dict.insert("headers".to_string(), Value::Dict(Arc::new(headers_dict)));
+                    result_dict.insert("headers".into(), Value::Dict(Arc::new(headers_dict)));
                     
                     Ok::<Value, String>(Value::Dict(Arc::new(result_dict)))
                 }.await;
@@ -279,7 +279,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     if let Some(headers_dict) = headers {
                         for (key, value) in headers_dict.iter() {
                             if let Value::Str(value_str) = value {
-                                request = request.header(key, value_str.as_ref());
+                                request = request.header(key.as_ref(), value_str.as_str());
                             }
                         }
                     }
@@ -292,17 +292,17 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     
                     // Build result dictionary
                     let mut result_dict = DictMap::default();
-                    result_dict.insert("status".to_string(), Value::Int(status));
-                    result_dict.insert("body".to_string(), Value::Str(Arc::new(response_body)));
+                    result_dict.insert("status".into(), Value::Int(status));
+                    result_dict.insert("body".into(), Value::Str(Arc::new(response_body)));
                     
                     // Convert headers to dict
                     let mut headers_dict = DictMap::default();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
-                            headers_dict.insert(name.to_string(), Value::Str(Arc::new(value_str.to_string())));
+                            headers_dict.insert(name.to_string().into(), Value::Str(Arc::new(value_str.to_string())));
                         }
                     }
-                    result_dict.insert("headers".to_string(), Value::Dict(Arc::new(headers_dict)));
+                    result_dict.insert("headers".into(), Value::Dict(Arc::new(headers_dict)));
                     
                     Ok::<Value, String>(Value::Dict(Arc::new(result_dict)))
                 }.await;

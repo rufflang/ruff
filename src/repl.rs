@@ -16,6 +16,7 @@ use crate::parser;
 use colored::Colorize;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+use std::sync::Arc;
 use std::collections::HashMap;
 
 /// REPL session that maintains interpreter state and handles user interaction
@@ -331,8 +332,8 @@ impl Repl {
             }
             Value::Dict(map) => {
                 print!("{} {}", "=>".bright_blue(), "{".bright_white());
-                let mut keys: Vec<&String> = map.keys().collect();
-                keys.sort();
+                let mut keys: Vec<&Arc<str>> = map.keys().collect();
+                keys.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
                 for (i, key) in keys.iter().enumerate() {
                     if i > 0 {
                         print!(", ");
@@ -340,7 +341,23 @@ impl Repl {
                     print!(
                         "{}: {}",
                         format!("\"{}\"", key).bright_yellow(),
-                        self.format_value_inline(map.get(*key).unwrap())
+                        self.format_value_inline(map.get(key.as_ref()).unwrap())
+                    );
+                }
+                println!("{}", "}".bright_white());
+            }
+            Value::FixedDict { keys, values } => {
+                print!("{} {}", "=>".bright_blue(), "{".bright_white());
+                let mut pairs: Vec<(&Arc<str>, &Value)> = keys.iter().zip(values.iter()).collect();
+                pairs.sort_by(|(a, _), (b, _)| a.as_ref().cmp(b.as_ref()));
+                for (i, (key, value)) in pairs.iter().enumerate() {
+                    if i > 0 {
+                        print!(", ");
+                    }
+                    print!(
+                        "{}: {}",
+                        format!("\"{}\"", key).bright_yellow(),
+                        self.format_value_inline(value)
                     );
                 }
                 println!("{}", "}".bright_white());

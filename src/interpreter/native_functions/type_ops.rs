@@ -102,6 +102,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Null => Value::Bool(false),
                     Value::Array(arr) => Value::Bool(!arr.is_empty()),
                     Value::Dict(dict) => Value::Bool(!dict.is_empty()),
+                    Value::FixedDict { keys, .. } => Value::Bool(!keys.is_empty()),
+                    Value::IntDict(dict) => Value::Bool(!dict.is_empty()),
+                    Value::DenseIntDict(values) => Value::Bool(!values.is_empty()),
+                    Value::DenseIntDictInt(values) => {
+                        Value::Bool(values.iter().any(|value| value.is_some()))
+                    }
                     _ => Value::Bool(true),
                 }
             } else {
@@ -147,7 +153,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Null => "null",
                     Value::Array(_) => "array",
                     Value::Dict(_) => "dict",
+                    Value::FixedDict { .. } => "dict",
                     Value::IntDict(_) => "dict",
+                    Value::DenseIntDict(_) => "dict",
+                    Value::DenseIntDictInt(_) => "dict",
                     Value::Set(_) => "set",
                     Value::Queue(_) => "queue",
                     Value::Stack(_) => "stack",
@@ -222,7 +231,14 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         "is_dict" => {
             if let Some(val) = arg_values.first() {
-                Value::Bool(matches!(val, Value::Dict(_)))
+                Value::Bool(matches!(
+                    val,
+                    Value::Dict(_)
+                        | Value::FixedDict { .. }
+                        | Value::IntDict(_)
+                        | Value::DenseIntDict(_)
+                        | Value::DenseIntDictInt(_)
+                ))
             } else {
                 Value::Bool(false)
             }
@@ -373,10 +389,49 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 }
                 Value::Dict(map) => {
                     if let Value::Str(key) = item {
-                        map.contains_key(key.as_ref())
+                        map.contains_key(key.as_str())
                     } else {
                         false
                     }
+                }
+                Value::FixedDict { keys, .. } => {
+                    if let Value::Str(key) = item {
+                        keys.iter().any(|k| k.as_ref() == key.as_str())
+                    } else {
+                        false
+                    }
+                }
+                Value::IntDict(dict) => {
+                    let int_key = match item {
+                        Value::Int(i) => Some(*i),
+                        Value::Str(key) => key.parse::<i64>().ok(),
+                        _ => None,
+                    };
+                    int_key.map(|key| dict.contains_key(&key)).unwrap_or(false)
+                }
+                Value::DenseIntDict(values) => {
+                    let int_key = match item {
+                        Value::Int(i) => Some(*i),
+                        Value::Str(key) => key.parse::<i64>().ok(),
+                        _ => None,
+                    };
+                    int_key
+                        .map(|key| key >= 0 && (key as usize) < values.len())
+                        .unwrap_or(false)
+                }
+                Value::DenseIntDictInt(values) => {
+                    let int_key = match item {
+                        Value::Int(i) => Some(*i),
+                        Value::Str(key) => key.parse::<i64>().ok(),
+                        _ => None,
+                    };
+                    int_key
+                        .map(|key| {
+                            key >= 0
+                                && (key as usize) < values.len()
+                                && values.get(key as usize).and_then(|value| *value).is_some()
+                        })
+                        .unwrap_or(false)
                 }
                 _ => {
                     return Some(Value::Error(

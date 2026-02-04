@@ -5,6 +5,7 @@
 
 use crate::ast::{ArrayElement, DictElement, Expr, Pattern, Stmt};
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
+use std::sync::Arc;
 use crate::optimizer::Optimizer;
 use std::collections::HashSet;
 
@@ -32,6 +33,9 @@ pub struct Compiler {
     /// Names of captured variables for this compiler
     upvalue_names: HashSet<String>,
 
+    /// Variables that are read in this compiler scope
+    used_locals: HashSet<String>,
+
     /// Parent compiler (for nested functions/closures)
     parent: Option<Box<Compiler>>,
 }
@@ -55,6 +59,7 @@ impl Compiler {
             locals: Vec::new(),
             next_local_slot: 0,
             upvalue_names: HashSet::new(),
+            used_locals: HashSet::new(),
             parent: None,
         }
     }
@@ -70,6 +75,8 @@ impl Compiler {
         statements: &[Stmt],
         optimize: bool,
     ) -> Result<BytecodeChunk, String> {
+        self.used_locals = Self::collect_used_variables(statements);
+
         for stmt in statements {
             self.compile_stmt(stmt)?;
         }
@@ -139,6 +146,12 @@ impl Compiler {
             }
 
             Stmt::Let { pattern, value, .. } => {
+                if let Pattern::Identifier(name) = pattern {
+                    if !self.used_locals.contains(name) && self.expr_is_pure(value) {
+                        return Ok(());
+                    }
+                }
+
                 // Compile the value
                 self.compile_expr(value)?;
 
@@ -153,6 +166,12 @@ impl Compiler {
             }
 
             Stmt::Assign { target, value } => {
+                if let Expr::Identifier(name) = target {
+                    if !self.used_locals.contains(name) && self.expr_is_pure(value) {
+                        return Ok(());
+                    }
+                }
+
                 if let (Expr::Identifier(target_name), Expr::BinaryOp { left, op, right }) =
                     (target, value)
                 {
@@ -367,6 +386,7 @@ impl Compiler {
             Stmt::FuncDef { name, params, body, is_async, is_generator, .. } => {
                 // Create a new compiler for the function body
                 let mut func_compiler = Compiler::new();
+                func_compiler.used_locals = Self::collect_used_variables(body);
                 func_compiler.chunk.name = Some(name.clone());
                 func_compiler.chunk.params = params.clone();
                 func_compiler.chunk.is_async = *is_async;
@@ -419,6 +439,7 @@ impl Compiler {
                     } = method_stmt
                     {
                         let mut func_compiler = Compiler::new();
+                        func_compiler.used_locals = Self::collect_used_variables(body);
                         func_compiler.chunk.name = Some(format!("{}.{}", name, method_name));
                         func_compiler.chunk.params = params.clone();
                         func_compiler.chunk.is_async = *is_async;
@@ -470,7 +491,8 @@ impl Compiler {
                     // For now, just match against string patterns
                     // TODO: Implement full pattern matching with Pattern enum
                     let pattern_str_index =
-                        self.chunk.add_constant(Constant::String(pattern_name.clone()));
+                        self.chunk
+                            .add_constant(Constant::String(pattern_name.clone()));
                     self.chunk.emit(OpCode::LoadConst(pattern_str_index));
                     self.chunk.emit(OpCode::Equal);
 
@@ -660,6 +682,7 @@ impl Compiler {
 
                 // Create function for spawn body
                 let mut spawn_compiler = Compiler::new();
+                spawn_compiler.used_locals = Self::collect_used_variables(body);
                 spawn_compiler.chunk.name = Some("<spawn>".to_string());
                 spawn_compiler.scope_depth = 0;
 
@@ -827,7 +850,7 @@ impl Compiler {
                     match element {
                         DictElement::Pair(key, _value) => {
                             if let Expr::String(s) = key {
-                                const_keys.push(s.clone());
+                                const_keys.push(Arc::from(s.clone()));
                             } else {
                                 all_string_keys = false;
                             }
@@ -840,12 +863,16 @@ impl Compiler {
                 }
 
                 if all_string_keys && !has_spread {
+                    if const_keys.is_empty() {
+                        self.chunk.emit(OpCode::MakeDict(0));
+                        return Ok(());
+                    }
                     for element in elements {
                         if let DictElement::Pair(_, value) = element {
                             self.compile_expr(value)?;
                         }
                     }
-                    self.chunk.emit(OpCode::MakeDictWithKeys(const_keys));
+                    self.chunk.emit(OpCode::MakeDictWithKeys(Arc::new(const_keys)));
                     return Ok(());
                 }
 
@@ -894,6 +921,7 @@ impl Compiler {
             Expr::Function { params, body, .. } => {
                 // Create anonymous function
                 let mut func_compiler = Compiler::new();
+                func_compiler.used_locals = Self::collect_used_variables(body);
                 func_compiler.chunk.name = Some("<lambda>".to_string());
                 func_compiler.chunk.params = params.clone();
                 func_compiler.scope_depth = 1; // Functions create a new scope (not global)
@@ -988,7 +1016,8 @@ impl Compiler {
 
                 // For now, treat as array with tag name
                 // TODO: Optimize enum handling
-                let tag_index = self.chunk.add_constant(Constant::String(tag.clone()));
+                let tag_index =
+                    self.chunk.add_constant(Constant::String(tag.clone()));
                 self.chunk.emit(OpCode::LoadConst(tag_index));
                 self.chunk.emit(OpCode::MakeArray(values.len() + 1));
 
@@ -1000,7 +1029,8 @@ impl Compiler {
                 for part in parts {
                     match part {
                         crate::ast::InterpolatedStringPart::Text(s) => {
-                            let index = self.chunk.add_constant(Constant::String(s.clone()));
+                            let index =
+                                self.chunk.add_constant(Constant::String(s.clone()));
                             self.chunk.emit(OpCode::LoadConst(index));
                         }
                         crate::ast::InterpolatedStringPart::Expr(e) => {
@@ -1200,6 +1230,255 @@ impl Compiler {
     /// Check if a variable is a local
     fn is_local(&self, name: &str) -> bool {
         self.resolve_local_slot(name).is_some()
+    }
+
+    /// Check if an expression is pure (no side effects) and safe to elide
+    fn expr_is_pure(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Int(_)
+            | Expr::Float(_)
+            | Expr::String(_)
+            | Expr::Bool(_)
+            | Expr::None => true,
+            Expr::Identifier(name) => self.resolve_local_slot(name).is_some() || self.is_upvalue(name),
+            Expr::UnaryOp { operand, .. } => self.expr_is_pure(operand),
+            Expr::BinaryOp { left, right, .. } => {
+                self.expr_is_pure(left) && self.expr_is_pure(right)
+            }
+            Expr::ArrayLiteral(elements) => elements.iter().all(|elem| match elem {
+                ArrayElement::Single(expr) | ArrayElement::Spread(expr) => self.expr_is_pure(expr),
+            }),
+            Expr::DictLiteral(entries) => entries.iter().all(|entry| match entry {
+                DictElement::Pair(key, value) => {
+                    self.expr_is_pure(key) && self.expr_is_pure(value)
+                }
+                DictElement::Spread(expr) => self.expr_is_pure(expr),
+            }),
+            Expr::StructInstance { fields, .. } => {
+                fields.iter().all(|(_, expr)| self.expr_is_pure(expr))
+            }
+            Expr::InterpolatedString(parts) => parts.iter().all(|part| match part {
+                crate::ast::InterpolatedStringPart::Text(_) => true,
+                crate::ast::InterpolatedStringPart::Expr(expr) => self.expr_is_pure(expr),
+            }),
+            Expr::Ok(expr) | Expr::Err(expr) | Expr::Some(expr) | Expr::Try(expr) => {
+                self.expr_is_pure(expr)
+            }
+            Expr::Tag(_, values) => values.iter().all(|expr| self.expr_is_pure(expr)),
+            _ => false,
+        }
+    }
+
+    /// Collect variables that are read within the statement list
+    fn collect_used_variables(body: &[Stmt]) -> HashSet<String> {
+        let mut used_vars = HashSet::new();
+
+        fn collect_expr_vars(expr: &Expr, used: &mut HashSet<String>) {
+            match expr {
+                Expr::Identifier(name) => {
+                    used.insert(name.clone());
+                }
+                Expr::BinaryOp { left, right, .. } => {
+                    collect_expr_vars(left, used);
+                    collect_expr_vars(right, used);
+                }
+                Expr::UnaryOp { operand, .. } => {
+                    collect_expr_vars(operand, used);
+                }
+                Expr::Call { function, args } => {
+                    collect_expr_vars(function, used);
+                    for arg in args {
+                        collect_expr_vars(arg, used);
+                    }
+                }
+                Expr::MethodCall { object, args, .. } => {
+                    collect_expr_vars(object, used);
+                    for arg in args {
+                        collect_expr_vars(arg, used);
+                    }
+                }
+                Expr::ArrayLiteral(elements) => {
+                    for elem in elements {
+                        match elem {
+                            ArrayElement::Single(expr) | ArrayElement::Spread(expr) => {
+                                collect_expr_vars(expr, used);
+                            }
+                        }
+                    }
+                }
+                Expr::DictLiteral(entries) => {
+                    for entry in entries {
+                        match entry {
+                            DictElement::Pair(key, value) => {
+                                collect_expr_vars(key, used);
+                                collect_expr_vars(value, used);
+                            }
+                            DictElement::Spread(expr) => {
+                                collect_expr_vars(expr, used);
+                            }
+                        }
+                    }
+                }
+                Expr::IndexAccess { object, index } => {
+                    collect_expr_vars(object, used);
+                    collect_expr_vars(index, used);
+                }
+                Expr::FieldAccess { object, .. } => {
+                    collect_expr_vars(object, used);
+                }
+                Expr::Function { body, .. } => {
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Expr::Ok(expr) | Expr::Err(expr) | Expr::Some(expr) | Expr::Await(expr) => {
+                    collect_expr_vars(expr, used);
+                }
+                Expr::Yield(Some(expr)) => {
+                    collect_expr_vars(expr, used);
+                }
+                Expr::Try(expr) => {
+                    collect_expr_vars(expr, used);
+                }
+                Expr::StructInstance { fields, .. } => {
+                    for (_, expr) in fields {
+                        collect_expr_vars(expr, used);
+                    }
+                }
+                Expr::InterpolatedString(parts) => {
+                    for part in parts {
+                        if let crate::ast::InterpolatedStringPart::Expr(expr) = part {
+                            collect_expr_vars(expr, used);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        fn collect_stmt_vars(stmt: &Stmt, used: &mut HashSet<String>) {
+            match stmt {
+                Stmt::Let { value, .. } => {
+                    collect_expr_vars(value, used);
+                }
+                Stmt::Assign { target, value } => {
+                    collect_expr_vars(value, used);
+                    match target {
+                        Expr::IndexAccess { object, index } => {
+                            collect_expr_vars(object, used);
+                            collect_expr_vars(index, used);
+                        }
+                        Expr::FieldAccess { object, .. } => {
+                            collect_expr_vars(object, used);
+                        }
+                        _ => {}
+                    }
+                }
+                Stmt::ExprStmt(expr) => {
+                    collect_expr_vars(expr, used);
+                }
+                Stmt::If { condition, then_branch, else_branch } => {
+                    collect_expr_vars(condition, used);
+                    for stmt in then_branch {
+                        collect_stmt_vars(stmt, used);
+                    }
+                    if let Some(else_stmts) = else_branch {
+                        for stmt in else_stmts {
+                            collect_stmt_vars(stmt, used);
+                        }
+                    }
+                }
+                Stmt::While { condition, body } => {
+                    collect_expr_vars(condition, used);
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::For { iterable, body, .. } => {
+                    collect_expr_vars(iterable, used);
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::Return(expr) => {
+                    if let Some(expr) = expr {
+                        collect_expr_vars(expr, used);
+                    }
+                }
+                Stmt::Break | Stmt::Continue => {}
+                Stmt::Match { value, cases, default } => {
+                    collect_expr_vars(value, used);
+                    for (_pattern, stmts) in cases {
+                        for stmt in stmts {
+                            collect_stmt_vars(stmt, used);
+                        }
+                    }
+                    if let Some(default_stmts) = default {
+                        for stmt in default_stmts {
+                            collect_stmt_vars(stmt, used);
+                        }
+                    }
+                }
+                Stmt::FuncDef { body, .. } => {
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::TryExcept { try_block, except_block, .. } => {
+                    for stmt in try_block {
+                        collect_stmt_vars(stmt, used);
+                    }
+                    for stmt in except_block {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::Block(stmts) => {
+                    for stmt in stmts {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::Const { value, .. } => {
+                    collect_expr_vars(value, used);
+                }
+                Stmt::Export { stmt } => {
+                    collect_stmt_vars(stmt, used);
+                }
+                Stmt::Spawn { body } => {
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::Loop { condition, body } => {
+                    if let Some(cond) = condition {
+                        collect_expr_vars(cond, used);
+                    }
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::Test { body, .. }
+                | Stmt::TestSetup { body }
+                | Stmt::TestTeardown { body } => {
+                    for stmt in body {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::TestGroup { tests, .. } => {
+                    for stmt in tests {
+                        collect_stmt_vars(stmt, used);
+                    }
+                }
+                Stmt::StructDef { .. }
+                | Stmt::EnumDef { .. }
+                | Stmt::Import { .. } => {}
+            }
+        }
+
+        for stmt in body {
+            collect_stmt_vars(stmt, &mut used_vars);
+        }
+
+        used_vars
     }
 
     /// Find free variables in a function body

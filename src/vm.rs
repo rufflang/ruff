@@ -48,6 +48,7 @@ pub struct VM {
     /// Current bytecode chunk
     chunk: BytecodeChunk,
 
+
     /// Interpreter instance for calling native functions
     interpreter: Interpreter,
 
@@ -284,6 +285,10 @@ impl VM {
         vm
     }
 
+    fn set_chunk(&mut self, chunk: BytecodeChunk) {
+        self.chunk = chunk;
+    }
+
     /// Set the global environment (for accessing built-in functions)
     pub fn set_globals(&mut self, env: Arc<Mutex<Environment>>) {
         self.globals = env.clone();
@@ -318,10 +323,50 @@ impl VM {
         value
     }
 
+    fn dense_int_dict_to_int_dict(values: &[Value]) -> IntDictMap {
+        let mut dict = IntDictMap::default();
+        dict.reserve(values.len());
+        for (index, value) in values.iter().enumerate() {
+            dict.insert(index as i64, value.clone());
+        }
+        dict
+    }
+
+    fn dense_int_dict_int_to_int_dict(values: &[Option<i64>]) -> IntDictMap {
+        let mut dict = IntDictMap::default();
+        dict.reserve(values.len());
+        for (index, value) in values.iter().enumerate() {
+            if let Some(value) = value {
+                dict.insert(index as i64, Value::Int(*value));
+            }
+        }
+        dict
+    }
+
+    fn dense_int_dict_to_dict(values: &[Value]) -> DictMap {
+        let mut dict = DictMap::default();
+        dict.reserve(values.len());
+        for (index, value) in values.iter().enumerate() {
+            dict.insert(Arc::from(index.to_string().as_str()), value.clone());
+        }
+        dict
+    }
+
+    fn dense_int_dict_int_to_dict(values: &[Option<i64>]) -> DictMap {
+        let mut dict = DictMap::default();
+        dict.reserve(values.len());
+        for (index, value) in values.iter().enumerate() {
+            if let Some(value) = value {
+                dict.insert(Arc::from(index.to_string().as_str()), Value::Int(*value));
+            }
+        }
+        dict
+    }
+
 
     /// Execute a bytecode chunk
     pub fn execute(&mut self, chunk: BytecodeChunk) -> Result<Value, String> {
-        self.chunk = chunk;
+        self.set_chunk(chunk);
         self.ip = 0;
         self.stack.clear();
 
@@ -451,11 +496,13 @@ impl VM {
             if self.jit_enabled {
                 // For loops (backward jumps), check if we should compile
                 if let Some(OpCode::JumpBack(jump_target)) = self.chunk.instructions.get(self.ip) {
-                    if self.jit_compiler.should_compile(self.ip) {
+                    if self.jit_compiler.is_loop_jit_blocked(*jump_target) {
+                        // Loop is known to be incompatible with JIT
+                    } else if self.jit_compiler.should_compile(self.ip) {
                         // PRE-SCAN: Check if loop contains only supported opcodes
                         // This prevents compilation failures and maintains correctness
                         let mut int_dict_slots = std::collections::HashSet::new();
-                        let mut int_dict_loop_valid = std::env::var("ENABLE_INT_DICT_LOOP_JIT").is_ok();
+                        let mut int_dict_loop_valid = !std::env::var("DISABLE_INT_DICT_LOOP_JIT").is_ok();
 
                         if int_dict_loop_valid {
                             for instr in self.chunk.instructions.iter().take(self.ip + 1).skip(*jump_target) {
@@ -499,6 +546,12 @@ impl VM {
                                                     break;
                                                 }
                                             }
+                                            Value::DenseIntDict(values) => {
+                                                if Arc::strong_count(values) != 1 {
+                                                    int_dict_loop_valid = false;
+                                                    break;
+                                                }
+                                            }
                                             Value::Dict(dict) => {
                                                 if !dict.is_empty() {
                                                     int_dict_loop_valid = false;
@@ -538,6 +591,7 @@ impl VM {
                             if store_vars.len() > 2 {
                                 // Skip loop JIT for complex update patterns to preserve correctness
                                 // (e.g., multiple dependent variable updates per iteration)
+                                self.jit_compiler.mark_loop_jit_blocked(*jump_target);
                             } else {
                                 // Try to compile this hot loop
                                 // IMPORTANT: Compile from the loop START (jump_target), not from the JumpBack!
@@ -562,90 +616,88 @@ impl VM {
                                             );
                                         }
 
-                                    // Get VM pointer early (before any borrows)
-                                    let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+                                        // Get VM pointer early (before any borrows)
+                                        let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
 
-                                    // Execute the JIT-compiled function
-                                    // Get mutable pointers to VM state for VMContext
-                                    let stack_ptr: *mut Vec<Value> = &mut self.stack;
-                                    
-                                    // Get globals - lock and get mutable reference to the first scope
-                                    let mut globals_guard = self.globals.lock().unwrap();
-                                    let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
-                                    
-                                    // Get locals from current call frame, or use globals if at top level
-                                    let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
-                                        &mut frame.locals
-                                    } else {
-                                        // Top-level: use globals as locals
-                                        globals_ptr
-                                    };
-                                    
-                                    // Create VMContext with VM pointer for Call opcode support
-                                    let mut vm_context = crate::jit::VMContext::new_with_vm(
-                                        stack_ptr,
-                                        locals_ptr,
-                                        globals_ptr,
-                                        vm_ptr,
-                                    );
-                                    vm_context.local_slots_ptr = match self.call_frames.last_mut() {
-                                        Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
-                                        None => std::ptr::null_mut(),
-                                    };
-                                    vm_context.obj_stack_ptr = &mut self.jit_obj_stack as *mut Vec<Value>;
-                                    
-                                    let chunk_name = self.chunk.name.as_deref().unwrap_or("<script>");
-                                    let cache_key = format!("loop:{}", chunk_name);
-                                    if !self.jit_var_names_cache.contains_key(&cache_key) {
-                                        let mut cached_var_names = HashMap::new();
-                                        
-                                        for instr in &self.chunk.instructions {
-                                            match instr {
-                                                OpCode::LoadVar(name)
-                                                | OpCode::StoreVar(name)
-                                                | OpCode::LoadGlobal(name)
-                                                | OpCode::StoreGlobal(name) => {
-                                                    use std::collections::hash_map::DefaultHasher;
-                                                    use std::hash::{Hash, Hasher};
-                                                    let mut hasher = DefaultHasher::new();
-                                                    name.hash(&mut hasher);
-                                                    let hash = hasher.finish();
-                                                    cached_var_names.insert(hash, name.clone());
+                                        // Execute the JIT-compiled function
+                                        // Get mutable pointers to VM state for VMContext
+                                        let stack_ptr: *mut Vec<Value> = &mut self.stack;
+
+                                        // Get globals - lock and get mutable reference to the first scope
+                                        let mut globals_guard = self.globals.lock().unwrap();
+                                        let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+
+                                        // Get locals from current call frame, or use globals if at top level
+                                        let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
+                                            &mut frame.locals
+                                        } else {
+                                            // Top-level: use globals as locals
+                                            globals_ptr
+                                        };
+
+                                        // Create VMContext with VM pointer for Call opcode support
+                                        let mut vm_context = crate::jit::VMContext::new_with_vm(
+                                            stack_ptr,
+                                            locals_ptr,
+                                            globals_ptr,
+                                            vm_ptr,
+                                        );
+                                        vm_context.local_slots_ptr = match self.call_frames.last_mut() {
+                                            Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
+                                            None => std::ptr::null_mut(),
+                                        };
+                                        vm_context.obj_stack_ptr = &mut self.jit_obj_stack as *mut Vec<Value>;
+
+                                        let chunk_name = self.chunk.name.as_deref().unwrap_or("<script>");
+                                        let cache_key = format!("loop:{}", chunk_name);
+                                        if !self.jit_var_names_cache.contains_key(&cache_key) {
+                                            let mut cached_var_names = HashMap::new();
+
+                                            for instr in &self.chunk.instructions {
+                                                match instr {
+                                                    OpCode::LoadVar(name)
+                                                    | OpCode::StoreVar(name)
+                                                    | OpCode::LoadGlobal(name)
+                                                    | OpCode::StoreGlobal(name) => {
+                                                        use std::collections::hash_map::DefaultHasher;
+                                                        use std::hash::{Hash, Hasher};
+                                                        let mut hasher = DefaultHasher::new();
+                                                        name.hash(&mut hasher);
+                                                        let hash = hasher.finish();
+                                                        cached_var_names.insert(hash, name.clone());
+                                                    }
+                                                    _ => {}
                                                 }
-                                                _ => {}
                                             }
+
+                                            self.jit_var_names_cache.insert(cache_key.clone(), cached_var_names);
                                         }
-                                        
-                                        self.jit_var_names_cache.insert(cache_key.clone(), cached_var_names);
+
+                                        let var_names_ptr: *mut HashMap<u64, String> = self.jit_var_names_cache
+                                            .get_mut(&cache_key)
+                                            .map(|v| v as *mut HashMap<u64, String>)
+                                            .unwrap_or(std::ptr::null_mut());
+                                        vm_context.var_names_ptr = var_names_ptr;
+
+                                        // Execute the compiled function
+                                        let result_code = unsafe { (compiled_fn)(&mut vm_context) };
+
+                                        // Drop the globals lock
+                                        drop(globals_guard);
+
+                                        if result_code != 0 {
+                                            return Err(format!("JIT execution failed with code: {}", result_code));
+                                        }
+
+                                        if std::env::var("DEBUG_JIT").is_ok() {
+                                            eprintln!("JIT: Execution completed successfully!");
+                                        }
+
+                                        // The JIT function executed the loop completely
+                                        // Skip past the JumpBack instruction to avoid re-executing the loop
+                                        self.ip += 1;
+                                        continue;
                                     }
-                                    
-                                    let var_names_ptr: *mut HashMap<u64, String> = self.jit_var_names_cache
-                                        .get_mut(&cache_key)
-                                        .map(|v| v as *mut HashMap<u64, String>)
-                                        .unwrap_or(std::ptr::null_mut());
-                                    vm_context.var_names_ptr = var_names_ptr;
-                                    
-                                    // Execute the compiled function!
-                                    let result_code = unsafe {
-                                        (compiled_fn)(&mut vm_context)
-                                    };
-                                    
-                                    // Drop the globals lock
-                                    drop(globals_guard);
-                                    
-                                    if result_code != 0 {
-                                        return Err(format!("JIT execution failed with code: {}", result_code));
-                                    }
-                                    
-                                    if std::env::var("DEBUG_JIT").is_ok() {
-                                        eprintln!("JIT: Execution completed successfully!");
-                                    }
-                                    
-                                    // The JIT function executed the loop completely
-                                    // Skip past the JumpBack instruction to avoid re-executing the loop
-                                    self.ip += 1;
-                                    continue;
-                                }
                                     Err(e) => {
                                         // Compilation failed - this shouldn't happen if pre-scan worked
                                         if std::env::var("DEBUG_JIT").is_ok() {
@@ -654,6 +706,7 @@ impl VM {
                                                 jump_target, e
                                             );
                                         }
+                                        self.jit_compiler.mark_loop_jit_blocked(*jump_target);
                                     }
                                 }
                             }
@@ -666,6 +719,7 @@ impl VM {
                                     jump_target
                                 );
                             }
+                            self.jit_compiler.mark_loop_jit_blocked(*jump_target);
                         }
                     }
                 }
@@ -1401,7 +1455,7 @@ impl VM {
                         // Restore previous state
                         self.ip = frame.return_ip;
                         if let Some(prev_chunk) = frame.prev_chunk {
-                            self.chunk = prev_chunk;
+                            self.set_chunk(prev_chunk);
                         }
 
                         // Clear stack to frame offset
@@ -1441,7 +1495,7 @@ impl VM {
                         
                         self.ip = frame.return_ip;
                         if let Some(prev_chunk) = frame.prev_chunk {
-                            self.chunk = prev_chunk;
+                            self.set_chunk(prev_chunk);
                         }
                         self.stack.truncate(frame.stack_offset);
 
@@ -1582,7 +1636,7 @@ impl VM {
                         let key = self.stack.pop().ok_or("Stack underflow")?;
 
                         let key_str = match key {
-                            Value::Str(s) => s.as_ref().clone(),
+                            Value::Str(s) => Arc::from(s.as_str()),
                             _ => return Err("Dict keys must be strings".to_string()),
                         };
 
@@ -1592,13 +1646,12 @@ impl VM {
                 }
 
                 OpCode::MakeDictWithKeys(keys) => {
-                    let mut dict = DictMap::default();
-                    dict.reserve(keys.len());
-                    for key in keys.iter().rev() {
-                        let value = self.stack.pop().ok_or("Stack underflow")?;
-                        dict.insert(key.clone(), value);
+                    let mut values = Vec::with_capacity(keys.len());
+                    for _ in 0..keys.len() {
+                        values.push(self.stack.pop().ok_or("Stack underflow")?);
                     }
-                    self.stack.push(Value::Dict(Arc::new(dict)));
+                    values.reverse();
+                    self.stack.push(Value::FixedDict { keys: Arc::clone(&keys), values });
                 }
 
                 OpCode::IndexGet => {
@@ -1614,19 +1667,78 @@ impl VM {
                                 .ok_or_else(|| format!("Index out of bounds: {}", i))?
                         }
                         (Value::Dict(dict), Value::Str(key)) => {
-                            dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
+                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
                         }
-                        (Value::Dict(dict), Value::Int(_i)) => {
+                        (Value::FixedDict { keys, values }, Value::Str(key)) => {
+                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
+                        }
+                        (Value::Dict(dict), Value::Int(i)) => {
                             // Support integer keys by converting to string
                             let key = self.int_key_string(*i);
-                            dict.get(&key).cloned().unwrap_or(Value::Null)
+                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
+                        }
+                        (Value::FixedDict { keys, values }, Value::Int(i)) => {
+                            let key = self.int_key_string(*i);
+                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
                         }
                         (Value::IntDict(dict), Value::Int(i)) => {
                             dict.get(i).cloned().unwrap_or(Value::Null)
                         }
+                        (Value::DenseIntDict(values), Value::Int(i)) => {
+                            if *i < 0 {
+                                Value::Null
+                            } else {
+                                values
+                                    .get(*i as usize)
+                                    .cloned()
+                                    .unwrap_or(Value::Null)
+                            }
+                        }
+                        (Value::DenseIntDictInt(values), Value::Int(i)) => {
+                            if *i < 0 {
+                                Value::Null
+                            } else {
+                                values
+                                    .get(*i as usize)
+                                    .and_then(|value| (*value).map(Value::Int))
+                                    .unwrap_or(Value::Null)
+                            }
+                        }
                         (Value::IntDict(dict), Value::Str(key)) => {
                             match key.parse::<i64>() {
                                 Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                                Err(_) => Value::Null,
+                            }
+                        }
+                        (Value::DenseIntDict(values), Value::Str(key)) => {
+                            match key.parse::<i64>() {
+                                Ok(int_key) => {
+                                    if int_key < 0 {
+                                        Value::Null
+                                    } else {
+                                        values
+                                            .get(int_key as usize)
+                                            .cloned()
+                                            .unwrap_or(Value::Null)
+                                    }
+                                }
+                                Err(_) => Value::Null,
+                            }
+                        }
+                        (Value::DenseIntDictInt(values), Value::Str(key)) => {
+                            match key.parse::<i64>() {
+                                Ok(int_key) => {
+                                    if int_key < 0 {
+                                        Value::Null
+                                    } else {
+                                        values
+                                            .get(int_key as usize)
+                                            .and_then(|value| (*value).map(Value::Int))
+                                            .unwrap_or(Value::Null)
+                                    }
+                                }
                                 Err(_) => Value::Null,
                             }
                         }
@@ -1666,22 +1778,69 @@ impl VM {
                         (Value::Dict(dict), Value::Str(key)) => {
                             let mut dict_clone = dict;
                             let dict_mut = Arc::make_mut(&mut dict_clone);
-                            dict_mut.insert(key.as_ref().clone(), value);
+                            dict_mut.insert(Arc::from(key.as_str()), value);
                             self.stack.push(Value::Dict(dict_clone));
+                        }
+                        (Value::FixedDict { keys, mut values }, Value::Str(key)) => {
+                            if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str()) {
+                                values[idx] = value;
+                                self.stack.push(Value::FixedDict { keys, values });
+                            } else {
+                                let mut dict = DictMap::default();
+                                for (k, v) in keys.iter().cloned().zip(values.into_iter()) {
+                                    dict.insert(k, v);
+                                }
+                                dict.insert(Arc::from(key.as_str()), value);
+                                self.stack.push(Value::Dict(Arc::new(dict)));
+                            }
                         }
                         (Value::Dict(dict), Value::Int(i)) => {
                             if dict.is_empty() {
-                                let mut int_dict = IntDictMap::default();
-                                int_dict.reserve(1024);
-                                int_dict.insert(i, value);
-                                self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                if i >= 0 {
+                                    let mut values = vec![Value::Null; (i as usize) + 1];
+                                    values[i as usize] = value;
+                                    self.stack.push(Value::DenseIntDict(Arc::new(values)));
+                                } else {
+                                    let mut int_dict = IntDictMap::default();
+                                    int_dict.reserve(1024);
+                                    int_dict.insert(i, value);
+                                    self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                }
                             } else {
                                 let mut dict_clone = dict;
                                 let dict_mut = Arc::make_mut(&mut dict_clone);
                                 // Support integer keys by converting to string
                                 let key = self.int_key_string(i);
-                                dict_mut.insert(key, value);
+                                dict_mut.insert(Arc::from(key.as_str()), value);
                                 self.stack.push(Value::Dict(dict_clone));
+                            }
+                        }
+                        (Value::FixedDict { keys, values }, Value::Int(i)) => {
+                            if keys.is_empty() && values.is_empty() {
+                                if i >= 0 {
+                                    let mut values = vec![Value::Null; (i as usize) + 1];
+                                    values[i as usize] = value;
+                                    self.stack.push(Value::DenseIntDict(Arc::new(values)));
+                                } else {
+                                    let mut int_dict = IntDictMap::default();
+                                    int_dict.reserve(1024);
+                                    int_dict.insert(i, value);
+                                    self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                }
+                            } else {
+                                let key = self.int_key_string(i);
+                                if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str()) {
+                                    let mut values = values;
+                                    values[idx] = value;
+                                    self.stack.push(Value::FixedDict { keys, values });
+                                } else {
+                                    let mut dict = DictMap::default();
+                                    for (k, v) in keys.iter().cloned().zip(values.into_iter()) {
+                                        dict.insert(k, v);
+                                    }
+                                    dict.insert(Arc::from(key.as_str()), value);
+                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                }
                             }
                         }
                         (Value::IntDict(dict), Value::Int(i)) => {
@@ -1690,13 +1849,53 @@ impl VM {
                             dict_mut.insert(i, value);
                             self.stack.push(Value::IntDict(dict_clone));
                         }
+                        (Value::DenseIntDict(mut values), Value::Int(i)) => {
+                            if i < 0 {
+                                let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
+                                int_dict.insert(i, value);
+                                self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                            } else {
+                                let values_mut = Arc::make_mut(&mut values);
+                                let index = i as usize;
+                                if index >= values_mut.len() {
+                                    values_mut.resize(index + 1, Value::Null);
+                                }
+                                values_mut[index] = value;
+                                self.stack.push(Value::DenseIntDict(values));
+                            }
+                        }
                         (Value::IntDict(dict), Value::Str(key)) => {
                             let mut dict_clone = DictMap::default();
                             for (k, v) in dict.iter() {
-                                dict_clone.insert(k.to_string(), v.clone());
+                                dict_clone.insert(k.to_string().into(), v.clone());
                             }
-                            dict_clone.insert(key.as_ref().clone(), value);
+                            dict_clone.insert(Arc::from(key.as_str()), value);
                             self.stack.push(Value::Dict(Arc::new(dict_clone)));
+                        }
+                        (Value::DenseIntDict(values), Value::Str(key)) => {
+                            match key.parse::<i64>() {
+                                Ok(int_key) => {
+                                    if int_key < 0 {
+                                        let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
+                                        int_dict.insert(int_key, value);
+                                        self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                    } else {
+                                        let mut values = values;
+                                        let values_mut = Arc::make_mut(&mut values);
+                                        let index = int_key as usize;
+                                        if index >= values_mut.len() {
+                                            values_mut.resize(index + 1, Value::Null);
+                                        }
+                                        values_mut[index] = value;
+                                        self.stack.push(Value::DenseIntDict(values));
+                                    }
+                                }
+                                Err(_) => {
+                                    let mut dict = Self::dense_int_dict_to_dict(&values);
+                                    dict.insert(Arc::from(key.as_str()), value);
+                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                }
+                            }
                         }
                         _ => return Err("Invalid index assignment".to_string()),
                     }
@@ -1705,11 +1904,6 @@ impl VM {
                 OpCode::IndexGetInPlace(slot) => {
                     // Pop index from stack
                     let index = self.stack.pop().ok_or("Stack underflow")?;
-
-                    let key_string = match index {
-                        Value::Int(i) => Some(self.int_key_string(i)),
-                        _ => None,
-                    };
 
                     let frame = self
                         .call_frames
@@ -1731,18 +1925,52 @@ impl VM {
                                 .ok_or_else(|| format!("Index out of bounds: {}", i))?
                         }
                         (Value::Dict(dict), Value::Str(key)) => {
-                            dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
+                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
+                        }
+                        (Value::FixedDict { keys, values }, Value::Str(key)) => {
+                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
                         }
                         (Value::Dict(dict), Value::Int(i)) => {
-                            let key = key_string.as_ref().ok_or("Invalid index operation")?;
+                            let key = i.to_string();
                             dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
+                        }
+                        (Value::FixedDict { keys, values }, Value::Int(i)) => {
+                            let key = i.to_string();
+                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
                         }
                         (Value::IntDict(dict), Value::Int(i)) => {
                             dict.get(i).cloned().unwrap_or(Value::Null)
                         }
+                        (Value::DenseIntDict(values), Value::Int(i)) => {
+                            if *i < 0 {
+                                Value::Null
+                            } else {
+                                values
+                                    .get(*i as usize)
+                                    .cloned()
+                                    .unwrap_or(Value::Null)
+                            }
+                        }
                         (Value::IntDict(dict), Value::Str(key)) => {
                             match key.parse::<i64>() {
                                 Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                                Err(_) => Value::Null,
+                            }
+                        }
+                        (Value::DenseIntDict(values), Value::Str(key)) => {
+                            match key.parse::<i64>() {
+                                Ok(int_key) => {
+                                    if int_key < 0 {
+                                        Value::Null
+                                    } else {
+                                        values
+                                            .get(int_key as usize)
+                                            .cloned()
+                                            .unwrap_or(Value::Null)
+                                    }
+                                }
                                 Err(_) => Value::Null,
                             }
                         }
@@ -1800,12 +2028,48 @@ impl VM {
                                 } else {
                                     let dict_mut = Arc::make_mut(dict);
                                     let key = i.to_string();
-                                    dict_mut.insert(key, value);
+                                    dict_mut.insert(Arc::from(key.as_str()), value);
+                                }
+                            }
+                            Value::FixedDict { keys, values } => {
+                                if keys.is_empty() && values.is_empty() {
+                                    let mut int_dict = IntDictMap::default();
+                                    int_dict.reserve(1024);
+                                    int_dict.insert(i, value);
+                                    *object = Value::IntDict(Arc::new(int_dict));
+                                } else {
+                                    let key = i.to_string();
+                                    if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str()) {
+                                        let mut values = values.clone();
+                                        values[idx] = value;
+                                        *object = Value::FixedDict { keys: Arc::clone(keys), values };
+                                    } else {
+                                        let mut dict = DictMap::default();
+                                        for (k, v) in keys.iter().cloned().zip(values.iter().cloned()) {
+                                            dict.insert(k, v);
+                                        }
+                                        dict.insert(Arc::from(key.as_str()), value);
+                                        *object = Value::Dict(Arc::new(dict));
+                                    }
                                 }
                             }
                             Value::IntDict(dict) => {
                                 let dict_mut = Arc::make_mut(dict);
                                 dict_mut.insert(i, value);
+                            }
+                            Value::DenseIntDict(values) => {
+                                if i < 0 {
+                                    let mut int_dict = Self::dense_int_dict_to_int_dict(values);
+                                    int_dict.insert(i, value);
+                                    *object = Value::IntDict(Arc::new(int_dict));
+                                } else {
+                                    let values_mut = Arc::make_mut(values);
+                                    let index = i as usize;
+                                    if index >= values_mut.len() {
+                                        values_mut.resize(index + 1, Value::Null);
+                                    }
+                                    values_mut[index] = value;
+                                }
                             }
                             _ => return Err("Invalid index assignment".to_string()),
                         },
@@ -1813,15 +2077,52 @@ impl VM {
                         Value::Str(key) => match object {
                             Value::Dict(dict) => {
                                 let dict_mut = Arc::make_mut(dict);
-                                dict_mut.insert(key.as_ref().clone(), value);
+                                dict_mut.insert(Arc::from(key.as_str()), value);
+                            }
+                            Value::FixedDict { keys, values } => {
+                                if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str()) {
+                                    let mut values = values.clone();
+                                    values[idx] = value;
+                                    *object = Value::FixedDict { keys: Arc::clone(keys), values };
+                                } else {
+                                    let mut dict = DictMap::default();
+                                    for (k, v) in keys.iter().cloned().zip(values.iter().cloned()) {
+                                        dict.insert(k, v);
+                                    }
+                                    dict.insert(Arc::from(key.as_str()), value);
+                                    *object = Value::Dict(Arc::new(dict));
+                                }
                             }
                             Value::IntDict(dict) => {
                                 let mut dict_clone = DictMap::default();
                                 for (k, v) in dict.iter() {
-                                    dict_clone.insert(k.to_string(), v.clone());
+                                    dict_clone.insert(k.to_string().into(), v.clone());
                                 }
-                                dict_clone.insert(key.as_ref().clone(), value);
+                                dict_clone.insert(Arc::from(key.as_str()), value);
                                 *object = Value::Dict(Arc::new(dict_clone));
+                            }
+                            Value::DenseIntDict(values) => {
+                                match key.parse::<i64>() {
+                                    Ok(int_key) => {
+                                        if int_key < 0 {
+                                            let mut int_dict = Self::dense_int_dict_to_int_dict(values);
+                                            int_dict.insert(int_key, value);
+                                            *object = Value::IntDict(Arc::new(int_dict));
+                                        } else {
+                                            let values_mut = Arc::make_mut(values);
+                                            let index = int_key as usize;
+                                            if index >= values_mut.len() {
+                                                values_mut.resize(index + 1, Value::Null);
+                                            }
+                                            values_mut[index] = value;
+                                        }
+                                    }
+                                    Err(_) => {
+                                        let mut dict = Self::dense_int_dict_to_dict(values);
+                                        dict.insert(Arc::from(key.as_str()), value);
+                                        *object = Value::Dict(Arc::new(dict));
+                                    }
+                                }
                             }
                             _ => return Err("Invalid index assignment".to_string()),
                         },
@@ -1848,10 +2149,29 @@ impl VM {
                                     .clone()
                             }
                         }
-                        Value::Dict(dict) => dict.get(&field).cloned().unwrap_or(Value::Null),
+                        Value::Dict(dict) => dict.get(field.as_str()).cloned().unwrap_or(Value::Null),
+                        Value::FixedDict { keys, values } => {
+                            let idx = keys.iter().position(|k| k.as_ref() == field.as_str());
+                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
+                        }
                         Value::IntDict(dict) => {
                             match field.parse::<i64>() {
                                 Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                                Err(_) => Value::Null,
+                            }
+                        }
+                        Value::DenseIntDict(values) => {
+                            match field.parse::<i64>() {
+                                Ok(int_key) => {
+                                    if int_key < 0 {
+                                        Value::Null
+                                    } else {
+                                        values
+                                            .get(int_key as usize)
+                                            .cloned()
+                                            .unwrap_or(Value::Null)
+                                    }
+                                }
                                 Err(_) => Value::Null,
                             }
                         }
@@ -1873,16 +2193,54 @@ impl VM {
                         Value::Dict(dict) => {
                             let mut dict_clone = dict;
                             let dict_mut = Arc::make_mut(&mut dict_clone);
-                            dict_mut.insert(field, value);
+                            dict_mut.insert(Arc::from(field), value);
                             self.stack.push(Value::Dict(dict_clone));
+                        }
+                        Value::FixedDict { keys, mut values } => {
+                            if let Some(idx) = keys.iter().position(|k| k.as_ref() == field.as_str()) {
+                                values[idx] = value;
+                                self.stack.push(Value::FixedDict { keys, values });
+                            } else {
+                                let mut dict = DictMap::default();
+                                for (k, v) in keys.iter().cloned().zip(values.into_iter()) {
+                                    dict.insert(k, v);
+                                }
+                                dict.insert(Arc::from(field), value);
+                                self.stack.push(Value::Dict(Arc::new(dict)));
+                            }
                         }
                         Value::IntDict(dict) => {
                             let mut dict_clone = DictMap::default();
                             for (k, v) in dict.iter() {
-                                dict_clone.insert(k.to_string(), v.clone());
+                                dict_clone.insert(k.to_string().into(), v.clone());
                             }
-                            dict_clone.insert(field, value);
+                            dict_clone.insert(Arc::from(field), value);
                             self.stack.push(Value::Dict(Arc::new(dict_clone)));
+                        }
+                        Value::DenseIntDict(values) => {
+                            match field.parse::<i64>() {
+                                Ok(int_key) => {
+                                    if int_key < 0 {
+                                        let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
+                                        int_dict.insert(int_key, value);
+                                        self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                    } else {
+                                        let mut values = values;
+                                        let values_mut = Arc::make_mut(&mut values);
+                                        let index = int_key as usize;
+                                        if index >= values_mut.len() {
+                                            values_mut.resize(index + 1, Value::Null);
+                                        }
+                                        values_mut[index] = value;
+                                        self.stack.push(Value::DenseIntDict(values));
+                                    }
+                                }
+                                Err(_) => {
+                                    let mut dict = Self::dense_int_dict_to_dict(&values);
+                                    dict.insert(Arc::from(field), value);
+                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                }
+                            }
                         }
                         _ => return Err("Cannot set field on non-struct".to_string()),
                     }
@@ -1908,13 +2266,25 @@ impl VM {
                     match dict {
                         Value::Dict(d) => {
                             for (key, value) in d.iter() {
-                                self.stack.push(Value::Str(Arc::new(key.clone())));
+                                self.stack.push(Value::Str(Arc::new(key.to_string())));
+                                self.stack.push(value.clone());
+                            }
+                        }
+                        Value::FixedDict { keys, values } => {
+                            for (key, value) in keys.iter().zip(values.iter()) {
+                                self.stack.push(Value::Str(Arc::new(key.to_string())));
                                 self.stack.push(value.clone());
                             }
                         }
                         Value::IntDict(d) => {
                             for (key, value) in d.iter() {
                                 self.stack.push(Value::Str(Arc::new(key.to_string())));
+                                self.stack.push(value.clone());
+                            }
+                        }
+                        Value::DenseIntDict(values) => {
+                            for (index, value) in values.iter().enumerate() {
+                                self.stack.push(Value::Str(Arc::new(index.to_string())));
                                 self.stack.push(value.clone());
                             }
                         }
@@ -2151,8 +2521,6 @@ impl VM {
                                 
                                 result
                             };
-
-                            // Update cache
                             let mut polled = is_polled.lock().unwrap();
                             let mut cached = cached_result.lock().unwrap();
 
@@ -2254,7 +2622,7 @@ impl VM {
                                 // Restore chunk if this was the last frame to unwind
                                 if self.call_frames.len() == handler.frame_offset {
                                     if let Some(prev_chunk) = frame.prev_chunk {
-                                        self.chunk = prev_chunk;
+                                        self.set_chunk(prev_chunk);
                                     }
                                 }
                             }
@@ -2480,7 +2848,7 @@ impl VM {
 
                     // Key must be a string
                     if let Value::Str(key_str) = key {
-                        dict.insert(key_str.as_ref().clone(), value);
+                        dict.insert(Arc::from(key_str.as_str()), value);
                     } else {
                         return Err("Dict constant keys must be strings".to_string());
                     }
@@ -2489,6 +2857,7 @@ impl VM {
             }
         }
     }
+
 
 
     /// Call a function
@@ -2561,7 +2930,7 @@ impl VM {
             self.function_call_stack.push(func_name);
 
             // Switch to function's chunk and reset IP
-            self.chunk = chunk;
+            self.set_chunk(chunk);
             self.ip = 0;
 
             Ok(())
@@ -3089,22 +3458,7 @@ impl VM {
                     match instruction {
                         OpCode::LoadConst(idx) => {
                             let constant = &self.chunk.constants[idx];
-                            let value = match constant {
-                                Constant::Int(n) => Value::Int(*n),
-                                Constant::Float(f) => Value::Float(*f),
-                                Constant::String(s) => Value::Str(Arc::new(s.clone())),
-                                Constant::Bool(b) => Value::Bool(*b),
-                                Constant::None => Value::Null,
-                                Constant::Function(chunk) => {
-                                    Value::BytecodeFunction {
-                                        chunk: (**chunk).clone(),
-                                        captured: HashMap::new(),
-                                    }
-                                }
-                                _ => {
-                                    return Err("Unsupported constant type in JIT function call".to_string());
-                                }
-                            };
+                            let value = self.constant_to_value(constant)?;
                             self.stack.push(value);
                         }
                         
@@ -3268,7 +3622,7 @@ impl VM {
                                 
                                 // Restore saved state
                                 self.ip = saved_ip;
-                                self.chunk = saved_chunk;
+                                self.set_chunk(saved_chunk);
                                 
                                 // Clear stack to frame offset
                                 self.stack.truncate(frame.stack_offset);
@@ -3284,7 +3638,7 @@ impl VM {
                             if let Some(frame) = self.call_frames.pop() {
                                 self.function_call_stack.pop();
                                 self.ip = saved_ip;
-                                self.chunk = saved_chunk;
+                                self.set_chunk(saved_chunk);
                                 self.stack.truncate(frame.stack_offset);
                                 return Ok(Value::Null);
                             } else {
@@ -3365,7 +3719,7 @@ impl VM {
         let result = self.call_function_from_jit(function, args);
 
         self.ip = saved_ip;
-        self.chunk = saved_chunk;
+        self.set_chunk(saved_chunk);
         self.stack = saved_stack;
         self.call_frames = saved_call_frames;
         self.exception_handlers = saved_exception_handlers;
@@ -3388,12 +3742,42 @@ impl VM {
                 let items: Vec<String> = arr.iter().map(Self::value_to_string).collect();
                 format!("[{}]", items.join(", "))
             }
+            Value::FixedDict { keys, values } => {
+                let mut pairs: Vec<(&Arc<str>, &Value)> = keys.iter().zip(values.iter()).collect();
+                pairs.sort_by(|(a, _), (b, _)| a.as_ref().cmp(b.as_ref()));
+                let items: Vec<String> = pairs
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", k, Self::value_to_string(v)))
+                    .collect();
+                format!("{{{}}}", items.join(", "))
+            }
             Value::Dict(dict) => {
-                let mut keys: Vec<&String> = dict.keys().collect();
+                let mut keys: Vec<&Arc<str>> = dict.keys().collect();
+                keys.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
+                let items: Vec<String> = keys
+                    .iter()
+                    .map(|k| {
+                        format!("{}: {}", k, Self::value_to_string(dict.get(k.as_ref()).unwrap()))
+                    })
+                    .collect();
+                format!("{{{}}}", items.join(", "))
+            }
+            Value::IntDict(dict) => {
+                let mut keys: Vec<i64> = dict.keys().cloned().collect();
                 keys.sort();
                 let items: Vec<String> = keys
                     .iter()
-                    .map(|k| format!("{}: {}", k, Self::value_to_string(dict.get(*k).unwrap())))
+                    .map(|k| {
+                        format!("{}: {}", k, Self::value_to_string(dict.get(k).unwrap()))
+                    })
+                    .collect();
+                format!("{{{}}}", items.join(", "))
+            }
+            Value::DenseIntDict(values) => {
+                let items: Vec<String> = values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| format!("{}: {}", index, Self::value_to_string(value)))
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
@@ -3547,7 +3931,7 @@ impl VM {
 
             // Restore generator state
             self.ip = gen_state.ip;
-            self.chunk = gen_state.chunk.clone();
+            self.set_chunk(gen_state.chunk.clone());
             self.stack = gen_state.stack.clone();
 
             // Restore call frames
@@ -3603,7 +3987,7 @@ impl VM {
 
                     // Restore original VM state
                     self.ip = saved_ip;
-                    self.chunk = saved_chunk;
+                    self.set_chunk(saved_chunk);
                     self.stack = saved_stack;
                     self.call_frames = saved_frames;
 
@@ -3619,7 +4003,7 @@ impl VM {
 
                     // Restore original VM state
                     self.ip = saved_ip;
-                    self.chunk = saved_chunk;
+                    self.set_chunk(saved_chunk);
                     self.stack = saved_stack;
                     self.call_frames = saved_frames;
 
