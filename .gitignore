@@ -96,3 +96,8 @@ test_roadmap_spec.ruff
 *.db
 *.sqlite
 *.sqlite3
+
+# === BENCHMARKS ===
+benchmark_output.txt
+/benchmarks/cross-language/benchmark_output.txt
+/benchmarks/cross-language/results/
