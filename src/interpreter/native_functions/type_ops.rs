@@ -105,9 +105,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::FixedDict { keys, .. } => Value::Bool(!keys.is_empty()),
                     Value::IntDict(dict) => Value::Bool(!dict.is_empty()),
                     Value::DenseIntDict(values) => Value::Bool(!values.is_empty()),
-                    Value::DenseIntDictInt(values) => {
-                        Value::Bool(values.iter().any(|value| value.is_some()))
-                    }
+                    Value::DenseIntDictInt(values) => Value::Bool(!values.is_empty()),
+                    Value::DenseIntDictIntFull(values) => Value::Bool(!values.is_empty()),
                     _ => Value::Bool(true),
                 }
             } else {
@@ -157,6 +156,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::IntDict(_) => "dict",
                     Value::DenseIntDict(_) => "dict",
                     Value::DenseIntDictInt(_) => "dict",
+                    Value::DenseIntDictIntFull(_) => "dict",
                     Value::Set(_) => "set",
                     Value::Queue(_) => "queue",
                     Value::Stack(_) => "stack",
@@ -238,6 +238,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         | Value::IntDict(_)
                         | Value::DenseIntDict(_)
                         | Value::DenseIntDictInt(_)
+                        | Value::DenseIntDictIntFull(_)
                 ))
             } else {
                 Value::Bool(false)
@@ -426,11 +427,17 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         _ => None,
                     };
                     int_key
-                        .map(|key| {
-                            key >= 0
-                                && (key as usize) < values.len()
-                                && values.get(key as usize).and_then(|value| *value).is_some()
-                        })
+                        .map(|key| key >= 0 && (key as usize) < values.len())
+                        .unwrap_or(false)
+                }
+                Value::DenseIntDictIntFull(values) => {
+                    let int_key = match item {
+                        Value::Int(i) => Some(*i),
+                        Value::Str(key) => key.parse::<i64>().ok(),
+                        _ => None,
+                    };
+                    int_key
+                        .map(|key| key >= 0 && (key as usize) < values.len())
                         .unwrap_or(false)
                 }
                 _ => {

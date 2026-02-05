@@ -4,7 +4,14 @@
 // Provides just-in-time compilation of hot bytecode functions to native machine code.
 
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
-use crate::interpreter::{DenseIntDict, DictMap, IntDictMap, Value};
+use crate::interpreter::{
+    DenseIntDict,
+    DenseIntDictInt,
+    DenseIntDictIntFull,
+    DictMap,
+    IntDictMap,
+    Value,
+};
 use crate::vm::VM; // For calling back into VM from JIT
 use std::sync::Arc;
 use cranelift::prelude::*;
@@ -25,6 +32,7 @@ use std::collections::hash_map::DefaultHasher;
 
 /// JIT compilation threshold - number of executions before compiling
 const JIT_THRESHOLD: usize = 100;
+const DENSE_INT_DICT_MIN_CAPACITY: usize = 131072;
 
 /// Guard failure threshold - recompile if guard failures exceed this percentage
 #[allow(dead_code)] // Used in Phase 4D guard validation logic
@@ -33,6 +41,18 @@ const GUARD_FAILURE_THRESHOLD: f64 = 0.10; // 10%
 /// Minimum samples before type specialization
 #[allow(dead_code)] // Used in Phase 4A type profiling logic
 const MIN_TYPE_SAMPLES: usize = 50;
+
+fn dense_int_dict_int_with_len(len: usize) -> Vec<Option<i64>> {
+    let mut values = Vec::with_capacity(len.max(DENSE_INT_DICT_MIN_CAPACITY));
+    values.resize(len, None);
+    values
+}
+
+fn dense_int_dict_int_full_with_len(len: usize) -> Vec<i64> {
+    let mut values = Vec::with_capacity(len.max(DENSE_INT_DICT_MIN_CAPACITY));
+    values.resize(len, 0);
+    values
+}
 
 /// Runtime context passed to JIT-compiled functions
 /// This allows JIT code to access VM state (stack, variables, etc.)
@@ -46,7 +66,7 @@ pub struct VMContext {
     pub globals_ptr: *mut HashMap<String, Value>,
     /// Pointer to variable name mapping (hash -> name) for JIT
     pub var_names_ptr: *mut HashMap<u64, String>,
-    /// Pointer to current call frame local slots (if available)
+    /// Pointer to local slot storage for JIT loop helpers
     pub local_slots_ptr: *mut Vec<Value>,
     /// Pointer to JIT object stack (non-int handles)
     pub obj_stack_ptr: *mut Vec<Value>,
@@ -119,13 +139,13 @@ impl VMContext {
         }
     }
 
-    fn jit_int_key_string(ctx: &mut VMContext, key: i64) -> String {
+    fn jit_int_key_string(ctx: &mut VMContext, key: i64) -> Arc<str> {
         if !ctx.vm_ptr.is_null() {
             let vm = unsafe { &mut *(ctx.vm_ptr as *mut crate::vm::VM) };
             return vm.int_key_string(key);
         }
 
-        key.to_string()
+        Arc::from(key.to_string())
     }
 
 
@@ -561,11 +581,15 @@ pub unsafe extern "C" fn jit_local_slot_dict_get(
         };
 
         return match object {
-            Value::IntDict(dict) => match dict.get(&key) {
+            Value::IntDict(dict) => {
+                crate::vm::hashmap_profile_bump_get_intdict();
+                match dict.get(&key) {
                 Some(Value::Int(v)) => *v,
                 _ => 0,
-            },
+                }
+            }
             Value::DenseIntDict(values) => {
+                crate::vm::hashmap_profile_bump_get_dense();
                 if key < 0 {
                     0
                 } else {
@@ -575,14 +599,39 @@ pub unsafe extern "C" fn jit_local_slot_dict_get(
                     }
                 }
             }
+            Value::DenseIntDictInt(values) => {
+                crate::vm::hashmap_profile_bump_get_dense_int();
+                if key < 0 {
+                    0
+                } else {
+                    let index = key as usize;
+                    if index < values.len() {
+                        match values[index] {
+                            Some(v) => v,
+                            None => 0,
+                        }
+                    } else {
+                        0
+                    }
+                }
+            }
+            Value::DenseIntDictIntFull(values) => {
+                crate::vm::hashmap_profile_bump_get_dense_int();
+                if key < 0 {
+                    0
+                } else {
+                    values.get(key as usize).copied().unwrap_or(0)
+                }
+            }
             Value::Dict(dict) => {
+                crate::vm::hashmap_profile_bump_get_dict_intkey();
                 let key_str = if !ctx_ref.vm_ptr.is_null() {
                     let vm = &mut *(ctx_ref.vm_ptr as *mut VM);
                     vm.int_key_string(key)
                 } else {
-                    key.to_string()
+                    Arc::from(key.to_string())
                 };
-                match dict.get(key_str.as_str()) {
+                match dict.get(key_str.as_ref()) {
                     Some(Value::Int(v)) => *v,
                     _ => 0,
                 }
@@ -605,11 +654,15 @@ pub unsafe extern "C" fn jit_local_slot_dict_get(
     };
 
     match &object {
-        Value::IntDict(dict) => match dict.get(&key) {
+        Value::IntDict(dict) => {
+            crate::vm::hashmap_profile_bump_get_intdict();
+            match dict.get(&key) {
             Some(Value::Int(v)) => *v,
             _ => 0,
-        },
+            }
+        }
         Value::DenseIntDict(values) => {
+            crate::vm::hashmap_profile_bump_get_dense();
             if key < 0 {
                 0
             } else {
@@ -619,9 +672,34 @@ pub unsafe extern "C" fn jit_local_slot_dict_get(
                 }
             }
         }
+        Value::DenseIntDictInt(values) => {
+            crate::vm::hashmap_profile_bump_get_dense_int();
+            if key < 0 {
+                0
+            } else {
+                let index = key as usize;
+                if index < values.len() {
+                    match values[index] {
+                        Some(v) => v,
+                        None => 0,
+                    }
+                } else {
+                    0
+                }
+            }
+        }
+        Value::DenseIntDictIntFull(values) => {
+            crate::vm::hashmap_profile_bump_get_dense_int();
+            if key < 0 {
+                0
+            } else {
+                values.get(key as usize).copied().unwrap_or(0)
+            }
+        }
         Value::Dict(dict) => {
+            crate::vm::hashmap_profile_bump_get_dict_intkey();
             let key_str = vm.int_key_string(key);
-            match dict.get(key_str.as_str()) {
+            match dict.get(key_str.as_ref()) {
                 Some(Value::Int(v)) => *v,
                 _ => 0,
             }
@@ -659,11 +737,13 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
         let local_slots = &mut *ctx_ref.local_slots_ptr;
         return match local_slots.get_mut(slot) {
             Some(Value::IntDict(ref mut dict)) => {
+                crate::vm::hashmap_profile_bump_set_intdict();
                 let dict_mut = Arc::make_mut(dict);
                 dict_mut.insert(key, Value::Int(value));
                 1
             }
             Some(Value::DenseIntDict(ref mut values)) => {
+                crate::vm::hashmap_profile_bump_set_dense();
                 if key < 0 {
                     let mut int_dict = IntDictMap::default();
                     int_dict.reserve(values.len());
@@ -682,12 +762,76 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
                 values_mut[index] = Value::Int(value);
                 1
             }
+            Some(Value::DenseIntDictInt(ref mut values)) => {
+                crate::vm::hashmap_profile_bump_set_dense_int();
+                if key < 0 {
+                    let mut int_dict = IntDictMap::default();
+                    int_dict.reserve(values.len());
+                    for (index, value) in values.iter().enumerate() {
+                        int_dict.insert(
+                            index as i64,
+                            (*value).map(Value::Int).unwrap_or(Value::Null),
+                        );
+                    }
+                    int_dict.insert(key, Value::Int(value));
+                    local_slots[slot] = Value::IntDict(Arc::new(int_dict));
+                    return 1;
+                }
+                let values_mut = Arc::make_mut(values);
+                let index = key as usize;
+                let len = values_mut.len();
+                if index == len {
+                    values_mut.push(Some(value));
+                } else if index < len {
+                    values_mut[index] = Some(value);
+                } else {
+                    values_mut.resize(index + 1, None);
+                    values_mut[index] = Some(value);
+                }
+                1
+            }
+            Some(Value::DenseIntDictIntFull(ref mut values)) => {
+                crate::vm::hashmap_profile_bump_set_dense_int();
+                if key < 0 {
+                    let mut int_dict = IntDictMap::default();
+                    int_dict.reserve(values.len());
+                    for (index, value) in values.iter().enumerate() {
+                        int_dict.insert(index as i64, Value::Int(*value));
+                    }
+                    int_dict.insert(key, Value::Int(value));
+                    local_slots[slot] = Value::IntDict(Arc::new(int_dict));
+                    return 1;
+                }
+                let index = key as usize;
+                let len = values.len();
+                if index == len {
+                    let values_mut = Arc::make_mut(values);
+                    values_mut.push(value);
+                } else if index < len {
+                    let values_mut = Arc::make_mut(values);
+                    values_mut[index] = value;
+                } else {
+                    let mut sparse = Vec::with_capacity(index + 1);
+                    for existing in values.iter() {
+                        sparse.push(Some(*existing));
+                    }
+                    sparse.resize(index + 1, None);
+                    sparse[index] = Some(value);
+                    local_slots[slot] = Value::DenseIntDictInt(Arc::new(sparse));
+                }
+                1
+            }
             Some(Value::Dict(ref mut dict)) => {
+                crate::vm::hashmap_profile_bump_set_dict_intkey();
                 if dict.is_empty() {
                     if key >= 0 {
-                        let mut values = vec![Value::Null; (key as usize) + 1];
-                        values[key as usize] = Value::Int(value);
-                        local_slots[slot] = Value::DenseIntDict(Arc::new(values));
+                        if key == 0 {
+                            local_slots[slot] = Value::DenseIntDictIntFull(Arc::new(vec![value]));
+                        } else {
+                            let mut values = dense_int_dict_int_with_len((key as usize) + 1);
+                            values[key as usize] = Some(value);
+                            local_slots[slot] = Value::DenseIntDictInt(Arc::new(values));
+                        }
                         return 1;
                     }
                     let mut int_dict = IntDictMap::default();
@@ -731,11 +875,13 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
 
     match frame.local_slots.get_mut(slot) {
         Some(Value::IntDict(ref mut dict)) => {
+            crate::vm::hashmap_profile_bump_set_intdict();
             let dict_mut = Arc::make_mut(dict);
             dict_mut.insert(key, Value::Int(value));
             1
         }
         Some(Value::DenseIntDict(ref mut values)) => {
+            crate::vm::hashmap_profile_bump_set_dense();
             if key < 0 {
                 let mut int_dict = IntDictMap::default();
                 int_dict.reserve(values.len());
@@ -754,7 +900,67 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
             values_mut[index] = Value::Int(value);
             1
         }
+        Some(Value::DenseIntDictInt(ref mut values)) => {
+            crate::vm::hashmap_profile_bump_set_dense_int();
+            if key < 0 {
+                let mut int_dict = IntDictMap::default();
+                int_dict.reserve(values.len());
+                for (index, value) in values.iter().enumerate() {
+                    int_dict.insert(
+                        index as i64,
+                        (*value).map(Value::Int).unwrap_or(Value::Null),
+                    );
+                }
+                int_dict.insert(key, Value::Int(value));
+                frame.local_slots[slot] = Value::IntDict(Arc::new(int_dict));
+                return 1;
+            }
+            let values_mut = Arc::make_mut(values);
+            let index = key as usize;
+            let len = values_mut.len();
+            if index == len {
+                values_mut.push(Some(value));
+            } else if index < len {
+                values_mut[index] = Some(value);
+            } else {
+                values_mut.resize(index + 1, None);
+                values_mut[index] = Some(value);
+            }
+            1
+        }
+        Some(Value::DenseIntDictIntFull(ref mut values)) => {
+            crate::vm::hashmap_profile_bump_set_dense_int();
+            if key < 0 {
+                let mut int_dict = IntDictMap::default();
+                int_dict.reserve(values.len());
+                for (index, value) in values.iter().enumerate() {
+                    int_dict.insert(index as i64, Value::Int(*value));
+                }
+                int_dict.insert(key, Value::Int(value));
+                frame.local_slots[slot] = Value::IntDict(Arc::new(int_dict));
+                return 1;
+            }
+            let index = key as usize;
+            let len = values.len();
+            if index == len {
+                let values_mut = Arc::make_mut(values);
+                values_mut.push(value);
+            } else if index < len {
+                let values_mut = Arc::make_mut(values);
+                values_mut[index] = value;
+            } else {
+                let mut sparse = Vec::with_capacity(index + 1);
+                for existing in values.iter() {
+                    sparse.push(Some(*existing));
+                }
+                sparse.resize(index + 1, None);
+                sparse[index] = Some(value);
+                frame.local_slots[slot] = Value::DenseIntDictInt(Arc::new(sparse));
+            }
+            1
+        }
         Some(Value::Dict(ref mut dict)) => {
+            crate::vm::hashmap_profile_bump_set_dict_intkey();
             if dict.is_empty() {
                 if key >= 0 {
                     let mut values = vec![Value::Null; (key as usize) + 1];
@@ -831,6 +1037,28 @@ pub unsafe extern "C" fn jit_local_slot_int_dict_get(
                 }
             }
         }
+        Value::DenseIntDictInt(values) => {
+            if key < 0 {
+                0
+            } else {
+                let index = key as usize;
+                if index < values.len() {
+                    match values[index] {
+                        Some(v) => v,
+                        None => 0,
+                    }
+                } else {
+                    0
+                }
+            }
+        }
+        Value::DenseIntDictIntFull(values) => {
+            if key < 0 {
+                0
+            } else {
+                values.get(key as usize).copied().unwrap_or(0)
+            }
+        }
         _ => 0,
     }
 }
@@ -897,12 +1125,75 @@ pub unsafe extern "C" fn jit_local_slot_int_dict_set(
             values_mut[index] = Value::Int(value);
             1
         }
+        Value::DenseIntDictInt(ref mut values) => {
+            if key < 0 {
+                let mut int_dict = IntDictMap::default();
+                int_dict.reserve(values.len());
+                for (index, value) in values.iter().enumerate() {
+                    int_dict.insert(
+                        index as i64,
+                        (*value).map(Value::Int).unwrap_or(Value::Null),
+                    );
+                }
+                int_dict.insert(key, Value::Int(value));
+                *object = Value::IntDict(Arc::new(int_dict));
+                return 1;
+            }
+            let values_mut = Arc::make_mut(values);
+            let index = key as usize;
+            let len = values_mut.len();
+            if index == len {
+                values_mut.push(Some(value));
+            } else if index < len {
+                values_mut[index] = Some(value);
+            } else {
+                values_mut.resize(index + 1, None);
+                values_mut[index] = Some(value);
+            }
+            1
+        }
+        Value::DenseIntDictIntFull(ref mut values) => {
+            if key < 0 {
+                let mut int_dict = IntDictMap::default();
+                int_dict.reserve(values.len());
+                for (index, value) in values.iter().enumerate() {
+                    int_dict.insert(index as i64, Value::Int(*value));
+                }
+                int_dict.insert(key, Value::Int(value));
+                *object = Value::IntDict(Arc::new(int_dict));
+                return 1;
+            }
+            let index = key as usize;
+            let len = values.len();
+            if index == len {
+                let values_mut = Arc::make_mut(values);
+                values_mut.push(value);
+                return 1;
+            }
+            if index < len {
+                let values_mut = Arc::make_mut(values);
+                values_mut[index] = value;
+                return 1;
+            }
+            let mut sparse = Vec::with_capacity(index + 1);
+            for existing in values.iter() {
+                sparse.push(Some(*existing));
+            }
+            sparse.resize(index + 1, None);
+            sparse[index] = Some(value);
+            *object = Value::DenseIntDictInt(Arc::new(sparse));
+            1
+        }
         Value::Dict(dict) => {
             if dict.is_empty() {
                 if key >= 0 {
-                    let mut values = vec![Value::Null; (key as usize) + 1];
-                    values[key as usize] = Value::Int(value);
-                    *object = Value::DenseIntDict(Arc::new(values));
+                    if key == 0 {
+                        *object = Value::DenseIntDictIntFull(Arc::new(vec![value]));
+                    } else {
+                        let mut values = dense_int_dict_int_with_len((key as usize) + 1);
+                        values[key as usize] = Some(value);
+                        *object = Value::DenseIntDictInt(Arc::new(values));
+                    }
                     return 1;
                 }
                 let mut int_dict = IntDictMap::default();
@@ -964,11 +1255,25 @@ pub unsafe extern "C" fn jit_int_dict_unique_ptr(ctx: *mut VMContext, slot_index
                 0
             }
         }
+        Value::DenseIntDictInt(values) => {
+            if Arc::strong_count(values) == 1 {
+                (Arc::as_ptr(values) as i64) | 4
+            } else {
+                0
+            }
+        }
+        Value::DenseIntDictIntFull(values) => {
+            if Arc::strong_count(values) == 1 {
+                (Arc::as_ptr(values) as i64) | 2
+            } else {
+                0
+            }
+        }
         Value::Dict(dict) => {
             if dict.is_empty() {
-                let values = Arc::new(Vec::new());
-                let ptr = (Arc::as_ptr(&values) as i64) | 1;
-                *object = Value::DenseIntDict(values);
+                let values = Arc::new(dense_int_dict_int_full_with_len(0));
+                let ptr = (Arc::as_ptr(&values) as i64) | 2;
+                *object = Value::DenseIntDictIntFull(values);
                 ptr
             } else {
                 0
@@ -986,14 +1291,41 @@ pub unsafe extern "C" fn jit_int_dict_get_ptr(dict_ptr: i64, key: i64) -> i64 {
         return 0;
     }
 
-    if dict_ptr & 1 == 1 {
+    let tag = dict_ptr & 7;
+
+    if tag == 1 {
         if key < 0 {
             return 0;
         }
-        let values = &*((dict_ptr & !1) as *const DenseIntDict);
+        let values = &*((dict_ptr & !7) as *const DenseIntDict);
         match values.get(key as usize) {
             Some(Value::Int(v)) => *v,
             _ => 0,
+        }
+    } else if tag == 2 {
+        if key < 0 {
+            return 0;
+        }
+        let values = &*((dict_ptr & !7) as *const DenseIntDictIntFull);
+        let index = key as usize;
+        if index < values.len() {
+            values[index]
+        } else {
+            0
+        }
+    } else if tag == 4 {
+        if key < 0 {
+            return 0;
+        }
+        let values = &*((dict_ptr & !7) as *const DenseIntDictInt);
+        let index = key as usize;
+        if index < values.len() {
+            match values[index] {
+                Some(v) => v,
+                None => 0,
+            }
+        } else {
+            0
         }
     } else {
         let dict = &*(dict_ptr as *const IntDictMap);
@@ -1001,6 +1333,51 @@ pub unsafe extern "C" fn jit_int_dict_get_ptr(dict_ptr: i64, key: i64) -> i64 {
             Some(Value::Int(v)) => *v,
             _ => 0,
         }
+    }
+}
+
+/// Get int value from a DenseIntDictInt pointer (loop JIT fast path)
+/// Returns int value or 0 on missing/non-int
+#[no_mangle]
+pub unsafe extern "C" fn jit_dense_int_dict_int_get_ptr(dict_ptr: i64, key: i64) -> i64 {
+    if dict_ptr == 0 {
+        return 0;
+    }
+
+    if key < 0 {
+        return 0;
+    }
+
+    let values = &*((dict_ptr & !7) as *const DenseIntDictInt);
+    let index = key as usize;
+    if index < values.len() {
+        match values[index] {
+            Some(v) => v,
+            None => 0,
+        }
+    } else {
+        0
+    }
+}
+
+/// Get int value from a DenseIntDictIntFull pointer (loop JIT fast path)
+/// Returns int value or 0 on missing/non-int
+#[no_mangle]
+pub unsafe extern "C" fn jit_dense_int_dict_int_full_get_ptr(dict_ptr: i64, key: i64) -> i64 {
+    if dict_ptr == 0 {
+        return 0;
+    }
+
+    if key < 0 {
+        return 0;
+    }
+
+    let values = &*((dict_ptr & !7) as *const DenseIntDictIntFull);
+    let index = key as usize;
+    if index < values.len() {
+        values[index]
+    } else {
+        0
     }
 }
 
@@ -1012,22 +1389,121 @@ pub unsafe extern "C" fn jit_int_dict_set_ptr(dict_ptr: i64, key: i64, value: i6
         return 0;
     }
 
-    if dict_ptr & 1 == 1 {
+    let tag = dict_ptr & 7;
+
+    if tag == 1 {
         if key < 0 {
             return 0;
         }
-        let values = &mut *((dict_ptr & !1) as *mut DenseIntDict);
+        let values = &mut *((dict_ptr & !7) as *mut DenseIntDict);
         let index = key as usize;
-        if index >= values.len() {
+        let len = values.len();
+        if index == len {
+            values.push(Value::Int(value));
+        } else if index < len {
+            values[index] = Value::Int(value);
+        } else {
             values.resize(index + 1, Value::Null);
+            values[index] = Value::Int(value);
         }
-        values[index] = Value::Int(value);
+        1
+    } else if tag == 2 {
+        if key < 0 {
+            return 0;
+        }
+        let values = &mut *((dict_ptr & !7) as *mut DenseIntDictIntFull);
+        let index = key as usize;
+        let len = values.len();
+        if index == len {
+            values.push(value);
+        } else if index < len {
+            values[index] = value;
+        } else {
+            values.resize(index + 1, 0);
+            values[index] = value;
+        }
+        1
+    } else if tag == 4 {
+        if key < 0 {
+            return 0;
+        }
+        let values = &mut *((dict_ptr & !7) as *mut DenseIntDictInt);
+        let index = key as usize;
+        let len = values.len();
+        if index == len {
+            values.push(Some(value));
+        } else if index < len {
+            values[index] = Some(value);
+        } else {
+            values.resize(index + 1, None);
+            values[index] = Some(value);
+        }
         1
     } else {
         let dict = &mut *(dict_ptr as *mut IntDictMap);
         dict.insert(key, Value::Int(value));
         1
     }
+}
+
+/// Set int value via DenseIntDictInt pointer (loop JIT fast path)
+/// Returns 1 on success, 0 on error
+#[no_mangle]
+pub unsafe extern "C" fn jit_dense_int_dict_int_set_ptr(
+    dict_ptr: i64,
+    key: i64,
+    value: i64,
+) -> i64 {
+    if dict_ptr == 0 {
+        return 0;
+    }
+
+    if key < 0 {
+        return 0;
+    }
+
+    let values = &mut *((dict_ptr & !7) as *mut DenseIntDictInt);
+    let index = key as usize;
+    let len = values.len();
+    if index == len {
+        values.push(Some(value));
+    } else if index < len {
+        values[index] = Some(value);
+    } else {
+        values.resize(index + 1, None);
+        values[index] = Some(value);
+    }
+    1
+}
+
+/// Set int value via DenseIntDictIntFull pointer (loop JIT fast path)
+/// Returns 1 on success, 0 on error
+#[no_mangle]
+pub unsafe extern "C" fn jit_dense_int_dict_int_full_set_ptr(
+    dict_ptr: i64,
+    key: i64,
+    value: i64,
+) -> i64 {
+    if dict_ptr == 0 {
+        return 0;
+    }
+
+    if key < 0 {
+        return 0;
+    }
+
+    let values = &mut *((dict_ptr & !7) as *mut DenseIntDictIntFull);
+    let index = key as usize;
+    let len = values.len();
+    if index == len {
+        values.push(value);
+    } else if index < len {
+        values[index] = value;
+    } else {
+        values.resize(index + 1, 0);
+        values[index] = value;
+    }
+    1
 }
 
 /// Load a variable as float from locals or globals (called from JIT code)
@@ -1388,7 +1864,7 @@ pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
         }
         (Value::Dict(dict), Value::Int(i)) => {
             let key = VMContext::jit_int_key_string(ctx_ref, *i);
-            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
+            dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
         }
         (Value::IntDict(dict), Value::Int(i)) => {
             dict.get(i).cloned().unwrap_or(Value::Null)
@@ -1398,6 +1874,31 @@ pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
                 Value::Null
             } else {
                 values.get(*i as usize).cloned().unwrap_or(Value::Null)
+            }
+        }
+        (Value::DenseIntDictInt(values), Value::Int(i)) => {
+            if *i < 0 {
+                Value::Null
+            } else {
+                let index = *i as usize;
+                if index < values.len() {
+                    match values[index] {
+                        Some(value) => Value::Int(value),
+                        None => Value::Null,
+                    }
+                } else {
+                    Value::Null
+                }
+            }
+        }
+        (Value::DenseIntDictIntFull(values), Value::Int(i)) => {
+            if *i < 0 {
+                Value::Null
+            } else {
+                values
+                    .get(*i as usize)
+                    .map(|value| Value::Int(*value))
+                    .unwrap_or(Value::Null)
             }
         }
         (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
@@ -1410,6 +1911,37 @@ pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
                     Value::Null
                 } else {
                     values.get(int_key as usize).cloned().unwrap_or(Value::Null)
+                }
+            }
+            Err(_) => Value::Null,
+        },
+        (Value::DenseIntDictInt(values), Value::Str(key)) => match key.parse::<i64>() {
+            Ok(int_key) => {
+                if int_key < 0 {
+                    Value::Null
+                } else {
+                    let index = int_key as usize;
+                    if index < values.len() {
+                        match values[index] {
+                            Some(value) => Value::Int(value),
+                            None => Value::Null,
+                        }
+                    } else {
+                        Value::Null
+                    }
+                }
+            }
+            Err(_) => Value::Null,
+        },
+        (Value::DenseIntDictIntFull(values), Value::Str(key)) => match key.parse::<i64>() {
+            Ok(int_key) => {
+                if int_key < 0 {
+                    Value::Null
+                } else {
+                    values
+                        .get(int_key as usize)
+                        .map(|value| Value::Int(*value))
+                        .unwrap_or(Value::Null)
                 }
             }
             Err(_) => Value::Null,
@@ -1478,9 +2010,26 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
         (Value::Dict(mut dict), Value::Int(i)) => {
             if dict.is_empty() {
                 if i >= 0 {
-                    let mut values = vec![Value::Null; (i as usize) + 1];
-                    values[i as usize] = value;
-                    Value::DenseIntDict(Arc::new(values))
+                    match value {
+                        Value::Int(int_value) => {
+                            if i == 0 {
+                                Value::DenseIntDictIntFull(Arc::new(vec![int_value]))
+                            } else {
+                                let mut values = dense_int_dict_int_with_len((i as usize) + 1);
+                                values[i as usize] = Some(int_value);
+                                Value::DenseIntDictInt(Arc::new(values))
+                            }
+                        }
+                        Value::Null => {
+                            let values = dense_int_dict_int_with_len((i as usize) + 1);
+                            Value::DenseIntDictInt(Arc::new(values))
+                        }
+                        other => {
+                            let mut values = vec![Value::Null; (i as usize) + 1];
+                            values[i as usize] = other;
+                            Value::DenseIntDict(Arc::new(values))
+                        }
+                    }
                 } else {
                 let mut int_dict = IntDictMap::default();
                 int_dict.reserve(1024);
@@ -1490,7 +2039,7 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
             } else {
                 let dict_mut = Arc::make_mut(&mut dict);
                 let key = VMContext::jit_int_key_string(ctx_ref, i);
-                dict_mut.insert(key.into(), value);
+                dict_mut.insert(Arc::clone(&key), value);
                 Value::Dict(dict)
             }
         }
@@ -1516,6 +2065,116 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
                 }
                 values_mut[index] = value;
                 Value::DenseIntDict(values)
+            }
+        }
+        (Value::DenseIntDictInt(mut values), Value::Int(i)) => {
+            if i < 0 {
+                let mut int_dict = IntDictMap::default();
+                int_dict.reserve(values.len());
+                for (index, value) in values.iter().enumerate() {
+                    if let Some(int_value) = value {
+                        int_dict.insert(index as i64, Value::Int(*int_value));
+                    }
+                }
+                int_dict.insert(i, value);
+                Value::IntDict(Arc::new(int_dict))
+            } else {
+                let index = i as usize;
+                match value {
+                    Value::Int(int_value) => {
+                        let values_mut = Arc::make_mut(&mut values);
+                        let len = values_mut.len();
+                        if index == len {
+                            values_mut.push(Some(int_value));
+                        } else if index < len {
+                            values_mut[index] = Some(int_value);
+                        } else {
+                            values_mut.resize(index + 1, None);
+                            values_mut[index] = Some(int_value);
+                        }
+                        Value::DenseIntDictInt(values)
+                    }
+                    Value::Null => {
+                        let values_mut = Arc::make_mut(&mut values);
+                        let len = values_mut.len();
+                        if index == len {
+                            values_mut.push(None);
+                        } else if index < len {
+                            values_mut[index] = None;
+                        } else {
+                            values_mut.resize(index + 1, None);
+                            values_mut[index] = None;
+                        }
+                        Value::DenseIntDictInt(values)
+                    }
+                    other => {
+                        let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
+                        for value in values.iter() {
+                            dense_values.push((*value).map(Value::Int).unwrap_or(Value::Null));
+                        }
+                        if index >= dense_values.len() {
+                            dense_values.resize(index + 1, Value::Null);
+                        }
+                        dense_values[index] = other;
+                        Value::DenseIntDict(Arc::new(dense_values))
+                    }
+                }
+            }
+        }
+        (Value::DenseIntDictIntFull(mut values), Value::Int(i)) => {
+            if i < 0 {
+                let mut int_dict = IntDictMap::default();
+                int_dict.reserve(values.len());
+                for (index, value) in values.iter().enumerate() {
+                    int_dict.insert(index as i64, Value::Int(*value));
+                }
+                int_dict.insert(i, value);
+                Value::IntDict(Arc::new(int_dict))
+            } else {
+                let index = i as usize;
+                match value {
+                    Value::Int(int_value) => {
+                        let values_mut = Arc::make_mut(&mut values);
+                        let len = values_mut.len();
+                        if index == len {
+                            values_mut.push(int_value);
+                            Value::DenseIntDictIntFull(values)
+                        } else if index < len {
+                            values_mut[index] = int_value;
+                            Value::DenseIntDictIntFull(values)
+                        } else {
+                            let mut sparse = Vec::with_capacity(values.len().max(index + 1));
+                            for value in values.iter() {
+                                sparse.push(Some(*value));
+                            }
+                            sparse.resize(index + 1, None);
+                            sparse[index] = Some(int_value);
+                            Value::DenseIntDictInt(Arc::new(sparse))
+                        }
+                    }
+                    Value::Null => {
+                        let mut sparse = Vec::with_capacity(values.len().max(index + 1));
+                        for value in values.iter() {
+                            sparse.push(Some(*value));
+                        }
+                        if index >= sparse.len() {
+                            sparse.resize(index + 1, None);
+                        }
+                        sparse[index] = None;
+                        Value::DenseIntDictInt(Arc::new(sparse))
+                    }
+                    other => {
+                        let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
+                        for value in values.iter() {
+                            dense_values.push(Value::Int(*value));
+                        }
+                        if index >= dense_values.len() {
+                            dense_values.resize(index + 1, Value::Null);
+                        }
+                        dense_values[index] = other;
+                        Value::DenseIntDict(Arc::new(dense_values))
+                    }
+                }
             }
         }
         (Value::IntDict(dict), Value::Str(key_str)) => {
@@ -1552,6 +2211,146 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
                     let mut dict_clone = DictMap::default();
                     for (index, value) in values.iter().enumerate() {
                         dict_clone.insert(index.to_string().into(), value.clone());
+                    }
+                    dict_clone.insert(key_str.as_str().into(), value);
+                    Value::Dict(Arc::new(dict_clone))
+                }
+            }
+        }
+        (Value::DenseIntDictInt(values), Value::Str(key_str)) => {
+            match key_str.parse::<i64>() {
+                Ok(int_key) => {
+                    if int_key < 0 {
+                        let mut int_dict = IntDictMap::default();
+                        int_dict.reserve(values.len());
+                        for (index, value) in values.iter().enumerate() {
+                            if let Some(int_value) = value {
+                                int_dict.insert(index as i64, Value::Int(*int_value));
+                            }
+                        }
+                        int_dict.insert(int_key, value);
+                        Value::IntDict(Arc::new(int_dict))
+                    } else {
+                        let index = int_key as usize;
+                        match value {
+                            Value::Int(int_value) => {
+                                let mut values = values;
+                                let values_mut = Arc::make_mut(&mut values);
+                                let len = values_mut.len();
+                                if index == len {
+                                    values_mut.push(Some(int_value));
+                                } else if index < len {
+                                    values_mut[index] = Some(int_value);
+                                } else {
+                                    values_mut.resize(index + 1, None);
+                                    values_mut[index] = Some(int_value);
+                                }
+                                Value::DenseIntDictInt(values)
+                            }
+                            Value::Null => {
+                                let mut values = values;
+                                let values_mut = Arc::make_mut(&mut values);
+                                let len = values_mut.len();
+                                if index == len {
+                                    values_mut.push(None);
+                                } else if index < len {
+                                    values_mut[index] = None;
+                                } else {
+                                    values_mut.resize(index + 1, None);
+                                    values_mut[index] = None;
+                                }
+                                Value::DenseIntDictInt(values)
+                            }
+                            other => {
+                                let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
+                                for value in values.iter() {
+                                    dense_values.push((*value).map(Value::Int).unwrap_or(Value::Null));
+                                }
+                                if index >= dense_values.len() {
+                                    dense_values.resize(index + 1, Value::Null);
+                                }
+                                dense_values[index] = other;
+                                Value::DenseIntDict(Arc::new(dense_values))
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    let mut dict_clone = DictMap::default();
+                    for (index, value) in values.iter().enumerate() {
+                        dict_clone.insert(
+                            index.to_string().into(),
+                            (*value).map(Value::Int).unwrap_or(Value::Null),
+                        );
+                    }
+                    dict_clone.insert(key_str.as_str().into(), value);
+                    Value::Dict(Arc::new(dict_clone))
+                }
+            }
+        }
+        (Value::DenseIntDictIntFull(values), Value::Str(key_str)) => {
+            match key_str.parse::<i64>() {
+                Ok(int_key) => {
+                    if int_key < 0 {
+                        let mut int_dict = IntDictMap::default();
+                        int_dict.reserve(values.len());
+                        for (index, value) in values.iter().enumerate() {
+                            int_dict.insert(index as i64, Value::Int(*value));
+                        }
+                        int_dict.insert(int_key, value);
+                        Value::IntDict(Arc::new(int_dict))
+                    } else {
+                        let index = int_key as usize;
+                        match value {
+                            Value::Int(int_value) => {
+                                let mut values = values;
+                                let values_mut = Arc::make_mut(&mut values);
+                                let len = values_mut.len();
+                                if index == len {
+                                    values_mut.push(int_value);
+                                    Value::DenseIntDictIntFull(values)
+                                } else if index < len {
+                                    values_mut[index] = int_value;
+                                    Value::DenseIntDictIntFull(values)
+                                } else {
+                                    let mut sparse = Vec::with_capacity(values.len().max(index + 1));
+                                    for value in values.iter() {
+                                        sparse.push(Some(*value));
+                                    }
+                                    sparse.resize(index + 1, None);
+                                    sparse[index] = Some(int_value);
+                                    Value::DenseIntDictInt(Arc::new(sparse))
+                                }
+                            }
+                            Value::Null => {
+                                let mut sparse = Vec::with_capacity(values.len().max(index + 1));
+                                for value in values.iter() {
+                                    sparse.push(Some(*value));
+                                }
+                                if index >= sparse.len() {
+                                    sparse.resize(index + 1, None);
+                                }
+                                sparse[index] = None;
+                                Value::DenseIntDictInt(Arc::new(sparse))
+                            }
+                            other => {
+                                let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
+                                for value in values.iter() {
+                                    dense_values.push(Value::Int(*value));
+                                }
+                                if index >= dense_values.len() {
+                                    dense_values.resize(index + 1, Value::Null);
+                                }
+                                dense_values[index] = other;
+                                Value::DenseIntDict(Arc::new(dense_values))
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    let mut dict_clone = DictMap::default();
+                    for (index, value) in values.iter().enumerate() {
+                        dict_clone.insert(index.to_string().into(), Value::Int(*value));
                     }
                     dict_clone.insert(key_str.as_str().into(), value);
                     Value::Dict(Arc::new(dict_clone))
@@ -1618,7 +2417,7 @@ pub extern "C" fn jit_make_dict(ctx: *mut VMContext, num_pairs: i64) -> i64 {
         
         // Convert key to string
         let key_str = match &key_val {
-            Value::Str(s) => s.as_ref().clone(),
+            Value::Str(s) => Arc::from(s.as_str()),
             Value::Int(i) => VMContext::jit_int_key_string(vm_ctx, *i),
             other => {
                 if debug_jit {
@@ -1627,8 +2426,8 @@ pub extern "C" fn jit_make_dict(ctx: *mut VMContext, num_pairs: i64) -> i64 {
                 return 0;
             }
         };
-        
-        map.insert(Arc::from(key_str), value_val);
+		
+        map.insert(Arc::clone(&key_str), value_val);
     }
     
     if debug_jit {
@@ -1784,8 +2583,16 @@ struct BytecodeTranslator {
     int_dict_unique_ptr_func: Option<FuncRef>,
     /// Int-dict get via pointer helper (loop JIT fast path)
     int_dict_get_ptr_func: Option<FuncRef>,
+    /// DenseIntDictInt get via pointer helper (loop JIT fast path)
+    int_dict_get_ptr_dense_int_func: Option<FuncRef>,
+    /// DenseIntDictIntFull get via pointer helper (loop JIT fast path)
+    int_dict_get_ptr_dense_int_full_func: Option<FuncRef>,
     /// Int-dict set via pointer helper (loop JIT fast path)
     int_dict_set_ptr_func: Option<FuncRef>,
+    /// DenseIntDictInt set via pointer helper (loop JIT fast path)
+    int_dict_set_ptr_dense_int_func: Option<FuncRef>,
+    /// DenseIntDictIntFull set via pointer helper (loop JIT fast path)
+    int_dict_set_ptr_dense_int_full_func: Option<FuncRef>,
     /// Specialization information for this compilation
     specialization: Option<SpecializationInfo>,
     /// Local slot names indexed by slot id
@@ -1880,7 +2687,11 @@ impl BytecodeTranslator {
             local_slot_int_dict_set_func: None,
             int_dict_unique_ptr_func: None,
             int_dict_get_ptr_func: None,
+            int_dict_get_ptr_dense_int_func: None,
+            int_dict_get_ptr_dense_int_full_func: None,
             int_dict_set_ptr_func: None,
+            int_dict_set_ptr_dense_int_func: None,
+            int_dict_set_ptr_dense_int_full_func: None,
             persist_locals_on_return: false,
             direct_arg_mode: false,
             direct_arg_param: None,
@@ -2538,11 +3349,19 @@ impl BytecodeTranslator {
         &mut self,
         unique_ptr_func: FuncRef,
         get_ptr_func: FuncRef,
+        get_ptr_dense_int_func: FuncRef,
+        get_ptr_dense_int_full_func: FuncRef,
         set_ptr_func: FuncRef,
+        set_ptr_dense_int_func: FuncRef,
+        set_ptr_dense_int_full_func: FuncRef,
     ) {
         self.int_dict_unique_ptr_func = Some(unique_ptr_func);
         self.int_dict_get_ptr_func = Some(get_ptr_func);
+        self.int_dict_get_ptr_dense_int_func = Some(get_ptr_dense_int_func);
+        self.int_dict_get_ptr_dense_int_full_func = Some(get_ptr_dense_int_full_func);
         self.int_dict_set_ptr_func = Some(set_ptr_func);
+        self.int_dict_set_ptr_dense_int_func = Some(set_ptr_dense_int_func);
+        self.int_dict_set_ptr_dense_int_full_func = Some(set_ptr_dense_int_full_func);
     }
 
     fn set_int_dict_slots(&mut self, slots: std::collections::HashSet<usize>) {
@@ -3098,21 +3917,117 @@ impl BytecodeTranslator {
 
                             let slow_block = builder.create_block();
                             let slow_clear_block = builder.create_block();
-                            let fast_check_block = builder.create_block();
+                            let dense_int_full_block = builder.create_block();
+                            let dense_int_sparse_check_block = builder.create_block();
+                            let dense_int_sparse_block = builder.create_block();
                             let fast_block = builder.create_block();
                             let cont_block = builder.create_block();
 
-                            builder.ins().brif(is_zero, slow_block, &[], fast_check_block, &[]);
-
-                            builder.switch_to_block(fast_check_block);
-                            let one = builder.ins().iconst(types::I64, 1);
-                            let dense_tag = builder.ins().band(dict_ptr, one);
-                            let is_dense = builder.ins().icmp(IntCC::NotEqual, dense_tag, zero);
-                            let is_negative = builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
-                            let dense_negative = builder.ins().band(is_dense, is_negative);
-                            builder.ins().brif(dense_negative, slow_clear_block, &[], fast_block, &[]);
+                            builder.ins().brif(is_zero, slow_block, &[], fast_block, &[]);
 
                             builder.switch_to_block(fast_block);
+                            let tag_mask = builder.ins().iconst(types::I64, 7);
+                            let tag_value = builder.ins().band(dict_ptr, tag_mask);
+                            let dense_int_full_tag = builder.ins().iconst(types::I64, 2);
+                            let is_dense_int_full =
+                                builder.ins().icmp(IntCC::Equal, tag_value, dense_int_full_tag);
+                            let dense_int_sparse_tag = builder.ins().iconst(types::I64, 4);
+                            let is_dense_int_sparse =
+                                builder.ins().icmp(IntCC::Equal, tag_value, dense_int_sparse_tag);
+                            builder.ins().brif(
+                                is_dense_int_full,
+                                dense_int_full_block,
+                                &[],
+                                dense_int_sparse_check_block,
+                                &[],
+                            );
+
+                            builder.switch_to_block(dense_int_full_block);
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let is_negative = builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
+                            let inline_slow_block = builder.create_block();
+                            let inline_set_block = builder.create_block();
+                            builder.ins().brif(is_negative, inline_slow_block, &[], inline_set_block, &[]);
+
+                            builder.switch_to_block(inline_set_block);
+                            let tag_mask = builder.ins().iconst(types::I64, !7i64);
+                            let base_ptr = builder.ins().band(dict_ptr, tag_mask);
+                            let data_ptr = builder.ins().load(
+                                types::I64,
+                                MemFlags::new(),
+                                base_ptr,
+                                0,
+                            );
+                            let len = builder.ins().load(
+                                types::I64,
+                                MemFlags::new(),
+                                base_ptr,
+                                8,
+                            );
+                            let cap = builder.ins().load(
+                                types::I64,
+                                MemFlags::new(),
+                                base_ptr,
+                                16,
+                            );
+
+                            let is_lt_len = builder.ins().icmp(IntCC::SignedLessThan, _index, len);
+                            let is_eq_len = builder.ins().icmp(IntCC::Equal, _index, len);
+                            let has_capacity = builder.ins().icmp(IntCC::SignedLessThan, len, cap);
+                            let can_append = builder.ins().band(is_eq_len, has_capacity);
+
+                            let update_block = builder.create_block();
+                            let append_check_block = builder.create_block();
+                            let append_block = builder.create_block();
+                            builder.ins().brif(is_lt_len, update_block, &[], append_check_block, &[]);
+
+                            builder.switch_to_block(update_block);
+                            let stride = builder.ins().iconst(types::I64, 8);
+                            let offset = builder.ins().imul(_index, stride);
+                            let addr = builder.ins().iadd(data_ptr, offset);
+                            builder.ins().store(MemFlags::new(), _value, addr, 0);
+                            builder.ins().jump(cont_block, &[]);
+
+                            builder.switch_to_block(append_check_block);
+                            builder.ins().brif(can_append, append_block, &[], inline_slow_block, &[]);
+
+                            builder.switch_to_block(append_block);
+                            let stride = builder.ins().iconst(types::I64, 8);
+                            let offset = builder.ins().imul(len, stride);
+                            let addr = builder.ins().iadd(data_ptr, offset);
+                            builder.ins().store(MemFlags::new(), _value, addr, 0);
+                            let one = builder.ins().iconst(types::I64, 1);
+                            let new_len = builder.ins().iadd(len, one);
+                            builder.ins().store(MemFlags::new(), new_len, base_ptr, 8);
+                            builder.ins().jump(cont_block, &[]);
+
+                            builder.switch_to_block(inline_slow_block);
+                            if let Some(set_dense_int_full_ref) =
+                                self.int_dict_set_ptr_dense_int_full_func
+                            {
+                                builder.ins().call(set_dense_int_full_ref, &[dict_ptr, _index, _value]);
+                            } else {
+                                builder.ins().call(set_ptr_ref, &[dict_ptr, _index, _value]);
+                            }
+                            builder.ins().jump(cont_block, &[]);
+
+                            builder.switch_to_block(dense_int_sparse_check_block);
+                            builder.ins().brif(
+                                is_dense_int_sparse,
+                                dense_int_sparse_block,
+                                &[],
+                                slow_clear_block,
+                                &[],
+                            );
+                            builder.switch_to_block(dense_int_sparse_block);
+                            if let Some(set_dense_int_ref) = self.int_dict_set_ptr_dense_int_func {
+                                builder.ins().call(set_dense_int_ref, &[dict_ptr, _index, _value]);
+                            } else {
+                                builder.ins().call(set_ptr_ref, &[dict_ptr, _index, _value]);
+                            }
+                            builder.ins().jump(cont_block, &[]);
+
+                            builder.switch_to_block(slow_clear_block);
                             builder.ins().call(set_ptr_ref, &[dict_ptr, _index, _value]);
                             builder.ins().jump(cont_block, &[]);
 
@@ -3122,16 +4037,13 @@ impl BytecodeTranslator {
                             {
                                 let slot_val = builder.ins().iconst(types::I64, *slot_index as i64);
                                 builder.ins().call(set_int_dict_ref, &[ctx, slot_val, _index, _value]);
-                            }
-                            builder.ins().jump(cont_block, &[]);
-
-                            builder.switch_to_block(slow_clear_block);
-                            if let (Some(ctx), Some(set_int_dict_ref)) =
-                                (self.ctx_param, self.local_slot_int_dict_set_func)
-                            {
-                                let slot_val = builder.ins().iconst(types::I64, *slot_index as i64);
-                                builder.ins().call(set_int_dict_ref, &[ctx, slot_val, _index, _value]);
-                                builder.ins().stack_store(zero, ptr_slot, 0);
+                                if let Some(unique_ptr_ref) = self.int_dict_unique_ptr_func {
+                                    let call = builder.ins().call(unique_ptr_ref, &[ctx, slot_val]);
+                                    let new_ptr = builder.inst_results(call)[0];
+                                    builder.ins().stack_store(new_ptr, ptr_slot, 0);
+                                } else {
+                                    builder.ins().stack_store(zero, ptr_slot, 0);
+                                }
                             }
                             builder.ins().jump(cont_block, &[]);
 
@@ -3302,25 +4214,104 @@ impl BytecodeTranslator {
                             let is_zero = builder.ins().icmp(IntCC::Equal, dict_ptr, zero);
 
                             let slow_block = builder.create_block();
-                            let fast_check_block = builder.create_block();
+                            let dense_int_full_block = builder.create_block();
+                            let dense_int_sparse_check_block = builder.create_block();
+                            let dense_int_sparse_block = builder.create_block();
                             let fast_block = builder.create_block();
                             let cont_block = builder.create_block();
                             builder.append_block_param(cont_block, types::I64);
 
-                            builder.ins().brif(is_zero, slow_block, &[], fast_check_block, &[]);
-
-                            builder.switch_to_block(fast_check_block);
-                            let one = builder.ins().iconst(types::I64, 1);
-                            let dense_tag = builder.ins().band(dict_ptr, one);
-                            let is_dense = builder.ins().icmp(IntCC::NotEqual, dense_tag, zero);
-                            let is_negative = builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
-                            let dense_negative = builder.ins().band(is_dense, is_negative);
-                            builder.ins().brif(dense_negative, slow_block, &[], fast_block, &[]);
+                            builder.ins().brif(is_zero, slow_block, &[], fast_block, &[]);
 
                             builder.switch_to_block(fast_block);
-                            let call = builder.ins().call(get_ptr_ref, &[dict_ptr, _index]);
-                            let fast_value = builder.inst_results(call)[0];
-                            builder.ins().jump(cont_block, &[fast_value]);
+                            let tag_mask = builder.ins().iconst(types::I64, 7);
+                            let tag_value = builder.ins().band(dict_ptr, tag_mask);
+                            let dense_int_full_tag = builder.ins().iconst(types::I64, 2);
+                            let is_dense_int_full =
+                                builder.ins().icmp(IntCC::Equal, tag_value, dense_int_full_tag);
+                            let dense_int_sparse_tag = builder.ins().iconst(types::I64, 4);
+                            let is_dense_int_sparse =
+                                builder.ins().icmp(IntCC::Equal, tag_value, dense_int_sparse_tag);
+                            builder.ins().brif(
+                                is_dense_int_full,
+                                dense_int_full_block,
+                                &[],
+                                dense_int_sparse_check_block,
+                                &[],
+                            );
+
+                            builder.switch_to_block(dense_int_full_block);
+                            let zero = builder.ins().iconst(types::I64, 0);
+                            let is_negative = builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
+                            let inline_slow_block = builder.create_block();
+                            let inline_get_block = builder.create_block();
+                            builder.ins().brif(is_negative, inline_slow_block, &[], inline_get_block, &[]);
+
+                            builder.switch_to_block(inline_get_block);
+                            let tag_mask = builder.ins().iconst(types::I64, !7i64);
+                            let base_ptr = builder.ins().band(dict_ptr, tag_mask);
+                            let data_ptr = builder.ins().load(
+                                types::I64,
+                                MemFlags::new(),
+                                base_ptr,
+                                0,
+                            );
+                            let len = builder.ins().load(
+                                types::I64,
+                                MemFlags::new(),
+                                base_ptr,
+                                8,
+                            );
+                            let is_lt_len = builder.ins().icmp(IntCC::SignedLessThan, _index, len);
+                            let hit_block = builder.create_block();
+                            let miss_block = builder.create_block();
+                            builder.ins().brif(is_lt_len, hit_block, &[], miss_block, &[]);
+
+                            builder.switch_to_block(hit_block);
+                            let stride = builder.ins().iconst(types::I64, 8);
+                            let offset = builder.ins().imul(_index, stride);
+                            let addr = builder.ins().iadd(data_ptr, offset);
+                            let value = builder.ins().load(types::I64, MemFlags::new(), addr, 0);
+                            builder.ins().jump(cont_block, &[value]);
+
+                            builder.switch_to_block(miss_block);
+                            builder.ins().jump(cont_block, &[zero]);
+
+                            builder.switch_to_block(inline_slow_block);
+                            if let Some(get_dense_int_full_ref) =
+                                self.int_dict_get_ptr_dense_int_full_func
+                            {
+                                let call =
+                                    builder.ins().call(get_dense_int_full_ref, &[dict_ptr, _index]);
+                                let fast_value = builder.inst_results(call)[0];
+                                builder.ins().jump(cont_block, &[fast_value]);
+                            } else {
+                                let call = builder.ins().call(get_ptr_ref, &[dict_ptr, _index]);
+                                let fast_value = builder.inst_results(call)[0];
+                                builder.ins().jump(cont_block, &[fast_value]);
+                            }
+
+                            builder.switch_to_block(dense_int_sparse_check_block);
+                            builder.ins().brif(
+                                is_dense_int_sparse,
+                                dense_int_sparse_block,
+                                &[],
+                                slow_block,
+                                &[],
+                            );
+
+                            builder.switch_to_block(dense_int_sparse_block);
+                            if let Some(get_dense_int_ref) =
+                                self.int_dict_get_ptr_dense_int_func
+                            {
+                                let call = builder.ins().call(get_dense_int_ref, &[dict_ptr, _index]);
+                                let fast_value = builder.inst_results(call)[0];
+                                builder.ins().jump(cont_block, &[fast_value]);
+                            } else {
+                                let call = builder.ins().call(get_ptr_ref, &[dict_ptr, _index]);
+                                let fast_value = builder.inst_results(call)[0];
+                                builder.ins().jump(cont_block, &[fast_value]);
+                            }
 
                             builder.switch_to_block(slow_block);
                             if let (Some(ctx), Some(get_int_dict_ref)) =
@@ -3722,6 +4713,12 @@ impl BytecodeTranslator {
                         if let Some(&stack_slot) = self.local_slots.get(name) {
                             self.dirty_local_names.insert(name.clone());
                             builder.ins().stack_store(value, stack_slot, 0);
+                            if self.int_dict_slots.contains(slot) {
+                                if let Some(&ptr_slot) = self.int_dict_ptr_slots.get(slot) {
+                                    let zero = builder.ins().iconst(types::I64, 0);
+                                    builder.ins().stack_store(zero, ptr_slot, 0);
+                                }
+                            }
                             return Ok(false);
                         }
                     }
@@ -3868,6 +4865,12 @@ impl BytecodeTranslator {
                     }
                     if let Some(&stack_slot) = self.local_slots.get(name) {
                         builder.ins().stack_store(value, stack_slot, 0);
+                        if self.int_dict_slots.contains(slot) {
+                            if let Some(&ptr_slot) = self.int_dict_ptr_slots.get(slot) {
+                                let zero = builder.ins().iconst(types::I64, 0);
+                                builder.ins().stack_store(zero, ptr_slot, 0);
+                            }
+                        }
                         return Ok(false);
                     }
 
@@ -4233,6 +5236,16 @@ impl JitCompiler {
         builder.symbol("jit_int_dict_unique_ptr", jit_int_dict_unique_ptr as *const u8);
         builder.symbol("jit_int_dict_get_ptr", jit_int_dict_get_ptr as *const u8);
         builder.symbol("jit_int_dict_set_ptr", jit_int_dict_set_ptr as *const u8);
+        builder.symbol("jit_dense_int_dict_int_get_ptr", jit_dense_int_dict_int_get_ptr as *const u8);
+        builder.symbol("jit_dense_int_dict_int_set_ptr", jit_dense_int_dict_int_set_ptr as *const u8);
+        builder.symbol(
+            "jit_dense_int_dict_int_full_get_ptr",
+            jit_dense_int_dict_int_full_get_ptr as *const u8,
+        );
+        builder.symbol(
+            "jit_dense_int_dict_int_full_set_ptr",
+            jit_dense_int_dict_int_full_set_ptr as *const u8,
+        );
         builder.symbol("jit_make_dict", jit_make_dict as *const u8);
         builder.symbol("jit_make_dict_with_keys", jit_make_dict_with_keys as *const u8);
 
@@ -4374,7 +5387,7 @@ impl JitCompiler {
 
     /// Compile a bytecode chunk to native code
     pub fn compile(&mut self, chunk: &BytecodeChunk, offset: usize) -> Result<CompiledFn, String> {
-        self.compile_with_options(chunk, offset, None)
+        self.compile_with_options(chunk, offset, None, None)
     }
 
     /// Compile a loop with int-dict fast path enabled for specified local slots
@@ -4382,9 +5395,10 @@ impl JitCompiler {
         &mut self,
         chunk: &BytecodeChunk,
         offset: usize,
+        loop_end: usize,
         int_dict_slots: std::collections::HashSet<usize>,
     ) -> Result<CompiledFn, String> {
-        self.compile_with_options(chunk, offset, Some(int_dict_slots))
+        self.compile_with_options(chunk, offset, Some(int_dict_slots), Some(loop_end))
     }
 
     fn compile_with_options(
@@ -4392,6 +5406,7 @@ impl JitCompiler {
         chunk: &BytecodeChunk,
         offset: usize,
         int_dict_slots: Option<std::collections::HashSet<usize>>,
+        loop_end: Option<usize>,
     ) -> Result<CompiledFn, String> {
         // Clear previous context
         self.ctx.clear();
@@ -4511,6 +5526,24 @@ impl JitCompiler {
             .declare_function("jit_int_dict_get_ptr", Linkage::Import, &int_dict_get_ptr_sig)
             .map_err(|e| format!("Failed to declare jit_int_dict_get_ptr: {}", e))?;
 
+        let dense_int_dict_int_get_ptr_func_id = self
+            .module
+            .declare_function(
+                "jit_dense_int_dict_int_get_ptr",
+                Linkage::Import,
+                &int_dict_get_ptr_sig,
+            )
+            .map_err(|e| format!("Failed to declare jit_dense_int_dict_int_get_ptr: {}", e))?;
+
+        let dense_int_dict_int_full_get_ptr_func_id = self
+            .module
+            .declare_function(
+                "jit_dense_int_dict_int_full_get_ptr",
+                Linkage::Import,
+                &int_dict_get_ptr_sig,
+            )
+            .map_err(|e| format!("Failed to declare jit_dense_int_dict_int_full_get_ptr: {}", e))?;
+
         let mut int_dict_set_ptr_sig = self.module.make_signature();
         int_dict_set_ptr_sig.params.push(AbiParam::new(types::I64)); // dict ptr
         int_dict_set_ptr_sig.params.push(AbiParam::new(types::I64)); // key
@@ -4521,6 +5554,24 @@ impl JitCompiler {
             .module
             .declare_function("jit_int_dict_set_ptr", Linkage::Import, &int_dict_set_ptr_sig)
             .map_err(|e| format!("Failed to declare jit_int_dict_set_ptr: {}", e))?;
+
+        let dense_int_dict_int_set_ptr_func_id = self
+            .module
+            .declare_function(
+                "jit_dense_int_dict_int_set_ptr",
+                Linkage::Import,
+                &int_dict_set_ptr_sig,
+            )
+            .map_err(|e| format!("Failed to declare jit_dense_int_dict_int_set_ptr: {}", e))?;
+
+        let dense_int_dict_int_full_set_ptr_func_id = self
+            .module
+            .declare_function(
+                "jit_dense_int_dict_int_full_set_ptr",
+                Linkage::Import,
+                &int_dict_set_ptr_sig,
+            )
+            .map_err(|e| format!("Failed to declare jit_dense_int_dict_int_full_set_ptr: {}", e))?;
         
         // jit_load_variable_float: fn(*mut VMContext, i64) -> f64
         let mut load_var_float_sig = self.module.make_signature();
@@ -4630,8 +5681,20 @@ impl JitCompiler {
                 self.module.declare_func_in_func(int_dict_unique_ptr_func_id, builder.func);
             let int_dict_get_ptr_func_ref =
                 self.module.declare_func_in_func(int_dict_get_ptr_func_id, builder.func);
+            let dense_int_dict_int_get_ptr_func_ref =
+                self.module
+                    .declare_func_in_func(dense_int_dict_int_get_ptr_func_id, builder.func);
+            let dense_int_dict_int_full_get_ptr_func_ref =
+                self.module
+                    .declare_func_in_func(dense_int_dict_int_full_get_ptr_func_id, builder.func);
             let int_dict_set_ptr_func_ref =
                 self.module.declare_func_in_func(int_dict_set_ptr_func_id, builder.func);
+            let dense_int_dict_int_set_ptr_func_ref =
+                self.module
+                    .declare_func_in_func(dense_int_dict_int_set_ptr_func_id, builder.func);
+            let dense_int_dict_int_full_set_ptr_func_ref =
+                self.module
+                    .declare_func_in_func(dense_int_dict_int_full_set_ptr_func_id, builder.func);
             let load_var_float_func_ref = self.module.declare_func_in_func(load_var_float_func_id, builder.func);
             let store_var_float_func_ref = self.module.declare_func_in_func(store_var_float_func_id, builder.func);
             let check_int_func_ref = self.module.declare_func_in_func(check_type_int_func_id, builder.func);
@@ -4667,7 +5730,11 @@ impl JitCompiler {
             translator.set_int_dict_ptr_functions(
                 int_dict_unique_ptr_func_ref,
                 int_dict_get_ptr_func_ref,
+                dense_int_dict_int_get_ptr_func_ref,
+                dense_int_dict_int_full_get_ptr_func_ref,
                 int_dict_set_ptr_func_ref,
+                dense_int_dict_int_set_ptr_func_ref,
+                dense_int_dict_int_full_set_ptr_func_ref,
             );
             translator.set_float_functions(load_var_float_func_ref, store_var_float_func_ref);
             translator.set_guard_functions(check_int_func_ref, check_float_func_ref);
@@ -4677,6 +5744,7 @@ impl JitCompiler {
             
             // Initialize current block tracking
             let mut current_block = entry_block;
+            let mut entry_block_sealed = false;
             
             // Set specialization info if available
             if let Some(spec) = self.type_profiles.get(&offset) {
@@ -4728,6 +5796,7 @@ impl JitCompiler {
                         
                         // Seal entry block now that we've branched from it
                         builder.seal_block(entry_block);
+                        entry_block_sealed = true;
                         
                         // Guard failure block: return error code (-1)
                         builder.switch_to_block(guard_failure_block);
@@ -4736,23 +5805,42 @@ impl JitCompiler {
                         builder.ins().return_(&[error_code]);
                         
                         // Guard success block: continue with function body
-                        // Switch to it but DON'T seal it yet - let normal sealing logic handle it
                         builder.switch_to_block(guard_success_block);
-                        
-                        // Update current block for instruction translation
+                        builder.seal_block(guard_success_block);
                         current_block = guard_success_block;
-                        // Add guard_success_block as the new entry for instruction 0
-                        translator.blocks.insert(0, guard_success_block);
                     }
                 }
+
             }
-            
-            // First pass: create blocks for all jump targets
+                
+            // Create blocks for jump targets (loop JIT)
             translator.create_blocks(&mut builder, &chunk.instructions)?;
-            
-            // Pre-allocate local slots for loop JIT to avoid runtime load/store calls
-            translator.allocate_local_slots(&mut builder, &chunk.instructions, translator.function_end);
-            translator.set_persist_locals_on_return(true);
+            let function_end = if let Some(loop_end) = loop_end {
+                let mut max_target = loop_end;
+                for (pc, instruction) in chunk.instructions.iter().enumerate().skip(offset).take(loop_end - offset + 1) {
+                    match instruction {
+                        OpCode::Jump(target)
+                        | OpCode::JumpIfFalse(target)
+                        | OpCode::JumpIfTrue(target)
+                        | OpCode::JumpBack(target) => {
+                            if *target > max_target {
+                                max_target = *target;
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    if pc > loop_end {
+                        break;
+                    }
+                }
+
+                max_target + 1
+            } else {
+                translator.function_end
+            };
+            translator.function_end = function_end;
+            translator.allocate_local_slots(&mut builder, &chunk.instructions, function_end);
             translator.initialize_local_slots_from_vm(&mut builder, load_var_func_ref);
 
             if let Some(int_dict_slots) = int_dict_slots {
@@ -4760,76 +5848,85 @@ impl JitCompiler {
                 translator.allocate_int_dict_ptr_slots(&mut builder);
                 translator.initialize_int_dict_ptr_slots(&mut builder);
             }
-            
-            // Add entry block to the map (will be guard_success_block if guards were generated)
-            if !translator.blocks.contains_key(&0) {
-                translator.blocks.insert(0, entry_block);
+
+            let start_block = match translator.blocks.get(&offset) {
+                Some(block) => *block,
+                None => entry_block,
+            };
+
+            if offset != 0 && start_block != entry_block {
+                builder.ins().jump(start_block, &[]);
+                builder.seal_block(entry_block);
+                entry_block_sealed = true;
+                builder.switch_to_block(start_block);
+                current_block = start_block;
             }
-            
-            // Track sealed blocks to avoid double-sealing
+
+            if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&offset) {
+                translator.value_stack.clear();
+                let params = builder.block_params(start_block);
+                if params.len() >= expected_depth {
+                    for i in 0..expected_depth {
+                        translator.value_stack.push(params[i]);
+                    }
+                }
+            }
+
+            if !entry_block_sealed {
+                builder.seal_block(entry_block);
+            }
+
             let mut sealed_blocks = std::collections::HashSet::new();
-            
-            // Second pass: translate instructions (only within function body)
+            sealed_blocks.insert(entry_block);
             let mut block_terminated = false;
-            let function_end = translator.function_end;
-            
-            for (pc, instruction) in chunk.instructions.iter().enumerate() {
-                // Stop at function end
+
+            for (pc, instruction) in chunk.instructions.iter().enumerate().skip(offset) {
                 if pc >= function_end {
                     break;
                 }
-                
-                // If this PC has a block (it's a jump target), switch to it
+
                 if let Some(&block) = translator.blocks.get(&pc) {
                     if block != current_block {
-                        // If current block not terminated, add a fallthrough jump
                         if !block_terminated {
-                            // Pass current stack as arguments
                             let args: Vec<_> = translator.value_stack.clone();
                             builder.ins().jump(block, &args);
                         }
-                        
-                        // Seal the previous block before switching
-                        // STEP 11 FIX: Don't seal loop headers yet - they have back-edges
-                        // that haven't been processed yet
-                        if !sealed_blocks.contains(&current_block) && 
-                           !translator.loop_header_pcs.iter().any(|&lpc| translator.blocks.get(&lpc) == Some(&current_block)) {
+
+                        if !sealed_blocks.contains(&current_block) {
                             builder.seal_block(current_block);
                             sealed_blocks.insert(current_block);
                         }
+
                         builder.switch_to_block(block);
                         current_block = block;
                         block_terminated = false;
-                        
-                        // If this block expects stack values (from conditional branches or loop back-edges),
-                        // restore the value_stack from block parameters
+
                         if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&pc) {
-                            // Clear current stack and read block parameters
-                            // NOTE: For loop headers, parameters were added during create_blocks
-                            // For other blocks, they're added here
                             translator.value_stack.clear();
                             let existing_params = builder.block_params(block);
-                            
+
                             if existing_params.len() >= expected_depth {
-                                // Loop header - use existing parameters
                                 for i in 0..expected_depth {
                                     translator.value_stack.push(existing_params[i]);
                                 }
                             } else {
-                                // Not a loop header - add parameters now
                                 for _ in 0..expected_depth {
                                     let param = builder.append_block_param(block, types::I64);
                                     translator.value_stack.push(param);
                                 }
                             }
-                            
+
                             if std::env::var("DEBUG_JIT").is_ok() {
-                                eprintln!("JIT: Block at PC {} has {} params, stack restored", pc, expected_depth);
+                                eprintln!(
+                                    "JIT: Block at PC {} has {} params, stack restored",
+                                    pc,
+                                    expected_depth
+                                );
                             }
                         }
                     }
                 }
-                
+
                 // Skip instruction if block is already terminated
                 if block_terminated {
                     continue;
@@ -4843,12 +5940,10 @@ impl JitCompiler {
                         translator.value_stack.len()
                     );
                 }
-                
+
                 match translator.translate_instruction(&mut builder, pc, instruction, &chunk.constants) {
                     Ok(terminates_block) => {
                         if terminates_block {
-                            // Block is terminated, seal it
-                            // STEP 11 FIX: Don't seal loop headers yet - they have back-edges
                             if !sealed_blocks.contains(&current_block) &&
                                !translator.loop_header_pcs.iter().any(|&lpc| translator.blocks.get(&lpc) == Some(&current_block)) {
                                 builder.seal_block(current_block);
@@ -4858,8 +5953,6 @@ impl JitCompiler {
                         }
                     }
                     Err(e) => {
-                        // If translation fails, we can't JIT compile this function
-                        // This is expected for complex operations
                         return Err(format!("Translation failed at PC {}: {}", pc, e));
                     }
                 }

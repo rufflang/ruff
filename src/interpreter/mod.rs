@@ -32,7 +32,17 @@ pub use environment::Environment;
 pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
 // Database infrastructure - used by stub database.rs module
 #[allow(unused_imports)]
-pub use value::{ConnectionPool, DatabaseConnection, DenseIntDict, DenseIntDictInt, DictMap, IntDictMap, LeakyFunctionBody, Value};
+pub use value::{
+    ConnectionPool,
+    DatabaseConnection,
+    DenseIntDict,
+    DenseIntDictInt,
+    DenseIntDictIntFull,
+    DictMap,
+    IntDictMap,
+    LeakyFunctionBody,
+    Value,
+};
 
 // Internal-only imports
 use control_flow::ControlFlow;
@@ -1608,9 +1618,40 @@ impl Interpreter {
                                 if int_key < 0 {
                                     Value::Null
                                 } else {
+                                    match values.get(int_key as usize) {
+                                        Some(value) => (*value).map(Value::Int).unwrap_or(Value::Null),
+                                        None => Value::Null,
+                                    }
+                                }
+                            }
+                            Err(_) => Value::Null,
+                        };
+                        self.env.define(key.clone(), val);
+                    }
+
+                    if let Some(rest_name) = rest {
+                        let mut rest_dict = DictMap::default();
+                        for (index, value) in values.iter().enumerate() {
+                            let key = index.to_string();
+                            if !keys.iter().any(|existing| existing.as_str() == key.as_str()) {
+                                rest_dict.insert(
+                                    Arc::from(key.as_str()),
+                                    (*value).map(Value::Int).unwrap_or(Value::Null),
+                                );
+                            }
+                        }
+                        self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
+                    }
+                } else if let Value::DenseIntDictIntFull(values) = value {
+                    for key in keys {
+                        let val = match key.parse::<i64>() {
+                            Ok(int_key) => {
+                                if int_key < 0 {
+                                    Value::Null
+                                } else {
                                     values
                                         .get(int_key as usize)
-                                        .and_then(|value| (*value).map(Value::Int))
+                                        .map(|value| Value::Int(*value))
                                         .unwrap_or(Value::Null)
                                 }
                             }
@@ -1624,9 +1665,7 @@ impl Interpreter {
                         for (index, value) in values.iter().enumerate() {
                             let key = index.to_string();
                             if !keys.iter().any(|existing| existing.as_str() == key.as_str()) {
-                                if let Some(value) = value {
-                                    rest_dict.insert(Arc::from(key.as_str()), Value::Int(*value));
-                                }
+                                rest_dict.insert(Arc::from(key.as_str()), Value::Int(*value));
                             }
                         }
                         self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
@@ -4598,6 +4637,14 @@ impl Interpreter {
                             None => format!("\"{}\": null", index),
                         }
                     })
+                    .collect();
+                format!("{{{}}}", pair_strs.join(", "))
+            }
+            Value::DenseIntDictIntFull(values) => {
+                let pair_strs: Vec<String> = values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| format!("\"{}\": {}", index, value))
                     .collect();
                 format!("{{{}}}", pair_strs.join(", "))
             }

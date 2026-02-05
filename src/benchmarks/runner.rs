@@ -1,11 +1,12 @@
 // Benchmark runner - orchestrates benchmark execution
 
 use crate::benchmarks::{BenchmarkResult, ExecutionMode, Timer};
-use crate::interpreter::Interpreter;
+use crate::interpreter::{Environment, Interpreter, Value};
 use crate::lexer;
 use crate::parser::Parser;
 use crate::vm::VM;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 pub struct BenchmarkRunner {
     iterations: usize,
@@ -35,7 +36,7 @@ impl BenchmarkRunner {
         vec![
             self.run_interpreter(name, code),
             self.run_vm(name, code),
-            // JIT mode requires specific setup, handled separately
+            self.run_jit(name, code),
         ]
     }
 
@@ -97,6 +98,35 @@ impl BenchmarkRunner {
         result
     }
 
+    /// Run benchmark in JIT mode
+    pub fn run_jit(&self, name: &str, code: &str) -> BenchmarkResult {
+        let mut result = BenchmarkResult::new(name.to_string(), ExecutionMode::JIT);
+
+        // Warmup
+        for _ in 0..self.warmup_runs {
+            if let Err(e) = self.execute_jit(code) {
+                result.set_error(format!("Warmup failed: {}", e));
+                return result;
+            }
+        }
+
+        // Benchmark
+        for _ in 0..self.iterations {
+            let timer = Timer::start();
+            match self.execute_jit(code) {
+                Ok(_) => {
+                    result.add_sample(timer.elapsed());
+                }
+                Err(e) => {
+                    result.set_error(format!("Execution failed: {}", e));
+                    break;
+                }
+            }
+        }
+
+        result
+    }
+
     /// Execute code in interpreter mode
     fn execute_interpreter(&self, code: &str) -> Result<(), String> {
         let tokens = lexer::tokenize(code);
@@ -124,10 +154,50 @@ impl BenchmarkRunner {
 
         // Execute bytecode
         let mut vm = VM::new();
+        self.configure_vm_globals(&mut vm);
+        vm.set_jit_enabled(false);
+
         vm.execute(chunk)
             .map_err(|e| format!("VM error: {:?}", e))?;
 
         Ok(())
+    }
+
+    /// Execute code in JIT mode
+    fn execute_jit(&self, code: &str) -> Result<(), String> {
+        let tokens = lexer::tokenize(code);
+        let mut parser = Parser::new(tokens);
+        let ast = parser.parse();
+
+        // Compile AST to bytecode
+        use crate::compiler::Compiler;
+        let mut compiler = Compiler::new();
+        let chunk = compiler
+            .compile(&ast)
+            .map_err(|e| format!("Compilation error: {}", e))?;
+
+        // Execute bytecode with JIT enabled
+        let mut vm = VM::new();
+        self.configure_vm_globals(&mut vm);
+        vm.set_jit_enabled(true);
+
+        vm.execute(chunk)
+            .map_err(|e| format!("JIT error: {:?}", e))?;
+
+        Ok(())
+    }
+
+    fn configure_vm_globals(&self, vm: &mut VM) {
+        // Register built-ins so VM benchmarks have parity with interpreter mode.
+        let env = Arc::new(Mutex::new(Environment::new()));
+        let builtins = Interpreter::get_builtin_names();
+        for builtin_name in builtins {
+            env.lock().unwrap().set(
+                builtin_name.to_string(),
+                Value::NativeFunction(builtin_name.to_string()),
+            );
+        }
+        vm.set_globals(env);
     }
 
     /// Load and run a benchmark from a file

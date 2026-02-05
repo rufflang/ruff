@@ -1726,6 +1726,14 @@ pub fn format_debug_value(value: &Value) -> String {
                 .collect();
             format!("Dict{{{}}}", items.join(", "))
         }
+        Value::DenseIntDictIntFull(values) => {
+            let items: Vec<String> = values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| format!("{}: {}", index, value))
+                .collect();
+            format!("Dict{{{}}}", items.join(", "))
+        }
         Value::Function(_, _, _) => "Function".to_string(),
         Value::AsyncFunction(_, _, _) => "AsyncFunction".to_string(),
         Value::NativeFunction(name) => format!("NativeFunction({})", name),

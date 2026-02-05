@@ -29,6 +29,9 @@ pub type DenseIntDict = Vec<Value>;
 /// Dense vector for integer-keyed dictionaries with optional int values.
 pub type DenseIntDictInt = Vec<Option<i64>>;
 
+/// Dense vector for integer-keyed dictionaries with int values only.
+pub type DenseIntDictIntFull = Vec<i64>;
+
 /// Hash map for string-keyed dictionaries.
 pub type DictMap = HashMap<Arc<str>, Value, BuildHasherDefault<AHasher>>;
 
@@ -318,6 +321,8 @@ pub enum Value {
     DenseIntDict(Arc<DenseIntDict>),
     /// Dense integer dictionary for non-negative integer keys with int values only
     DenseIntDictInt(Arc<DenseIntDictInt>),
+    /// Dense integer dictionary for non-negative integer keys with int values only (no nulls)
+    DenseIntDictIntFull(Arc<DenseIntDictIntFull>),
     /// Set of unique values
     Set(Vec<Value>),
     /// FIFO queue
@@ -467,6 +472,9 @@ impl std::fmt::Debug for Value {
             Value::IntDict(map) => write!(f, "IntDict{{{} keys}}", map.len()),
             Value::DenseIntDict(values) => write!(f, "DenseIntDict{{{} keys}}", values.len()),
             Value::DenseIntDictInt(values) => write!(f, "DenseIntDictInt{{{} keys}}", values.len()),
+            Value::DenseIntDictIntFull(values) => {
+                write!(f, "DenseIntDictIntFull{{{} keys}}", values.len())
+            }
             Value::Set(elements) => write!(f, "Set{{{} items}}", elements.len()),
             Value::Queue(queue) => write!(f, "Queue({} items)", queue.len()),
             Value::Stack(stack) => write!(f, "Stack({} items)", stack.len()),

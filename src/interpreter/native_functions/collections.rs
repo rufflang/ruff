@@ -15,9 +15,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             Some(Value::Dict(dict)) => Value::Int(dict.len() as i64),
             Some(Value::IntDict(dict)) => Value::Int(dict.len() as i64),
             Some(Value::DenseIntDict(values)) => Value::Int(values.len() as i64),
-            Some(Value::DenseIntDictInt(values)) => {
-                Value::Int(values.iter().filter(|value| value.is_some()).count() as i64)
-            }
+            Some(Value::DenseIntDictInt(values)) => Value::Int(values.len() as i64),
+            Some(Value::DenseIntDictIntFull(values)) => Value::Int(values.len() as i64),
             Some(Value::Bytes(bytes)) => Value::Int(bytes.len() as i64),
             Some(Value::Set(set)) => Value::Int(set.len() as i64),
             Some(Value::Queue(queue)) => Value::Int(queue.len() as i64),
@@ -180,6 +179,28 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     }
                 } else {
                     Value::Array(Arc::new(vec![Value::DenseIntDictInt(values), Value::Int(0)]))
+                }
+            }
+            (Some(Value::DenseIntDictIntFull(values)), Some(key_val)) => {
+                let int_key = match key_val {
+                    Value::Int(i) => Some(*i),
+                    Value::Str(key) => key.parse::<i64>().ok(),
+                    _ => None,
+                };
+                if let Some(key) = int_key {
+                    if key >= 0 && (key as usize) < values.len() {
+                        let mut int_dict = IntDictMap::default();
+                        int_dict.reserve(values.len());
+                        for (index, value) in values.iter().enumerate() {
+                            int_dict.insert(index as i64, Value::Int(*value));
+                        }
+                        let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
+                        Value::Array(Arc::new(vec![Value::IntDict(Arc::new(int_dict)), removed]))
+                    } else {
+                        Value::Array(Arc::new(vec![Value::DenseIntDictIntFull(values), Value::Int(0)]))
+                    }
+                } else {
+                    Value::Array(Arc::new(vec![Value::DenseIntDictIntFull(values), Value::Int(0)]))
                 }
             }
             _ => Value::Array(Arc::new(vec![])),
@@ -618,16 +639,13 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     .collect();
                 Value::Array(Arc::new(keys))
             } else if let Some(Value::DenseIntDictInt(values)) = arg_values.first() {
-                let keys: Vec<Value> = values
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, value)| {
-                        if value.is_some() {
-                            Some(Value::Str(Arc::new(index.to_string())))
-                        } else {
-                            None
-                        }
-                    })
+                let keys: Vec<Value> = (0..values.len())
+                    .map(|k| Value::Str(Arc::new(k.to_string())))
+                    .collect();
+                Value::Array(Arc::new(keys))
+            } else if let Some(Value::DenseIntDictIntFull(values)) = arg_values.first() {
+                let keys: Vec<Value> = (0..values.len())
+                    .map(|k| Value::Str(Arc::new(k.to_string())))
                     .collect();
                 Value::Array(Arc::new(keys))
             } else {
@@ -663,8 +681,12 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 Value::Array(Arc::new(
                     values
                         .iter()
-                        .filter_map(|value| (*value).map(Value::Int))
+                        .map(|value| (*value).map(Value::Int).unwrap_or(Value::Null))
                         .collect(),
+                ))
+            } else if let Some(Value::DenseIntDictIntFull(values)) = arg_values.first() {
+                Value::Array(Arc::new(
+                    values.iter().map(|value| Value::Int(*value)).collect(),
                 ))
             } else {
                 Value::Array(Arc::new(vec![]))
@@ -710,11 +732,19 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     _ => None,
                 };
                 let has_key = int_key
-                    .map(|key| {
-                        key >= 0
-                            && (key as usize) < values.len()
-                            && values.get(key as usize).and_then(|value| *value).is_some()
-                    })
+                    .map(|key| key >= 0 && (key as usize) < values.len())
+                    .unwrap_or(false);
+                Value::Int(if has_key { 1 } else { 0 })
+            } else if let (Some(Value::DenseIntDictIntFull(values)), Some(key_val)) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let int_key = match key_val {
+                    Value::Int(i) => Some(*i),
+                    Value::Str(key) => key.parse::<i64>().ok(),
+                    _ => None,
+                };
+                let has_key = int_key
+                    .map(|key| key >= 0 && (key as usize) < values.len())
                     .unwrap_or(false);
                 Value::Int(if has_key { 1 } else { 0 })
             } else {
@@ -781,13 +811,23 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let items: Vec<Value> = values
                     .iter()
                     .enumerate()
-                    .filter_map(|(index, value)| {
-                        (*value).map(|value| {
-                            Value::Array(Arc::new(vec![
-                                Value::Str(Arc::new(index.to_string())),
-                                Value::Int(value),
-                            ]))
-                        })
+                    .map(|(index, value)| {
+                        Value::Array(Arc::new(vec![
+                            Value::Str(Arc::new(index.to_string())),
+                            (*value).map(Value::Int).unwrap_or(Value::Null),
+                        ]))
+                    })
+                    .collect();
+                Value::Array(Arc::new(items))
+            } else if let Some(Value::DenseIntDictIntFull(values)) = arg_values.first() {
+                let items: Vec<Value> = values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        Value::Array(Arc::new(vec![
+                            Value::Str(Arc::new(index.to_string())),
+                            Value::Int(*value),
+                        ]))
                     })
                     .collect();
                 Value::Array(Arc::new(items))
@@ -853,9 +893,30 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     if key < 0 {
                         default
                     } else {
+                        match values.get(key as usize) {
+                            Some(value) => (*value).map(Value::Int).unwrap_or(Value::Null),
+                            None => default,
+                        }
+                    }
+                } else {
+                    default
+                }
+            } else if let (Some(Value::DenseIntDictIntFull(values)), Some(key_val)) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let default = arg_values.get(2).cloned().unwrap_or(Value::Null);
+                let int_key = match key_val {
+                    Value::Int(i) => Some(*i),
+                    Value::Str(key) => key.parse::<i64>().ok(),
+                    _ => None,
+                };
+                if let Some(key) = int_key {
+                    if key < 0 {
+                        default
+                    } else {
                         values
                             .get(key as usize)
-                            .and_then(|value| (*value).map(Value::Int))
+                            .map(|value| Value::Int(*value))
                             .unwrap_or(default)
                     }
                 } else {
@@ -905,6 +966,19 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result[index] = *value;
                 }
                 Value::DenseIntDictInt(Arc::new(result))
+            } else if let (
+                Some(Value::DenseIntDictIntFull(values1)),
+                Some(Value::DenseIntDictIntFull(values2)),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = (**values1).clone();
+                if values2.len() > result.len() {
+                    result.resize(values2.len(), 0);
+                }
+                for (index, value) in values2.iter().enumerate() {
+                    result[index] = *value;
+                }
+                Value::DenseIntDictIntFull(Arc::new(result))
             } else {
                 Value::Dict(Arc::new(DictMap::default()))
             }
@@ -928,9 +1002,16 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             } else if let Some(Value::DenseIntDictInt(values)) = arg_values.first() {
                 let mut inverted = DictMap::default();
                 for (index, value) in values.iter().enumerate() {
-                    if let Some(value) = *value {
-                        inverted.insert(index.to_string().into(), Value::Int(value));
-                    }
+                    inverted.insert(
+                        index.to_string().into(),
+                        (*value).map(Value::Int).unwrap_or(Value::Null),
+                    );
+                }
+                Value::Dict(Arc::new(inverted))
+            } else if let Some(Value::DenseIntDictIntFull(values)) = arg_values.first() {
+                let mut inverted = DictMap::default();
+                for (index, value) in values.iter().enumerate() {
+                    inverted.insert(index.to_string().into(), Value::Int(*value));
                 }
                 Value::Dict(Arc::new(inverted))
             } else {
@@ -977,6 +1058,19 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result[index] = *value;
                 }
                 Value::DenseIntDictInt(Arc::new(result))
+            } else if let (
+                Some(Value::DenseIntDictIntFull(values1)),
+                Some(Value::DenseIntDictIntFull(values2)),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = (**values1).clone();
+                if values2.len() > result.len() {
+                    result.resize(values2.len(), 0);
+                }
+                for (index, value) in values2.iter().enumerate() {
+                    result[index] = *value;
+                }
+                Value::DenseIntDictIntFull(Arc::new(result))
             } else {
                 Value::Dict(Arc::new(DictMap::default()))
             }
@@ -1024,8 +1118,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 } else {
                     default_val.clone()
                 }
-            } else if let (Some(Value::DenseIntDictInt(values)), Some(key_val), Some(default_val)) =
-                (arg_values.first(), arg_values.get(1), arg_values.get(2))
+            } else if let (
+                Some(Value::DenseIntDictIntFull(values)),
+                Some(key_val),
+                Some(default_val),
+            ) = (arg_values.first(), arg_values.get(1), arg_values.get(2))
             {
                 let int_key = match key_val {
                     Value::Int(i) => Some(*i),
@@ -1038,8 +1135,28 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     } else {
                         values
                             .get(key as usize)
-                            .and_then(|value| (*value).map(Value::Int))
+                            .map(|value| Value::Int(*value))
                             .unwrap_or(default_val.clone())
+                    }
+                } else {
+                    default_val.clone()
+                }
+            } else if let (Some(Value::DenseIntDictInt(values)), Some(key_val), Some(default_val)) =
+                (arg_values.first(), arg_values.get(1), arg_values.get(2))
+            {
+                let int_key = match key_val {
+                    Value::Int(i) => Some(*i),
+                    Value::Str(key) => key.parse::<i64>().ok(),
+                    _ => None,
+                };
+                if let Some(key) = int_key {
+                    if key < 0 {
+                        default_val.clone()
+                    } else {
+                        match values.get(key as usize) {
+                            Some(value) => (*value).map(Value::Int).unwrap_or(Value::Null),
+                            None => default_val.clone(),
+                        }
                     }
                 } else {
                     default_val.clone()
