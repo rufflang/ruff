@@ -1078,27 +1078,27 @@ impl VM {
                     let left = self.stack.pop().ok_or("Stack underflow")?;
                     let result = match (left, right) {
                         (Value::Str(mut left_str), Value::Str(right_str)) => {
-                            // Try to mutate in place if we have unique ownership
-                            if Arc::strong_count(&left_str) == 1 {
-                                let result_str = Arc::make_mut(&mut left_str);
-                                let needed = right_str.len();
-                                let available = result_str.capacity() - result_str.len();
-                                
-                                if available < needed {
-                                    // Double capacity or add needed space, whichever is larger
-                                    let grow_amount = result_str.capacity().max(needed * 100);
-                                    result_str.reserve(grow_amount);
-                                }
-                                result_str.push_str(right_str.as_ref());
-                                Value::Str(left_str)
-                            } else {
-                                // Multiple references - must allocate new string
-                                // Pre-allocate assuming we might concatenate more
-                                let mut result = String::with_capacity(left_str.len() + right_str.len() + 1000);
-                                result.push_str(left_str.as_ref());
-                                result.push_str(right_str.as_ref());
-                                Value::Str(Arc::new(result))
+                            // ALWAYS use make_mut to get mutable access (clones if shared)
+                            // This handles shadowing where old Arc is about to be dropped anyway
+                            let result_str = Arc::make_mut(&mut left_str);
+                            let needed = right_str.len();
+                            let current_len = result_str.len();
+                            let available = result_str.capacity() - current_len;
+                            
+                            if available < needed {
+                                // Aggressive growth for loop patterns: assume many more concatenations
+                                // Python's string concat is fast because it opportunistically reuses buffers
+                                let new_capacity = if current_len < 1000 {
+                                    // Small strings: grow exponentially
+                                    (result_str.capacity() * 2).max(current_len + needed * 50)
+                                } else {
+                                    // Large strings: grow by at least 50% or needed * 10
+                                    result_str.capacity() + result_str.capacity() / 2 + needed * 10
+                                };
+                                result_str.reserve(new_capacity - result_str.capacity());
                             }
+                            result_str.push_str(right_str.as_ref());
+                            Value::Str(left_str)
                         }
                         (left_val, right_val) => self.binary_op(&left_val, "+", &right_val)?,
                     };
