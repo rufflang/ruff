@@ -1506,6 +1506,7 @@ pub unsafe extern "C" fn jit_dense_int_dict_int_full_set_ptr(
     1
 }
 
+
 /// Load a variable as float from locals or globals (called from JIT code)
 #[no_mangle]
 pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash: i64) -> f64 {
@@ -3905,7 +3906,13 @@ impl BytecodeTranslator {
                 // Stack: [value, index] -> []
                 // This is like: tmp = LoadVar(var); tmp[index] = value; StoreVar(var, tmp)
 
-                if self.int_dict_slots.contains(slot_index) {
+                let var_name = self.local_names.get(*slot_index).cloned();
+                let is_non_int_local = var_name
+                    .as_ref()
+                    .map(|name| self.non_int_locals.contains(name))
+                    .unwrap_or(false);
+
+                if self.int_dict_slots.contains(slot_index) && !is_non_int_local {
                     let _index = self.pop_value()?;
                     let _value = self.pop_value()?;
 
@@ -4084,9 +4091,8 @@ impl BytecodeTranslator {
                     // Pop index and value from JIT stack
                     let _index = self.pop_value()?;
                     let _value = self.pop_value()?;
-                    let var_name = self
-                        .local_names
-                        .get(*slot_index)
+                    let var_name = var_name
+                        .as_ref()
                         .ok_or_else(|| "IndexSetInPlace missing local slot name".to_string())?;
 
                     if self.non_int_locals.contains(var_name) {
@@ -4204,7 +4210,13 @@ impl BytecodeTranslator {
                 // Stack: [index] -> [value]
                 // This is like: tmp = LoadVar(var); value = tmp[index]
 
-                if self.int_dict_slots.contains(slot_index) {
+                let var_name = self.local_names.get(*slot_index).cloned();
+                let is_non_int_local = var_name
+                    .as_ref()
+                    .map(|name| self.non_int_locals.contains(name))
+                    .unwrap_or(false);
+
+                if self.int_dict_slots.contains(slot_index) && !is_non_int_local {
                     let _index = self.pop_value()?;
 
                     if let Some(&ptr_slot) = self.int_dict_ptr_slots.get(slot_index) {
@@ -4362,9 +4374,8 @@ impl BytecodeTranslator {
                     // Pop index from JIT stack
                     let _index = self.pop_value()?;
 
-                    let var_name = self
-                        .local_names
-                        .get(*slot_index)
+                    let var_name = var_name
+                        .as_ref()
                         .ok_or_else(|| "IndexGetInPlace missing local slot name".to_string())?;
 
                     if self.non_int_locals.contains(var_name) {
@@ -5366,9 +5377,9 @@ impl JitCompiler {
             // In-place add not supported by JIT (uses VM locals)
             OpCode::AddInPlace(_) => false,
             
-            // Dict/Array operations - disable in JIT to avoid non-int locals
+            // Dict/Array operations - in-place ops supported for int paths
             OpCode::IndexGet | OpCode::IndexSet => false,
-            OpCode::IndexGetInPlace(_) | OpCode::IndexSetInPlace(_) => false,
+            OpCode::IndexGetInPlace(_) | OpCode::IndexSetInPlace(_) => true,
             // Only allow empty dict literals in JIT to avoid heavy helper overhead
             OpCode::MakeDict(count) => *count == 0,
             OpCode::MakeDictWithKeys(_) => false,
@@ -6152,6 +6163,194 @@ impl JitCompiler {
                 .map_err(|e| format!("Failed to declare jit_dict_set: {}", e))?;
             
             let dict_set_ref = self.module.declare_func_in_func(dict_set_id, &mut builder.func);
+
+            // Declare int-dict helpers for IndexGetInPlace/IndexSetInPlace fast path
+            let mut local_slot_int_dict_get_sig = self.module.make_signature();
+            local_slot_int_dict_get_sig
+                .params
+                .push(AbiParam::new(types::I64)); // ctx pointer
+            local_slot_int_dict_get_sig
+                .params
+                .push(AbiParam::new(types::I64)); // slot index
+            local_slot_int_dict_get_sig
+                .params
+                .push(AbiParam::new(types::I64)); // key
+            local_slot_int_dict_get_sig
+                .returns
+                .push(AbiParam::new(types::I64)); // value
+
+            let local_slot_int_dict_get_id = self
+                .module
+                .declare_function(
+                    "jit_local_slot_int_dict_get",
+                    Linkage::Import,
+                    &local_slot_int_dict_get_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_get: {}", e))?;
+            let local_slot_int_dict_get_ref =
+                self.module
+                    .declare_func_in_func(local_slot_int_dict_get_id, &mut builder.func);
+
+            let mut local_slot_int_dict_set_sig = self.module.make_signature();
+            local_slot_int_dict_set_sig
+                .params
+                .push(AbiParam::new(types::I64)); // ctx pointer
+            local_slot_int_dict_set_sig
+                .params
+                .push(AbiParam::new(types::I64)); // slot index
+            local_slot_int_dict_set_sig
+                .params
+                .push(AbiParam::new(types::I64)); // key
+            local_slot_int_dict_set_sig
+                .params
+                .push(AbiParam::new(types::I64)); // value
+            local_slot_int_dict_set_sig
+                .returns
+                .push(AbiParam::new(types::I64)); // status
+
+            let local_slot_int_dict_set_id = self
+                .module
+                .declare_function(
+                    "jit_local_slot_int_dict_set",
+                    Linkage::Import,
+                    &local_slot_int_dict_set_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_set: {}", e))?;
+            let local_slot_int_dict_set_ref =
+                self.module
+                    .declare_func_in_func(local_slot_int_dict_set_id, &mut builder.func);
+
+            let mut int_dict_unique_ptr_sig = self.module.make_signature();
+            int_dict_unique_ptr_sig
+                .params
+                .push(AbiParam::new(types::I64)); // ctx pointer
+            int_dict_unique_ptr_sig
+                .params
+                .push(AbiParam::new(types::I64)); // slot index
+            int_dict_unique_ptr_sig
+                .returns
+                .push(AbiParam::new(types::I64)); // dict ptr
+
+            let int_dict_unique_ptr_id = self
+                .module
+                .declare_function(
+                    "jit_int_dict_unique_ptr",
+                    Linkage::Import,
+                    &int_dict_unique_ptr_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_int_dict_unique_ptr: {}", e))?;
+            let int_dict_unique_ptr_ref =
+                self.module
+                    .declare_func_in_func(int_dict_unique_ptr_id, &mut builder.func);
+
+            let mut int_dict_get_ptr_sig = self.module.make_signature();
+            int_dict_get_ptr_sig
+                .params
+                .push(AbiParam::new(types::I64)); // dict ptr
+            int_dict_get_ptr_sig
+                .params
+                .push(AbiParam::new(types::I64)); // key
+            int_dict_get_ptr_sig
+                .returns
+                .push(AbiParam::new(types::I64)); // value
+
+            let int_dict_get_ptr_id = self
+                .module
+                .declare_function(
+                    "jit_int_dict_get_ptr",
+                    Linkage::Import,
+                    &int_dict_get_ptr_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_int_dict_get_ptr: {}", e))?;
+            let int_dict_get_ptr_ref =
+                self.module
+                    .declare_func_in_func(int_dict_get_ptr_id, &mut builder.func);
+
+            let dense_int_dict_int_get_ptr_id = self
+                .module
+                .declare_function(
+                    "jit_dense_int_dict_int_get_ptr",
+                    Linkage::Import,
+                    &int_dict_get_ptr_sig,
+                )
+                .map_err(|e| format!(
+                    "Failed to declare jit_dense_int_dict_int_get_ptr: {}",
+                    e
+                ))?;
+            let dense_int_dict_int_get_ptr_ref = self
+                .module
+                .declare_func_in_func(dense_int_dict_int_get_ptr_id, &mut builder.func);
+
+            let dense_int_dict_int_full_get_ptr_id = self
+                .module
+                .declare_function(
+                    "jit_dense_int_dict_int_full_get_ptr",
+                    Linkage::Import,
+                    &int_dict_get_ptr_sig,
+                )
+                .map_err(|e| format!(
+                    "Failed to declare jit_dense_int_dict_int_full_get_ptr: {}",
+                    e
+                ))?;
+            let dense_int_dict_int_full_get_ptr_ref = self
+                .module
+                .declare_func_in_func(dense_int_dict_int_full_get_ptr_id, &mut builder.func);
+
+            let mut int_dict_set_ptr_sig = self.module.make_signature();
+            int_dict_set_ptr_sig
+                .params
+                .push(AbiParam::new(types::I64)); // dict ptr
+            int_dict_set_ptr_sig
+                .params
+                .push(AbiParam::new(types::I64)); // key
+            int_dict_set_ptr_sig
+                .params
+                .push(AbiParam::new(types::I64)); // value
+            int_dict_set_ptr_sig
+                .returns
+                .push(AbiParam::new(types::I64)); // status
+
+            let int_dict_set_ptr_id = self
+                .module
+                .declare_function(
+                    "jit_int_dict_set_ptr",
+                    Linkage::Import,
+                    &int_dict_set_ptr_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_int_dict_set_ptr: {}", e))?;
+            let int_dict_set_ptr_ref =
+                self.module
+                    .declare_func_in_func(int_dict_set_ptr_id, &mut builder.func);
+
+            let dense_int_dict_int_set_ptr_id = self
+                .module
+                .declare_function(
+                    "jit_dense_int_dict_int_set_ptr",
+                    Linkage::Import,
+                    &int_dict_set_ptr_sig,
+                )
+                .map_err(|e| format!(
+                    "Failed to declare jit_dense_int_dict_int_set_ptr: {}",
+                    e
+                ))?;
+            let dense_int_dict_int_set_ptr_ref = self
+                .module
+                .declare_func_in_func(dense_int_dict_int_set_ptr_id, &mut builder.func);
+
+            let dense_int_dict_int_full_set_ptr_id = self
+                .module
+                .declare_function(
+                    "jit_dense_int_dict_int_full_set_ptr",
+                    Linkage::Import,
+                    &int_dict_set_ptr_sig,
+                )
+                .map_err(|e| format!(
+                    "Failed to declare jit_dense_int_dict_int_full_set_ptr: {}",
+                    e
+                ))?;
+            let dense_int_dict_int_full_set_ptr_ref = self
+                .module
+                .declare_func_in_func(dense_int_dict_int_full_set_ptr_id, &mut builder.func);
             
             // Declare jit_make_dict for dictionary creation
             // jit_make_dict: fn(*mut VMContext, i64) -> i64
@@ -6251,6 +6450,19 @@ impl JitCompiler {
                 store_var_ref,
                 store_from_stack_ref,
             );
+            translator.set_local_slot_int_dict_functions(
+                local_slot_int_dict_get_ref,
+                local_slot_int_dict_set_ref,
+            );
+            translator.set_int_dict_ptr_functions(
+                int_dict_unique_ptr_ref,
+                int_dict_get_ptr_ref,
+                dense_int_dict_int_get_ptr_ref,
+                dense_int_dict_int_full_get_ptr_ref,
+                int_dict_set_ptr_ref,
+                dense_int_dict_int_set_ptr_ref,
+                dense_int_dict_int_full_set_ptr_ref,
+            );
             
             // OPTIMIZATION: Enable direct self-recursion (Phase 7 Step 10)
             // This allows recursive functions to call themselves directly without
@@ -6271,6 +6483,19 @@ impl JitCompiler {
             // Also allocate stack slots for function parameters
             // Parameters need slots so they can be accessed via the fast path
             translator.allocate_parameter_slots(&mut builder, &chunk.params);
+
+            let mut int_dict_slots = std::collections::HashSet::new();
+            for instr in &chunk.instructions {
+                if let OpCode::IndexGetInPlace(slot) | OpCode::IndexSetInPlace(slot) = instr {
+                    int_dict_slots.insert(*slot);
+                }
+            }
+
+            if !int_dict_slots.is_empty() {
+                translator.set_int_dict_slots(int_dict_slots);
+                translator.allocate_int_dict_ptr_slots(&mut builder);
+                translator.initialize_int_dict_ptr_slots(&mut builder);
+            }
             
             let has_loop = chunk
                 .instructions
