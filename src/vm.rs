@@ -505,6 +505,8 @@ impl VM {
     }
 
 
+
+
     /// Execute a bytecode chunk
     pub fn execute(&mut self, chunk: BytecodeChunk) -> Result<Value, String> {
         let _hashmap_profile_guard = HashMapProfileGuard::new();
@@ -513,7 +515,8 @@ impl VM {
         self.stack.clear();
 
         // Try to JIT-compile the entire script for maximum performance
-        if self.jit_enabled {
+        let allow_script_jit = self.jit_enabled && std::env::var("DISABLE_SCRIPT_JIT").is_err();
+        if allow_script_jit {
             let mut script_jit_safe = true;
 
             for constant in &self.chunk.constants {
@@ -763,6 +766,13 @@ impl VM {
 
                                 match compile_result {
                                     Ok(compiled_fn) => {
+                                        if std::env::var("DEBUG_JIT_LOOP").is_ok() {
+                                            eprintln!(
+                                                "JIT: Compiled loop ({}..={})",
+                                                jump_target,
+                                                self.ip
+                                            );
+                                        }
                                         let jump_target = *jump_target;
                                         let mut loop_exit_ip = self.ip + 1;
                                         let mut max_target = self.ip;
@@ -794,6 +804,13 @@ impl VM {
                                             eprintln!(
                                                 "JIT: Successfully compiled hot loop starting at offset {} - EXECUTING NOW!",
                                                 jump_target
+                                            );
+                                        }
+                                        if std::env::var("DEBUG_JIT_LOOP").is_ok() {
+                                            eprintln!(
+                                                "JIT: Executing compiled loop ({}..={})",
+                                                jump_target,
+                                                self.ip
                                             );
                                         }
 
@@ -1061,13 +1078,27 @@ impl VM {
                     let left = self.stack.pop().ok_or("Stack underflow")?;
                     let result = match (left, right) {
                         (Value::Str(mut left_str), Value::Str(right_str)) => {
-                            let result_str = Arc::make_mut(&mut left_str);
-                            if result_str.capacity() == result_str.len() {
-                                let reserve_by = result_str.len().max(32);
-                                result_str.reserve(reserve_by);
+                            // Try to mutate in place if we have unique ownership
+                            if Arc::strong_count(&left_str) == 1 {
+                                let result_str = Arc::make_mut(&mut left_str);
+                                let needed = right_str.len();
+                                let available = result_str.capacity() - result_str.len();
+                                
+                                if available < needed {
+                                    // Double capacity or add needed space, whichever is larger
+                                    let grow_amount = result_str.capacity().max(needed * 100);
+                                    result_str.reserve(grow_amount);
+                                }
+                                result_str.push_str(right_str.as_ref());
+                                Value::Str(left_str)
+                            } else {
+                                // Multiple references - must allocate new string
+                                // Pre-allocate assuming we might concatenate more
+                                let mut result = String::with_capacity(left_str.len() + right_str.len() + 1000);
+                                result.push_str(left_str.as_ref());
+                                result.push_str(right_str.as_ref());
+                                Value::Str(Arc::new(result))
                             }
-                            result_str.push_str(right_str.as_ref());
-                            Value::Str(left_str)
                         }
                         (left_val, right_val) => self.binary_op(&left_val, "+", &right_val)?,
                     };
@@ -1088,9 +1119,13 @@ impl VM {
                             }
                             (Value::Str(left), Value::Str(right)) => {
                                 let left_str = Arc::make_mut(left);
-                                if left_str.capacity() == left_str.len() {
-                                    let reserve_by = left_str.len().max(32);
-                                    left_str.reserve(reserve_by);
+                                let needed = right.len();
+                                let available = left_str.capacity() - left_str.len();
+                                
+                                if available < needed {
+                                    // Aggressive pre-allocation for repeated concatenation
+                                    let reserve_amount = (needed * 1000).max(left_str.capacity());
+                                    left_str.reserve(reserve_amount);
                                 }
                                 left_str.push_str(right.as_ref());
                                 Ok(Value::Str(left.clone()))
@@ -1581,7 +1616,11 @@ impl VM {
                                     .iter()
                                     .any(|op| matches!(op, OpCode::JumpBack(_)));
 
-                                if *count == JIT_FUNCTION_THRESHOLD || (has_loop && *count == 1) {
+                                let allow_function_jit =
+                                    std::env::var("DISABLE_FUNCTION_JIT").is_err();
+                                if allow_function_jit
+                                    && (*count == JIT_FUNCTION_THRESHOLD || (has_loop && *count == 1))
+                                {
                                     if std::env::var("DEBUG_JIT").is_ok() {
                                         eprintln!(
                                             "JIT: Function '{}' hit threshold ({} calls), attempting compilation...",
