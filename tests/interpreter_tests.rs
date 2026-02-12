@@ -2453,6 +2453,52 @@ fn test_await_all_uses_configured_default_task_pool_size() {
 }
 
 #[test]
+fn test_promise_all_large_array_with_bounded_concurrency() {
+    let promises = std::iter::repeat("async_sleep(1)").take(256).collect::<Vec<_>>().join(", ");
+
+    let code = format!(
+        r#"
+        promises := [{}]
+        results := await promise_all(promises, 32)
+        result_type := type(results)
+        count := len(results)
+    "#,
+        promises
+    );
+
+    let interp = run_code(&code);
+    assert!(matches!(interp.env.get("result_type"), Some(Value::Str(t)) if t.as_ref() == "array"));
+    match interp.env.get("count") {
+        Some(Value::Int(n)) => assert_eq!(n, 256),
+        other => panic!(
+            "expected integer count, got {:?}; result_type={:?}; results={:?}",
+            other,
+            interp.env.get("result_type"),
+            interp.env.get("results")
+        ),
+    }
+}
+
+#[test]
+fn test_await_all_large_array_uses_configured_default_pool() {
+    let promises = std::iter::repeat("async_sleep(1)").take(180).collect::<Vec<_>>().join(", ");
+
+    let code = format!(
+        r#"
+        previous := set_task_pool_size(24)
+        promises := [{}]
+        results := await await_all(promises)
+        count := len(results)
+        set_task_pool_size(previous)
+    "#,
+        promises
+    );
+
+    let interp = run_code(&code);
+    assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 180));
+}
+
+#[test]
 fn test_current_timestamp() {
     let code = r#"
         ts := current_timestamp()
