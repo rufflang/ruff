@@ -293,6 +293,14 @@ If you are new to the project, read this first.
 
 ## CLI & Arguments
 
+### Dotted native names are fragile in Ruff call sites
+- **Problem:** Calling `Promise.all(...)` directly in Ruff code can behave differently than identifier aliases
+- **Rule:** Prefer identifier-safe aliases (`promise_all(...)`, `await_all(...)`) for user code and tests
+- **Why:** Dotted syntax intersects with field/method access parsing/evaluation rules and can surprise call resolution
+- **Implication:** For any dotted built-in API, provide and test a plain identifier alias, then use the alias in docs/tests
+
+(Discovered during: 2026-02-12_15-33-await-all-batching-and-jwt-provider-fix.md)
+
 ### Clap intercepts script arguments without trailing_var_arg
 - **Problem:** `ruff run script.ruff --flag value` fails because clap tries to parse `--flag` as a ruff option
 - **Rule:** Must use `trailing_var_arg = true` and `allow_hyphen_values = true` on `script_args` field in clap command definition
@@ -314,6 +322,14 @@ If you are new to the project, read this first.
 ---
 
 ## Testing
+
+### jsonwebtoken 10.x requires explicit CryptoProvider feature selection
+- **Problem:** Full test suite panics in JWT tests with `Could not automatically determine the process-level CryptoProvider...`
+- **Rule:** Configure `jsonwebtoken` with exactly one provider feature in `Cargo.toml` (e.g. `features = ["rust_crypto"]`)
+- **Why:** jsonwebtoken v10 requires a deterministic process-level crypto backend
+- **Implication:** Targeted feature tests may pass while full suite fails; always run `cargo test` after JWT/dependency changes
+
+(Discovered during: 2026-02-12_15-33-await-all-batching-and-jwt-provider-fix.md)
 
 ### Each feature should have dedicated test file with 10-15 cases
 - **Problem:** Test coverage can be sparse if cases are scattered
