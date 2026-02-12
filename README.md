@@ -142,6 +142,7 @@
   - **Async File I/O**: `async_read_file(path)`, `async_write_file(path, content)` ✅
   - **Task Management**: `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)` ✅
   - **Promise Coordination**: `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)` ✅
+  - **Parallel Mapping**: `parallel_map(array, func, concurrency_limit?)` ✅
   - **Performance**: 2-3x speedup for I/O-bound workloads ✅
   - **Testing**: Comprehensive test suite in `examples/test_async_phase5.ruff` ✅
   - **Examples**:
@@ -153,6 +154,9 @@
         async_write_file("f3.txt", "data3")
     ]
     let results := await await_all(writes, 64)  # Concurrent with bounded waiting batches
+
+    # Bounded concurrent mapping
+    let contents := await parallel_map(files, async_read_file, 64)
     
     # Async HTTP with timeout
     let response := await async_timeout(async_http_get(url), 5000)
@@ -209,6 +213,7 @@
     - `async_read_file(path)`, `async_write_file(path, content)`
     - `async_sleep(ms)`, `async_timeout(promise, ms)`
     - `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)`
+    - `parallel_map(array, func, concurrency_limit?)`
     - `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)`
   - **Performance**: 2-3x speedup for I/O-bound workloads
   - Example:

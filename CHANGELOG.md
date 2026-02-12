@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Parallel Map for Bounded Async Mapping (P0 quick win)**:
+  - Added `parallel_map(array, func, concurrency_limit?)` for concurrent mapping with optional bounded batching
+  - Supports native functions and user-defined functions as mapper callbacks
+  - Non-promise mapper results are normalized and returned through promise-based output for consistent `await` usage
+  - Added comprehensive native-function tests covering:
+    - async file mapping with ordering guarantees
+    - non-promise mapper output normalization
+    - mapper validation errors
+    - invalid `concurrency_limit` validation
+    - propagated promise rejection behavior
+
 - **Concurrency-Limited Promise Aggregation (P0 quick win)**:
   - Added optional `concurrency_limit` to `promise_all(promises, concurrency_limit)`
   - Added builtin alias registration for `await_all(...)` (previously listed but not registered)
