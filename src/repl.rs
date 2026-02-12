@@ -16,8 +16,8 @@ use crate::parser;
 use colored::Colorize;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// REPL session that maintains interpreter state and handles user interaction
 pub struct Repl {

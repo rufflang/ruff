@@ -171,10 +171,11 @@ async fn main() {
                             }
 
                             vm.set_globals(env);
-                            
+
                             (vm.execute(chunk), vm.get_call_stack())
-                        }).await;
-                        
+                        })
+                        .await;
+
                         match result {
                             Ok((Ok(_result), _)) => {
                                 // Success - program executed
@@ -182,12 +183,9 @@ async fn main() {
                             Ok((Err(e), call_stack)) => {
                                 // Create a proper error with call stack
                                 use crate::errors::{RuffError, SourceLocation};
-                                let error = RuffError::runtime_error(
-                                    e,
-                                    SourceLocation::unknown(),
-                                )
-                                .with_call_stack(call_stack);
-                                
+                                let error = RuffError::runtime_error(e, SourceLocation::unknown())
+                                    .with_call_stack(call_stack);
+
                                 eprintln!("{}", error);
                                 std::process::exit(1);
                             }
@@ -216,10 +214,10 @@ async fn main() {
 
                 let mut interpreter = interpreter::Interpreter::new();
                 interpreter.set_source(filename, &code);
-                
+
                 // Execute statements
                 interpreter.eval_stmts(&stmts);
-                
+
                 // Check for errors in return_value and display with call stack
                 if let Some(ref val) = interpreter.return_value {
                     use crate::errors::RuffError;
@@ -245,7 +243,7 @@ async fn main() {
                         _ => {}
                     }
                 }
-                
+
                 interpreter.cleanup();
                 drop(interpreter);
             }
@@ -300,9 +298,7 @@ async fn main() {
         Commands::Bench { path, iterations, warmup } => {
             use benchmarks::{BenchmarkRunner, Reporter};
 
-            let runner = BenchmarkRunner::new()
-                .with_iterations(iterations)
-                .with_warmup(warmup);
+            let runner = BenchmarkRunner::new().with_iterations(iterations).with_warmup(warmup);
 
             Reporter::print_header("Ruff Performance Benchmarks");
 
@@ -311,10 +307,7 @@ async fn main() {
                     runner.run_directory(p)
                 } else if p.is_file() {
                     vec![(
-                        p.file_stem()
-                            .and_then(|s| s.to_str())
-                            .unwrap_or("benchmark")
-                            .to_string(),
+                        p.file_stem().and_then(|s| s.to_str()).unwrap_or("benchmark").to_string(),
                         runner.run_file(p),
                     )]
                 } else {
@@ -348,7 +341,9 @@ async fn main() {
         }
 
         Commands::Profile { file, cpu, memory, jit, flamegraph } => {
-            use benchmarks::{Profiler, ProfileConfig, print_profile_report, profiler::generate_flamegraph_data};
+            use benchmarks::{
+                print_profile_report, profiler::generate_flamegraph_data, ProfileConfig, Profiler,
+            };
 
             // Read and parse the file
             let code = fs::read_to_string(&file).expect("Failed to read file");
@@ -372,30 +367,29 @@ async fn main() {
 
             let mut interp = interpreter::Interpreter::new();
             interp.set_source(filename, &code);
-            
+
             // Run the program
             interp.eval_stmts(&stmts);
-            
+
             // Stop profiling
             let elapsed = profiler.stop();
-            
+
             // Get profile data
             let profile_data = profiler.into_data();
-            
+
             // Print profile report
             print_profile_report(&profile_data);
-            
+
             println!("\nTotal execution time: {:.3}s", elapsed.as_secs_f64());
-            
+
             // Generate flamegraph if requested
             if let Some(fg_path) = flamegraph {
                 let fg_data = generate_flamegraph_data(&profile_data.cpu);
-                fs::write(&fg_path, fg_data)
-                    .expect("Failed to write flamegraph data");
+                fs::write(&fg_path, fg_data).expect("Failed to write flamegraph data");
                 println!("\nFlamegraph data written to: {}", fg_path.display());
                 println!("Generate SVG with: flamegraph.pl {} > flamegraph.svg", fg_path.display());
             }
-            
+
             // Cleanup
             interp.cleanup();
         }

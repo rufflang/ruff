@@ -210,12 +210,7 @@ impl fmt::Display for RuffError {
             writeln!(f)?;
             writeln!(f, "{}", "Call stack:".bright_white().bold())?;
             for (i, frame) in self.call_stack.iter().rev().enumerate() {
-                writeln!(
-                    f,
-                    "  {} at {}",
-                    format!("{}", i).bright_blue(),
-                    frame.bright_white()
-                )?;
+                writeln!(f, "  {} at {}", format!("{}", i).bright_blue(), frame.bright_white())?;
             }
         }
 
