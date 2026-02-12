@@ -2284,6 +2284,88 @@ fn test_parallel_http_empty_array() {
 }
 
 #[test]
+fn test_await_all_with_concurrency_limit_preserves_order() {
+    use std::fs;
+
+    let file1 = "/tmp/ruff_async_await_all_1.txt";
+    let file2 = "/tmp/ruff_async_await_all_2.txt";
+    let file3 = "/tmp/ruff_async_await_all_3.txt";
+
+    let _ = fs::remove_file(file1);
+    let _ = fs::remove_file(file2);
+    let _ = fs::remove_file(file3);
+
+    fs::write(file1, "alpha").unwrap();
+    fs::write(file2, "beta").unwrap();
+    fs::write(file3, "gamma").unwrap();
+
+    let code = format!(
+        r#"
+        p1 := async_read_file("{}")
+        p2 := async_read_file("{}")
+        p3 := async_read_file("{}")
+
+        results := await await_all([p1, p2, p3], 2)
+
+        first := results[0]
+        second := results[1]
+        third := results[2]
+
+        order_ok := first == "alpha" && second == "beta" && third == "gamma"
+    "#,
+        file1, file2, file3
+    );
+
+    let interp = run_code(&code);
+
+    assert!(matches!(interp.env.get("order_ok"), Some(Value::Bool(true))));
+
+    let _ = fs::remove_file(file1);
+    let _ = fs::remove_file(file2);
+    let _ = fs::remove_file(file3);
+}
+
+#[test]
+fn test_promise_all_single_arg_still_works() {
+    let code = r#"
+        promises := [async_sleep(1), async_sleep(1)]
+        results := await promise_all(promises)
+        count := len(results)
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 2));
+}
+
+#[test]
+fn test_promise_all_rejects_zero_concurrency_limit() {
+    let code = r#"
+        result := promise_all([async_sleep(1)], 0)
+    "#;
+
+    let interp = run_code(code);
+
+    assert!(matches!(
+        interp.env.get("result"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be > 0")
+    ));
+}
+
+#[test]
+fn test_promise_all_rejects_non_integer_concurrency_limit() {
+    let code = r#"
+        result := promise_all([async_sleep(1)], "2")
+    "#;
+
+    let interp = run_code(code);
+
+    assert!(matches!(
+        interp.env.get("result"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be an integer")
+    ));
+}
+
+#[test]
 fn test_current_timestamp() {
     let code = r#"
         ts := current_timestamp()
