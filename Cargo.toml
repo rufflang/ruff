@@ -27,7 +27,7 @@ postgres = { version = "0.19", features = ["with-chrono-0_4"] }
 mysql_async = "0.36"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time", "io-util", "fs"] }
 base64 = "0.21"
-jsonwebtoken = "9.2"
+jsonwebtoken = "10.3.0"
 serde = { version = "1.0", features = ["derive"] }
 oauth2 = "4.4"
 urlencoding = "2.1"
