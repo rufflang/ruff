@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-12_16-17_commit-grouping-and-field-notes-ops.md** — ✅ COMPLETED: Isolated a large formatting-heavy working tree into subsystem-scoped commits (benchmarks/examples, interpreter runtime, JIT, CLI/error/tests), validated clean history, and captured new operational gotchas for commit hygiene.
+
 - **2026-02-12_15-33-await-all-batching-and-jwt-provider-fix.md** — ✅ COMPLETED: Implemented P0 async quick-win batching (`promise_all`/`await_all` with optional concurrency limit), fixed missing `await_all` builtin registration, added integration coverage, and resolved full-suite JWT failures by pinning `jsonwebtoken` provider feature (`rust_crypto`).
 - **2026-02-12_14-52_hashmap-fusion-jit-sealing-release.md** — ✅ COMPLETED: Hashmap performance fusion + JIT sealing stability + v0.9.0 release prep. Added fused map opcodes in bytecode/compiler/VM, fixed Cranelift sealing regressions in `src/jit.rs`, validated with full build/tests/benchmarks, and finalized release metadata/tag push.
 - **2026-01-27_phase4e-jit-benchmarking.md** — ✅ COMPLETED: Phase 4E JIT Performance Benchmarking & Validation (v0.9.0). Added 7 micro-benchmark tests + infrastructure validation test. Created 5 real-world benchmark programs. Validated all Phase 4 subsystems: type profiling (11.5M obs/sec), guard generation (46µs per guard), cache lookups (27M/sec), specialization (57M decisions/sec). Phase 4 now 100% complete! ~3 hours implementation time. 3 commits, 198 tests passing.

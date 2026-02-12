@@ -293,6 +293,15 @@ If you are new to the project, read this first.
 
 ## CLI & Arguments
 
+### Large format-only diffs must be committed by subsystem
+- **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
+- **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
+- **Why:** Reviewability and rollback safety collapse when unrelated formatting churn is mixed.
+- **Workflow:** 1) `git status --short`, 2) bucket files by subsystem, 3) stage explicit file lists, 4) commit each bucket with scoped message.
+- **Implication:** If `src/jit.rs` changed, prefer a dedicated JIT formatting commit; it is usually too large to co-mingle.
+
+(Discovered during: 2026-02-12_16-17_commit-grouping-and-field-notes-ops.md)
+
 ### Dotted native names are fragile in Ruff call sites
 - **Problem:** Calling `Promise.all(...)` directly in Ruff code can behave differently than identifier aliases
 - **Rule:** Prefer identifier-safe aliases (`promise_all(...)`, `await_all(...)`) for user code and tests
