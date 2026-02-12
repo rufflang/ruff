@@ -168,7 +168,7 @@ Value::Promise { receiver, .. } => {
 - [x] Add `parallel_map(array, func, concurrency_limit)` native function
 - [x] Implement batching-based task limiting in `promise_all` / `await_all` (optional `concurrency_limit`)
 - [x] Add configurable task pool sizing
-- [ ] Optimize Promise.all for large arrays
+- [x] Optimize Promise.all for large arrays (removed per-promise await-task spawning overhead)
 
 **Estimated Effort**: 1 week  
 **Complexity**: Medium  

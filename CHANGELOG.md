@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - argument validation for both builtins
     - default-size usage path through `await_all(...)` without explicit limit
 
+- **Promise Aggregation Large-Array Optimization (P0 quick win)**:
+  - Optimized `promise_all(...)` / `await_all(...)` large-array awaiting path to avoid per-promise `tokio::spawn` overhead
+  - `Promise.all` now performs bounded in-task concurrent polling of promise receivers while preserving stable result ordering
+  - Added integration tests for high-volume aggregation paths:
+    - `promise_all` with 256 promises and explicit bounded concurrency
+    - `await_all` with 180 promises using configured default task pool size
+
 ## [0.9.0] - 2026-02-12
 
 ### Added
