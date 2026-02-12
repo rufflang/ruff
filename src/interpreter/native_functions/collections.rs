@@ -170,7 +170,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                         let mut int_dict = IntDictMap::default();
                         int_dict.reserve(values.len());
                         for (index, value) in values.iter().enumerate() {
-                            int_dict.insert(index as i64, (*value).map(Value::Int).unwrap_or(Value::Null));
+                            int_dict.insert(
+                                index as i64,
+                                (*value).map(Value::Int).unwrap_or(Value::Null),
+                            );
                         }
                         let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
                         Value::Array(Arc::new(vec![Value::IntDict(Arc::new(int_dict)), removed]))
@@ -197,7 +200,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                         let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
                         Value::Array(Arc::new(vec![Value::IntDict(Arc::new(int_dict)), removed]))
                     } else {
-                        Value::Array(Arc::new(vec![Value::DenseIntDictIntFull(values), Value::Int(0)]))
+                        Value::Array(Arc::new(vec![
+                            Value::DenseIntDictIntFull(values),
+                            Value::Int(0),
+                        ]))
                     }
                 } else {
                     Value::Array(Arc::new(vec![Value::DenseIntDictIntFull(values), Value::Int(0)]))
@@ -219,7 +225,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 };
 
                 match builtins::array_remove_at((*arr).clone(), index) {
-                    Ok((new_arr, removed)) => Value::Array(Arc::new(vec![Value::Array(Arc::new(new_arr)), removed])),
+                    Ok((new_arr, removed)) => {
+                        Value::Array(Arc::new(vec![Value::Array(Arc::new(new_arr)), removed]))
+                    }
                     Err(e) => Value::Error((*e).clone()),
                 }
             } else {
@@ -249,7 +257,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 ) => (arr.clone(), func.clone()),
                 _ => {
                     if std::env::var("DEBUG_VM").is_ok() {
-                        eprintln!("map arg types: first={:?}, second={:?}", arg_values.first(), arg_values.get(1));
+                        eprintln!(
+                            "map arg types: first={:?}, second={:?}",
+                            arg_values.first(),
+                            arg_values.get(1)
+                        );
                     }
                     return Some(Value::Error("map expects an array and a function".to_string()));
                 }
@@ -620,33 +632,26 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             } else if let Some(Value::FixedDict { keys, .. }) = arg_values.first() {
                 let mut key_strings: Vec<String> = keys.iter().map(|k| k.to_string()).collect();
                 key_strings.sort();
-                let keys: Vec<Value> = key_strings
-                    .into_iter()
-                    .map(|k| Value::Str(Arc::new(k)))
-                    .collect();
+                let keys: Vec<Value> =
+                    key_strings.into_iter().map(|k| Value::Str(Arc::new(k))).collect();
                 Value::Array(Arc::new(keys))
             } else if let Some(Value::IntDict(dict)) = arg_values.first() {
                 let mut keys: Vec<i64> = dict.keys().copied().collect();
                 keys.sort();
-                let keys: Vec<Value> = keys
-                    .into_iter()
-                    .map(|k| Value::Str(Arc::new(k.to_string())))
-                    .collect();
+                let keys: Vec<Value> =
+                    keys.into_iter().map(|k| Value::Str(Arc::new(k.to_string()))).collect();
                 Value::Array(Arc::new(keys))
             } else if let Some(Value::DenseIntDict(values)) = arg_values.first() {
-                let keys: Vec<Value> = (0..values.len())
-                    .map(|k| Value::Str(Arc::new(k.to_string())))
-                    .collect();
+                let keys: Vec<Value> =
+                    (0..values.len()).map(|k| Value::Str(Arc::new(k.to_string()))).collect();
                 Value::Array(Arc::new(keys))
             } else if let Some(Value::DenseIntDictInt(values)) = arg_values.first() {
-                let keys: Vec<Value> = (0..values.len())
-                    .map(|k| Value::Str(Arc::new(k.to_string())))
-                    .collect();
+                let keys: Vec<Value> =
+                    (0..values.len()).map(|k| Value::Str(Arc::new(k.to_string()))).collect();
                 Value::Array(Arc::new(keys))
             } else if let Some(Value::DenseIntDictIntFull(values)) = arg_values.first() {
-                let keys: Vec<Value> = (0..values.len())
-                    .map(|k| Value::Str(Arc::new(k.to_string())))
-                    .collect();
+                let keys: Vec<Value> =
+                    (0..values.len()).map(|k| Value::Str(Arc::new(k.to_string()))).collect();
                 Value::Array(Arc::new(keys))
             } else {
                 Value::Array(Arc::new(vec![]))
@@ -660,10 +665,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     keys.push(key);
                 }
                 keys.sort_by(|a, b| a.as_ref().cmp(b.as_ref()));
-                let vals: Vec<Value> = keys
-                    .iter()
-                    .map(|k| dict.get(k.as_ref()).unwrap().clone())
-                    .collect();
+                let vals: Vec<Value> =
+                    keys.iter().map(|k| dict.get(k.as_ref()).unwrap().clone()).collect();
                 Value::Array(Arc::new(vals))
             } else if let Some(Value::FixedDict { keys, values }) = arg_values.first() {
                 let mut pairs: Vec<(&Arc<str>, &Value)> = keys.iter().zip(values.iter()).collect();
@@ -685,9 +688,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                         .collect(),
                 ))
             } else if let Some(Value::DenseIntDictIntFull(values)) = arg_values.first() {
-                Value::Array(Arc::new(
-                    values.iter().map(|value| Value::Int(*value)).collect(),
-                ))
+                Value::Array(Arc::new(values.iter().map(|value| Value::Int(*value)).collect()))
             } else {
                 Value::Array(Arc::new(vec![]))
             }
@@ -710,7 +711,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Str(key) => key.parse::<i64>().ok(),
                     _ => None,
                 };
-                Value::Int(if int_key.is_some() && dict.contains_key(&int_key.unwrap()) { 1 } else { 0 })
+                Value::Int(if int_key.is_some() && dict.contains_key(&int_key.unwrap()) {
+                    1
+                } else {
+                    0
+                })
             } else if let (Some(Value::DenseIntDict(values)), Some(key_val)) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -719,9 +724,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Str(key) => key.parse::<i64>().ok(),
                     _ => None,
                 };
-                let has_key = int_key
-                    .map(|key| key >= 0 && (key as usize) < values.len())
-                    .unwrap_or(false);
+                let has_key =
+                    int_key.map(|key| key >= 0 && (key as usize) < values.len()).unwrap_or(false);
                 Value::Int(if has_key { 1 } else { 0 })
             } else if let (Some(Value::DenseIntDictInt(values)), Some(key_val)) =
                 (arg_values.first(), arg_values.get(1))
@@ -731,9 +735,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Str(key) => key.parse::<i64>().ok(),
                     _ => None,
                 };
-                let has_key = int_key
-                    .map(|key| key >= 0 && (key as usize) < values.len())
-                    .unwrap_or(false);
+                let has_key =
+                    int_key.map(|key| key >= 0 && (key as usize) < values.len()).unwrap_or(false);
                 Value::Int(if has_key { 1 } else { 0 })
             } else if let (Some(Value::DenseIntDictIntFull(values)), Some(key_val)) =
                 (arg_values.first(), arg_values.get(1))
@@ -743,9 +746,8 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Str(key) => key.parse::<i64>().ok(),
                     _ => None,
                 };
-                let has_key = int_key
-                    .map(|key| key >= 0 && (key as usize) < values.len())
-                    .unwrap_or(false);
+                let has_key =
+                    int_key.map(|key| key >= 0 && (key as usize) < values.len()).unwrap_or(false);
                 Value::Int(if has_key { 1 } else { 0 })
             } else {
                 Value::Int(0)
@@ -914,10 +916,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     if key < 0 {
                         default
                     } else {
-                        values
-                            .get(key as usize)
-                            .map(|value| Value::Int(*value))
-                            .unwrap_or(default)
+                        values.get(key as usize).map(|value| Value::Int(*value)).unwrap_or(default)
                     }
                 } else {
                     default
@@ -955,8 +954,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result[index] = value.clone();
                 }
                 Value::DenseIntDict(Arc::new(result))
-            } else if let (Some(Value::DenseIntDictInt(values1)), Some(Value::DenseIntDictInt(values2))) =
-                (arg_values.first(), arg_values.get(1))
+            } else if let (
+                Some(Value::DenseIntDictInt(values1)),
+                Some(Value::DenseIntDictInt(values2)),
+            ) = (arg_values.first(), arg_values.get(1))
             {
                 let mut result = (**values1).clone();
                 if values2.len() > result.len() {
@@ -1047,8 +1048,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result[index] = value.clone();
                 }
                 Value::DenseIntDict(Arc::new(result))
-            } else if let (Some(Value::DenseIntDictInt(values1)), Some(Value::DenseIntDictInt(values2))) =
-                (arg_values.first(), arg_values.get(1))
+            } else if let (
+                Some(Value::DenseIntDictInt(values1)),
+                Some(Value::DenseIntDictInt(values2)),
+            ) = (arg_values.first(), arg_values.get(1))
             {
                 let mut result = (**values1).clone();
                 if values2.len() > result.len() {
@@ -1110,10 +1113,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     if key < 0 {
                         default_val.clone()
                     } else {
-                        values
-                            .get(key as usize)
-                            .cloned()
-                            .unwrap_or(default_val.clone())
+                        values.get(key as usize).cloned().unwrap_or(default_val.clone())
                     }
                 } else {
                     default_val.clone()

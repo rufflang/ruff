@@ -2,9 +2,9 @@
 //
 // String manipulation native functions
 
-use std::sync::Arc;
 use crate::builtins;
 use crate::interpreter::Value;
+use std::sync::Arc;
 
 pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
     let result = match name {
@@ -176,7 +176,8 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let (Some(Value::Str(s)), Some(Value::Str(delimiter))) = (args.first(), args.get(1))
             {
                 let parts = builtins::split(&**s, &**delimiter);
-                let values: Vec<Value> = parts.into_iter().map(|s| Value::Str(Arc::new(s))).collect();
+                let values: Vec<Value> =
+                    parts.into_iter().map(|s| Value::Str(Arc::new(s))).collect();
                 Value::Array(Arc::new(values))
             } else {
                 Value::Array(Arc::new(vec![]))

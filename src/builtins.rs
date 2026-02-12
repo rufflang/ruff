@@ -781,7 +781,8 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
         Value::Dict(dict) => {
             let mut yaml_map = serde_yaml::Mapping::new();
             for (key, val) in dict.iter() {
-                yaml_map.insert(serde_yaml::Value::String(key.to_string()), ruff_value_to_yaml(val)?);
+                yaml_map
+                    .insert(serde_yaml::Value::String(key.to_string()), ruff_value_to_yaml(val)?);
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
         }
@@ -1296,7 +1297,8 @@ pub fn array_chunk(arr: &[Value], chunk_size: i64) -> Vec<Value> {
     }
 
     let size = chunk_size as usize;
-    let chunks: Vec<Value> = arr.chunks(size).map(|chunk| Value::Array(Arc::new(chunk.to_vec()))).collect();
+    let chunks: Vec<Value> =
+        arr.chunks(size).map(|chunk| Value::Array(Arc::new(chunk.to_vec()))).collect();
 
     chunks
 }
@@ -1319,7 +1321,10 @@ pub fn array_flatten(arr: &[Value]) -> Vec<Value> {
 /// Zip two arrays together into array of pairs
 /// [1,2,3].zip([4,5,6]) → [[1,4], [2,5], [3,6]]
 pub fn array_zip(arr1: &[Value], arr2: &[Value]) -> Vec<Value> {
-    arr1.iter().zip(arr2.iter()).map(|(a, b)| Value::Array(Arc::new(vec![a.clone(), b.clone()]))).collect()
+    arr1.iter()
+        .zip(arr2.iter())
+        .map(|(a, b)| Value::Array(Arc::new(vec![a.clone(), b.clone()])))
+        .collect()
 }
 
 /// Add index to each element
@@ -1690,10 +1695,8 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::FixedDict { keys, values } => {
             let mut pairs: Vec<(&Arc<str>, &Value)> = keys.iter().zip(values.iter()).collect();
             pairs.sort_by(|(a, _), (b, _)| a.as_ref().cmp(b.as_ref()));
-            let items: Vec<String> = pairs
-                .iter()
-                .map(|(k, v)| format!("{}: {}", k, format_debug_value(v)))
-                .collect();
+            let items: Vec<String> =
+                pairs.iter().map(|(k, v)| format!("{}: {}", k, format_debug_value(v))).collect();
             format!("Dict{{{}}}", items.join(", "))
         }
         Value::IntDict(dict) => {
@@ -1717,11 +1720,9 @@ pub fn format_debug_value(value: &Value) -> String {
             let items: Vec<String> = values
                 .iter()
                 .enumerate()
-                .map(|(index, value)| {
-                    match value {
-                        Some(value) => format!("{}: {}", index, value),
-                        None => format!("{}: null", index),
-                    }
+                .map(|(index, value)| match value {
+                    Some(value) => format!("{}: {}", index, value),
+                    None => format!("{}: null", index),
                 })
                 .collect();
             format!("Dict{{{}}}", items.join(", "))
@@ -1832,10 +1833,7 @@ pub struct ArgumentDef {
 
 /// Parse command-line arguments based on defined arguments
 /// Returns a HashMap of argument names to values
-pub fn parse_arguments(
-    arg_defs: &[ArgumentDef],
-    args: &[String],
-) -> Result<DictMap, String> {
+pub fn parse_arguments(arg_defs: &[ArgumentDef], args: &[String]) -> Result<DictMap, String> {
     let mut result = DictMap::default();
     let mut i = 0;
     let mut positional_args: Vec<String> = Vec::new();
@@ -1962,7 +1960,9 @@ pub fn parse_arguments(
     if !positional_args.is_empty() {
         result.insert(
             "_positional".into(),
-            Value::Array(Arc::new(positional_args.into_iter().map(|s| Value::Str(Arc::new(s))).collect())),
+            Value::Array(Arc::new(
+                positional_args.into_iter().map(|s| Value::Str(Arc::new(s))).collect(),
+            )),
         );
     }
 

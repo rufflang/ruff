@@ -4,8 +4,10 @@
 // Defines all value types that can be represented and manipulated at runtime.
 
 use crate::ast::Stmt;
+use ahash::AHasher;
 use image::DynamicImage;
 use mysql_async::Conn as MysqlConn;
+use nohash_hasher::NoHashHasher;
 use postgres::Client as PostgresClient;
 use rusqlite::Connection as SqliteConnection;
 use std::collections::HashMap;
@@ -13,8 +15,6 @@ use std::fs::File;
 use std::hash::BuildHasherDefault;
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
-use nohash_hasher::NoHashHasher;
-use ahash::AHasher;
 use zip::ZipWriter;
 
 // Forward declaration - Environment is in a sibling module

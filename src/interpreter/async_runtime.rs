@@ -19,9 +19,8 @@ use tokio::task::JoinHandle;
 use crate::interpreter::Value;
 
 /// Global tokio runtime instance, initialized lazily on first access
-static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
-    Runtime::new().expect("Failed to create tokio runtime")
-});
+static RUNTIME: Lazy<Runtime> =
+    Lazy::new(|| Runtime::new().expect("Failed to create tokio runtime"));
 
 /// Async runtime wrapper providing task execution capabilities
 pub struct AsyncRuntime;
@@ -162,7 +161,7 @@ mod tests {
         let result = AsyncRuntime::block_on(handle);
         assert!(result.is_ok());
         match result.unwrap() {
-            Value::Int(42) => {},
+            Value::Int(42) => {}
             _ => panic!("Expected Int(42)"),
         }
     }

@@ -12,7 +12,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             if let Some(Value::Array(urls)) = arg_values.first() {
                 let url_strings: Vec<String> = urls
                     .iter()
-                    .filter_map(|v| if let Value::Str(s) = v { Some(s.as_ref().clone()) } else { None })
+                    .filter_map(
+                        |v| if let Value::Str(s) = v { Some(s.as_ref().clone()) } else { None },
+                    )
                     .collect();
 
                 let mut handles = Vec::new();
@@ -86,7 +88,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 Some(Value::Str(scope)),
             ) = (arg_values.first(), arg_values.get(1), arg_values.get(2), arg_values.get(3))
             {
-                Value::Str(Arc::new(builtins::oauth2_auth_url(client_id.as_ref(), redirect_uri.as_ref(), auth_url.as_ref(), scope.as_ref())))
+                Value::Str(Arc::new(builtins::oauth2_auth_url(
+                    client_id.as_ref(),
+                    redirect_uri.as_ref(),
+                    auth_url.as_ref(),
+                    scope.as_ref(),
+                )))
             } else {
                 Value::Error(
                     "oauth2_auth_url requires client_id, redirect_uri, auth_url, and scope strings"

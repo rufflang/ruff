@@ -416,9 +416,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         Value::Str(key) => key.parse::<i64>().ok(),
                         _ => None,
                     };
-                    int_key
-                        .map(|key| key >= 0 && (key as usize) < values.len())
-                        .unwrap_or(false)
+                    int_key.map(|key| key >= 0 && (key as usize) < values.len()).unwrap_or(false)
                 }
                 Value::DenseIntDictInt(values) => {
                     let int_key = match item {
@@ -426,9 +424,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         Value::Str(key) => key.parse::<i64>().ok(),
                         _ => None,
                     };
-                    int_key
-                        .map(|key| key >= 0 && (key as usize) < values.len())
-                        .unwrap_or(false)
+                    int_key.map(|key| key >= 0 && (key as usize) < values.len()).unwrap_or(false)
                 }
                 Value::DenseIntDictIntFull(values) => {
                     let int_key = match item {
@@ -436,9 +432,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         Value::Str(key) => key.parse::<i64>().ok(),
                         _ => None,
                     };
-                    int_key
-                        .map(|key| key >= 0 && (key as usize) < values.len())
-                        .unwrap_or(false)
+                    int_key.map(|key| key >= 0 && (key as usize) < values.len()).unwrap_or(false)
                 }
                 _ => {
                     return Some(Value::Error(
