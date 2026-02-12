@@ -752,7 +752,8 @@ If you are new to the project, read this first.
 ### Block sealing order matters for SSA
 
 - **Problem:** Panics with "unsealed block" or "block not filled" errors
-- **Rule:** Use two-pass translation - create all blocks first, then translate instructions, seal after adding terminator
+- **Rule:** Use two-pass translation - create all blocks first, then translate instructions, and seal blocks only after predecessor edges are finalized and terminators are emitted.
+- **Rule (critical):** Each block must be sealed exactly once. Early sealing or duplicate sealing on alternate control-flow paths can trigger Cranelift assertions (including already-sealed failures).
 - **Why:** Cranelift requires all predecessors of a block known before sealing (SSA form)
 - **Pattern:**
   ```rust
@@ -767,7 +768,7 @@ If you are new to the project, read this first.
   ```
 - **Implication:** Cannot seal blocks until all jumps to them are generated
 
-(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md)
+(Discovered during: 2026-01-27_14-51_jit-phase-3-completion.md, reinforced in: 2026-02-12_14-52_hashmap-fusion-jit-sealing-release.md)
 
 ### Hash-based variable resolution has collision risk
 

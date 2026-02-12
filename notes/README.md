@@ -23,6 +23,7 @@ These notes capture:
 
 ## Quick Navigation
 
+- **FIELD_NOTES_SYSTEM.md** - Mandatory workflow and template for post-work field notes
 - **GOTCHAS.md** - Start here! Curated list of the most important non-obvious pitfalls
 - Session notes below - Raw, chronological records of each work session
 
@@ -30,6 +31,7 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-12_14-52_hashmap-fusion-jit-sealing-release.md** — ✅ COMPLETED: Hashmap performance fusion + JIT sealing stability + v0.9.0 release prep. Added fused map opcodes in bytecode/compiler/VM, fixed Cranelift sealing regressions in `src/jit.rs`, validated with full build/tests/benchmarks, and finalized release metadata/tag push.
 - **2026-01-27_phase4e-jit-benchmarking.md** — ✅ COMPLETED: Phase 4E JIT Performance Benchmarking & Validation (v0.9.0). Added 7 micro-benchmark tests + infrastructure validation test. Created 5 real-world benchmark programs. Validated all Phase 4 subsystems: type profiling (11.5M obs/sec), guard generation (46µs per guard), cache lookups (27M/sec), specialization (57M decisions/sec). Phase 4 now 100% complete! ~3 hours implementation time. 3 commits, 198 tests passing.
 - **2026-01-26_vm-exception-handling.md** — ✅ COMPLETED: VM Exception Handling Implementation (v0.9.0 Phase 1). Implemented full exception handling in bytecode VM with BeginTry/EndTry/Throw/BeginCatch/EndCatch opcodes. Added exception handler stack for proper unwinding. Critical lesson: chunk restoration during call frame unwinding. Comprehensive test suite (9 scenarios). VM/interpreter parity achieved. ~3 hours implementation time.
 - **2026-01-26_interpreter-modularization-phase2.md** — ✅ PHASE 2 COMPLETE: Interpreter Modularization. Extracted ControlFlow enum (22 lines) to control_flow.rs and test framework (230 lines) to test_runner.rs. Reduced mod.rs from 14,285 to 14,071 lines (additional -214 lines). Total reduction: -731 lines from original 14,802 (~5%). Documented key decisions: why call_native_function_impl and register_builtins must stay in impl block. Clarified that remaining size is appropriate. Zero warnings, all tests passing.
