@@ -83,6 +83,7 @@ These are planned post-v0.9.0 and are candidates for v0.10.0 scope.
 - `await_all()` utility function for concurrent promise execution
 - `await_all(promises, concurrency_limit)` / `promise_all(promises, concurrency_limit)` batching support
 - `parallel_map(array, func, concurrency_limit?)` for bounded concurrent mapping workflows
+- Configurable default async task pool sizing via `set_task_pool_size(size)` / `get_task_pool_size()`
 - Promises work correctly with await syntax
 - Small-scale concurrency performs well (10 files in 1.26ms = 126μs/file)
 
@@ -166,7 +167,7 @@ Value::Promise { receiver, .. } => {
 **Implementation Steps**:
 - [x] Add `parallel_map(array, func, concurrency_limit)` native function
 - [x] Implement batching-based task limiting in `promise_all` / `await_all` (optional `concurrency_limit`)
-- [ ] Add configurable task pool sizing
+- [x] Add configurable task pool sizing
 - [ ] Optimize Promise.all for large arrays
 
 **Estimated Effort**: 1 week  
@@ -221,6 +222,7 @@ Value::Promise { receiver, .. } => {
 - [ ] Target: 10K file SSG build in <1 second (using all cores)
 - [x] Add `parallel_map(array, func, limit)` with concurrency control
 - [x] Implement task limiting in `await_all` / `promise_all` with optional `concurrency_limit`
+- [x] Add configurable default task pool size controls (`set_task_pool_size` / `get_task_pool_size`)
 - [ ] Test with SSG benchmark (target: <10 seconds)
 
 **Phase 2: Async VM (2-3 weeks) - True Async/Await**

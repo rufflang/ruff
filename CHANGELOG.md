@@ -29,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - backwards compatibility for single-argument `promise_all(promises)`
     - validation errors for invalid `concurrency_limit` values
 
+- **Configurable Async Task Pool Sizing (P0 quick win)**:
+  - Added `set_task_pool_size(size)` and `get_task_pool_size()` builtins
+  - `promise_all(...)` and `await_all(...)` now use interpreter-configured default batching when no explicit `concurrency_limit` is passed
+  - `parallel_map(...)` now applies the configured default task pool size when `concurrency_limit` is omitted
+  - Added comprehensive coverage for:
+    - round-trip get/set behavior
+    - argument validation for both builtins
+    - default-size usage path through `await_all(...)` without explicit limit
+
 ## [0.9.0] - 2026-02-12
 
 ### Added

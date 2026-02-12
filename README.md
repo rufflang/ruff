@@ -143,6 +143,7 @@
   - **Task Management**: `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)` ✅
   - **Promise Coordination**: `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)` ✅
   - **Parallel Mapping**: `parallel_map(array, func, concurrency_limit?)` ✅
+  - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Performance**: 2-3x speedup for I/O-bound workloads ✅
   - **Testing**: Comprehensive test suite in `examples/test_async_phase5.ruff` ✅
   - **Examples**:
@@ -157,6 +158,11 @@
 
     # Bounded concurrent mapping
     let contents := await parallel_map(files, async_read_file, 64)
+
+    # Configure default batching when no explicit concurrency_limit is passed
+    let previous := set_task_pool_size(32)
+    let results := await await_all(writes)  # Uses configured default of 32
+    set_task_pool_size(previous)
     
     # Async HTTP with timeout
     let response := await async_timeout(async_http_get(url), 5000)
@@ -214,6 +220,7 @@
     - `async_sleep(ms)`, `async_timeout(promise, ms)`
     - `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)`
     - `parallel_map(array, func, concurrency_limit?)`
+    - `set_task_pool_size(size)`, `get_task_pool_size()`
     - `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)`
   - **Performance**: 2-3x speedup for I/O-bound workloads
   - Example:
