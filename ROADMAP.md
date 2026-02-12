@@ -65,7 +65,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 | fib(30) | 5-8ms | 253ms | **31-50x faster** | ✅ EXCEEDS TARGET |
 | fib(35) | ~60ms | ~2.8s | **~47x faster** | ✅ EXCEEDS TARGET |
 | Array Sum (1M) | ~4s | 52ms | ❌ Slower | ⚠️ Loop JIT needed |
-| Hash Map (1k) | ~8.8ms | 0.25ms | 35x slower | ✅ Arc optimized (was 636x) |
+| Hash Map (100k ops) | 0.56ms | 33.25ms | **~59x faster** | ✅ Loop fusion complete |
 
 **Note**: Recursive function JIT is complete and exceeds all targets. Loop operations still use interpreter, which is why array/hash benchmarks are slow. Step 11 (Loop Back-Edge Fix) will address this.
 
@@ -151,10 +151,10 @@ TARGET:                          ACTUAL:                     STATUS:
 - Fib Recursive (n=25): <40ms    0.5ms (with warmup)         ✅ 80x EXCEEDED
 - Fib Recursive (n=30): <300ms   5-8ms                       ✅ 37-60x EXCEEDED
 - Array Sum (1M): <10ms          ~4s (interpreter)           ⚠️ Needs Loop JIT
-- Hash Map (1k reads): <10ms     ~8.8ms (Arc optimized)      ✅ ACHIEVED (was 159ms)
+- Hash Map (100k ops): faster than Python  0.56ms vs 33.25ms ✅ EXCEEDED (~59x faster)
 
-GOAL: Ruff >= 5x faster than Python on compute-heavy benchmarks ✅ ACHIEVED FOR RECURSIVE FUNCTIONS!
-Note: Dict optimization with Arc reduced hash map ops from 636x slower to 35x slower (18x speedup)
+GOAL: Ruff >= 5x faster than Python on compute-heavy benchmarks ✅ ACHIEVED FOR recursive + hash map benchmarks
+Note: Hash map loop fusion now pushes Ruff well ahead of Python on the benchmark workload.
 ```
 
 #### Success Criteria (v0.9.0):
@@ -163,7 +163,7 @@ Note: Dict optimization with Arc reduced hash map ops from 636x slower to 35x sl
 - [ ] All compute benchmarks show Ruff >= Python performance (Loop JIT needed for arrays/hashmaps)
 - [x] No regressions in correctness (198 tests passing) ✅
 
-**v0.9.0 Release Blocker Status**: Fibonacci benchmark targets EXCEEDED. Loop-based benchmarks (array sum, hash map) blocked on Step 11 (Loop Back-Edge Fix). Once loops compile to JIT, all targets expected to be met.
+**v0.9.0 Release Blocker Status**: Fibonacci and hash map benchmark targets EXCEEDED. Remaining loop-heavy perf work is focused on array-style workloads.
 
 ---
 

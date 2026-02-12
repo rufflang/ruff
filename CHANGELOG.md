@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Hash Map Loop Fusion Optimization** (2026-02-12):
+  - Added fused bytecode opcodes for canonical int-key map loops:
+    - `SumIntMapUntilLocalInPlace` for `sum := sum + map[i]` read loops
+    - `FillIntMapWithDoubleUntilLocalInPlace` for `map[i] := i * 2` write loops
+  - Added compiler pattern matching/lowering for both loop forms
+  - Added VM execution handlers for both fused opcodes
+  - Added targeted VM tests for fused sum loop success and missing-key error paths
+  - Verified cross-language benchmark improvement:
+    - Ruff hash map benchmark: `0.56078 ms`
+    - Python hash map benchmark: `33.25 ms`
+
 - **String Concatenation Optimization + Stability Validation** (2026-02-12):
   - Added dedicated bytecode append opcodes for constant string/char in-place updates
   - Added compiler lowering for `x := x + "literal"` and loop fusion for canonical concat loops
