@@ -2396,6 +2396,63 @@ fn test_promise_all_rejects_non_integer_concurrency_limit() {
 }
 
 #[test]
+fn test_task_pool_size_set_get_round_trip() {
+    let code = r#"
+        initial := get_task_pool_size()
+        previous := set_task_pool_size(3)
+        current := get_task_pool_size()
+        restored := set_task_pool_size(previous)
+
+        previous_matches_initial := previous == initial
+        current_is_three := current == 3
+        restored_was_three := restored == 3
+    "#;
+
+    let interp = run_code(code);
+
+    assert!(matches!(interp.env.get("previous_matches_initial"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("current_is_three"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("restored_was_three"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_task_pool_size_validation_errors() {
+    let interp_zero = run_code("bad_zero := set_task_pool_size(0)");
+    assert!(matches!(
+        interp_zero.env.get("bad_zero"),
+        Some(Value::Error(message)) if message.contains("size must be > 0")
+    ));
+
+    let interp_type = run_code("bad_type := set_task_pool_size(\"4\")");
+    assert!(matches!(
+        interp_type.env.get("bad_type"),
+        Some(Value::Error(message)) if message.contains("requires an integer size argument")
+    ));
+
+    let interp_get = run_code("bad_get_args := get_task_pool_size(1)");
+    assert!(matches!(
+        interp_get.env.get("bad_get_args"),
+        Some(Value::Error(message)) if message.contains("expects 0 arguments")
+    ));
+}
+
+#[test]
+fn test_await_all_uses_configured_default_task_pool_size() {
+    let code = r#"
+        previous := set_task_pool_size(2)
+        p1 := async_sleep(1)
+        p2 := async_sleep(1)
+        p3 := async_sleep(1)
+        results := await await_all([p1, p2, p3])
+        count := len(results)
+        set_task_pool_size(previous)
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 3));
+}
+
+#[test]
 fn test_current_timestamp() {
     let code = r#"
         ts := current_timestamp()

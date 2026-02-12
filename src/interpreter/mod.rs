@@ -82,6 +82,8 @@ use std::sync::{Arc, Mutex};
 #[allow(unused_imports)]
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
+pub const DEFAULT_ASYNC_TASK_POOL_SIZE: usize = 256;
+
 /// Main interpreter that executes Ruff programs
 pub struct Interpreter {
     pub env: Environment,
@@ -92,6 +94,7 @@ pub struct Interpreter {
     pub source_lines: Vec<String>,
     pub module_loader: ModuleLoader,
     call_stack: Vec<String>, // Track function calls for stack traces
+    async_task_pool_size: usize,
 }
 
 impl Interpreter {
@@ -106,6 +109,7 @@ impl Interpreter {
             source_lines: Vec::new(),
             module_loader: ModuleLoader::new(),
             call_stack: Vec::new(),
+            async_task_pool_size: DEFAULT_ASYNC_TASK_POOL_SIZE,
         };
 
         // Register built-in functions and constants
@@ -124,6 +128,16 @@ impl Interpreter {
     /// Get the current call stack for error reporting
     pub fn get_call_stack(&self) -> Vec<String> {
         self.call_stack.clone()
+    }
+
+    pub fn get_async_task_pool_size(&self) -> usize {
+        self.async_task_pool_size
+    }
+
+    pub fn set_async_task_pool_size(&mut self, size: usize) -> usize {
+        let previous_size = self.async_task_pool_size;
+        self.async_task_pool_size = size;
+        previous_size
     }
 
     /// Get all built-in function names (for VM initialization)
@@ -408,6 +422,8 @@ impl Interpreter {
             "promise_all",
             "await_all",
             "parallel_map",
+            "set_task_pool_size",
+            "get_task_pool_size",
             // Testing assertion functions
             "assert_equal",
             "assert_true",
@@ -956,6 +972,14 @@ impl Interpreter {
         self.env.define("await_all".to_string(), Value::NativeFunction("await_all".to_string())); // Alias
         self.env
             .define("parallel_map".to_string(), Value::NativeFunction("parallel_map".to_string()));
+        self.env.define(
+            "set_task_pool_size".to_string(),
+            Value::NativeFunction("set_task_pool_size".to_string()),
+        );
+        self.env.define(
+            "get_task_pool_size".to_string(),
+            Value::NativeFunction("get_task_pool_size".to_string()),
+        );
 
         // Testing assertion functions
         self.env

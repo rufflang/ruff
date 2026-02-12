@@ -633,7 +633,7 @@ pub fn handle(
                     }
                 }
             } else {
-                usize::MAX
+                _interp.get_async_task_pool_size()
             };
 
             // Debug logging
@@ -852,7 +852,7 @@ pub fn handle(
                     }
                 }
             } else {
-                None
+                Some(_interp.get_async_task_pool_size() as i64)
             };
 
             let mut mapped_promises = Vec::with_capacity(array.len());
@@ -888,6 +888,50 @@ pub fn handle(
             }
 
             handle(_interp, "Promise.all", &promise_all_args)
+        }
+
+        "set_task_pool_size" => {
+            // set_task_pool_size(size: Int) -> Int
+            // Sets default async task pool size used when no explicit concurrency_limit is provided.
+            // Returns previous size.
+            if args.len() != 1 {
+                return Some(Value::Error(format!(
+                    "set_task_pool_size() expects 1 argument (size), got {}",
+                    args.len()
+                )));
+            }
+
+            let size = match &args[0] {
+                Value::Int(n) if *n > 0 => *n as usize,
+                Value::Int(n) => {
+                    return Some(Value::Error(format!(
+                        "set_task_pool_size() size must be > 0, got {}",
+                        n
+                    )));
+                }
+                _ => {
+                    return Some(Value::Error(
+                        "set_task_pool_size() requires an integer size argument".to_string(),
+                    ));
+                }
+            };
+
+            let previous_size = _interp.set_async_task_pool_size(size);
+            Some(Value::Int(previous_size as i64))
+        }
+
+        "get_task_pool_size" => {
+            // get_task_pool_size() -> Int
+            // Returns default async task pool size used by promise_all/await_all/parallel_map
+            // when no explicit concurrency_limit is provided.
+            if !args.is_empty() {
+                return Some(Value::Error(format!(
+                    "get_task_pool_size() expects 0 arguments, got {}",
+                    args.len()
+                )));
+            }
+
+            Some(Value::Int(_interp.get_async_task_pool_size() as i64))
         }
 
         _ => None, // Not handled by this module
@@ -1062,6 +1106,59 @@ mod tests {
         match resolved {
             Ok(_) => panic!("Expected Promise rejection for missing file"),
             Err(msg) => assert!(msg.contains("Promise 0 rejected")),
+        }
+    }
+
+    #[test]
+    fn test_set_task_pool_size_round_trip() {
+        let mut interp = Interpreter::new();
+
+        let initial = handle(&mut interp, "get_task_pool_size", &[]).unwrap();
+        let initial_size = match initial {
+            Value::Int(n) => n,
+            _ => panic!("Expected Int from get_task_pool_size"),
+        };
+
+        let previous = handle(&mut interp, "set_task_pool_size", &[Value::Int(7)]).unwrap();
+        match previous {
+            Value::Int(n) => assert_eq!(n, initial_size),
+            _ => panic!("Expected Int previous size from set_task_pool_size"),
+        }
+
+        let current = handle(&mut interp, "get_task_pool_size", &[]).unwrap();
+        match current {
+            Value::Int(n) => assert_eq!(n, 7),
+            _ => panic!("Expected Int from get_task_pool_size"),
+        }
+    }
+
+    #[test]
+    fn test_set_task_pool_size_validates_input() {
+        let mut interp = Interpreter::new();
+
+        let non_positive = handle(&mut interp, "set_task_pool_size", &[Value::Int(0)]).unwrap();
+        match non_positive {
+            Value::Error(msg) => assert!(msg.contains("size must be > 0")),
+            _ => panic!("Expected Value::Error for non-positive pool size"),
+        }
+
+        let wrong_type =
+            handle(&mut interp, "set_task_pool_size", &[Value::Str(Arc::new("2".to_string()))])
+                .unwrap();
+        match wrong_type {
+            Value::Error(msg) => assert!(msg.contains("requires an integer size argument")),
+            _ => panic!("Expected Value::Error for non-integer pool size"),
+        }
+    }
+
+    #[test]
+    fn test_get_task_pool_size_rejects_arguments() {
+        let mut interp = Interpreter::new();
+
+        let result = handle(&mut interp, "get_task_pool_size", &[Value::Int(1)]).unwrap();
+        match result {
+            Value::Error(msg) => assert!(msg.contains("expects 0 arguments")),
+            _ => panic!("Expected Value::Error for get_task_pool_size arguments"),
         }
     }
 }

@@ -1898,6 +1898,19 @@ impl TypeChecker {
                 return_type: None,       // Returns array of responses
             },
         );
+
+        self.functions.insert(
+            "set_task_pool_size".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Int)], // size
+                return_type: Some(TypeAnnotation::Int),       // previous size
+            },
+        );
+
+        self.functions.insert(
+            "get_task_pool_size".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Int) },
+        );
     }
 
     /// Type check a list of statements
