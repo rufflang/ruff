@@ -5,9 +5,9 @@
 
 use crate::ast::{ArrayElement, DictElement, Expr, Pattern, Stmt};
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
-use std::sync::Arc;
 use crate::optimizer::Optimizer;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 /// Compiler state for generating bytecode from AST
 #[allow(dead_code)] // Compiler not yet integrated into execution path
@@ -157,7 +157,7 @@ impl Compiler {
 
                 // Bind the pattern
                 self.compile_pattern_binding(pattern)?;
-                
+
                 // Pop the value from stack - StoreVar peeks, doesn't pop
                 // This keeps the stack clean between statements
                 self.chunk.emit(OpCode::Pop);
@@ -189,9 +189,13 @@ impl Compiler {
                                                 _ => None,
                                             }
                                         } {
-                                            self.chunk.emit(OpCode::AppendConstCharInPlace(slot, ch));
+                                            self.chunk
+                                                .emit(OpCode::AppendConstCharInPlace(slot, ch));
                                         } else {
-                                            self.chunk.emit(OpCode::AppendConstStringInPlace(slot, Arc::from(s.clone())));
+                                            self.chunk.emit(OpCode::AppendConstStringInPlace(
+                                                slot,
+                                                Arc::from(s.clone()),
+                                            ));
                                         }
                                         return Ok(());
                                     }
@@ -211,7 +215,7 @@ impl Compiler {
 
                 // Compile the assignment target
                 self.compile_assignment(target)?;
-                
+
                 // Pop the value from stack - StoreVar peeks, doesn't pop
                 // This keeps the stack clean between statements
                 self.chunk.emit(OpCode::Pop);
@@ -261,6 +265,24 @@ impl Compiler {
                         index_slot,
                         limit_slot,
                         append_char,
+                    ));
+                    return Ok(());
+                }
+
+                if let Some((map_slot, index_slot, limit_slot)) =
+                    self.match_fill_int_map_with_double_until_local_pattern(condition, body)
+                {
+                    self.chunk.emit(OpCode::FillIntMapWithDoubleUntilLocalInPlace(
+                        map_slot, index_slot, limit_slot,
+                    ));
+                    return Ok(());
+                }
+
+                if let Some((map_slot, sum_slot, index_slot, limit_slot)) =
+                    self.match_sum_int_map_until_local_pattern(condition, body)
+                {
+                    self.chunk.emit(OpCode::SumIntMapUntilLocalInPlace(
+                        map_slot, sum_slot, index_slot, limit_slot,
                     ));
                     return Ok(());
                 }
@@ -518,8 +540,7 @@ impl Compiler {
                     // For now, just match against string patterns
                     // TODO: Implement full pattern matching with Pattern enum
                     let pattern_str_index =
-                        self.chunk
-                            .add_constant(Constant::String(pattern_name.clone()));
+                        self.chunk.add_constant(Constant::String(pattern_name.clone()));
                     self.chunk.emit(OpCode::LoadConst(pattern_str_index));
                     self.chunk.emit(OpCode::Equal);
 
@@ -1043,8 +1064,7 @@ impl Compiler {
 
                 // For now, treat as array with tag name
                 // TODO: Optimize enum handling
-                let tag_index =
-                    self.chunk.add_constant(Constant::String(tag.clone()));
+                let tag_index = self.chunk.add_constant(Constant::String(tag.clone()));
                 self.chunk.emit(OpCode::LoadConst(tag_index));
                 self.chunk.emit(OpCode::MakeArray(values.len() + 1));
 
@@ -1056,8 +1076,7 @@ impl Compiler {
                 for part in parts {
                     match part {
                         crate::ast::InterpolatedStringPart::Text(s) => {
-                            let index =
-                                self.chunk.add_constant(Constant::String(s.clone()));
+                            let index = self.chunk.add_constant(Constant::String(s.clone()));
                             self.chunk.emit(OpCode::LoadConst(index));
                         }
                         crate::ast::InterpolatedStringPart::Expr(e) => {
@@ -1227,7 +1246,7 @@ impl Compiler {
                 self.compile_expr(object)?;
                 self.compile_expr(index)?;
                 self.chunk.emit(OpCode::IndexSet);
-                
+
                 // IndexSet leaves the modified object on the stack
                 // We need to store it back to the variable if object is an identifier
                 if let Expr::Identifier(name) = &**object {
@@ -1262,12 +1281,10 @@ impl Compiler {
     /// Check if an expression is pure (no side effects) and safe to elide
     fn expr_is_pure(&self, expr: &Expr) -> bool {
         match expr {
-            Expr::Int(_)
-            | Expr::Float(_)
-            | Expr::String(_)
-            | Expr::Bool(_)
-            | Expr::None => true,
-            Expr::Identifier(name) => self.resolve_local_slot(name).is_some() || self.is_upvalue(name),
+            Expr::Int(_) | Expr::Float(_) | Expr::String(_) | Expr::Bool(_) | Expr::None => true,
+            Expr::Identifier(name) => {
+                self.resolve_local_slot(name).is_some() || self.is_upvalue(name)
+            }
             Expr::UnaryOp { operand, .. } => self.expr_is_pure(operand),
             Expr::BinaryOp { left, right, .. } => {
                 self.expr_is_pure(left) && self.expr_is_pure(right)
@@ -1276,9 +1293,7 @@ impl Compiler {
                 ArrayElement::Single(expr) | ArrayElement::Spread(expr) => self.expr_is_pure(expr),
             }),
             Expr::DictLiteral(entries) => entries.iter().all(|entry| match entry {
-                DictElement::Pair(key, value) => {
-                    self.expr_is_pure(key) && self.expr_is_pure(value)
-                }
+                DictElement::Pair(key, value) => self.expr_is_pure(key) && self.expr_is_pure(value),
                 DictElement::Spread(expr) => self.expr_is_pure(expr),
             }),
             Expr::StructInstance { fields, .. } => {
@@ -1318,14 +1333,11 @@ impl Compiler {
         let (target_name, append_char) = match &body[0] {
             Stmt::Assign {
                 target: Expr::Identifier(target_name),
-                value:
-                    Expr::BinaryOp {
-                        left,
-                        op,
-                        right,
-                    },
+                value: Expr::BinaryOp { left, op, right },
             } if op == "+" => match (&**left, &**right) {
-                (Expr::Identifier(left_name), Expr::String(append_str)) if left_name == target_name => {
+                (Expr::Identifier(left_name), Expr::String(append_str))
+                    if left_name == target_name =>
+                {
                     let mut chars = append_str.chars();
                     match (chars.next(), chars.next()) {
                         (Some(ch), None) => (target_name.as_str(), ch),
@@ -1340,12 +1352,7 @@ impl Compiler {
         match &body[1] {
             Stmt::Assign {
                 target: Expr::Identifier(target_name),
-                value:
-                    Expr::BinaryOp {
-                        left,
-                        op,
-                        right,
-                    },
+                value: Expr::BinaryOp { left, op, right },
             } if op == "+" && target_name == index_name => match (&**left, &**right) {
                 (Expr::Identifier(left_name), Expr::Int(1)) if left_name == index_name => {}
                 _ => return None,
@@ -1358,6 +1365,125 @@ impl Compiler {
         let limit_slot = self.resolve_local_slot(limit_name)?;
 
         Some((target_slot, index_slot, limit_slot, append_char))
+    }
+
+    fn match_sum_int_map_until_local_pattern(
+        &self,
+        condition: &Expr,
+        body: &[Stmt],
+    ) -> Option<(usize, usize, usize, usize)> {
+        if body.len() != 2 {
+            return None;
+        }
+
+        let (index_name, limit_name) = match condition {
+            Expr::BinaryOp { left, op, right } if op == "<" => match (&**left, &**right) {
+                (Expr::Identifier(index_name), Expr::Identifier(limit_name)) => {
+                    (index_name.as_str(), limit_name.as_str())
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+
+        let (sum_name, map_name) = match &body[0] {
+            Stmt::Assign {
+                target: Expr::Identifier(sum_name),
+                value: Expr::BinaryOp { left, op, right },
+            } if op == "+" => match (&**left, &**right) {
+                (Expr::Identifier(left_sum_name), Expr::IndexAccess { object, index })
+                    if left_sum_name == sum_name =>
+                {
+                    match (&**object, &**index) {
+                        (Expr::Identifier(map_name), Expr::Identifier(index_var))
+                            if index_var == index_name =>
+                        {
+                            (sum_name.as_str(), map_name.as_str())
+                        }
+                        _ => return None,
+                    }
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+
+        match &body[1] {
+            Stmt::Assign {
+                target: Expr::Identifier(target_name),
+                value: Expr::BinaryOp { left, op, right },
+            } if op == "+" && target_name == index_name => match (&**left, &**right) {
+                (Expr::Identifier(left_name), Expr::Int(1)) if left_name == index_name => {}
+                _ => return None,
+            },
+            _ => return None,
+        }
+
+        let map_slot = self.resolve_local_slot(map_name)?;
+        let sum_slot = self.resolve_local_slot(sum_name)?;
+        let index_slot = self.resolve_local_slot(index_name)?;
+        let limit_slot = self.resolve_local_slot(limit_name)?;
+
+        Some((map_slot, sum_slot, index_slot, limit_slot))
+    }
+
+    fn match_fill_int_map_with_double_until_local_pattern(
+        &self,
+        condition: &Expr,
+        body: &[Stmt],
+    ) -> Option<(usize, usize, usize)> {
+        if body.len() != 2 {
+            return None;
+        }
+
+        let (index_name, limit_name) = match condition {
+            Expr::BinaryOp { left, op, right } if op == "<" => match (&**left, &**right) {
+                (Expr::Identifier(index_name), Expr::Identifier(limit_name)) => {
+                    (index_name.as_str(), limit_name.as_str())
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+
+        let map_name = match &body[0] {
+            Stmt::Assign {
+                target: Expr::IndexAccess { object, index },
+                value: Expr::BinaryOp { left, op, right },
+            } if op == "*" => match (&**object, &**index, &**left, &**right) {
+                (
+                    Expr::Identifier(map_name),
+                    Expr::Identifier(index_var),
+                    Expr::Identifier(left_name),
+                    Expr::Int(2),
+                ) if index_var == index_name && left_name == index_name => map_name.as_str(),
+                (
+                    Expr::Identifier(map_name),
+                    Expr::Identifier(index_var),
+                    Expr::Int(2),
+                    Expr::Identifier(right_name),
+                ) if index_var == index_name && right_name == index_name => map_name.as_str(),
+                _ => return None,
+            },
+            _ => return None,
+        };
+
+        match &body[1] {
+            Stmt::Assign {
+                target: Expr::Identifier(target_name),
+                value: Expr::BinaryOp { left, op, right },
+            } if op == "+" && target_name == index_name => match (&**left, &**right) {
+                (Expr::Identifier(left_name), Expr::Int(1)) if left_name == index_name => {}
+                _ => return None,
+            },
+            _ => return None,
+        }
+
+        let map_slot = self.resolve_local_slot(map_name)?;
+        let index_slot = self.resolve_local_slot(index_name)?;
+        let limit_slot = self.resolve_local_slot(limit_name)?;
+
+        Some((map_slot, index_slot, limit_slot))
     }
 
     /// Collect variables that are read within the statement list
@@ -1559,9 +1685,7 @@ impl Compiler {
                         collect_stmt_vars(stmt, used);
                     }
                 }
-                Stmt::StructDef { .. }
-                | Stmt::EnumDef { .. }
-                | Stmt::Import { .. } => {}
+                Stmt::StructDef { .. } | Stmt::EnumDef { .. } | Stmt::Import { .. } => {}
             }
         }
 

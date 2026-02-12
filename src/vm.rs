@@ -6,15 +6,9 @@
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{
-    DenseIntDict,
-    DenseIntDictInt,
-    DictMap,
-    Environment,
-    Interpreter,
-    IntDictMap,
-    Value,
+    DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap, Interpreter, Value,
 };
-use crate::jit::{JitCompiler, CompiledFn, CompiledFnInfo};
+use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
@@ -59,7 +53,6 @@ pub struct VM {
     /// Current bytecode chunk
     chunk: BytecodeChunk,
 
-
     /// Interpreter instance for calling native functions
     interpreter: Interpreter,
 
@@ -87,21 +80,21 @@ pub struct VM {
     /// Cache of JIT-compiled functions
     /// Maps function name to compiled native code
     compiled_functions: HashMap<String, CompiledFn>,
-    
+
     /// Enhanced cache with direct-arg variants for recursive functions
     /// Maps function name to CompiledFnInfo (includes both standard and direct-arg)
     compiled_fn_info: HashMap<String, CompiledFnInfo>,
-    
+
     /// Cache of var_names for JIT-compiled functions
     /// This avoids re-computing hash mappings on every call
     jit_var_names_cache: HashMap<String, HashMap<u64, String>>,
-    
+
     /// Current recursion depth (for optimization and debugging)
     recursion_depth: usize,
-    
+
     /// Maximum recursion depth observed (for profiling)
     max_recursion_depth: usize,
-    
+
     /// Inline cache for function calls at specific call sites
     /// Key: (chunk_id, instruction_pointer) uniquely identifies a call site
     /// Value: Cached function pointer and metadata for fast dispatch
@@ -113,8 +106,6 @@ pub struct VM {
     /// Object stack for JIT non-int values (strings, dicts)
     jit_obj_stack: Vec<Value>,
 
-
-    
     /// Tokio runtime handle for spawning async tasks
     /// This allows the VM to spawn truly concurrent async tasks
     runtime_handle: tokio::runtime::Handle,
@@ -142,8 +133,7 @@ static HASHMAP_SET_DENSE_INT: AtomicU64 = AtomicU64::new(0);
 static HASHMAP_SET_DICT_INTKEY: AtomicU64 = AtomicU64::new(0);
 
 fn hashmap_profile_enabled() -> bool {
-    *HASHMAP_PROFILE_ENABLED
-        .get_or_init(|| std::env::var("RUFF_HASHMAP_PROFILE").is_ok())
+    *HASHMAP_PROFILE_ENABLED.get_or_init(|| std::env::var("RUFF_HASHMAP_PROFILE").is_ok())
 }
 
 fn hashmap_profile_bump(counter: &AtomicU64) {
@@ -206,9 +196,7 @@ struct HashMapProfileGuard {
 
 impl HashMapProfileGuard {
     fn new() -> Self {
-        Self {
-            enabled: hashmap_profile_enabled(),
-        }
+        Self { enabled: hashmap_profile_enabled() }
     }
 }
 
@@ -224,7 +212,7 @@ impl CallSiteId {
     fn new(chunk_name: Option<&str>, ip: usize) -> Self {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let chunk_id = match chunk_name {
             Some(name) => {
                 let mut hasher = DefaultHasher::new();
@@ -233,7 +221,7 @@ impl CallSiteId {
             }
             None => 0, // Anonymous/top-level chunk
         };
-        
+
         Self { chunk_id, ip }
     }
 }
@@ -244,23 +232,27 @@ struct InlineCacheEntry {
     /// The expected function name at this call site
     /// Used to validate cache hit (guard against function reassignment)
     expected_func_name: String,
-    
+
     /// Cached JIT-compiled function pointer (if available)
     /// None if function is not JIT-compiled yet
     compiled_fn: Option<CompiledFn>,
-    
+
     /// Cached var_names HashMap for this function (avoids rebuilding on every call)
     var_names: HashMap<u64, String>,
-    
+
     /// Cache hit count (for profiling and debugging)
     hit_count: usize,
-    
+
     /// Cache miss count (for profiling - indicates polymorphic call sites)
     miss_count: usize,
 }
 
 impl InlineCacheEntry {
-    fn new(func_name: &str, compiled_fn: Option<CompiledFn>, var_names: HashMap<u64, String>) -> Self {
+    fn new(
+        func_name: &str,
+        compiled_fn: Option<CompiledFn>,
+        var_names: HashMap<u64, String>,
+    ) -> Self {
         Self {
             expected_func_name: func_name.to_string(),
             compiled_fn,
@@ -375,11 +367,10 @@ impl VM {
             inline_cache: HashMap::new(),
             int_key_cache: HashMap::new(),
             jit_obj_stack: Vec::new(),
-            runtime_handle: tokio::runtime::Handle::try_current()
-                .unwrap_or_else(|_| {
-                    // If not in a tokio runtime, create one
-                    crate::interpreter::AsyncRuntime::runtime().handle().clone()
-                }),
+            runtime_handle: tokio::runtime::Handle::try_current().unwrap_or_else(|_| {
+                // If not in a tokio runtime, create one
+                crate::interpreter::AsyncRuntime::runtime().handle().clone()
+            }),
         };
 
         vm
@@ -436,10 +427,7 @@ impl VM {
         let mut dict = IntDictMap::default();
         dict.reserve(values.len());
         for (index, value) in values.iter().enumerate() {
-            dict.insert(
-                index as i64,
-                (*value).map(Value::Int).unwrap_or(Value::Null),
-            );
+            dict.insert(index as i64, (*value).map(Value::Int).unwrap_or(Value::Null));
         }
         dict
     }
@@ -504,9 +492,6 @@ impl VM {
         values
     }
 
-
-
-
     /// Execute a bytecode chunk
     pub fn execute(&mut self, chunk: BytecodeChunk) -> Result<Value, String> {
         let _hashmap_profile_guard = HashMapProfileGuard::new();
@@ -536,6 +521,8 @@ impl VM {
                             | OpCode::IndexSet
                             | OpCode::IndexGetInPlace(_)
                             | OpCode::IndexSetInPlace(_)
+                            | OpCode::SumIntMapUntilLocalInPlace(_, _, _, _)
+                            | OpCode::FillIntMapWithDoubleUntilLocalInPlace(_, _, _)
                     ) {
                         script_jit_safe = false;
                         break;
@@ -546,91 +533,103 @@ impl VM {
             // Attempt to compile the entire script
             if script_jit_safe {
                 match self.jit_compiler.compile_script(&self.chunk, "__main__") {
-                Ok(compiled_fn) => {
-                    if std::env::var("DEBUG_JIT").is_ok() {
-                        eprintln!("JIT: Successfully compiled top-level script - EXECUTING!");
-                    }
-                    
-                    // Execute the JIT-compiled script
-                    let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
-                    let stack_ptr: *mut Vec<Value> = &mut self.stack;
-                    
-                    let mut globals_guard = self.globals.lock().unwrap();
-                    let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
-                    
-                    // For top-level scripts, globals = locals
-                    let locals_ptr: *mut HashMap<String, Value> = globals_ptr;
-                    
-                    let mut vm_context = crate::jit::VMContext::new_with_vm(
-                        stack_ptr,
-                        locals_ptr,
-                        globals_ptr,
-                        vm_ptr,
-                    );
-                    vm_context.local_slots_ptr = match self.call_frames.last_mut() {
-                        Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
-                        None => std::ptr::null_mut(),
-                    };
-                    vm_context.obj_stack_ptr = &mut self.jit_obj_stack as *mut Vec<Value>;
-                    
-                    let chunk_name = self.chunk.name.as_deref().unwrap_or("<script>");
-                    let cache_key = format!("script:{}", chunk_name);
-                    if !self.jit_var_names_cache.contains_key(&cache_key) {
-                        let mut cached_var_names = HashMap::new();
-                        
-                        for instr in &self.chunk.instructions {
-                            match instr {
-                                OpCode::LoadVar(name)
-                                | OpCode::StoreVar(name)
-                                | OpCode::LoadGlobal(name)
-                                | OpCode::StoreGlobal(name) => {
-                                    use std::collections::hash_map::DefaultHasher;
-                                    use std::hash::{Hash, Hasher};
-                                    let mut hasher = DefaultHasher::new();
-                                    name.hash(&mut hasher);
-                                    let hash = hasher.finish();
-                                    cached_var_names.insert(hash, name.clone());
-                                }
-                                _ => {}
-                            }
-                        }
-                        
-                        self.jit_var_names_cache.insert(cache_key.clone(), cached_var_names);
-                    }
-                    
-                    let var_names_ptr: *mut HashMap<u64, String> = self.jit_var_names_cache
-                        .get_mut(&cache_key)
-                        .map(|v| v as *mut HashMap<u64, String>)
-                        .unwrap_or(std::ptr::null_mut());
-                    vm_context.var_names_ptr = var_names_ptr;
-                    
-                    drop(globals_guard); // Release lock before calling compiled code
-                    
-                    let status_code = unsafe { compiled_fn(&mut vm_context) };
-                    
-                    if status_code < 0 {
+                    Ok(compiled_fn) => {
                         if std::env::var("DEBUG_JIT").is_ok() {
-                            eprintln!("JIT: Script execution returned error code: {}", status_code);
+                            eprintln!("JIT: Successfully compiled top-level script - EXECUTING!");
                         }
-                        // Fall back to interpreter on JIT error
-                    } else {
-                        // Script executed successfully
-                        // Top of stack is the result (if any)
-                        return Ok(self.stack.last().cloned().unwrap_or(Value::Null));
+
+                        // Execute the JIT-compiled script
+                        let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+                        let stack_ptr: *mut Vec<Value> = &mut self.stack;
+
+                        let mut globals_guard = self.globals.lock().unwrap();
+                        let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+
+                        // For top-level scripts, globals = locals
+                        let locals_ptr: *mut HashMap<String, Value> = globals_ptr;
+
+                        let mut vm_context = crate::jit::VMContext::new_with_vm(
+                            stack_ptr,
+                            locals_ptr,
+                            globals_ptr,
+                            vm_ptr,
+                        );
+                        vm_context.local_slots_ptr = match self.call_frames.last_mut() {
+                            Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
+                            None => std::ptr::null_mut(),
+                        };
+                        vm_context.obj_stack_ptr = &mut self.jit_obj_stack as *mut Vec<Value>;
+
+                        let chunk_name = self.chunk.name.as_deref().unwrap_or("<script>");
+                        let cache_key = format!("script:{}", chunk_name);
+                        if !self.jit_var_names_cache.contains_key(&cache_key) {
+                            let mut cached_var_names = HashMap::new();
+
+                            for instr in &self.chunk.instructions {
+                                match instr {
+                                    OpCode::LoadVar(name)
+                                    | OpCode::StoreVar(name)
+                                    | OpCode::LoadGlobal(name)
+                                    | OpCode::StoreGlobal(name) => {
+                                        use std::collections::hash_map::DefaultHasher;
+                                        use std::hash::{Hash, Hasher};
+                                        let mut hasher = DefaultHasher::new();
+                                        name.hash(&mut hasher);
+                                        let hash = hasher.finish();
+                                        cached_var_names.insert(hash, name.clone());
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            self.jit_var_names_cache.insert(cache_key.clone(), cached_var_names);
+                        }
+
+                        let var_names_ptr: *mut HashMap<u64, String> = self
+                            .jit_var_names_cache
+                            .get_mut(&cache_key)
+                            .map(|v| v as *mut HashMap<u64, String>)
+                            .unwrap_or(std::ptr::null_mut());
+                        vm_context.var_names_ptr = var_names_ptr;
+
+                        drop(globals_guard); // Release lock before calling compiled code
+
+                        let status_code = unsafe { compiled_fn(&mut vm_context) };
+
+                        if status_code < 0 {
+                            if std::env::var("DEBUG_JIT").is_ok() {
+                                eprintln!(
+                                    "JIT: Script execution returned error code: {}",
+                                    status_code
+                                );
+                            }
+                            // Fall back to interpreter on JIT error
+                        } else {
+                            // Script executed successfully
+                            // Top of stack is the result (if any)
+                            return Ok(self.stack.last().cloned().unwrap_or(Value::Null));
+                        }
                     }
-                }
-                Err(e) => {
-                    if std::env::var("DEBUG_JIT").is_ok() {
-                        eprintln!("JIT: Could not compile script: {}", e);
-                        eprintln!("JIT: Falling back to interpreter");
+                    Err(e) => {
+                        if std::env::var("DEBUG_JIT").is_ok() {
+                            eprintln!("JIT: Could not compile script: {}", e);
+                            eprintln!("JIT: Falling back to interpreter");
+                        }
+                        // Fall through to interpreter
                     }
-                    // Fall through to interpreter
-                }
                 }
             }
         }
 
         // Interpreter fallback or JIT disabled
+        let contains_map_fusion_op = self.chunk.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                OpCode::SumIntMapUntilLocalInPlace(_, _, _, _)
+                    | OpCode::FillIntMapWithDoubleUntilLocalInPlace(_, _, _)
+            )
+        });
+
         loop {
             if self.ip >= self.chunk.instructions.len() {
                 // Reached end of program
@@ -638,7 +637,7 @@ impl VM {
             }
 
             // Check if we should JIT compile this hot path
-            if self.jit_enabled {
+            if self.jit_enabled && !contains_map_fusion_op {
                 // For loops (backward jumps), check if we should compile
                 if let Some(OpCode::JumpBack(jump_target)) = self.chunk.instructions.get(self.ip) {
                     if self.jit_compiler.is_loop_jit_blocked(*jump_target) {
@@ -647,12 +646,16 @@ impl VM {
                         // PRE-SCAN: Check if loop contains only supported opcodes
                         // This prevents compilation failures and maintains correctness
                         let mut int_dict_slots = std::collections::HashSet::new();
-                        let mut int_dict_loop_valid = !std::env::var("DISABLE_INT_DICT_LOOP_JIT").is_ok();
+                        let mut int_dict_loop_valid =
+                            !std::env::var("DISABLE_INT_DICT_LOOP_JIT").is_ok();
 
                         if int_dict_loop_valid {
-                            for instr in self.chunk.instructions.iter().take(self.ip + 1).skip(*jump_target) {
+                            for instr in
+                                self.chunk.instructions.iter().take(self.ip + 1).skip(*jump_target)
+                            {
                                 match instr {
-                                    OpCode::IndexGetInPlace(slot) | OpCode::IndexSetInPlace(slot) => {
+                                    OpCode::IndexGetInPlace(slot)
+                                    | OpCode::IndexSetInPlace(slot) => {
                                         int_dict_slots.insert(*slot);
                                     }
                                     _ => {}
@@ -660,7 +663,13 @@ impl VM {
                             }
 
                             if !int_dict_slots.is_empty() {
-                                for instr in self.chunk.instructions.iter().take(self.ip + 1).skip(*jump_target) {
+                                for instr in self
+                                    .chunk
+                                    .instructions
+                                    .iter()
+                                    .take(self.ip + 1)
+                                    .skip(*jump_target)
+                                {
                                     match instr {
                                         OpCode::LoadLocal(slot) | OpCode::StoreLocal(slot) => {
                                             if int_dict_slots.contains(slot) {
@@ -727,16 +736,22 @@ impl VM {
                             }
                         }
 
-                        let can_compile_loop = if int_dict_loop_valid && !int_dict_slots.is_empty() {
-                            self.jit_compiler
-                                .can_compile_loop_with_int_dicts(&self.chunk, *jump_target, self.ip)
+                        let can_compile_loop = if int_dict_loop_valid && !int_dict_slots.is_empty()
+                        {
+                            self.jit_compiler.can_compile_loop_with_int_dicts(
+                                &self.chunk,
+                                *jump_target,
+                                self.ip,
+                            )
                         } else {
                             self.jit_compiler.can_compile_loop(&self.chunk, *jump_target, self.ip)
                         };
 
                         if can_compile_loop {
                             let mut store_vars = std::collections::HashSet::new();
-                            for instr in self.chunk.instructions.iter().take(self.ip + 1).skip(*jump_target) {
+                            for instr in
+                                self.chunk.instructions.iter().take(self.ip + 1).skip(*jump_target)
+                            {
                                 match instr {
                                     OpCode::StoreVar(name) | OpCode::StoreGlobal(name) => {
                                         store_vars.insert(name.clone());
@@ -744,7 +759,7 @@ impl VM {
                                     _ => {}
                                 }
                             }
-                            
+
                             if store_vars.len() > 2 {
                                 // Skip loop JIT for complex update patterns to preserve correctness
                                 // (e.g., multiple dependent variable updates per iteration)
@@ -753,24 +768,24 @@ impl VM {
                                 // Try to compile this hot loop
                                 // IMPORTANT: Compile from the loop START (jump_target), not from the JumpBack!
                                 // The JumpBack just marks the end of the loop
-                                let compile_result = if int_dict_loop_valid && !int_dict_slots.is_empty() {
-                                    self.jit_compiler.compile_loop_with_int_dicts(
-                                        &self.chunk,
-                                        *jump_target,
-                                        self.ip,
-                                        int_dict_slots,
-                                    )
-                                } else {
-                                    self.jit_compiler.compile(&self.chunk, *jump_target)
-                                };
+                                let compile_result =
+                                    if int_dict_loop_valid && !int_dict_slots.is_empty() {
+                                        self.jit_compiler.compile_loop_with_int_dicts(
+                                            &self.chunk,
+                                            *jump_target,
+                                            self.ip,
+                                            int_dict_slots,
+                                        )
+                                    } else {
+                                        self.jit_compiler.compile(&self.chunk, *jump_target)
+                                    };
 
                                 match compile_result {
                                     Ok(compiled_fn) => {
                                         if std::env::var("DEBUG_JIT_LOOP").is_ok() {
                                             eprintln!(
                                                 "JIT: Compiled loop ({}..={})",
-                                                jump_target,
-                                                self.ip
+                                                jump_target, self.ip
                                             );
                                         }
                                         let jump_target = *jump_target;
@@ -809,13 +824,13 @@ impl VM {
                                         if std::env::var("DEBUG_JIT_LOOP").is_ok() {
                                             eprintln!(
                                                 "JIT: Executing compiled loop ({}..={})",
-                                                jump_target,
-                                                self.ip
+                                                jump_target, self.ip
                                             );
                                         }
 
                                         // Get VM pointer early (before any borrows)
-                                        let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+                                        let vm_ptr: *mut std::ffi::c_void =
+                                            self as *mut _ as *mut std::ffi::c_void;
 
                                         // Execute the JIT-compiled function
                                         // Get mutable pointers to VM state for VMContext
@@ -823,15 +838,17 @@ impl VM {
 
                                         // Get globals - lock and get mutable reference to the first scope
                                         let mut globals_guard = self.globals.lock().unwrap();
-                                        let globals_ptr: *mut HashMap<String, Value> = &mut globals_guard.scopes[0];
+                                        let globals_ptr: *mut HashMap<String, Value> =
+                                            &mut globals_guard.scopes[0];
 
                                         // Get locals from current call frame, or use globals if at top level
-                                        let locals_ptr: *mut HashMap<String, Value> = if let Some(frame) = self.call_frames.last_mut() {
-                                            &mut frame.locals
-                                        } else {
-                                            // Top-level: use globals as locals
-                                            globals_ptr
-                                        };
+                                        let locals_ptr: *mut HashMap<String, Value> =
+                                            if let Some(frame) = self.call_frames.last_mut() {
+                                                &mut frame.locals
+                                            } else {
+                                                // Top-level: use globals as locals
+                                                globals_ptr
+                                            };
 
                                         // Create VMContext with VM pointer for Call opcode support
                                         let mut vm_context = crate::jit::VMContext::new_with_vm(
@@ -840,13 +857,18 @@ impl VM {
                                             globals_ptr,
                                             vm_ptr,
                                         );
-                                        vm_context.local_slots_ptr = match self.call_frames.last_mut() {
-                                            Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
-                                            None => std::ptr::null_mut(),
-                                        };
-                                        vm_context.obj_stack_ptr = &mut self.jit_obj_stack as *mut Vec<Value>;
+                                        vm_context.local_slots_ptr =
+                                            match self.call_frames.last_mut() {
+                                                Some(frame) => {
+                                                    &mut frame.local_slots as *mut Vec<Value>
+                                                }
+                                                None => std::ptr::null_mut(),
+                                            };
+                                        vm_context.obj_stack_ptr =
+                                            &mut self.jit_obj_stack as *mut Vec<Value>;
 
-                                        let chunk_name = self.chunk.name.as_deref().unwrap_or("<script>");
+                                        let chunk_name =
+                                            self.chunk.name.as_deref().unwrap_or("<script>");
                                         let cache_key = format!("loop:{}", chunk_name);
                                         if !self.jit_var_names_cache.contains_key(&cache_key) {
                                             let mut cached_var_names = HashMap::new();
@@ -868,10 +890,12 @@ impl VM {
                                                 }
                                             }
 
-                                            self.jit_var_names_cache.insert(cache_key.clone(), cached_var_names);
+                                            self.jit_var_names_cache
+                                                .insert(cache_key.clone(), cached_var_names);
                                         }
 
-                                        let var_names_ptr: *mut HashMap<u64, String> = self.jit_var_names_cache
+                                        let var_names_ptr: *mut HashMap<u64, String> = self
+                                            .jit_var_names_cache
                                             .get_mut(&cache_key)
                                             .map(|v| v as *mut HashMap<u64, String>)
                                             .unwrap_or(std::ptr::null_mut());
@@ -884,7 +908,10 @@ impl VM {
                                         drop(globals_guard);
 
                                         if result_code != 0 {
-                                            return Err(format!("JIT execution failed with code: {}", result_code));
+                                            return Err(format!(
+                                                "JIT execution failed with code: {}",
+                                                result_code
+                                            ));
                                         }
 
                                         if std::env::var("DEBUG_JIT").is_ok() {
@@ -934,10 +961,7 @@ impl VM {
                 }
 
                 OpCode::LoadLocal(slot) => {
-                    let frame = self
-                        .call_frames
-                        .last()
-                        .ok_or("LoadLocal requires call frame")?;
+                    let frame = self.call_frames.last().ok_or("LoadLocal requires call frame")?;
                     let value = frame
                         .local_slots
                         .get(slot)
@@ -1046,10 +1070,8 @@ impl VM {
 
                 OpCode::StoreLocal(slot) => {
                     let value = self.stack.last().ok_or("Stack underflow")?.clone();
-                    let frame = self
-                        .call_frames
-                        .last_mut()
-                        .ok_or("StoreLocal requires call frame")?;
+                    let frame =
+                        self.call_frames.last_mut().ok_or("StoreLocal requires call frame")?;
                     if let Some(target) = frame.local_slots.get_mut(slot) {
                         *target = value;
                     } else {
@@ -1084,7 +1106,7 @@ impl VM {
                             let needed = right_str.len();
                             let current_len = result_str.len();
                             let available = result_str.capacity() - current_len;
-                            
+
                             if available < needed {
                                 // Aggressive growth for loop patterns: assume many more concatenations
                                 // Python's string concat is fast because it opportunistically reuses buffers
@@ -1121,7 +1143,7 @@ impl VM {
                                 let left_str = Arc::make_mut(left);
                                 let needed = right.len();
                                 let available = left_str.capacity() - left_str.len();
-                                
+
                                 if available < needed {
                                     // Aggressive pre-allocation for repeated concatenation
                                     let reserve_amount = (needed * 1000).max(left_str.capacity());
@@ -1134,10 +1156,8 @@ impl VM {
                         }
                     };
 
-                    let frame = self
-                        .call_frames
-                        .last_mut()
-                        .ok_or("AddInPlace requires call frame")?;
+                    let frame =
+                        self.call_frames.last_mut().ok_or("AddInPlace requires call frame")?;
                     let target = frame
                         .local_slots
                         .get_mut(slot)
@@ -1200,7 +1220,12 @@ impl VM {
                     }
                 }
 
-                OpCode::AppendConstCharUntilLocalInPlace(target_slot, index_slot, limit_slot, rhs) => {
+                OpCode::AppendConstCharUntilLocalInPlace(
+                    target_slot,
+                    index_slot,
+                    limit_slot,
+                    rhs,
+                ) => {
                     let frame = self
                         .call_frames
                         .last_mut()
@@ -1209,7 +1234,8 @@ impl VM {
                     let current_index = match frame.local_slots.get(index_slot) {
                         Some(Value::Int(value)) => *value,
                         Some(_) => {
-                            return Err("Type mismatch in AppendConstCharUntilLocalInPlace index".to_string())
+                            return Err("Type mismatch in AppendConstCharUntilLocalInPlace index"
+                                .to_string())
                         }
                         None => return Err(format!("Invalid local slot: {}", index_slot)),
                     };
@@ -1217,15 +1243,17 @@ impl VM {
                     let limit_index = match frame.local_slots.get(limit_slot) {
                         Some(Value::Int(value)) => *value,
                         Some(_) => {
-                            return Err("Type mismatch in AppendConstCharUntilLocalInPlace limit".to_string())
+                            return Err("Type mismatch in AppendConstCharUntilLocalInPlace limit"
+                                .to_string())
                         }
                         None => return Err(format!("Invalid local slot: {}", limit_slot)),
                     };
 
                     if limit_index > current_index {
                         let repeat_count_i64 = limit_index - current_index;
-                        let repeat_count = usize::try_from(repeat_count_i64)
-                            .map_err(|_| "Repeat count overflow in AppendConstCharUntilLocalInPlace".to_string())?;
+                        let repeat_count = usize::try_from(repeat_count_i64).map_err(|_| {
+                            "Repeat count overflow in AppendConstCharUntilLocalInPlace".to_string()
+                        })?;
 
                         let target = frame
                             .local_slots
@@ -1249,10 +1277,356 @@ impl VM {
                             }
                             _ => {
                                 return Err(
-                                    "Type mismatch in AppendConstCharUntilLocalInPlace target".to_string(),
+                                    "Type mismatch in AppendConstCharUntilLocalInPlace target"
+                                        .to_string(),
                                 )
                             }
                         }
+                    }
+
+                    if let Some(index_value) = frame.local_slots.get_mut(index_slot) {
+                        *index_value = Value::Int(limit_index);
+                    } else {
+                        return Err(format!("Invalid local slot: {}", index_slot));
+                    }
+                }
+
+                OpCode::FillIntMapWithDoubleUntilLocalInPlace(map_slot, index_slot, limit_slot) => {
+                    let frame = self
+                        .call_frames
+                        .last_mut()
+                        .ok_or("FillIntMapWithDoubleUntilLocalInPlace requires call frame")?;
+
+                    let current_index = match frame.local_slots.get(index_slot) {
+                        Some(Value::Int(value)) => *value,
+                        Some(_) => {
+                            return Err(
+                                "Type mismatch in FillIntMapWithDoubleUntilLocalInPlace index"
+                                    .to_string(),
+                            )
+                        }
+                        None => return Err(format!("Invalid local slot: {}", index_slot)),
+                    };
+
+                    let limit_index = match frame.local_slots.get(limit_slot) {
+                        Some(Value::Int(value)) => *value,
+                        Some(_) => {
+                            return Err(
+                                "Type mismatch in FillIntMapWithDoubleUntilLocalInPlace limit"
+                                    .to_string(),
+                            )
+                        }
+                        None => return Err(format!("Invalid local slot: {}", limit_slot)),
+                    };
+
+                    if limit_index > current_index {
+                        let target = frame
+                            .local_slots
+                            .get_mut(map_slot)
+                            .ok_or_else(|| format!("Invalid local slot: {}", map_slot))?;
+
+                        match target {
+                            Value::DenseIntDictIntFull(values) => {
+                                let values_mut = Arc::make_mut(values);
+                                let start = usize::try_from(current_index).map_err(|_| {
+                                    "Negative index in FillIntMapWithDoubleUntilLocalInPlace"
+                                        .to_string()
+                                })?;
+                                let end = usize::try_from(limit_index).map_err(|_| {
+                                    "Negative limit in FillIntMapWithDoubleUntilLocalInPlace"
+                                        .to_string()
+                                })?;
+
+                                if values_mut.len() < end {
+                                    values_mut.reserve(end - values_mut.len());
+                                }
+
+                                for index in start..end {
+                                    let value = (index as i64).wrapping_mul(2);
+                                    if index == values_mut.len() {
+                                        values_mut.push(value);
+                                    } else if index < values_mut.len() {
+                                        values_mut[index] = value;
+                                    } else {
+                                        values_mut.resize(index + 1, 0);
+                                        values_mut[index] = value;
+                                    }
+                                }
+                            }
+                            Value::DenseIntDictInt(values) => {
+                                let values_mut = Arc::make_mut(values);
+                                let start = usize::try_from(current_index).map_err(|_| {
+                                    "Negative index in FillIntMapWithDoubleUntilLocalInPlace"
+                                        .to_string()
+                                })?;
+                                let end = usize::try_from(limit_index).map_err(|_| {
+                                    "Negative limit in FillIntMapWithDoubleUntilLocalInPlace"
+                                        .to_string()
+                                })?;
+
+                                if values_mut.len() < end {
+                                    values_mut.resize(end, None);
+                                }
+
+                                for index in start..end {
+                                    values_mut[index] = Some((index as i64).wrapping_mul(2));
+                                }
+                            }
+                            Value::DenseIntDict(values) => {
+                                let values_mut = Arc::make_mut(values);
+                                let start = usize::try_from(current_index).map_err(|_| {
+                                    "Negative index in FillIntMapWithDoubleUntilLocalInPlace"
+                                        .to_string()
+                                })?;
+                                let end = usize::try_from(limit_index).map_err(|_| {
+                                    "Negative limit in FillIntMapWithDoubleUntilLocalInPlace"
+                                        .to_string()
+                                })?;
+
+                                if values_mut.len() < end {
+                                    values_mut.resize(end, Value::Null);
+                                }
+
+                                for index in start..end {
+                                    values_mut[index] = Value::Int((index as i64).wrapping_mul(2));
+                                }
+                            }
+                            Value::IntDict(dict) => {
+                                let dict_mut = Arc::make_mut(dict);
+                                for index in current_index..limit_index {
+                                    dict_mut.insert(index, Value::Int(index.wrapping_mul(2)));
+                                }
+                            }
+                            Value::Dict(dict) => {
+                                if dict.is_empty() && current_index >= 0 {
+                                    let end = usize::try_from(limit_index).map_err(|_| {
+                                        "Negative limit in FillIntMapWithDoubleUntilLocalInPlace"
+                                            .to_string()
+                                    })?;
+                                    let start = usize::try_from(current_index).map_err(|_| {
+                                        "Negative index in FillIntMapWithDoubleUntilLocalInPlace"
+                                            .to_string()
+                                    })?;
+
+                                    let mut values = vec![0; end];
+                                    for index in start..end {
+                                        values[index] = (index as i64).wrapping_mul(2);
+                                    }
+                                    *target = Value::DenseIntDictIntFull(Arc::new(values));
+                                } else {
+                                    let dict_mut = Arc::make_mut(dict);
+                                    for index in current_index..limit_index {
+                                        dict_mut.insert(
+                                            Arc::from(index.to_string().as_str()),
+                                            Value::Int(index.wrapping_mul(2)),
+                                        );
+                                    }
+                                }
+                            }
+                            Value::FixedDict { keys, values } => {
+                                if keys.is_empty() && values.is_empty() && current_index >= 0 {
+                                    let end = usize::try_from(limit_index).map_err(|_| {
+                                        "Negative limit in FillIntMapWithDoubleUntilLocalInPlace"
+                                            .to_string()
+                                    })?;
+                                    let start = usize::try_from(current_index).map_err(|_| {
+                                        "Negative index in FillIntMapWithDoubleUntilLocalInPlace"
+                                            .to_string()
+                                    })?;
+
+                                    let mut dense_values = vec![0; end];
+                                    for index in start..end {
+                                        dense_values[index] = (index as i64).wrapping_mul(2);
+                                    }
+                                    *target = Value::DenseIntDictIntFull(Arc::new(dense_values));
+                                } else {
+                                    let mut dict = DictMap::default();
+                                    for (key, value) in
+                                        keys.iter().cloned().zip(values.iter().cloned())
+                                    {
+                                        dict.insert(key, value);
+                                    }
+                                    for index in current_index..limit_index {
+                                        dict.insert(
+                                            Arc::from(index.to_string().as_str()),
+                                            Value::Int(index.wrapping_mul(2)),
+                                        );
+                                    }
+                                    *target = Value::Dict(Arc::new(dict));
+                                }
+                            }
+                            _ => {
+                                return Err(
+                                    "Type mismatch in FillIntMapWithDoubleUntilLocalInPlace map"
+                                        .to_string(),
+                                )
+                            }
+                        }
+                    }
+
+                    if let Some(index_value) = frame.local_slots.get_mut(index_slot) {
+                        *index_value = Value::Int(limit_index);
+                    } else {
+                        return Err(format!("Invalid local slot: {}", index_slot));
+                    }
+                }
+
+                OpCode::SumIntMapUntilLocalInPlace(map_slot, sum_slot, index_slot, limit_slot) => {
+                    let frame = self
+                        .call_frames
+                        .last_mut()
+                        .ok_or("SumIntMapUntilLocalInPlace requires call frame")?;
+
+                    let current_index = match frame.local_slots.get(index_slot) {
+                        Some(Value::Int(value)) => *value,
+                        Some(_) => {
+                            return Err(
+                                "Type mismatch in SumIntMapUntilLocalInPlace index".to_string()
+                            )
+                        }
+                        None => return Err(format!("Invalid local slot: {}", index_slot)),
+                    };
+
+                    let limit_index = match frame.local_slots.get(limit_slot) {
+                        Some(Value::Int(value)) => *value,
+                        Some(_) => {
+                            return Err(
+                                "Type mismatch in SumIntMapUntilLocalInPlace limit".to_string()
+                            )
+                        }
+                        None => return Err(format!("Invalid local slot: {}", limit_slot)),
+                    };
+
+                    let mut running_sum = match frame.local_slots.get(sum_slot) {
+                        Some(Value::Int(value)) => *value,
+                        Some(_) => {
+                            return Err(
+                                "Type mismatch in SumIntMapUntilLocalInPlace sum".to_string()
+                            )
+                        }
+                        None => return Err(format!("Invalid local slot: {}", sum_slot)),
+                    };
+
+                    let map_value = frame
+                        .local_slots
+                        .get(map_slot)
+                        .cloned()
+                        .ok_or_else(|| format!("Invalid local slot: {}", map_slot))?;
+
+                    if limit_index > current_index {
+                        let start = usize::try_from(current_index).map_err(|_| {
+                            "Negative index in SumIntMapUntilLocalInPlace".to_string()
+                        })?;
+                        let end = usize::try_from(limit_index).map_err(|_| {
+                            "Negative limit in SumIntMapUntilLocalInPlace".to_string()
+                        })?;
+
+                        match map_value {
+                            Value::DenseIntDictIntFull(values) => {
+                                if end > values.len() {
+                                    return Err("Type mismatch in binary operation".to_string());
+                                }
+
+                                for value in values[start..end].iter() {
+                                    running_sum = running_sum.wrapping_add(*value);
+                                }
+                            }
+                            Value::DenseIntDictInt(values) => {
+                                if end > values.len() {
+                                    return Err("Type mismatch in binary operation".to_string());
+                                }
+
+                                for value in values[start..end].iter() {
+                                    match value {
+                                        Some(int_value) => {
+                                            running_sum = running_sum.wrapping_add(*int_value);
+                                        }
+                                        None => {
+                                            return Err(
+                                                "Type mismatch in binary operation".to_string()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Value::DenseIntDict(values) => {
+                                if end > values.len() {
+                                    return Err("Type mismatch in binary operation".to_string());
+                                }
+
+                                for value in values[start..end].iter() {
+                                    match value {
+                                        Value::Int(int_value) => {
+                                            running_sum = running_sum.wrapping_add(*int_value);
+                                        }
+                                        _ => {
+                                            return Err(
+                                                "Type mismatch in binary operation".to_string()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Value::IntDict(dict) => {
+                                for key in current_index..limit_index {
+                                    match dict.get(&key) {
+                                        Some(Value::Int(int_value)) => {
+                                            running_sum = running_sum.wrapping_add(*int_value);
+                                        }
+                                        _ => {
+                                            return Err(
+                                                "Type mismatch in binary operation".to_string()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Value::Dict(dict) => {
+                                for key in current_index..limit_index {
+                                    let key_string = key.to_string();
+                                    match dict.get(key_string.as_str()) {
+                                        Some(Value::Int(int_value)) => {
+                                            running_sum = running_sum.wrapping_add(*int_value);
+                                        }
+                                        _ => {
+                                            return Err(
+                                                "Type mismatch in binary operation".to_string()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Value::FixedDict { keys, values } => {
+                                for key in current_index..limit_index {
+                                    let key_string = key.to_string();
+                                    let match_index = keys
+                                        .iter()
+                                        .position(|item| item.as_ref() == key_string.as_str());
+
+                                    match match_index.and_then(|idx| values.get(idx)) {
+                                        Some(Value::Int(int_value)) => {
+                                            running_sum = running_sum.wrapping_add(*int_value);
+                                        }
+                                        _ => {
+                                            return Err(
+                                                "Type mismatch in binary operation".to_string()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {
+                                return Err(
+                                    "Type mismatch in SumIntMapUntilLocalInPlace map".to_string()
+                                )
+                            }
+                        }
+                    }
+
+                    if let Some(sum_value) = frame.local_slots.get_mut(sum_slot) {
+                        *sum_value = Value::Int(running_sum);
+                    } else {
+                        return Err(format!("Invalid local slot: {}", sum_slot));
                     }
 
                     if let Some(index_value) = frame.local_slots.get_mut(index_slot) {
@@ -1388,7 +1762,7 @@ impl VM {
                     // Create call site ID for inline cache lookup
                     // This identifies where in the bytecode this call occurs
                     let call_site_id = CallSiteId::new(self.chunk.name.as_deref(), self.ip);
-                    
+
                     // Function is on top of stack, then arguments below it
                     // Stack layout: [... arg1, arg2, ..., argN, function]
                     let function = self.stack.pop().ok_or("Stack underflow in Call")?;
@@ -1406,26 +1780,28 @@ impl VM {
                             // Track function calls for JIT compilation
                             if self.jit_enabled && !chunk.is_generator {
                                 let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
-                                
+
                                 // Get VM pointer early (before any borrows)
-                                let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
-                                
+                                let vm_ptr: *mut std::ffi::c_void =
+                                    self as *mut _ as *mut std::ffi::c_void;
+
                                 // === INLINE CACHE FAST PATH ===
                                 // Check inline cache for this specific call site
                                 // This is faster than HashMap lookups because:
                                 // 1. We cache the compiled_fn pointer directly (no string hash)
                                 // 2. We cache var_names to avoid rebuilding on every call
                                 // 3. We validate with a simple string comparison (guard)
-                                if let Some(cache_entry) = self.inline_cache.get_mut(&call_site_id) {
+                                if let Some(cache_entry) = self.inline_cache.get_mut(&call_site_id)
+                                {
                                     // Cache hit! Validate that function hasn't changed (guard)
                                     if cache_entry.expected_func_name == func_name {
                                         cache_entry.hit_count += 1;
-                                        
+
                                         // If we have a compiled function, use it directly
                                         if let Some(compiled_fn) = cache_entry.compiled_fn {
                                             // Create locals HashMap for the function parameters
                                             let mut func_locals = HashMap::new();
-                                            
+
                                             let has_loop = chunk
                                                 .instructions
                                                 .iter()
@@ -1434,39 +1810,47 @@ impl VM {
                                             let use_fast_args = !has_loop
                                                 && args.len() <= 4
                                                 && args.iter().all(|a| matches!(a, Value::Int(_)));
-                                            
+
                                             // Bind arguments to parameter names
                                             for (i, param_name) in chunk.params.iter().enumerate() {
                                                 if let Some(arg) = args.get(i) {
-                                                    func_locals.insert(param_name.clone(), arg.clone());
+                                                    func_locals
+                                                        .insert(param_name.clone(), arg.clone());
                                                 }
                                             }
-                                            
+
                                             // OPTIMIZATION: Get mutable pointer directly to cached var_names
                                             // This avoids HashMap clone on every call!
-                                            let var_names_ptr: *mut HashMap<u64, String> = &mut cache_entry.var_names;
-                                            
+                                            let var_names_ptr: *mut HashMap<u64, String> =
+                                                &mut cache_entry.var_names;
+
                                             // Save stack size to detect return value
                                             let stack_size_before = self.stack.len();
-                                            
+
                                             // Execute the JIT-compiled function
                                             let stack_ptr: *mut Vec<Value> = &mut self.stack;
-                                            
+
                                             // Get globals - drop lock before execution
                                             let globals_ptr: *mut HashMap<String, Value> = {
-                                                let mut globals_guard = self.globals.lock().unwrap();
-                                                let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                                let mut globals_guard =
+                                                    self.globals.lock().unwrap();
+                                                let ptr = &mut globals_guard.scopes[0]
+                                                    as *mut HashMap<String, Value>;
                                                 drop(globals_guard);
                                                 ptr
                                             };
-                                            
-                                            let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
-                                            let local_slots_ptr: *mut Vec<Value> = match self.call_frames.last_mut() {
-                                                Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
-                                                None => std::ptr::null_mut(),
-                                            };
+
+                                            let locals_ptr: *mut HashMap<String, Value> =
+                                                &mut func_locals;
+                                            let local_slots_ptr: *mut Vec<Value> =
+                                                match self.call_frames.last_mut() {
+                                                    Some(frame) => {
+                                                        &mut frame.local_slots as *mut Vec<Value>
+                                                    }
+                                                    None => std::ptr::null_mut(),
+                                                };
                                             // var_names_ptr already created above from cache entry
-                                            
+
                                             // Create VMContext with fast arg fields
                                             let mut vm_context = crate::jit::VMContext {
                                                 stack_ptr,
@@ -1474,41 +1858,72 @@ impl VM {
                                                 globals_ptr,
                                                 var_names_ptr,
                                                 local_slots_ptr,
-                                                obj_stack_ptr: &mut self.jit_obj_stack as *mut Vec<Value>,
+                                                obj_stack_ptr: &mut self.jit_obj_stack
+                                                    as *mut Vec<Value>,
                                                 vm_ptr,
                                                 return_value: 0,
                                                 has_return_value: false,
-                                                arg0: if use_fast_args && args.len() > 0 { 
-                                                    if let Value::Int(n) = args[0] { n } else { 0 }
-                                                } else { 0 },
-                                                arg1: if use_fast_args && args.len() > 1 { 
-                                                    if let Value::Int(n) = args[1] { n } else { 0 }
-                                                } else { 0 },
-                                                arg2: if use_fast_args && args.len() > 2 { 
-                                                    if let Value::Int(n) = args[2] { n } else { 0 }
-                                                } else { 0 },
-                                                arg3: if use_fast_args && args.len() > 3 { 
-                                                    if let Value::Int(n) = args[3] { n } else { 0 }
-                                                } else { 0 },
+                                                arg0: if use_fast_args && args.len() > 0 {
+                                                    if let Value::Int(n) = args[0] {
+                                                        n
+                                                    } else {
+                                                        0
+                                                    }
+                                                } else {
+                                                    0
+                                                },
+                                                arg1: if use_fast_args && args.len() > 1 {
+                                                    if let Value::Int(n) = args[1] {
+                                                        n
+                                                    } else {
+                                                        0
+                                                    }
+                                                } else {
+                                                    0
+                                                },
+                                                arg2: if use_fast_args && args.len() > 2 {
+                                                    if let Value::Int(n) = args[2] {
+                                                        n
+                                                    } else {
+                                                        0
+                                                    }
+                                                } else {
+                                                    0
+                                                },
+                                                arg3: if use_fast_args && args.len() > 3 {
+                                                    if let Value::Int(n) = args[3] {
+                                                        n
+                                                    } else {
+                                                        0
+                                                    }
+                                                } else {
+                                                    0
+                                                },
                                                 arg_count: args.len() as i64,
                                             };
-                                            
-                                            let result_code = unsafe {
-                                                compiled_fn(&mut vm_context)
-                                            };
-                                            
+
+                                            let result_code =
+                                                unsafe { compiled_fn(&mut vm_context) };
+
                                             if result_code != 0 {
-                                                return Err(format!("JIT execution failed with code: {}", result_code));
+                                                return Err(format!(
+                                                    "JIT execution failed with code: {}",
+                                                    result_code
+                                                ));
                                             }
-                                            
+
                                             if vm_context.has_return_value {
-                                                self.stack.push(Value::Int(vm_context.return_value));
+                                                self.stack
+                                                    .push(Value::Int(vm_context.return_value));
                                             } else if self.stack.len() > stack_size_before {
                                                 // Return value was pushed to stack
                                             } else {
-                                                return Err("JIT-compiled function did not return a value".to_string());
+                                                return Err(
+                                                    "JIT-compiled function did not return a value"
+                                                        .to_string(),
+                                                );
                                             }
-                                            
+
                                             continue; // Skip to next instruction
                                         }
                                     } else {
@@ -1516,40 +1931,49 @@ impl VM {
                                         cache_entry.miss_count += 1;
                                     }
                                 }
-                                
+
                                 // === SLOW PATH - populate cache and execute ===
                                 // PHASE 7 STEP 12: Check for direct-arg version FIRST for single-int-arg calls
                                 // This is the key optimization for recursive functions - avoids FFI on each call
                                 if args.len() == 1 {
                                     if let Value::Int(arg_val) = args[0] {
-                                        if let Some(fn_info) = self.compiled_fn_info.get(func_name) {
+                                        if let Some(fn_info) = self.compiled_fn_info.get(func_name)
+                                        {
                                             if let Some(direct_fn) = fn_info.fn_with_arg {
                                                 // ULTRA-FAST PATH: Use direct-arg JIT variant!
                                                 // This function takes an i64 directly and returns the result
                                                 // WITHOUT going through VMContext arg fields or FFI for recursion
-                                                
+
                                                 // Create minimal VMContext for the function
                                                 let stack_ptr: *mut Vec<Value> = &mut self.stack;
                                                 let globals_ptr: *mut HashMap<String, Value> = {
-                                                    let mut globals_guard = self.globals.lock().unwrap();
-                                                    let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                                    let mut globals_guard =
+                                                        self.globals.lock().unwrap();
+                                                    let ptr = &mut globals_guard.scopes[0]
+                                                        as *mut HashMap<String, Value>;
                                                     drop(globals_guard);
                                                     ptr
                                                 };
                                                 let mut func_locals = HashMap::new();
-                                                let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
-                                                let local_slots_ptr: *mut Vec<Value> = match self.call_frames.last_mut() {
-                                                    Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
-                                                    None => std::ptr::null_mut(),
-                                                };
-                                                
+                                                let locals_ptr: *mut HashMap<String, Value> =
+                                                    &mut func_locals;
+                                                let local_slots_ptr: *mut Vec<Value> =
+                                                    match self.call_frames.last_mut() {
+                                                        Some(frame) => {
+                                                            &mut frame.local_slots
+                                                                as *mut Vec<Value>
+                                                        }
+                                                        None => std::ptr::null_mut(),
+                                                    };
+
                                                 let mut vm_context = crate::jit::VMContext {
                                                     stack_ptr,
                                                     locals_ptr,
                                                     globals_ptr,
                                                     var_names_ptr: std::ptr::null_mut(),
                                                     local_slots_ptr,
-                                                    obj_stack_ptr: &mut self.jit_obj_stack as *mut Vec<Value>,
+                                                    obj_stack_ptr: &mut self.jit_obj_stack
+                                                        as *mut Vec<Value>,
                                                     vm_ptr,
                                                     return_value: 0,
                                                     has_return_value: false,
@@ -1559,46 +1983,47 @@ impl VM {
                                                     arg3: 0,
                                                     arg_count: 1,
                                                 };
-                                                
+
                                                 // Execute direct-arg function - result is returned directly!
-                                                let result = unsafe {
-                                                    direct_fn(&mut vm_context, arg_val)
-                                                };
-                                                
+                                                let result =
+                                                    unsafe { direct_fn(&mut vm_context, arg_val) };
+
                                                 if std::env::var("DEBUG_JIT").is_ok() {
                                                     eprintln!("JIT: Interpreter direct-arg call to '{}' with arg {} returned {}", 
                                                         func_name, arg_val, result);
                                                 }
-                                                
+
                                                 self.stack.push(Value::Int(result));
                                                 continue; // Skip to next instruction
                                             }
                                         }
                                     }
                                 }
-                                
+
                                 // Check if we have a JIT-compiled version (standard path)
                                 if let Some(compiled_fn) = self.compiled_functions.get(func_name) {
                                     // Fast path: Call JIT-compiled version
-                                    
+
                                     // Create locals HashMap for the function parameters
                                     let mut func_locals = HashMap::new();
-                                    
+
                                     // Bind arguments to parameter names
                                     for (i, param_name) in chunk.params.iter().enumerate() {
                                         if let Some(arg) = args.get(i) {
                                             func_locals.insert(param_name.clone(), arg.clone());
                                         }
                                     }
-                                    
+
                                     // Get or create var_names from cache
                                     let func_name_owned = func_name.to_string();
-                                    let var_names = if let Some(cached) = self.jit_var_names_cache.get(&func_name_owned) {
+                                    let var_names = if let Some(cached) =
+                                        self.jit_var_names_cache.get(&func_name_owned)
+                                    {
                                         cached.clone()
                                     } else {
                                         // Build var_names once and cache it
                                         let mut cached_var_names = HashMap::new();
-                                        
+
                                         // Register parameter names
                                         for param_name in &chunk.params {
                                             use std::collections::hash_map::DefaultHasher;
@@ -1608,7 +2033,7 @@ impl VM {
                                             let hash = hasher.finish();
                                             cached_var_names.insert(hash, param_name.clone());
                                         }
-                                        
+
                                         // Register all LoadVar names
                                         for instr in &chunk.instructions {
                                             if let OpCode::LoadVar(name) = instr {
@@ -1620,45 +2045,57 @@ impl VM {
                                                 cached_var_names.insert(hash, name.clone());
                                             }
                                         }
-                                        
-                                        self.jit_var_names_cache.insert(func_name_owned.clone(), cached_var_names.clone());
+
+                                        self.jit_var_names_cache.insert(
+                                            func_name_owned.clone(),
+                                            cached_var_names.clone(),
+                                        );
                                         cached_var_names
                                     };
-                                    
+
                                     // === POPULATE INLINE CACHE ===
                                     // Store in inline cache for faster lookup next time
                                     self.inline_cache.insert(
                                         call_site_id,
-                                        InlineCacheEntry::new(func_name, Some(*compiled_fn), var_names.clone()),
+                                        InlineCacheEntry::new(
+                                            func_name,
+                                            Some(*compiled_fn),
+                                            var_names.clone(),
+                                        ),
                                     );
-                                    
+
                                     let mut var_names_mut = var_names;
-                                    
+
                                     // Save stack size to detect return value
                                     let stack_size_before = self.stack.len();
-                                    
+
                                     // Execute the JIT-compiled function
                                     // Get mutable pointers to VM state for VMContext
                                     let stack_ptr: *mut Vec<Value> = &mut self.stack;
-                                    
+
                                     // Get globals - drop lock before execution to avoid deadlock on recursive calls
                                     let globals_ptr: *mut HashMap<String, Value> = {
                                         let mut globals_guard = self.globals.lock().unwrap();
-                                        let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                        let ptr = &mut globals_guard.scopes[0]
+                                            as *mut HashMap<String, Value>;
                                         drop(globals_guard);
                                         ptr
                                     };
-                                    
+
                                     // Use the function's locals (with bound parameters)
                                     let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
-                                    let local_slots_ptr: *mut Vec<Value> = match self.call_frames.last_mut() {
+                                    let local_slots_ptr: *mut Vec<Value> = match self
+                                        .call_frames
+                                        .last_mut()
+                                    {
                                         Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
                                         None => std::ptr::null_mut(),
                                     };
-                                    
+
                                     // Set up var_names for JIT variable resolution
-                                    let var_names_ptr: *mut HashMap<u64, String> = &mut var_names_mut;
-                                    
+                                    let var_names_ptr: *mut HashMap<u64, String> =
+                                        &mut var_names_mut;
+
                                     let has_loop = chunk
                                         .instructions
                                         .iter()
@@ -1667,7 +2104,7 @@ impl VM {
                                     let use_fast_args = !has_loop
                                         && args.len() <= 4
                                         && args.iter().all(|a| matches!(a, Value::Int(_)));
-                                    
+
                                     // Create VMContext with fast arg fields
                                     let mut vm_context = crate::jit::VMContext {
                                         stack_ptr,
@@ -1679,31 +2116,56 @@ impl VM {
                                         vm_ptr,
                                         return_value: 0,
                                         has_return_value: false,
-                                        arg0: if use_fast_args && args.len() > 0 { 
-                                            if let Value::Int(n) = args[0] { n } else { 0 }
-                                        } else { 0 },
-                                        arg1: if use_fast_args && args.len() > 1 { 
-                                            if let Value::Int(n) = args[1] { n } else { 0 }
-                                        } else { 0 },
-                                        arg2: if use_fast_args && args.len() > 2 { 
-                                            if let Value::Int(n) = args[2] { n } else { 0 }
-                                        } else { 0 },
-                                        arg3: if use_fast_args && args.len() > 3 { 
-                                            if let Value::Int(n) = args[3] { n } else { 0 }
-                                        } else { 0 },
+                                        arg0: if use_fast_args && args.len() > 0 {
+                                            if let Value::Int(n) = args[0] {
+                                                n
+                                            } else {
+                                                0
+                                            }
+                                        } else {
+                                            0
+                                        },
+                                        arg1: if use_fast_args && args.len() > 1 {
+                                            if let Value::Int(n) = args[1] {
+                                                n
+                                            } else {
+                                                0
+                                            }
+                                        } else {
+                                            0
+                                        },
+                                        arg2: if use_fast_args && args.len() > 2 {
+                                            if let Value::Int(n) = args[2] {
+                                                n
+                                            } else {
+                                                0
+                                            }
+                                        } else {
+                                            0
+                                        },
+                                        arg3: if use_fast_args && args.len() > 3 {
+                                            if let Value::Int(n) = args[3] {
+                                                n
+                                            } else {
+                                                0
+                                            }
+                                        } else {
+                                            0
+                                        },
                                         arg_count: args.len() as i64,
                                     };
-                                    
+
                                     // Execute the compiled function!
                                     // Lock is NOT held during execution to allow recursive calls
-                                    let result_code = unsafe {
-                                        (*compiled_fn)(&mut vm_context)
-                                    };
-                                    
+                                    let result_code = unsafe { (*compiled_fn)(&mut vm_context) };
+
                                     if result_code != 0 {
-                                        return Err(format!("JIT execution failed with code: {}", result_code));
+                                        return Err(format!(
+                                            "JIT execution failed with code: {}",
+                                            result_code
+                                        ));
                                     }
-                                    
+
                                     // Check for return value - prefer optimized VMContext.return_value
                                     // This is the FAST PATH from Phase 7 Step 8 optimization
                                     if vm_context.has_return_value {
@@ -1713,29 +2175,45 @@ impl VM {
                                         // Fallback: return value was pushed to stack (old path)
                                         // No action needed - value is already on stack
                                     } else {
-                                        return Err("JIT-compiled function did not return a value".to_string());
+                                        return Err("JIT-compiled function did not return a value"
+                                            .to_string());
                                     }
-                                    
+
                                     // Skip the normal bytecode execution
                                     continue;
                                 }
-                                
+
                                 // Increment call counter
-                                let count = self.function_call_counts
+                                let count = self
+                                    .function_call_counts
                                     .entry(func_name.to_string())
                                     .or_insert(0);
                                 *count += 1;
-                                
+
                                 // Check if we should JIT-compile this function
                                 let has_loop = chunk
                                     .instructions
                                     .iter()
                                     .any(|op| matches!(op, OpCode::JumpBack(_)));
 
-                                let allow_function_jit =
-                                    std::env::var("DISABLE_FUNCTION_JIT").is_err();
+                                let has_map_fusion_op = chunk.instructions.iter().any(|op| {
+                                    matches!(
+                                        op,
+                                        OpCode::SumIntMapUntilLocalInPlace(_, _, _, _)
+                                            | OpCode::FillIntMapWithDoubleUntilLocalInPlace(
+                                                _,
+                                                _,
+                                                _
+                                            )
+                                    )
+                                });
+
+                                let allow_function_jit = std::env::var("DISABLE_FUNCTION_JIT")
+                                    .is_err()
+                                    && !has_map_fusion_op;
                                 if allow_function_jit
-                                    && (*count == JIT_FUNCTION_THRESHOLD || (has_loop && *count == 1))
+                                    && (*count == JIT_FUNCTION_THRESHOLD
+                                        || (has_loop && *count == 1))
                                 {
                                     if std::env::var("DEBUG_JIT").is_ok() {
                                         eprintln!(
@@ -1753,36 +2231,47 @@ impl VM {
                                             eprintln!("  {:3}: {:?}", idx, constant);
                                         }
                                     }
-                                    
+
                                     // Attempt to compile the function with enhanced info
                                     // This creates both standard and direct-arg variants for recursion
-                                    match self.jit_compiler.compile_function_with_info(chunk, func_name) {
+                                    match self
+                                        .jit_compiler
+                                        .compile_function_with_info(chunk, func_name)
+                                    {
                                         Ok(info) => {
                                             if std::env::var("DEBUG_JIT").is_ok() {
-                                                eprintln!("JIT: Successfully compiled function '{}'", func_name);
+                                                eprintln!(
+                                                    "JIT: Successfully compiled function '{}'",
+                                                    func_name
+                                                );
                                             }
 
-                                            self.compiled_functions.insert(func_name.to_string(), info.fn_ptr);
-                                            self.compiled_fn_info.insert(func_name.to_string(), info);
+                                            self.compiled_functions
+                                                .insert(func_name.to_string(), info.fn_ptr);
+                                            self.compiled_fn_info
+                                                .insert(func_name.to_string(), info);
                                         }
                                         Err(e) => {
                                             if std::env::var("DEBUG_JIT").is_ok() {
-                                                eprintln!("JIT: Failed to compile function '{}': {}", func_name, e);
+                                                eprintln!(
+                                                    "JIT: Failed to compile function '{}': {}",
+                                                    func_name, e
+                                                );
                                             }
                                         }
                                     }
                                 }
                             }
 
-                                self.call_bytecode_function(function.clone(), args)?;
-                            }
-                            Value::NativeFunction(_) => {
-                                let result = self.call_native_function_vm(function.clone(), args)?;
-                                self.stack.push(result);
-                            }
-                            _ => return Err("Cannot call non-function".to_string()),
+                            self.call_bytecode_function(function.clone(), args)?;
                         }
+                        Value::NativeFunction(_) => {
+                            let result = self.call_native_function_vm(function.clone(), args)?;
+                            self.stack.push(result);
+                        }
+                        _ => return Err("Cannot call non-function".to_string()),
                     }
+                }
 
                 OpCode::Return => {
                     let return_value = self.stack.pop().ok_or("Stack underflow in return")?;
@@ -1790,12 +2279,12 @@ impl VM {
                     if let Some(frame) = self.call_frames.pop() {
                         // Pop from function call stack for error reporting
                         self.function_call_stack.pop();
-						
+
                         // Decrement recursion depth
                         if self.recursion_depth > 0 {
                             self.recursion_depth -= 1;
                         }
-						
+
                         // Restore previous state
                         self.ip = frame.return_ip;
                         if let Some(prev_chunk) = frame.prev_chunk {
@@ -1836,7 +2325,7 @@ impl VM {
                         if self.recursion_depth > 0 {
                             self.recursion_depth -= 1;
                         }
-                        
+
                         self.ip = frame.return_ip;
                         if let Some(prev_chunk) = frame.prev_chunk {
                             self.set_chunk(prev_chunk);
@@ -1853,7 +2342,7 @@ impl VM {
                                 receiver: Arc::new(Mutex::new(rx)),
                                 is_polled: Arc::new(Mutex::new(false)),
                                 cached_result: Arc::new(Mutex::new(None)),
-                task_handle: None,
+                                task_handle: None,
                             }
                         } else {
                             Value::Null
@@ -1901,9 +2390,11 @@ impl VM {
                                     .iter()
                                     .position(|name| name == upvalue_name)
                                 {
-                                    frame.local_slots.get(slot).cloned().or_else(|| {
-                                        frame.locals.get(upvalue_name).cloned()
-                                    })
+                                    frame
+                                        .local_slots
+                                        .get(slot)
+                                        .cloned()
+                                        .or_else(|| frame.locals.get(upvalue_name).cloned())
                                 } else {
                                     frame.locals.get(upvalue_name).cloned()
                                 }
@@ -2037,10 +2528,7 @@ impl VM {
                             if *i < 0 {
                                 Value::Null
                             } else {
-                                values
-                                    .get(*i as usize)
-                                    .cloned()
-                                    .unwrap_or(Value::Null)
+                                values.get(*i as usize).cloned().unwrap_or(Value::Null)
                             }
                         }
                         (Value::DenseIntDictInt(values), Value::Int(i)) => {
@@ -2070,22 +2558,17 @@ impl VM {
                                     .unwrap_or(Value::Null)
                             }
                         }
-                        (Value::IntDict(dict), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
-                                Err(_) => Value::Null,
-                            }
-                        }
+                        (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
+                            Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                            Err(_) => Value::Null,
+                        },
                         (Value::DenseIntDict(values), Value::Str(key)) => {
                             match key.parse::<i64>() {
                                 Ok(int_key) => {
                                     if int_key < 0 {
                                         Value::Null
                                     } else {
-                                        values
-                                            .get(int_key as usize)
-                                            .cloned()
-                                            .unwrap_or(Value::Null)
+                                        values.get(int_key as usize).cloned().unwrap_or(Value::Null)
                                     }
                                 }
                                 Err(_) => Value::Null,
@@ -2149,8 +2632,11 @@ impl VM {
                         (Value::Array(arr), Value::Int(i)) => {
                             let mut arr_clone = arr;
                             let arr_mut = Arc::make_mut(&mut arr_clone);
-                            let idx =
-                                if i < 0 { (arr_mut.len() as i64 + i) as usize } else { i as usize };
+                            let idx = if i < 0 {
+                                (arr_mut.len() as i64 + i) as usize
+                            } else {
+                                i as usize
+                            };
 
                             if idx < arr_mut.len() {
                                 arr_mut[idx] = value;
@@ -2166,7 +2652,8 @@ impl VM {
                             self.stack.push(Value::Dict(dict_clone));
                         }
                         (Value::FixedDict { keys, mut values }, Value::Str(key)) => {
-                            if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str()) {
+                            if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str())
+                            {
                                 values[idx] = value;
                                 self.stack.push(Value::FixedDict { keys, values });
                             } else {
@@ -2185,17 +2672,23 @@ impl VM {
                                     match value {
                                         Value::Int(int_value) => {
                                             if i == 0 {
-                                                self.stack.push(Value::DenseIntDictIntFull(Arc::new(vec![int_value])));
+                                                self.stack.push(Value::DenseIntDictIntFull(
+                                                    Arc::new(vec![int_value]),
+                                                ));
                                             } else {
-                                                let mut values =
-                                                    Self::dense_int_dict_int_with_len((i as usize) + 1);
+                                                let mut values = Self::dense_int_dict_int_with_len(
+                                                    (i as usize) + 1,
+                                                );
                                                 values[i as usize] = Some(int_value);
-                                                self.stack.push(Value::DenseIntDictInt(Arc::new(values)));
+                                                self.stack
+                                                    .push(Value::DenseIntDictInt(Arc::new(values)));
                                             }
                                         }
                                         Value::Null => {
-                                            let values = Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                            self.stack.push(Value::DenseIntDictInt(Arc::new(values)));
+                                            let values =
+                                                Self::dense_int_dict_int_with_len((i as usize) + 1);
+                                            self.stack
+                                                .push(Value::DenseIntDictInt(Arc::new(values)));
                                         }
                                         other => {
                                             let mut values = vec![Value::Null; (i as usize) + 1];
@@ -2224,17 +2717,23 @@ impl VM {
                                     match value {
                                         Value::Int(int_value) => {
                                             if i == 0 {
-                                                self.stack.push(Value::DenseIntDictIntFull(Arc::new(vec![int_value])));
+                                                self.stack.push(Value::DenseIntDictIntFull(
+                                                    Arc::new(vec![int_value]),
+                                                ));
                                             } else {
-                                                let mut values =
-                                                    Self::dense_int_dict_int_with_len((i as usize) + 1);
+                                                let mut values = Self::dense_int_dict_int_with_len(
+                                                    (i as usize) + 1,
+                                                );
                                                 values[i as usize] = Some(int_value);
-                                                self.stack.push(Value::DenseIntDictInt(Arc::new(values)));
+                                                self.stack
+                                                    .push(Value::DenseIntDictInt(Arc::new(values)));
                                             }
                                         }
                                         Value::Null => {
-                                            let values = Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                            self.stack.push(Value::DenseIntDictInt(Arc::new(values)));
+                                            let values =
+                                                Self::dense_int_dict_int_with_len((i as usize) + 1);
+                                            self.stack
+                                                .push(Value::DenseIntDictInt(Arc::new(values)));
                                         }
                                         other => {
                                             let mut values = vec![Value::Null; (i as usize) + 1];
@@ -2250,7 +2749,9 @@ impl VM {
                                 }
                             } else {
                                 let key = self.int_key_string(i);
-                                if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_ref()) {
+                                if let Some(idx) =
+                                    keys.iter().position(|k| k.as_ref() == key.as_ref())
+                                {
                                     let mut values = values;
                                     values[idx] = value;
                                     self.stack.push(Value::FixedDict { keys, values });
@@ -2323,12 +2824,14 @@ impl VM {
                                         self.stack.push(Value::DenseIntDictInt(values));
                                     }
                                     other => {
-                                        let mut dense_values = Self::dense_int_dict_int_to_dense_int_dict(&values);
+                                        let mut dense_values =
+                                            Self::dense_int_dict_int_to_dense_int_dict(&values);
                                         if index >= dense_values.len() {
                                             dense_values.resize(index + 1, Value::Null);
                                         }
                                         dense_values[index] = other;
-                                        self.stack.push(Value::DenseIntDict(Arc::new(dense_values)));
+                                        self.stack
+                                            .push(Value::DenseIntDict(Arc::new(dense_values)));
                                     }
                                 }
                             }
@@ -2357,7 +2860,8 @@ impl VM {
                                                 Self::dense_int_dict_int_full_to_sparse(&values);
                                             sparse.resize(index + 1, None);
                                             sparse[index] = Some(int_value);
-                                            self.stack.push(Value::DenseIntDictInt(Arc::new(sparse)));
+                                            self.stack
+                                                .push(Value::DenseIntDictInt(Arc::new(sparse)));
                                         }
                                     }
                                     Value::Null => {
@@ -2394,7 +2898,8 @@ impl VM {
                             match key.parse::<i64>() {
                                 Ok(int_key) => {
                                     if int_key < 0 {
-                                        let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
+                                        let mut int_dict =
+                                            Self::dense_int_dict_to_int_dict(&values);
                                         int_dict.insert(int_key, value);
                                         self.stack.push(Value::IntDict(Arc::new(int_dict)));
                                     } else {
@@ -2419,7 +2924,8 @@ impl VM {
                             match key.parse::<i64>() {
                                 Ok(int_key) => {
                                     if int_key < 0 {
-                                        let mut int_dict = Self::dense_int_dict_int_to_int_dict(&values);
+                                        let mut int_dict =
+                                            Self::dense_int_dict_int_to_int_dict(&values);
                                         int_dict.insert(int_key, value);
                                         self.stack.push(Value::IntDict(Arc::new(int_dict)));
                                     } else {
@@ -2454,12 +2960,17 @@ impl VM {
                                                 self.stack.push(Value::DenseIntDictInt(values));
                                             }
                                             other => {
-                                                let mut dense_values = Self::dense_int_dict_int_to_dense_int_dict(&values);
+                                                let mut dense_values =
+                                                    Self::dense_int_dict_int_to_dense_int_dict(
+                                                        &values,
+                                                    );
                                                 if index >= dense_values.len() {
                                                     dense_values.resize(index + 1, Value::Null);
                                                 }
                                                 dense_values[index] = other;
-                                                self.stack.push(Value::DenseIntDict(Arc::new(dense_values)));
+                                                self.stack.push(Value::DenseIntDict(Arc::new(
+                                                    dense_values,
+                                                )));
                                             }
                                         }
                                     }
@@ -2496,16 +3007,21 @@ impl VM {
                                                         .push(Value::DenseIntDictIntFull(values));
                                                 } else {
                                                     let mut sparse =
-                                                        Self::dense_int_dict_int_full_to_sparse(&values);
+                                                        Self::dense_int_dict_int_full_to_sparse(
+                                                            &values,
+                                                        );
                                                     sparse.resize(index + 1, None);
                                                     sparse[index] = Some(int_value);
-                                                    self.stack
-                                                        .push(Value::DenseIntDictInt(Arc::new(sparse)));
+                                                    self.stack.push(Value::DenseIntDictInt(
+                                                        Arc::new(sparse),
+                                                    ));
                                                 }
                                             }
                                             Value::Null => {
                                                 let mut sparse =
-                                                    Self::dense_int_dict_int_full_to_sparse(&values);
+                                                    Self::dense_int_dict_int_full_to_sparse(
+                                                        &values,
+                                                    );
                                                 if index >= sparse.len() {
                                                     sparse.resize(index + 1, None);
                                                 }
@@ -2520,7 +3036,9 @@ impl VM {
                                                     dense_values.resize(index + 1, Value::Null);
                                                 }
                                                 dense_values[index] = other;
-                                                self.stack.push(Value::DenseIntDict(Arc::new(dense_values)));
+                                                self.stack.push(Value::DenseIntDict(Arc::new(
+                                                    dense_values,
+                                                )));
                                             }
                                         }
                                     }
@@ -2528,7 +3046,10 @@ impl VM {
                                 Err(_) => {
                                     let mut dict = DictMap::default();
                                     for (index, value) in values.iter().enumerate() {
-                                        dict.insert(Arc::from(index.to_string().as_str()), Value::Int(*value));
+                                        dict.insert(
+                                            Arc::from(index.to_string().as_str()),
+                                            Value::Int(*value),
+                                        );
                                     }
                                     dict.insert(Arc::from(key.as_str()), value);
                                     self.stack.push(Value::Dict(Arc::new(dict)));
@@ -2542,15 +3063,9 @@ impl VM {
                 OpCode::IndexGetInPlace(slot) => {
                     // Pop index from stack
                     let index = self.stack.pop().ok_or("Stack underflow")?;
-                    let int_key_cache = match &index {
-                        Value::Int(i) => Some(self.int_key_string(*i)),
-                        _ => None,
-                    };
 
-                    let frame = self
-                        .call_frames
-                        .last()
-                        .ok_or("IndexGetInPlace requires call frame")?;
+                    let frame =
+                        self.call_frames.last().ok_or("IndexGetInPlace requires call frame")?;
 
                     let object = frame
                         .local_slots
@@ -2573,14 +3088,14 @@ impl VM {
                             let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
                             idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
                         }
-                        (Value::Dict(dict), Value::Int(_)) => {
+                        (Value::Dict(dict), Value::Int(i)) => {
                             hashmap_profile_bump(&HASHMAP_GET_DICT_INTKEY);
-                            let key = int_key_cache.as_ref().ok_or("Missing int key cache")?;
-                            dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
+                            let key = i.to_string();
+                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
                         }
-                        (Value::FixedDict { keys, values }, Value::Int(_)) => {
-                            let key = int_key_cache.as_ref().ok_or("Missing int key cache")?;
-                            let idx = keys.iter().position(|k| k.as_ref() == key.as_ref());
+                        (Value::FixedDict { keys, values }, Value::Int(i)) => {
+                            let key = i.to_string();
+                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
                             idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
                         }
                         (Value::IntDict(dict), Value::Int(i)) => {
@@ -2592,10 +3107,7 @@ impl VM {
                             if *i < 0 {
                                 Value::Null
                             } else {
-                                values
-                                    .get(*i as usize)
-                                    .cloned()
-                                    .unwrap_or(Value::Null)
+                                values.get(*i as usize).cloned().unwrap_or(Value::Null)
                             }
                         }
                         (Value::DenseIntDictInt(values), Value::Int(i)) => {
@@ -2625,22 +3137,17 @@ impl VM {
                                     .unwrap_or(Value::Null)
                             }
                         }
-                        (Value::IntDict(dict), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
-                                Err(_) => Value::Null,
-                            }
-                        }
+                        (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
+                            Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                            Err(_) => Value::Null,
+                        },
                         (Value::DenseIntDict(values), Value::Str(key)) => {
                             match key.parse::<i64>() {
                                 Ok(int_key) => {
                                     if int_key < 0 {
                                         Value::Null
                                     } else {
-                                        values
-                                            .get(int_key as usize)
-                                            .cloned()
-                                            .unwrap_or(Value::Null)
+                                        values.get(int_key as usize).cloned().unwrap_or(Value::Null)
                                     }
                                 }
                                 Err(_) => Value::Null,
@@ -2700,14 +3207,9 @@ impl VM {
                     // Pop index and value from stack
                     let index = self.stack.pop().ok_or("Stack underflow")?;
                     let value = self.stack.pop().ok_or("Stack underflow")?;
-                    let int_key_cache = match &index {
-                        Value::Int(i) => Some((*i, self.int_key_string(*i))),
-                        _ => None,
-                    };
-                    let frame = self
-                        .call_frames
-                        .last_mut()
-                        .ok_or("IndexSetInPlace requires call frame")?;
+
+                    let frame =
+                        self.call_frames.last_mut().ok_or("IndexSetInPlace requires call frame")?;
 
                     {
                         let object = frame
@@ -2717,126 +3219,151 @@ impl VM {
 
                         match index {
                             Value::Int(i) => match object {
-                            Value::Array(arr) => {
-                                let arr_mut = Arc::make_mut(arr);
-                                let idx = if i < 0 {
-                                    (arr_mut.len() as i64 + i) as usize
-                                } else {
-                                    i as usize
-                                };
-                                if idx < arr_mut.len() {
-                                    arr_mut[idx] = value;
-                                } else {
-                                    return Err(format!("Index out of bounds: {}", i));
+                                Value::Array(arr) => {
+                                    let arr_mut = Arc::make_mut(arr);
+                                    let idx = if i < 0 {
+                                        (arr_mut.len() as i64 + i) as usize
+                                    } else {
+                                        i as usize
+                                    };
+                                    if idx < arr_mut.len() {
+                                        arr_mut[idx] = value;
+                                    } else {
+                                        return Err(format!("Index out of bounds: {}", i));
+                                    }
                                 }
-                            }
-                            Value::Dict(dict) => {
-                                hashmap_profile_bump(&HASHMAP_SET_DICT_INTKEY);
-                                if dict.is_empty() {
-                                    if i >= 0 {
-                                        match value {
-                                            Value::Int(int_value) => {
-                                                if i == 0 {
-                                                    *object = Value::DenseIntDictIntFull(Arc::new(vec![int_value]));
-                                                } else {
+                                Value::Dict(dict) => {
+                                    hashmap_profile_bump(&HASHMAP_SET_DICT_INTKEY);
+                                    if dict.is_empty() {
+                                        if i >= 0 {
+                                            match value {
+                                                Value::Int(int_value) => {
+                                                    if i == 0 {
+                                                        *object = Value::DenseIntDictIntFull(
+                                                            Arc::new(vec![int_value]),
+                                                        );
+                                                    } else {
+                                                        let mut values =
+                                                            Self::dense_int_dict_int_with_len(
+                                                                (i as usize) + 1,
+                                                            );
+                                                        values[i as usize] = Some(int_value);
+                                                        *object = Value::DenseIntDictInt(Arc::new(
+                                                            values,
+                                                        ));
+                                                    }
+                                                }
+                                                Value::Null => {
+                                                    let values = Self::dense_int_dict_int_with_len(
+                                                        (i as usize) + 1,
+                                                    );
+                                                    *object =
+                                                        Value::DenseIntDictInt(Arc::new(values));
+                                                }
+                                                other => {
                                                     let mut values =
-                                                        Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                                    values[i as usize] = Some(int_value);
-                                                    *object = Value::DenseIntDictInt(Arc::new(values));
+                                                        vec![Value::Null; (i as usize) + 1];
+                                                    values[i as usize] = other;
+                                                    *object = Value::DenseIntDict(Arc::new(values));
                                                 }
                                             }
-                                            Value::Null => {
-                                                let values = Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                                *object = Value::DenseIntDictInt(Arc::new(values));
-                                            }
-                                            other => {
-                                                let mut values = vec![Value::Null; (i as usize) + 1];
-                                                values[i as usize] = other;
-                                                *object = Value::DenseIntDict(Arc::new(values));
-                                            }
+                                        } else {
+                                            let mut int_dict = IntDictMap::default();
+                                            int_dict.reserve(1024);
+                                            int_dict.insert(i, value);
+                                            *object = Value::IntDict(Arc::new(int_dict));
                                         }
                                     } else {
-                                        let mut int_dict = IntDictMap::default();
-                                        int_dict.reserve(1024);
-                                        int_dict.insert(i, value);
-                                        *object = Value::IntDict(Arc::new(int_dict));
+                                        let dict_mut = Arc::make_mut(dict);
+                                        dict_mut.insert(Arc::from(i.to_string().as_str()), value);
                                     }
-                                } else {
+                                }
+                                Value::FixedDict { keys, values } => {
+                                    if keys.is_empty() && values.is_empty() {
+                                        if i >= 0 {
+                                            match value {
+                                                Value::Int(int_value) => {
+                                                    if i == 0 {
+                                                        *object = Value::DenseIntDictIntFull(
+                                                            Arc::new(vec![int_value]),
+                                                        );
+                                                    } else {
+                                                        let mut values =
+                                                            Self::dense_int_dict_int_with_len(
+                                                                (i as usize) + 1,
+                                                            );
+                                                        values[i as usize] = Some(int_value);
+                                                        *object = Value::DenseIntDictInt(Arc::new(
+                                                            values,
+                                                        ));
+                                                    }
+                                                }
+                                                Value::Null => {
+                                                    let values = Self::dense_int_dict_int_with_len(
+                                                        (i as usize) + 1,
+                                                    );
+                                                    *object =
+                                                        Value::DenseIntDictInt(Arc::new(values));
+                                                }
+                                                other => {
+                                                    let mut values =
+                                                        vec![Value::Null; (i as usize) + 1];
+                                                    values[i as usize] = other;
+                                                    *object = Value::DenseIntDict(Arc::new(values));
+                                                }
+                                            }
+                                        } else {
+                                            let mut int_dict = IntDictMap::default();
+                                            int_dict.reserve(1024);
+                                            int_dict.insert(i, value);
+                                            *object = Value::IntDict(Arc::new(int_dict));
+                                        }
+                                    } else {
+                                        let key = i.to_string();
+                                        if let Some(idx) =
+                                            keys.iter().position(|k| k.as_ref() == key.as_str())
+                                        {
+                                            let mut values = values.clone();
+                                            values[idx] = value;
+                                            *object =
+                                                Value::FixedDict { keys: Arc::clone(keys), values };
+                                        } else {
+                                            let mut dict = DictMap::default();
+                                            for (k, v) in
+                                                keys.iter().cloned().zip(values.iter().cloned())
+                                            {
+                                                dict.insert(k, v);
+                                            }
+                                            dict.insert(Arc::from(key.as_str()), value);
+                                            *object = Value::Dict(Arc::new(dict));
+                                        }
+                                    }
+                                }
+                                Value::IntDict(dict) => {
+                                    hashmap_profile_bump(&HASHMAP_SET_INTDICT);
                                     let dict_mut = Arc::make_mut(dict);
-                                    let key = int_key_cache.as_ref().ok_or("Missing int key cache")?;
-                                    dict_mut.insert(Arc::clone(&key.1), value);
+                                    dict_mut.insert(i, value);
                                 }
-                            }
-                            Value::FixedDict { keys, values } => {
-                                if keys.is_empty() && values.is_empty() {
-                                    if i >= 0 {
-                                        match value {
-                                            Value::Int(int_value) => {
-                                                if i == 0 {
-                                                    *object = Value::DenseIntDictIntFull(Arc::new(vec![int_value]));
-                                                } else {
-                                                    let mut values =
-                                                        Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                                    values[i as usize] = Some(int_value);
-                                                    *object = Value::DenseIntDictInt(Arc::new(values));
-                                                }
-                                            }
-                                            Value::Null => {
-                                                let values = Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                                *object = Value::DenseIntDictInt(Arc::new(values));
-                                            }
-                                            other => {
-                                                let mut values = vec![Value::Null; (i as usize) + 1];
-                                                values[i as usize] = other;
-                                                *object = Value::DenseIntDict(Arc::new(values));
-                                            }
-                                        }
-                                    } else {
-                                        let mut int_dict = IntDictMap::default();
-                                        int_dict.reserve(1024);
+                                Value::DenseIntDict(values) => {
+                                    hashmap_profile_bump(&HASHMAP_SET_DENSE);
+                                    if i < 0 {
+                                        let mut int_dict = Self::dense_int_dict_to_int_dict(values);
                                         int_dict.insert(i, value);
                                         *object = Value::IntDict(Arc::new(int_dict));
-                                    }
-                                } else {
-                                    let key = int_key_cache.as_ref().ok_or("Missing int key cache")?;
-                                    if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.1.as_ref()) {
-                                        let mut values = values.clone();
-                                        values[idx] = value;
-                                        *object = Value::FixedDict { keys: Arc::clone(keys), values };
                                     } else {
-                                        let mut dict = DictMap::default();
-                                        for (k, v) in keys.iter().cloned().zip(values.iter().cloned()) {
-                                            dict.insert(k, v);
+                                        let values_mut = Arc::make_mut(values);
+                                        let index = i as usize;
+                                        if index >= values_mut.len() {
+                                            values_mut.resize(index + 1, Value::Null);
                                         }
-                                        dict.insert(Arc::clone(&key.1), value);
-                                        *object = Value::Dict(Arc::new(dict));
+                                        values_mut[index] = value;
                                     }
                                 }
-                            }
-                            Value::IntDict(dict) => {
-                                hashmap_profile_bump(&HASHMAP_SET_INTDICT);
-                                let dict_mut = Arc::make_mut(dict);
-                                dict_mut.insert(i, value);
-                            }
-                            Value::DenseIntDict(values) => {
-                                hashmap_profile_bump(&HASHMAP_SET_DENSE);
-                                if i < 0 {
-                                    let mut int_dict = Self::dense_int_dict_to_int_dict(values);
-                                    int_dict.insert(i, value);
-                                    *object = Value::IntDict(Arc::new(int_dict));
-                                } else {
-                                    let values_mut = Arc::make_mut(values);
-                                    let index = i as usize;
-                                    if index >= values_mut.len() {
-                                        values_mut.resize(index + 1, Value::Null);
-                                    }
-                                    values_mut[index] = value;
-                                }
-                            }
                                 Value::DenseIntDictInt(values) => {
                                     hashmap_profile_bump(&HASHMAP_SET_DENSE_INT);
                                     if i < 0 {
-                                        let mut int_dict = Self::dense_int_dict_int_to_int_dict(values);
+                                        let mut int_dict =
+                                            Self::dense_int_dict_int_to_int_dict(values);
                                         int_dict.insert(i, value);
                                         *object = Value::IntDict(Arc::new(int_dict));
                                     } else {
@@ -2867,17 +3394,21 @@ impl VM {
                                                 }
                                             }
                                             other => {
-                                                let mut dense_values = Self::dense_int_dict_int_to_dense_int_dict(values);
+                                                let mut dense_values =
+                                                    Self::dense_int_dict_int_to_dense_int_dict(
+                                                        values,
+                                                    );
                                                 if index >= dense_values.len() {
                                                     dense_values.resize(index + 1, Value::Null);
                                                 }
                                                 dense_values[index] = other;
-                                                *object = Value::DenseIntDict(Arc::new(dense_values));
+                                                *object =
+                                                    Value::DenseIntDict(Arc::new(dense_values));
                                             }
                                         }
                                     }
                                 }
-                            Value::DenseIntDictIntFull(values) => {
+                                Value::DenseIntDictIntFull(values) => {
                                     hashmap_profile_bump(&HASHMAP_SET_DENSE_INT);
                                     if i < 0 {
                                         let mut int_dict =
@@ -2896,7 +3427,9 @@ impl VM {
                                                     values_mut[index] = int_value;
                                                 } else {
                                                     let mut sparse =
-                                                        Self::dense_int_dict_int_full_to_sparse(values);
+                                                        Self::dense_int_dict_int_full_to_sparse(
+                                                            values,
+                                                        );
                                                     sparse.resize(index + 1, None);
                                                     sparse[index] = Some(int_value);
                                                     *object =
@@ -2919,46 +3452,52 @@ impl VM {
                                                     dense_values.resize(index + 1, Value::Null);
                                                 }
                                                 dense_values[index] = other;
-                                                *object = Value::DenseIntDict(Arc::new(dense_values));
+                                                *object =
+                                                    Value::DenseIntDict(Arc::new(dense_values));
                                             }
                                         }
                                     }
                                 }
-                            _ => return Err("Invalid index assignment".to_string()),
-                        },
+                                _ => return Err("Invalid index assignment".to_string()),
+                            },
 
-                        Value::Str(key) => match object {
-                            Value::Dict(dict) => {
-                                let dict_mut = Arc::make_mut(dict);
-                                dict_mut.insert(Arc::from(key.as_str()), value);
-                            }
-                            Value::FixedDict { keys, values } => {
-                                if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str()) {
-                                    let mut values = values.clone();
-                                    values[idx] = value;
-                                    *object = Value::FixedDict { keys: Arc::clone(keys), values };
-                                } else {
-                                    let mut dict = DictMap::default();
-                                    for (k, v) in keys.iter().cloned().zip(values.iter().cloned()) {
-                                        dict.insert(k, v);
+                            Value::Str(key) => match object {
+                                Value::Dict(dict) => {
+                                    let dict_mut = Arc::make_mut(dict);
+                                    dict_mut.insert(Arc::from(key.as_str()), value);
+                                }
+                                Value::FixedDict { keys, values } => {
+                                    if let Some(idx) =
+                                        keys.iter().position(|k| k.as_ref() == key.as_str())
+                                    {
+                                        let mut values = values.clone();
+                                        values[idx] = value;
+                                        *object =
+                                            Value::FixedDict { keys: Arc::clone(keys), values };
+                                    } else {
+                                        let mut dict = DictMap::default();
+                                        for (k, v) in
+                                            keys.iter().cloned().zip(values.iter().cloned())
+                                        {
+                                            dict.insert(k, v);
+                                        }
+                                        dict.insert(Arc::from(key.as_str()), value);
+                                        *object = Value::Dict(Arc::new(dict));
                                     }
-                                    dict.insert(Arc::from(key.as_str()), value);
-                                    *object = Value::Dict(Arc::new(dict));
                                 }
-                            }
-                            Value::IntDict(dict) => {
-                                let mut dict_clone = DictMap::default();
-                                for (k, v) in dict.iter() {
-                                    dict_clone.insert(k.to_string().into(), v.clone());
+                                Value::IntDict(dict) => {
+                                    let mut dict_clone = DictMap::default();
+                                    for (k, v) in dict.iter() {
+                                        dict_clone.insert(k.to_string().into(), v.clone());
+                                    }
+                                    dict_clone.insert(Arc::from(key.as_str()), value);
+                                    *object = Value::Dict(Arc::new(dict_clone));
                                 }
-                                dict_clone.insert(Arc::from(key.as_str()), value);
-                                *object = Value::Dict(Arc::new(dict_clone));
-                            }
-                            Value::DenseIntDict(values) => {
-                                match key.parse::<i64>() {
+                                Value::DenseIntDict(values) => match key.parse::<i64>() {
                                     Ok(int_key) => {
                                         if int_key < 0 {
-                                            let mut int_dict = Self::dense_int_dict_to_int_dict(values);
+                                            let mut int_dict =
+                                                Self::dense_int_dict_to_int_dict(values);
                                             int_dict.insert(int_key, value);
                                             *object = Value::IntDict(Arc::new(int_dict));
                                         } else {
@@ -2975,13 +3514,12 @@ impl VM {
                                         dict.insert(Arc::from(key.as_str()), value);
                                         *object = Value::Dict(Arc::new(dict));
                                     }
-                                }
-                            }
-                            Value::DenseIntDictInt(values) => {
-                                match key.parse::<i64>() {
+                                },
+                                Value::DenseIntDictInt(values) => match key.parse::<i64>() {
                                     Ok(int_key) => {
                                         if int_key < 0 {
-                                            let mut int_dict = Self::dense_int_dict_int_to_int_dict(values);
+                                            let mut int_dict =
+                                                Self::dense_int_dict_int_to_int_dict(values);
                                             int_dict.insert(int_key, value);
                                             *object = Value::IntDict(Arc::new(int_dict));
                                         } else {
@@ -3002,12 +3540,16 @@ impl VM {
                                                     values_mut[index] = None;
                                                 }
                                                 other => {
-                                                    let mut dense_values = Self::dense_int_dict_int_to_dense_int_dict(values);
+                                                    let mut dense_values =
+                                                        Self::dense_int_dict_int_to_dense_int_dict(
+                                                            values,
+                                                        );
                                                     if index >= dense_values.len() {
                                                         dense_values.resize(index + 1, Value::Null);
                                                     }
                                                     dense_values[index] = other;
-                                                    *object = Value::DenseIntDict(Arc::new(dense_values));
+                                                    *object =
+                                                        Value::DenseIntDict(Arc::new(dense_values));
                                                 }
                                             }
                                         }
@@ -3017,10 +3559,8 @@ impl VM {
                                         dict.insert(Arc::from(key.as_str()), value);
                                         *object = Value::Dict(Arc::new(dict));
                                     }
-                                }
-                            }
-                            Value::DenseIntDictIntFull(values) => {
-                                match key.parse::<i64>() {
+                                },
+                                Value::DenseIntDictIntFull(values) => match key.parse::<i64>() {
                                     Ok(int_key) => {
                                         if int_key < 0 {
                                             let mut int_dict =
@@ -3039,30 +3579,39 @@ impl VM {
                                                         values_mut[index] = int_value;
                                                     } else {
                                                         let mut sparse =
-                                                            Self::dense_int_dict_int_full_to_sparse(values);
+                                                            Self::dense_int_dict_int_full_to_sparse(
+                                                                values,
+                                                            );
                                                         sparse.resize(index + 1, None);
                                                         sparse[index] = Some(int_value);
-                                                        *object =
-                                                            Value::DenseIntDictInt(Arc::new(sparse));
+                                                        *object = Value::DenseIntDictInt(Arc::new(
+                                                            sparse,
+                                                        ));
                                                     }
                                                 }
                                                 Value::Null => {
                                                     let mut sparse =
-                                                        Self::dense_int_dict_int_full_to_sparse(values);
+                                                        Self::dense_int_dict_int_full_to_sparse(
+                                                            values,
+                                                        );
                                                     if index >= sparse.len() {
                                                         sparse.resize(index + 1, None);
                                                     }
                                                     sparse[index] = None;
-                                                    *object = Value::DenseIntDictInt(Arc::new(sparse));
+                                                    *object =
+                                                        Value::DenseIntDictInt(Arc::new(sparse));
                                                 }
                                                 other => {
                                                     let mut dense_values =
-                                                        Self::dense_int_dict_int_full_to_dense(values);
+                                                        Self::dense_int_dict_int_full_to_dense(
+                                                            values,
+                                                        );
                                                     if index >= dense_values.len() {
                                                         dense_values.resize(index + 1, Value::Null);
                                                     }
                                                     dense_values[index] = other;
-                                                    *object = Value::DenseIntDict(Arc::new(dense_values));
+                                                    *object =
+                                                        Value::DenseIntDict(Arc::new(dense_values));
                                                 }
                                             }
                                         }
@@ -3078,12 +3627,11 @@ impl VM {
                                         dict.insert(Arc::from(key.as_str()), value);
                                         *object = Value::Dict(Arc::new(dict));
                                     }
-                                }
-                            }
+                                },
+                                _ => return Err("Invalid index assignment".to_string()),
+                            },
                             _ => return Err("Invalid index assignment".to_string()),
-                        },
-                        _ => return Err("Invalid index assignment".to_string()),
-                    }
+                        }
                     }
 
                     // Push a null value to keep stack balanced (will be popped by following Pop instruction)
@@ -3100,37 +3648,30 @@ impl VM {
                             } else {
                                 let method_name = format!("{}.{}", name, field);
                                 let global = self.globals.lock().unwrap().get(&method_name);
-                                global
-                                    .ok_or_else(|| format!("Field not found: {}", field))?
-                                    .clone()
+                                global.ok_or_else(|| format!("Field not found: {}", field))?.clone()
                             }
                         }
-                        Value::Dict(dict) => dict.get(field.as_str()).cloned().unwrap_or(Value::Null),
+                        Value::Dict(dict) => {
+                            dict.get(field.as_str()).cloned().unwrap_or(Value::Null)
+                        }
                         Value::FixedDict { keys, values } => {
                             let idx = keys.iter().position(|k| k.as_ref() == field.as_str());
                             idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
                         }
-                        Value::IntDict(dict) => {
-                            match field.parse::<i64>() {
-                                Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
-                                Err(_) => Value::Null,
-                            }
-                        }
-                        Value::DenseIntDict(values) => {
-                            match field.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        Value::Null
-                                    } else {
-                                        values
-                                            .get(int_key as usize)
-                                            .cloned()
-                                            .unwrap_or(Value::Null)
-                                    }
+                        Value::IntDict(dict) => match field.parse::<i64>() {
+                            Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                            Err(_) => Value::Null,
+                        },
+                        Value::DenseIntDict(values) => match field.parse::<i64>() {
+                            Ok(int_key) => {
+                                if int_key < 0 {
+                                    Value::Null
+                                } else {
+                                    values.get(int_key as usize).cloned().unwrap_or(Value::Null)
                                 }
-                                Err(_) => Value::Null,
                             }
-                        }
+                            Err(_) => Value::Null,
+                        },
                         _ => return Err("Cannot access field on non-struct".to_string()),
                     };
 
@@ -3153,7 +3694,9 @@ impl VM {
                             self.stack.push(Value::Dict(dict_clone));
                         }
                         Value::FixedDict { keys, mut values } => {
-                            if let Some(idx) = keys.iter().position(|k| k.as_ref() == field.as_str()) {
+                            if let Some(idx) =
+                                keys.iter().position(|k| k.as_ref() == field.as_str())
+                            {
                                 values[idx] = value;
                                 self.stack.push(Value::FixedDict { keys, values });
                             } else {
@@ -3173,31 +3716,29 @@ impl VM {
                             dict_clone.insert(Arc::from(field), value);
                             self.stack.push(Value::Dict(Arc::new(dict_clone)));
                         }
-                        Value::DenseIntDict(values) => {
-                            match field.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
-                                        int_dict.insert(int_key, value);
-                                        self.stack.push(Value::IntDict(Arc::new(int_dict)));
-                                    } else {
-                                        let mut values = values;
-                                        let values_mut = Arc::make_mut(&mut values);
-                                        let index = int_key as usize;
-                                        if index >= values_mut.len() {
-                                            values_mut.resize(index + 1, Value::Null);
-                                        }
-                                        values_mut[index] = value;
-                                        self.stack.push(Value::DenseIntDict(values));
+                        Value::DenseIntDict(values) => match field.parse::<i64>() {
+                            Ok(int_key) => {
+                                if int_key < 0 {
+                                    let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
+                                    int_dict.insert(int_key, value);
+                                    self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                } else {
+                                    let mut values = values;
+                                    let values_mut = Arc::make_mut(&mut values);
+                                    let index = int_key as usize;
+                                    if index >= values_mut.len() {
+                                        values_mut.resize(index + 1, Value::Null);
                                     }
-                                }
-                                Err(_) => {
-                                    let mut dict = Self::dense_int_dict_to_dict(&values);
-                                    dict.insert(Arc::from(field), value);
-                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                    values_mut[index] = value;
+                                    self.stack.push(Value::DenseIntDict(values));
                                 }
                             }
-                        }
+                            Err(_) => {
+                                let mut dict = Self::dense_int_dict_to_dict(&values);
+                                dict.insert(Arc::from(field), value);
+                                self.stack.push(Value::Dict(Arc::new(dict)));
+                            }
+                        },
                         _ => return Err("Cannot set field on non-struct".to_string()),
                     }
                 }
@@ -3453,18 +3994,19 @@ impl VM {
                                 drop(dummy_tx); // Close immediately
                                 let actual_rx = std::mem::replace(&mut *recv_guard, dummy_rx);
                                 drop(recv_guard); // Release lock before blocking
-                                
+
                                 // Debug logging
                                 if std::env::var("DEBUG_ASYNC").is_ok() {
                                     eprintln!("VM Await: about to block_on receiver");
                                 }
-                                
+
                                 // Use the runtime handle to block on the receiver
                                 // This works even when we're already inside a tokio runtime
                                 let result = self.runtime_handle.block_on(actual_rx);
-                                
+
                                 if std::env::var("DEBUG_ASYNC").is_ok() {
-                                    eprintln!("VM Await: block_on completed with result: {:?}", 
+                                    eprintln!(
+                                        "VM Await: block_on completed with result: {:?}",
                                         match &result {
                                             Ok(Ok(_)) => "Ok(Ok(value))",
                                             Ok(Err(e)) => {
@@ -3472,9 +4014,10 @@ impl VM {
                                                 "Ok(Err(...))"
                                             }
                                             Err(_) => "Err (channel closed)",
-                                        });
+                                        }
+                                    );
                                 }
-                                
+
                                 result
                             };
                             let mut polled = is_polled.lock().unwrap();
@@ -3520,7 +4063,7 @@ impl VM {
                         receiver: Arc::new(Mutex::new(rx)),
                         is_polled: Arc::new(Mutex::new(false)),
                         cached_result: Arc::new(Mutex::new(None)),
-                task_handle: None,
+                        task_handle: None,
                     };
 
                     self.stack.push(promise);
@@ -3641,7 +4184,9 @@ impl VM {
                             fields.insert("message".to_string(), Value::Str(Arc::new(message)));
                             fields.insert(
                                 "stack".to_string(),
-                                Value::Array(Arc::new(stack.iter().map(|s| Value::Str(Arc::new(s.clone()))).collect())),
+                                Value::Array(Arc::new(
+                                    stack.iter().map(|s| Value::Str(Arc::new(s.clone()))).collect(),
+                                )),
                             );
                             fields.insert("line".to_string(), Value::Int(line.unwrap_or(0) as i64));
                             if let Some(cause_val) = cause {
@@ -3652,8 +4197,10 @@ impl VM {
                         other => {
                             // Any other value - wrap as message
                             let mut fields = HashMap::new();
-                            fields
-                                .insert("message".to_string(), Value::Str(Arc::new(format!("{:?}", other))));
+                            fields.insert(
+                                "message".to_string(),
+                                Value::Str(Arc::new(format!("{:?}", other))),
+                            );
                             fields.insert("stack".to_string(), Value::Array(Arc::new(Vec::new())));
                             fields.insert("line".to_string(), Value::Int(0));
                             Value::Struct { name: "Error".to_string(), fields }
@@ -3814,8 +4361,6 @@ impl VM {
         }
     }
 
-
-
     /// Call a function
     /// Set up a call frame for a bytecode function (doesn't return - Return opcode will handle that)
     fn call_bytecode_function(&mut self, function: Value, args: Vec<Value>) -> Result<(), String> {
@@ -3841,8 +4386,7 @@ impl VM {
             // Bind each argument to its corresponding parameter name
             for (param_name, arg_value) in param_names.iter().zip(args.iter()) {
                 locals.insert(param_name.clone(), arg_value.clone());
-                if let Some(slot) = chunk.local_names.iter().position(|name| name == param_name)
-                {
+                if let Some(slot) = chunk.local_names.iter().position(|name| name == param_name) {
                     if slot < local_slots.len() {
                         local_slots[slot] = arg_value.clone();
                     }
@@ -3880,7 +4424,7 @@ impl VM {
             if self.recursion_depth > self.max_recursion_depth {
                 self.max_recursion_depth = self.recursion_depth;
             }
-            
+
             // Track function call for error reporting
             let func_name = chunk.name.as_deref().unwrap_or("<anonymous>").to_string();
             self.function_call_stack.push(func_name);
@@ -3942,13 +4486,11 @@ impl VM {
 
                 let mut result = Vec::with_capacity(array.len());
                 for element in array.iter() {
-                    let func_result = match self.call_function_from_jit(
-                        func.clone(),
-                        vec![element.clone()],
-                    ) {
-                        Ok(value) => value,
-                        Err(message) => return Some(Err(message)),
-                    };
+                    let func_result =
+                        match self.call_function_from_jit(func.clone(), vec![element.clone()]) {
+                            Ok(value) => value,
+                            Err(message) => return Some(Err(message)),
+                        };
                     result.push(func_result);
                 }
 
@@ -3956,7 +4498,9 @@ impl VM {
             }
             "filter" => {
                 if args.len() < 2 {
-                    return Some(Err("filter requires two arguments: array and function".to_string()));
+                    return Some(Err(
+                        "filter requires two arguments: array and function".to_string()
+                    ));
                 }
 
                 let (array, func) = match (args.first(), args.get(1)) {
@@ -3968,13 +4512,11 @@ impl VM {
 
                 let mut result = Vec::new();
                 for element in array.iter() {
-                    let func_result = match self.call_function_from_jit(
-                        func.clone(),
-                        vec![element.clone()],
-                    ) {
-                        Ok(value) => value,
-                        Err(message) => return Some(Err(message)),
-                    };
+                    let func_result =
+                        match self.call_function_from_jit(func.clone(), vec![element.clone()]) {
+                            Ok(value) => value,
+                            Err(message) => return Some(Err(message)),
+                        };
 
                     if self.is_truthy(&func_result) {
                         result.push(element.clone());
@@ -3985,13 +4527,18 @@ impl VM {
             }
             "reduce" => {
                 if args.len() < 3 {
-                    return Some(Err("reduce requires three arguments: array, initial value, and function".to_string()));
+                    return Some(Err(
+                        "reduce requires three arguments: array, initial value, and function"
+                            .to_string(),
+                    ));
                 }
 
                 let (array, initial, func) = match (args.first(), args.get(1), args.get(2)) {
-                    (Some(Value::Array(arr)), Some(init), Some(func @ Value::BytecodeFunction { .. })) => {
-                        (arr.clone(), init.clone(), func.clone())
-                    }
+                    (
+                        Some(Value::Array(arr)),
+                        Some(init),
+                        Some(func @ Value::BytecodeFunction { .. }),
+                    ) => (arr.clone(), init.clone(), func.clone()),
                     _ => return None,
                 };
 
@@ -4016,10 +4563,9 @@ impl VM {
 
                 let mut accumulator = initial;
                 for element in array.iter() {
-                    accumulator = match self.call_function_from_jit(
-                        func.clone(),
-                        vec![accumulator, element.clone()],
-                    ) {
+                    accumulator = match self
+                        .call_function_from_jit(func.clone(), vec![accumulator, element.clone()])
+                    {
                         Ok(value) => value,
                         Err(message) => return Some(Err(message)),
                     };
@@ -4029,7 +4575,9 @@ impl VM {
             }
             "find" => {
                 if args.len() < 2 {
-                    return Some(Err("find requires two arguments: array and function".to_string()));
+                    return Some(
+                        Err("find requires two arguments: array and function".to_string()),
+                    );
                 }
 
                 let (array, func) = match (args.first(), args.get(1)) {
@@ -4040,13 +4588,11 @@ impl VM {
                 };
 
                 for element in array.iter() {
-                    let func_result = match self.call_function_from_jit(
-                        func.clone(),
-                        vec![element.clone()],
-                    ) {
-                        Ok(value) => value,
-                        Err(message) => return Some(Err(message)),
-                    };
+                    let func_result =
+                        match self.call_function_from_jit(func.clone(), vec![element.clone()]) {
+                            Ok(value) => value,
+                            Err(message) => return Some(Err(message)),
+                        };
 
                     if self.is_truthy(&func_result) {
                         return Some(Ok(element.clone()));
@@ -4068,13 +4614,11 @@ impl VM {
                 };
 
                 for element in array.iter() {
-                    let func_result = match self.call_function_from_jit(
-                        func.clone(),
-                        vec![element.clone()],
-                    ) {
-                        Ok(value) => value,
-                        Err(message) => return Some(Err(message)),
-                    };
+                    let func_result =
+                        match self.call_function_from_jit(func.clone(), vec![element.clone()]) {
+                            Ok(value) => value,
+                            Err(message) => return Some(Err(message)),
+                        };
 
                     if self.is_truthy(&func_result) {
                         return Some(Ok(Value::Bool(true)));
@@ -4096,13 +4640,11 @@ impl VM {
                 };
 
                 for element in array.iter() {
-                    let func_result = match self.call_function_from_jit(
-                        func.clone(),
-                        vec![element.clone()],
-                    ) {
-                        Ok(value) => value,
-                        Err(message) => return Some(Err(message)),
-                    };
+                    let func_result =
+                        match self.call_function_from_jit(func.clone(), vec![element.clone()]) {
+                            Ok(value) => value,
+                            Err(message) => return Some(Err(message)),
+                        };
 
                     if !self.is_truthy(&func_result) {
                         return Some(Ok(Value::Bool(false)));
@@ -4146,9 +4688,15 @@ impl VM {
 
         match (&instructions[0], &instructions[1], &instructions[3]) {
             (OpCode::LoadVar(a), OpCode::LoadVar(b), OpCode::Return)
-                if a == param0 && b == param1 => Some((op, false)),
+                if a == param0 && b == param1 =>
+            {
+                Some((op, false))
+            }
             (OpCode::LoadVar(a), OpCode::LoadVar(b), OpCode::Return)
-                if a == param1 && b == param0 => Some((op, true)),
+                if a == param1 && b == param0 =>
+            {
+                Some((op, true))
+            }
             _ => None,
         }
     }
@@ -4166,39 +4714,44 @@ impl VM {
                 // If so, make direct JIT → JIT call for maximum performance
                 if self.jit_enabled {
                     let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
-                    
+
                     // PHASE 7 STEP 12: Check for direct-arg optimized variant first
                     // This enables direct JIT recursion without FFI boundary crossing
                     if args.len() == 1 {
                         if let Value::Int(arg_val) = args[0] {
                             // Copy the function info to avoid borrow checker issues
                             let fn_info_opt = self.compiled_fn_info.get(func_name).copied();
-                            
+
                             if let Some(fn_info) = fn_info_opt {
                                 if let Some(direct_fn) = fn_info.fn_with_arg {
                                     // ULTRA-FAST PATH: Call the direct-arg variant!
                                     // This is the key optimization for recursive functions
-                                    
+
                                     // Get VM pointer for VMContext
-                                    let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
+                                    let vm_ptr: *mut std::ffi::c_void =
+                                        self as *mut _ as *mut std::ffi::c_void;
                                     let stack_ptr: *mut Vec<Value> = &mut self.stack;
-                                    
+
                                     // Get globals pointer
                                     let globals_ptr: *mut HashMap<String, Value> = {
                                         let mut globals_guard = self.globals.lock().unwrap();
-                                        let ptr = &mut globals_guard.scopes[0] as *mut HashMap<String, Value>;
+                                        let ptr = &mut globals_guard.scopes[0]
+                                            as *mut HashMap<String, Value>;
                                         drop(globals_guard);
                                         ptr
                                     };
-                                    
+
                                     // Create minimal VMContext - direct-arg functions don't need HashMap
                                     let mut func_locals = HashMap::new();
                                     let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
-                                    let local_slots_ptr: *mut Vec<Value> = match self.call_frames.last_mut() {
+                                    let local_slots_ptr: *mut Vec<Value> = match self
+                                        .call_frames
+                                        .last_mut()
+                                    {
                                         Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
                                         None => std::ptr::null_mut(),
                                     };
-                                    
+
                                     let mut vm_context = crate::jit::VMContext {
                                         stack_ptr,
                                         locals_ptr,
@@ -4215,53 +4768,51 @@ impl VM {
                                         arg3: 0,
                                         arg_count: 1,
                                     };
-                                    
+
                                     // Execute the direct-arg variant!
                                     // The function returns the actual result (not a status code)
-                                    let result = unsafe {
-                                        direct_fn(&mut vm_context, arg_val)
-                                    };
-                                    
+                                    let result = unsafe { direct_fn(&mut vm_context, arg_val) };
+
                                     if std::env::var("DEBUG_JIT").is_ok() {
-                                        eprintln!("JIT: Direct-arg call to '{}' with arg {} returned {}", 
-                                            func_name, arg_val, result);
+                                        eprintln!(
+                                            "JIT: Direct-arg call to '{}' with arg {} returned {}",
+                                            func_name, arg_val, result
+                                        );
                                     }
-                                    
+
                                     return Ok(Value::Int(result));
                                 }
                             }
                         }
                     }
-                    
+
                     // Copy the function pointer to avoid borrow checker issues
                     let compiled_fn_opt = self.compiled_functions.get(func_name).copied();
-                    
+
                     if let Some(compiled_fn) = compiled_fn_opt {
                         // Fast path: Direct JIT → JIT call!
-                        
+
                         // OPTIMIZATION: For simple integer-only functions with ≤4 args,
                         // pass arguments directly via VMContext fields instead of HashMap
-                        let has_loop = chunk
-                            .instructions
-                            .iter()
-                            .any(|op| matches!(op, OpCode::JumpBack(_)));
+                        let has_loop =
+                            chunk.instructions.iter().any(|op| matches!(op, OpCode::JumpBack(_)));
                         let use_fast_args = !has_loop
                             && args.len() <= 4
                             && args.iter().all(|a| matches!(a, Value::Int(_)));
-                        
+
                         // ULTRA-FAST PATH: Skip HashMap entirely for simple integer functions
                         // The JIT uses jit_get_arg to read parameters directly from VMContext
                         // We only need the HashMap for functions with non-integer args or >4 args
                         let mut func_locals: HashMap<String, Value>;
                         let use_empty_locals = use_fast_args && chunk.params.len() == args.len();
-                        
+
                         if use_empty_locals {
                             // Ultra-fast: Use empty HashMap - JIT will use VMContext.argN
                             func_locals = HashMap::new();
                         } else {
                             // Normal path: Create locals HashMap for the function parameters
                             func_locals = HashMap::new();
-                            
+
                             // Bind arguments to parameter names
                             for (i, param_name) in chunk.params.iter().enumerate() {
                                 if let Some(arg) = args.get(i) {
@@ -4269,17 +4820,18 @@ impl VM {
                                 }
                             }
                         }
-                        
+
                         // Get or create var_names from cache (avoids re-hashing on every call)
                         let func_name_owned = func_name.to_string();
-                        
+
                         // OPTIMIZATION: Get reference to cached var_names instead of cloning
                         // This avoids HashMap clone on every recursive call
-                        let cached_var_names_exists = self.jit_var_names_cache.contains_key(&func_name_owned);
+                        let cached_var_names_exists =
+                            self.jit_var_names_cache.contains_key(&func_name_owned);
                         if !cached_var_names_exists {
                             // Build var_names once and cache it
                             let mut cached_var_names = HashMap::new();
-                            
+
                             // Register parameter names
                             for param_name in &chunk.params {
                                 use std::collections::hash_map::DefaultHasher;
@@ -4289,7 +4841,7 @@ impl VM {
                                 let hash = hasher.finish();
                                 cached_var_names.insert(hash, param_name.clone());
                             }
-                            
+
                             // Register all LoadVar names
                             for instr in &chunk.instructions {
                                 if let OpCode::LoadVar(name) = instr {
@@ -4301,24 +4853,26 @@ impl VM {
                                     cached_var_names.insert(hash, name.clone());
                                 }
                             }
-                            
-                            self.jit_var_names_cache.insert(func_name_owned.clone(), cached_var_names);
+
+                            self.jit_var_names_cache
+                                .insert(func_name_owned.clone(), cached_var_names);
                         }
-                        
+
                         // Get pointer to cached var_names (no clone!)
-                        let var_names_ptr: *mut HashMap<u64, String> = self.jit_var_names_cache
+                        let var_names_ptr: *mut HashMap<u64, String> = self
+                            .jit_var_names_cache
                             .get_mut(&func_name_owned)
                             .map(|v| v as *mut HashMap<u64, String>)
                             .unwrap_or(std::ptr::null_mut());
-                        
+
                         let vm_ptr: *mut std::ffi::c_void = self as *mut _ as *mut std::ffi::c_void;
-                        
+
                         // Save stack size to detect return value
                         let stack_size_before = self.stack.len();
-                        
+
                         // Get mutable pointers to VM state for VMContext
                         let stack_ptr: *mut Vec<Value> = &mut self.stack;
-                        
+
                         // Get globals - we need to drop the lock before executing
                         // to avoid deadlock on recursive calls. Since JIT execution
                         // is single-threaded, we can safely use a raw pointer.
@@ -4329,13 +4883,13 @@ impl VM {
                             drop(globals_guard);
                             ptr
                         };
-                        
+
                         let locals_ptr: *mut HashMap<String, Value> = &mut func_locals;
                         let local_slots_ptr: *mut Vec<Value> = match self.call_frames.last_mut() {
                             Some(frame) => &mut frame.local_slots as *mut Vec<Value>,
                             None => std::ptr::null_mut(),
                         };
-                        
+
                         // Create VMContext with fast argument fields
                         let mut vm_context = crate::jit::VMContext {
                             stack_ptr,
@@ -4347,31 +4901,53 @@ impl VM {
                             vm_ptr,
                             return_value: 0,
                             has_return_value: false,
-                            arg0: if use_fast_args && args.len() > 0 { 
-                                if let Value::Int(n) = args[0] { n } else { 0 }
-                            } else { 0 },
-                            arg1: if use_fast_args && args.len() > 1 { 
-                                if let Value::Int(n) = args[1] { n } else { 0 }
-                            } else { 0 },
-                            arg2: if use_fast_args && args.len() > 2 { 
-                                if let Value::Int(n) = args[2] { n } else { 0 }
-                            } else { 0 },
-                            arg3: if use_fast_args && args.len() > 3 { 
-                                if let Value::Int(n) = args[3] { n } else { 0 }
-                            } else { 0 },
+                            arg0: if use_fast_args && args.len() > 0 {
+                                if let Value::Int(n) = args[0] {
+                                    n
+                                } else {
+                                    0
+                                }
+                            } else {
+                                0
+                            },
+                            arg1: if use_fast_args && args.len() > 1 {
+                                if let Value::Int(n) = args[1] {
+                                    n
+                                } else {
+                                    0
+                                }
+                            } else {
+                                0
+                            },
+                            arg2: if use_fast_args && args.len() > 2 {
+                                if let Value::Int(n) = args[2] {
+                                    n
+                                } else {
+                                    0
+                                }
+                            } else {
+                                0
+                            },
+                            arg3: if use_fast_args && args.len() > 3 {
+                                if let Value::Int(n) = args[3] {
+                                    n
+                                } else {
+                                    0
+                                }
+                            } else {
+                                0
+                            },
                             arg_count: args.len() as i64,
                         };
-                        
+
                         // Execute the compiled function!
                         // Lock is NOT held during execution to allow recursive calls
-                        let result_code = unsafe {
-                            compiled_fn(&mut vm_context)
-                        };
-                        
+                        let result_code = unsafe { compiled_fn(&mut vm_context) };
+
                         if result_code != 0 {
                             return Err(format!("JIT execution failed with code: {}", result_code));
                         }
-                        
+
                         // Check for return value - prefer optimized VMContext.return_value
                         // This is the FAST PATH from Phase 7 Step 8 optimization
                         if vm_context.has_return_value {
@@ -4386,16 +4962,16 @@ impl VM {
                         }
                     }
                 }
-                
+
                 // Slow path: Execute through interpreter
                 // Save current execution state
                 let saved_ip = self.ip;
                 let saved_chunk = self.chunk.clone();
                 let call_frame_depth = self.call_frames.len();
-                
+
                 // Set up the call (creates call frame, switches chunk, resets IP)
                 self.call_bytecode_function(function, args)?;
-                
+
                 // Execute until this function returns
                 // (call_frames will pop back to call_frame_depth)
                 while self.call_frames.len() > call_frame_depth {
@@ -4403,11 +4979,11 @@ impl VM {
                     if self.ip >= self.chunk.instructions.len() {
                         return Err("Function execution reached end without return".to_string());
                     }
-                    
+
                     // Get instruction (clone to avoid borrow checker issues)
                     let instruction = self.chunk.instructions[self.ip].clone();
                     self.ip += 1;
-                    
+
                     // Execute the instruction
                     // We need to handle the most common opcodes inline
                     // For complex ones, we could call back to the main run loop
@@ -4417,7 +4993,7 @@ impl VM {
                             let value = self.constant_to_value(constant)?;
                             self.stack.push(value);
                         }
-                        
+
                         OpCode::LoadVar(name) => {
                             if let Some(frame) = self.call_frames.last() {
                                 if let Some(value) = frame.locals.get(&name) {
@@ -4425,7 +5001,8 @@ impl VM {
                                 } else if let Some(value_ref) = frame.captured.get(&name) {
                                     let value = value_ref.lock().unwrap().clone();
                                     self.stack.push(value);
-                                } else if let Some(value) = self.globals.lock().unwrap().get(&name) {
+                                } else if let Some(value) = self.globals.lock().unwrap().get(&name)
+                                {
                                     self.stack.push(value.clone());
                                 } else {
                                     return Err(format!("Undefined local variable: {}", name));
@@ -4444,7 +5021,7 @@ impl VM {
                                 .ok_or_else(|| format!("Undefined global: {}", name))?;
                             self.stack.push(value);
                         }
-                        
+
                         OpCode::StoreVar(name) => {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
                             if let Some(frame) = self.call_frames.last_mut() {
@@ -4465,28 +5042,28 @@ impl VM {
                             let value = self.stack.last().ok_or("Stack underflow")?.clone();
                             self.stack.push(value);
                         }
-                        
+
                         OpCode::Add => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
                             let result = self.binary_op(&left, "+", &right)?;
                             self.stack.push(result);
                         }
-                        
+
                         OpCode::Sub => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
                             let result = self.binary_op(&left, "-", &right)?;
                             self.stack.push(result);
                         }
-                        
+
                         OpCode::Mul => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
                             let result = self.binary_op(&left, "*", &right)?;
                             self.stack.push(result);
                         }
-                        
+
                         OpCode::Div => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
@@ -4516,24 +5093,26 @@ impl VM {
                         OpCode::And => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
-                            let result = Value::Bool(self.is_truthy(&left) && self.is_truthy(&right));
+                            let result =
+                                Value::Bool(self.is_truthy(&left) && self.is_truthy(&right));
                             self.stack.push(result);
                         }
 
                         OpCode::Or => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
-                            let result = Value::Bool(self.is_truthy(&left) || self.is_truthy(&right));
+                            let result =
+                                Value::Bool(self.is_truthy(&left) || self.is_truthy(&right));
                             self.stack.push(result);
                         }
-                        
+
                         OpCode::LessThan => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
                             let result = self.compare_op(&left, "<", &right)?;
                             self.stack.push(result);
                         }
-                        
+
                         OpCode::GreaterThan => {
                             let right = self.stack.pop().ok_or("Stack underflow")?;
                             let left = self.stack.pop().ok_or("Stack underflow")?;
@@ -4568,28 +5147,29 @@ impl VM {
                             let result = Value::Bool(!self.values_equal(&left, &right));
                             self.stack.push(result);
                         }
-                        
+
                         OpCode::Return => {
-                            let return_value = self.stack.pop().ok_or("Stack underflow in return")?;
-                            
+                            let return_value =
+                                self.stack.pop().ok_or("Stack underflow in return")?;
+
                             if let Some(frame) = self.call_frames.pop() {
                                 // Pop from function call stack
                                 self.function_call_stack.pop();
-                                
+
                                 // Restore saved state
                                 self.ip = saved_ip;
                                 self.set_chunk(saved_chunk);
-                                
+
                                 // Clear stack to frame offset
                                 self.stack.truncate(frame.stack_offset);
-                                
+
                                 // Return the value
                                 return Ok(return_value);
                             } else {
                                 return Ok(return_value);
                             }
                         }
-                        
+
                         OpCode::ReturnNone => {
                             if let Some(frame) = self.call_frames.pop() {
                                 self.function_call_stack.pop();
@@ -4601,7 +5181,7 @@ impl VM {
                                 return Ok(Value::Null);
                             }
                         }
-                        
+
                         OpCode::Call(arg_count) => {
                             // Nested function call from within JIT-called function
                             // We can handle this recursively
@@ -4611,7 +5191,7 @@ impl VM {
                                 args.push(self.stack.pop().ok_or("Stack underflow")?);
                             }
                             args.reverse();
-                            
+
                             // Recursive call
                             let result = self.call_function_from_jit(func, args)?;
                             self.stack.push(result);
@@ -4638,14 +5218,17 @@ impl VM {
                         OpCode::JumpBack(target) => {
                             self.ip = target;
                         }
-                        
+
                         _ => {
                             // For now, unsupported opcodes in nested calls
-                            return Err(format!("Unsupported opcode in JIT function call: {:?}", instruction));
+                            return Err(format!(
+                                "Unsupported opcode in JIT function call: {:?}",
+                                instruction
+                            ));
                         }
                     }
                 }
-                
+
                 // Should not reach here - function should have returned
                 Err("Function execution completed without explicit return".to_string())
             }
@@ -4723,9 +5306,7 @@ impl VM {
                 keys.sort();
                 let items: Vec<String> = keys
                     .iter()
-                    .map(|k| {
-                        format!("{}: {}", k, Self::value_to_string(dict.get(k).unwrap()))
-                    })
+                    .map(|k| format!("{}: {}", k, Self::value_to_string(dict.get(k).unwrap())))
                     .collect();
                 format!("{{{}}}", items.join(", "))
             }
@@ -5314,6 +5895,58 @@ mod tests {
             Ok(Value::Int(n)) => assert_eq!(n, 42),
             Ok(other) => panic!("Expected int 42, got: {:?}", other),
             Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_sum_int_map_until_local_in_place_result() {
+        let code = r#"
+            n := 10000
+            map := {}
+            i := 0
+            while i < n {
+                map[i] := i * 2
+                i := i + 1
+            }
+
+            sum := 0
+            i := 0
+            while i < n {
+                sum := sum + map[i]
+                i := i + 1
+            }
+
+            return sum
+        "#;
+
+        match run_vm_code(code) {
+            Ok(Value::Int(n)) => assert_eq!(n, 99_990_000),
+            Ok(other) => panic!("Expected int 99990000, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_sum_int_map_until_local_in_place_missing_key_errors() {
+        let code = r#"
+            map := {}
+            map[0] := 1
+
+            sum := 0
+            i := 0
+            n := 2
+
+            while i < n {
+                sum := sum + map[i]
+                i := i + 1
+            }
+
+            return sum
+        "#;
+
+        match run_vm_code(code) {
+            Ok(value) => panic!("Expected runtime error, got value: {:?}", value),
+            Err(error) => assert!(error.contains("Type mismatch in binary operation")),
         }
     }
 }

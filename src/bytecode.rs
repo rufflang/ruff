@@ -70,6 +70,16 @@ pub enum OpCode {
     /// Stack: [] -> []
     AppendConstCharUntilLocalInPlace(usize, usize, usize, char),
 
+    /// Accumulate map[index] into sum while index < limit, then set index = limit
+    /// Operand: map slot, sum slot, index slot, limit slot
+    /// Stack: [] -> []
+    SumIntMapUntilLocalInPlace(usize, usize, usize, usize),
+
+    /// Set map[index] = index * 2 while index < limit, then set index = limit
+    /// Operand: map slot, index slot, limit slot
+    /// Stack: [] -> []
+    FillIntMapWithDoubleUntilLocalInPlace(usize, usize, usize),
+
     /// Pop two values, subtract (top from second), push result
     Sub,
 
