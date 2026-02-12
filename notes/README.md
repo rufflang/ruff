@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-12_16-35-configurable-task-pool-sizing.md** — ✅ COMPLETED: Implemented P0 configurable async task pool sizing defaults (`set_task_pool_size` / `get_task_pool_size`), wired default batching through `promise_all`/`await_all`/`parallel_map`, added comprehensive unit+integration coverage, and captured test-harness error-path gotchas.
+
 - **2026-02-12_16-17_commit-grouping-and-field-notes-ops.md** — ✅ COMPLETED: Isolated a large formatting-heavy working tree into subsystem-scoped commits (benchmarks/examples, interpreter runtime, JIT, CLI/error/tests), validated clean history, and captured new operational gotchas for commit hygiene.
 
 - **2026-02-12_15-33-await-all-batching-and-jwt-provider-fix.md** — ✅ COMPLETED: Implemented P0 async quick-win batching (`promise_all`/`await_all` with optional concurrency limit), fixed missing `await_all` builtin registration, added integration coverage, and resolved full-suite JWT failures by pinning `jsonwebtoken` provider feature (`rust_crypto`).

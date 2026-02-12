@@ -332,6 +332,14 @@ If you are new to the project, read this first.
 
 ## Testing
 
+### `run_code(...)` integration tests should isolate negative scenarios
+- **Problem:** A single test script that intentionally triggers multiple runtime errors can produce missing follow-up variables and flaky assertions.
+- **Rule:** Use one `run_code(...)` invocation per expected runtime error scenario in integration tests.
+- **Why:** Once an error value path is produced, subsequent statements in that same script may not execute as expected in the test harness flow.
+- **Implication:** For validation-error coverage, split checks into separate scripts rather than chaining failures in one program string.
+
+(Discovered during: 2026-02-12_16-35-configurable-task-pool-sizing.md)
+
 ### jsonwebtoken 10.x requires explicit CryptoProvider feature selection
 - **Problem:** Full test suite panics in JWT tests with `Could not automatically determine the process-level CryptoProvider...`
 - **Rule:** Configure `jsonwebtoken` with exactly one provider feature in `Cargo.toml` (e.g. `features = ["rust_crypto"]`)
