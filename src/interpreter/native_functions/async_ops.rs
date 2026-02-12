@@ -8,7 +8,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// Handle async operations native functions
-pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &[Value]) -> Option<Value> {
+pub fn handle(
+    _interp: &mut crate::interpreter::Interpreter,
+    name: &str,
+    args: &[Value],
+) -> Option<Value> {
     match name {
         "async_sleep" => {
             // async_sleep(milliseconds: Int) -> Promise<Null>
@@ -118,11 +122,9 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         };
 
                         // Race the promise against the timeout
-                        let timeout_result = AsyncRuntime::timeout(
-                            Duration::from_millis(timeout_ms),
-                            actual_rx,
-                        )
-                        .await;
+                        let timeout_result =
+                            AsyncRuntime::timeout(Duration::from_millis(timeout_ms), actual_rx)
+                                .await;
 
                         // Process result
                         let result = match timeout_result {
@@ -188,29 +190,40 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             AsyncRuntime::spawn_task(async move {
                 let result = async {
                     let client = reqwest::Client::new();
-                    let response = client.get(url.as_ref()).send().await.map_err(|e| format!("HTTP GET failed: {}", e))?;
-                    
+                    let response = client
+                        .get(url.as_ref())
+                        .send()
+                        .await
+                        .map_err(|e| format!("HTTP GET failed: {}", e))?;
+
                     let status = response.status().as_u16() as i64;
                     let headers_map = response.headers().clone();
-                    let body = response.text().await.map_err(|e| format!("Failed to read response body: {}", e))?;
-                    
+                    let body = response
+                        .text()
+                        .await
+                        .map_err(|e| format!("Failed to read response body: {}", e))?;
+
                     // Build result dictionary
                     let mut result_dict = DictMap::default();
                     result_dict.insert("status".into(), Value::Int(status));
                     result_dict.insert("body".into(), Value::Str(Arc::new(body)));
-                    
+
                     // Convert headers to dict
                     let mut headers_dict = DictMap::default();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
-                            headers_dict.insert(name.to_string().into(), Value::Str(Arc::new(value_str.to_string())));
+                            headers_dict.insert(
+                                name.to_string().into(),
+                                Value::Str(Arc::new(value_str.to_string())),
+                            );
                         }
                     }
                     result_dict.insert("headers".into(), Value::Dict(Arc::new(headers_dict)));
-                    
+
                     Ok::<Value, String>(Value::Dict(Arc::new(result_dict)))
-                }.await;
-                
+                }
+                .await;
+
                 let _ = tx.send(result);
                 Value::Null
             });
@@ -274,7 +287,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 let result = async {
                     let client = reqwest::Client::new();
                     let mut request = client.post(url.as_ref()).body(body.as_ref().clone());
-                    
+
                     // Add custom headers if provided
                     if let Some(headers_dict) = headers {
                         for (key, value) in headers_dict.iter() {
@@ -283,30 +296,38 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                             }
                         }
                     }
-                    
-                    let response = request.send().await.map_err(|e| format!("HTTP POST failed: {}", e))?;
-                    
+
+                    let response =
+                        request.send().await.map_err(|e| format!("HTTP POST failed: {}", e))?;
+
                     let status = response.status().as_u16() as i64;
                     let headers_map = response.headers().clone();
-                    let response_body = response.text().await.map_err(|e| format!("Failed to read response body: {}", e))?;
-                    
+                    let response_body = response
+                        .text()
+                        .await
+                        .map_err(|e| format!("Failed to read response body: {}", e))?;
+
                     // Build result dictionary
                     let mut result_dict = DictMap::default();
                     result_dict.insert("status".into(), Value::Int(status));
                     result_dict.insert("body".into(), Value::Str(Arc::new(response_body)));
-                    
+
                     // Convert headers to dict
                     let mut headers_dict = DictMap::default();
                     for (name, value) in headers_map.iter() {
                         if let Ok(value_str) = value.to_str() {
-                            headers_dict.insert(name.to_string().into(), Value::Str(Arc::new(value_str.to_string())));
+                            headers_dict.insert(
+                                name.to_string().into(),
+                                Value::Str(Arc::new(value_str.to_string())),
+                            );
                         }
                     }
                     result_dict.insert("headers".into(), Value::Dict(Arc::new(headers_dict)));
-                    
+
                     Ok::<Value, String>(Value::Dict(Arc::new(result_dict)))
-                }.await;
-                
+                }
+                .await;
+
                 let _ = tx.send(result);
                 Value::Null
             });
@@ -349,8 +370,9 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         .await
                         .map(|s| Value::Str(Arc::new(s)))
                         .map_err(|e| format!("Failed to read file '{}': {}", path.as_ref(), e))
-                }.await;
-                
+                }
+                .await;
+
                 let _ = tx.send(result);
                 Value::Null
             });
@@ -402,8 +424,9 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         .await
                         .map(|_| Value::Bool(true))
                         .map_err(|e| format!("Failed to write file '{}': {}", path.as_ref(), e))
-                }.await;
-                
+                }
+                .await;
+
                 let _ = tx.send(result);
                 Value::Null
             });
@@ -449,11 +472,11 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             // For now, we'll create a simple task that just returns the function
             // In a real implementation, we'd need to execute the function body
             // TODO: Task #35 - Execute actual function body with interpreter context
-            
+
             // Create the task handle
             let is_cancelled = std::sync::Arc::new(std::sync::Mutex::new(false));
             let is_cancelled_clone = is_cancelled.clone();
-            
+
             // Spawn the task
             let handle = AsyncRuntime::spawn_task(async move {
                 // Check if cancelled
@@ -463,11 +486,11 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         return Value::Error("Task was cancelled".to_string());
                     }
                 }
-                
+
                 // For now, just sleep to simulate work
                 // TODO: Execute the actual function body with interpreter
                 AsyncRuntime::sleep(std::time::Duration::from_millis(1)).await;
-                
+
                 // Return placeholder - in full implementation would execute function
                 Value::Null
             });
@@ -492,7 +515,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 Value::TaskHandle { handle: handle_arc, is_cancelled } => {
                     let handle_arc = handle_arc.clone();
                     let is_cancelled = is_cancelled.clone();
-                    
+
                     // Create channel for result
                     let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -510,7 +533,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                                 let cancelled = is_cancelled.lock().unwrap();
                                 *cancelled
                             };
-                            
+
                             if is_task_cancelled {
                                 Err("Task was cancelled".to_string())
                             } else {
@@ -536,9 +559,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         task_handle: None,
                     })
                 }
-                _ => Some(Value::Error(
-                    "await_task() requires a TaskHandle argument".to_string(),
-                )),
+                _ => Some(Value::Error("await_task() requires a TaskHandle argument".to_string())),
             }
         }
 
@@ -559,7 +580,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         let mut cancelled = is_cancelled.lock().unwrap();
                         *cancelled = true;
                     }
-                    
+
                     // Abort the task if possible
                     let mut handle_guard = handle_arc.lock().unwrap();
                     if let Some(handle) = handle_guard.take() {
@@ -569,9 +590,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         Some(Value::Bool(false)) // Already consumed
                     }
                 }
-                _ => Some(Value::Error(
-                    "cancel_task() requires a TaskHandle argument".to_string(),
-                )),
+                _ => Some(Value::Error("cancel_task() requires a TaskHandle argument".to_string())),
             }
         }
 
@@ -665,9 +684,12 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             // Spawn task that awaits all promises concurrently
             AsyncRuntime::spawn_task(async move {
                 if std::env::var("DEBUG_ASYNC").is_ok() {
-                    eprintln!("Promise.all: inside spawned task, extracting {} receivers", receivers.len());
+                    eprintln!(
+                        "Promise.all: inside spawned task, extracting {} receivers",
+                        receivers.len()
+                    );
                 }
-                
+
                 // Extract all receivers
                 let mut futures = Vec::new();
                 for (idx, receiver_arc) in receivers {
@@ -681,7 +703,10 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                 }
 
                 if std::env::var("DEBUG_ASYNC").is_ok() {
-                    eprintln!("Promise.all: prepared {} futures, spawning await tasks", futures.len());
+                    eprintln!(
+                        "Promise.all: prepared {} futures, spawning await tasks",
+                        futures.len()
+                    );
                 }
 
                 // Collect all results
@@ -731,7 +756,10 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                             }
                             Ok((idx, Err(_))) => {
                                 if std::env::var("DEBUG_ASYNC").is_ok() {
-                                    eprintln!("Promise.all: task {} channel closed (Err from oneshot)", idx);
+                                    eprintln!(
+                                        "Promise.all: task {} channel closed (Err from oneshot)",
+                                        idx
+                                    );
                                 }
                                 let _ = tx.send(Err(format!(
                                     "Promise {} never resolved (channel closed)",
@@ -743,7 +771,9 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                                 if std::env::var("DEBUG_ASYNC").is_ok() {
                                     eprintln!("Promise.all: task join error: {:?}", e);
                                 }
-                                let _ = tx.send(Err("Promise task panicked or was cancelled".to_string()));
+                                let _ = tx.send(Err(
+                                    "Promise task panicked or was cancelled".to_string()
+                                ));
                                 return Value::Null;
                             }
                         }
@@ -774,6 +804,264 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             handle(_interp, "Promise.all", args)
         }
 
+        "parallel_map" => {
+            // parallel_map(array: Array, func: Function|NativeFunction, concurrency_limit?: Int) -> Promise<Array<Value>>
+            // Apply a mapper across array elements and await all results with optional bounded batching.
+            if args.len() != 2 && args.len() != 3 {
+                return Some(Value::Error(format!(
+                    "parallel_map() expects 2 or 3 arguments (array, function, optional concurrency_limit), got {}",
+                    args.len()
+                )));
+            }
+
+            let array = match &args[0] {
+                Value::Array(arr) => arr.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "parallel_map() first argument must be an array".to_string(),
+                    ));
+                }
+            };
+
+            let mapper = match &args[1] {
+                func @ Value::NativeFunction(_)
+                | func @ Value::Function(_, _, _)
+                | func @ Value::BytecodeFunction { .. }
+                | func @ Value::GeneratorDef(_, _) => func.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "parallel_map() second argument must be a callable function".to_string(),
+                    ));
+                }
+            };
+
+            let concurrency_limit = if args.len() == 3 {
+                match &args[2] {
+                    Value::Int(n) if *n > 0 => Some(*n),
+                    Value::Int(n) => {
+                        return Some(Value::Error(format!(
+                            "parallel_map() concurrency_limit must be > 0, got {}",
+                            n
+                        )));
+                    }
+                    _ => {
+                        return Some(Value::Error(
+                            "parallel_map() optional concurrency_limit must be an integer"
+                                .to_string(),
+                        ));
+                    }
+                }
+            } else {
+                None
+            };
+
+            let mut mapped_promises = Vec::with_capacity(array.len());
+            for element in array.iter() {
+                let mapped = match &mapper {
+                    Value::NativeFunction(name) => {
+                        _interp.call_native_function_impl(name, &[element.clone()])
+                    }
+                    _ => _interp.call_user_function(&mapper, &[element.clone()]),
+                };
+
+                match mapped {
+                    Value::Error(_) | Value::ErrorObject { .. } => {
+                        return Some(mapped);
+                    }
+                    Value::Promise { .. } => mapped_promises.push(mapped),
+                    immediate => {
+                        let (tx, rx) = tokio::sync::oneshot::channel();
+                        let _ = tx.send(Ok(immediate));
+                        mapped_promises.push(Value::Promise {
+                            receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                            is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                            cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                            task_handle: None,
+                        });
+                    }
+                }
+            }
+
+            let mut promise_all_args = vec![Value::Array(Arc::new(mapped_promises))];
+            if let Some(limit) = concurrency_limit {
+                promise_all_args.push(Value::Int(limit));
+            }
+
+            handle(_interp, "Promise.all", &promise_all_args)
+        }
+
         _ => None, // Not handled by this module
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::interpreter::Interpreter;
+    use std::fs;
+    use std::sync::Arc;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn string_value(s: &str) -> Value {
+        Value::Str(Arc::new(s.to_string()))
+    }
+
+    fn await_promise(value: Value) -> Result<Value, String> {
+        match value {
+            Value::Promise { receiver, .. } => AsyncRuntime::block_on(async {
+                let rx = {
+                    let mut receiver_guard = receiver.lock().unwrap();
+                    let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+                    drop(dummy_tx);
+                    std::mem::replace(&mut *receiver_guard, dummy_rx)
+                };
+
+                match rx.await {
+                    Ok(result) => result,
+                    Err(_) => Err("Promise channel closed before resolution".to_string()),
+                }
+            }),
+            _ => panic!("Expected Promise value"),
+        }
+    }
+
+    fn unique_temp_dir(prefix: &str) -> String {
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let mut path = std::env::temp_dir();
+        path.push(format!("{}_{}", prefix, nanos));
+        path.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn test_parallel_map_async_read_file_preserves_order_with_limit() {
+        let temp_dir = unique_temp_dir("ruff_parallel_map");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_a = format!("{}/a.txt", temp_dir);
+        let file_b = format!("{}/b.txt", temp_dir);
+        let file_c = format!("{}/c.txt", temp_dir);
+
+        fs::write(&file_a, "alpha").unwrap();
+        fs::write(&file_b, "beta").unwrap();
+        fs::write(&file_c, "gamma").unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value(&file_a),
+                string_value(&file_b),
+                string_value(&file_c),
+            ])),
+            Value::NativeFunction("async_read_file".to_string()),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                match &values[0] {
+                    Value::Str(s) => assert_eq!(s.as_str(), "alpha"),
+                    _ => panic!("Expected string at index 0"),
+                }
+                match &values[1] {
+                    Value::Str(s) => assert_eq!(s.as_str(), "beta"),
+                    _ => panic!("Expected string at index 1"),
+                }
+                match &values[2] {
+                    Value::Str(s) => assert_eq!(s.as_str(), "gamma"),
+                    _ => panic!("Expected string at index 2"),
+                }
+            }
+            _ => panic!("Expected Array result"),
+        }
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_parallel_map_wraps_non_promise_results() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value("a"),
+                string_value("bc"),
+                string_value("def"),
+            ])),
+            Value::NativeFunction("len".to_string()),
+        ];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                match &values[0] {
+                    Value::Int(n) => assert_eq!(*n, 1),
+                    _ => panic!("Expected Int at index 0"),
+                }
+                match &values[1] {
+                    Value::Int(n) => assert_eq!(*n, 2),
+                    _ => panic!("Expected Int at index 1"),
+                }
+                match &values[2] {
+                    Value::Int(n) => assert_eq!(*n, 3),
+                    _ => panic!("Expected Int at index 2"),
+                }
+            }
+            _ => panic!("Expected Array result"),
+        }
+    }
+
+    #[test]
+    fn test_parallel_map_rejects_non_callable_mapper() {
+        let mut interp = Interpreter::new();
+        let args = vec![Value::Array(Arc::new(vec![Value::Int(1)])), Value::Int(123)];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        match result {
+            Value::Error(msg) => {
+                assert!(msg.contains("second argument must be a callable function"));
+            }
+            _ => panic!("Expected Value::Error for non-callable mapper"),
+        }
+    }
+
+    #[test]
+    fn test_parallel_map_validates_concurrency_limit() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![Value::Int(1)])),
+            Value::NativeFunction("len".to_string()),
+            Value::Int(0),
+        ];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        match result {
+            Value::Error(msg) => {
+                assert!(msg.contains("concurrency_limit must be > 0"));
+            }
+            _ => panic!("Expected Value::Error for invalid concurrency limit"),
+        }
+    }
+
+    #[test]
+    fn test_parallel_map_propagates_rejected_promises() {
+        let missing_file = unique_temp_dir("ruff_parallel_map_missing");
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![string_value(&missing_file)])),
+            Value::NativeFunction("async_read_file".to_string()),
+        ];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        let resolved = await_promise(result);
+        match resolved {
+            Ok(_) => panic!("Expected Promise rejection for missing file"),
+            Err(msg) => assert!(msg.contains("Promise 0 rejected")),
+        }
     }
 }

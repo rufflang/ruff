@@ -33,15 +33,8 @@ pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
 // Database infrastructure - used by stub database.rs module
 #[allow(unused_imports)]
 pub use value::{
-    ConnectionPool,
-    DatabaseConnection,
-    DenseIntDict,
-    DenseIntDictInt,
-    DenseIntDictIntFull,
-    DictMap,
-    IntDictMap,
-    LeakyFunctionBody,
-    Value,
+    ConnectionPool, DatabaseConnection, DenseIntDict, DenseIntDictInt, DenseIntDictIntFull,
+    DictMap, IntDictMap, LeakyFunctionBody, Value,
 };
 
 // Internal-only imports
@@ -127,7 +120,6 @@ impl Interpreter {
         let locked_env = env.lock().unwrap();
         self.env = locked_env.clone();
     }
-
 
     /// Get the current call stack for error reporting
     pub fn get_call_stack(&self) -> Vec<String> {
@@ -415,6 +407,7 @@ impl Interpreter {
             "Promise.all",
             "promise_all",
             "await_all",
+            "parallel_map",
             // Testing assertion functions
             "assert_equal",
             "assert_true",
@@ -930,18 +923,39 @@ impl Interpreter {
         self.env.define("channel".to_string(), Value::NativeFunction("channel".to_string()));
 
         // Async operations
-        self.env.define("async_sleep".to_string(), Value::NativeFunction("async_sleep".to_string()));
-        self.env.define("async_timeout".to_string(), Value::NativeFunction("async_timeout".to_string()));
-        self.env.define("async_http_get".to_string(), Value::NativeFunction("async_http_get".to_string()));
-        self.env.define("async_http_post".to_string(), Value::NativeFunction("async_http_post".to_string()));
-        self.env.define("async_read_file".to_string(), Value::NativeFunction("async_read_file".to_string()));
-        self.env.define("async_write_file".to_string(), Value::NativeFunction("async_write_file".to_string()));
+        self.env
+            .define("async_sleep".to_string(), Value::NativeFunction("async_sleep".to_string()));
+        self.env.define(
+            "async_timeout".to_string(),
+            Value::NativeFunction("async_timeout".to_string()),
+        );
+        self.env.define(
+            "async_http_get".to_string(),
+            Value::NativeFunction("async_http_get".to_string()),
+        );
+        self.env.define(
+            "async_http_post".to_string(),
+            Value::NativeFunction("async_http_post".to_string()),
+        );
+        self.env.define(
+            "async_read_file".to_string(),
+            Value::NativeFunction("async_read_file".to_string()),
+        );
+        self.env.define(
+            "async_write_file".to_string(),
+            Value::NativeFunction("async_write_file".to_string()),
+        );
         self.env.define("spawn_task".to_string(), Value::NativeFunction("spawn_task".to_string()));
         self.env.define("await_task".to_string(), Value::NativeFunction("await_task".to_string()));
-        self.env.define("cancel_task".to_string(), Value::NativeFunction("cancel_task".to_string()));
-        self.env.define("Promise.all".to_string(), Value::NativeFunction("Promise.all".to_string()));
-        self.env.define("promise_all".to_string(), Value::NativeFunction("promise_all".to_string())); // Alias
+        self.env
+            .define("cancel_task".to_string(), Value::NativeFunction("cancel_task".to_string()));
+        self.env
+            .define("Promise.all".to_string(), Value::NativeFunction("Promise.all".to_string()));
+        self.env
+            .define("promise_all".to_string(), Value::NativeFunction("promise_all".to_string())); // Alias
         self.env.define("await_all".to_string(), Value::NativeFunction("await_all".to_string())); // Alias
+        self.env
+            .define("parallel_map".to_string(), Value::NativeFunction("parallel_map".to_string()));
 
         // Testing assertion functions
         self.env
@@ -1385,7 +1399,8 @@ impl Interpreter {
                 // Create params dict for request object
                 let mut params_dict = DictMap::default();
                 for (key, value) in &path_params {
-                    params_dict.insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
+                    params_dict
+                        .insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
                 }
 
                 // Create request object as a Dict (not Struct) so has_key() and bracket access work
@@ -1591,10 +1606,7 @@ impl Interpreter {
                                 if int_key < 0 {
                                     Value::Null
                                 } else {
-                                    values
-                                        .get(int_key as usize)
-                                        .cloned()
-                                        .unwrap_or(Value::Null)
+                                    values.get(int_key as usize).cloned().unwrap_or(Value::Null)
                                 }
                             }
                             Err(_) => Value::Null,
@@ -1620,7 +1632,9 @@ impl Interpreter {
                                     Value::Null
                                 } else {
                                     match values.get(int_key as usize) {
-                                        Some(value) => (*value).map(Value::Int).unwrap_or(Value::Null),
+                                        Some(value) => {
+                                            (*value).map(Value::Int).unwrap_or(Value::Null)
+                                        }
                                         None => Value::Null,
                                     }
                                 }
@@ -1677,10 +1691,8 @@ impl Interpreter {
                         self.env.define(key.clone(), Value::Null);
                     }
                     if let Some(rest_name) = rest {
-                        self.env.define(
-                            rest_name.clone(),
-                            Value::Dict(Arc::new(DictMap::default())),
-                        );
+                        self.env
+                            .define(rest_name.clone(), Value::Dict(Arc::new(DictMap::default())));
                     }
                 }
             }
@@ -2440,7 +2452,9 @@ impl Interpreter {
                             fields.insert("message".to_string(), Value::Str(Arc::new(message)));
                             fields.insert(
                                 "stack".to_string(),
-                                Value::Array(Arc::new(stack.iter().map(|s| Value::Str(Arc::new(s.clone()))).collect())),
+                                Value::Array(Arc::new(
+                                    stack.iter().map(|s| Value::Str(Arc::new(s.clone()))).collect(),
+                                )),
                             );
                             fields.insert("line".to_string(), Value::Int(line.unwrap_or(0) as i64));
                             if let Some(cause_val) = cause {
@@ -2701,7 +2715,10 @@ impl Interpreter {
                                     return fields.get(field_name).cloned().unwrap_or(Value::Null);
                                 }
                                 Value::Dict(map) => {
-                                    return map.get(field_name.as_str()).cloned().unwrap_or(Value::Null);
+                                    return map
+                                        .get(field_name.as_str())
+                                        .cloned()
+                                        .unwrap_or(Value::Null);
                                 }
                                 _ => return Value::Null,
                             }
@@ -3349,8 +3366,10 @@ impl Interpreter {
                                         let mut arg_list_vec = Arc::try_unwrap(arg_list)
                                             .unwrap_or_else(|arc| (*arc).clone());
                                         arg_list_vec.push(Value::Dict(Arc::new(arg_def)));
-                                        new_fields
-                                            .insert("_args".to_string(), Value::Array(Arc::new(arg_list_vec)));
+                                        new_fields.insert(
+                                            "_args".to_string(),
+                                            Value::Array(Arc::new(arg_list_vec)),
+                                        );
                                     }
 
                                     return Value::Struct {
@@ -3705,7 +3724,7 @@ impl Interpreter {
 
                             // Send the result back
                             let _ = tx.send(Ok(result));
-                            
+
                             // Return a dummy value (task result not used, only channel matters)
                             Value::Null
                         });
@@ -3715,7 +3734,7 @@ impl Interpreter {
                             receiver: Arc::new(Mutex::new(rx)),
                             is_polled: Arc::new(Mutex::new(false)),
                             cached_result: Arc::new(Mutex::new(None)),
-                task_handle: None,
+                            task_handle: None,
                         }
                     }
                     Value::GeneratorDef(ref params, ref body) => {
@@ -4072,7 +4091,7 @@ impl Interpreter {
                             drop(dummy_tx); // Close immediately
                             let actual_rx = std::mem::replace(&mut *recv_guard, dummy_rx);
                             drop(recv_guard); // Release lock before blocking
-                            
+
                             // Block on the receiver using tokio runtime
                             AsyncRuntime::block_on(actual_rx)
                         };
@@ -4591,7 +4610,11 @@ impl Interpreter {
                 let pair_strs: Vec<String> = keys
                     .iter()
                     .map(|k| {
-                        format!("\"{}\": {}", k, Interpreter::stringify_value(map.get(k.as_ref()).unwrap()))
+                        format!(
+                            "\"{}\": {}",
+                            k,
+                            Interpreter::stringify_value(map.get(k.as_ref()).unwrap())
+                        )
                     })
                     .collect();
                 format!("{{{}}}", pair_strs.join(", "))
@@ -4601,9 +4624,7 @@ impl Interpreter {
                 pairs.sort_by(|(a, _), (b, _)| a.as_ref().cmp(b.as_ref()));
                 let pair_strs: Vec<String> = pairs
                     .iter()
-                    .map(|(k, v)| {
-                        format!("\"{}\": {}", k, Interpreter::stringify_value(v))
-                    })
+                    .map(|(k, v)| format!("\"{}\": {}", k, Interpreter::stringify_value(v)))
                     .collect();
                 format!("{{{}}}", pair_strs.join(", "))
             }
@@ -4632,11 +4653,9 @@ impl Interpreter {
                 let pair_strs: Vec<String> = values
                     .iter()
                     .enumerate()
-                    .map(|(index, value)| {
-                        match value {
-                            Some(value) => format!("\"{}\": {}", index, value),
-                            None => format!("\"{}\": null", index),
-                        }
+                    .map(|(index, value)| match value {
+                        Some(value) => format!("\"{}\": {}", index, value),
+                        None => format!("\"{}\": null", index),
                     })
                     .collect();
                 format!("{{{}}}", pair_strs.join(", "))
