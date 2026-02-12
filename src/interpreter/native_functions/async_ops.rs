@@ -4,6 +4,7 @@
 // Provides async functions for sleep, timeouts, Promise.all, Promise.race, etc.
 
 use crate::interpreter::{AsyncRuntime, DictMap, Value};
+use futures::stream::{FuturesUnordered, StreamExt};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -704,7 +705,7 @@ pub fn handle(
 
                 if std::env::var("DEBUG_ASYNC").is_ok() {
                     eprintln!(
-                        "Promise.all: prepared {} futures, spawning await tasks",
+                        "Promise.all: prepared {} futures, awaiting with bounded in-task concurrency",
                         futures.len()
                     );
                 }
@@ -713,70 +714,57 @@ pub fn handle(
                 let mut results = vec![Value::Null; count];
                 let mut completed = 0;
 
-                // Await in bounded batches to avoid spawning unbounded wait tasks
-                let mut futures_iter = futures.into_iter();
-                loop {
-                    let mut tasks = Vec::new();
-                    for _ in 0..effective_batch_size {
-                        match futures_iter.next() {
-                            Some((idx, rx)) => {
-                                tasks.push(tokio::spawn(async move { (idx, rx.await) }));
-                            }
-                            None => break,
+                // Await receivers with bounded in-task concurrency (no per-receiver tokio::spawn overhead)
+                let mut pending = futures.into_iter();
+                let mut in_flight = FuturesUnordered::new();
+                let make_wait_future = |idx, rx| async move { (idx, rx.await) };
+
+                for _ in 0..effective_batch_size {
+                    match pending.next() {
+                        Some((idx, rx)) => {
+                            in_flight.push(make_wait_future(idx, rx));
                         }
+                        None => break,
                     }
+                }
 
-                    if tasks.is_empty() {
-                        break;
-                    }
-
+                while let Some((idx, recv_result)) = in_flight.next().await {
                     if std::env::var("DEBUG_ASYNC").is_ok() {
-                        eprintln!("Promise.all: awaiting batch of {} tasks", tasks.len());
+                        eprintln!("Promise.all: awaiting task {}/{}", completed + 1, count);
                     }
 
-                    for task in tasks {
-                        if std::env::var("DEBUG_ASYNC").is_ok() {
-                            eprintln!("Promise.all: awaiting task {}/{}", completed + 1, count);
+                    match recv_result {
+                        Ok(Ok(value)) => {
+                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                                eprintln!("Promise.all: task {} resolved successfully", idx);
+                            }
+                            results[idx] = value;
+                            completed += 1;
                         }
-
-                        match task.await {
-                            Ok((idx, Ok(Ok(value)))) => {
-                                if std::env::var("DEBUG_ASYNC").is_ok() {
-                                    eprintln!("Promise.all: task {} resolved successfully", idx);
-                                }
-                                results[idx] = value;
-                                completed += 1;
+                        Ok(Err(err)) => {
+                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                                eprintln!("Promise.all: task {} rejected: {}", idx, err);
                             }
-                            Ok((idx, Ok(Err(err)))) => {
-                                if std::env::var("DEBUG_ASYNC").is_ok() {
-                                    eprintln!("Promise.all: task {} rejected: {}", idx, err);
-                                }
-                                let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
-                                return Value::Null;
-                            }
-                            Ok((idx, Err(_))) => {
-                                if std::env::var("DEBUG_ASYNC").is_ok() {
-                                    eprintln!(
-                                        "Promise.all: task {} channel closed (Err from oneshot)",
-                                        idx
-                                    );
-                                }
-                                let _ = tx.send(Err(format!(
-                                    "Promise {} never resolved (channel closed)",
+                            let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
+                            return Value::Null;
+                        }
+                        Err(_) => {
+                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                                eprintln!(
+                                    "Promise.all: task {} channel closed (Err from oneshot)",
                                     idx
-                                )));
-                                return Value::Null;
+                                );
                             }
-                            Err(e) => {
-                                if std::env::var("DEBUG_ASYNC").is_ok() {
-                                    eprintln!("Promise.all: task join error: {:?}", e);
-                                }
-                                let _ = tx.send(Err(
-                                    "Promise task panicked or was cancelled".to_string()
-                                ));
-                                return Value::Null;
-                            }
+                            let _ = tx.send(Err(format!(
+                                "Promise {} never resolved (channel closed)",
+                                idx
+                            )));
+                            return Value::Null;
                         }
+                    }
+
+                    if let Some((next_idx, next_rx)) = pending.next() {
+                        in_flight.push(make_wait_future(next_idx, next_rx));
                     }
                 }
 
