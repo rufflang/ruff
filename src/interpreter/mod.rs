@@ -941,6 +941,7 @@ impl Interpreter {
         self.env.define("cancel_task".to_string(), Value::NativeFunction("cancel_task".to_string()));
         self.env.define("Promise.all".to_string(), Value::NativeFunction("Promise.all".to_string()));
         self.env.define("promise_all".to_string(), Value::NativeFunction("promise_all".to_string())); // Alias
+        self.env.define("await_all".to_string(), Value::NativeFunction("await_all".to_string())); // Alias
 
         // Testing assertion functions
         self.env

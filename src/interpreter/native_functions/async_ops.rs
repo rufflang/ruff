@@ -576,12 +576,12 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
         }
 
         "Promise.all" | "promise_all" => {
-            // Promise.all(promises: Array<Promise>) -> Promise<Array<Value>>
+            // Promise.all(promises: Array<Promise>, concurrency_limit?: Int) -> Promise<Array<Value>>
             // Await all promises concurrently, return array of results
             // If any promise rejects, the whole operation fails with first error
-            if args.len() != 1 {
+            if args.len() != 1 && args.len() != 2 {
                 return Some(Value::Error(format!(
-                    "Promise.all() expects 1 argument (array of promises), got {}",
+                    "Promise.all() expects 1 or 2 arguments (array of promises, optional concurrency_limit), got {}",
                     args.len()
                 )));
             }
@@ -594,6 +594,27 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                         "Promise.all() requires an array of promises".to_string(),
                     ));
                 }
+            };
+
+            // Optional concurrency limit (batch size for awaiting)
+            let concurrency_limit = if args.len() == 2 {
+                match &args[1] {
+                    Value::Int(n) if *n > 0 => *n as usize,
+                    Value::Int(n) => {
+                        return Some(Value::Error(format!(
+                            "Promise.all() concurrency_limit must be > 0, got {}",
+                            n
+                        )));
+                    }
+                    _ => {
+                        return Some(Value::Error(
+                            "Promise.all() optional concurrency_limit must be an integer"
+                                .to_string(),
+                        ));
+                    }
+                }
+            } else {
+                usize::MAX
             };
 
             // Debug logging
@@ -639,6 +660,7 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
             // Create channel for final result
             let (tx, rx) = tokio::sync::oneshot::channel();
             let count = receivers.len();
+            let effective_batch_size = concurrency_limit.min(count.max(1));
 
             // Spawn task that awaits all promises concurrently
             AsyncRuntime::spawn_task(async move {
@@ -662,55 +684,68 @@ pub fn handle(_interp: &mut crate::interpreter::Interpreter, name: &str, args: &
                     eprintln!("Promise.all: prepared {} futures, spawning await tasks", futures.len());
                 }
 
-                // Await all futures concurrently using tokio::join! or futures combinator
-                // We'll use a simple loop that spawns and collects
-                let mut tasks = Vec::new();
-                for (idx, rx) in futures {
-                    tasks.push(tokio::spawn(async move {
-                        (idx, rx.await)
-                    }));
-                }
-
-                if std::env::var("DEBUG_ASYNC").is_ok() {
-                    eprintln!("Promise.all: awaiting {} tasks", tasks.len());
-                }
-
                 // Collect all results
                 let mut results = vec![Value::Null; count];
                 let mut completed = 0;
-                for task in tasks {
-                    if std::env::var("DEBUG_ASYNC").is_ok() {
-                        eprintln!("Promise.all: awaiting task {}/{}", completed + 1, count);
+
+                // Await in bounded batches to avoid spawning unbounded wait tasks
+                let mut futures_iter = futures.into_iter();
+                loop {
+                    let mut tasks = Vec::new();
+                    for _ in 0..effective_batch_size {
+                        match futures_iter.next() {
+                            Some((idx, rx)) => {
+                                tasks.push(tokio::spawn(async move { (idx, rx.await) }));
+                            }
+                            None => break,
+                        }
                     }
-                    
-                    match task.await {
-                        Ok((idx, Ok(Ok(value)))) => {
-                            if std::env::var("DEBUG_ASYNC").is_ok() {
-                                eprintln!("Promise.all: task {} resolved successfully", idx);
-                            }
-                            results[idx] = value;
-                            completed += 1;
+
+                    if tasks.is_empty() {
+                        break;
+                    }
+
+                    if std::env::var("DEBUG_ASYNC").is_ok() {
+                        eprintln!("Promise.all: awaiting batch of {} tasks", tasks.len());
+                    }
+
+                    for task in tasks {
+                        if std::env::var("DEBUG_ASYNC").is_ok() {
+                            eprintln!("Promise.all: awaiting task {}/{}", completed + 1, count);
                         }
-                        Ok((idx, Ok(Err(err)))) => {
-                            if std::env::var("DEBUG_ASYNC").is_ok() {
-                                eprintln!("Promise.all: task {} rejected: {}", idx, err);
+
+                        match task.await {
+                            Ok((idx, Ok(Ok(value)))) => {
+                                if std::env::var("DEBUG_ASYNC").is_ok() {
+                                    eprintln!("Promise.all: task {} resolved successfully", idx);
+                                }
+                                results[idx] = value;
+                                completed += 1;
                             }
-                            let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
-                            return Value::Null;
-                        }
-                        Ok((idx, Err(_))) => {
-                            if std::env::var("DEBUG_ASYNC").is_ok() {
-                                eprintln!("Promise.all: task {} channel closed (Err from oneshot)", idx);
+                            Ok((idx, Ok(Err(err)))) => {
+                                if std::env::var("DEBUG_ASYNC").is_ok() {
+                                    eprintln!("Promise.all: task {} rejected: {}", idx, err);
+                                }
+                                let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
+                                return Value::Null;
                             }
-                            let _ = tx.send(Err(format!("Promise {} never resolved (channel closed)", idx)));
-                            return Value::Null;
-                        }
-                        Err(e) => {
-                            if std::env::var("DEBUG_ASYNC").is_ok() {
-                                eprintln!("Promise.all: task join error: {:?}", e);
+                            Ok((idx, Err(_))) => {
+                                if std::env::var("DEBUG_ASYNC").is_ok() {
+                                    eprintln!("Promise.all: task {} channel closed (Err from oneshot)", idx);
+                                }
+                                let _ = tx.send(Err(format!(
+                                    "Promise {} never resolved (channel closed)",
+                                    idx
+                                )));
+                                return Value::Null;
                             }
-                            let _ = tx.send(Err("Promise task panicked or was cancelled".to_string()));
-                            return Value::Null;
+                            Err(e) => {
+                                if std::env::var("DEBUG_ASYNC").is_ok() {
+                                    eprintln!("Promise.all: task join error: {:?}", e);
+                                }
+                                let _ = tx.send(Err("Promise task panicked or was cancelled".to_string()));
+                                return Value::Null;
+                            }
                         }
                     }
                 }
