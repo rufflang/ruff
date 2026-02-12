@@ -5,30 +5,25 @@
 
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{
-    DenseIntDict,
-    DenseIntDictInt,
-    DenseIntDictIntFull,
-    DictMap,
-    IntDictMap,
-    Value,
+    DenseIntDict, DenseIntDictInt, DenseIntDictIntFull, DictMap, IntDictMap, Value,
 };
 use crate::vm::VM; // For calling back into VM from JIT
-use std::sync::Arc;
-use cranelift::prelude::*;
-use cranelift::codegen::ir::FuncRef;
 use cranelift::codegen::ir::stackslot::{StackSlotData, StackSlotKind};
+use cranelift::codegen::ir::FuncRef;
 use cranelift::codegen::ir::StackSlot;
+use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use std::collections::HashSet;
+use std::sync::Arc;
 // FuncId used for future multi-function JIT optimization
 #[allow(unused_imports)]
-use cranelift_module::{Linkage, Module, FuncId};
+use cranelift_module::{FuncId, Linkage, Module};
 use std::collections::HashMap;
 // Hash/Hasher for future variable hashing optimizations
 #[allow(unused_imports)]
-use std::hash::{Hash, Hasher};
-#[allow(unused_imports)]
 use std::collections::hash_map::DefaultHasher;
+#[allow(unused_imports)]
+use std::hash::{Hash, Hasher};
 
 /// JIT compilation threshold - number of executions before compiling
 const JIT_THRESHOLD: usize = 100;
@@ -71,7 +66,7 @@ pub struct VMContext {
     /// Pointer to JIT object stack (non-int handles)
     pub obj_stack_ptr: *mut Vec<Value>,
     /// Pointer to VM for calling back into interpreter (Step 4+)
-    pub vm_ptr: *mut std::ffi::c_void,  // Actually *mut VM, but avoid circular dependency
+    pub vm_ptr: *mut std::ffi::c_void, // Actually *mut VM, but avoid circular dependency
     /// Fast return value storage - avoids stack push overhead
     /// When has_return_value is true, VM reads return_value directly instead of popping stack
     pub return_value: i64,
@@ -96,9 +91,9 @@ impl VMContext {
         locals: *mut HashMap<String, Value>,
         globals: *mut HashMap<String, Value>,
     ) -> Self {
-        Self { 
-            stack_ptr: stack, 
-            locals_ptr: locals, 
+        Self {
+            stack_ptr: stack,
+            locals_ptr: locals,
             globals_ptr: globals,
             var_names_ptr: std::ptr::null_mut(), // Will be set if needed
             local_slots_ptr: std::ptr::null_mut(),
@@ -113,7 +108,7 @@ impl VMContext {
             arg_count: 0,
         }
     }
-    
+
     /// Create with VM pointer for full VM integration (Step 4+)
     pub fn new_with_vm(
         stack: *mut Vec<Value>,
@@ -121,9 +116,9 @@ impl VMContext {
         globals: *mut HashMap<String, Value>,
         vm: *mut std::ffi::c_void,
     ) -> Self {
-        Self { 
-            stack_ptr: stack, 
-            locals_ptr: locals, 
+        Self {
+            stack_ptr: stack,
+            locals_ptr: locals,
             globals_ptr: globals,
             var_names_ptr: std::ptr::null_mut(),
             local_slots_ptr: std::ptr::null_mut(),
@@ -148,8 +143,6 @@ impl VMContext {
         Arc::from(key.to_string())
     }
 
-
-    
     /// Create with variable name mapping
     /// Used for JIT variable resolution optimization
     #[allow(dead_code)] // TODO: Will be used when variable hashing is implemented
@@ -159,9 +152,9 @@ impl VMContext {
         globals: *mut HashMap<String, Value>,
         var_names: *mut HashMap<u64, String>,
     ) -> Self {
-        Self { 
-            stack_ptr: stack, 
-            locals_ptr: locals, 
+        Self {
+            stack_ptr: stack,
+            locals_ptr: locals,
             globals_ptr: globals,
             var_names_ptr: var_names,
             local_slots_ptr: std::ptr::null_mut(),
@@ -229,31 +222,36 @@ impl TypeProfile {
             _ => self.other_count += 1,
         }
     }
-    
+
     /// Get total observations
     pub fn total(&self) -> usize {
         self.int_count + self.float_count + self.bool_count + self.other_count
     }
-    
+
     /// Get the dominant type (most frequently observed)
     pub fn dominant_type(&self) -> Option<ValueType> {
         if self.total() < MIN_TYPE_SAMPLES {
             return None;
         }
-        
-        let max_count = self.int_count.max(self.float_count).max(self.bool_count).max(self.other_count);
-        
+
+        let max_count =
+            self.int_count.max(self.float_count).max(self.bool_count).max(self.other_count);
+
         if max_count == self.int_count && self.int_count as f64 / self.total() as f64 > 0.90 {
             Some(ValueType::Int)
-        } else if max_count == self.float_count && self.float_count as f64 / self.total() as f64 > 0.90 {
+        } else if max_count == self.float_count
+            && self.float_count as f64 / self.total() as f64 > 0.90
+        {
             Some(ValueType::Float)
-        } else if max_count == self.bool_count && self.bool_count as f64 / self.total() as f64 > 0.90 {
+        } else if max_count == self.bool_count
+            && self.bool_count as f64 / self.total() as f64 > 0.90
+        {
             Some(ValueType::Bool)
         } else {
             None
         }
     }
-    
+
     /// Check if this profile is stable enough for specialization
     pub fn is_stable(&self) -> bool {
         self.total() >= MIN_TYPE_SAMPLES && self.dominant_type().is_some()
@@ -296,7 +294,7 @@ impl SpecializationInfo {
             guard_failures: 0,
         }
     }
-    
+
     /// Check if guards are failing too often
     fn should_despecialize(&self) -> bool {
         let total = self.guard_successes + self.guard_failures;
@@ -391,13 +389,17 @@ pub unsafe extern "C" fn jit_obj_to_vm_stack(ctx: *mut VMContext, handle: i64) -
 /// name_ptr/name_len: pointer and length of variable name string (if name_hash is 0)
 /// Returns the variable value as i64, or 0 if not found
 #[no_mangle]
-pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, _name_len: usize) -> i64 {
+pub unsafe extern "C" fn jit_load_variable(
+    ctx: *mut VMContext,
+    name_hash: i64,
+    _name_len: usize,
+) -> i64 {
     if ctx.is_null() {
         return 0;
     }
-    
+
     let ctx_ref = &*ctx;
-    
+
     // Try to resolve the name from hash
     let name = if name_hash != 0 && !ctx_ref.var_names_ptr.is_null() {
         let var_names = &*ctx_ref.var_names_ptr;
@@ -412,9 +414,9 @@ pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, 
     } else {
         return 0; // No name provided
     };
-    
+
     // Debug disabled for performance
-    
+
     // Try locals first
     if !ctx_ref.locals_ptr.is_null() {
         let locals = &*ctx_ref.locals_ptr;
@@ -431,7 +433,10 @@ pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, 
                     if !ctx_ref.stack_ptr.is_null() {
                         let stack = &mut *ctx_ref.stack_ptr;
                         if std::env::var("DEBUG_JIT_CALL").is_ok() {
-                            eprintln!("jit_load_variable: '{}' = {:?} (pushed to VM stack from locals)", name, val);
+                            eprintln!(
+                                "jit_load_variable: '{}' = {:?} (pushed to VM stack from locals)",
+                                name, val
+                            );
                         }
                         stack.push(val.clone());
                         return -1; // Special marker: value is on VM stack
@@ -441,7 +446,7 @@ pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, 
             }
         }
     }
-    
+
     // Then try globals
     if !ctx_ref.globals_ptr.is_null() {
         let globals = &*ctx_ref.globals_ptr;
@@ -458,7 +463,10 @@ pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, 
                     if !ctx_ref.stack_ptr.is_null() {
                         let stack = &mut *ctx_ref.stack_ptr;
                         if std::env::var("DEBUG_JIT_CALL").is_ok() {
-                            eprintln!("jit_load_variable: '{}' = {:?} (pushed to VM stack from globals)", name, val);
+                            eprintln!(
+                                "jit_load_variable: '{}' = {:?} (pushed to VM stack from globals)",
+                                name, val
+                            );
                         }
                         stack.push(val.clone());
                         return -1; // Special marker: value is on VM stack
@@ -468,7 +476,7 @@ pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, 
             }
         }
     }
-    
+
     if std::env::var("DEBUG_JIT_CALL").is_ok() {
         eprintln!("jit_load_variable: '{}' not found", name);
     }
@@ -478,13 +486,18 @@ pub unsafe extern "C" fn jit_load_variable(ctx: *mut VMContext, name_hash: i64, 
 /// Store a variable to locals (called from JIT code)
 /// name_hash: hash of the variable name
 #[no_mangle]
-pub unsafe extern "C" fn jit_store_variable(ctx: *mut VMContext, name_hash: i64, _name_len: usize, value: i64) {
+pub unsafe extern "C" fn jit_store_variable(
+    ctx: *mut VMContext,
+    name_hash: i64,
+    _name_len: usize,
+    value: i64,
+) {
     if ctx.is_null() {
         return;
     }
-    
+
     let ctx = &mut *ctx;
-    
+
     // Try to resolve the name from hash
     let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
         let var_names = &*ctx.var_names_ptr;
@@ -496,7 +509,7 @@ pub unsafe extern "C" fn jit_store_variable(ctx: *mut VMContext, name_hash: i64,
     } else {
         return; // No name provided
     };
-    
+
     // Store in locals
     if !ctx.locals_ptr.is_null() {
         let locals = &mut *ctx.locals_ptr;
@@ -690,8 +703,8 @@ pub unsafe extern "C" fn jit_local_slot_dict_get(
             Value::IntDict(dict) => {
                 crate::vm::hashmap_profile_bump_get_intdict();
                 match dict.get(&key) {
-                Some(Value::Int(v)) => *v,
-                _ => 0,
+                    Some(Value::Int(v)) => *v,
+                    _ => 0,
                 }
             }
             Value::DenseIntDict(values) => {
@@ -763,8 +776,8 @@ pub unsafe extern "C" fn jit_local_slot_dict_get(
         Value::IntDict(dict) => {
             crate::vm::hashmap_profile_bump_get_intdict();
             match dict.get(&key) {
-            Some(Value::Int(v)) => *v,
-            _ => 0,
+                Some(Value::Int(v)) => *v,
+                _ => 0,
             }
         }
         Value::DenseIntDict(values) => {
@@ -874,10 +887,8 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
                     let mut int_dict = IntDictMap::default();
                     int_dict.reserve(values.len());
                     for (index, value) in values.iter().enumerate() {
-                        int_dict.insert(
-                            index as i64,
-                            (*value).map(Value::Int).unwrap_or(Value::Null),
-                        );
+                        int_dict
+                            .insert(index as i64, (*value).map(Value::Int).unwrap_or(Value::Null));
                     }
                     int_dict.insert(key, Value::Int(value));
                     local_slots[slot] = Value::IntDict(Arc::new(int_dict));
@@ -968,11 +979,7 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
         }
     };
 
-    let key_str = if needs_string_key {
-        Some(vm.int_key_string(key))
-    } else {
-        None
-    };
+    let key_str = if needs_string_key { Some(vm.int_key_string(key)) } else { None };
 
     let frame = match vm.call_frames.last_mut() {
         Some(frame) => frame,
@@ -1012,10 +1019,7 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
                 let mut int_dict = IntDictMap::default();
                 int_dict.reserve(values.len());
                 for (index, value) in values.iter().enumerate() {
-                    int_dict.insert(
-                        index as i64,
-                        (*value).map(Value::Int).unwrap_or(Value::Null),
-                    );
+                    int_dict.insert(index as i64, (*value).map(Value::Int).unwrap_or(Value::Null));
                 }
                 int_dict.insert(key, Value::Int(value));
                 frame.local_slots[slot] = Value::IntDict(Arc::new(int_dict));
@@ -1236,10 +1240,7 @@ pub unsafe extern "C" fn jit_local_slot_int_dict_set(
                 let mut int_dict = IntDictMap::default();
                 int_dict.reserve(values.len());
                 for (index, value) in values.iter().enumerate() {
-                    int_dict.insert(
-                        index as i64,
-                        (*value).map(Value::Int).unwrap_or(Value::Null),
-                    );
+                    int_dict.insert(index as i64, (*value).map(Value::Int).unwrap_or(Value::Null));
                 }
                 int_dict.insert(key, Value::Int(value));
                 *object = Value::IntDict(Arc::new(int_dict));
@@ -1612,16 +1613,15 @@ pub unsafe extern "C" fn jit_dense_int_dict_int_full_set_ptr(
     1
 }
 
-
 /// Load a variable as float from locals or globals (called from JIT code)
 #[no_mangle]
 pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash: i64) -> f64 {
     if ctx.is_null() {
         return 0.0;
     }
-    
+
     let ctx = &*ctx;
-    
+
     // Try to resolve the name from hash
     let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
         let var_names = &*ctx.var_names_ptr;
@@ -1633,7 +1633,7 @@ pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash:
     } else {
         return 0.0; // No name provided
     };
-    
+
     // Try locals first
     if !ctx.locals_ptr.is_null() {
         let locals = &*ctx.locals_ptr;
@@ -1641,7 +1641,7 @@ pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash:
             return *val;
         }
     }
-    
+
     // Try globals
     if !ctx.globals_ptr.is_null() {
         let globals = &*ctx.globals_ptr;
@@ -1649,7 +1649,7 @@ pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash:
             return *val;
         }
     }
-    
+
     0.0
 }
 
@@ -1659,9 +1659,9 @@ pub unsafe extern "C" fn jit_store_variable_float(ctx: *mut VMContext, name_hash
     if ctx.is_null() {
         return;
     }
-    
+
     let ctx = &mut *ctx;
-    
+
     // Try to resolve the name from hash
     let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
         let var_names = &*ctx.var_names_ptr;
@@ -1673,7 +1673,7 @@ pub unsafe extern "C" fn jit_store_variable_float(ctx: *mut VMContext, name_hash
     } else {
         return; // No name provided
     };
-    
+
     // Store in locals
     if !ctx.locals_ptr.is_null() {
         let locals = &mut *ctx.locals_ptr;
@@ -1688,9 +1688,9 @@ pub unsafe extern "C" fn jit_check_type_int(ctx: *mut VMContext, name_hash: i64)
     if ctx.is_null() {
         return 0;
     }
-    
+
     let ctx = &*ctx;
-    
+
     let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
         let var_names = &*ctx.var_names_ptr;
         if let Some(n) = var_names.get(&(name_hash as u64)) {
@@ -1701,7 +1701,7 @@ pub unsafe extern "C" fn jit_check_type_int(ctx: *mut VMContext, name_hash: i64)
     } else {
         return 0;
     };
-    
+
     // Check locals first
     if !ctx.locals_ptr.is_null() {
         let locals = &*ctx.locals_ptr;
@@ -1709,7 +1709,7 @@ pub unsafe extern "C" fn jit_check_type_int(ctx: *mut VMContext, name_hash: i64)
             return if matches!(value, Value::Int(_)) { 1 } else { 0 };
         }
     }
-    
+
     // Check globals
     if !ctx.globals_ptr.is_null() {
         let globals = &*ctx.globals_ptr;
@@ -1717,7 +1717,7 @@ pub unsafe extern "C" fn jit_check_type_int(ctx: *mut VMContext, name_hash: i64)
             return if matches!(value, Value::Int(_)) { 1 } else { 0 };
         }
     }
-    
+
     0
 }
 
@@ -1728,9 +1728,9 @@ pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i6
     if ctx.is_null() {
         return 0;
     }
-    
+
     let ctx = &*ctx;
-    
+
     let name = if name_hash != 0 && !ctx.var_names_ptr.is_null() {
         let var_names = &*ctx.var_names_ptr;
         if let Some(n) = var_names.get(&(name_hash as u64)) {
@@ -1741,7 +1741,7 @@ pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i6
     } else {
         return 0;
     };
-    
+
     // Check locals first
     if !ctx.locals_ptr.is_null() {
         let locals = &*ctx.locals_ptr;
@@ -1749,7 +1749,7 @@ pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i6
             return if matches!(value, Value::Float(_)) { 1 } else { 0 };
         }
     }
-    
+
     // Check globals
     if !ctx.globals_ptr.is_null() {
         let globals = &*ctx.globals_ptr;
@@ -1757,7 +1757,7 @@ pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i6
             return if matches!(value, Value::Float(_)) { 1 } else { 0 };
         }
     }
-    
+
     0
 }
 
@@ -1768,12 +1768,12 @@ pub unsafe extern "C" fn jit_push_int(ctx: *mut VMContext, value: i64) -> i64 {
     if ctx.is_null() {
         return 1; // Error
     }
-    
+
     let ctx_ref = &mut *ctx;
     if ctx_ref.stack_ptr.is_null() {
         return 2; // Error
     }
-    
+
     let stack = &mut *ctx_ref.stack_ptr;
     stack.push(Value::Int(value));
     0 // Success
@@ -1785,7 +1785,7 @@ pub unsafe extern "C" fn jit_push_int(ctx: *mut VMContext, value: i64) -> i64 {
 /// 1. Stack pointer null check
 /// 2. Stack Vec modification  
 /// 3. Value::Int boxing (still needed, but VM reads field directly)
-/// 
+///
 /// The VM checks has_return_value first; if true, it reads return_value directly
 /// instead of popping from the stack.
 #[no_mangle]
@@ -1793,7 +1793,7 @@ pub unsafe extern "C" fn jit_set_return_int(ctx: *mut VMContext, value: i64) -> 
     if ctx.is_null() {
         return 1; // Error
     }
-    
+
     let ctx_ref = &mut *ctx;
     ctx_ref.return_value = value;
     ctx_ref.has_return_value = true;
@@ -1808,7 +1808,7 @@ pub unsafe extern "C" fn jit_get_return_int(ctx: *mut VMContext) -> i64 {
     if ctx.is_null() {
         return 0; // Return 0 on error
     }
-    
+
     let ctx_ref = &*ctx;
     if ctx_ref.has_return_value {
         ctx_ref.return_value
@@ -1826,14 +1826,14 @@ pub unsafe extern "C" fn jit_get_arg(ctx: *mut VMContext, index: i64) -> i64 {
     if ctx.is_null() {
         return 0;
     }
-    
+
     let ctx_ref = &*ctx;
-    
+
     // Check if index is valid
     if index < 0 || index >= ctx_ref.arg_count {
         return 0;
     }
-    
+
     match index {
         0 => ctx_ref.arg0,
         1 => ctx_ref.arg1,
@@ -1858,25 +1858,25 @@ pub unsafe extern "C" fn jit_call_function(
     if ctx.is_null() {
         return 1; // Error: null context
     }
-    
+
     let ctx_ref = &mut *ctx;
-    
+
     // Check if we have a stack
     if ctx_ref.stack_ptr.is_null() {
         return 2; // Error: null stack
     }
-    
+
     let stack = &mut *ctx_ref.stack_ptr;
-    
+
     // Debug: show stack state
     if std::env::var("DEBUG_JIT_CALL").is_ok() {
         eprintln!("jit_call_function: stack before (len={}): {:?}", stack.len(), stack);
         eprintln!("jit_call_function: arg_count={}", arg_count);
     }
-    
+
     // In JIT mode, stack order is: [function, arg0, arg1, ...] (function pushed first by LoadVar)
     // So we need to pop args first (they're on top), then function (at bottom)
-    
+
     // Pop arguments from stack (in reverse order)
     let mut args = Vec::new();
     for _ in 0..arg_count {
@@ -1887,7 +1887,7 @@ pub unsafe extern "C" fn jit_call_function(
         }
     }
     args.reverse(); // Restore original order
-    
+
     // Now pop function from stack
     let function = if let Some(f) = stack.pop() {
         f
@@ -1898,21 +1898,21 @@ pub unsafe extern "C" fn jit_call_function(
         }
         return 3; // Error: stack underflow (no function)
     };
-    
+
     if std::env::var("DEBUG_JIT_CALL").is_ok() {
         eprintln!("jit_call_function: function={:?}, args={:?}", function, args);
     }
-    
+
     // Check if we have VM pointer
     if ctx_ref.vm_ptr.is_null() {
         // No VM pointer - can't execute. Push placeholder and return error
         stack.push(Value::Int(0));
         return 5; // Error: no VM pointer
     }
-    
+
     // Cast VM pointer back to VM
     let vm = &mut *(ctx_ref.vm_ptr as *mut VM);
-    
+
     // Call the function through VM
     match vm.call_function_from_jit(function, args) {
         Ok(result) => {
@@ -1973,9 +1973,7 @@ pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
             let key = VMContext::jit_int_key_string(ctx_ref, *i);
             dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
         }
-        (Value::IntDict(dict), Value::Int(i)) => {
-            dict.get(i).cloned().unwrap_or(Value::Null)
-        }
+        (Value::IntDict(dict), Value::Int(i)) => dict.get(i).cloned().unwrap_or(Value::Null),
         (Value::DenseIntDict(values), Value::Int(i)) => {
             if *i < 0 {
                 Value::Null
@@ -2002,10 +2000,7 @@ pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
             if *i < 0 {
                 Value::Null
             } else {
-                values
-                    .get(*i as usize)
-                    .map(|value| Value::Int(*value))
-                    .unwrap_or(Value::Null)
+                values.get(*i as usize).map(|value| Value::Int(*value)).unwrap_or(Value::Null)
             }
         }
         (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
@@ -2054,11 +2049,7 @@ pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
             Err(_) => Value::Null,
         },
         (Value::Array(arr), Value::Int(i)) => {
-            let idx = if *i < 0 {
-                (arr.len() as i64 + i) as usize
-            } else {
-                *i as usize
-            };
+            let idx = if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
             arr.get(idx).cloned().unwrap_or(Value::Null)
         }
         _ => Value::Null, // Type mismatch
@@ -2138,10 +2129,10 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
                         }
                     }
                 } else {
-                let mut int_dict = IntDictMap::default();
-                int_dict.reserve(1024);
-                int_dict.insert(i, value);
-                Value::IntDict(Arc::new(int_dict))
+                    let mut int_dict = IntDictMap::default();
+                    int_dict.reserve(1024);
+                    int_dict.insert(i, value);
+                    Value::IntDict(Arc::new(int_dict))
                 }
             } else {
                 let dict_mut = Arc::make_mut(&mut dict);
@@ -2292,178 +2283,172 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
             dict_clone.insert(key_str.as_str().into(), value);
             Value::Dict(Arc::new(dict_clone))
         }
-        (Value::DenseIntDict(values), Value::Str(key_str)) => {
-            match key_str.parse::<i64>() {
-                Ok(int_key) => {
-                    if int_key < 0 {
-                        let mut int_dict = IntDictMap::default();
-                        int_dict.reserve(values.len());
-                        for (index, value) in values.iter().enumerate() {
-                            int_dict.insert(index as i64, value.clone());
-                        }
-                        int_dict.insert(int_key, value);
-                        Value::IntDict(Arc::new(int_dict))
-                    } else {
-                        let mut values = values;
-                        let values_mut = Arc::make_mut(&mut values);
-                        let index = int_key as usize;
-                        if index >= values_mut.len() {
-                            values_mut.resize(index + 1, Value::Null);
-                        }
-                        values_mut[index] = value;
-                        Value::DenseIntDict(values)
-                    }
-                }
-                Err(_) => {
-                    let mut dict_clone = DictMap::default();
+        (Value::DenseIntDict(values), Value::Str(key_str)) => match key_str.parse::<i64>() {
+            Ok(int_key) => {
+                if int_key < 0 {
+                    let mut int_dict = IntDictMap::default();
+                    int_dict.reserve(values.len());
                     for (index, value) in values.iter().enumerate() {
-                        dict_clone.insert(index.to_string().into(), value.clone());
+                        int_dict.insert(index as i64, value.clone());
                     }
-                    dict_clone.insert(key_str.as_str().into(), value);
-                    Value::Dict(Arc::new(dict_clone))
+                    int_dict.insert(int_key, value);
+                    Value::IntDict(Arc::new(int_dict))
+                } else {
+                    let mut values = values;
+                    let values_mut = Arc::make_mut(&mut values);
+                    let index = int_key as usize;
+                    if index >= values_mut.len() {
+                        values_mut.resize(index + 1, Value::Null);
+                    }
+                    values_mut[index] = value;
+                    Value::DenseIntDict(values)
                 }
             }
-        }
-        (Value::DenseIntDictInt(values), Value::Str(key_str)) => {
-            match key_str.parse::<i64>() {
-                Ok(int_key) => {
-                    if int_key < 0 {
-                        let mut int_dict = IntDictMap::default();
-                        int_dict.reserve(values.len());
-                        for (index, value) in values.iter().enumerate() {
-                            if let Some(int_value) = value {
-                                int_dict.insert(index as i64, Value::Int(*int_value));
-                            }
-                        }
-                        int_dict.insert(int_key, value);
-                        Value::IntDict(Arc::new(int_dict))
-                    } else {
-                        let index = int_key as usize;
-                        match value {
-                            Value::Int(int_value) => {
-                                let mut values = values;
-                                let values_mut = Arc::make_mut(&mut values);
-                                let len = values_mut.len();
-                                if index == len {
-                                    values_mut.push(Some(int_value));
-                                } else if index < len {
-                                    values_mut[index] = Some(int_value);
-                                } else {
-                                    values_mut.resize(index + 1, None);
-                                    values_mut[index] = Some(int_value);
-                                }
-                                Value::DenseIntDictInt(values)
-                            }
-                            Value::Null => {
-                                let mut values = values;
-                                let values_mut = Arc::make_mut(&mut values);
-                                let len = values_mut.len();
-                                if index == len {
-                                    values_mut.push(None);
-                                } else if index < len {
-                                    values_mut[index] = None;
-                                } else {
-                                    values_mut.resize(index + 1, None);
-                                    values_mut[index] = None;
-                                }
-                                Value::DenseIntDictInt(values)
-                            }
-                            other => {
-                                let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
-                                for value in values.iter() {
-                                    dense_values.push((*value).map(Value::Int).unwrap_or(Value::Null));
-                                }
-                                if index >= dense_values.len() {
-                                    dense_values.resize(index + 1, Value::Null);
-                                }
-                                dense_values[index] = other;
-                                Value::DenseIntDict(Arc::new(dense_values))
-                            }
-                        }
-                    }
+            Err(_) => {
+                let mut dict_clone = DictMap::default();
+                for (index, value) in values.iter().enumerate() {
+                    dict_clone.insert(index.to_string().into(), value.clone());
                 }
-                Err(_) => {
-                    let mut dict_clone = DictMap::default();
+                dict_clone.insert(key_str.as_str().into(), value);
+                Value::Dict(Arc::new(dict_clone))
+            }
+        },
+        (Value::DenseIntDictInt(values), Value::Str(key_str)) => match key_str.parse::<i64>() {
+            Ok(int_key) => {
+                if int_key < 0 {
+                    let mut int_dict = IntDictMap::default();
+                    int_dict.reserve(values.len());
                     for (index, value) in values.iter().enumerate() {
-                        dict_clone.insert(
-                            index.to_string().into(),
-                            (*value).map(Value::Int).unwrap_or(Value::Null),
-                        );
+                        if let Some(int_value) = value {
+                            int_dict.insert(index as i64, Value::Int(*int_value));
+                        }
                     }
-                    dict_clone.insert(key_str.as_str().into(), value);
-                    Value::Dict(Arc::new(dict_clone))
+                    int_dict.insert(int_key, value);
+                    Value::IntDict(Arc::new(int_dict))
+                } else {
+                    let index = int_key as usize;
+                    match value {
+                        Value::Int(int_value) => {
+                            let mut values = values;
+                            let values_mut = Arc::make_mut(&mut values);
+                            let len = values_mut.len();
+                            if index == len {
+                                values_mut.push(Some(int_value));
+                            } else if index < len {
+                                values_mut[index] = Some(int_value);
+                            } else {
+                                values_mut.resize(index + 1, None);
+                                values_mut[index] = Some(int_value);
+                            }
+                            Value::DenseIntDictInt(values)
+                        }
+                        Value::Null => {
+                            let mut values = values;
+                            let values_mut = Arc::make_mut(&mut values);
+                            let len = values_mut.len();
+                            if index == len {
+                                values_mut.push(None);
+                            } else if index < len {
+                                values_mut[index] = None;
+                            } else {
+                                values_mut.resize(index + 1, None);
+                                values_mut[index] = None;
+                            }
+                            Value::DenseIntDictInt(values)
+                        }
+                        other => {
+                            let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
+                            for value in values.iter() {
+                                dense_values.push((*value).map(Value::Int).unwrap_or(Value::Null));
+                            }
+                            if index >= dense_values.len() {
+                                dense_values.resize(index + 1, Value::Null);
+                            }
+                            dense_values[index] = other;
+                            Value::DenseIntDict(Arc::new(dense_values))
+                        }
+                    }
                 }
             }
-        }
-        (Value::DenseIntDictIntFull(values), Value::Str(key_str)) => {
-            match key_str.parse::<i64>() {
-                Ok(int_key) => {
-                    if int_key < 0 {
-                        let mut int_dict = IntDictMap::default();
-                        int_dict.reserve(values.len());
-                        for (index, value) in values.iter().enumerate() {
-                            int_dict.insert(index as i64, Value::Int(*value));
-                        }
-                        int_dict.insert(int_key, value);
-                        Value::IntDict(Arc::new(int_dict))
-                    } else {
-                        let index = int_key as usize;
-                        match value {
-                            Value::Int(int_value) => {
-                                let mut values = values;
-                                let values_mut = Arc::make_mut(&mut values);
-                                let len = values_mut.len();
-                                if index == len {
-                                    values_mut.push(int_value);
-                                    Value::DenseIntDictIntFull(values)
-                                } else if index < len {
-                                    values_mut[index] = int_value;
-                                    Value::DenseIntDictIntFull(values)
-                                } else {
-                                    let mut sparse = Vec::with_capacity(values.len().max(index + 1));
-                                    for value in values.iter() {
-                                        sparse.push(Some(*value));
-                                    }
-                                    sparse.resize(index + 1, None);
-                                    sparse[index] = Some(int_value);
-                                    Value::DenseIntDictInt(Arc::new(sparse))
-                                }
-                            }
-                            Value::Null => {
+            Err(_) => {
+                let mut dict_clone = DictMap::default();
+                for (index, value) in values.iter().enumerate() {
+                    dict_clone.insert(
+                        index.to_string().into(),
+                        (*value).map(Value::Int).unwrap_or(Value::Null),
+                    );
+                }
+                dict_clone.insert(key_str.as_str().into(), value);
+                Value::Dict(Arc::new(dict_clone))
+            }
+        },
+        (Value::DenseIntDictIntFull(values), Value::Str(key_str)) => match key_str.parse::<i64>() {
+            Ok(int_key) => {
+                if int_key < 0 {
+                    let mut int_dict = IntDictMap::default();
+                    int_dict.reserve(values.len());
+                    for (index, value) in values.iter().enumerate() {
+                        int_dict.insert(index as i64, Value::Int(*value));
+                    }
+                    int_dict.insert(int_key, value);
+                    Value::IntDict(Arc::new(int_dict))
+                } else {
+                    let index = int_key as usize;
+                    match value {
+                        Value::Int(int_value) => {
+                            let mut values = values;
+                            let values_mut = Arc::make_mut(&mut values);
+                            let len = values_mut.len();
+                            if index == len {
+                                values_mut.push(int_value);
+                                Value::DenseIntDictIntFull(values)
+                            } else if index < len {
+                                values_mut[index] = int_value;
+                                Value::DenseIntDictIntFull(values)
+                            } else {
                                 let mut sparse = Vec::with_capacity(values.len().max(index + 1));
                                 for value in values.iter() {
                                     sparse.push(Some(*value));
                                 }
-                                if index >= sparse.len() {
-                                    sparse.resize(index + 1, None);
-                                }
-                                sparse[index] = None;
+                                sparse.resize(index + 1, None);
+                                sparse[index] = Some(int_value);
                                 Value::DenseIntDictInt(Arc::new(sparse))
                             }
-                            other => {
-                                let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
-                                for value in values.iter() {
-                                    dense_values.push(Value::Int(*value));
-                                }
-                                if index >= dense_values.len() {
-                                    dense_values.resize(index + 1, Value::Null);
-                                }
-                                dense_values[index] = other;
-                                Value::DenseIntDict(Arc::new(dense_values))
+                        }
+                        Value::Null => {
+                            let mut sparse = Vec::with_capacity(values.len().max(index + 1));
+                            for value in values.iter() {
+                                sparse.push(Some(*value));
                             }
+                            if index >= sparse.len() {
+                                sparse.resize(index + 1, None);
+                            }
+                            sparse[index] = None;
+                            Value::DenseIntDictInt(Arc::new(sparse))
+                        }
+                        other => {
+                            let mut dense_values = Vec::with_capacity(values.len().max(index + 1));
+                            for value in values.iter() {
+                                dense_values.push(Value::Int(*value));
+                            }
+                            if index >= dense_values.len() {
+                                dense_values.resize(index + 1, Value::Null);
+                            }
+                            dense_values[index] = other;
+                            Value::DenseIntDict(Arc::new(dense_values))
                         }
                     }
                 }
-                Err(_) => {
-                    let mut dict_clone = DictMap::default();
-                    for (index, value) in values.iter().enumerate() {
-                        dict_clone.insert(index.to_string().into(), Value::Int(*value));
-                    }
-                    dict_clone.insert(key_str.as_str().into(), value);
-                    Value::Dict(Arc::new(dict_clone))
-                }
             }
-        }
+            Err(_) => {
+                let mut dict_clone = DictMap::default();
+                for (index, value) in values.iter().enumerate() {
+                    dict_clone.insert(index.to_string().into(), Value::Int(*value));
+                }
+                dict_clone.insert(key_str.as_str().into(), value);
+                Value::Dict(Arc::new(dict_clone))
+            }
+        },
         (Value::Array(mut arr), Value::Int(i)) => {
             let arr_mut = Arc::make_mut(&mut arr);
             let idx = if i < 0 { (arr_mut.len() as i64 + i) as usize } else { i as usize };
@@ -2483,11 +2468,11 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
 
 /// Runtime helper for creating dictionaries (MakeDict opcode)
 /// Pops N key-value pairs from VM stack and creates a new dict
-/// 
+///
 /// # Arguments
 /// * `ctx` - Mutable pointer to VM context with stack
 /// * `num_pairs` - Number of key-value pairs to pop
-/// 
+///
 /// # Returns
 /// 1 on success (dict pushed to stack), 0 on error
 #[no_mangle]
@@ -2495,11 +2480,15 @@ pub extern "C" fn jit_make_dict(ctx: *mut VMContext, num_pairs: i64) -> i64 {
     let vm_ctx = unsafe { &mut *ctx };
     let stack = unsafe { &mut *vm_ctx.stack_ptr };
     let debug_jit = std::env::var("DEBUG_JIT").is_ok();
-    
+
     if debug_jit {
-        eprintln!("JIT: jit_make_dict called with num_pairs={}, stack len={}", num_pairs, stack.len());
+        eprintln!(
+            "JIT: jit_make_dict called with num_pairs={}, stack len={}",
+            num_pairs,
+            stack.len()
+        );
     }
-    
+
     // Pop N key-value pairs from the stack
     let mut map = DictMap::default();
     map.reserve(num_pairs as usize);
@@ -2517,11 +2506,11 @@ pub extern "C" fn jit_make_dict(ctx: *mut VMContext, num_pairs: i64) -> i64 {
             }
             return 0;
         };
-        
+
         if debug_jit {
             eprintln!("JIT: Pair {}: key={:?}, value={:?}", i, key_val, value_val);
         }
-        
+
         // Convert key to string
         let key_str = match &key_val {
             Value::Str(s) => Arc::from(s.as_str()),
@@ -2533,17 +2522,17 @@ pub extern "C" fn jit_make_dict(ctx: *mut VMContext, num_pairs: i64) -> i64 {
                 return 0;
             }
         };
-		
+
         map.insert(Arc::clone(&key_str), value_val);
     }
-    
+
     if debug_jit {
         eprintln!("JIT: Created dict with {} entries", map.len());
     }
-    
+
     // Push the new dict to the stack
     stack.push(Value::Dict(Arc::new(map)));
-    
+
     1 // Success
 }
 
@@ -2619,10 +2608,10 @@ pub struct JitCompiler {
 
     /// Loop headers that should never be JIT-compiled
     loop_jit_blacklist: HashSet<usize>,
-    
+
     /// Type profiling data for specialization
     type_profiles: HashMap<usize, SpecializationInfo>,
-    
+
     /// Enhanced function info cache (function name -> info)
     /// Stores CompiledFnInfo which includes both standard and direct-arg variants
     /// This enables direct JIT recursion for eligible functions
@@ -2741,7 +2730,7 @@ struct BytecodeTranslator {
     get_return_int_func: Option<FuncRef>,
     /// Persist local slots back into VM locals on return (used for loop JIT)
     persist_locals_on_return: bool,
-    
+
     // Phase 7 Step 12: Direct JIT Recursion support
     /// Whether this function is compiled with direct-arg signature
     /// When true, the function takes its first arg as a Cranelift parameter
@@ -2758,10 +2747,10 @@ struct BytecodeTranslator {
 
 impl BytecodeTranslator {
     fn new() -> Self {
-        Self { 
-            value_stack: Vec::new(), 
-            variables: HashMap::new(), 
-            blocks: HashMap::new(), 
+        Self {
+            value_stack: Vec::new(),
+            variables: HashMap::new(),
+            blocks: HashMap::new(),
             block_entry_stack_depth: HashMap::new(),
             loop_header_pcs: std::collections::HashSet::new(),
             ctx_param: None,
@@ -2819,33 +2808,33 @@ impl BytecodeTranslator {
     fn set_local_names(&mut self, local_names: Vec<String>) {
         self.local_names = local_names;
     }
-    
+
     /// Analyze bytecode to find loop headers (backward jump targets) and their expected stack depths.
     /// This is required for correct SSA handling - Cranelift blocks must have parameters
     /// declared when they're created, but for backward jumps we don't know the stack depth
     /// until we reach the jump instruction.
-    /// 
+    ///
     /// Returns a HashMap: PC -> expected stack depth for blocks that receive backward jumps
     fn analyze_loop_headers(instructions: &[OpCode], function_end: usize) -> HashMap<usize, usize> {
         let mut loop_headers: HashMap<usize, usize> = HashMap::new();
         let mut pc_stack_depths: HashMap<usize, i32> = HashMap::new();
         let mut stack_depth: i32 = 0;
-        
+
         // Simple simulation: track stack depth changes through the bytecode
         // We're looking for backward jumps and what stack depth they carry
-        
+
         for (pc, instruction) in instructions.iter().enumerate() {
             if pc >= function_end {
                 break;
             }
-            
+
             // Record stack depth at this PC before processing
             pc_stack_depths.insert(pc, stack_depth);
-            
+
             // Calculate stack effect of each instruction
             let (pops, pushes) = Self::stack_effect(instruction);
             stack_depth = (stack_depth - pops as i32 + pushes as i32).max(0);
-            
+
             // Check for backward jumps (loop back-edges)
             match instruction {
                 OpCode::Jump(target) | OpCode::JumpBack(target) => {
@@ -2854,9 +2843,12 @@ impl BytecodeTranslator {
                         // The stack depth at the jump is what we need at the header
                         let depth = stack_depth.max(0) as usize;
                         loop_headers.insert(*target, depth);
-                        
+
                         if std::env::var("DEBUG_JIT").is_ok() {
-                            eprintln!("JIT: Found loop header at PC {} with stack depth {}", target, depth);
+                            eprintln!(
+                                "JIT: Found loop header at PC {} with stack depth {}",
+                                target, depth
+                            );
                         }
                     }
                 }
@@ -2866,53 +2858,67 @@ impl BytecodeTranslator {
                         // Note: Condition stays on stack (peek), so add 1
                         let depth = stack_depth.max(0) as usize;
                         loop_headers.insert(*target, depth);
-                        
+
                         if std::env::var("DEBUG_JIT").is_ok() {
-                            eprintln!("JIT: Found conditional loop header at PC {} with stack depth {}", target, depth);
+                            eprintln!(
+                                "JIT: Found conditional loop header at PC {} with stack depth {}",
+                                target, depth
+                            );
                         }
                     }
                 }
                 _ => {}
             }
         }
-        
+
         loop_headers
     }
-    
+
     /// Calculate the stack effect (pops, pushes) of a bytecode instruction
     fn stack_effect(instruction: &OpCode) -> (usize, usize) {
         match instruction {
             // Push instructions (0 pops, 1 push)
-            OpCode::LoadConst(_) | OpCode::LoadVar(_) | OpCode::LoadLocal(_) | OpCode::LoadGlobal(_) => (0, 1),
-            
+            OpCode::LoadConst(_)
+            | OpCode::LoadVar(_)
+            | OpCode::LoadLocal(_)
+            | OpCode::LoadGlobal(_) => (0, 1),
+
             // Pop instructions (1 pop, 0 push)
             OpCode::Pop => (1, 0),
-            
+
             // Store operations peek (no pop)
             OpCode::StoreVar(_) | OpCode::StoreLocal(_) | OpCode::StoreGlobal(_) => (0, 0),
-            
+
             // Binary ops (2 pops, 1 push)
-            OpCode::Add | OpCode::Sub | OpCode::Mul | OpCode::Div | OpCode::Mod
-            | OpCode::Equal | OpCode::NotEqual | OpCode::LessThan | OpCode::GreaterThan
-            | OpCode::LessEqual | OpCode::GreaterEqual => (2, 1),
+            OpCode::Add
+            | OpCode::Sub
+            | OpCode::Mul
+            | OpCode::Div
+            | OpCode::Mod
+            | OpCode::Equal
+            | OpCode::NotEqual
+            | OpCode::LessThan
+            | OpCode::GreaterThan
+            | OpCode::LessEqual
+            | OpCode::GreaterEqual => (2, 1),
             OpCode::AddInPlace(_) => (1, 1),
             OpCode::AppendConstStringInPlace(_, _) => (0, 0),
             OpCode::AppendConstCharInPlace(_, _) => (0, 0),
-            
+
             // Unary ops (1 pop, 1 push)
             OpCode::Negate | OpCode::Not => (1, 1),
-            
+
             // Stack manipulation
             OpCode::Dup => (0, 1), // Peek + push copy
-            
+
             // Control flow (vary by type)
             OpCode::Return | OpCode::ReturnNone => (0, 0), // Terminates
             OpCode::Jump(_) | OpCode::JumpBack(_) => (0, 0), // No stack effect
             OpCode::JumpIfTrue(_) | OpCode::JumpIfFalse(_) => (0, 0), // Peek, no pop
-            
+
             // Call (pops args + func, pushes result)
             OpCode::Call(n) => (*n + 1, 1), // Pop n args + 1 func, push result
-            
+
             // Dict/Array operations
             OpCode::IndexGet => (2, 1), // Pop object + index, push value
             OpCode::IndexSet => (3, 0), // Pop object + index + value, push nothing
@@ -2920,12 +2926,12 @@ impl BytecodeTranslator {
             OpCode::IndexSetInPlace(_) => (2, 0), // Pop index + value, modify variable in place
             OpCode::MakeDict(n) => (*n * 2, 1), // Pop N key-value pairs, push dict
             OpCode::MakeDictWithKeys(keys) => (keys.len(), 1), // Pop N values, push dict
-            
+
             // Default for unknown opcodes - assume neutral
             _ => (0, 0),
         }
     }
-    
+
     /// Enable direct-arg mode for functions with single integer parameter
     /// In this mode, the function's first argument is passed directly as a
     /// Cranelift parameter, enabling direct JIT-to-JIT recursion without FFI
@@ -2934,7 +2940,7 @@ impl BytecodeTranslator {
         self.direct_arg_param = Some(param);
         self.param_count = param_count;
     }
-    
+
     /// Scan bytecode to discover all local variables and pre-allocate stack slots
     /// This enables register-based locals optimization - avoiding HashMap lookups
     /// and C function calls for every variable access
@@ -2967,12 +2973,12 @@ impl BytecodeTranslator {
         // Variables that are only read (like recursive function references)
         // should be loaded via runtime calls from globals
         let mut store_var_names: Vec<String> = Vec::new();
-        
+
         for (pc, instruction) in instructions.iter().enumerate() {
             if pc >= function_end {
                 break;
             }
-            
+
             // Only allocate slots for variables that have StoreVar operations
             // This ensures we don't create slots for function references that
             // should be loaded from globals (like 'fib' in recursive calls)
@@ -2982,7 +2988,7 @@ impl BytecodeTranslator {
                 }
             }
         }
-        
+
         // Create a stack slot for each locally-assigned variable
         // Each slot is 8 bytes (i64) to store integer values
         for name in store_var_names {
@@ -2995,21 +3001,24 @@ impl BytecodeTranslator {
                 0, // No alignment padding needed for single slot
             ));
             self.local_slots.insert(name.clone(), slot);
-            
+
             if std::env::var("DEBUG_JIT").is_ok() {
                 eprintln!("JIT: Allocated stack slot {:?} for local '{}'", slot, name);
             }
         }
-        
+
         // Enable local slot optimization if we have any locals
         self.use_local_slots = !self.local_slots.is_empty();
-        
+
         if std::env::var("DEBUG_JIT").is_ok() {
-            eprintln!("JIT: Allocated {} local slots, optimization enabled: {}", 
-                self.local_slots.len(), self.use_local_slots);
+            eprintln!(
+                "JIT: Allocated {} local slots, optimization enabled: {}",
+                self.local_slots.len(),
+                self.use_local_slots
+            );
         }
     }
-    
+
     /// Allocate stack slots for local variables EXCEPT the specified parameter
     /// Used in direct-arg mode where the first parameter is passed as a Cranelift value
     fn allocate_local_slots_except(
@@ -3039,19 +3048,19 @@ impl BytecodeTranslator {
         }
 
         let mut store_var_names: Vec<String> = Vec::new();
-        
+
         for (pc, instruction) in instructions.iter().enumerate() {
             if pc >= function_end {
                 break;
             }
-            
+
             if let OpCode::StoreVar(name) = instruction {
                 if name != exclude_param && !store_var_names.contains(name) {
                     store_var_names.push(name.clone());
                 }
             }
         }
-        
+
         for name in store_var_names {
             if self.non_int_locals.contains(&name) {
                 continue;
@@ -3062,22 +3071,21 @@ impl BytecodeTranslator {
                 0,
             ));
             self.local_slots.insert(name.clone(), slot);
-            
+
             if std::env::var("DEBUG_JIT").is_ok() {
-                eprintln!("JIT: Allocated stack slot {:?} for local '{}' (direct-arg mode)", slot, name);
+                eprintln!(
+                    "JIT: Allocated stack slot {:?} for local '{}' (direct-arg mode)",
+                    slot, name
+                );
             }
         }
-        
+
         self.use_local_slots = !self.local_slots.is_empty();
     }
-    
+
     /// Allocate stack slots for function parameters
     /// This is called separately to ensure parameters have slots for the fast path
-    fn allocate_parameter_slots(
-        &mut self,
-        builder: &mut FunctionBuilder,
-        params: &[String],
-    ) {
+    fn allocate_parameter_slots(&mut self, builder: &mut FunctionBuilder, params: &[String]) {
         for param_name in params {
             if self.non_int_locals.contains(param_name) {
                 continue;
@@ -3090,13 +3098,16 @@ impl BytecodeTranslator {
                     0, // No alignment padding needed for single slot
                 ));
                 self.local_slots.insert(param_name.clone(), slot);
-                
+
                 if std::env::var("DEBUG_JIT").is_ok() {
-                    eprintln!("JIT: Allocated stack slot {:?} for parameter '{}'", slot, param_name);
+                    eprintln!(
+                        "JIT: Allocated stack slot {:?} for parameter '{}'",
+                        slot, param_name
+                    );
                 }
             }
         }
-        
+
         // Re-enable local slots optimization if we have any
         if !self.local_slots.is_empty() {
             self.use_local_slots = true;
@@ -3128,7 +3139,7 @@ impl BytecodeTranslator {
             }
         }
     }
-    
+
     /// Initialize parameter stack slots with values from the HashMap
     /// This is called at function entry to copy parameter values from the
     /// func_locals HashMap (passed via VMContext) into the fast stack slots
@@ -3144,14 +3155,14 @@ impl BytecodeTranslator {
         if !self.use_local_slots || params.is_empty() {
             return;
         }
-        
+
         let ctx = match self.ctx_param {
             Some(ctx) => ctx,
             None => return,
         };
-        
+
         let use_fast_args = get_arg_func.is_some() && params.len() <= 4;
-        
+
         for (i, param_name) in params.iter().enumerate() {
             if let Some(&slot) = self.local_slots.get(param_name) {
                 let param_value = if use_fast_args {
@@ -3165,23 +3176,25 @@ impl BytecodeTranslator {
                     let name_hash = Self::hash_var_name(param_name) as i64;
                     let name_hash_val = builder.ins().iconst(types::I64, name_hash);
                     let zero = builder.ins().iconst(types::I64, 0);
-                    
+
                     // Call jit_load_variable to get the parameter value from func_locals
                     let call = builder.ins().call(load_var_func, &[ctx, name_hash_val, zero]);
                     builder.inst_results(call)[0]
                 };
-                
+
                 // Store the parameter value into the stack slot
                 builder.ins().stack_store(param_value, slot, 0);
-                
+
                 if std::env::var("DEBUG_JIT").is_ok() {
-                    eprintln!("JIT: Initialized parameter '{}' in stack slot {:?} (fast={})", 
-                        param_name, slot, use_fast_args);
+                    eprintln!(
+                        "JIT: Initialized parameter '{}' in stack slot {:?} (fast={})",
+                        param_name, slot, use_fast_args
+                    );
                 }
             }
         }
     }
-    
+
     /// Initialize local slots from VM locals (used for loop JIT)
     fn initialize_local_slots_from_vm(
         &mut self,
@@ -3193,23 +3206,20 @@ impl BytecodeTranslator {
         }
 
         self.dirty_local_names.clear();
-        
+
         let ctx = match self.ctx_param {
             Some(ctx) => ctx,
             None => return,
         };
-        
-        let local_slots: Vec<(String, StackSlot)> = self
-            .local_slots
-            .iter()
-            .map(|(name, slot)| (name.clone(), *slot))
-            .collect();
-        
+
+        let local_slots: Vec<(String, StackSlot)> =
+            self.local_slots.iter().map(|(name, slot)| (name.clone(), *slot)).collect();
+
         for (name, slot) in local_slots {
             let name_hash = Self::hash_var_name(&name) as i64;
             let name_hash_val = builder.ins().iconst(types::I64, name_hash);
             let zero = builder.ins().iconst(types::I64, 0);
-            
+
             let call = builder.ins().call(load_var_func, &[ctx, name_hash_val, zero]);
             let value = builder.inst_results(call)[0];
             builder.ins().stack_store(value, slot, 0);
@@ -3250,11 +3260,8 @@ impl BytecodeTranslator {
             None => return,
         };
 
-        let ptr_slots: Vec<(usize, StackSlot)> = self
-            .int_dict_ptr_slots
-            .iter()
-            .map(|(slot_index, slot)| (*slot_index, *slot))
-            .collect();
+        let ptr_slots: Vec<(usize, StackSlot)> =
+            self.int_dict_ptr_slots.iter().map(|(slot_index, slot)| (*slot_index, *slot)).collect();
 
         for (slot_index, ptr_slot) in ptr_slots {
             let slot_val = builder.ins().iconst(types::I64, slot_index as i64);
@@ -3263,7 +3270,7 @@ impl BytecodeTranslator {
             builder.ins().stack_store(ptr_value, ptr_slot, 0);
         }
     }
-    
+
     /// Persist local slots back to VM locals (used for loop JIT)
     fn persist_local_slots_to_vm(&self, builder: &mut FunctionBuilder) {
         if !self.use_local_slots || !self.persist_locals_on_return {
@@ -3273,17 +3280,17 @@ impl BytecodeTranslator {
         if self.dirty_local_names.is_empty() {
             return;
         }
-        
+
         let ctx = match self.ctx_param {
             Some(ctx) => ctx,
             None => return,
         };
-        
+
         let store_func = match self.store_var_func {
             Some(func) => func,
             None => return,
         };
-        
+
         for (name, slot) in &self.local_slots {
             if !self.dirty_local_names.contains(name) {
                 continue;
@@ -3295,12 +3302,12 @@ impl BytecodeTranslator {
             builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
         }
     }
-    
+
     /// Calculate the extent of the function body from bytecode
     fn calculate_function_end(instructions: &[OpCode]) -> usize {
         // Find the extent by looking at all jump targets
         let mut max_reachable: usize = 0;
-        
+
         for (pc, instruction) in instructions.iter().enumerate() {
             match instruction {
                 OpCode::Jump(target)
@@ -3319,22 +3326,22 @@ impl BytecodeTranslator {
                 _ => {}
             }
         }
-        
+
         // Find the Return after max_reachable
         for (pc, instruction) in instructions.iter().enumerate().skip(max_reachable) {
             if matches!(instruction, OpCode::Return | OpCode::ReturnNone) {
                 return pc + 1;
             }
         }
-        
+
         // Fallback: use max_reachable + 1
         max_reachable + 1
     }
-    
+
     fn set_context_param(&mut self, ctx: cranelift::prelude::Value) {
         self.ctx_param = Some(ctx);
     }
-    
+
     fn set_external_functions(
         &mut self,
         load_var: FuncRef,
@@ -3345,33 +3352,33 @@ impl BytecodeTranslator {
         self.store_var_func = Some(store_var);
         self.store_var_from_stack_func = Some(store_var_from_stack);
     }
-    
+
     fn set_float_functions(&mut self, load_var_float: FuncRef, store_var_float: FuncRef) {
         self.load_var_float_func = Some(load_var_float);
         self.store_var_float_func = Some(store_var_float);
     }
-    
+
     fn set_guard_functions(&mut self, check_int: FuncRef, check_float: FuncRef) {
         self.check_type_int_func = Some(check_int);
         self.check_type_float_func = Some(check_float);
     }
-    
+
     fn set_call_function(&mut self, call_func: FuncRef) {
         self.call_func = Some(call_func);
     }
-    
+
     fn set_push_int_function(&mut self, push_int_func: FuncRef) {
         self.push_int_func = Some(push_int_func);
     }
-    
+
     fn set_return_int_function(&mut self, set_return_int_func: FuncRef) {
         self.set_return_int_func = Some(set_return_int_func);
     }
-    
+
     fn set_stack_pop_function(&mut self, stack_pop_func: FuncRef) {
         self.stack_pop_func = Some(stack_pop_func);
     }
-    
+
     fn set_stack_push_function(&mut self, stack_push_func: FuncRef) {
         self.stack_push_func = Some(stack_push_func);
     }
@@ -3397,12 +3404,8 @@ impl BytecodeTranslator {
             .obj_to_vm_stack_func
             .ok_or_else(|| "push_string_handle requires obj_to_vm_stack_func".to_string())?;
 
-        let string_ptr = builder
-            .ins()
-            .iconst(types::I64, string_val.as_ptr() as i64);
-        let string_len = builder
-            .ins()
-            .iconst(types::I64, string_val.len() as i64);
+        let string_ptr = builder.ins().iconst(types::I64, string_val.as_ptr() as i64);
+        let string_len = builder.ins().iconst(types::I64, string_val.len() as i64);
         let call = builder.ins().call(push_string, &[ctx, string_ptr, string_len]);
         let handle = builder.inst_results(call)[0];
         builder.ins().call(obj_to_vm, &[ctx, handle]);
@@ -3411,21 +3414,21 @@ impl BytecodeTranslator {
         self.push_value(marker);
         Ok(())
     }
-    
+
     fn set_specialization(&mut self, spec: SpecializationInfo) {
         self.specialization = Some(spec);
     }
-    
+
     /// Set the current function name for self-recursion detection
     fn set_current_function_name(&mut self, name: &str) {
         self.current_function_name = Some(name.to_string());
     }
-    
+
     /// Set the self-recursive call function reference
     fn set_self_call_function(&mut self, func_ref: FuncRef) {
         self.self_call_func = Some(func_ref);
     }
-    
+
     /// Set the get-return-int function reference
     fn set_get_return_int_function(&mut self, func_ref: FuncRef) {
         self.get_return_int_func = Some(func_ref);
@@ -3450,7 +3453,11 @@ impl BytecodeTranslator {
         self.make_dict_with_keys_func = Some(func_ref);
     }
 
-    fn set_append_in_place_functions(&mut self, append_string_func: FuncRef, append_char_func: FuncRef) {
+    fn set_append_in_place_functions(
+        &mut self,
+        append_string_func: FuncRef,
+        append_char_func: FuncRef,
+    ) {
         self.append_const_string_in_place_func = Some(append_string_func);
         self.append_const_char_in_place_func = Some(append_char_func);
     }
@@ -3487,7 +3494,7 @@ impl BytecodeTranslator {
     fn set_int_dict_slots(&mut self, slots: std::collections::HashSet<usize>) {
         self.int_dict_slots = slots;
     }
-    
+
     /// Enable or disable persisting local slots on return
     #[allow(dead_code)]
     fn set_persist_locals_on_return(&mut self, enabled: bool) {
@@ -3504,16 +3511,16 @@ impl BytecodeTranslator {
     ) -> Result<(), String> {
         // Calculate and store function_end
         self.function_end = Self::calculate_function_end(instructions);
-        
+
         // STEP 11 FIX: Analyze loop headers to find backward jump targets and their stack depths
         let loop_headers = Self::analyze_loop_headers(instructions, self.function_end);
-        
+
         // Create blocks for jump targets within function body
         for (pc, instruction) in instructions.iter().enumerate() {
             if pc >= self.function_end {
                 break;
             }
-            
+
             match instruction {
                 OpCode::Jump(target)
                 | OpCode::JumpIfFalse(target)
@@ -3522,27 +3529,29 @@ impl BytecodeTranslator {
                     if *target < self.function_end {
                         if !self.blocks.contains_key(target) {
                             let block = builder.create_block();
-                            
+
                             // STEP 11 FIX: If this is a loop header, add block parameters
                             // This enables backward jumps to pass values (like loop counters)
                             if let Some(&expected_depth) = loop_headers.get(target) {
                                 // Record this as a loop header - it should NOT be sealed until
                                 // all predecessors (including back-edges) are processed
                                 self.loop_header_pcs.insert(*target);
-                                
+
                                 // Add i64 parameters for each expected stack value
                                 for _ in 0..expected_depth {
                                     builder.append_block_param(block, types::I64);
                                 }
                                 // Record the expected stack depth for this block
                                 self.block_entry_stack_depth.insert(*target, expected_depth);
-                                
+
                                 if std::env::var("DEBUG_JIT").is_ok() {
-                                    eprintln!("JIT: Created loop header block at PC {} with {} params", 
-                                        target, expected_depth);
+                                    eprintln!(
+                                        "JIT: Created loop header block at PC {} with {} params",
+                                        target, expected_depth
+                                    );
                                 }
                             }
-                            
+
                             self.blocks.insert(*target, block);
                         }
                     }
@@ -3555,12 +3564,15 @@ impl BytecodeTranslator {
                 _ => {}
             }
         }
-        
+
         if std::env::var("DEBUG_JIT").is_ok() {
-            eprintln!("JIT: Function body extent: 0..{}, blocks created: {:?}", 
-                self.function_end, self.blocks.keys().collect::<Vec<_>>());
+            eprintln!(
+                "JIT: Function body extent: 0..{}, blocks created: {:?}",
+                self.function_end,
+                self.blocks.keys().collect::<Vec<_>>()
+            );
         }
-        
+
         Ok(())
     }
 
@@ -3573,7 +3585,7 @@ impl BytecodeTranslator {
         constants: &[Constant],
     ) -> Result<bool, String> {
         // Returns Ok(true) if this instruction terminates the block
-        
+
         match instruction {
             // Arithmetic operations
             OpCode::Add => {
@@ -3772,17 +3784,18 @@ impl BytecodeTranslator {
                 if let Some(&target_block) = self.blocks.get(target) {
                     // Get or create the fallthrough block
                     let next_pc = pc + 1;
-                    let fallthrough_block = *self.blocks.get(&next_pc)
-                        .ok_or_else(|| format!("No fallthrough block after JumpIfFalse at PC {}", pc))?;
+                    let fallthrough_block = *self.blocks.get(&next_pc).ok_or_else(|| {
+                        format!("No fallthrough block after JumpIfFalse at PC {}", pc)
+                    })?;
 
                     // Pass the current stack as block arguments to both branches
                     // This ensures both paths have access to the condition value
                     let args: Vec<_> = self.value_stack.clone();
-                    
+
                     // Record expected stack depth for both blocks
                     self.block_entry_stack_depth.insert(*target, args.len());
                     self.block_entry_stack_depth.insert(next_pc, args.len());
-                    
+
                     builder.ins().brif(is_false, target_block, &args, fallthrough_block, &args);
                     return Ok(true); // Terminates block
                 } else {
@@ -3800,16 +3813,17 @@ impl BytecodeTranslator {
                 if let Some(&target_block) = self.blocks.get(target) {
                     // Get or create the fallthrough block
                     let next_pc = pc + 1;
-                    let fallthrough_block = *self.blocks.get(&next_pc)
-                        .ok_or_else(|| format!("No fallthrough block after JumpIfTrue at PC {}", pc))?;
+                    let fallthrough_block = *self.blocks.get(&next_pc).ok_or_else(|| {
+                        format!("No fallthrough block after JumpIfTrue at PC {}", pc)
+                    })?;
 
                     // Pass the current stack as block arguments to both branches
                     let args: Vec<_> = self.value_stack.clone();
-                    
+
                     // Record expected stack depth for both blocks
                     self.block_entry_stack_depth.insert(*target, args.len());
                     self.block_entry_stack_depth.insert(next_pc, args.len());
-                    
+
                     builder.ins().brif(is_true, target_block, &args, fallthrough_block, &args);
                     return Ok(true); // Terminates block
                 } else {
@@ -3835,17 +3849,17 @@ impl BytecodeTranslator {
                 // because stack slots are shared between recursive calls.
                 // TODO: Implement proper tail-call optimization or save/restore slots
                 // For now, continue using VM-mediated recursion which is already optimized.
-                
+
                 // Call instruction (all paths go through VM):
                 // 1. Pop the function marker from JIT stack (should be -1 if function)
-                // 2. Pop arguments from JIT stack  
+                // 2. Pop arguments from JIT stack
                 // 3. Push integer args to VM stack (function is already there from LoadVar)
                 // 4. Call the runtime helper (which pops args first, then function)
                 // 5. Pop the result from VM stack
-                
+
                 // Clear any pending self-recursion flag (not used yet)
                 self.self_recursion_pending = false;
-                
+
                 // Pop values from JIT stack (in reverse order)
                 let _func_marker = self.pop_value()?; // -1 if it's a function, otherwise an int
                 let mut arg_vals = Vec::new();
@@ -3853,10 +3867,10 @@ impl BytecodeTranslator {
                     arg_vals.push(self.pop_value()?);
                 }
                 arg_vals.reverse(); // Reverse to get correct order
-                
-                if let (Some(ctx), Some(call_func), Some(stack_push)) = 
-                    (self.ctx_param, self.call_func, self.stack_push_func) {
-                    
+
+                if let (Some(ctx), Some(call_func), Some(stack_push)) =
+                    (self.ctx_param, self.call_func, self.stack_push_func)
+                {
                     // Push integer arguments to VM stack (function is already there at bottom)
                     // VM stack before: [function]
                     // VM stack after push: [function, arg0, arg1, ...]
@@ -3864,12 +3878,12 @@ impl BytecodeTranslator {
                     for arg_val in &arg_vals {
                         builder.ins().call(stack_push, &[ctx, *arg_val]);
                     }
-                    
+
                     // Call jit_call_function
                     let null_ptr = builder.ins().iconst(types::I64, 0);
                     let arg_count_val = builder.ins().iconst(types::I64, *arg_count as i64);
                     let _call_inst = builder.ins().call(call_func, &[ctx, null_ptr, arg_count_val]);
-                    
+
                     // Pop the result from VM stack
                     if let Some(stack_pop) = self.stack_pop_func {
                         let call = builder.ins().call(stack_pop, &[ctx]);
@@ -3880,32 +3894,35 @@ impl BytecodeTranslator {
                         let zero = builder.ins().iconst(types::I64, 0);
                         self.push_value(zero);
                     }
-                    
+
                     return Ok(false); // Doesn't terminate block
                 } else {
-                    return Err("Call opcode requires context, call function, and stack_push to be set".to_string());
+                    return Err(
+                        "Call opcode requires context, call function, and stack_push to be set"
+                            .to_string(),
+                    );
                 }
             }
-            
+
             OpCode::IndexGet => {
                 // Dict/Array get: Pop index and object, push result
                 // Stack: [object, index] -> [value]
-                
+
                 if let (Some(ctx), Some(dict_get_ref)) = (self.ctx_param, self.dict_get_func) {
                     // Pop index and object from JIT stack
                     let _index = self.pop_value()?;
                     let _object = self.pop_value()?;
-                    
+
                     // Push them to VM stack for runtime helper
                     if let Some(stack_push) = self.stack_push_func {
                         builder.ins().call(stack_push, &[ctx, _object]);
                         builder.ins().call(stack_push, &[ctx, _index]);
                     }
-                    
+
                     // Call the helper
                     let call = builder.ins().call(dict_get_ref, &[ctx]);
                     let _success = builder.inst_results(call)[0];
-                    
+
                     // Pop result from VM stack
                     if let Some(stack_pop) = self.stack_pop_func {
                         let call = builder.ins().call(stack_pop, &[ctx]);
@@ -3915,47 +3932,47 @@ impl BytecodeTranslator {
                         let zero = builder.ins().iconst(types::I64, 0);
                         self.push_value(zero);
                     }
-                    
+
                     return Ok(false);
                 } else {
                     return Err("IndexGet requires context and dict_get function".to_string());
                 }
             }
-            
+
             OpCode::IndexSet => {
                 // Dict/Array set: Pop value, index, and object
                 // Stack: [object, index, value] -> []
-                
+
                 if let (Some(ctx), Some(dict_set_ref)) = (self.ctx_param, self.dict_set_func) {
                     // Pop value, index, and object from JIT stack
                     let _value = self.pop_value()?;
                     let _index = self.pop_value()?;
                     let _object = self.pop_value()?;
-                    
+
                     // Push them to VM stack for runtime helper
                     if let Some(stack_push) = self.stack_push_func {
                         builder.ins().call(stack_push, &[ctx, _object]);
                         builder.ins().call(stack_push, &[ctx, _index]);
                         builder.ins().call(stack_push, &[ctx, _value]);
                     }
-                    
+
                     // Call the helper
                     let call = builder.ins().call(dict_set_ref, &[ctx]);
                     let _success = builder.inst_results(call)[0];
-                    
+
                     // The modified dict/array is left on the VM stack by jit_dict_set
                     // We don't need to pop it here as IndexSet has 0 stack push effect
-                    
+
                     return Ok(false);
                 } else {
                     return Err("IndexSet requires context and dict_set function".to_string());
                 }
             }
-            
+
             OpCode::MakeDict(num_pairs) => {
                 // Create a new dict from N key-value pairs on the stack
                 // Stack: [key1, val1, key2, val2, ..., keyN, valN] -> [dict]
-                
+
                 if let (Some(ctx), Some(make_dict_ref)) = (self.ctx_param, self.make_dict_func) {
                     // Pop all key-value pairs from JIT stack and push to VM stack
                     // Note: We pop in reverse order (valN, keyN, ..., val1, key1)
@@ -3966,7 +3983,7 @@ impl BytecodeTranslator {
                         let key = self.pop_value()?;
                         temp_pairs.push((key, value));
                     }
-                    
+
                     // Push to VM stack in correct order (key1, val1, key2, val2, ...)
                     if let Some(stack_push) = self.stack_push_func {
                         for (key, value) in temp_pairs.iter().rev() {
@@ -3974,7 +3991,7 @@ impl BytecodeTranslator {
                             builder.ins().call(stack_push, &[ctx, *value]);
                         }
                     }
-                    
+
                     // Call jit_make_dict with num_pairs
                     let num_pairs_val = builder.ins().iconst(types::I64, *num_pairs as i64);
                     let call = builder.ins().call(make_dict_ref, &[ctx, num_pairs_val]);
@@ -3983,7 +4000,7 @@ impl BytecodeTranslator {
                     // Leave dict on VM stack and push marker for non-int value
                     let marker = builder.ins().iconst(types::I64, -1);
                     self.push_value(marker);
-                    
+
                     return Ok(false);
                 } else {
                     return Err("MakeDict requires context and make_dict function".to_string());
@@ -4031,7 +4048,9 @@ impl BytecodeTranslator {
                     builder.ins().call(append_func, &[ctx, slot_val, string_ptr, string_len]);
                     return Ok(false);
                 } else {
-                    return Err("AppendConstStringInPlace requires context and append helper".to_string());
+                    return Err(
+                        "AppendConstStringInPlace requires context and append helper".to_string()
+                    );
                 }
             }
 
@@ -4044,10 +4063,12 @@ impl BytecodeTranslator {
                     builder.ins().call(append_func, &[ctx, slot_val, char_val]);
                     return Ok(false);
                 } else {
-                    return Err("AppendConstCharInPlace requires context and append helper".to_string());
+                    return Err(
+                        "AppendConstCharInPlace requires context and append helper".to_string()
+                    );
                 }
             }
-            
+
             OpCode::IndexSetInPlace(slot_index) => {
                 // In-place index assignment: var[index] = value
                 // Stack: [value, index] -> []
@@ -4098,32 +4119,25 @@ impl BytecodeTranslator {
 
                             builder.switch_to_block(dense_int_full_block);
                             let zero = builder.ins().iconst(types::I64, 0);
-                            let is_negative = builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
+                            let is_negative =
+                                builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
                             let inline_slow_block = builder.create_block();
                             let inline_set_block = builder.create_block();
-                            builder.ins().brif(is_negative, inline_slow_block, &[], inline_set_block, &[]);
+                            builder.ins().brif(
+                                is_negative,
+                                inline_slow_block,
+                                &[],
+                                inline_set_block,
+                                &[],
+                            );
 
                             builder.switch_to_block(inline_set_block);
                             let tag_mask = builder.ins().iconst(types::I64, !7i64);
                             let base_ptr = builder.ins().band(dict_ptr, tag_mask);
-                            let data_ptr = builder.ins().load(
-                                types::I64,
-                                MemFlags::new(),
-                                base_ptr,
-                                0,
-                            );
-                            let len = builder.ins().load(
-                                types::I64,
-                                MemFlags::new(),
-                                base_ptr,
-                                8,
-                            );
-                            let cap = builder.ins().load(
-                                types::I64,
-                                MemFlags::new(),
-                                base_ptr,
-                                16,
-                            );
+                            let data_ptr =
+                                builder.ins().load(types::I64, MemFlags::new(), base_ptr, 0);
+                            let len = builder.ins().load(types::I64, MemFlags::new(), base_ptr, 8);
+                            let cap = builder.ins().load(types::I64, MemFlags::new(), base_ptr, 16);
 
                             let is_lt_len = builder.ins().icmp(IntCC::SignedLessThan, _index, len);
                             let is_eq_len = builder.ins().icmp(IntCC::Equal, _index, len);
@@ -4133,7 +4147,13 @@ impl BytecodeTranslator {
                             let update_block = builder.create_block();
                             let append_check_block = builder.create_block();
                             let append_block = builder.create_block();
-                            builder.ins().brif(is_lt_len, update_block, &[], append_check_block, &[]);
+                            builder.ins().brif(
+                                is_lt_len,
+                                update_block,
+                                &[],
+                                append_check_block,
+                                &[],
+                            );
 
                             builder.switch_to_block(update_block);
                             let stride = builder.ins().iconst(types::I64, 8);
@@ -4143,7 +4163,13 @@ impl BytecodeTranslator {
                             builder.ins().jump(cont_block, &[]);
 
                             builder.switch_to_block(append_check_block);
-                            builder.ins().brif(can_append, append_block, &[], inline_slow_block, &[]);
+                            builder.ins().brif(
+                                can_append,
+                                append_block,
+                                &[],
+                                inline_slow_block,
+                                &[],
+                            );
 
                             builder.switch_to_block(append_block);
                             let stride = builder.ins().iconst(types::I64, 8);
@@ -4159,7 +4185,9 @@ impl BytecodeTranslator {
                             if let Some(set_dense_int_full_ref) =
                                 self.int_dict_set_ptr_dense_int_full_func
                             {
-                                builder.ins().call(set_dense_int_full_ref, &[dict_ptr, _index, _value]);
+                                builder
+                                    .ins()
+                                    .call(set_dense_int_full_ref, &[dict_ptr, _index, _value]);
                             } else {
                                 builder.ins().call(set_ptr_ref, &[dict_ptr, _index, _value]);
                             }
@@ -4190,7 +4218,9 @@ impl BytecodeTranslator {
                                 (self.ctx_param, self.local_slot_int_dict_set_func)
                             {
                                 let slot_val = builder.ins().iconst(types::I64, *slot_index as i64);
-                                builder.ins().call(set_int_dict_ref, &[ctx, slot_val, _index, _value]);
+                                builder
+                                    .ins()
+                                    .call(set_int_dict_ref, &[ctx, slot_val, _index, _value]);
                                 if let Some(unique_ptr_ref) = self.int_dict_unique_ptr_func {
                                     let call = builder.ins().call(unique_ptr_ref, &[ctx, slot_val]);
                                     let new_ptr = builder.inst_results(call)[0];
@@ -4220,7 +4250,7 @@ impl BytecodeTranslator {
 
                     return Err("IndexSetInPlace requires int-dict helpers".to_string());
                 }
-                
+
                 if let (Some(ctx), Some(local_set_ref)) =
                     (self.ctx_param, self.local_slot_dict_set_func)
                 {
@@ -4294,7 +4324,9 @@ impl BytecodeTranslator {
                                 self.push_value(null_val);
                                 return Ok(false);
                             } else {
-                                return Err("IndexSetInPlace requires stack push/pop functions".to_string());
+                                return Err(
+                                    "IndexSetInPlace requires stack push/pop functions".to_string()
+                                );
                             }
                         }
                     }
@@ -4348,10 +4380,12 @@ impl BytecodeTranslator {
 
                     return Ok(false);
                 } else {
-                    return Err("IndexSetInPlace requires context and dict_set function".to_string());
+                    return Err(
+                        "IndexSetInPlace requires context and dict_set function".to_string()
+                    );
                 }
             }
-            
+
             OpCode::IndexGetInPlace(slot_index) => {
                 // In-place index read: value = var[index]
                 // Stack: [index] -> [value]
@@ -4401,26 +4435,24 @@ impl BytecodeTranslator {
 
                             builder.switch_to_block(dense_int_full_block);
                             let zero = builder.ins().iconst(types::I64, 0);
-                            let is_negative = builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
+                            let is_negative =
+                                builder.ins().icmp(IntCC::SignedLessThan, _index, zero);
                             let inline_slow_block = builder.create_block();
                             let inline_get_block = builder.create_block();
-                            builder.ins().brif(is_negative, inline_slow_block, &[], inline_get_block, &[]);
+                            builder.ins().brif(
+                                is_negative,
+                                inline_slow_block,
+                                &[],
+                                inline_get_block,
+                                &[],
+                            );
 
                             builder.switch_to_block(inline_get_block);
                             let tag_mask = builder.ins().iconst(types::I64, !7i64);
                             let base_ptr = builder.ins().band(dict_ptr, tag_mask);
-                            let data_ptr = builder.ins().load(
-                                types::I64,
-                                MemFlags::new(),
-                                base_ptr,
-                                0,
-                            );
-                            let len = builder.ins().load(
-                                types::I64,
-                                MemFlags::new(),
-                                base_ptr,
-                                8,
-                            );
+                            let data_ptr =
+                                builder.ins().load(types::I64, MemFlags::new(), base_ptr, 0);
+                            let len = builder.ins().load(types::I64, MemFlags::new(), base_ptr, 8);
                             let is_lt_len = builder.ins().icmp(IntCC::SignedLessThan, _index, len);
                             let hit_block = builder.create_block();
                             let miss_block = builder.create_block();
@@ -4460,10 +4492,9 @@ impl BytecodeTranslator {
                             );
 
                             builder.switch_to_block(dense_int_sparse_block);
-                            if let Some(get_dense_int_ref) =
-                                self.int_dict_get_ptr_dense_int_func
-                            {
-                                let call = builder.ins().call(get_dense_int_ref, &[dict_ptr, _index]);
+                            if let Some(get_dense_int_ref) = self.int_dict_get_ptr_dense_int_func {
+                                let call =
+                                    builder.ins().call(get_dense_int_ref, &[dict_ptr, _index]);
                                 let fast_value = builder.inst_results(call)[0];
                                 builder.ins().jump(cont_block, &[fast_value]);
                             } else {
@@ -4505,7 +4536,7 @@ impl BytecodeTranslator {
 
                     return Err("IndexGetInPlace requires int-dict helpers".to_string());
                 }
-                
+
                 if let (Some(ctx), Some(local_get_ref)) =
                     (self.ctx_param, self.local_slot_dict_get_func)
                 {
@@ -4526,11 +4557,9 @@ impl BytecodeTranslator {
                         .ok_or_else(|| "IndexGetInPlace missing local slot name".to_string())?;
 
                     if self.non_int_locals.contains(var_name) {
-                        if let (Some(load_var_ref), Some(stack_push), Some(stack_pop)) = (
-                            self.load_var_func,
-                            self.stack_push_func,
-                            self.stack_pop_func,
-                        ) {
+                        if let (Some(load_var_ref), Some(stack_push), Some(stack_pop)) =
+                            (self.load_var_func, self.stack_push_func, self.stack_pop_func)
+                        {
                             let name_hash = Self::hash_var_name(var_name) as i64;
                             let name_hash_val = builder.ins().iconst(types::I64, name_hash);
                             let zero = builder.ins().iconst(types::I64, 0);
@@ -4571,7 +4600,9 @@ impl BytecodeTranslator {
                                 self.push_value(value);
                                 return Ok(false);
                             } else {
-                                return Err("IndexGetInPlace requires stack push/pop functions".to_string());
+                                return Err(
+                                    "IndexGetInPlace requires stack push/pop functions".to_string()
+                                );
                             }
                         }
                     }
@@ -4615,10 +4646,12 @@ impl BytecodeTranslator {
 
                     return Ok(false);
                 } else {
-                    return Err("IndexGetInPlace requires context and dict_get function".to_string());
+                    return Err(
+                        "IndexGetInPlace requires context and dict_get function".to_string()
+                    );
                 }
             }
-            
+
             OpCode::Return => {
                 // Pop the return value from our stack
                 if let Some(return_value) = self.value_stack.pop() {
@@ -4629,7 +4662,8 @@ impl BytecodeTranslator {
                         // pushing to the VM stack, avoiding stack operations overhead.
                         // The VM will check has_return_value and use return_value directly.
                         if let Some(set_return_int_func) = self.set_return_int_func {
-                            let inst = builder.ins().call(set_return_int_func, &[ctx, return_value]);
+                            let inst =
+                                builder.ins().call(set_return_int_func, &[ctx, return_value]);
                             let _result = builder.inst_results(inst)[0];
                         } else if let Some(push_int_func) = self.push_int_func {
                             // Fallback: Use original jit_push_int (slower path)
@@ -4667,7 +4701,7 @@ impl BytecodeTranslator {
                         return Ok(false);
                     }
                 }
-                
+
                 // OPTIMIZATION: Use stack slots for local variables (register-based locals)
                 // This avoids C function calls and HashMap lookups for every variable access
                 if self.use_local_slots {
@@ -4676,7 +4710,7 @@ impl BytecodeTranslator {
                         // Load the i64 value directly from the stack slot
                         let value = builder.ins().stack_load(types::I64, slot, 0);
                         self.push_value(value);
-                        
+
                         if std::env::var("DEBUG_JIT").is_ok() {
                             eprintln!("JIT: LoadVar '{}' using fast stack slot {:?}", name, slot);
                         }
@@ -4704,10 +4738,10 @@ impl BytecodeTranslator {
                         name.hash(&mut hasher);
                         hasher.finish() as i64
                     };
-                    
+
                     let name_hash_val = builder.ins().iconst(types::I64, name_hash);
                     let zero = builder.ins().iconst(types::I64, 0); // name_len = 0 (use hash instead)
-                    
+
                     // Call jit_load_variable(ctx, name_hash, 0)
                     let call = builder.ins().call(load_func, &[ctx, name_hash_val, zero]);
                     let result = builder.inst_results(call)[0];
@@ -4787,7 +4821,7 @@ impl BytecodeTranslator {
                         return Ok(false);
                     }
                 }
-                
+
                 // OPTIMIZATION: Use stack slots for local variables (register-based locals)
                 if self.use_local_slots {
                     if let Some(&slot) = self.local_slots.get(name) {
@@ -4795,21 +4829,23 @@ impl BytecodeTranslator {
                         // Fast path: Direct stack slot store
                         // Store the i64 value directly to the stack slot
                         builder.ins().stack_store(value, slot, 0);
-                        
+
                         if std::env::var("DEBUG_JIT").is_ok() {
                             eprintln!("JIT: StoreVar '{}' using fast stack slot {:?}", name, slot);
                         }
                         // Value stays on stack - do NOT pop
                     } else {
                         // Variable not in local slots - fall back to runtime call
-                        if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
+                        if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func)
+                        {
                             let name_hash = Self::hash_var_name(name) as i64;
                             let name_hash_val = builder.ins().iconst(types::I64, name_hash);
                             let zero = builder.ins().iconst(types::I64, 0);
                             builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
                         }
                     }
-                } else if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
+                } else if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func)
+                {
                     // Original slow path: Call runtime helper
                     let name_hash = {
                         use std::collections::hash_map::DefaultHasher;
@@ -4818,10 +4854,10 @@ impl BytecodeTranslator {
                         name.hash(&mut hasher);
                         hasher.finish() as i64
                     };
-                    
+
                     let name_hash_val = builder.ins().iconst(types::I64, name_hash);
                     let zero = builder.ins().iconst(types::I64, 0); // name_len = 0
-                    
+
                     // Call jit_store_variable(ctx, name_hash, 0, value)
                     builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
                     // Value stays on stack - do NOT pop
@@ -4894,10 +4930,10 @@ impl BytecodeTranslator {
                         name.hash(&mut hasher);
                         hasher.finish() as i64
                     };
-                    
+
                     let name_hash_val = builder.ins().iconst(types::I64, name_hash);
                     let zero = builder.ins().iconst(types::I64, 0);
-                    
+
                     let call = builder.ins().call(load_func, &[ctx, name_hash_val, zero]);
                     let result = builder.inst_results(call)[0];
                     self.push_value(result);
@@ -4911,7 +4947,7 @@ impl BytecodeTranslator {
                 // Same as StoreVar - PEEKS at stack, doesn't pop
                 if let (Some(ctx), Some(store_func)) = (self.ctx_param, self.store_var_func) {
                     let value = self.peek_value()?;
-                    
+
                     let name_hash = {
                         use std::collections::hash_map::DefaultHasher;
                         use std::hash::{Hash, Hasher};
@@ -4919,10 +4955,10 @@ impl BytecodeTranslator {
                         name.hash(&mut hasher);
                         hasher.finish() as i64
                     };
-                    
+
                     let name_hash_val = builder.ins().iconst(types::I64, name_hash);
                     let zero = builder.ins().iconst(types::I64, 0);
-                    
+
                     builder.ins().call(store_func, &[ctx, name_hash_val, zero, value]);
                     // Value stays on stack - do NOT pop
                 } else {
@@ -4938,7 +4974,7 @@ impl BytecodeTranslator {
 
         Ok(false) // Doesn't terminate block
     }
-    
+
     /// Translate bytecode instruction for direct-arg mode
     /// This is the key optimization for recursive functions:
     /// - LoadVar of the parameter uses the direct Cranelift parameter value
@@ -5046,7 +5082,9 @@ impl BytecodeTranslator {
                             eprintln!("JIT direct-arg: LoadVar '{}' using direct parameter", name);
                         }
                     } else {
-                        return Err("Direct-arg mode enabled but no direct_arg_param set".to_string());
+                        return Err(
+                            "Direct-arg mode enabled but no direct_arg_param set".to_string()
+                        );
                     }
                 } else if let Some(func_name) = &self.current_function_name {
                     if name == func_name {
@@ -5058,7 +5096,9 @@ impl BytecodeTranslator {
                         // Load from stack slot (other local variable)
                         let value = builder.ins().stack_load(types::I64, slot, 0);
                         self.push_value(value);
-                    } else if let (Some(ctx), Some(load_func)) = (self.ctx_param, self.load_var_func) {
+                    } else if let (Some(ctx), Some(load_func)) =
+                        (self.ctx_param, self.load_var_func)
+                    {
                         // Fall back to runtime call for globals
                         let name_hash = Self::hash_var_name(name) as i64;
                         let name_hash_val = builder.ins().iconst(types::I64, name_hash);
@@ -5089,26 +5129,26 @@ impl BytecodeTranslator {
                 }
                 Ok(false)
             }
-            
+
             // Call: For self-recursion, emit direct Cranelift call
             OpCode::Call(arg_count) => {
                 if self.self_recursion_pending && *arg_count == 1 {
                     // DIRECT SELF-RECURSION: Call ourselves directly!
                     self.self_recursion_pending = false;
-                    
+
                     // Pop the function marker
                     let _marker = self.pop_value()?;
-                    
+
                     // Pop the argument
                     let arg_val = self.pop_value()?;
-                    
+
                     if let (Some(ctx), Some(self_func)) = (self.ctx_param, self.self_call_func) {
                         // Direct recursive call: self(ctx, arg)
                         // This is the KEY optimization - no FFI boundary crossing!
                         let call_inst = builder.ins().call(self_func, &[ctx, arg_val]);
                         let result = builder.inst_results(call_inst)[0];
                         self.push_value(result);
-                        
+
                         if std::env::var("DEBUG_JIT").is_ok() {
                             eprintln!("JIT direct-arg: Emitting direct recursive call");
                         }
@@ -5118,7 +5158,7 @@ impl BytecodeTranslator {
                 } else {
                     // Non-recursive call or multi-arg: fall back to standard path
                     self.self_recursion_pending = false;
-                    
+
                     // Pop the function marker
                     let _func_marker = self.pop_value()?;
                     let mut arg_vals = Vec::new();
@@ -5126,19 +5166,20 @@ impl BytecodeTranslator {
                         arg_vals.push(self.pop_value()?);
                     }
                     arg_vals.reverse();
-                    
-                    if let (Some(ctx), Some(call_func), Some(stack_push)) = 
-                        (self.ctx_param, self.call_func, self.stack_push_func) {
+
+                    if let (Some(ctx), Some(call_func), Some(stack_push)) =
+                        (self.ctx_param, self.call_func, self.stack_push_func)
+                    {
                         // Push args to VM stack
                         for arg_val in &arg_vals {
                             builder.ins().call(stack_push, &[ctx, *arg_val]);
                         }
-                        
+
                         // Call jit_call_function
                         let null_ptr = builder.ins().iconst(types::I64, 0);
                         let arg_count_val = builder.ins().iconst(types::I64, *arg_count as i64);
                         builder.ins().call(call_func, &[ctx, null_ptr, arg_count_val]);
-                        
+
                         // Pop result from VM stack
                         if let Some(stack_pop) = self.stack_pop_func {
                             let call = builder.ins().call(stack_pop, &[ctx]);
@@ -5154,13 +5195,13 @@ impl BytecodeTranslator {
                 }
                 Ok(false)
             }
-            
+
             // Return: In direct-arg mode, return the actual value (not status code)
             OpCode::Return => {
                 if let Some(return_value) = self.value_stack.pop() {
                     // Direct return of the computed value
                     builder.ins().return_(&[return_value]);
-                    
+
                     if std::env::var("DEBUG_JIT").is_ok() {
                         eprintln!("JIT direct-arg: Direct value return");
                     }
@@ -5171,13 +5212,13 @@ impl BytecodeTranslator {
                 }
                 Ok(true) // Terminates block
             }
-            
+
             OpCode::ReturnNone => {
                 let zero = builder.ins().iconst(types::I64, 0);
                 builder.ins().return_(&[zero]);
                 Ok(true)
             }
-            
+
             // For all other opcodes, delegate to standard translate_instruction
             _ => self.translate_instruction(builder, _pc, instruction, constants),
         }
@@ -5195,15 +5236,15 @@ impl BytecodeTranslator {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let type_b = var_b.and_then(|name| {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let b = self.pop_value()?;
         let a = self.pop_value()?;
-        
+
         // Generate specialized code based on types
         match (type_a, type_b) {
             (Some(ValueType::Int), Some(ValueType::Int)) => {
@@ -5234,15 +5275,15 @@ impl BytecodeTranslator {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let type_b = var_b.and_then(|name| {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let b = self.pop_value()?;
         let a = self.pop_value()?;
-        
+
         match (type_a, type_b) {
             (Some(ValueType::Int), Some(ValueType::Int)) => {
                 // Pure integer subtraction
@@ -5268,15 +5309,15 @@ impl BytecodeTranslator {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let type_b = var_b.and_then(|name| {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let b = self.pop_value()?;
         let a = self.pop_value()?;
-        
+
         match (type_a, type_b) {
             (Some(ValueType::Int), Some(ValueType::Int)) => {
                 // Pure integer multiplication
@@ -5302,15 +5343,15 @@ impl BytecodeTranslator {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let type_b = var_b.and_then(|name| {
             let hash = Self::hash_var_name(name);
             self.specialization.as_ref()?.specialized_types.get(&hash).copied()
         });
-        
+
         let b = self.pop_value()?;
         let a = self.pop_value()?;
-        
+
         match (type_a, type_b) {
             (Some(ValueType::Int), Some(ValueType::Int)) => {
                 // Pure integer division
@@ -5361,7 +5402,7 @@ impl JitCompiler {
             .map_err(|e| format!("Failed to create ISA: {}", e))?;
 
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
-        
+
         // Register runtime helper symbols so JIT can find them
         builder.symbol("jit_load_variable", jit_load_variable as *const u8);
         builder.symbol("jit_store_variable", jit_store_variable as *const u8);
@@ -5388,8 +5429,10 @@ impl JitCompiler {
         builder.symbol("jit_int_dict_unique_ptr", jit_int_dict_unique_ptr as *const u8);
         builder.symbol("jit_int_dict_get_ptr", jit_int_dict_get_ptr as *const u8);
         builder.symbol("jit_int_dict_set_ptr", jit_int_dict_set_ptr as *const u8);
-        builder.symbol("jit_dense_int_dict_int_get_ptr", jit_dense_int_dict_int_get_ptr as *const u8);
-        builder.symbol("jit_dense_int_dict_int_set_ptr", jit_dense_int_dict_int_set_ptr as *const u8);
+        builder
+            .symbol("jit_dense_int_dict_int_get_ptr", jit_dense_int_dict_int_get_ptr as *const u8);
+        builder
+            .symbol("jit_dense_int_dict_int_set_ptr", jit_dense_int_dict_int_set_ptr as *const u8);
         builder.symbol(
             "jit_dense_int_dict_int_full_get_ptr",
             jit_dense_int_dict_int_full_get_ptr as *const u8,
@@ -5404,10 +5447,8 @@ impl JitCompiler {
             "jit_append_const_string_in_place",
             jit_append_const_string_in_place as *const u8,
         );
-        builder.symbol(
-            "jit_append_const_char_in_place",
-            jit_append_const_char_in_place as *const u8,
-        );
+        builder
+            .symbol("jit_append_const_char_in_place", jit_append_const_char_in_place as *const u8);
 
         let module = JITModule::new(builder);
 
@@ -5489,42 +5530,43 @@ impl JitCompiler {
     fn is_supported_opcode(&self, opcode: &OpCode, constants: &[Constant]) -> bool {
         match opcode {
             // Constants - All types supported (strings push placeholder 0)
-            OpCode::LoadConst(idx) => {
-                constants.get(*idx).is_some()
-            }
-            
+            OpCode::LoadConst(idx) => constants.get(*idx).is_some(),
+
             // Arithmetic operations
             OpCode::Add | OpCode::Sub | OpCode::Mul | OpCode::Div | OpCode::Mod => true,
             OpCode::Negate => true,
-            
+
             // Comparison operations
             OpCode::Equal | OpCode::NotEqual => true,
             OpCode::LessThan | OpCode::GreaterThan => true,
             OpCode::LessEqual | OpCode::GreaterEqual => true,
-            
+
             // Logical operations
             OpCode::Not | OpCode::And | OpCode::Or => true,
-            
+
             // Stack operations
             OpCode::Pop | OpCode::Dup => true,
-            
+
             // Variable operations
-            OpCode::LoadVar(_) | OpCode::LoadLocal(_) | OpCode::StoreVar(_) | OpCode::StoreLocal(_) => true,
+            OpCode::LoadVar(_)
+            | OpCode::LoadLocal(_)
+            | OpCode::StoreVar(_)
+            | OpCode::StoreLocal(_) => true,
             OpCode::LoadGlobal(_) | OpCode::StoreGlobal(_) => true,
-            
+
             // Control flow - simple jumps only
             OpCode::Jump(_) | OpCode::JumpIfFalse(_) | OpCode::JumpIfTrue(_) => true,
             OpCode::JumpBack(_) => true,
-            
+
             // Function returns - needed for compiling functions (not just loops)
             OpCode::Return | OpCode::ReturnNone => true,
-            
+
             // Function calls - Step 3: Basic Call opcode support
             OpCode::Call(_) => true,
 
             // In-place add not supported by JIT (uses VM locals)
             OpCode::AddInPlace(_) => false,
-            
+
             // Dict/Array operations - in-place ops supported for int paths
             OpCode::IndexGet | OpCode::IndexSet => false,
             OpCode::IndexGetInPlace(_) | OpCode::IndexSetInPlace(_) => true,
@@ -5534,7 +5576,7 @@ impl JitCompiler {
             // Only allow empty dict literals in JIT to avoid heavy helper overhead
             OpCode::MakeDict(count) => *count == 0,
             OpCode::MakeDictWithKeys(_) => false,
-            
+
             // Everything else is unsupported - causes code to skip JIT
             // This includes: CallNative, Arrays, Dicts, Generators, Async, etc.
             _ => false,
@@ -5584,7 +5626,7 @@ impl JitCompiler {
             .map_err(|e| format!("Failed to declare function: {}", e))?;
 
         self.ctx.func.signature = sig;
-        
+
         // Declare external runtime helper functions
         // jit_load_variable: fn(*mut VMContext, *const u8, usize) -> i64
         let mut load_var_sig = self.module.make_signature();
@@ -5592,54 +5634,58 @@ impl JitCompiler {
         load_var_sig.params.push(AbiParam::new(types::I64)); // name_ptr
         load_var_sig.params.push(AbiParam::new(types::I64)); // name_len
         load_var_sig.returns.push(AbiParam::new(types::I64)); // return value
-        
+
         let load_var_func_id = self
             .module
             .declare_function("jit_load_variable", Linkage::Import, &load_var_sig)
             .map_err(|e| format!("Failed to declare jit_load_variable: {}", e))?;
-        
+
         // jit_store_variable: fn(*mut VMContext, *const u8, usize, i64)
         let mut store_var_sig = self.module.make_signature();
         store_var_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         store_var_sig.params.push(AbiParam::new(types::I64)); // name_ptr
         store_var_sig.params.push(AbiParam::new(types::I64)); // name_len
         store_var_sig.params.push(AbiParam::new(types::I64)); // value
-        // no return value
-        
+                                                              // no return value
+
         let store_var_func_id = self
             .module
             .declare_function("jit_store_variable", Linkage::Import, &store_var_sig)
             .map_err(|e| format!("Failed to declare jit_store_variable: {}", e))?;
-		
+
         // jit_store_variable_from_stack: fn(*mut VMContext, i64) -> i64
         let mut store_from_stack_sig = self.module.make_signature();
         store_from_stack_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         store_from_stack_sig.params.push(AbiParam::new(types::I64)); // name_hash
         store_from_stack_sig.returns.push(AbiParam::new(types::I64)); // success
-		
+
         let store_from_stack_func_id = self
             .module
-            .declare_function("jit_store_variable_from_stack", Linkage::Import, &store_from_stack_sig)
+            .declare_function(
+                "jit_store_variable_from_stack",
+                Linkage::Import,
+                &store_from_stack_sig,
+            )
             .map_err(|e| format!("Failed to declare jit_store_variable_from_stack: {}", e))?;
-		
+
         let mut local_dict_get_sig = self.module.make_signature();
         local_dict_get_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         local_dict_get_sig.params.push(AbiParam::new(types::I64)); // slot index
         local_dict_get_sig.params.push(AbiParam::new(types::I64)); // key
         local_dict_get_sig.returns.push(AbiParam::new(types::I64)); // value
-		
+
         let local_dict_get_func_id = self
             .module
             .declare_function("jit_local_slot_dict_get", Linkage::Import, &local_dict_get_sig)
             .map_err(|e| format!("Failed to declare jit_local_slot_dict_get: {}", e))?;
-		
+
         let mut local_dict_set_sig = self.module.make_signature();
         local_dict_set_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         local_dict_set_sig.params.push(AbiParam::new(types::I64)); // slot index
         local_dict_set_sig.params.push(AbiParam::new(types::I64)); // key
         local_dict_set_sig.params.push(AbiParam::new(types::I64)); // value
         local_dict_set_sig.returns.push(AbiParam::new(types::I64)); // success
-		
+
         let local_dict_set_func_id = self
             .module
             .declare_function("jit_local_slot_dict_set", Linkage::Import, &local_dict_set_sig)
@@ -5653,7 +5699,11 @@ impl JitCompiler {
 
         let local_int_dict_get_func_id = self
             .module
-            .declare_function("jit_local_slot_int_dict_get", Linkage::Import, &local_int_dict_get_sig)
+            .declare_function(
+                "jit_local_slot_int_dict_get",
+                Linkage::Import,
+                &local_int_dict_get_sig,
+            )
             .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_get: {}", e))?;
 
         let mut local_int_dict_set_sig = self.module.make_signature();
@@ -5665,7 +5715,11 @@ impl JitCompiler {
 
         let local_int_dict_set_func_id = self
             .module
-            .declare_function("jit_local_slot_int_dict_set", Linkage::Import, &local_int_dict_set_sig)
+            .declare_function(
+                "jit_local_slot_int_dict_set",
+                Linkage::Import,
+                &local_int_dict_set_sig,
+            )
             .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_set: {}", e))?;
 
         let mut int_dict_unique_ptr_sig = self.module.make_signature();
@@ -5734,46 +5788,46 @@ impl JitCompiler {
                 &int_dict_set_ptr_sig,
             )
             .map_err(|e| format!("Failed to declare jit_dense_int_dict_int_full_set_ptr: {}", e))?;
-        
+
         // jit_load_variable_float: fn(*mut VMContext, i64) -> f64
         let mut load_var_float_sig = self.module.make_signature();
         load_var_float_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         load_var_float_sig.params.push(AbiParam::new(types::I64)); // name_hash
         load_var_float_sig.returns.push(AbiParam::new(types::F64)); // return f64
-        
+
         let load_var_float_func_id = self
             .module
             .declare_function("jit_load_variable_float", Linkage::Import, &load_var_float_sig)
             .map_err(|e| format!("Failed to declare jit_load_variable_float: {}", e))?;
-        
+
         // jit_store_variable_float: fn(*mut VMContext, i64, f64)
         let mut store_var_float_sig = self.module.make_signature();
         store_var_float_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         store_var_float_sig.params.push(AbiParam::new(types::I64)); // name_hash
         store_var_float_sig.params.push(AbiParam::new(types::F64)); // value f64
-        
+
         let store_var_float_func_id = self
             .module
             .declare_function("jit_store_variable_float", Linkage::Import, &store_var_float_sig)
             .map_err(|e| format!("Failed to declare jit_store_variable_float: {}", e))?;
-        
+
         // jit_check_type_int: fn(*mut VMContext, i64) -> i64
         let mut check_int_sig = self.module.make_signature();
         check_int_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         check_int_sig.params.push(AbiParam::new(types::I64)); // name_hash
         check_int_sig.returns.push(AbiParam::new(types::I64)); // returns 1 if Int, 0 otherwise
-        
+
         let check_type_int_func_id = self
             .module
             .declare_function("jit_check_type_int", Linkage::Import, &check_int_sig)
             .map_err(|e| format!("Failed to declare jit_check_type_int: {}", e))?;
-        
+
         // jit_check_type_float: fn(*mut VMContext, i64) -> i64
         let mut check_float_sig = self.module.make_signature();
         check_float_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
         check_float_sig.params.push(AbiParam::new(types::I64)); // name_hash
         check_float_sig.returns.push(AbiParam::new(types::I64)); // returns 1 if Float, 0 otherwise
-        
+
         let check_type_float_func_id = self
             .module
             .declare_function("jit_check_type_float", Linkage::Import, &check_float_sig)
@@ -5856,10 +5910,12 @@ impl JitCompiler {
         {
             let mut builder_ctx = FunctionBuilderContext::new();
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut builder_ctx);
-            
+
             // Import the external functions into this function's scope
-            let load_var_func_ref = self.module.declare_func_in_func(load_var_func_id, builder.func);
-            let store_var_func_ref = self.module.declare_func_in_func(store_var_func_id, builder.func);
+            let load_var_func_ref =
+                self.module.declare_func_in_func(load_var_func_id, builder.func);
+            let store_var_func_ref =
+                self.module.declare_func_in_func(store_var_func_id, builder.func);
             let store_from_stack_func_ref =
                 self.module.declare_func_in_func(store_from_stack_func_id, builder.func);
             let local_dict_get_func_ref =
@@ -5875,26 +5931,29 @@ impl JitCompiler {
             let int_dict_get_ptr_func_ref =
                 self.module.declare_func_in_func(int_dict_get_ptr_func_id, builder.func);
             let dense_int_dict_int_get_ptr_func_ref =
-                self.module
-                    .declare_func_in_func(dense_int_dict_int_get_ptr_func_id, builder.func);
-            let dense_int_dict_int_full_get_ptr_func_ref =
-                self.module
-                    .declare_func_in_func(dense_int_dict_int_full_get_ptr_func_id, builder.func);
+                self.module.declare_func_in_func(dense_int_dict_int_get_ptr_func_id, builder.func);
+            let dense_int_dict_int_full_get_ptr_func_ref = self
+                .module
+                .declare_func_in_func(dense_int_dict_int_full_get_ptr_func_id, builder.func);
             let int_dict_set_ptr_func_ref =
                 self.module.declare_func_in_func(int_dict_set_ptr_func_id, builder.func);
             let dense_int_dict_int_set_ptr_func_ref =
-                self.module
-                    .declare_func_in_func(dense_int_dict_int_set_ptr_func_id, builder.func);
-            let dense_int_dict_int_full_set_ptr_func_ref =
-                self.module
-                    .declare_func_in_func(dense_int_dict_int_full_set_ptr_func_id, builder.func);
-            let load_var_float_func_ref = self.module.declare_func_in_func(load_var_float_func_id, builder.func);
-            let store_var_float_func_ref = self.module.declare_func_in_func(store_var_float_func_id, builder.func);
-            let check_int_func_ref = self.module.declare_func_in_func(check_type_int_func_id, builder.func);
-            let check_float_func_ref = self.module.declare_func_in_func(check_type_float_func_id, builder.func);
+                self.module.declare_func_in_func(dense_int_dict_int_set_ptr_func_id, builder.func);
+            let dense_int_dict_int_full_set_ptr_func_ref = self
+                .module
+                .declare_func_in_func(dense_int_dict_int_full_set_ptr_func_id, builder.func);
+            let load_var_float_func_ref =
+                self.module.declare_func_in_func(load_var_float_func_id, builder.func);
+            let store_var_float_func_ref =
+                self.module.declare_func_in_func(store_var_float_func_id, builder.func);
+            let check_int_func_ref =
+                self.module.declare_func_in_func(check_type_int_func_id, builder.func);
+            let check_float_func_ref =
+                self.module.declare_func_in_func(check_type_float_func_id, builder.func);
             let obj_push_string_func_ref =
                 self.module.declare_func_in_func(obj_push_string_func_id, builder.func);
-            let obj_to_vm_func_ref = self.module.declare_func_in_func(obj_to_vm_func_id, builder.func);
+            let obj_to_vm_func_ref =
+                self.module.declare_func_in_func(obj_to_vm_func_id, builder.func);
             let make_dict_keys_func_ref =
                 self.module.declare_func_in_func(make_dict_keys_func_id, builder.func);
             let make_dict_func_ref =
@@ -5919,7 +5978,8 @@ impl JitCompiler {
                 store_var_func_ref,
                 store_from_stack_func_ref,
             );
-            translator.set_local_slot_dict_functions(local_dict_get_func_ref, local_dict_set_func_ref);
+            translator
+                .set_local_slot_dict_functions(local_dict_get_func_ref, local_dict_set_func_ref);
             translator.set_local_slot_int_dict_functions(
                 local_int_dict_get_func_ref,
                 local_int_dict_set_func_ref,
@@ -5942,34 +6002,36 @@ impl JitCompiler {
                 append_const_string_func_ref,
                 append_const_char_func_ref,
             );
-            
+
             // Initialize current block tracking
             let mut current_block = entry_block;
             let mut entry_block_sealed = false;
-            
+
             // Set specialization info if available
             if let Some(spec) = self.type_profiles.get(&offset) {
                 translator.set_specialization(spec.clone());
-                
+
                 // Generate type guards at function entry for specialized variables
                 if !spec.specialized_types.is_empty() {
                     // Create blocks for guard success and guard failure
                     let guard_success_block = builder.create_block();
                     let guard_failure_block = builder.create_block();
-                    
+
                     // Check each specialized variable's type
                     let mut all_guards_passed = None;
                     for (var_hash, expected_type) in &spec.specialized_types {
                         let hash_val = builder.ins().iconst(types::I64, *var_hash as i64);
-                        
+
                         // Call appropriate type check function
                         let check_result = match expected_type {
                             ValueType::Int => {
-                                let call = builder.ins().call(check_int_func_ref, &[ctx_ptr, hash_val]);
+                                let call =
+                                    builder.ins().call(check_int_func_ref, &[ctx_ptr, hash_val]);
                                 builder.inst_results(call)[0]
                             }
                             ValueType::Float => {
-                                let call = builder.ins().call(check_float_func_ref, &[ctx_ptr, hash_val]);
+                                let call =
+                                    builder.ins().call(check_float_func_ref, &[ctx_ptr, hash_val]);
                                 builder.inst_results(call)[0]
                             }
                             _ => {
@@ -5977,11 +6039,11 @@ impl JitCompiler {
                                 continue;
                             }
                         };
-                        
+
                         // Check if result is 1 (type matches)
                         let one = builder.ins().iconst(types::I64, 1);
                         let guard_passed = builder.ins().icmp(IntCC::Equal, check_result, one);
-                        
+
                         // Combine with previous guards (AND operation)
                         all_guards_passed = Some(if let Some(prev) = all_guards_passed {
                             builder.ins().band(prev, guard_passed)
@@ -5989,36 +6051,43 @@ impl JitCompiler {
                             guard_passed
                         });
                     }
-                    
+
                     // Branch based on guard results
                     if let Some(guards_passed) = all_guards_passed {
                         // Branch: if guards_passed, go to success, else go to failure
-                        builder.ins().brif(guards_passed, guard_success_block, &[], guard_failure_block, &[]);
-                        
+                        builder.ins().brif(
+                            guards_passed,
+                            guard_success_block,
+                            &[],
+                            guard_failure_block,
+                            &[],
+                        );
+
                         // Seal entry block now that we've branched from it
                         builder.seal_block(entry_block);
                         entry_block_sealed = true;
-                        
+
                         // Guard failure block: return error code (-1)
                         builder.switch_to_block(guard_failure_block);
                         builder.seal_block(guard_failure_block);
                         let error_code = builder.ins().iconst(types::I64, -1);
                         builder.ins().return_(&[error_code]);
-                        
+
                         // Guard success block: continue with function body
                         builder.switch_to_block(guard_success_block);
                         builder.seal_block(guard_success_block);
                         current_block = guard_success_block;
                     }
                 }
-
             }
-                
+
             // Create blocks for jump targets (loop JIT)
             translator.create_blocks(&mut builder, &chunk.instructions)?;
             let function_end = if let Some(loop_end) = loop_end {
                 let mut max_target = loop_end;
-                for (pc, instruction) in chunk.instructions.iter().enumerate().skip(offset).take(loop_end - offset + 1) {
+                for (pc, instruction) in
+                    chunk.instructions.iter().enumerate().skip(offset).take(loop_end - offset + 1)
+                {
                     match instruction {
                         OpCode::Jump(target)
                         | OpCode::JumpIfFalse(target)
@@ -6128,8 +6197,7 @@ impl JitCompiler {
                             if std::env::var("DEBUG_JIT").is_ok() {
                                 eprintln!(
                                     "JIT: Block at PC {} has {} params, stack restored",
-                                    pc,
-                                    expected_depth
+                                    pc, expected_depth
                                 );
                             }
                         }
@@ -6150,11 +6218,20 @@ impl JitCompiler {
                     );
                 }
 
-                match translator.translate_instruction(&mut builder, pc, instruction, &chunk.constants) {
+                match translator.translate_instruction(
+                    &mut builder,
+                    pc,
+                    instruction,
+                    &chunk.constants,
+                ) {
                     Ok(terminates_block) => {
                         if terminates_block {
-                            if !sealed_blocks.contains(&current_block) &&
-                               !translator.loop_header_pcs.iter().any(|&lpc| translator.blocks.get(&lpc) == Some(&current_block)) {
+                            if !sealed_blocks.contains(&current_block)
+                                && !translator
+                                    .loop_header_pcs
+                                    .iter()
+                                    .any(|&lpc| translator.blocks.get(&lpc) == Some(&current_block))
+                            {
                                 builder.seal_block(current_block);
                                 sealed_blocks.insert(current_block);
                             }
@@ -6166,7 +6243,7 @@ impl JitCompiler {
                     }
                 }
             }
-            
+
             // If the last block is not terminated, add a return
             if !block_terminated {
                 let zero = builder.ins().iconst(types::I64, 0);
@@ -6176,7 +6253,7 @@ impl JitCompiler {
                     sealed_blocks.insert(current_block);
                 }
             }
-            
+
             // STEP 11 FIX: Seal any remaining unsealed blocks (including loop headers)
             // This must be done AFTER all edges (including back-edges) have been added
             for (&pc, &block) in &translator.blocks {
@@ -6193,14 +6270,12 @@ impl JitCompiler {
         }
 
         // Compile the function
-        self.module
-            .define_function(func_id, &mut self.ctx)
-            .map_err(|e| {
-                if std::env::var("DEBUG_JIT").is_ok() {
-                    eprintln!("JIT define_function error: {:#?}", e);
-                }
-                format!("Failed to define function: {}", e)
-            })?;
+        self.module.define_function(func_id, &mut self.ctx).map_err(|e| {
+            if std::env::var("DEBUG_JIT").is_ok() {
+                eprintln!("JIT define_function error: {:#?}", e);
+            }
+            format!("Failed to define function: {}", e)
+        })?;
 
         self.module.clear_context(&mut self.ctx);
         self.module.finalize_definitions().map_err(|e| format!("Failed to finalize: {}", e))?;
@@ -6218,44 +6293,45 @@ impl JitCompiler {
     /// Compile an entire function to native code
     /// Returns a compiled function pointer that can be called directly
     pub fn compile_function(
-        &mut self, 
-        chunk: &BytecodeChunk, 
-        name: &str
+        &mut self,
+        chunk: &BytecodeChunk,
+        name: &str,
     ) -> Result<CompiledFn, String> {
         // 1. Check if function is compilable
         if !self.can_compile_function(chunk) {
             return Err(format!("Function '{}' contains unsupported opcodes", name));
         }
-        
+
         // 2. Clear previous context
         self.ctx.clear();
-        
+
         // 3. Create Cranelift function signature
         //    Takes VMContext pointer, returns status code (i64)
         let mut sig = self.module.make_signature();
         sig.params.push(AbiParam::new(types::I64)); // VMContext pointer
         sig.returns.push(AbiParam::new(types::I64)); // Status code
-        
+
         // 4. Declare function in module
-        let func_id = self.module
+        let func_id = self
+            .module
             .declare_function(name, Linkage::Export, &sig)
             .map_err(|e| format!("Failed to declare function: {}", e))?;
-        
+
         // 5. Set function signature
         self.ctx.func.signature = sig;
-        
+
         // 6. Build function body
         {
             let mut builder_ctx = FunctionBuilderContext::new();
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut builder_ctx);
-            
+
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
             builder.switch_to_block(entry_block);
-            
+
             // Get VMContext parameter
             let vm_context_param = builder.block_params(entry_block)[0];
-            
+
             // Declare jit_call_function for Call opcode support
             // jit_call_function: fn(*mut VMContext, *const Value, i64) -> i64
             let mut call_func_sig = self.module.make_signature();
@@ -6263,26 +6339,28 @@ impl JitCompiler {
             call_func_sig.params.push(AbiParam::new(types::I64)); // func_value_ptr
             call_func_sig.params.push(AbiParam::new(types::I64)); // arg_count
             call_func_sig.returns.push(AbiParam::new(types::I64)); // return value
-            
-            let call_func_id = self.module
+
+            let call_func_id = self
+                .module
                 .declare_function("jit_call_function", Linkage::Import, &call_func_sig)
                 .map_err(|e| format!("Failed to declare jit_call_function: {}", e))?;
-            
+
             let call_func_ref = self.module.declare_func_in_func(call_func_id, &mut builder.func);
-            
+
             // Declare jit_push_int for Return opcode support
             // jit_push_int: fn(*mut VMContext, i64) -> i64
             let mut push_int_sig = self.module.make_signature();
             push_int_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             push_int_sig.params.push(AbiParam::new(types::I64)); // value to push
             push_int_sig.returns.push(AbiParam::new(types::I64)); // status code
-            
-            let push_int_id = self.module
+
+            let push_int_id = self
+                .module
                 .declare_function("jit_push_int", Linkage::Import, &push_int_sig)
                 .map_err(|e| format!("Failed to declare jit_push_int: {}", e))?;
-            
+
             let push_int_ref = self.module.declare_func_in_func(push_int_id, &mut builder.func);
-            
+
             // Declare jit_set_return_int for optimized Return opcode
             // jit_set_return_int: fn(*mut VMContext, i64) -> i64
             // This is the FAST PATH - stores return value directly in VMContext
@@ -6291,92 +6369,92 @@ impl JitCompiler {
             set_return_int_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             set_return_int_sig.params.push(AbiParam::new(types::I64)); // return value
             set_return_int_sig.returns.push(AbiParam::new(types::I64)); // status code
-            
-            let set_return_int_id = self.module
+
+            let set_return_int_id = self
+                .module
                 .declare_function("jit_set_return_int", Linkage::Import, &set_return_int_sig)
                 .map_err(|e| format!("Failed to declare jit_set_return_int: {}", e))?;
-            
-            let set_return_int_ref = self.module.declare_func_in_func(set_return_int_id, &mut builder.func);
-            
+
+            let set_return_int_ref =
+                self.module.declare_func_in_func(set_return_int_id, &mut builder.func);
+
             // Declare jit_get_return_int for retrieving recursive call results
             // jit_get_return_int: fn(*mut VMContext) -> i64
             let mut get_return_int_sig = self.module.make_signature();
             get_return_int_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             get_return_int_sig.returns.push(AbiParam::new(types::I64)); // return value
-            
-            let get_return_int_id = self.module
+
+            let get_return_int_id = self
+                .module
                 .declare_function("jit_get_return_int", Linkage::Import, &get_return_int_sig)
                 .map_err(|e| format!("Failed to declare jit_get_return_int: {}", e))?;
-            
-            let get_return_int_ref = self.module.declare_func_in_func(get_return_int_id, &mut builder.func);
-            
+
+            let get_return_int_ref =
+                self.module.declare_func_in_func(get_return_int_id, &mut builder.func);
+
             // OPTIMIZATION: Declare self-reference for direct recursive calls
             // This enables direct JIT → JIT recursion without going through VM
             // Self-recursive call signature: fn(*mut VMContext) -> i64
             let self_func_ref = self.module.declare_func_in_func(func_id, &mut builder.func);
-            
+
             // Declare jit_stack_pop for getting call results
             // jit_stack_pop: fn(*mut VMContext) -> i64
             let mut stack_pop_sig = self.module.make_signature();
             stack_pop_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             stack_pop_sig.returns.push(AbiParam::new(types::I64)); // popped value
-            
-            let stack_pop_id = self.module
+
+            let stack_pop_id = self
+                .module
                 .declare_function("jit_stack_pop", Linkage::Import, &stack_pop_sig)
                 .map_err(|e| format!("Failed to declare jit_stack_pop: {}", e))?;
-            
+
             let stack_pop_ref = self.module.declare_func_in_func(stack_pop_id, &mut builder.func);
-            
+
             // Declare jit_stack_push for pushing values to VM stack before calls
             // jit_stack_push: fn(*mut VMContext, i64)
             let mut stack_push_sig = self.module.make_signature();
             stack_push_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             stack_push_sig.params.push(AbiParam::new(types::I64)); // value to push
-            
-            let stack_push_id = self.module
+
+            let stack_push_id = self
+                .module
                 .declare_function("jit_stack_push", Linkage::Import, &stack_push_sig)
                 .map_err(|e| format!("Failed to declare jit_stack_push: {}", e))?;
-            
+
             let stack_push_ref = self.module.declare_func_in_func(stack_push_id, &mut builder.func);
-            
+
             // Declare jit_dict_get for fast dictionary read operations
             // jit_dict_get: fn(*mut VMContext) -> i64
             let mut dict_get_sig = self.module.make_signature();
             dict_get_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             dict_get_sig.returns.push(AbiParam::new(types::I64)); // return status
-            
-            let dict_get_id = self.module
+
+            let dict_get_id = self
+                .module
                 .declare_function("jit_dict_get", Linkage::Import, &dict_get_sig)
                 .map_err(|e| format!("Failed to declare jit_dict_get: {}", e))?;
-            
+
             let dict_get_ref = self.module.declare_func_in_func(dict_get_id, &mut builder.func);
-            
+
             // Declare jit_dict_set for fast dictionary write operations
             // jit_dict_set: fn(*mut VMContext) -> i64
             let mut dict_set_sig = self.module.make_signature();
             dict_set_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             dict_set_sig.returns.push(AbiParam::new(types::I64)); // return status
-            
-            let dict_set_id = self.module
+
+            let dict_set_id = self
+                .module
                 .declare_function("jit_dict_set", Linkage::Import, &dict_set_sig)
                 .map_err(|e| format!("Failed to declare jit_dict_set: {}", e))?;
-            
+
             let dict_set_ref = self.module.declare_func_in_func(dict_set_id, &mut builder.func);
 
             // Declare int-dict helpers for IndexGetInPlace/IndexSetInPlace fast path
             let mut local_slot_int_dict_get_sig = self.module.make_signature();
-            local_slot_int_dict_get_sig
-                .params
-                .push(AbiParam::new(types::I64)); // ctx pointer
-            local_slot_int_dict_get_sig
-                .params
-                .push(AbiParam::new(types::I64)); // slot index
-            local_slot_int_dict_get_sig
-                .params
-                .push(AbiParam::new(types::I64)); // key
-            local_slot_int_dict_get_sig
-                .returns
-                .push(AbiParam::new(types::I64)); // value
+            local_slot_int_dict_get_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            local_slot_int_dict_get_sig.params.push(AbiParam::new(types::I64)); // slot index
+            local_slot_int_dict_get_sig.params.push(AbiParam::new(types::I64)); // key
+            local_slot_int_dict_get_sig.returns.push(AbiParam::new(types::I64)); // value
 
             let local_slot_int_dict_get_id = self
                 .module
@@ -6387,25 +6465,14 @@ impl JitCompiler {
                 )
                 .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_get: {}", e))?;
             let local_slot_int_dict_get_ref =
-                self.module
-                    .declare_func_in_func(local_slot_int_dict_get_id, &mut builder.func);
+                self.module.declare_func_in_func(local_slot_int_dict_get_id, &mut builder.func);
 
             let mut local_slot_int_dict_set_sig = self.module.make_signature();
-            local_slot_int_dict_set_sig
-                .params
-                .push(AbiParam::new(types::I64)); // ctx pointer
-            local_slot_int_dict_set_sig
-                .params
-                .push(AbiParam::new(types::I64)); // slot index
-            local_slot_int_dict_set_sig
-                .params
-                .push(AbiParam::new(types::I64)); // key
-            local_slot_int_dict_set_sig
-                .params
-                .push(AbiParam::new(types::I64)); // value
-            local_slot_int_dict_set_sig
-                .returns
-                .push(AbiParam::new(types::I64)); // status
+            local_slot_int_dict_set_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            local_slot_int_dict_set_sig.params.push(AbiParam::new(types::I64)); // slot index
+            local_slot_int_dict_set_sig.params.push(AbiParam::new(types::I64)); // key
+            local_slot_int_dict_set_sig.params.push(AbiParam::new(types::I64)); // value
+            local_slot_int_dict_set_sig.returns.push(AbiParam::new(types::I64)); // status
 
             let local_slot_int_dict_set_id = self
                 .module
@@ -6416,19 +6483,12 @@ impl JitCompiler {
                 )
                 .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_set: {}", e))?;
             let local_slot_int_dict_set_ref =
-                self.module
-                    .declare_func_in_func(local_slot_int_dict_set_id, &mut builder.func);
+                self.module.declare_func_in_func(local_slot_int_dict_set_id, &mut builder.func);
 
             let mut int_dict_unique_ptr_sig = self.module.make_signature();
-            int_dict_unique_ptr_sig
-                .params
-                .push(AbiParam::new(types::I64)); // ctx pointer
-            int_dict_unique_ptr_sig
-                .params
-                .push(AbiParam::new(types::I64)); // slot index
-            int_dict_unique_ptr_sig
-                .returns
-                .push(AbiParam::new(types::I64)); // dict ptr
+            int_dict_unique_ptr_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            int_dict_unique_ptr_sig.params.push(AbiParam::new(types::I64)); // slot index
+            int_dict_unique_ptr_sig.returns.push(AbiParam::new(types::I64)); // dict ptr
 
             let int_dict_unique_ptr_id = self
                 .module
@@ -6439,31 +6499,19 @@ impl JitCompiler {
                 )
                 .map_err(|e| format!("Failed to declare jit_int_dict_unique_ptr: {}", e))?;
             let int_dict_unique_ptr_ref =
-                self.module
-                    .declare_func_in_func(int_dict_unique_ptr_id, &mut builder.func);
+                self.module.declare_func_in_func(int_dict_unique_ptr_id, &mut builder.func);
 
             let mut int_dict_get_ptr_sig = self.module.make_signature();
-            int_dict_get_ptr_sig
-                .params
-                .push(AbiParam::new(types::I64)); // dict ptr
-            int_dict_get_ptr_sig
-                .params
-                .push(AbiParam::new(types::I64)); // key
-            int_dict_get_ptr_sig
-                .returns
-                .push(AbiParam::new(types::I64)); // value
+            int_dict_get_ptr_sig.params.push(AbiParam::new(types::I64)); // dict ptr
+            int_dict_get_ptr_sig.params.push(AbiParam::new(types::I64)); // key
+            int_dict_get_ptr_sig.returns.push(AbiParam::new(types::I64)); // value
 
             let int_dict_get_ptr_id = self
                 .module
-                .declare_function(
-                    "jit_int_dict_get_ptr",
-                    Linkage::Import,
-                    &int_dict_get_ptr_sig,
-                )
+                .declare_function("jit_int_dict_get_ptr", Linkage::Import, &int_dict_get_ptr_sig)
                 .map_err(|e| format!("Failed to declare jit_int_dict_get_ptr: {}", e))?;
             let int_dict_get_ptr_ref =
-                self.module
-                    .declare_func_in_func(int_dict_get_ptr_id, &mut builder.func);
+                self.module.declare_func_in_func(int_dict_get_ptr_id, &mut builder.func);
 
             let dense_int_dict_int_get_ptr_id = self
                 .module
@@ -6472,13 +6520,9 @@ impl JitCompiler {
                     Linkage::Import,
                     &int_dict_get_ptr_sig,
                 )
-                .map_err(|e| format!(
-                    "Failed to declare jit_dense_int_dict_int_get_ptr: {}",
-                    e
-                ))?;
-            let dense_int_dict_int_get_ptr_ref = self
-                .module
-                .declare_func_in_func(dense_int_dict_int_get_ptr_id, &mut builder.func);
+                .map_err(|e| format!("Failed to declare jit_dense_int_dict_int_get_ptr: {}", e))?;
+            let dense_int_dict_int_get_ptr_ref =
+                self.module.declare_func_in_func(dense_int_dict_int_get_ptr_id, &mut builder.func);
 
             let dense_int_dict_int_full_get_ptr_id = self
                 .module
@@ -6487,39 +6531,25 @@ impl JitCompiler {
                     Linkage::Import,
                     &int_dict_get_ptr_sig,
                 )
-                .map_err(|e| format!(
-                    "Failed to declare jit_dense_int_dict_int_full_get_ptr: {}",
-                    e
-                ))?;
+                .map_err(|e| {
+                    format!("Failed to declare jit_dense_int_dict_int_full_get_ptr: {}", e)
+                })?;
             let dense_int_dict_int_full_get_ptr_ref = self
                 .module
                 .declare_func_in_func(dense_int_dict_int_full_get_ptr_id, &mut builder.func);
 
             let mut int_dict_set_ptr_sig = self.module.make_signature();
-            int_dict_set_ptr_sig
-                .params
-                .push(AbiParam::new(types::I64)); // dict ptr
-            int_dict_set_ptr_sig
-                .params
-                .push(AbiParam::new(types::I64)); // key
-            int_dict_set_ptr_sig
-                .params
-                .push(AbiParam::new(types::I64)); // value
-            int_dict_set_ptr_sig
-                .returns
-                .push(AbiParam::new(types::I64)); // status
+            int_dict_set_ptr_sig.params.push(AbiParam::new(types::I64)); // dict ptr
+            int_dict_set_ptr_sig.params.push(AbiParam::new(types::I64)); // key
+            int_dict_set_ptr_sig.params.push(AbiParam::new(types::I64)); // value
+            int_dict_set_ptr_sig.returns.push(AbiParam::new(types::I64)); // status
 
             let int_dict_set_ptr_id = self
                 .module
-                .declare_function(
-                    "jit_int_dict_set_ptr",
-                    Linkage::Import,
-                    &int_dict_set_ptr_sig,
-                )
+                .declare_function("jit_int_dict_set_ptr", Linkage::Import, &int_dict_set_ptr_sig)
                 .map_err(|e| format!("Failed to declare jit_int_dict_set_ptr: {}", e))?;
             let int_dict_set_ptr_ref =
-                self.module
-                    .declare_func_in_func(int_dict_set_ptr_id, &mut builder.func);
+                self.module.declare_func_in_func(int_dict_set_ptr_id, &mut builder.func);
 
             let dense_int_dict_int_set_ptr_id = self
                 .module
@@ -6528,13 +6558,9 @@ impl JitCompiler {
                     Linkage::Import,
                     &int_dict_set_ptr_sig,
                 )
-                .map_err(|e| format!(
-                    "Failed to declare jit_dense_int_dict_int_set_ptr: {}",
-                    e
-                ))?;
-            let dense_int_dict_int_set_ptr_ref = self
-                .module
-                .declare_func_in_func(dense_int_dict_int_set_ptr_id, &mut builder.func);
+                .map_err(|e| format!("Failed to declare jit_dense_int_dict_int_set_ptr: {}", e))?;
+            let dense_int_dict_int_set_ptr_ref =
+                self.module.declare_func_in_func(dense_int_dict_int_set_ptr_id, &mut builder.func);
 
             let dense_int_dict_int_full_set_ptr_id = self
                 .module
@@ -6543,25 +6569,25 @@ impl JitCompiler {
                     Linkage::Import,
                     &int_dict_set_ptr_sig,
                 )
-                .map_err(|e| format!(
-                    "Failed to declare jit_dense_int_dict_int_full_set_ptr: {}",
-                    e
-                ))?;
+                .map_err(|e| {
+                    format!("Failed to declare jit_dense_int_dict_int_full_set_ptr: {}", e)
+                })?;
             let dense_int_dict_int_full_set_ptr_ref = self
                 .module
                 .declare_func_in_func(dense_int_dict_int_full_set_ptr_id, &mut builder.func);
-            
+
             // Declare jit_make_dict for dictionary creation
             // jit_make_dict: fn(*mut VMContext, i64) -> i64
             let mut make_dict_sig = self.module.make_signature();
             make_dict_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             make_dict_sig.params.push(AbiParam::new(types::I64)); // num_pairs
             make_dict_sig.returns.push(AbiParam::new(types::I64)); // return status
-            
-            let make_dict_id = self.module
+
+            let make_dict_id = self
+                .module
                 .declare_function("jit_make_dict", Linkage::Import, &make_dict_sig)
                 .map_err(|e| format!("Failed to declare jit_make_dict: {}", e))?;
-            
+
             let make_dict_ref = self.module.declare_func_in_func(make_dict_id, &mut builder.func);
 
             let mut append_const_string_sig = self.module.make_signature();
@@ -6578,7 +6604,9 @@ impl JitCompiler {
                     Linkage::Import,
                     &append_const_string_sig,
                 )
-                .map_err(|e| format!("Failed to declare jit_append_const_string_in_place: {}", e))?;
+                .map_err(|e| {
+                    format!("Failed to declare jit_append_const_string_in_place: {}", e)
+                })?;
             let append_const_string_ref =
                 self.module.declare_func_in_func(append_const_string_id, &mut builder.func);
 
@@ -6605,13 +6633,14 @@ impl JitCompiler {
             make_dict_keys_sig.params.push(AbiParam::new(types::I64)); // num keys
             make_dict_keys_sig.returns.push(AbiParam::new(types::I64)); // return status
 
-            let make_dict_keys_id = self.module
+            let make_dict_keys_id = self
+                .module
                 .declare_function("jit_make_dict_with_keys", Linkage::Import, &make_dict_keys_sig)
                 .map_err(|e| format!("Failed to declare jit_make_dict_with_keys: {}", e))?;
 
             let make_dict_keys_ref =
                 self.module.declare_func_in_func(make_dict_keys_id, &mut builder.func);
-            
+
             // Declare jit_load_variable and jit_store_variable for variable operations
             // jit_load_variable: fn(*mut VMContext, i64, usize) -> i64
             let mut load_var_sig = self.module.make_signature();
@@ -6619,24 +6648,26 @@ impl JitCompiler {
             load_var_sig.params.push(AbiParam::new(types::I64)); // name_hash
             load_var_sig.params.push(AbiParam::new(types::I64)); // name_len
             load_var_sig.returns.push(AbiParam::new(types::I64)); // value
-            
-            let load_var_id = self.module
+
+            let load_var_id = self
+                .module
                 .declare_function("jit_load_variable", Linkage::Import, &load_var_sig)
                 .map_err(|e| format!("Failed to declare jit_load_variable: {}", e))?;
-            
+
             let load_var_ref = self.module.declare_func_in_func(load_var_id, &mut builder.func);
-            
+
             // jit_store_variable: fn(*mut VMContext, i64, usize, i64)
             let mut store_var_sig = self.module.make_signature();
             store_var_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             store_var_sig.params.push(AbiParam::new(types::I64)); // name_hash
             store_var_sig.params.push(AbiParam::new(types::I64)); // name_len
             store_var_sig.params.push(AbiParam::new(types::I64)); // value
-            
-            let store_var_id = self.module
+
+            let store_var_id = self
+                .module
                 .declare_function("jit_store_variable", Linkage::Import, &store_var_sig)
                 .map_err(|e| format!("Failed to declare jit_store_variable: {}", e))?;
-            
+
             let store_var_ref = self.module.declare_func_in_func(store_var_id, &mut builder.func);
 
             // jit_store_variable_from_stack: fn(*mut VMContext, i64) -> i64
@@ -6645,26 +6676,32 @@ impl JitCompiler {
             store_from_stack_sig.params.push(AbiParam::new(types::I64)); // name_hash
             store_from_stack_sig.returns.push(AbiParam::new(types::I64)); // success
 
-            let store_from_stack_id = self.module
-                .declare_function("jit_store_variable_from_stack", Linkage::Import, &store_from_stack_sig)
+            let store_from_stack_id = self
+                .module
+                .declare_function(
+                    "jit_store_variable_from_stack",
+                    Linkage::Import,
+                    &store_from_stack_sig,
+                )
                 .map_err(|e| format!("Failed to declare jit_store_variable_from_stack: {}", e))?;
 
             let store_from_stack_ref =
                 self.module.declare_func_in_func(store_from_stack_id, &mut builder.func);
-            
+
             // Declare jit_get_arg for fast parameter access
             // jit_get_arg: fn(*mut VMContext, i64) -> i64
             let mut get_arg_sig = self.module.make_signature();
             get_arg_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             get_arg_sig.params.push(AbiParam::new(types::I64)); // arg index
             get_arg_sig.returns.push(AbiParam::new(types::I64)); // arg value
-            
-            let get_arg_id = self.module
+
+            let get_arg_id = self
+                .module
                 .declare_function("jit_get_arg", Linkage::Import, &get_arg_sig)
                 .map_err(|e| format!("Failed to declare jit_get_arg: {}", e))?;
-            
+
             let get_arg_ref = self.module.declare_func_in_func(get_arg_id, &mut builder.func);
-            
+
             // Create BytecodeTranslator for this function
             let mut translator = BytecodeTranslator::new();
             translator.set_local_names(chunk.local_names.clone());
@@ -6679,12 +6716,9 @@ impl JitCompiler {
             translator.set_dict_set_function(dict_set_ref);
             translator.set_make_dict_function(make_dict_ref);
             translator.set_make_dict_with_keys_function(make_dict_keys_ref);
-            translator.set_append_in_place_functions(append_const_string_ref, append_const_char_ref);
-            translator.set_external_functions(
-                load_var_ref,
-                store_var_ref,
-                store_from_stack_ref,
-            );
+            translator
+                .set_append_in_place_functions(append_const_string_ref, append_const_char_ref);
+            translator.set_external_functions(load_var_ref, store_var_ref, store_from_stack_ref);
             translator.set_local_slot_int_dict_functions(
                 local_slot_int_dict_get_ref,
                 local_slot_int_dict_set_ref,
@@ -6698,23 +6732,23 @@ impl JitCompiler {
                 dense_int_dict_int_set_ptr_ref,
                 dense_int_dict_int_full_set_ptr_ref,
             );
-            
+
             // OPTIMIZATION: Enable direct self-recursion (Phase 7 Step 10)
             // This allows recursive functions to call themselves directly without
             // going through jit_call_function → VM → call_function_from_jit
             translator.set_current_function_name(name);
             translator.set_self_call_function(self_func_ref);
-            
+
             // Create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
-            
+
             // OPTIMIZATION: Pre-allocate stack slots for local variables
             // This enables register-based locals - direct memory access instead of
             // runtime function calls and HashMap lookups for every variable access
             // This is the key optimization for Phase 7 Step 7 - targeting 10-50x speedup
             let function_end = translator.function_end;
             translator.allocate_local_slots(&mut builder, &chunk.instructions, function_end);
-            
+
             // Also allocate stack slots for function parameters
             // Parameters need slots so they can be accessed via the fast path
             translator.allocate_parameter_slots(&mut builder, &chunk.params);
@@ -6731,40 +6765,42 @@ impl JitCompiler {
                 translator.allocate_int_dict_ptr_slots(&mut builder);
                 translator.initialize_int_dict_ptr_slots(&mut builder);
             }
-            
-            let has_loop = chunk
-                .instructions
-                .iter()
-                .any(|op| matches!(op, OpCode::JumpBack(_)));
+
+            let has_loop = chunk.instructions.iter().any(|op| matches!(op, OpCode::JumpBack(_)));
             // Initialize parameter slots with values from the func_locals HashMap
             // This copies parameter values from the HashMap into fast stack slots
             // at function entry, enabling fast access during function execution
             // OPTIMIZATION: Pass get_arg_ref for fast arg loading via VMContext.argN
             // NOTE: Disable fast args for loops to avoid incorrect parameter values.
             let get_arg_ref_opt = if has_loop { None } else { Some(get_arg_ref) };
-            translator.initialize_parameter_slots(&mut builder, &chunk.params, load_var_ref, get_arg_ref_opt);
-            
+            translator.initialize_parameter_slots(
+                &mut builder,
+                &chunk.params,
+                load_var_ref,
+                get_arg_ref_opt,
+            );
+
             // Add entry block to block map
             if !translator.blocks.contains_key(&0) {
                 translator.blocks.insert(0, entry_block);
             }
-            
+
             // Seal entry block
             builder.seal_block(entry_block);
-            
+
             let mut sealed_blocks = std::collections::HashSet::new();
             sealed_blocks.insert(entry_block);
-            
+
             let mut current_block = entry_block;
             let mut block_terminated = false;
-            
+
             // Translate all instructions from function body
             for (pc, instr) in chunk.instructions.iter().enumerate() {
                 // Stop at function end
                 if pc >= function_end {
                     break;
                 }
-                
+
                 // If this PC has a block, switch to it
                 if let Some(&block) = translator.blocks.get(&pc) {
                     if block != current_block {
@@ -6774,23 +6810,23 @@ impl JitCompiler {
                             let args: Vec<_> = translator.value_stack.clone();
                             builder.ins().jump(block, &args);
                         }
-                        
+
                         // Seal previous block
                         if !sealed_blocks.contains(&current_block) {
                             builder.seal_block(current_block);
                             sealed_blocks.insert(current_block);
                         }
-                        
+
                         builder.switch_to_block(block);
                         current_block = block;
                         block_terminated = false;
-                        
+
                         // If this block expects stack values, use block parameters
                         // NOTE: For loop headers, parameters were added during create_blocks
                         if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&pc) {
                             translator.value_stack.clear();
                             let existing_params = builder.block_params(block);
-                            
+
                             if existing_params.len() >= expected_depth {
                                 // Loop header - use existing parameters
                                 for i in 0..expected_depth {
@@ -6804,22 +6840,29 @@ impl JitCompiler {
                                 }
                             }
                             if std::env::var("DEBUG_JIT").is_ok() {
-                                eprintln!("JIT: Block at PC {} has {} params, stack restored", pc, expected_depth);
+                                eprintln!(
+                                    "JIT: Block at PC {} has {} params, stack restored",
+                                    pc, expected_depth
+                                );
                             }
                         }
                     }
                 }
-                
+
                 // Skip if block terminated
                 if block_terminated {
                     continue;
                 }
-                
+
                 // Translate the instruction
                 match translator.translate_instruction(&mut builder, pc, instr, &chunk.constants) {
                     Ok(terminates_block) => {
                         if std::env::var("DEBUG_JIT").is_ok() {
-                            eprintln!("JIT: PC {} OK, stack depth now: {}", pc, translator.value_stack.len());
+                            eprintln!(
+                                "JIT: PC {} OK, stack depth now: {}",
+                                pc,
+                                translator.value_stack.len()
+                            );
                         }
                         if terminates_block {
                             if !sealed_blocks.contains(&current_block) {
@@ -6831,14 +6874,19 @@ impl JitCompiler {
                     }
                     Err(e) => {
                         if std::env::var("DEBUG_JIT").is_ok() {
-                            eprintln!("JIT: PC {} FAILED: {}, instruction: {:?}, stack depth: {}", 
-                                pc, e, instr, translator.value_stack.len());
+                            eprintln!(
+                                "JIT: PC {} FAILED: {}, instruction: {:?}, stack depth: {}",
+                                pc,
+                                e,
+                                instr,
+                                translator.value_stack.len()
+                            );
                         }
                         return Err(format!("Translation failed at PC {}: {}", pc, e));
                     }
                 }
             }
-            
+
             // If last block not terminated, add return
             if !block_terminated {
                 let zero = builder.ins().iconst(types::I64, 0);
@@ -6847,47 +6895,42 @@ impl JitCompiler {
                     builder.seal_block(current_block);
                 }
             }
-            
+
             // Finalize the function
             builder.finalize();
         }
-        
+
         // 7. Compile the function
         // Debug: Print IR before compilation if DEBUG_JIT is set
         if std::env::var("DEBUG_JIT_IR").is_ok() {
             eprintln!("JIT IR for '{}':\n{}", name, self.ctx.func.display());
         }
-        
-        self.module
-            .define_function(func_id, &mut self.ctx)
-            .map_err(|e| {
-                // Get more details about the error
-                let err_msg = format!("{:?}", e);
-                format!("Failed to define function: {}", err_msg)
-            })?;
-        
+
+        self.module.define_function(func_id, &mut self.ctx).map_err(|e| {
+            // Get more details about the error
+            let err_msg = format!("{:?}", e);
+            format!("Failed to define function: {}", err_msg)
+        })?;
+
         self.module.clear_context(&mut self.ctx);
-        self.module.finalize_definitions()
-            .map_err(|e| format!("Failed to finalize: {}", e))?;
-        
+        self.module.finalize_definitions().map_err(|e| format!("Failed to finalize: {}", e))?;
+
         // 8. Get function pointer
         let code_ptr = self.module.get_finalized_function(func_id);
-        
+
         // 9. Cast to our function type
-        let compiled_fn: CompiledFn = unsafe {
-            std::mem::transmute(code_ptr)
-        };
-        
+        let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
+
         Ok(compiled_fn)
     }
-    
+
     /// Compile a function with direct-arg signature for JIT recursion optimization
     /// This generates a function with signature: fn(*mut VMContext, arg0: i64) -> i64
     /// where the return value is the actual computed result (not a status code)
-    /// 
+    ///
     /// This signature enables direct JIT-to-JIT recursion without crossing FFI boundaries,
     /// providing 30-50x speedup on recursive functions compared to the standard path.
-    /// 
+    ///
     /// Only suitable for single-parameter integer functions (like fibonacci, factorial)
     pub fn compile_function_with_direct_arg(
         &mut self,
@@ -6901,48 +6944,49 @@ impl JitCompiler {
                 chunk.params.len()
             ));
         }
-        
+
         // 1. Check if function is compilable
         if !self.can_compile_function(chunk) {
             return Err(format!("Function '{}' contains unsupported opcodes", name));
         }
-        
+
         // 2. Clear previous context
         self.ctx.clear();
-        
+
         // 3. Create Cranelift function signature with direct argument
         //    Takes VMContext pointer + arg0, returns computed result (i64)
         let mut sig = self.module.make_signature();
         sig.params.push(AbiParam::new(types::I64)); // VMContext pointer
         sig.params.push(AbiParam::new(types::I64)); // arg0 (direct parameter)
         sig.returns.push(AbiParam::new(types::I64)); // Result value (not status code!)
-        
+
         // 4. Declare function in module with unique name for direct-arg variant
         let direct_name = format!("{}_direct", name);
-        let func_id = self.module
+        let func_id = self
+            .module
             .declare_function(&direct_name, Linkage::Export, &sig)
             .map_err(|e| format!("Failed to declare direct-arg function: {}", e))?;
-        
+
         // 5. Set function signature
         self.ctx.func.signature = sig;
-        
+
         // 6. Build function body
         {
             let mut builder_ctx = FunctionBuilderContext::new();
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut builder_ctx);
-            
+
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
             builder.switch_to_block(entry_block);
-            
+
             // Get parameters: VMContext and direct arg
             let vm_context_param = builder.block_params(entry_block)[0];
             let direct_arg_param = builder.block_params(entry_block)[1];
-            
+
             // Declare self-reference for direct recursion
             // This function can call itself directly with the same signature!
             let self_func_ref = self.module.declare_func_in_func(func_id, &mut builder.func);
-            
+
             // Create BytecodeTranslator with direct-arg mode enabled
             let mut translator = BytecodeTranslator::new();
             translator.set_local_names(chunk.local_names.clone());
@@ -6950,44 +6994,49 @@ impl JitCompiler {
             translator.set_direct_arg_mode(direct_arg_param, 1);
             translator.set_current_function_name(name);
             translator.set_self_call_function(self_func_ref);
-            
+
             // Create blocks for all jump targets
             translator.create_blocks(&mut builder, &chunk.instructions)?;
-            
+
             // IMPORTANT: For direct-arg mode, we DON'T allocate a stack slot for the parameter
             // Instead, we track it as the direct_arg_param and use it directly
             // Only allocate slots for OTHER local variables (not the first parameter)
             let param_name = &chunk.params[0];
             let function_end = translator.function_end;
-            
+
             // Allocate slots for locals EXCEPT the direct parameter
-            translator.allocate_local_slots_except(&mut builder, &chunk.instructions, function_end, param_name);
+            translator.allocate_local_slots_except(
+                &mut builder,
+                &chunk.instructions,
+                function_end,
+                param_name,
+            );
 
             // Initialize the parameter slot with the direct argument value
             if let Some(&slot) = translator.local_slots.get(param_name) {
                 builder.ins().stack_store(direct_arg_param, slot, 0);
             }
-            
+
             // Add entry block to block map
             if !translator.blocks.contains_key(&0) {
                 translator.blocks.insert(0, entry_block);
             }
-            
+
             // Seal entry block
             builder.seal_block(entry_block);
-            
+
             let mut sealed_blocks = std::collections::HashSet::new();
             sealed_blocks.insert(entry_block);
-            
+
             let mut current_block = entry_block;
             let mut block_terminated = false;
-            
+
             // Translate each instruction
             for (pc, instr) in chunk.instructions.iter().enumerate() {
                 if pc >= translator.function_end {
                     break;
                 }
-                
+
                 // Check if we need to switch to a new block
                 if let Some(&block) = translator.blocks.get(&pc) {
                     if block != current_block {
@@ -6995,7 +7044,7 @@ impl JitCompiler {
                             let args: Vec<_> = translator.value_stack.clone();
                             builder.ins().jump(block, &args);
                         }
-                        
+
                         if !sealed_blocks.contains(&current_block) {
                             builder.seal_block(current_block);
                             sealed_blocks.insert(current_block);
@@ -7003,12 +7052,12 @@ impl JitCompiler {
                         builder.switch_to_block(block);
                         current_block = block;
                         block_terminated = false;
-                        
+
                         // Use existing block parameters for loop headers
                         if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&pc) {
                             translator.value_stack.clear();
                             let existing_params = builder.block_params(block);
-                            
+
                             if existing_params.len() >= expected_depth {
                                 for i in 0..expected_depth {
                                     translator.value_stack.push(existing_params[i]);
@@ -7022,12 +7071,18 @@ impl JitCompiler {
                         }
                     }
                 }
-                
+
                 if block_terminated {
                     continue;
                 }
-                
-                match translator.translate_direct_arg_instruction(&mut builder, pc, instr, &chunk.constants, param_name) {
+
+                match translator.translate_direct_arg_instruction(
+                    &mut builder,
+                    pc,
+                    instr,
+                    &chunk.constants,
+                    param_name,
+                ) {
                     Ok(terminates_block) => {
                         if terminates_block {
                             if !sealed_blocks.contains(&current_block) {
@@ -7042,7 +7097,7 @@ impl JitCompiler {
                     }
                 }
             }
-            
+
             // If last block not terminated, return 0
             if !block_terminated {
                 let zero = builder.ins().iconst(types::I64, 0);
@@ -7051,34 +7106,33 @@ impl JitCompiler {
                     builder.seal_block(current_block);
                 }
             }
-            
+
             builder.finalize();
         }
-        
+
         // 7. Compile the function
         if std::env::var("DEBUG_JIT_IR").is_ok() {
             eprintln!("JIT IR for '{}' (direct-arg):\n{}", name, self.ctx.func.display());
         }
-        
+
         self.module
             .define_function(func_id, &mut self.ctx)
             .map_err(|e| format!("Failed to define direct-arg function: {:?}", e))?;
-        
+
         self.module.clear_context(&mut self.ctx);
-        self.module.finalize_definitions()
+        self.module
+            .finalize_definitions()
             .map_err(|e| format!("Failed to finalize direct-arg: {}", e))?;
-        
+
         // 8. Get function pointer
         let code_ptr = self.module.get_finalized_function(func_id);
-        
+
         // 9. Cast to our direct-arg function type
-        let compiled_fn: CompiledFnWithArg = unsafe {
-            std::mem::transmute(code_ptr)
-        };
-        
+        let compiled_fn: CompiledFnWithArg = unsafe { std::mem::transmute(code_ptr) };
+
         Ok(compiled_fn)
     }
-    
+
     /// Compile a function and return enhanced info including direct-arg variant if eligible
     pub fn compile_function_with_info(
         &mut self,
@@ -7087,14 +7141,18 @@ impl JitCompiler {
     ) -> Result<CompiledFnInfo, String> {
         // First, compile the standard function
         let standard_fn = self.compile_function(chunk, name)?;
-        
+
         // Check if eligible for direct-arg optimization
         // Criteria: exactly 1 parameter, function contains self-recursion
-        let direct_fn = if chunk.params.len() == 1 && self.function_has_self_recursion(chunk, name) {
+        let direct_fn = if chunk.params.len() == 1 && self.function_has_self_recursion(chunk, name)
+        {
             match self.compile_function_with_direct_arg(chunk, name) {
                 Ok(fn_ptr) => {
                     if std::env::var("DEBUG_JIT").is_ok() {
-                        eprintln!("JIT: Compiled '{}' with direct-arg optimization for recursion", name);
+                        eprintln!(
+                            "JIT: Compiled '{}' with direct-arg optimization for recursion",
+                            name
+                        );
                     }
                     Some(fn_ptr)
                 }
@@ -7108,31 +7166,31 @@ impl JitCompiler {
         } else {
             None
         };
-        
+
         let info = CompiledFnInfo {
             fn_ptr: standard_fn,
             fn_with_arg: direct_fn,
             param_count: chunk.params.len(),
             supports_direct_recursion: direct_fn.is_some(),
         };
-        
+
         // Cache the info
         self.compiled_fn_info.insert(name.to_string(), info);
-        
+
         Ok(info)
     }
-    
+
     /// Check if a function contains self-recursive calls
     fn function_has_self_recursion(&self, chunk: &BytecodeChunk, name: &str) -> bool {
-        // Note: We must scan ALL bytecode, not stop at first Return, because 
+        // Note: We must scan ALL bytecode, not stop at first Return, because
         // recursive calls often appear after early returns from base cases.
         // For example, in fib(n): if n < 2 { return n } else { return fib(n-1) + fib(n-2) }
         // The first return is the base case; the recursive call is in the else branch.
-        
+
         if std::env::var("DEBUG_JIT").is_ok() {
             eprintln!("JIT: Checking self-recursion for '{}'", name);
         }
-        
+
         // Scan ALL instructions looking for self-recursive call pattern
         let instructions = &chunk.instructions;
         for i in 0..instructions.len().saturating_sub(1) {
@@ -7149,103 +7207,113 @@ impl JitCompiler {
                 }
             }
         }
-        
+
         if std::env::var("DEBUG_JIT").is_ok() {
             eprintln!("JIT: No self-recursion found in '{}'", name);
         }
         false
     }
-    
+
     /// Compile a top-level script (entire chunk) to native code
     /// This is similar to compile_function but doesn't expect a Return opcode
     /// The script executes all instructions and returns normally at the end
-    pub fn compile_script(&mut self, chunk: &BytecodeChunk, name: &str) -> Result<CompiledFn, String> {
+    pub fn compile_script(
+        &mut self,
+        chunk: &BytecodeChunk,
+        name: &str,
+    ) -> Result<CompiledFn, String> {
         // Check if script is compilable (all opcodes supported)
         for instr in &chunk.instructions {
             if !self.is_supported_opcode(instr, &chunk.constants) {
                 return Err(format!("Script '{}' contains unsupported opcode: {:?}", name, instr));
             }
         }
-        
+
         // Clear previous context
         self.ctx.clear();
-        
+
         // Create function signature (same as compile_function)
         let mut sig = self.module.make_signature();
         sig.params.push(AbiParam::new(types::I64)); // VMContext pointer
         sig.returns.push(AbiParam::new(types::I64)); // Status code
-        
+
         // Declare function
-        let func_id = self.module
+        let func_id = self
+            .module
             .declare_function(name, Linkage::Export, &sig)
             .map_err(|e| format!("Failed to declare script: {}", e))?;
-        
+
         self.ctx.func.signature = sig;
-        
+
         // Build function body
         {
             let mut builder_ctx = FunctionBuilderContext::new();
             let mut builder = FunctionBuilder::new(&mut self.ctx.func, &mut builder_ctx);
-            
+
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
             builder.switch_to_block(entry_block);
-            
+
             // Get VMContext parameter
             let vm_context_param = builder.block_params(entry_block)[0];
-            
+
             // Declare runtime helper functions (same as compile_function)
             let mut call_func_sig = self.module.make_signature();
             call_func_sig.params.push(AbiParam::new(types::I64));
             call_func_sig.params.push(AbiParam::new(types::I64));
             call_func_sig.params.push(AbiParam::new(types::I64));
             call_func_sig.returns.push(AbiParam::new(types::I64));
-            
-            let call_func_id = self.module
+
+            let call_func_id = self
+                .module
                 .declare_function("jit_call_function", Linkage::Import, &call_func_sig)
                 .map_err(|e| format!("Failed to declare jit_call_function: {}", e))?;
             let call_func_ref = self.module.declare_func_in_func(call_func_id, &mut builder.func);
-            
+
             // Declare jit_stack_push for pushing values to VM stack before calls
             // jit_stack_push: fn(*mut VMContext, i64)
             let mut stack_push_sig = self.module.make_signature();
             stack_push_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             stack_push_sig.params.push(AbiParam::new(types::I64)); // value to push
-            
-            let stack_push_id = self.module
+
+            let stack_push_id = self
+                .module
                 .declare_function("jit_stack_push", Linkage::Import, &stack_push_sig)
                 .map_err(|e| format!("Failed to declare jit_stack_push: {}", e))?;
             let stack_push_ref = self.module.declare_func_in_func(stack_push_id, &mut builder.func);
-            
+
             // Declare jit_stack_pop for getting call results
             // jit_stack_pop: fn(*mut VMContext) -> i64
             let mut stack_pop_sig = self.module.make_signature();
             stack_pop_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             stack_pop_sig.returns.push(AbiParam::new(types::I64)); // popped value
-            
-            let stack_pop_id = self.module
+
+            let stack_pop_id = self
+                .module
                 .declare_function("jit_stack_pop", Linkage::Import, &stack_pop_sig)
                 .map_err(|e| format!("Failed to declare jit_stack_pop: {}", e))?;
             let stack_pop_ref = self.module.declare_func_in_func(stack_pop_id, &mut builder.func);
-            
+
             // Declare jit_dict_get for fast dictionary read operations
             // jit_dict_get: fn(*mut VMContext) -> i64
             let mut dict_get_sig = self.module.make_signature();
             dict_get_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             dict_get_sig.returns.push(AbiParam::new(types::I64)); // return status
-            
-            let dict_get_id = self.module
+
+            let dict_get_id = self
+                .module
                 .declare_function("jit_dict_get", Linkage::Import, &dict_get_sig)
                 .map_err(|e| format!("Failed to declare jit_dict_get: {}", e))?;
             let dict_get_ref = self.module.declare_func_in_func(dict_get_id, &mut builder.func);
-            
+
             // Declare jit_dict_set for fast dictionary write operations
             // jit_dict_set: fn(*mut VMContext) -> i64
             let mut dict_set_sig = self.module.make_signature();
             dict_set_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             dict_set_sig.returns.push(AbiParam::new(types::I64)); // return status
-            
-            let dict_set_id = self.module
+
+            let dict_set_id = self
+                .module
                 .declare_function("jit_dict_set", Linkage::Import, &dict_set_sig)
                 .map_err(|e| format!("Failed to declare jit_dict_set: {}", e))?;
             let dict_set_ref = self.module.declare_func_in_func(dict_set_id, &mut builder.func);
@@ -7256,7 +7324,8 @@ impl JitCompiler {
             local_dict_get_sig.params.push(AbiParam::new(types::I64));
             local_dict_get_sig.returns.push(AbiParam::new(types::I64));
 
-            let local_dict_get_id = self.module
+            let local_dict_get_id = self
+                .module
                 .declare_function("jit_local_slot_dict_get", Linkage::Import, &local_dict_get_sig)
                 .map_err(|e| format!("Failed to declare jit_local_slot_dict_get: {}", e))?;
             let _local_dict_get_ref =
@@ -7269,7 +7338,8 @@ impl JitCompiler {
             local_dict_set_sig.params.push(AbiParam::new(types::I64));
             local_dict_set_sig.returns.push(AbiParam::new(types::I64));
 
-            let local_dict_set_id = self.module
+            let local_dict_set_id = self
+                .module
                 .declare_function("jit_local_slot_dict_set", Linkage::Import, &local_dict_set_sig)
                 .map_err(|e| format!("Failed to declare jit_local_slot_dict_set: {}", e))?;
             let _local_dict_set_ref =
@@ -7281,7 +7351,8 @@ impl JitCompiler {
             local_dict_get_sig.params.push(AbiParam::new(types::I64)); // key
             local_dict_get_sig.returns.push(AbiParam::new(types::I64)); // value
 
-            let local_dict_get_id = self.module
+            let local_dict_get_id = self
+                .module
                 .declare_function("jit_local_slot_dict_get", Linkage::Import, &local_dict_get_sig)
                 .map_err(|e| format!("Failed to declare jit_local_slot_dict_get: {}", e))?;
             let local_dict_get_ref =
@@ -7294,20 +7365,22 @@ impl JitCompiler {
             local_dict_set_sig.params.push(AbiParam::new(types::I64)); // value
             local_dict_set_sig.returns.push(AbiParam::new(types::I64)); // success
 
-            let local_dict_set_id = self.module
+            let local_dict_set_id = self
+                .module
                 .declare_function("jit_local_slot_dict_set", Linkage::Import, &local_dict_set_sig)
                 .map_err(|e| format!("Failed to declare jit_local_slot_dict_set: {}", e))?;
             let local_dict_set_ref =
                 self.module.declare_func_in_func(local_dict_set_id, &mut builder.func);
-            
+
             // Declare jit_make_dict for dictionary creation
             // jit_make_dict: fn(*mut VMContext, i64) -> i64
             let mut make_dict_sig = self.module.make_signature();
             make_dict_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             make_dict_sig.params.push(AbiParam::new(types::I64)); // num_pairs
             make_dict_sig.returns.push(AbiParam::new(types::I64)); // return status
-            
-            let make_dict_id = self.module
+
+            let make_dict_id = self
+                .module
                 .declare_function("jit_make_dict", Linkage::Import, &make_dict_sig)
                 .map_err(|e| format!("Failed to declare jit_make_dict: {}", e))?;
             let make_dict_ref = self.module.declare_func_in_func(make_dict_id, &mut builder.func);
@@ -7326,7 +7399,9 @@ impl JitCompiler {
                     Linkage::Import,
                     &append_const_string_sig,
                 )
-                .map_err(|e| format!("Failed to declare jit_append_const_string_in_place: {}", e))?;
+                .map_err(|e| {
+                    format!("Failed to declare jit_append_const_string_in_place: {}", e)
+                })?;
             let append_const_string_ref =
                 self.module.declare_func_in_func(append_const_string_id, &mut builder.func);
 
@@ -7353,7 +7428,8 @@ impl JitCompiler {
             make_dict_keys_sig.params.push(AbiParam::new(types::I64)); // num keys
             make_dict_keys_sig.returns.push(AbiParam::new(types::I64)); // return status
 
-            let make_dict_keys_id = self.module
+            let make_dict_keys_id = self
+                .module
                 .declare_function("jit_make_dict_with_keys", Linkage::Import, &make_dict_keys_sig)
                 .map_err(|e| format!("Failed to declare jit_make_dict_with_keys: {}", e))?;
             let make_dict_keys_ref =
@@ -7365,8 +7441,13 @@ impl JitCompiler {
             local_int_dict_get_sig.params.push(AbiParam::new(types::I64)); // key
             local_int_dict_get_sig.returns.push(AbiParam::new(types::I64)); // value
 
-            let local_int_dict_get_id = self.module
-                .declare_function("jit_local_slot_int_dict_get", Linkage::Import, &local_int_dict_get_sig)
+            let local_int_dict_get_id = self
+                .module
+                .declare_function(
+                    "jit_local_slot_int_dict_get",
+                    Linkage::Import,
+                    &local_int_dict_get_sig,
+                )
                 .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_get: {}", e))?;
             let local_int_dict_get_ref =
                 self.module.declare_func_in_func(local_int_dict_get_id, &mut builder.func);
@@ -7378,88 +7459,110 @@ impl JitCompiler {
             local_int_dict_set_sig.params.push(AbiParam::new(types::I64)); // value
             local_int_dict_set_sig.returns.push(AbiParam::new(types::I64)); // success
 
-            let local_int_dict_set_id = self.module
-                .declare_function("jit_local_slot_int_dict_set", Linkage::Import, &local_int_dict_set_sig)
+            let local_int_dict_set_id = self
+                .module
+                .declare_function(
+                    "jit_local_slot_int_dict_set",
+                    Linkage::Import,
+                    &local_int_dict_set_sig,
+                )
                 .map_err(|e| format!("Failed to declare jit_local_slot_int_dict_set: {}", e))?;
             let local_int_dict_set_ref =
                 self.module.declare_func_in_func(local_int_dict_set_id, &mut builder.func);
-            
+
             // Declare load/store variable functions
             let mut load_var_sig = self.module.make_signature();
             load_var_sig.params.push(AbiParam::new(types::I64));
             load_var_sig.params.push(AbiParam::new(types::I64));
             load_var_sig.params.push(AbiParam::new(types::I64));
             load_var_sig.returns.push(AbiParam::new(types::I64));
-            
-            let load_var_id = self.module
+
+            let load_var_id = self
+                .module
                 .declare_function("jit_load_variable", Linkage::Import, &load_var_sig)
                 .map_err(|e| format!("Failed to declare jit_load_variable: {}", e))?;
-            let load_var_func_ref = self.module.declare_func_in_func(load_var_id, &mut builder.func);
-            
+            let load_var_func_ref =
+                self.module.declare_func_in_func(load_var_id, &mut builder.func);
+
             let mut store_var_sig = self.module.make_signature();
             store_var_sig.params.push(AbiParam::new(types::I64));
             store_var_sig.params.push(AbiParam::new(types::I64));
             store_var_sig.params.push(AbiParam::new(types::I64));
             store_var_sig.params.push(AbiParam::new(types::I64));
-            
-            let store_var_id = self.module
+
+            let store_var_id = self
+                .module
                 .declare_function("jit_store_variable", Linkage::Import, &store_var_sig)
                 .map_err(|e| format!("Failed to declare jit_store_variable: {}", e))?;
-            let store_var_func_ref = self.module.declare_func_in_func(store_var_id, &mut builder.func);
+            let store_var_func_ref =
+                self.module.declare_func_in_func(store_var_id, &mut builder.func);
 
             let mut store_from_stack_sig = self.module.make_signature();
             store_from_stack_sig.params.push(AbiParam::new(types::I64));
             store_from_stack_sig.params.push(AbiParam::new(types::I64));
             store_from_stack_sig.returns.push(AbiParam::new(types::I64));
 
-            let store_from_stack_id = self.module
-                .declare_function("jit_store_variable_from_stack", Linkage::Import, &store_from_stack_sig)
+            let store_from_stack_id = self
+                .module
+                .declare_function(
+                    "jit_store_variable_from_stack",
+                    Linkage::Import,
+                    &store_from_stack_sig,
+                )
                 .map_err(|e| format!("Failed to declare jit_store_variable_from_stack: {}", e))?;
             let store_from_stack_func_ref =
                 self.module.declare_func_in_func(store_from_stack_id, &mut builder.func);
-            
+
             // Float load/store
             let mut load_var_float_sig = self.module.make_signature();
             load_var_float_sig.params.push(AbiParam::new(types::I64));
             load_var_float_sig.params.push(AbiParam::new(types::I64));
             load_var_float_sig.returns.push(AbiParam::new(types::F64));
-            
-            let load_var_float_id = self.module
+
+            let load_var_float_id = self
+                .module
                 .declare_function("jit_load_variable_float", Linkage::Import, &load_var_float_sig)
                 .map_err(|e| format!("Failed to declare jit_load_variable_float: {}", e))?;
-            let load_var_float_func_ref = self.module.declare_func_in_func(load_var_float_id, &mut builder.func);
-            
+            let load_var_float_func_ref =
+                self.module.declare_func_in_func(load_var_float_id, &mut builder.func);
+
             let mut store_var_float_sig = self.module.make_signature();
             store_var_float_sig.params.push(AbiParam::new(types::I64));
             store_var_float_sig.params.push(AbiParam::new(types::I64));
             store_var_float_sig.params.push(AbiParam::new(types::F64));
-            
-            let store_var_float_id = self.module
+
+            let store_var_float_id = self
+                .module
                 .declare_function("jit_store_variable_float", Linkage::Import, &store_var_float_sig)
                 .map_err(|e| format!("Failed to declare jit_store_variable_float: {}", e))?;
-            let store_var_float_func_ref = self.module.declare_func_in_func(store_var_float_id, &mut builder.func);
-            
+            let store_var_float_func_ref =
+                self.module.declare_func_in_func(store_var_float_id, &mut builder.func);
+
             // Guard functions (not used for scripts typically, but available)
             let mut check_int_sig = self.module.make_signature();
             check_int_sig.params.push(AbiParam::new(types::I64));
             check_int_sig.params.push(AbiParam::new(types::I64));
             check_int_sig.returns.push(AbiParam::new(types::I64));
-            
-            let check_int_id = self.module
+
+            let check_int_id = self
+                .module
                 .declare_function("jit_check_int_guard", Linkage::Import, &check_int_sig)
                 .map_err(|e| format!("Failed to declare jit_check_int_guard: {}", e))?;
-            let check_int_func_ref = self.module.declare_func_in_func(check_int_id, &mut builder.func);
-            
+            let check_int_func_ref =
+                self.module.declare_func_in_func(check_int_id, &mut builder.func);
+
             let mut check_float_sig = self.module.make_signature();
             check_float_sig.params.push(AbiParam::new(types::I64));
             check_float_sig.params.push(AbiParam::new(types::I64));
             check_float_sig.returns.push(AbiParam::new(types::I64));
-            
-            let check_float_id = self.module
+
+            let check_float_id = self
+                .module
                 .declare_function("jit_check_float_guard", Linkage::Import, &check_float_sig)
                 .map_err(|e| format!("Failed to declare jit_check_float_guard: {}", e))?;
-            let check_float_func_ref = self.module.declare_func_in_func(check_float_id, &mut builder.func);
-            
+            let check_float_func_ref =
+                self.module.declare_func_in_func(check_float_id, &mut builder.func);
+
             // Initialize translator
             let mut translator = BytecodeTranslator::new();
             translator.set_local_names(chunk.local_names.clone());
@@ -7478,31 +7581,30 @@ impl JitCompiler {
             translator.set_dict_set_function(dict_set_ref);
             translator.set_make_dict_function(make_dict_ref);
             translator.set_make_dict_with_keys_function(make_dict_keys_ref);
-            translator.set_append_in_place_functions(append_const_string_ref, append_const_char_ref);
+            translator
+                .set_append_in_place_functions(append_const_string_ref, append_const_char_ref);
             translator.set_local_slot_dict_functions(local_dict_get_ref, local_dict_set_ref);
-            translator.set_local_slot_int_dict_functions(
-                local_int_dict_get_ref,
-                local_int_dict_set_ref,
-            );
+            translator
+                .set_local_slot_int_dict_functions(local_int_dict_get_ref, local_int_dict_set_ref);
             translator.function_end = chunk.instructions.len(); // Process all instructions
-            
+
             // Create blocks for jump targets (this also analyzes loop headers)
             translator.create_blocks(&mut builder, &chunk.instructions)?;
-            
+
             // Add entry block to the map
             if !translator.blocks.contains_key(&0) {
                 translator.blocks.insert(0, entry_block);
             }
-            
+
             // Seal entry block
             builder.seal_block(entry_block);
-            
+
             let mut sealed_blocks = std::collections::HashSet::new();
             sealed_blocks.insert(entry_block);
-            
+
             let mut current_block = entry_block;
             let mut block_terminated = false;
-            
+
             // Translate all instructions
             for (pc, instr) in chunk.instructions.iter().enumerate() {
                 // If this PC has a block, switch to it
@@ -7513,22 +7615,22 @@ impl JitCompiler {
                             let args: Vec<_> = translator.value_stack.clone();
                             builder.ins().jump(block, &args);
                         }
-                        
+
                         // Seal previous block
                         if !sealed_blocks.contains(&current_block) {
                             builder.seal_block(current_block);
                             sealed_blocks.insert(current_block);
                         }
-                        
+
                         builder.switch_to_block(block);
                         current_block = block;
                         block_terminated = false;
-                        
+
                         // Restore stack from block parameters
                         if let Some(&expected_depth) = translator.block_entry_stack_depth.get(&pc) {
                             translator.value_stack.clear();
                             let existing_params = builder.block_params(block);
-                            
+
                             if existing_params.len() >= expected_depth {
                                 for i in 0..expected_depth {
                                     translator.value_stack.push(existing_params[i]);
@@ -7542,12 +7644,12 @@ impl JitCompiler {
                         }
                     }
                 }
-                
+
                 // Skip if block terminated
                 if block_terminated {
                     continue;
                 }
-                
+
                 // Translate the instruction
                 match translator.translate_instruction(&mut builder, pc, instr, &chunk.constants) {
                     Ok(terminates_block) => {
@@ -7564,7 +7666,7 @@ impl JitCompiler {
                     }
                 }
             }
-            
+
             // Seal any unsealed loop headers (late sealing for back-edges)
             for &header_pc in &translator.loop_header_pcs {
                 if let Some(&block) = translator.blocks.get(&header_pc) {
@@ -7577,49 +7679,46 @@ impl JitCompiler {
                     }
                 }
             }
-            
+
             // If script ended without explicit return, add success return
             if !block_terminated {
                 let success_code = builder.ins().iconst(types::I64, 0);
                 builder.ins().return_(&[success_code]);
-                
+
                 // Seal final block
                 if !sealed_blocks.contains(&current_block) {
                     builder.seal_block(current_block);
                 }
             }
-            
+
             builder.finalize();
         }
-        
+
         // Compile the function
         if std::env::var("DEBUG_JIT_IR").is_ok() {
             eprintln!("JIT IR for script '{}':\n{}", name, self.ctx.func.display());
         }
-        
+
         self.module
             .define_function(func_id, &mut self.ctx)
             .map_err(|e| format!("Failed to define script: {:?}", e))?;
-        
+
         self.module.clear_context(&mut self.ctx);
-        self.module.finalize_definitions()
-            .map_err(|e| format!("Failed to finalize: {}", e))?;
-        
+        self.module.finalize_definitions().map_err(|e| format!("Failed to finalize: {}", e))?;
+
         // Get function pointer
         let code_ptr = self.module.get_finalized_function(func_id);
-        
+
         // Cast to our function type
-        let compiled_fn: CompiledFn = unsafe {
-            std::mem::transmute(code_ptr)
-        };
-        
+        let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
+
         if std::env::var("DEBUG_JIT").is_ok() {
             eprintln!("JIT: Successfully compiled script '{}'", name);
         }
-        
+
         Ok(compiled_fn)
     }
-    
+
     /// Get compiled function info for a function name
     #[allow(dead_code)] // API for external tooling and debugging
     pub fn get_fn_info(&self, name: &str) -> Option<&CompiledFnInfo> {
@@ -7633,7 +7732,7 @@ impl JitCompiler {
             if !self.is_supported_opcode(instr, &chunk.constants) {
                 return false;
             }
-            
+
             // Stop at Return - that's the end of the function body
             match instr {
                 OpCode::Return | OpCode::ReturnNone => break,
@@ -7647,15 +7746,16 @@ impl JitCompiler {
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
     }
-    
+
     /// Record a type observation for profiling
     /// TODO: Integrate into VM execution loop for automatic profiling
     #[allow(dead_code)]
     pub fn record_type(&mut self, offset: usize, var_hash: u64, value: &Value) {
         let profile = self.type_profiles.entry(offset).or_insert_with(SpecializationInfo::new);
-        let type_profile = profile.variable_types.entry(var_hash).or_insert_with(TypeProfile::default);
+        let type_profile =
+            profile.variable_types.entry(var_hash).or_insert_with(TypeProfile::default);
         type_profile.record(value);
-        
+
         // Update specialization strategy if profile is stable
         if type_profile.is_stable() {
             if let Some(dominant_type) = type_profile.dominant_type() {
@@ -7663,7 +7763,7 @@ impl JitCompiler {
             }
         }
     }
-    
+
     /// Record a guard success
     /// TODO: Call from JIT-compiled code guard checks
     #[allow(dead_code)]
@@ -7672,14 +7772,14 @@ impl JitCompiler {
             profile.guard_successes += 1;
         }
     }
-    
+
     /// Record a guard failure
     /// TODO: Call from JIT-compiled code when guard checks fail
     #[allow(dead_code)]
     pub fn record_guard_failure(&mut self, offset: usize) {
         if let Some(profile) = self.type_profiles.get_mut(&offset) {
             profile.guard_failures += 1;
-            
+
             // Check if we should recompile
             if profile.should_despecialize() {
                 // Remove from cache to force recompilation with generic code
@@ -7690,7 +7790,7 @@ impl JitCompiler {
             }
         }
     }
-    
+
     /// Get specialization info for a function
     /// TODO: Use for adaptive recompilation decisions
     #[allow(dead_code)]
@@ -7881,38 +7981,38 @@ mod tests {
         let const_1 = chunk.add_constant(Constant::Int(1));
         let const_10 = chunk.add_constant(Constant::Int(10));
         let const_0 = chunk.add_constant(Constant::Int(0));
-        
+
         // Initialize counter = 0
         chunk.emit(OpCode::LoadConst(const_0)); // 0: load 0
         chunk.emit(OpCode::StoreVar("counter".to_string())); // 1: store to counter
-        chunk.emit(OpCode::Pop);                            // 2: clean stack after let
-        
+        chunk.emit(OpCode::Pop); // 2: clean stack after let
+
         // loop_start (PC 3): stack is empty []
         let loop_start = chunk.instructions.len();
-        
+
         // Check condition: counter < 10
         chunk.emit(OpCode::LoadVar("counter".to_string())); // 3: load counter, stack: [counter]
-        chunk.emit(OpCode::LoadConst(const_10));            // 4: load 10, stack: [counter, 10]
-        chunk.emit(OpCode::LessThan);                       // 5: <, stack: [is_less]
-        chunk.emit(OpCode::JumpIfFalse(0));                 // 6: jump if false (patched)
-        chunk.emit(OpCode::Pop);                            // 7: pop condition, stack: []
-        
+        chunk.emit(OpCode::LoadConst(const_10)); // 4: load 10, stack: [counter, 10]
+        chunk.emit(OpCode::LessThan); // 5: <, stack: [is_less]
+        chunk.emit(OpCode::JumpIfFalse(0)); // 6: jump if false (patched)
+        chunk.emit(OpCode::Pop); // 7: pop condition, stack: []
+
         // Body: counter := counter + 1
         chunk.emit(OpCode::LoadVar("counter".to_string())); // 8: load counter
-        chunk.emit(OpCode::LoadConst(const_1));             // 9: load 1
-        chunk.emit(OpCode::Add);                            // 10: add
+        chunk.emit(OpCode::LoadConst(const_1)); // 9: load 1
+        chunk.emit(OpCode::Add); // 10: add
         chunk.emit(OpCode::StoreVar("counter".to_string())); // 11: store counter
-        chunk.emit(OpCode::Pop);                            // 12: pop (StoreVar peeks, we need clean stack)
-        
+        chunk.emit(OpCode::Pop); // 12: pop (StoreVar peeks, we need clean stack)
+
         // Jump back to loop start (stack is empty, matches PC 3 entry)
-        chunk.emit(OpCode::JumpBack(loop_start));           // 13: jump back
-        
+        chunk.emit(OpCode::JumpBack(loop_start)); // 13: jump back
+
         // end (PC 14):
         let end_pc = chunk.instructions.len();
-        chunk.emit(OpCode::Pop);                            // 14: pop condition
+        chunk.emit(OpCode::Pop); // 14: pop condition
         chunk.emit(OpCode::LoadVar("counter".to_string())); // 15: load final counter
-        chunk.emit(OpCode::Return);                         // 16: return
-        
+        chunk.emit(OpCode::Return); // 16: return
+
         // Patch jump
         chunk.instructions[6] = OpCode::JumpIfFalse(end_pc);
 
@@ -7938,7 +8038,8 @@ mod tests {
 
         // Execute the compiled function
         // For now, pass a null pointer since we don't need context for pure arithmetic
-        let mut ctx = VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
+        let mut ctx =
+            VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
         let result = unsafe { compiled_fn(&mut ctx as *mut VMContext) };
 
         // Result should be 0 (success code)
@@ -7969,16 +8070,16 @@ mod tests {
 
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile variable operations: {:?}", result.err());
-        
+
         println!("✓ Variable operations compile successfully!");
     }
-    
+
     #[test]
     fn test_execute_with_variables() {
-        use std::collections::HashMap;
         use std::collections::hash_map::DefaultHasher;
+        use std::collections::HashMap;
         use std::hash::{Hash, Hasher};
-        
+
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
 
@@ -7996,12 +8097,12 @@ mod tests {
         chunk.emit(OpCode::Return);
 
         let compiled_fn = compiler.compile(&chunk, 0).expect("Should compile");
-        
+
         // Create actual variable storage
         let mut locals: HashMap<String, Value> = HashMap::new();
         let mut globals: HashMap<String, Value> = HashMap::new();
         let mut var_names: HashMap<u64, String> = HashMap::new();
-        
+
         // Register variable names with their hashes
         for name in &["x", "y", "result"] {
             let mut hasher = DefaultHasher::new();
@@ -8009,7 +8110,7 @@ mod tests {
             let hash = hasher.finish();
             var_names.insert(hash, name.to_string());
         }
-        
+
         // Create context
         let mut ctx = VMContext::with_var_names(
             std::ptr::null_mut(),
@@ -8017,62 +8118,63 @@ mod tests {
             &mut globals as *mut _,
             &mut var_names as *mut _,
         );
-        
+
         // Execute compiled code
         let result = unsafe { compiled_fn(&mut ctx as *mut VMContext) };
-        
+
         assert_eq!(result, 0, "Should return success");
-        
+
         // Check variables were stored
         assert!(locals.contains_key("x"), "x should exist");
         assert!(locals.contains_key("y"), "y should exist");
-        
+
         // Check values
         match locals.get("x") {
-            Some(Value::Int(10)) => {},
+            Some(Value::Int(10)) => {}
             other => panic!("Expected x=10, got {:?}", other),
         }
-        
+
         match locals.get("y") {
-            Some(Value::Int(20)) => {},
+            Some(Value::Int(20)) => {}
             other => panic!("Expected y=20, got {:?}", other),
         }
-        
+
         println!("✓ Variables work correctly in JIT code!");
         println!("  x = {:?}", locals.get("x"));
         println!("  y = {:?}", locals.get("y"));
     }
-    
+
     #[test]
     fn test_type_profiling() {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
-        
+
         // Simulate profiling Int values
         let var_hash = 12345u64;
         for _ in 0..60 {
             compiler.record_type(offset, var_hash, &Value::Int(42));
         }
-        
+
         // Check profile
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
-        let type_profile = profile.variable_types.get(&var_hash).expect("Type profile should exist");
-        
+        let type_profile =
+            profile.variable_types.get(&var_hash).expect("Type profile should exist");
+
         assert_eq!(type_profile.int_count, 60);
         assert_eq!(type_profile.float_count, 0);
         assert!(type_profile.is_stable(), "Profile should be stable");
         assert_eq!(type_profile.dominant_type(), Some(ValueType::Int));
-        
+
         // Check specialization was recorded
         assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Int));
     }
-    
+
     #[test]
     fn test_type_profiling_mixed_types() {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
         let var_hash = 12345u64;
-        
+
         // Simulate mixed types (40 Int, 20 Float)
         for _ in 0..40 {
             compiler.record_type(offset, var_hash, &Value::Int(42));
@@ -8080,83 +8182,88 @@ mod tests {
         for _ in 0..20 {
             compiler.record_type(offset, var_hash, &Value::Float(3.14));
         }
-        
+
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
-        let type_profile = profile.variable_types.get(&var_hash).expect("Type profile should exist");
-        
+        let type_profile =
+            profile.variable_types.get(&var_hash).expect("Type profile should exist");
+
         assert_eq!(type_profile.int_count, 40);
         assert_eq!(type_profile.float_count, 20);
         assert_eq!(type_profile.total(), 60);
-        
+
         // Not stable enough for specialization (need >90% of one type)
         assert!(type_profile.dominant_type().is_none(), "Mixed types shouldn't specialize");
     }
-    
+
     #[test]
     fn test_guard_success_tracking() {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
-        
+
         // Initialize profile
         compiler.record_type(offset, 12345, &Value::Int(1));
-        
+
         // Record guard successes
         for _ in 0..100 {
             compiler.record_guard_success(offset);
         }
-        
+
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
         assert_eq!(profile.guard_successes, 100);
         assert_eq!(profile.guard_failures, 0);
         assert!(!profile.should_despecialize());
     }
-    
+
     #[test]
     fn test_guard_failure_despecialization() {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
-        
+
         // Initialize profile and add to compiled cache
         compiler.record_type(offset, 12345, &Value::Int(1));
         compiler.compiled_cache.insert(offset, dummy_compiled_fn as CompiledFn);
-        
+
         // Record mostly successes, then failures
         for _ in 0..90 {
             compiler.record_guard_success(offset);
         }
-        
+
         // Add failures - when we hit 11 failures out of 101 total (10.9%), despec triggers
         // After that, the counters reset and remaining failures get added to new counters
         for _ in 0..20 {
             compiler.record_guard_failure(offset);
         }
-        
+
         // Should have cleared cache (happened when threshold was crossed)
         assert!(!compiler.compiled_cache.contains_key(&offset), "Should remove from cache");
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
         assert_eq!(profile.specialized_types.len(), 0, "Should clear specializations");
-        
+
         // Counters were reset when despec happened, then more failures were added
         // So we should have some failures but not all 20
-        assert!(profile.guard_failures < 20 && profile.guard_failures > 0, 
-                "Should have some failures after reset: {}", profile.guard_failures);
+        assert!(
+            profile.guard_failures < 20 && profile.guard_failures > 0,
+            "Should have some failures after reset: {}",
+            profile.guard_failures
+        );
         assert_eq!(profile.guard_successes, 0, "Successes should be reset");
     }
-    
+
     #[test]
     fn test_float_specialization_profile() {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
         let var_hash = 99999u64;
-        
+
         // Profile float values
         for _ in 0..60 {
             compiler.record_type(offset, var_hash, &Value::Float(3.14));
         }
-        
+
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
-        let type_profile = profile.variable_types.get(&var_hash).expect("Type profile should exist");
-        
+        let type_profile =
+            profile.variable_types.get(&var_hash).expect("Type profile should exist");
+
         assert_eq!(type_profile.float_count, 60);
         assert!(type_profile.is_stable());
         assert_eq!(type_profile.dominant_type(), Some(ValueType::Float));
@@ -8167,16 +8274,16 @@ mod tests {
     fn test_int_specialized_addition() {
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
-        
+
         // Test: 100 + 200 = 300 (pure integer addition)
         let const_100 = chunk.add_constant(Constant::Int(100));
         let const_200 = chunk.add_constant(Constant::Int(200));
-        
+
         chunk.emit(OpCode::LoadConst(const_100));
         chunk.emit(OpCode::LoadConst(const_200));
         chunk.emit(OpCode::Add);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile int addition: {:?}", result.err());
     }
@@ -8185,16 +8292,16 @@ mod tests {
     fn test_int_specialized_subtraction() {
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
-        
+
         // Test: 500 - 200 = 300
         let const_500 = chunk.add_constant(Constant::Int(500));
         let const_200 = chunk.add_constant(Constant::Int(200));
-        
+
         chunk.emit(OpCode::LoadConst(const_500));
         chunk.emit(OpCode::LoadConst(const_200));
         chunk.emit(OpCode::Sub);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile int subtraction: {:?}", result.err());
     }
@@ -8203,16 +8310,16 @@ mod tests {
     fn test_int_specialized_multiplication() {
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
-        
+
         // Test: 25 * 4 = 100
         let const_25 = chunk.add_constant(Constant::Int(25));
         let const_4 = chunk.add_constant(Constant::Int(4));
-        
+
         chunk.emit(OpCode::LoadConst(const_25));
         chunk.emit(OpCode::LoadConst(const_4));
         chunk.emit(OpCode::Mul);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile int multiplication: {:?}", result.err());
     }
@@ -8221,16 +8328,16 @@ mod tests {
     fn test_int_specialized_division() {
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
-        
+
         // Test: 100 / 4 = 25
         let const_100 = chunk.add_constant(Constant::Int(100));
         let const_4 = chunk.add_constant(Constant::Int(4));
-        
+
         chunk.emit(OpCode::LoadConst(const_100));
         chunk.emit(OpCode::LoadConst(const_4));
         chunk.emit(OpCode::Div);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile int division: {:?}", result.err());
     }
@@ -8239,13 +8346,13 @@ mod tests {
     fn test_specialized_arithmetic_chain() {
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
-        
+
         // Test: (10 + 5) * 2 - 3 = 27
         let const_10 = chunk.add_constant(Constant::Int(10));
         let const_5 = chunk.add_constant(Constant::Int(5));
         let const_2 = chunk.add_constant(Constant::Int(2));
         let const_3 = chunk.add_constant(Constant::Int(3));
-        
+
         chunk.emit(OpCode::LoadConst(const_10));
         chunk.emit(OpCode::LoadConst(const_5));
         chunk.emit(OpCode::Add);
@@ -8254,7 +8361,7 @@ mod tests {
         chunk.emit(OpCode::LoadConst(const_3));
         chunk.emit(OpCode::Sub);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile arithmetic chain: {:?}", result.err());
     }
@@ -8265,28 +8372,28 @@ mod tests {
         let offset = 0;
         let var_hash_x = 11111u64;
         let var_hash_y = 22222u64;
-        
+
         // Build type profile with stable Int types
         for _ in 0..60 {
             compiler.record_type(offset, var_hash_x, &Value::Int(10));
             compiler.record_type(offset, var_hash_y, &Value::Int(20));
         }
-        
+
         // Verify profile is stable and specialized
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
         assert_eq!(profile.specialized_types.get(&var_hash_x), Some(&ValueType::Int));
         assert_eq!(profile.specialized_types.get(&var_hash_y), Some(&ValueType::Int));
-        
+
         // Now compile with specialization context
         let mut chunk = BytecodeChunk::new();
         let const_5 = chunk.add_constant(Constant::Int(5));
         let const_3 = chunk.add_constant(Constant::Int(3));
-        
+
         chunk.emit(OpCode::LoadConst(const_5));
         chunk.emit(OpCode::LoadConst(const_3));
         chunk.emit(OpCode::Add);
         chunk.emit(OpCode::Return);
-        
+
         // Compilation should succeed with specialization
         let result = compiler.compile(&chunk, offset);
         assert!(result.is_ok(), "Should compile with specialization context: {:?}", result.err());
@@ -8295,17 +8402,17 @@ mod tests {
     #[test]
     fn test_compilation_without_specialization_fallback() {
         let mut compiler = JitCompiler::new().unwrap();
-        
+
         // No type profiling - compile without specialization
         let mut chunk = BytecodeChunk::new();
         let const_100 = chunk.add_constant(Constant::Int(100));
         let const_50 = chunk.add_constant(Constant::Int(50));
-        
+
         chunk.emit(OpCode::LoadConst(const_100));
         chunk.emit(OpCode::LoadConst(const_50));
         chunk.emit(OpCode::Sub);
         chunk.emit(OpCode::Return);
-        
+
         // Should still compile successfully using generic path
         let result = compiler.compile(&chunk, 0);
         assert!(result.is_ok(), "Should compile without specialization: {:?}", result.err());
@@ -8315,12 +8422,12 @@ mod tests {
     fn test_all_arithmetic_ops_with_specialization() {
         let mut compiler = JitCompiler::new().unwrap();
         let offset_base = 100;
-        
+
         // Profile for specialization at offset 100
         for _ in 0..60 {
             compiler.record_type(offset_base, 99999u64, &Value::Int(42));
         }
-        
+
         // Test Add with specialization at offset 100
         let mut chunk = BytecodeChunk::new();
         let const_10 = chunk.add_constant(Constant::Int(10));
@@ -8330,13 +8437,13 @@ mod tests {
         chunk.emit(OpCode::Add);
         chunk.emit(OpCode::Return);
         assert!(compiler.compile(&chunk, offset_base).is_ok());
-        
+
         // Profile for specialization at offset 200
         let offset_sub = 200;
         for _ in 0..60 {
             compiler.record_type(offset_sub, 88888u64, &Value::Int(30));
         }
-        
+
         // Test Sub with specialization at offset 200
         let mut chunk = BytecodeChunk::new();
         let const_30 = chunk.add_constant(Constant::Int(30));
@@ -8347,13 +8454,13 @@ mod tests {
         chunk.emit(OpCode::Return);
         let result = compiler.compile(&chunk, offset_sub);
         assert!(result.is_ok(), "Sub compilation failed: {:?}", result.err());
-        
+
         // Profile for specialization at offset 300
         let offset_mul = 300;
         for _ in 0..60 {
             compiler.record_type(offset_mul, 77777u64, &Value::Int(5));
         }
-        
+
         // Test Mul with specialization at offset 300
         let mut chunk = BytecodeChunk::new();
         let const_5 = chunk.add_constant(Constant::Int(5));
@@ -8363,13 +8470,13 @@ mod tests {
         chunk.emit(OpCode::Mul);
         chunk.emit(OpCode::Return);
         assert!(compiler.compile(&chunk, offset_mul).is_ok());
-        
+
         // Profile for specialization at offset 400
         let offset_div = 400;
         for _ in 0..60 {
             compiler.record_type(offset_div, 66666u64, &Value::Int(100));
         }
-        
+
         // Test Div with specialization at offset 400
         let mut chunk = BytecodeChunk::new();
         let const_100 = chunk.add_constant(Constant::Int(100));
@@ -8386,16 +8493,16 @@ mod tests {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 500;
         let var_hash = 12345u64;
-        
+
         // Build stable Int type profile
         for _ in 0..70 {
             compiler.record_type(offset, var_hash, &Value::Int(42));
         }
-        
+
         // Verify specialization was created
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
         assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Int));
-        
+
         // Compile with guards
         let mut chunk = BytecodeChunk::new();
         let const_10 = chunk.add_constant(Constant::Int(10));
@@ -8404,7 +8511,7 @@ mod tests {
         chunk.emit(OpCode::LoadConst(const_20));
         chunk.emit(OpCode::Add);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, offset);
         assert!(result.is_ok(), "Should compile with guards: {:?}", result.err());
     }
@@ -8412,7 +8519,7 @@ mod tests {
     #[test]
     fn test_compilation_without_guards_when_no_specialization() {
         let mut compiler = JitCompiler::new().unwrap();
-        
+
         // No profiling - no guards should be generated
         let mut chunk = BytecodeChunk::new();
         let const_5 = chunk.add_constant(Constant::Int(5));
@@ -8421,7 +8528,7 @@ mod tests {
         chunk.emit(OpCode::LoadConst(const_3));
         chunk.emit(OpCode::Mul);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, 600);
         assert!(result.is_ok(), "Should compile without guards: {:?}", result.err());
     }
@@ -8433,24 +8540,24 @@ mod tests {
         let var_hash_1 = 11111u64;
         let var_hash_2 = 22222u64;
         let var_hash_3 = 33333u64;
-        
+
         // Build profiles for multiple variables
         for _ in 0..70 {
             compiler.record_type(offset, var_hash_1, &Value::Int(10));
             compiler.record_type(offset, var_hash_2, &Value::Int(20));
             compiler.record_type(offset, var_hash_3, &Value::Int(30));
         }
-        
+
         // Verify all specialized
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
         assert_eq!(profile.specialized_types.len(), 3);
-        
+
         // Compile - should generate guards for all 3 variables
         let mut chunk = BytecodeChunk::new();
         let const_100 = chunk.add_constant(Constant::Int(100));
         chunk.emit(OpCode::LoadConst(const_100));
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, offset);
         assert!(result.is_ok(), "Should compile with multiple guards: {:?}", result.err());
     }
@@ -8474,29 +8581,29 @@ mod tests {
     fn benchmark_specialized_vs_generic_addition() {
         let mut compiler = JitCompiler::new().unwrap();
         let mut chunk = BytecodeChunk::new();
-        
+
         // Create a simple addition benchmark: sum 1000 times
         // We'll use constants to isolate JIT performance
         let const_1 = chunk.add_constant(Constant::Int(1));
         let const_0 = chunk.add_constant(Constant::Int(0));
-        
+
         // Initialize sum = 0
         chunk.emit(OpCode::LoadConst(const_0));
-        
+
         // Add 1, 1000 times (unrolled for simplicity)
         for _ in 0..1000 {
             chunk.emit(OpCode::LoadConst(const_1));
             chunk.emit(OpCode::Add);
         }
         chunk.emit(OpCode::Return);
-        
+
         // Compile without specialization
         let compile_start = std::time::Instant::now();
         let result = compiler.compile(&chunk, 0);
         let compile_time = compile_start.elapsed();
-        
+
         assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
-        
+
         println!("\n=== Specialized vs Generic Addition Benchmark ===");
         println!("Compilation time: {:?}", compile_time);
         println!("Instructions compiled: {}", chunk.instructions.len());
@@ -8508,7 +8615,7 @@ mod tests {
     #[ignore]
     fn benchmark_compilation_overhead() {
         let mut compiler = JitCompiler::new().unwrap();
-        
+
         // Test 1: Simple arithmetic (should be fast)
         let mut chunk1 = BytecodeChunk::new();
         let c1 = chunk1.add_constant(Constant::Int(10));
@@ -8517,11 +8624,11 @@ mod tests {
         chunk1.emit(OpCode::LoadConst(c2));
         chunk1.emit(OpCode::Add);
         chunk1.emit(OpCode::Return);
-        
+
         let time1 = measure_time(|| {
             let _ = compiler.compile(&chunk1, 0);
         });
-        
+
         // Test 2: Complex arithmetic chain (should be slower)
         let mut chunk2 = BytecodeChunk::new();
         for i in 0..100 {
@@ -8532,16 +8639,16 @@ mod tests {
             }
         }
         chunk2.emit(OpCode::Return);
-        
+
         let time2 = measure_time(|| {
             let _ = compiler.compile(&chunk2, 1);
         });
-        
+
         println!("\n=== Compilation Overhead Benchmark ===");
         println!("Simple (3 instructions): {:?}", time1);
         println!("Complex (200 instructions): {:?}", time2);
         println!("Ratio: {:.2}x", time2.as_nanos() as f64 / time1.as_nanos() as f64);
-        
+
         // Complex should take longer (but not orders of magnitude longer)
         assert!(time2 > time1, "Complex compilation should take longer");
     }
@@ -8552,21 +8659,21 @@ mod tests {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
         let var_hash = 12345u64;
-        
+
         // Benchmark: recording 10,000 type observations
         let iterations = 10_000;
-        
+
         let time = measure_time(|| {
             for _ in 0..iterations {
                 compiler.record_type(offset, var_hash, &Value::Int(42));
             }
         });
-        
+
         println!("\n=== Type Profiling Overhead Benchmark ===");
         println!("Recorded {} type observations in {:?}", iterations, time);
         println!("Average per observation: {:?}", time / iterations);
         println!("Observations per second: {:.0}", iterations as f64 / time.as_secs_f64());
-        
+
         // Verify profile was built
         let profile = compiler.get_specialization(offset).expect("Profile should exist");
         assert_eq!(profile.specialized_types.get(&var_hash), Some(&ValueType::Int));
@@ -8576,10 +8683,10 @@ mod tests {
     #[ignore]
     fn benchmark_specialized_arithmetic_chain() {
         let mut compiler = JitCompiler::new().unwrap();
-        
+
         // Build a long arithmetic chain: ((((1 + 2) + 3) + 4) + ... + 100)
         let mut chunk = BytecodeChunk::new();
-        
+
         for i in 1..=100 {
             let c = chunk.add_constant(Constant::Int(i));
             chunk.emit(OpCode::LoadConst(c));
@@ -8588,13 +8695,13 @@ mod tests {
             }
         }
         chunk.emit(OpCode::Return);
-        
+
         // Compile the chain
         let compile_time = measure_time(|| {
             let result = compiler.compile(&chunk, 0);
             assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
         });
-        
+
         println!("\n=== Specialized Arithmetic Chain Benchmark ===");
         println!("Chain length: 100 additions");
         println!("Total instructions: {}", chunk.instructions.len());
@@ -8607,32 +8714,32 @@ mod tests {
     fn benchmark_guard_generation_overhead() {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
-        
+
         // Setup: Create specialization profiles for many variables
         let var_count = 50;
         let mut var_hashes = Vec::new();
-        
+
         for i in 0..var_count {
             let var_hash = (i as u64) * 1000;
             var_hashes.push(var_hash);
-            
+
             // Build stable profile
             for _ in 0..100 {
                 compiler.record_type(offset, var_hash, &Value::Int(42));
             }
         }
-        
+
         // Compile with many guards
         let mut chunk = BytecodeChunk::new();
         let const_1 = chunk.add_constant(Constant::Int(1));
         chunk.emit(OpCode::LoadConst(const_1));
         chunk.emit(OpCode::Return);
-        
+
         let compile_time = measure_time(|| {
             let result = compiler.compile(&chunk, offset);
             assert!(result.is_ok(), "Compilation with guards failed: {:?}", result.err());
         });
-        
+
         println!("\n=== Guard Generation Overhead Benchmark ===");
         println!("Variables with specialized types: {}", var_count);
         println!("Compilation time: {:?}", compile_time);
@@ -8643,17 +8750,17 @@ mod tests {
     #[ignore]
     fn benchmark_cache_lookup_performance() {
         let mut compiler = JitCompiler::new().unwrap();
-        
+
         // Compile several functions
         for offset in 0..100 {
             let mut chunk = BytecodeChunk::new();
             let c = chunk.add_constant(Constant::Int(offset as i64));
             chunk.emit(OpCode::LoadConst(c));
             chunk.emit(OpCode::Return);
-            
+
             let _ = compiler.compile(&chunk, offset);
         }
-        
+
         // Benchmark: Check if functions should compile (cache lookup)
         let iterations = 100_000;
         let time = measure_time(|| {
@@ -8663,7 +8770,7 @@ mod tests {
                 }
             }
         });
-        
+
         println!("\n=== Cache Lookup Performance Benchmark ===");
         println!("Cache entries: 100");
         println!("Total lookups: {}", iterations * 100);
@@ -8678,7 +8785,7 @@ mod tests {
         let mut compiler = JitCompiler::new().unwrap();
         let offset = 0;
         let var_hash = 99999u64;
-        
+
         // Record mixed types to test decision logic
         for i in 0..100 {
             if i % 10 == 0 {
@@ -8687,7 +8794,7 @@ mod tests {
                 compiler.record_type(offset, var_hash, &Value::Int(1));
             }
         }
-        
+
         // Benchmark: decision making
         let iterations = 100_000;
         let time = measure_time(|| {
@@ -8698,7 +8805,7 @@ mod tests {
                 }
             }
         });
-        
+
         println!("\n=== Specialization Decision Overhead Benchmark ===");
         println!("Decisions made: {}", iterations);
         println!("Time: {:?}", time);
@@ -8711,19 +8818,16 @@ mod tests {
         // This test validates Phase 7 Step 8: Return Value Optimization
         // The optimization stores return values in VMContext.return_value
         // instead of pushing to the VM stack, avoiding stack overhead.
-        
+
         println!("\n=== Phase 7 Step 8: Return Value Optimization ===");
-        
+
         // Test 1: Verify VMContext has the new fields
-        let mut vm_context = VMContext::new(
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-        );
-        
+        let mut vm_context =
+            VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
+
         assert_eq!(vm_context.return_value, 0, "return_value should be initialized to 0");
         assert!(!vm_context.has_return_value, "has_return_value should be false initially");
-        
+
         // Test 2: Verify jit_set_return_int works correctly
         unsafe {
             let result = jit_set_return_int(&mut vm_context, 42);
@@ -8731,14 +8835,14 @@ mod tests {
             assert_eq!(vm_context.return_value, 42, "return_value should be set to 42");
             assert!(vm_context.has_return_value, "has_return_value should be true after set");
         }
-        
+
         // Test 3: Verify negative values work
         unsafe {
             let result = jit_set_return_int(&mut vm_context, -123);
             assert_eq!(result, 0, "jit_set_return_int should handle negative values");
             assert_eq!(vm_context.return_value, -123, "return_value should be -123");
         }
-        
+
         // Test 4: Verify large values work
         unsafe {
             let large_value = i64::MAX;
@@ -8746,13 +8850,13 @@ mod tests {
             assert_eq!(result, 0, "jit_set_return_int should handle large values");
             assert_eq!(vm_context.return_value, large_value, "return_value should be i64::MAX");
         }
-        
+
         // Test 5: Verify null context returns error
         unsafe {
             let result = jit_set_return_int(std::ptr::null_mut(), 42);
             assert_eq!(result, 1, "jit_set_return_int should return error for null context");
         }
-        
+
         println!("✅ VMContext.return_value field working");
         println!("✅ jit_set_return_int() function working");
         println!("✅ Error handling for null context working");
@@ -8763,21 +8867,21 @@ mod tests {
     fn validate_phase4_infrastructure_complete() {
         // This test validates that Phase 4A-4D infrastructure is in place
         let mut compiler = JitCompiler::new().unwrap();
-        
+
         println!("\n=== Phase 4A-4D Infrastructure Validation ===");
-        
+
         // Phase 4A: Type profiling system
         let offset = 0;
         let var_hash = 11111u64;
-        
+
         for _ in 0..60 {
             compiler.record_type(offset, var_hash, &Value::Int(42));
         }
-        
+
         let profile = compiler.get_specialization(offset);
         assert!(profile.is_some(), "Phase 4A: Type profiling should work");
         println!("✅ Phase 4A: Type profiling system working");
-        
+
         // Phase 4B: Specialized code generation
         let mut chunk = BytecodeChunk::new();
         let c1 = chunk.add_constant(Constant::Int(10));
@@ -8786,22 +8890,26 @@ mod tests {
         chunk.emit(OpCode::LoadConst(c2));
         chunk.emit(OpCode::Add);
         chunk.emit(OpCode::Return);
-        
+
         let result = compiler.compile(&chunk, offset);
         assert!(result.is_ok(), "Phase 4B: Specialized compilation should work");
         println!("✅ Phase 4B: Specialized code generation working");
-        
+
         // Phase 4C: Integration (compile with profile)
-        assert!(compiler.compiled_cache.contains_key(&offset), 
-                "Phase 4C: Compiled function should be cached");
+        assert!(
+            compiler.compiled_cache.contains_key(&offset),
+            "Phase 4C: Compiled function should be cached"
+        );
         println!("✅ Phase 4C: Integration working");
-        
+
         // Phase 4D: Guard generation
         let profile = compiler.get_specialization(offset).unwrap();
-        assert!(!profile.specialized_types.is_empty(), 
-                "Phase 4D: Should have specialized types for guards");
+        assert!(
+            !profile.specialized_types.is_empty(),
+            "Phase 4D: Should have specialized types for guards"
+        );
         println!("✅ Phase 4D: Guard generation working");
-        
+
         println!("\n🎉 All Phase 4A-4D infrastructure validated!");
         println!("Phase 4E: Ready for performance validation and advanced optimizations");
     }
