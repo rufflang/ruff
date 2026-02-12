@@ -141,7 +141,7 @@
   - **Async HTTP**: `async_http_get(url)`, `async_http_post(url, body, headers?)` ✅
   - **Async File I/O**: `async_read_file(path)`, `async_write_file(path, content)` ✅
   - **Task Management**: `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)` ✅
-  - **Promise Coordination**: `promise_all(promises)` for concurrent operations ✅
+  - **Promise Coordination**: `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)` ✅
   - **Performance**: 2-3x speedup for I/O-bound workloads ✅
   - **Testing**: Comprehensive test suite in `examples/test_async_phase5.ruff` ✅
   - **Examples**:
@@ -152,7 +152,7 @@
         async_write_file("f2.txt", "data2"),
         async_write_file("f3.txt", "data3")
     ]
-    let results := await promise_all(writes)  # All write concurrently
+    let results := await await_all(writes, 64)  # Concurrent with bounded waiting batches
     
     # Async HTTP with timeout
     let response := await async_timeout(async_http_get(url), 5000)
@@ -208,7 +208,7 @@
     - `async_http_get(url)`, `async_http_post(url, body, headers?)`
     - `async_read_file(path)`, `async_write_file(path, content)`
     - `async_sleep(ms)`, `async_timeout(promise, ms)`
-    - `promise_all(promises)` for concurrent coordination
+    - `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)`
     - `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)`
   - **Performance**: 2-3x speedup for I/O-bound workloads
   - Example:
@@ -219,7 +219,7 @@
         for url in urls {
             promises.push(async_http_get(url))
         }
-        results := await promise_all(promises)  # Truly concurrent!
+        results := await await_all(promises, 32)  # Truly concurrent with bounded batching
         return results
     }
     
@@ -229,7 +229,7 @@
         async_write_file("f2.txt", "data2"),
         async_write_file("f3.txt", "data3")
     ]
-    let results := await promise_all(writes)  # All write concurrently
+    let results := await await_all(writes, 64)  # All write concurrently with bounded batching
     
     # Async timeout support
     let data := await async_timeout(fetch_data(), 5000)  # 5 second timeout

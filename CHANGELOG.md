@@ -9,7 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- _Nothing yet._
+- **Concurrency-Limited Promise Aggregation (P0 quick win)**:
+  - Added optional `concurrency_limit` to `promise_all(promises, concurrency_limit)`
+  - Added builtin alias registration for `await_all(...)` (previously listed but not registered)
+  - `await_all` now forwards to `Promise.all` semantics with bounded batching support
+  - Added integration tests covering:
+    - bounded `await_all([...], 2)` behavior and result ordering
+    - backwards compatibility for single-argument `promise_all(promises)`
+    - validation errors for invalid `concurrency_limit` values
 
 ## [0.9.0] - 2026-02-12
 

@@ -81,6 +81,7 @@ These are planned post-v0.9.0 and are candidates for v0.10.0 scope.
   - `write_file()` - async file writing
   - `list_dir()` - async directory listing
 - `await_all()` utility function for concurrent promise execution
+- `await_all(promises, concurrency_limit)` / `promise_all(promises, concurrency_limit)` batching support
 - Promises work correctly with await syntax
 - Small-scale concurrency performs well (10 files in 1.26ms = 126μs/file)
 
@@ -163,7 +164,7 @@ Value::Promise { receiver, .. } => {
 
 **Implementation Steps**:
 - [ ] Add `parallel_map(array, func, concurrency_limit)` native function
-- [ ] Implement semaphore-based task limiting in Promise.all
+- [x] Implement batching-based task limiting in `promise_all` / `await_all` (optional `concurrency_limit`)
 - [ ] Add configurable task pool sizing
 - [ ] Optimize Promise.all for large arrays
 
@@ -218,7 +219,7 @@ Value::Promise { receiver, .. } => {
 - [ ] Re-run SSG benchmark with parallelism
 - [ ] Target: 10K file SSG build in <1 second (using all cores)
 - [ ] Add `parallel_map(array, func, limit)` with concurrency control
-- [ ] Implement semaphore-based task limiting in await_all
+- [x] Implement task limiting in `await_all` / `promise_all` with optional `concurrency_limit`
 - [ ] Test with SSG benchmark (target: <10 seconds)
 
 **Phase 2: Async VM (2-3 weeks) - True Async/Await**
@@ -529,4 +530,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*Last Updated: January 28, 2026*
+*Last Updated: February 12, 2026*
