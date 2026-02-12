@@ -21,19 +21,23 @@ impl Reporter {
 
     pub fn print_benchmark_result(result: &BenchmarkResult) {
         if !result.success {
-            println!("{} {}", 
+            println!(
+                "{} {}",
                 "✗".red().bold(),
-                format!("{} ({}) - {}", 
-                    result.name, 
+                format!(
+                    "{} ({}) - {}",
+                    result.name,
                     result.mode.name(),
                     result.error.as_ref().unwrap_or(&"Unknown error".to_string())
-                ).red()
+                )
+                .red()
             );
             return;
         }
 
         if let Some(stats) = Statistics::from_samples(&result.samples) {
-            println!("{} {} ({})", 
+            println!(
+                "{} {} ({})",
                 "✓".green().bold(),
                 result.name.bright_white(),
                 result.mode.name().cyan()
@@ -141,21 +145,25 @@ impl Reporter {
             println!();
             Self::print_header("Summary");
             println!("Total Benchmarks: {}", count.to_string().bright_white().bold());
-            println!("Total Time (Interpreter): {}", 
-                Statistics::format_duration(total_interp).yellow());
-            println!("Total Time (VM): {}", 
-                Statistics::format_duration(total_vm).cyan());
-            println!("Total Time (JIT): {}", 
-                Statistics::format_duration(total_jit).green());
+            println!(
+                "Total Time (Interpreter): {}",
+                Statistics::format_duration(total_interp).yellow()
+            );
+            println!("Total Time (VM): {}", Statistics::format_duration(total_vm).cyan());
+            println!("Total Time (JIT): {}", Statistics::format_duration(total_jit).green());
 
             if total_interp.as_nanos() > 0 {
                 let vm_speedup = total_interp.as_nanos() as f64 / total_vm.as_nanos() as f64;
                 let jit_speedup = total_interp.as_nanos() as f64 / total_jit.as_nanos() as f64;
                 println!();
-                println!("Average VM Speedup: {}", 
-                    format!("{:.2}x", vm_speedup).bright_green().bold());
-                println!("Average JIT Speedup: {}", 
-                    format!("{:.2}x", jit_speedup).bright_green().bold());
+                println!(
+                    "Average VM Speedup: {}",
+                    format!("{:.2}x", vm_speedup).bright_green().bold()
+                );
+                println!(
+                    "Average JIT Speedup: {}",
+                    format!("{:.2}x", jit_speedup).bright_green().bold()
+                );
             }
         }
     }

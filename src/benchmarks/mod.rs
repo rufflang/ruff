@@ -9,17 +9,17 @@
 //   let bench = BenchmarkRunner::new();
 //   bench.run_all();
 
-pub mod timer;
-pub mod stats;
-pub mod runner;
-pub mod reporter;
 pub mod profiler;
+pub mod reporter;
+pub mod runner;
+pub mod stats;
+pub mod timer;
 
-pub use runner::BenchmarkRunner;
-pub use timer::Timer;
-pub use stats::Statistics;
+pub use profiler::{print_profile_report, ProfileConfig, Profiler};
 pub use reporter::Reporter;
-pub use profiler::{Profiler, ProfileConfig, print_profile_report};
+pub use runner::BenchmarkRunner;
+pub use stats::Statistics;
+pub use timer::Timer;
 
 /// Execution mode for benchmarking
 #[derive(Debug, Clone)]
@@ -52,13 +52,7 @@ pub struct BenchmarkResult {
 
 impl BenchmarkResult {
     pub fn new(name: String, mode: ExecutionMode) -> Self {
-        Self {
-            name,
-            mode,
-            samples: Vec::new(),
-            success: true,
-            error: None,
-        }
+        Self { name, mode, samples: Vec::new(), success: true, error: None }
     }
 
     pub fn add_sample(&mut self, duration: std::time::Duration) {

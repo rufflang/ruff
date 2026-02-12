@@ -1,10 +1,10 @@
 // Micro-benchmark: Direct comparison of bytecode vs JIT
 // This measures the raw execution speed difference
 
-use std::time::Instant;
 use ruff::bytecode::{BytecodeChunk, Constant, OpCode};
 use ruff::jit::JitCompiler;
 use ruff::vm::VM;
+use std::time::Instant;
 
 fn main() {
     println!("=== JIT Micro-Benchmark ===\n");
@@ -22,7 +22,7 @@ fn main() {
 
     // Loop start (PC 1)
     let loop_start = chunk.instructions.len();
-    
+
     // counter + 1
     chunk.emit(OpCode::Dup); // 1
     chunk.emit(OpCode::LoadConst(const_1)); // 2
@@ -59,7 +59,7 @@ fn main() {
     // Benchmark 2: Compile to native code
     println!("\nBenchmark 2: JIT Compilation");
     let mut compiler = JitCompiler::new().expect("Failed to create JIT compiler");
-    
+
     let compile_start = Instant::now();
     let compiled_fn = match compiler.compile(&chunk, 0) {
         Ok(f) => {
@@ -91,15 +91,14 @@ fn main() {
     println!("\n=== Results ===");
     println!("  Bytecode VM:     {:?}", avg_bytecode);
     println!("  Compiled code:   {:?}", avg_jit);
-    
+
     let speedup = avg_bytecode.as_nanos() as f64 / avg_jit.as_nanos() as f64;
     println!("  Speedup:         {:.2}x", speedup);
-    
+
     if speedup > 1.0 {
         println!("\n  ✓ JIT is {:.2}x faster than bytecode!", speedup);
     } else {
         println!("\n  Note: Compilation overhead: {:?}", compile_time);
-        println!("  JIT worth it after {} runs", 
-            compile_time.as_nanos() / avg_jit.as_nanos());
+        println!("  JIT worth it after {} runs", compile_time.as_nanos() / avg_jit.as_nanos());
     }
 }

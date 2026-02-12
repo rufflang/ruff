@@ -24,14 +24,7 @@ impl Statistics {
         let max = samples.iter().max().copied().unwrap();
         let stddev = calculate_stddev(samples, mean);
 
-        Some(Self {
-            mean,
-            median,
-            min,
-            max,
-            stddev,
-            samples: samples.len(),
-        })
+        Some(Self { mean, median, min, max, stddev, samples: samples.len() })
     }
 
     pub fn format_duration(duration: Duration) -> String {
@@ -74,7 +67,7 @@ fn calculate_stddev(samples: &[Duration], mean: Duration) -> Duration {
         })
         .sum::<f64>()
         / samples.len() as f64;
-    
+
     Duration::from_nanos(variance.sqrt() as u64)
 }
 
@@ -101,7 +94,7 @@ mod tests {
             Duration::from_millis(13),
             Duration::from_millis(10),
         ];
-        
+
         let stats = Statistics::from_samples(&samples).unwrap();
         assert!(stats.mean >= Duration::from_millis(10));
         assert!(stats.mean <= Duration::from_millis(13));

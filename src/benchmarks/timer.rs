@@ -8,9 +8,7 @@ pub struct Timer {
 
 impl Timer {
     pub fn new() -> Self {
-        Self {
-            start: Instant::now(),
-        }
+        Self { start: Instant::now() }
     }
 
     pub fn start() -> Self {
@@ -42,17 +40,17 @@ where
     F: FnMut(),
 {
     let mut samples = Vec::with_capacity(iterations);
-    
+
     // Warmup run (not timed)
     f();
-    
+
     // Collect samples
     for _ in 0..iterations {
         let timer = Timer::start();
         f();
         samples.push(timer.elapsed());
     }
-    
+
     samples
 }
 

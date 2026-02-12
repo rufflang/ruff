@@ -15,10 +15,7 @@ pub struct BenchmarkRunner {
 
 impl BenchmarkRunner {
     pub fn new() -> Self {
-        Self {
-            iterations: 10,
-            warmup_runs: 2,
-        }
+        Self { iterations: 10, warmup_runs: 2 }
     }
 
     pub fn with_iterations(mut self, iterations: usize) -> Self {
@@ -33,11 +30,7 @@ impl BenchmarkRunner {
 
     /// Run a benchmark with the given code in all execution modes
     pub fn run_benchmark(&self, name: &str, code: &str) -> Vec<BenchmarkResult> {
-        vec![
-            self.run_interpreter(name, code),
-            self.run_vm(name, code),
-            self.run_jit(name, code),
-        ]
+        vec![self.run_interpreter(name, code), self.run_vm(name, code), self.run_jit(name, code)]
     }
 
     /// Run benchmark in interpreter mode
@@ -148,17 +141,14 @@ impl BenchmarkRunner {
         // Compile AST to bytecode
         use crate::compiler::Compiler;
         let mut compiler = Compiler::new();
-        let chunk = compiler
-            .compile(&ast)
-            .map_err(|e| format!("Compilation error: {}", e))?;
+        let chunk = compiler.compile(&ast).map_err(|e| format!("Compilation error: {}", e))?;
 
         // Execute bytecode
         let mut vm = VM::new();
         self.configure_vm_globals(&mut vm);
         vm.set_jit_enabled(false);
 
-        vm.execute(chunk)
-            .map_err(|e| format!("VM error: {:?}", e))?;
+        vm.execute(chunk).map_err(|e| format!("VM error: {:?}", e))?;
 
         Ok(())
     }
@@ -172,17 +162,14 @@ impl BenchmarkRunner {
         // Compile AST to bytecode
         use crate::compiler::Compiler;
         let mut compiler = Compiler::new();
-        let chunk = compiler
-            .compile(&ast)
-            .map_err(|e| format!("Compilation error: {}", e))?;
+        let chunk = compiler.compile(&ast).map_err(|e| format!("Compilation error: {}", e))?;
 
         // Execute bytecode with JIT enabled
         let mut vm = VM::new();
         self.configure_vm_globals(&mut vm);
         vm.set_jit_enabled(true);
 
-        vm.execute(chunk)
-            .map_err(|e| format!("JIT error: {:?}", e))?;
+        vm.execute(chunk).map_err(|e| format!("JIT error: {:?}", e))?;
 
         Ok(())
     }
@@ -192,27 +179,21 @@ impl BenchmarkRunner {
         let env = Arc::new(Mutex::new(Environment::new()));
         let builtins = Interpreter::get_builtin_names();
         for builtin_name in builtins {
-            env.lock().unwrap().set(
-                builtin_name.to_string(),
-                Value::NativeFunction(builtin_name.to_string()),
-            );
+            env.lock()
+                .unwrap()
+                .set(builtin_name.to_string(), Value::NativeFunction(builtin_name.to_string()));
         }
         vm.set_globals(env);
     }
 
     /// Load and run a benchmark from a file
     pub fn run_file(&self, path: PathBuf) -> Vec<BenchmarkResult> {
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("unknown")
-            .to_string();
+        let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown").to_string();
 
         match std::fs::read_to_string(&path) {
             Ok(code) => self.run_benchmark(&name, &code),
             Err(e) => {
-                let mut result =
-                    BenchmarkResult::new(name.clone(), ExecutionMode::Interpreter);
+                let mut result = BenchmarkResult::new(name.clone(), ExecutionMode::Interpreter);
                 result.set_error(format!("Failed to read file: {}", e));
                 vec![result]
             }
@@ -227,11 +208,8 @@ impl BenchmarkRunner {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.extension().and_then(|s| s.to_str()) == Some("ruff") {
-                    let name = path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("unknown")
-                        .to_string();
+                    let name =
+                        path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown").to_string();
                     if let Ok(code) = std::fs::read_to_string(&path) {
                         let bench_results = self.run_benchmark(&name, &code);
                         results.push((name, bench_results));

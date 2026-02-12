@@ -45,11 +45,7 @@ pub struct CPUProfile {
 
 impl CPUProfile {
     pub fn new() -> Self {
-        Self {
-            function_times: HashMap::new(),
-            total_time: Duration::ZERO,
-            sample_count: 0,
-        }
+        Self { function_times: HashMap::new(), total_time: Duration::ZERO, sample_count: 0 }
     }
 
     /// Record execution time for a function
@@ -127,9 +123,8 @@ impl MemoryProfile {
 
     /// Get top N allocation hotspots
     pub fn top_hotspots(&self, n: usize) -> Vec<(String, usize)> {
-        let mut hotspots: Vec<_> = self.allocation_hotspots.iter()
-            .map(|(loc, &count)| (loc.clone(), count))
-            .collect();
+        let mut hotspots: Vec<_> =
+            self.allocation_hotspots.iter().map(|(loc, &count)| (loc.clone(), count)).collect();
         hotspots.sort_by(|a, b| b.1.cmp(&a.1));
         hotspots.into_iter().take(n).collect()
     }
@@ -219,12 +214,7 @@ pub struct ProfileData {
 
 impl ProfileData {
     pub fn new(config: ProfileConfig) -> Self {
-        Self {
-            cpu: CPUProfile::new(),
-            memory: MemoryProfile::new(),
-            jit: JITStats::new(),
-            config,
-        }
+        Self { cpu: CPUProfile::new(), memory: MemoryProfile::new(), jit: JITStats::new(), config }
     }
 }
 
@@ -236,10 +226,7 @@ pub struct Profiler {
 
 impl Profiler {
     pub fn new(config: ProfileConfig) -> Self {
-        Self {
-            data: ProfileData::new(config),
-            start_time: None,
-        }
+        Self { data: ProfileData::new(config), start_time: None }
     }
 
     pub fn start(&mut self) {
@@ -353,14 +340,14 @@ impl Profiler {
 /// Generate a flamegraph-compatible stack trace format
 pub fn generate_flamegraph_data(profile: &CPUProfile) -> String {
     let mut lines = Vec::new();
-    
+
     for (func, duration) in &profile.function_times {
         // Format: function_name count
         // where count is in microseconds
         let micros = duration.as_micros();
         lines.push(format!("{} {}", func, micros));
     }
-    
+
     lines.join("\n")
 }
 
@@ -369,13 +356,13 @@ pub fn print_profile_report(profile: &ProfileData) {
     use colored::Colorize;
 
     println!("\n{}", "=== Performance Profile Report ===".bold().cyan());
-    
+
     // CPU Profile
     if profile.config.cpu_profiling {
         println!("\n{}", "CPU Profile:".bold().yellow());
         println!("  Total Time: {:.3}s", profile.cpu.total_time.as_secs_f64());
         println!("  Samples: {}", profile.cpu.sample_count);
-        
+
         let top_funcs = profile.cpu.top_functions(10);
         if !top_funcs.is_empty() {
             println!("\n  {} Hot Functions:", "Top".bold());
@@ -390,7 +377,7 @@ pub fn print_profile_report(profile: &ProfileData) {
             }
         }
     }
-    
+
     // Memory Profile
     if profile.config.memory_profiling {
         println!("\n{}", "Memory Profile:".bold().yellow());
@@ -399,11 +386,11 @@ pub fn print_profile_report(profile: &ProfileData) {
         println!("  Current Memory: {:.2} MB", stats.current_mb);
         println!("  Total Allocations: {}", stats.total_allocations);
         println!("  Total Deallocations: {}", stats.total_deallocations);
-        
+
         if stats.leaked_objects > 0 {
             println!("  {} Leaked Objects: {}", "⚠️".yellow(), stats.leaked_objects);
         }
-        
+
         let hotspots = profile.memory.top_hotspots(5);
         if !hotspots.is_empty() {
             println!("\n  {} Allocation Hotspots:", "Top".bold());
@@ -412,7 +399,7 @@ pub fn print_profile_report(profile: &ProfileData) {
             }
         }
     }
-    
+
     // JIT Statistics
     if profile.config.jit_stats {
         println!("\n{}", "JIT Statistics:".bold().yellow());
@@ -421,7 +408,7 @@ pub fn print_profile_report(profile: &ProfileData) {
         println!("  Total Compile Time: {:.3}s", profile.jit.total_compile_time.as_secs_f64());
         println!("  Cache Hit Rate: {:.1}%", profile.jit.hit_rate());
         println!("  Guard Success Rate: {:.1}%", profile.jit.guard_success_rate());
-        
+
         if profile.jit.guard_failures > 0 {
             let failure_rate = 100.0 - profile.jit.guard_success_rate();
             if failure_rate > 5.0 {
@@ -430,7 +417,7 @@ pub fn print_profile_report(profile: &ProfileData) {
             }
         }
     }
-    
+
     println!("\n{}", "===================================".bold().cyan());
 }
 
@@ -441,14 +428,14 @@ mod tests {
     #[test]
     fn test_cpu_profile_recording() {
         let mut profile = CPUProfile::new();
-        
+
         profile.record_function("func_a".to_string(), Duration::from_millis(100));
         profile.record_function("func_b".to_string(), Duration::from_millis(200));
         profile.record_function("func_a".to_string(), Duration::from_millis(50));
-        
+
         assert_eq!(profile.sample_count, 3);
         assert_eq!(profile.total_time, Duration::from_millis(350));
-        
+
         let top = profile.top_functions(2);
         assert_eq!(top.len(), 2);
         assert_eq!(top[0].0, "func_b");
@@ -458,16 +445,16 @@ mod tests {
     #[test]
     fn test_memory_profile_tracking() {
         let mut profile = MemoryProfile::new();
-        
+
         profile.record_allocation(1024, "location_a".to_string());
         profile.record_allocation(2048, "location_b".to_string());
         profile.record_deallocation(1024);
-        
+
         assert_eq!(profile.current_memory, 2048);
         assert_eq!(profile.peak_memory, 3072);
         assert_eq!(profile.total_allocations, 2);
         assert_eq!(profile.total_deallocations, 1);
-        
+
         let stats = profile.stats();
         assert_eq!(stats.leaked_objects, 1);
     }
@@ -475,11 +462,11 @@ mod tests {
     #[test]
     fn test_jit_stats() {
         let mut stats = JITStats::new();
-        
+
         stats.cache_hits = 90;
         stats.cache_misses = 10;
         assert_eq!(stats.hit_rate(), 90.0);
-        
+
         stats.guard_successes = 950;
         stats.guard_failures = 50;
         assert_eq!(stats.guard_success_rate(), 95.0);
@@ -489,19 +476,19 @@ mod tests {
     fn test_profiler_workflow() {
         let config = ProfileConfig::default();
         let mut profiler = Profiler::new(config);
-        
+
         profiler.start();
         std::thread::sleep(Duration::from_millis(10));
-        
+
         profiler.record_function("test_func".to_string(), Duration::from_millis(5));
         profiler.record_allocation(1024, "test_location".to_string());
         profiler.record_jit_compile(Duration::from_micros(100));
         profiler.record_cache_hit();
         profiler.record_guard_success();
-        
+
         let elapsed = profiler.stop();
         assert!(elapsed >= Duration::from_millis(10));
-        
+
         let data = profiler.data();
         assert_eq!(data.cpu.sample_count, 1);
         assert_eq!(data.memory.total_allocations, 1);
