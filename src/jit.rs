@@ -6079,6 +6079,9 @@ impl JitCompiler {
 
             let mut sealed_blocks = std::collections::HashSet::new();
             sealed_blocks.insert(entry_block);
+            if current_block != entry_block {
+                sealed_blocks.insert(current_block);
+            }
             let mut block_terminated = false;
 
             for (pc, instruction) in chunk.instructions.iter().enumerate().skip(offset) {
@@ -6093,7 +6096,12 @@ impl JitCompiler {
                             builder.ins().jump(block, &args);
                         }
 
-                        if !sealed_blocks.contains(&current_block) {
+                        if !sealed_blocks.contains(&current_block)
+                            && !translator
+                                .loop_header_pcs
+                                .iter()
+                                .any(|&lpc| translator.blocks.get(&lpc) == Some(&current_block))
+                        {
                             builder.seal_block(current_block);
                             sealed_blocks.insert(current_block);
                         }
@@ -6165,6 +6173,7 @@ impl JitCompiler {
                 builder.ins().return_(&[zero]);
                 if !sealed_blocks.contains(&current_block) {
                     builder.seal_block(current_block);
+                    sealed_blocks.insert(current_block);
                 }
             }
             
