@@ -113,7 +113,7 @@ fn test_boolean_false_condition() {
     let interp = run_code(code);
 
     if let Some(Value::Str(executed)) = interp.env.get("executed") {
-        assert_eq!(executed, "false");
+        assert_eq!(executed.as_str(), "false");
     }
 }
 
@@ -166,7 +166,7 @@ fn test_string_concatenation() {
     let interp = run_code(code);
 
     if let Some(Value::Str(result)) = interp.env.get("result") {
-        assert_eq!(result, "Hello World");
+        assert_eq!(result.as_str(), "Hello World");
     } else {
         panic!("Expected concatenated string");
     }
@@ -564,8 +564,8 @@ fn test_parse_int_invalid() {
 
     // Should have caught an error
     if let Some(Value::Str(err)) = interp.env.get("caught") {
-        assert!(err.contains("Cannot parse") || err == "no error", "Got: {}", err);
-        if err != "no error" {
+        assert!(err.contains("Cannot parse") || err.as_str() == "no error", "Got: {}", err);
+        if err.as_str() != "no error" {
             assert!(err.contains("not a number"));
         }
     } else {
@@ -624,8 +624,8 @@ fn test_parse_float_invalid() {
 
     // Should have caught an error or no error was thrown
     if let Some(Value::Str(err)) = interp.env.get("caught") {
-        assert!(err.contains("Cannot parse") || err == "no error", "Got: {}", err);
-        if err != "no error" {
+        assert!(err.contains("Cannot parse") || err.as_str() == "no error", "Got: {}", err);
+        if err.as_str() != "no error" {
             assert!(err.contains("invalid"));
         }
     } else {
@@ -688,7 +688,7 @@ fn test_file_write_and_read() {
 
     // Check read content
     if let Some(Value::Str(s)) = interp.env.get("content") {
-        assert_eq!(s, "Hello, Ruff!");
+        assert_eq!(s.as_str(), "Hello, Ruff!");
     } else {
         panic!("Expected content to be 'Hello, Ruff!'");
     }
@@ -718,7 +718,7 @@ fn test_file_append() {
     let interp = run_code(&code);
 
     if let Some(Value::Str(s)) = interp.env.get("content") {
-        assert_eq!(s, "Line 1\nLine 2\nLine 3\n");
+        assert_eq!(s.as_str(), "Line 1\nLine 2\nLine 3\n");
     } else {
         panic!("Expected content with three lines");
     }
@@ -788,13 +788,13 @@ fn test_read_lines() {
     }
 
     if let Some(Value::Str(s)) = interp.env.get("first") {
-        assert_eq!(s, "Line 1");
+        assert_eq!(s.as_str(), "Line 1");
     } else {
         panic!("Expected first line to be 'Line 1'");
     }
 
     if let Some(Value::Str(s)) = interp.env.get("last") {
-        assert_eq!(s, "Line 3");
+        assert_eq!(s.as_str(), "Line 3");
     } else {
         panic!("Expected last line to be 'Line 3'");
     }
@@ -841,7 +841,7 @@ fn test_create_dir_and_list() {
     if let Some(Value::Array(files)) = interp.env.get("files") {
         let file_names: Vec<String> = files
             .iter()
-            .filter_map(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+            .filter_map(|v| if let Value::Str(s) = v { Some(s.as_ref().clone()) } else { None })
             .collect();
         assert!(file_names.contains(&"file1.txt".to_string()));
         assert!(file_names.contains(&"file2.txt".to_string()));
@@ -867,7 +867,7 @@ fn test_file_not_found_error() {
     let interp = run_code(code);
 
     if let Some(Value::Str(s)) = interp.env.get("caught") {
-        assert!(s.contains("Cannot read file") || s == "no error");
+        assert!(s.contains("Cannot read file") || s.as_str() == "no error");
     } else {
         panic!("Expected 'caught' variable to exist");
     }
@@ -942,8 +942,8 @@ fn test_bool_in_if_conditions() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result1"), Some(Value::Str(s)) if s == "true branch"));
-    assert!(matches!(interp.env.get("result2"), Some(Value::Str(s)) if s == "else branch"));
+    assert!(matches!(interp.env.get("result1"), Some(Value::Str(s)) if s.as_str() == "true branch"));
+    assert!(matches!(interp.env.get("result2"), Some(Value::Str(s)) if s.as_str() == "else branch"));
 }
 
 #[test]
@@ -960,7 +960,7 @@ fn test_bool_comparison_results_in_if() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x is greater than 5"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "x is greater than 5"));
 }
 
 #[test]
@@ -1018,7 +1018,7 @@ fn test_bool_in_variables() {
     // Verify boolean variable works in if condition
     assert!(matches!(interp.env.get("is_active"), Some(Value::Bool(true))));
     assert!(
-        matches!(interp.env.get("result"), Some(Value::Str(ref s)) if s == "is active"),
+        matches!(interp.env.get("result"), Some(Value::Str(ref s)) if s.as_str() == "is active"),
         "Expected result to be 'is active', got {:?}",
         interp.env.get("result")
     );
@@ -1356,7 +1356,7 @@ fn test_string_interpolation_basic() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!"));
+    assert!(matches!(interp.env.get("message"), Some(Value::Str(s)) if s.as_str() == "Hello, World!"));
 }
 
 #[test]
@@ -1368,7 +1368,7 @@ fn test_string_interpolation_numbers() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "The answer is 42"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "The answer is 42"));
 }
 
 #[test]
@@ -1381,7 +1381,7 @@ fn test_string_interpolation_expressions() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "6 times 7 equals 42"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "6 times 7 equals 42"));
 }
 
 #[test]
@@ -1395,7 +1395,7 @@ fn test_string_interpolation_multiple() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: John Doe, Age: 30"));
+    assert!(matches!(interp.env.get("bio"), Some(Value::Str(s)) if s.as_str() == "Name: John Doe, Age: 30"));
 }
 
 #[test]
@@ -1407,7 +1407,7 @@ fn test_string_interpolation_booleans() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("status"), Some(Value::Str(s)) if s == "Valid: true"));
+    assert!(matches!(interp.env.get("status"), Some(Value::Str(s)) if s.as_str() == "Valid: true"));
 }
 
 #[test]
@@ -1420,7 +1420,7 @@ fn test_string_interpolation_comparisons() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x > y: true"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "x > y: true"));
 }
 
 #[test]
@@ -1434,7 +1434,7 @@ fn test_string_interpolation_nested_expressions() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Result: 20"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "Result: 20"));
 }
 
 #[test]
@@ -1450,7 +1450,7 @@ fn test_string_interpolation_function_call() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Double of 21 is 42"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "Double of 21 is 42"));
 }
 
 #[test]
@@ -1462,7 +1462,7 @@ fn test_string_interpolation_empty() {
     let interp = run_code(code);
 
     assert!(
-        matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "No interpolation here")
+        matches!(interp.env.get("message"), Some(Value::Str(s)) if s.as_str() == "No interpolation here")
     );
 }
 
@@ -1475,7 +1475,7 @@ fn test_string_interpolation_only_expression() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "100"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "100"));
 }
 
 #[test]
@@ -1489,7 +1489,7 @@ fn test_string_interpolation_adjacent_expressions() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "123"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "123"));
 }
 
 #[test]
@@ -1502,7 +1502,7 @@ fn test_string_interpolation_with_text_between() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "x=10, y=20, sum=30"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "x=10, y=20, sum=30"));
 }
 
 #[test]
@@ -1515,7 +1515,7 @@ fn test_string_interpolation_string_concat() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Hello, Alice!"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "Hello, Alice!"));
 }
 
 #[test]
@@ -1530,7 +1530,7 @@ fn test_string_interpolation_in_function() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("message"), Some(Value::Str(s)) if s == "Hello, World!"));
+    assert!(matches!(interp.env.get("message"), Some(Value::Str(s)) if s.as_str() == "Hello, World!"));
 }
 
 #[test]
@@ -1547,7 +1547,7 @@ fn test_string_interpolation_struct_field() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("bio"), Some(Value::Str(s)) if s == "Name: Bob, Age: 25"));
+    assert!(matches!(interp.env.get("bio"), Some(Value::Str(s)) if s.as_str() == "Name: Bob, Age: 25"));
 }
 
 #[test]
@@ -1618,9 +1618,9 @@ fn test_repeat_basic() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("str1"), Some(Value::Str(s)) if s == "hahaha"));
-    assert!(matches!(interp.env.get("str2"), Some(Value::Str(s)) if s == "xxxxx"));
-    assert!(matches!(interp.env.get("str3"), Some(Value::Str(s)) if s == "abcabc"));
+    assert!(matches!(interp.env.get("str1"), Some(Value::Str(s)) if s.as_str() == "hahaha"));
+    assert!(matches!(interp.env.get("str2"), Some(Value::Str(s)) if s.as_str() == "xxxxx"));
+    assert!(matches!(interp.env.get("str3"), Some(Value::Str(s)) if s.as_str() == "abcabc"));
 }
 
 #[test]
@@ -1644,9 +1644,9 @@ fn test_split_basic() {
 
     if let Some(Value::Array(arr)) = interp.env.get("parts") {
         assert_eq!(arr.len(), 3);
-        assert!(matches!(&arr[0], Value::Str(s) if s == "a"));
-        assert!(matches!(&arr[1], Value::Str(s) if s == "b"));
-        assert!(matches!(&arr[2], Value::Str(s) if s == "c"));
+        assert!(matches!(&arr[0], Value::Str(s) if s.as_str() == "a"));
+        assert!(matches!(&arr[1], Value::Str(s) if s.as_str() == "b"));
+        assert!(matches!(&arr[2], Value::Str(s) if s.as_str() == "c"));
     } else {
         panic!("Expected parts to be an array");
     }
@@ -1662,9 +1662,9 @@ fn test_split_multiple_chars() {
 
     if let Some(Value::Array(arr)) = interp.env.get("parts") {
         assert_eq!(arr.len(), 3);
-        assert!(matches!(&arr[0], Value::Str(s) if s == "hello"));
-        assert!(matches!(&arr[1], Value::Str(s) if s == "world"));
-        assert!(matches!(&arr[2], Value::Str(s) if s == "test"));
+        assert!(matches!(&arr[0], Value::Str(s) if s.as_str() == "hello"));
+        assert!(matches!(&arr[1], Value::Str(s) if s.as_str() == "world"));
+        assert!(matches!(&arr[2], Value::Str(s) if s.as_str() == "test"));
     } else {
         panic!("Expected parts to be an array");
     }
@@ -1680,9 +1680,9 @@ fn test_split_spaces() {
 
     if let Some(Value::Array(arr)) = interp.env.get("words") {
         assert_eq!(arr.len(), 3);
-        assert!(matches!(&arr[0], Value::Str(s) if s == "one"));
-        assert!(matches!(&arr[1], Value::Str(s) if s == "two"));
-        assert!(matches!(&arr[2], Value::Str(s) if s == "three"));
+        assert!(matches!(&arr[0], Value::Str(s) if s.as_str() == "one"));
+        assert!(matches!(&arr[1], Value::Str(s) if s.as_str() == "two"));
+        assert!(matches!(&arr[2], Value::Str(s) if s.as_str() == "three"));
     } else {
         panic!("Expected words to be an array");
     }
@@ -1697,7 +1697,7 @@ fn test_join_basic() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "a,b,c"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "a,b,c"));
 }
 
 #[test]
@@ -1709,7 +1709,7 @@ fn test_join_with_spaces() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("sentence"), Some(Value::Str(s)) if s == "hello world test"));
+    assert!(matches!(interp.env.get("sentence"), Some(Value::Str(s)) if s.as_str() == "hello world test"));
 }
 
 #[test]
@@ -1721,7 +1721,7 @@ fn test_join_numbers() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "1-2-3"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "1-2-3"));
 }
 
 #[test]
@@ -1735,7 +1735,7 @@ fn test_split_join_roundtrip() {
     let interp = run_code(code);
 
     assert!(
-        matches!(interp.env.get("rejoined"), Some(Value::Str(s)) if s == "apple,banana,cherry")
+        matches!(interp.env.get("rejoined"), Some(Value::Str(s)) if s.as_str() == "apple,banana,cherry")
     );
 }
 
@@ -1767,7 +1767,7 @@ fn test_error_properties_message() {
     "#;
 
     let interp = run_code(code);
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Test error message"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "Test error message"));
 }
 
 #[test]
@@ -1876,7 +1876,7 @@ fn test_error_in_function_with_stack_trace() {
     "#;
 
     let interp = run_code(code);
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "Inner error"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "Inner error"));
 }
 
 #[test]
@@ -1964,7 +1964,7 @@ fn test_jwt_encode_decode_roundtrip() {
 
     let interp = run_code(code);
     assert!(matches!(interp.env.get("user_id"), Some(Value::Int(n)) if n == 456));
-    assert!(matches!(interp.env.get("role"), Some(Value::Str(s)) if s == "admin"));
+    assert!(matches!(interp.env.get("role"), Some(Value::Str(s)) if s.as_str() == "admin"));
     assert!(matches!(interp.env.get("active"), Some(Value::Bool(true))));
 }
 
@@ -2109,7 +2109,7 @@ fn test_http_get_stream_returns_bytes() {
     "#;
 
     let interp = run_code(code);
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "function_exists"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "function_exists"));
 }
 
 #[test]
@@ -2170,9 +2170,9 @@ fn test_jwt_with_multiple_claims() {
     "#;
 
     let interp = run_code(code);
-    assert!(matches!(interp.env.get("name"), Some(Value::Str(s)) if s == "John Doe"));
+    assert!(matches!(interp.env.get("name"), Some(Value::Str(s)) if s.as_str() == "John Doe"));
     assert!(matches!(interp.env.get("is_admin"), Some(Value::Bool(true))));
-    assert!(matches!(interp.env.get("subject"), Some(Value::Str(s)) if s == "1234567890"));
+    assert!(matches!(interp.env.get("subject"), Some(Value::Str(s)) if s.as_str() == "1234567890"));
 }
 
 #[test]
@@ -2517,11 +2517,11 @@ fn test_type_function_basic_types() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("t_int"), Some(Value::Str(s)) if s == "int"));
-    assert!(matches!(interp.env.get("t_float"), Some(Value::Str(s)) if s == "float"));
-    assert!(matches!(interp.env.get("t_string"), Some(Value::Str(s)) if s == "string"));
-    assert!(matches!(interp.env.get("t_bool"), Some(Value::Str(s)) if s == "bool"));
-    assert!(matches!(interp.env.get("t_null"), Some(Value::Str(s)) if s == "null"));
+    assert!(matches!(interp.env.get("t_int"), Some(Value::Str(s)) if s.as_str() == "int"));
+    assert!(matches!(interp.env.get("t_float"), Some(Value::Str(s)) if s.as_str() == "float"));
+    assert!(matches!(interp.env.get("t_string"), Some(Value::Str(s)) if s.as_str() == "string"));
+    assert!(matches!(interp.env.get("t_bool"), Some(Value::Str(s)) if s.as_str() == "bool"));
+    assert!(matches!(interp.env.get("t_null"), Some(Value::Str(s)) if s.as_str() == "null"));
 }
 
 #[test]
@@ -2533,8 +2533,8 @@ fn test_type_function_collections() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("t_array"), Some(Value::Str(s)) if s == "array"));
-    assert!(matches!(interp.env.get("t_dict"), Some(Value::Str(s)) if s == "dict"));
+    assert!(matches!(interp.env.get("t_array"), Some(Value::Str(s)) if s.as_str() == "array"));
+    assert!(matches!(interp.env.get("t_dict"), Some(Value::Str(s)) if s.as_str() == "dict"));
 }
 
 #[test]
@@ -2549,8 +2549,8 @@ fn test_type_function_with_function() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("t_func"), Some(Value::Str(s)) if s == "function"));
-    assert!(matches!(interp.env.get("t_native"), Some(Value::Str(s)) if s == "function"));
+    assert!(matches!(interp.env.get("t_func"), Some(Value::Str(s)) if s.as_str() == "function"));
+    assert!(matches!(interp.env.get("t_native"), Some(Value::Str(s)) if s.as_str() == "function"));
 }
 
 #[test]
@@ -2702,7 +2702,7 @@ fn test_type_introspection_in_conditional() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "integer"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "integer"));
 }
 
 #[test]
@@ -2744,9 +2744,9 @@ fn test_type_function_edge_cases() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("t1"), Some(Value::Str(s)) if s == "int"));
-    assert!(matches!(interp.env.get("t2"), Some(Value::Str(s)) if s == "int"));
-    assert!(matches!(interp.env.get("t3"), Some(Value::Str(s)) if s == "string"));
+    assert!(matches!(interp.env.get("t1"), Some(Value::Str(s)) if s.as_str() == "int"));
+    assert!(matches!(interp.env.get("t2"), Some(Value::Str(s)) if s.as_str() == "int"));
+    assert!(matches!(interp.env.get("t3"), Some(Value::Str(s)) if s.as_str() == "string"));
 }
 
 #[test]
@@ -2870,7 +2870,7 @@ fn test_to_string_from_int() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "42"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "42"));
 }
 
 #[test]
@@ -2881,7 +2881,7 @@ fn test_to_string_from_float() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "3.14"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "3.14"));
 }
 
 #[test]
@@ -2893,8 +2893,8 @@ fn test_to_string_from_bool() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result1"), Some(Value::Str(s)) if s == "true"));
-    assert!(matches!(interp.env.get("result2"), Some(Value::Str(s)) if s == "false"));
+    assert!(matches!(interp.env.get("result1"), Some(Value::Str(s)) if s.as_str() == "true"));
+    assert!(matches!(interp.env.get("result2"), Some(Value::Str(s)) if s.as_str() == "false"));
 }
 
 #[test]
@@ -2905,7 +2905,7 @@ fn test_to_string_from_array() {
 
     let interp = run_code(code);
 
-    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s == "[1, 2, 3]"));
+    assert!(matches!(interp.env.get("result"), Some(Value::Str(s)) if s.as_str() == "[1, 2, 3]"));
 }
 
 #[test]
@@ -3337,10 +3337,10 @@ fn test_sort_mixed_numbers() {
         // Should be sorted: 1.5, 2.2, 3, 4
         // Extract as floats for comparison
         let mut values: Vec<f64> = Vec::new();
-        for val in arr {
+        for val in arr.iter() {
             match val {
-                Value::Int(n) => values.push(n as f64),
-                Value::Float(n) => values.push(n),
+                Value::Int(n) => values.push(*n as f64),
+                Value::Float(n) => values.push(*n),
                 _ => panic!("Expected number"),
             }
         }
@@ -3366,7 +3366,7 @@ fn test_sort_strings() {
         let expected = ["apple", "banana", "cherry", "date"];
         for (i, val) in arr.iter().enumerate() {
             if let Value::Str(s) = val {
-                assert_eq!(s, expected[i]);
+                assert_eq!(s.as_str(), expected[i]);
             } else {
                 panic!("Expected string at index {}", i);
             }
@@ -3438,7 +3438,7 @@ fn test_unique_strings() {
         let expected = ["apple", "banana", "cherry"];
         for (i, val) in arr.iter().enumerate() {
             if let Value::Str(s) = val {
-                assert_eq!(s, expected[i]);
+                assert_eq!(s.as_str(), expected[i]);
             } else {
                 panic!("Expected string at index {}", i);
             }

@@ -180,7 +180,22 @@ impl Compiler {
                         {
                             if left_name == target_name {
                                 if let Some(slot) = self.resolve_local_slot(target_name) {
-                                    // Compile RHS only and use in-place add for string literals
+                                    // Use dedicated in-place constant string append opcode
+                                    if let Expr::String(s) = &**right {
+                                        if let Some(ch) = {
+                                            let mut chars = s.chars();
+                                            match (chars.next(), chars.next()) {
+                                                (Some(c), None) => Some(c),
+                                                _ => None,
+                                            }
+                                        } {
+                                            self.chunk.emit(OpCode::AppendConstCharInPlace(slot, ch));
+                                        } else {
+                                            self.chunk.emit(OpCode::AppendConstStringInPlace(slot, Arc::from(s.clone())));
+                                        }
+                                        return Ok(());
+                                    }
+
                                     self.compile_expr(right)?;
                                     self.chunk.emit(OpCode::AddInPlace(slot));
                                     self.chunk.emit(OpCode::Pop);
@@ -238,6 +253,18 @@ impl Compiler {
             }
 
             Stmt::While { condition, body, .. } => {
+                if let Some((target_slot, index_slot, limit_slot, append_char)) =
+                    self.match_append_char_until_local_pattern(condition, body)
+                {
+                    self.chunk.emit(OpCode::AppendConstCharUntilLocalInPlace(
+                        target_slot,
+                        index_slot,
+                        limit_slot,
+                        append_char,
+                    ));
+                    return Ok(());
+                }
+
                 let loop_start = self.chunk.instructions.len();
                 self.loop_starts.push(loop_start);
                 self.loop_ends.push(Vec::new());
@@ -1267,6 +1294,70 @@ impl Compiler {
             Expr::Tag(_, values) => values.iter().all(|expr| self.expr_is_pure(expr)),
             _ => false,
         }
+    }
+
+    fn match_append_char_until_local_pattern(
+        &self,
+        condition: &Expr,
+        body: &[Stmt],
+    ) -> Option<(usize, usize, usize, char)> {
+        if body.len() != 2 {
+            return None;
+        }
+
+        let (index_name, limit_name) = match condition {
+            Expr::BinaryOp { left, op, right } if op == "<" => match (&**left, &**right) {
+                (Expr::Identifier(index_name), Expr::Identifier(limit_name)) => {
+                    (index_name.as_str(), limit_name.as_str())
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+
+        let (target_name, append_char) = match &body[0] {
+            Stmt::Assign {
+                target: Expr::Identifier(target_name),
+                value:
+                    Expr::BinaryOp {
+                        left,
+                        op,
+                        right,
+                    },
+            } if op == "+" => match (&**left, &**right) {
+                (Expr::Identifier(left_name), Expr::String(append_str)) if left_name == target_name => {
+                    let mut chars = append_str.chars();
+                    match (chars.next(), chars.next()) {
+                        (Some(ch), None) => (target_name.as_str(), ch),
+                        _ => return None,
+                    }
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+
+        match &body[1] {
+            Stmt::Assign {
+                target: Expr::Identifier(target_name),
+                value:
+                    Expr::BinaryOp {
+                        left,
+                        op,
+                        right,
+                    },
+            } if op == "+" && target_name == index_name => match (&**left, &**right) {
+                (Expr::Identifier(left_name), Expr::Int(1)) if left_name == index_name => {}
+                _ => return None,
+            },
+            _ => return None,
+        }
+
+        let target_slot = self.resolve_local_slot(target_name)?;
+        let index_slot = self.resolve_local_slot(index_name)?;
+        let limit_slot = self.resolve_local_slot(limit_name)?;
+
+        Some((target_slot, index_slot, limit_slot, append_char))
     }
 
     /// Collect variables that are read within the statement list

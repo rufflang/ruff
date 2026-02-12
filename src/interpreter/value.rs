@@ -397,6 +397,7 @@ pub enum Value {
         is_polled: Arc<Mutex<bool>>,
         cached_result: Arc<Mutex<Option<Result<Value, String>>>>,
         /// Optional join handle for spawned async task (None for already-resolved promises)
+        #[allow(dead_code)]
         task_handle: Option<Arc<Mutex<Option<tokio::task::JoinHandle<Result<Value, String>>>>>>,
     },
     /// Task handle for spawned async tasks
@@ -553,21 +554,25 @@ impl std::fmt::Debug for Value {
 
 impl Value {
     /// Helper to create a Str value from a String
+    #[allow(dead_code)]
     pub fn str(s: String) -> Self {
         Value::Str(Arc::new(s))
     }
 
     /// Helper to create a Str value from a &str
+    #[allow(dead_code)]
     pub fn str_ref(s: &str) -> Self {
         Value::Str(Arc::new(s.to_string()))
     }
 
     /// Helper to create an Array value from a Vec<Value>
+    #[allow(dead_code)]
     pub fn array(vec: Vec<Value>) -> Self {
         Value::Array(Arc::new(vec))
     }
 
     /// Helper to create a Dict value from a HashMap<String, Value>
+    #[allow(dead_code)]
     pub fn dict(map: DictMap) -> Self {
         Value::Dict(Arc::new(map))
     }

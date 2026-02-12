@@ -774,7 +774,7 @@ impl VM {
                                             );
                                         }
                                         let jump_target = *jump_target;
-                                        let mut loop_exit_ip = self.ip + 1;
+                                        let loop_exit_ip;
                                         let mut max_target = self.ip;
 
                                         for instr in self
@@ -1107,15 +1107,15 @@ impl VM {
 
                 OpCode::AddInPlace(slot) => {
                     let rhs = self.stack.pop().ok_or("Stack underflow")?;
-                    let apply_add = |target: &mut Value| -> Result<Value, String> {
+                    let apply_add = |target: &mut Value| -> Result<(), String> {
                         match (target, &rhs) {
                             (Value::Int(left), Value::Int(right)) => {
                                 *left = left.wrapping_add(*right);
-                                Ok(Value::Int(*left))
+                                Ok(())
                             }
                             (Value::Float(left), Value::Float(right)) => {
                                 *left += *right;
-                                Ok(Value::Float(*left))
+                                Ok(())
                             }
                             (Value::Str(left), Value::Str(right)) => {
                                 let left_str = Arc::make_mut(left);
@@ -1128,7 +1128,7 @@ impl VM {
                                     left_str.reserve(reserve_amount);
                                 }
                                 left_str.push_str(right.as_ref());
-                                Ok(Value::Str(left.clone()))
+                                Ok(())
                             }
                             _ => Err("Type mismatch in AddInPlace".to_string()),
                         }
@@ -1142,8 +1142,124 @@ impl VM {
                         .local_slots
                         .get_mut(slot)
                         .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
-                    let result = apply_add(target)?;
-                    self.stack.push(result);
+                    apply_add(target)?;
+                    self.stack.push(Value::Null);
+                }
+
+                OpCode::AppendConstStringInPlace(slot, rhs) => {
+                    let frame = self
+                        .call_frames
+                        .last_mut()
+                        .ok_or("AppendConstStringInPlace requires call frame")?;
+                    let target = frame
+                        .local_slots
+                        .get_mut(slot)
+                        .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
+
+                    match target {
+                        Value::Str(left) => {
+                            let left_str = Arc::make_mut(left);
+                            let needed = rhs.len();
+                            let available = left_str.capacity() - left_str.len();
+
+                            if available < needed {
+                                let reserve_amount = (needed * 1000).max(left_str.capacity());
+                                left_str.reserve(reserve_amount);
+                            }
+
+                            left_str.push_str(rhs.as_ref());
+                        }
+                        _ => return Err("Type mismatch in AppendConstStringInPlace".to_string()),
+                    }
+                }
+
+                OpCode::AppendConstCharInPlace(slot, rhs) => {
+                    let frame = self
+                        .call_frames
+                        .last_mut()
+                        .ok_or("AppendConstCharInPlace requires call frame")?;
+                    let target = frame
+                        .local_slots
+                        .get_mut(slot)
+                        .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
+
+                    match target {
+                        Value::Str(left) => {
+                            let left_str = Arc::make_mut(left);
+                            let needed = rhs.len_utf8();
+                            let available = left_str.capacity() - left_str.len();
+
+                            if available < needed {
+                                let reserve_amount = (needed * 1000).max(left_str.capacity());
+                                left_str.reserve(reserve_amount);
+                            }
+
+                            left_str.push(rhs);
+                        }
+                        _ => return Err("Type mismatch in AppendConstCharInPlace".to_string()),
+                    }
+                }
+
+                OpCode::AppendConstCharUntilLocalInPlace(target_slot, index_slot, limit_slot, rhs) => {
+                    let frame = self
+                        .call_frames
+                        .last_mut()
+                        .ok_or("AppendConstCharUntilLocalInPlace requires call frame")?;
+
+                    let current_index = match frame.local_slots.get(index_slot) {
+                        Some(Value::Int(value)) => *value,
+                        Some(_) => {
+                            return Err("Type mismatch in AppendConstCharUntilLocalInPlace index".to_string())
+                        }
+                        None => return Err(format!("Invalid local slot: {}", index_slot)),
+                    };
+
+                    let limit_index = match frame.local_slots.get(limit_slot) {
+                        Some(Value::Int(value)) => *value,
+                        Some(_) => {
+                            return Err("Type mismatch in AppendConstCharUntilLocalInPlace limit".to_string())
+                        }
+                        None => return Err(format!("Invalid local slot: {}", limit_slot)),
+                    };
+
+                    if limit_index > current_index {
+                        let repeat_count_i64 = limit_index - current_index;
+                        let repeat_count = usize::try_from(repeat_count_i64)
+                            .map_err(|_| "Repeat count overflow in AppendConstCharUntilLocalInPlace".to_string())?;
+
+                        let target = frame
+                            .local_slots
+                            .get_mut(target_slot)
+                            .ok_or_else(|| format!("Invalid local slot: {}", target_slot))?;
+
+                        match target {
+                            Value::Str(left) => {
+                                let left_str = Arc::make_mut(left);
+                                let needed = rhs.len_utf8().saturating_mul(repeat_count);
+                                let available = left_str.capacity() - left_str.len();
+
+                                if available < needed {
+                                    let reserve_amount = needed.max(left_str.capacity());
+                                    left_str.reserve(reserve_amount);
+                                }
+
+                                for _ in 0..repeat_count {
+                                    left_str.push(rhs);
+                                }
+                            }
+                            _ => {
+                                return Err(
+                                    "Type mismatch in AppendConstCharUntilLocalInPlace target".to_string(),
+                                )
+                            }
+                        }
+                    }
+
+                    if let Some(index_value) = frame.local_slots.get_mut(index_slot) {
+                        *index_value = Value::Int(limit_index);
+                    } else {
+                        return Err(format!("Invalid local slot: {}", index_slot));
+                    }
                 }
 
                 OpCode::Sub => {
@@ -1286,7 +1402,7 @@ impl VM {
 
                     // Check if this is a bytecode function or native function
                     match &function {
-                        Value::BytecodeFunction { chunk, captured } => {
+                        Value::BytecodeFunction { chunk, captured: _ } => {
                             // Track function calls for JIT compilation
                             if self.jit_enabled && !chunk.is_generator {
                                 let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
@@ -2078,7 +2194,7 @@ impl VM {
                                             }
                                         }
                                         Value::Null => {
-                                            let mut values = Self::dense_int_dict_int_with_len((i as usize) + 1);
+                                            let values = Self::dense_int_dict_int_with_len((i as usize) + 1);
                                             self.stack.push(Value::DenseIntDictInt(Arc::new(values)));
                                         }
                                         other => {

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **String Concatenation Optimization + Stability Validation** (2026-02-12):
+  - Added dedicated bytecode append opcodes for constant string/char in-place updates
+  - Added compiler lowering for `x := x + "literal"` and loop fusion for canonical concat loops
+  - Added VM handlers for in-place append and fused append-until-local execution
+  - Added JIT helper wiring for append in-place paths and translator opcode support
+  - Fixed regressions and warning sources uncovered during optimization work
+  - Validated with green `cargo test --release` and updated cross-language benchmark run
+
 - **Phase 7: Function-Level JIT Implementation (v0.9.0) - IN PROGRESS**:
   - **Step 11: Loop Back-Edge Fix** (2026-01-30):
     - Fixed JIT compilation of loops with backward jumps (JumpBack opcode)

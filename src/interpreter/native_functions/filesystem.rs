@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         // Async file operations - return Promises for true concurrency
-        "read_file_async" | "read_file" => {
+        "read_file_async" => {
             if let Some(Value::Str(path)) = arg_values.first() {
                 let path_clone = path.clone();
                 
@@ -43,7 +43,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
-        "write_file_async" | "write_file" => {
+        "write_file_async" => {
             if arg_values.len() < 2 {
                 return Some(Value::Error(
                     "write_file requires two arguments: path and content".to_string(),
@@ -83,7 +83,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
-        "list_dir_async" | "list_dir" => {
+        "list_dir_async" => {
             if let Some(Value::Str(path)) = arg_values.first() {
                 let path_clone = path.clone();
                 
@@ -121,18 +121,6 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
-        // Synchronous fallback versions for compatibility
-        "read_file_sync" => {
-            if let Some(Value::Str(path)) = arg_values.first() {
-                match std::fs::read_to_string(path.as_ref()) {
-                    Ok(content) => Value::Str(Arc::new(content)),
-                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path.as_ref(), e)),
-                }
-            } else {
-                Value::Error("read_file requires a string path argument".to_string())
-            }
-        }
-
         "write_file" => {
             if arg_values.len() < 2 {
                 return Some(Value::Error(
@@ -152,7 +140,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         // Synchronous fallback versions for compatibility
-        "read_file_sync" => {
+        "read_file_sync" | "read_file" => {
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read_to_string(path.as_ref()) {
                     Ok(content) => Value::Str(Arc::new(content)),

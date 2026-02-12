@@ -55,6 +55,21 @@ pub enum OpCode {
     /// Stack: [rhs] -> [result]
     AddInPlace(usize),
 
+    /// Append constant string to local string in-place
+    /// Operand: local slot index and constant string payload
+    /// Stack: [] -> []
+    AppendConstStringInPlace(usize, Arc<str>),
+
+    /// Append constant character to local string in-place
+    /// Operand: local slot index and character payload
+    /// Stack: [] -> []
+    AppendConstCharInPlace(usize, char),
+
+    /// Append constant character repeatedly while index < limit, then set index = limit
+    /// Operand: target string slot, index slot, limit slot, character payload
+    /// Stack: [] -> []
+    AppendConstCharUntilLocalInPlace(usize, usize, usize, char),
+
     /// Pop two values, subtract (top from second), push result
     Sub,
 

@@ -199,6 +199,7 @@ pub struct CompiledFnInfo {
     #[allow(dead_code)] // May be used for future multi-arg direct recursion
     pub param_count: usize,
     /// Whether this function is optimized for direct recursion
+    #[allow(dead_code)]
     pub supports_direct_recursion: bool,
 }
 
@@ -549,6 +550,111 @@ pub unsafe extern "C" fn jit_store_variable_from_stack(ctx: *mut VMContext, name
     }
 
     0
+}
+
+/// Append a constant string to a local slot string in-place.
+/// Returns 1 on success, 0 on error.
+#[no_mangle]
+pub unsafe extern "C" fn jit_append_const_string_in_place(
+    ctx: *mut VMContext,
+    slot_index: i64,
+    ptr: i64,
+    len: i64,
+) -> i64 {
+    if ctx.is_null() || ptr == 0 || len < 0 {
+        return 0;
+    }
+
+    let ctx_ref = &mut *ctx;
+    if ctx_ref.local_slots_ptr.is_null() {
+        return 0;
+    }
+
+    let slot = match usize::try_from(slot_index) {
+        Ok(slot) => slot,
+        Err(_) => return 0,
+    };
+
+    let local_slots = &mut *ctx_ref.local_slots_ptr;
+    let target = match local_slots.get_mut(slot) {
+        Some(value) => value,
+        None => return 0,
+    };
+
+    let bytes = std::slice::from_raw_parts(ptr as *const u8, len as usize);
+    let append_str = match std::str::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+
+    match target {
+        Value::Str(left) => {
+            let left_str = Arc::make_mut(left);
+            let needed = append_str.len();
+            let available = left_str.capacity() - left_str.len();
+            if available < needed {
+                let reserve_amount = (needed * 1000).max(left_str.capacity());
+                left_str.reserve(reserve_amount);
+            }
+            left_str.push_str(append_str);
+            1
+        }
+        _ => 0,
+    }
+}
+
+/// Append a constant character to a local slot string in-place.
+/// Returns 1 on success, 0 on error.
+#[no_mangle]
+pub unsafe extern "C" fn jit_append_const_char_in_place(
+    ctx: *mut VMContext,
+    slot_index: i64,
+    ch: i64,
+) -> i64 {
+    if ctx.is_null() {
+        return 0;
+    }
+
+    let ctx_ref = &mut *ctx;
+    if ctx_ref.local_slots_ptr.is_null() {
+        return 0;
+    }
+
+    let slot = match usize::try_from(slot_index) {
+        Ok(slot) => slot,
+        Err(_) => return 0,
+    };
+
+    let codepoint = match u32::try_from(ch) {
+        Ok(codepoint) => codepoint,
+        Err(_) => return 0,
+    };
+
+    let chr = match char::from_u32(codepoint) {
+        Some(chr) => chr,
+        None => return 0,
+    };
+
+    let local_slots = &mut *ctx_ref.local_slots_ptr;
+    let target = match local_slots.get_mut(slot) {
+        Some(value) => value,
+        None => return 0,
+    };
+
+    match target {
+        Value::Str(left) => {
+            let left_str = Arc::make_mut(left);
+            let needed = chr.len_utf8();
+            let available = left_str.capacity() - left_str.len();
+            if available < needed {
+                let reserve_amount = (needed * 1000).max(left_str.capacity());
+                left_str.reserve(reserve_amount);
+            }
+            left_str.push(chr);
+            1
+        }
+        _ => 0,
+    }
 }
 
 /// Get int value from a dict/array stored in a local slot (called from loop JIT)
@@ -2572,6 +2678,10 @@ struct BytecodeTranslator {
     make_dict_func: Option<FuncRef>,
     /// Make dict with keys function reference (for MakeDictWithKeys opcode)
     make_dict_with_keys_func: Option<FuncRef>,
+    /// Append const string in-place helper
+    append_const_string_in_place_func: Option<FuncRef>,
+    /// Append const char in-place helper
+    append_const_char_in_place_func: Option<FuncRef>,
     /// Local slot dict get helper (loop JIT)
     local_slot_dict_get_func: Option<FuncRef>,
     /// Local slot dict set helper (loop JIT)
@@ -2682,6 +2792,8 @@ impl BytecodeTranslator {
             dict_set_func: None,
             make_dict_func: None,
             make_dict_with_keys_func: None,
+            append_const_string_in_place_func: None,
+            append_const_char_in_place_func: None,
             local_slot_dict_get_func: None,
             local_slot_dict_set_func: None,
             local_slot_int_dict_get_func: None,
@@ -2693,7 +2805,7 @@ impl BytecodeTranslator {
             int_dict_set_ptr_func: None,
             int_dict_set_ptr_dense_int_func: None,
             int_dict_set_ptr_dense_int_full_func: None,
-            persist_locals_on_return: false,
+            persist_locals_on_return: true,
             direct_arg_mode: false,
             direct_arg_param: None,
             param_count: 0,
@@ -2784,6 +2896,8 @@ impl BytecodeTranslator {
             | OpCode::Equal | OpCode::NotEqual | OpCode::LessThan | OpCode::GreaterThan
             | OpCode::LessEqual | OpCode::GreaterEqual => (2, 1),
             OpCode::AddInPlace(_) => (1, 1),
+            OpCode::AppendConstStringInPlace(_, _) => (0, 0),
+            OpCode::AppendConstCharInPlace(_, _) => (0, 0),
             
             // Unary ops (1 pop, 1 push)
             OpCode::Negate | OpCode::Not => (1, 1),
@@ -3336,6 +3450,11 @@ impl BytecodeTranslator {
         self.make_dict_with_keys_func = Some(func_ref);
     }
 
+    fn set_append_in_place_functions(&mut self, append_string_func: FuncRef, append_char_func: FuncRef) {
+        self.append_const_string_in_place_func = Some(append_string_func);
+        self.append_const_char_in_place_func = Some(append_char_func);
+    }
+
     fn set_local_slot_dict_functions(&mut self, get_func: FuncRef, set_func: FuncRef) {
         self.local_slot_dict_get_func = Some(get_func);
         self.local_slot_dict_set_func = Some(set_func);
@@ -3370,6 +3489,7 @@ impl BytecodeTranslator {
     }
     
     /// Enable or disable persisting local slots on return
+    #[allow(dead_code)]
     fn set_persist_locals_on_return(&mut self, enabled: bool) {
         self.persist_locals_on_return = enabled;
     }
@@ -3898,6 +4018,33 @@ impl BytecodeTranslator {
                     return Ok(false);
                 } else {
                     return Err("MakeDictWithKeys requires context and helper".to_string());
+                }
+            }
+
+            OpCode::AppendConstStringInPlace(slot_index, rhs) => {
+                if let (Some(ctx), Some(append_func)) =
+                    (self.ctx_param, self.append_const_string_in_place_func)
+                {
+                    let slot_val = builder.ins().iconst(types::I64, *slot_index as i64);
+                    let string_ptr = builder.ins().iconst(types::I64, rhs.as_ptr() as i64);
+                    let string_len = builder.ins().iconst(types::I64, rhs.len() as i64);
+                    builder.ins().call(append_func, &[ctx, slot_val, string_ptr, string_len]);
+                    return Ok(false);
+                } else {
+                    return Err("AppendConstStringInPlace requires context and append helper".to_string());
+                }
+            }
+
+            OpCode::AppendConstCharInPlace(slot_index, rhs) => {
+                if let (Some(ctx), Some(append_func)) =
+                    (self.ctx_param, self.append_const_char_in_place_func)
+                {
+                    let slot_val = builder.ins().iconst(types::I64, *slot_index as i64);
+                    let char_val = builder.ins().iconst(types::I64, *rhs as i64);
+                    builder.ins().call(append_func, &[ctx, slot_val, char_val]);
+                    return Ok(false);
+                } else {
+                    return Err("AppendConstCharInPlace requires context and append helper".to_string());
                 }
             }
             
@@ -4472,12 +4619,6 @@ impl BytecodeTranslator {
                 }
             }
             
-            OpCode::Pop => {
-                // Pop and discard top value from JIT stack
-                let _ = self.pop_value()?;
-                return Ok(false);
-            }
-
             OpCode::Return => {
                 // Pop the return value from our stack
                 if let Some(return_value) = self.value_stack.pop() {
@@ -5259,6 +5400,14 @@ impl JitCompiler {
         );
         builder.symbol("jit_make_dict", jit_make_dict as *const u8);
         builder.symbol("jit_make_dict_with_keys", jit_make_dict_with_keys as *const u8);
+        builder.symbol(
+            "jit_append_const_string_in_place",
+            jit_append_const_string_in_place as *const u8,
+        );
+        builder.symbol(
+            "jit_append_const_char_in_place",
+            jit_append_const_char_in_place as *const u8,
+        );
 
         let module = JITModule::new(builder);
 
@@ -5369,7 +5518,6 @@ impl JitCompiler {
             
             // Function returns - needed for compiling functions (not just loops)
             OpCode::Return | OpCode::ReturnNone => true,
-            OpCode::Pop => true,
             
             // Function calls - Step 3: Basic Call opcode support
             OpCode::Call(_) => true,
@@ -5380,6 +5528,9 @@ impl JitCompiler {
             // Dict/Array operations - in-place ops supported for int paths
             OpCode::IndexGet | OpCode::IndexSet => false,
             OpCode::IndexGetInPlace(_) | OpCode::IndexSetInPlace(_) => true,
+            OpCode::AppendConstStringInPlace(_, _)
+            | OpCode::AppendConstCharInPlace(_, _)
+            | OpCode::AppendConstCharUntilLocalInPlace(_, _, _, _) => true,
             // Only allow empty dict literals in JIT to avoid heavy helper overhead
             OpCode::MakeDict(count) => *count == 0,
             OpCode::MakeDictWithKeys(_) => false,
@@ -5670,6 +5821,37 @@ impl JitCompiler {
             .declare_function("jit_make_dict", Linkage::Import, &make_dict_sig)
             .map_err(|e| format!("Failed to declare jit_make_dict: {}", e))?;
 
+        let mut append_const_string_sig = self.module.make_signature();
+        append_const_string_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        append_const_string_sig.params.push(AbiParam::new(types::I64)); // slot index
+        append_const_string_sig.params.push(AbiParam::new(types::I64)); // string ptr
+        append_const_string_sig.params.push(AbiParam::new(types::I64)); // string len
+        append_const_string_sig.returns.push(AbiParam::new(types::I64)); // success
+
+        let append_const_string_func_id = self
+            .module
+            .declare_function(
+                "jit_append_const_string_in_place",
+                Linkage::Import,
+                &append_const_string_sig,
+            )
+            .map_err(|e| format!("Failed to declare jit_append_const_string_in_place: {}", e))?;
+
+        let mut append_const_char_sig = self.module.make_signature();
+        append_const_char_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+        append_const_char_sig.params.push(AbiParam::new(types::I64)); // slot index
+        append_const_char_sig.params.push(AbiParam::new(types::I64)); // unicode scalar value
+        append_const_char_sig.returns.push(AbiParam::new(types::I64)); // success
+
+        let append_const_char_func_id = self
+            .module
+            .declare_function(
+                "jit_append_const_char_in_place",
+                Linkage::Import,
+                &append_const_char_sig,
+            )
+            .map_err(|e| format!("Failed to declare jit_append_const_char_in_place: {}", e))?;
+
         // Build the function with a fresh builder context
         {
             let mut builder_ctx = FunctionBuilderContext::new();
@@ -5717,6 +5899,10 @@ impl JitCompiler {
                 self.module.declare_func_in_func(make_dict_keys_func_id, builder.func);
             let make_dict_func_ref =
                 self.module.declare_func_in_func(make_dict_func_id, builder.func);
+            let append_const_string_func_ref =
+                self.module.declare_func_in_func(append_const_string_func_id, builder.func);
+            let append_const_char_func_ref =
+                self.module.declare_func_in_func(append_const_char_func_id, builder.func);
 
             let entry_block = builder.create_block();
             builder.append_block_params_for_function_params(entry_block);
@@ -5752,6 +5938,10 @@ impl JitCompiler {
             translator.set_object_functions(obj_push_string_func_ref, obj_to_vm_func_ref);
             translator.set_make_dict_function(make_dict_func_ref);
             translator.set_make_dict_with_keys_function(make_dict_keys_func_ref);
+            translator.set_append_in_place_functions(
+                append_const_string_func_ref,
+                append_const_char_func_ref,
+            );
             
             // Initialize current block tracking
             let mut current_block = entry_block;
@@ -6365,6 +6555,41 @@ impl JitCompiler {
             
             let make_dict_ref = self.module.declare_func_in_func(make_dict_id, &mut builder.func);
 
+            let mut append_const_string_sig = self.module.make_signature();
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // slot index
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // string ptr
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // string len
+            append_const_string_sig.returns.push(AbiParam::new(types::I64)); // success
+
+            let append_const_string_id = self
+                .module
+                .declare_function(
+                    "jit_append_const_string_in_place",
+                    Linkage::Import,
+                    &append_const_string_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_append_const_string_in_place: {}", e))?;
+            let append_const_string_ref =
+                self.module.declare_func_in_func(append_const_string_id, &mut builder.func);
+
+            let mut append_const_char_sig = self.module.make_signature();
+            append_const_char_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            append_const_char_sig.params.push(AbiParam::new(types::I64)); // slot index
+            append_const_char_sig.params.push(AbiParam::new(types::I64)); // unicode scalar value
+            append_const_char_sig.returns.push(AbiParam::new(types::I64)); // success
+
+            let append_const_char_id = self
+                .module
+                .declare_function(
+                    "jit_append_const_char_in_place",
+                    Linkage::Import,
+                    &append_const_char_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_append_const_char_in_place: {}", e))?;
+            let append_const_char_ref =
+                self.module.declare_func_in_func(append_const_char_id, &mut builder.func);
+
             let mut make_dict_keys_sig = self.module.make_signature();
             make_dict_keys_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             make_dict_keys_sig.params.push(AbiParam::new(types::I64)); // keys ptr
@@ -6445,6 +6670,7 @@ impl JitCompiler {
             translator.set_dict_set_function(dict_set_ref);
             translator.set_make_dict_function(make_dict_ref);
             translator.set_make_dict_with_keys_function(make_dict_keys_ref);
+            translator.set_append_in_place_functions(append_const_string_ref, append_const_char_ref);
             translator.set_external_functions(
                 load_var_ref,
                 store_var_ref,
@@ -7077,6 +7303,41 @@ impl JitCompiler {
                 .map_err(|e| format!("Failed to declare jit_make_dict: {}", e))?;
             let make_dict_ref = self.module.declare_func_in_func(make_dict_id, &mut builder.func);
 
+            let mut append_const_string_sig = self.module.make_signature();
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // slot index
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // string ptr
+            append_const_string_sig.params.push(AbiParam::new(types::I64)); // string len
+            append_const_string_sig.returns.push(AbiParam::new(types::I64)); // success
+
+            let append_const_string_id = self
+                .module
+                .declare_function(
+                    "jit_append_const_string_in_place",
+                    Linkage::Import,
+                    &append_const_string_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_append_const_string_in_place: {}", e))?;
+            let append_const_string_ref =
+                self.module.declare_func_in_func(append_const_string_id, &mut builder.func);
+
+            let mut append_const_char_sig = self.module.make_signature();
+            append_const_char_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
+            append_const_char_sig.params.push(AbiParam::new(types::I64)); // slot index
+            append_const_char_sig.params.push(AbiParam::new(types::I64)); // unicode scalar value
+            append_const_char_sig.returns.push(AbiParam::new(types::I64)); // success
+
+            let append_const_char_id = self
+                .module
+                .declare_function(
+                    "jit_append_const_char_in_place",
+                    Linkage::Import,
+                    &append_const_char_sig,
+                )
+                .map_err(|e| format!("Failed to declare jit_append_const_char_in_place: {}", e))?;
+            let append_const_char_ref =
+                self.module.declare_func_in_func(append_const_char_id, &mut builder.func);
+
             let mut make_dict_keys_sig = self.module.make_signature();
             make_dict_keys_sig.params.push(AbiParam::new(types::I64)); // ctx pointer
             make_dict_keys_sig.params.push(AbiParam::new(types::I64)); // keys ptr
@@ -7208,6 +7469,7 @@ impl JitCompiler {
             translator.set_dict_set_function(dict_set_ref);
             translator.set_make_dict_function(make_dict_ref);
             translator.set_make_dict_with_keys_function(make_dict_keys_ref);
+            translator.set_append_in_place_functions(append_const_string_ref, append_const_char_ref);
             translator.set_local_slot_dict_functions(local_dict_get_ref, local_dict_set_ref);
             translator.set_local_slot_int_dict_functions(
                 local_int_dict_get_ref,
@@ -7456,6 +7718,10 @@ impl Default for JitCompiler {
 mod tests {
     use super::*;
 
+    unsafe extern "C" fn dummy_compiled_fn(_ctx: *mut VMContext) -> i64 {
+        0
+    }
+
     #[test]
     fn test_jit_compiler_creation() {
         let compiler = JitCompiler::new();
@@ -7475,7 +7741,7 @@ mod tests {
         assert!(compiler.should_compile(0), "Should compile after threshold");
 
         // Mark as compiled by adding a dummy entry to cache
-        compiler.compiled_cache.insert(0, unsafe { std::mem::transmute(0usize) });
+        compiler.compiled_cache.insert(0, dummy_compiled_fn as CompiledFn);
 
         // Should not try to compile again (already in cache)
         assert!(!compiler.should_compile(0), "Should not recompile");
@@ -7843,7 +8109,7 @@ mod tests {
         
         // Initialize profile and add to compiled cache
         compiler.record_type(offset, 12345, &Value::Int(1));
-        compiler.compiled_cache.insert(offset, unsafe { std::mem::transmute(0usize) });
+        compiler.compiled_cache.insert(offset, dummy_compiled_fn as CompiledFn);
         
         // Record mostly successes, then failures
         for _ in 0..90 {
