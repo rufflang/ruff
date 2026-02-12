@@ -2,174 +2,44 @@
 
 This roadmap outlines **upcoming** planned features and improvements. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.8.0 (Released January 2026)  
-> **Next Planned Release**: v0.9.0 (JIT Performance - Beat Python)  
-> **Status**: Phase 7 - 98% Complete! All JIT infrastructure working. Loops in functions now JIT-compile!
+> **Current Version**: v0.9.0 (Released February 2026)  
+> **Next Planned Release**: v0.10.0  
+> **Status**: Roadmap tracks post-v0.9.0 work only (for completed items see CHANGELOG).
 
 ---
 
 ## 🎯 What's Next (Priority Order)
 
-**IMMEDIATE (v0.9.0)**:
-1. **✅ Recursive JIT Performance** - COMPLETE! Ruff is **31-48x FASTER** than Python!
-   - fib(25): 0.5ms vs Python's 24ms (48x faster)
-   - fib(30): 5-8ms vs Python's 253ms (31-50x faster)
+**IMMEDIATE (v0.10.0)**:
+1. **🔥 Parallel Processing / Concurrency (P0)** - critical real-world throughput work
+2. **🏗️ Architecture Cleanup (P1/P2)** - isolate runtime from AST and remove leaky internals
+3. **📦 Release Hardening (P1)** - stabilize APIs and prepare v1.0 trajectory
 
-2. **✅ Loop JIT (Step 11)** - COMPLETE! Loops in JIT-compiled functions now work!
-   - Added late sealing for loop header blocks
-   - JumpBack correctly passes stack values to loop headers
-   - All 31 JIT tests passing
-
-3. **🔥 Parallel Processing / Concurrency (P0)** - CRITICAL for Real-World Performance
-   - Current Bottleneck: SSG benchmark shows 49s loop overhead for 10K iterations (~5ms/iteration)
-   - Python SSG does 10K builds in 0.05s using `ProcessPoolExecutor` (multicore parallelism)
-   - **Goal**: Add goroutine-style concurrency or async/await for I/O-bound workloads
-   - **Impact**: Would enable 8-10x speedup on multicore systems for file processing
-   - **Priority**: P0 - Without this, Ruff appears slow on real-world workloads despite fast JIT
-
-4. **v1.0 Release Preparation** - Finalize APIs, comprehensive documentation
-
-**AFTER v0.9.0**:
-5. **Developer Experience** - LSP, Formatter, Linter, Package Manager (v0.11.0)
-6. **Optional Static Typing** - Gradual typing for additional performance (v0.10.0, exploratory)
+**AFTER v0.10.0**:
+4. **Developer Experience** - LSP, formatter, linter, package management
+5. **Optional Static Typing** - gradual typing exploration and optimization paths
 
 ---
 
 ## Priority Levels
 
-- **P0 (Critical)**: Blocking v0.9.0 release
+- **P0 (Critical)**: Highest-priority next release blockers
 - **P1 (High)**: Core features needed for v1.0 production readiness
 - **P2 (Medium)**: Quality-of-life improvements and developer experience
 - **P3 (Low)**: Nice-to-have features for advanced use cases
 
 ---
 
-## v0.9.0 - JIT Performance (IN PROGRESS)
+## v0.9.0 Release Status
 
-**Focus**: Achieve 5-10x faster than Python performance  
-**Timeline**: Q1 2026 (2-4 weeks remaining)  
-**Priority**: P0 - CRITICAL - Blocking Release
-
----
-
-### Phase 7: JIT Performance Critical Path - Beat Python!
-
-**Status**: ✅ SUCCESS - Recursive JIT is 30-50x FASTER than Python!  
-**Current State**: JIT for recursive functions COMPLETE. Loop JIT optimization remaining.
-
-#### Current Benchmark Results (2026-01-28 UPDATED):
-
-| Benchmark | Ruff JIT | Python | Speedup | Status |
-|-----------|----------|--------|---------|--------|
-| fib(25) | 0.5ms | 24ms | **48x faster** | ✅ EXCEEDS TARGET |
-| fib(30) | 5-8ms | 253ms | **31-50x faster** | ✅ EXCEEDS TARGET |
-| fib(35) | ~60ms | ~2.8s | **~47x faster** | ✅ EXCEEDS TARGET |
-| Array Sum (1M) | ~4s | 52ms | ❌ Slower | ⚠️ Loop JIT needed |
-| Hash Map (100k ops) | 0.56ms | 33.25ms | **~59x faster** | ✅ Loop fusion complete |
-
-**Note**: Recursive function JIT is complete and exceeds all targets. Loop operations still use interpreter, which is why array/hash benchmarks are slow. Step 11 (Loop Back-Edge Fix) will address this.
-
-#### Root Cause Analysis (Resolved for Recursive Functions):
-
-Previous issues that have been **FIXED**:
-
-1. ~~**HashMap Lookup per Variable**~~ ✅ FIXED (Step 7) - Stack slots now used
-2. ~~**HashMap Clone per Call**~~ ✅ FIXED (Step 9) - Inline caching eliminates clones
-3. ~~**Value Boxing/Unboxing**~~ ✅ FIXED (Step 8) - Direct i64 returns
-4. ~~**Function Call Overhead**~~ ✅ FIXED (Step 10/12) - Direct JIT recursion works
-
-**Remaining Issues (Loop Performance)**:
-- Loop bytecode fails JIT compilation due to SSA block parameter issues
-- Loops fall back to bytecode interpreter (still correct, but slower)
-- Step 11 (Loop Back-Edge Fix) will address this
-
-#### Implementation Plan:
-
-**Step 7: Register-Based Locals (P0) - ✅ COMPLETE**
-- [x] Pre-allocate local variable slots at compile time
-- [x] Map variable names to Cranelift stack slots (no HashMap)
-- [x] Use direct memory access instead of function calls
-- [x] Parameters initialized from HashMap at function entry
-- [x] Fall back to runtime for globals and function references
-- [x] Comprehensive test suite added
-- Status: Local variable access now uses fast stack slots
-
-**Step 8: Return Value Optimization (P0) - ✅ COMPLETE**
-- [x] Added `return_value` and `has_return_value` fields to VMContext
-- [x] Implemented `jit_set_return_int()` fast return helper
-- [x] Return opcode uses optimized path (avoids stack push)
-- [x] VM reads return value from VMContext when available
-- [x] Comprehensive test for return value optimization
-- Status: Integer returns now bypass VM stack operations
-
-**Step 9: Inline Caching (P0) - ✅ COMPLETE**
-- [x] Cache resolved function pointers after first call
-- [x] Avoid function lookup on subsequent calls
-- [x] Added `CallSiteId` and `InlineCacheEntry` structures
-- [x] Eliminated var_names HashMap clone in inline cache fast path
-- [x] Added hit/miss counters for profiling
-- [x] Comprehensive test suite added (`tests/jit_inline_cache.ruff`)
-- Status: Inline cache reduces per-call overhead for JIT functions
-- Note: Discovered JIT limitation with higher-order functions (functions as args)
-
-**Step 10: Fast Argument Passing (P1) - PARTIAL**
-- [x] Added VMContext.argN fields (arg0-arg3, arg_count)
-- [x] Added `jit_get_arg()` runtime helper
-- [x] JIT reads parameters from VMContext.argN for ≤4 int args
-- [x] Eliminated var_names HashMap clone on recursive calls
-- [x] Skip HashMap population for simple integer functions
-- [x] Direct JIT recursion fully working (see Step 12)
-- Status: ✅ COMPLETE - 48x faster than Python for fib(25)!
-
-**Step 11: Loop Back-Edge Fix (P1) - ✅ COMPLETE**
-- [x] Added `analyze_loop_headers()` for pre-detecting backward jump targets
-- [x] Added `stack_effect()` to calculate stack depth changes per opcode
-- [x] Added `loop_header_pcs` HashSet to track loop header blocks
-- [x] Loop headers created with proper Cranelift block parameters
-- [x] Implemented late sealing - loop headers sealed after back-edges processed
-- [x] JumpBack now passes stack values as block arguments
-- [x] Test `test_compile_simple_loop` passing
-- [x] All 31 JIT tests passing
-- Status: ✅ COMPLETE - Loops in JIT-compiled functions now work!
-- Note: Loops in top-level scripts still run interpreted (functions-only JIT design)
-
-**Step 12: Direct JIT Recursion (P0) - ✅ COMPLETE**
-- [x] Added `CompiledFnWithArg` type for direct-arg functions
-- [x] Added `CompiledFnInfo` struct to track both variants
-- [x] Implemented `function_has_self_recursion()` detection
-- [x] Implemented `compile_function_with_direct_arg()` method
-- [x] Implemented `translate_direct_arg_instruction()` for direct-arg mode
-- [x] Updated interpreter to prefer direct-arg variant for 1-int-arg calls
-- [x] Self-recursion detection correctly identifies recursive calls
-- [x] **VERIFIED**: fib(25)=0.5ms, fib(30)=5-8ms (31-48x faster than Python!)
-- Status: ✅ COMPLETE - Recursive JIT performance exceeds all targets!
-
-#### Performance Targets (v0.9.0):
-
-```
-TARGET:                          ACTUAL:                     STATUS:
-- Fib Recursive (n=25): <40ms    0.5ms (with warmup)         ✅ 80x EXCEEDED
-- Fib Recursive (n=30): <300ms   5-8ms                       ✅ 37-60x EXCEEDED
-- Array Sum (1M): <10ms          ~4s (interpreter)           ⚠️ Needs Loop JIT
-- Hash Map (100k ops): faster than Python  0.56ms vs 33.25ms ✅ EXCEEDED (~59x faster)
-
-GOAL: Ruff >= 5x faster than Python on compute-heavy benchmarks ✅ ACHIEVED FOR recursive + hash map benchmarks
-Note: Hash map loop fusion now pushes Ruff well ahead of Python on the benchmark workload.
-```
-
-#### Success Criteria (v0.9.0):
-
-- [x] Fibonacci faster than Python (minimum match, target 5x) ✅ **31-48x FASTER!**
-- [ ] All compute benchmarks show Ruff >= Python performance (Loop JIT needed for arrays/hashmaps)
-- [x] No regressions in correctness (198 tests passing) ✅
-
-**v0.9.0 Release Blocker Status**: Fibonacci and hash map benchmark targets EXCEEDED. Remaining loop-heavy perf work is focused on array-style workloads.
+v0.9.0 work is complete and archived in [CHANGELOG.md](CHANGELOG.md).  
+This roadmap intentionally tracks only upcoming items.
 
 ---
 
-## v0.9.0 - Architecture Cleanup Tasks (P2)
+## v0.10.0 - Architecture Cleanup Tasks (P2)
 
-These run in parallel with JIT work and don't block v0.9.0:
+These are planned post-v0.9.0 and are candidates for v0.10.0 scope.
 
 ### Fix LeakyFunctionBody (P2)
 
@@ -193,7 +63,7 @@ These run in parallel with JIT work and don't block v0.9.0:
 
 ---
 
-## v0.9.0 - Parallel Processing & Concurrency (P0)
+## v0.10.0 - Parallel Processing & Concurrency (P0)
 
 **Focus**: Enable multicore parallelism for real-world I/O-bound workloads  
 **Timeline**: Q1 2026 (Before v1.0)  

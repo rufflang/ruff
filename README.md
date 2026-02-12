@@ -2,7 +2,7 @@
 
 **Ruff** is a purpose-built, correctness-first execution language designed for tooling, automation, and AI-assisted development.
 
-> **Status**: v0.9.0 (In Progress - VM Integration Complete!) ⚡ Previous: v0.8.0 (January 2026) - Async/Await & Modern Concurrency
+> **Status**: v0.9.0 (Released February 2026) ⚡ Previous: v0.8.0 (January 2026) - Async/Await & Modern Concurrency
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
