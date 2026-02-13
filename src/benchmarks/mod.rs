@@ -9,12 +9,14 @@
 //   let bench = BenchmarkRunner::new();
 //   bench.run_all();
 
+pub mod cross_language;
 pub mod profiler;
 pub mod reporter;
 pub mod runner;
 pub mod stats;
 pub mod timer;
 
+pub use cross_language::run_process_pool_comparison;
 pub use profiler::{print_profile_report, ProfileConfig, Profiler};
 pub use reporter::Reporter;
 pub use runner::BenchmarkRunner;

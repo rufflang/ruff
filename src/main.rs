@@ -87,6 +87,21 @@ enum Commands {
         warmup: usize,
     },
 
+    /// Compare Ruff parallel_map benchmark against Python ProcessPoolExecutor
+    BenchCross {
+        /// Path to Ruff benchmark script
+        #[arg(long, default_value = "benchmarks/cross-language/bench_parallel_map.ruff")]
+        ruff_script: PathBuf,
+
+        /// Path to Python ProcessPool benchmark script
+        #[arg(long, default_value = "benchmarks/cross-language/bench_process_pool.py")]
+        python_script: PathBuf,
+
+        /// Python executable to use
+        #[arg(long, default_value = "python3")]
+        python: String,
+    },
+
     /// Profile a Ruff script (CPU, memory, JIT stats)
     Profile {
         /// Path to the .ruff file
@@ -338,6 +353,60 @@ async fn main() {
 
             // Print summary
             Reporter::print_summary(&results);
+        }
+
+        Commands::BenchCross { ruff_script, python_script, python } => {
+            use benchmarks::run_process_pool_comparison;
+
+            let ruff_binary = match std::env::current_exe() {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Failed to determine Ruff binary path: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if !ruff_script.exists() {
+                eprintln!("Ruff benchmark script not found: {}", ruff_script.display());
+                std::process::exit(1);
+            }
+
+            if !python_script.exists() {
+                eprintln!("Python benchmark script not found: {}", python_script.display());
+                std::process::exit(1);
+            }
+
+            match run_process_pool_comparison(
+                ruff_binary.as_path(),
+                ruff_script.as_path(),
+                python.as_str(),
+                python_script.as_path(),
+            ) {
+                Ok(comparison) => {
+                    println!("Ruff parallel_map vs Python ProcessPoolExecutor");
+                    println!("-----------------------------------------------");
+                    println!("Ruff parallel_map: {:.3} ms", comparison.ruff_parallel_map_ms);
+                    println!(
+                        "Python ProcessPoolExecutor: {:.3} ms",
+                        comparison.python_process_pool_ms
+                    );
+                    if let Some(serial_ms) = comparison.python_serial_ms {
+                        println!("Python serial baseline: {:.3} ms", serial_ms);
+                    }
+
+                    println!(
+                        "Ruff speedup vs Python ProcessPool: {:.2}x",
+                        comparison.ruff_vs_process_pool_speedup()
+                    );
+                    if let Some(pool_speedup) = comparison.process_pool_vs_serial_speedup() {
+                        println!("Python ProcessPool speedup vs serial: {:.2}x", pool_speedup);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Cross-language benchmark failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
 
         Commands::Profile { file, cpu, memory, jit, flamegraph } => {
