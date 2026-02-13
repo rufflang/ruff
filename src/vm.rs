@@ -398,6 +398,50 @@ impl VM {
         self.jit_compiler.stats()
     }
 
+    /// Attempt to JIT-compile a bytecode function immediately.
+    ///
+    /// Returns `Ok(true)` when compilation succeeds, `Ok(false)` when compilation is skipped
+    /// (e.g. JIT disabled or non-bytecode input), and `Err` on hard failures.
+    pub fn jit_compile_bytecode_function(&mut self, function: &Value) -> Result<bool, String> {
+        if !self.jit_enabled {
+            return Ok(false);
+        }
+
+        let (chunk, func_name) = match function {
+            Value::BytecodeFunction { chunk, .. } => {
+                let name = chunk.name.as_deref().unwrap_or("<anonymous>").to_string();
+                (chunk, name)
+            }
+            _ => return Ok(false),
+        };
+
+        let has_map_fusion_op = chunk.instructions.iter().any(|op| {
+            matches!(
+                op,
+                OpCode::SumIntMapUntilLocalInPlace(_, _, _, _)
+                    | OpCode::FillIntMapWithDoubleUntilLocalInPlace(_, _, _)
+            )
+        });
+
+        if std::env::var("DISABLE_FUNCTION_JIT").is_ok() || has_map_fusion_op {
+            return Ok(false);
+        }
+
+        if self.compiled_functions.contains_key(func_name.as_str()) {
+            return Ok(true);
+        }
+
+        let info = self
+            .jit_compiler
+            .compile_function_with_info(chunk, func_name.as_str())
+            .map_err(|e| format!("Failed to JIT-compile function '{}': {}", func_name, e))?;
+
+        self.compiled_functions.insert(func_name.clone(), info.fn_ptr);
+        self.compiled_fn_info.insert(func_name, info);
+
+        Ok(true)
+    }
+
     /// Get the VM's function call stack for error reporting
     pub fn get_call_stack(&self) -> Vec<String> {
         self.function_call_stack.clone()

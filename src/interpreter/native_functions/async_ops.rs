@@ -4,10 +4,11 @@
 // Provides async functions for sleep, timeouts, Promise.all, Promise.race, etc.
 
 use crate::interpreter::{AsyncRuntime, DictMap, Value};
+use crate::vm::VM;
 use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -131,6 +132,39 @@ fn try_parallel_map_with_rayon(
     }
 
     Some(resolved_promise(Ok(Value::Array(Arc::new(results)))))
+}
+
+fn try_parallel_map_with_jit_bytecode(
+    interp: &mut crate::interpreter::Interpreter,
+    mapper: &Value,
+    array: &Arc<Vec<Value>>,
+) -> Option<Value> {
+    let is_bytecode_mapper = matches!(mapper, Value::BytecodeFunction { .. });
+    if !is_bytecode_mapper {
+        return None;
+    }
+
+    let mut vm = VM::new();
+    vm.set_jit_enabled(true);
+    vm.set_globals(Arc::new(Mutex::new(interp.env.clone())));
+
+    if let Err(err) = vm.jit_compile_bytecode_function(mapper) {
+        if std::env::var("DEBUG_JIT").is_ok() {
+            eprintln!("parallel_map: eager JIT compile for bytecode mapper failed: {}", err);
+        }
+    }
+
+    let mut mapped_values = Vec::with_capacity(array.len());
+    for element in array.iter() {
+        match vm.call_function_from_jit(mapper.clone(), vec![element.clone()]) {
+            Ok(value) => mapped_values.push(value),
+            Err(err) => {
+                return Some(Value::Error(format!("parallel_map() mapper call failed: {}", err)))
+            }
+        }
+    }
+
+    Some(resolved_promise(Ok(Value::Array(Arc::new(mapped_values)))))
 }
 
 /// Handle async operations native functions
@@ -979,6 +1013,12 @@ pub fn handle(
                 }
             }
 
+            if let Some(jit_bytecode_result) =
+                try_parallel_map_with_jit_bytecode(_interp, &mapper, &array)
+            {
+                return Some(jit_bytecode_result);
+            }
+
             let mut mapped_promises = Vec::with_capacity(array.len());
             for element in array.iter() {
                 let mapped = match &mapper {
@@ -1127,9 +1167,11 @@ pub fn handle(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bytecode::{BytecodeChunk, Constant, OpCode};
     use crate::interpreter::Interpreter;
+    use std::collections::HashMap;
     use std::fs;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn string_value(s: &str) -> Value {
@@ -1160,6 +1202,22 @@ mod tests {
         let mut path = std::env::temp_dir();
         path.push(format!("{}_{}", prefix, nanos));
         path.to_string_lossy().to_string()
+    }
+
+    fn bytecode_increment_mapper() -> Value {
+        let mut chunk = BytecodeChunk::new();
+        chunk.name = Some("jit_parallel_increment".to_string());
+        chunk.params = vec!["x".to_string()];
+        chunk.local_names = vec!["x".to_string()];
+        chunk.local_count = 1;
+
+        let one_idx = chunk.add_constant(Constant::Int(1));
+        chunk.emit(OpCode::LoadVar("x".to_string()));
+        chunk.emit(OpCode::LoadConst(one_idx));
+        chunk.emit(OpCode::Add);
+        chunk.emit(OpCode::Return);
+
+        Value::BytecodeFunction { chunk, captured: HashMap::<String, Arc<Mutex<Value>>>::new() }
     }
 
     #[test]
@@ -1450,6 +1508,30 @@ mod tests {
                 assert!(msg.contains("expects string elements"));
             }
             _ => panic!("Expected Value::Error for invalid mapper element types"),
+        }
+    }
+
+    #[test]
+    fn test_parallel_map_bytecode_mapper_uses_vm_jit_lane() {
+        let mut interp = Interpreter::new();
+        let mapper = bytecode_increment_mapper();
+
+        let args = vec![
+            Value::Array(Arc::new(vec![Value::Int(1), Value::Int(9), Value::Int(41)])),
+            mapper,
+        ];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                assert!(matches!(&values[0], Value::Int(n) if *n == 2));
+                assert!(matches!(&values[1], Value::Int(n) if *n == 10));
+                assert!(matches!(&values[2], Value::Int(n) if *n == 42));
+            }
+            _ => panic!("Expected Array result"),
         }
     }
 
