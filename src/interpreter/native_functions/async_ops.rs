@@ -5,8 +5,133 @@
 
 use crate::interpreter::{AsyncRuntime, DictMap, Value};
 use futures::stream::{FuturesUnordered, StreamExt};
+use rayon::prelude::*;
+use rayon::ThreadPoolBuilder;
 use std::sync::Arc;
 use std::time::Duration;
+
+#[derive(Clone)]
+enum RayonMapInput {
+    Str(String),
+    ArrayLen(usize),
+    DictLen(usize),
+}
+
+fn resolved_promise(result: Result<Value, String>) -> Value {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let _ = tx.send(result);
+    Value::Promise {
+        receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+        is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+        cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+        task_handle: None,
+    }
+}
+
+fn supports_rayon_parallel_map_native(mapper_name: &str) -> bool {
+    matches!(mapper_name, "len" | "to_upper" | "upper" | "to_lower" | "lower")
+}
+
+fn build_rayon_inputs_for_mapper(
+    mapper_name: &str,
+    array: &Arc<Vec<Value>>,
+) -> Result<Vec<RayonMapInput>, String> {
+    let mut inputs = Vec::with_capacity(array.len());
+
+    for value in array.iter() {
+        let mapped = match mapper_name {
+            "len" => match value {
+                Value::Str(s) => RayonMapInput::Str(s.as_ref().clone()),
+                Value::Array(arr) => RayonMapInput::ArrayLen(arr.len()),
+                Value::Dict(dict) => RayonMapInput::DictLen(dict.len()),
+                _ => {
+                    return Err(
+                        "parallel_map(len, ...) expects string/array/dict elements".to_string()
+                    );
+                }
+            },
+            "to_upper" | "upper" | "to_lower" | "lower" => match value {
+                Value::Str(s) => RayonMapInput::Str(s.as_ref().clone()),
+                _ => {
+                    return Err(format!(
+                        "parallel_map({}, ...) expects string elements",
+                        mapper_name
+                    ));
+                }
+            },
+            _ => {
+                return Err(format!(
+                    "parallel_map() mapper '{}' not supported by rayon fast path",
+                    mapper_name
+                ));
+            }
+        };
+
+        inputs.push(mapped);
+    }
+
+    Ok(inputs)
+}
+
+fn apply_rayon_mapper(mapper_name: &str, input: RayonMapInput) -> Value {
+    match mapper_name {
+        "len" => match input {
+            RayonMapInput::Str(s) => Value::Int(s.chars().count() as i64),
+            RayonMapInput::ArrayLen(n) | RayonMapInput::DictLen(n) => Value::Int(n as i64),
+        },
+        "to_upper" | "upper" => match input {
+            RayonMapInput::Str(s) => Value::Str(Arc::new(s.to_uppercase())),
+            _ => Value::Error("parallel_map(to_upper, ...) received invalid element".to_string()),
+        },
+        "to_lower" | "lower" => match input {
+            RayonMapInput::Str(s) => Value::Str(Arc::new(s.to_lowercase())),
+            _ => Value::Error("parallel_map(to_lower, ...) received invalid element".to_string()),
+        },
+        _ => Value::Error(format!(
+            "parallel_map() mapper '{}' not supported by rayon fast path",
+            mapper_name
+        )),
+    }
+}
+
+fn try_parallel_map_with_rayon(
+    mapper_name: &str,
+    array: &Arc<Vec<Value>>,
+    concurrency_limit: usize,
+) -> Option<Value> {
+    if !supports_rayon_parallel_map_native(mapper_name) {
+        return None;
+    }
+
+    let inputs = match build_rayon_inputs_for_mapper(mapper_name, array) {
+        Ok(values) => values,
+        Err(err) => return Some(Value::Error(err)),
+    };
+
+    if inputs.is_empty() {
+        return Some(resolved_promise(Ok(Value::Array(Arc::new(vec![])))));
+    }
+
+    let pool = match ThreadPoolBuilder::new().num_threads(concurrency_limit.max(1)).build() {
+        Ok(pool) => pool,
+        Err(err) => {
+            return Some(Value::Error(format!(
+                "parallel_map() failed to initialize rayon pool: {}",
+                err
+            )));
+        }
+    };
+
+    let results: Vec<Value> = pool.install(|| {
+        inputs.into_par_iter().map(|input| apply_rayon_mapper(mapper_name, input)).collect()
+    });
+
+    if let Some(Value::Error(err)) = results.iter().find(|value| matches!(value, Value::Error(_))) {
+        return Some(Value::Error(err.clone()));
+    }
+
+    Some(resolved_promise(Ok(Value::Array(Arc::new(results)))))
+}
 
 /// Handle async operations native functions
 pub fn handle(
@@ -843,6 +968,17 @@ pub fn handle(
                 Some(_interp.get_async_task_pool_size() as i64)
             };
 
+            if let Value::NativeFunction(mapper_name) = &mapper {
+                let rayon_limit = concurrency_limit
+                    .unwrap_or(_interp.get_async_task_pool_size() as i64)
+                    .max(1) as usize;
+                if let Some(rayon_result) =
+                    try_parallel_map_with_rayon(mapper_name.as_str(), &array, rayon_limit)
+                {
+                    return Some(rayon_result);
+                }
+            }
+
             let mut mapped_promises = Vec::with_capacity(array.len());
             for element in array.iter() {
                 let mapped = match &mapper {
@@ -1229,6 +1365,91 @@ mod tests {
         match resolved {
             Ok(_) => panic!("Expected Promise rejection for missing file"),
             Err(msg) => assert!(msg.contains("Promise 0 rejected")),
+        }
+    }
+
+    #[test]
+    fn test_parallel_map_rayon_len_mixed_collection_inputs() {
+        let mut dict = DictMap::default();
+        dict.insert("a".to_string().into(), Value::Int(1));
+        dict.insert("b".to_string().into(), Value::Int(2));
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value("abc"),
+                Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)])),
+                Value::Dict(Arc::new(dict)),
+            ])),
+            Value::NativeFunction("len".to_string()),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                assert!(matches!(&values[0], Value::Int(n) if *n == 3));
+                assert!(matches!(&values[1], Value::Int(n) if *n == 3));
+                assert!(matches!(&values[2], Value::Int(n) if *n == 2));
+            }
+            _ => panic!("Expected Array result"),
+        }
+    }
+
+    #[test]
+    fn test_parallel_map_rayon_upper_and_lower_aliases() {
+        let mut interp = Interpreter::new();
+        let upper_args = vec![
+            Value::Array(Arc::new(vec![string_value("ruff"), string_value("lang")])),
+            Value::NativeFunction("upper".to_string()),
+            Value::Int(4),
+        ];
+
+        let upper_result = handle(&mut interp, "parallel_map", &upper_args).unwrap();
+        let upper_resolved = await_promise(upper_result).unwrap();
+        match upper_resolved {
+            Value::Array(values) => {
+                assert!(matches!(&values[0], Value::Str(s) if s.as_str() == "RUFF"));
+                assert!(matches!(&values[1], Value::Str(s) if s.as_str() == "LANG"));
+            }
+            _ => panic!("Expected Array result"),
+        }
+
+        let lower_args = vec![
+            Value::Array(Arc::new(vec![string_value("A"), string_value("BC")])),
+            Value::NativeFunction("to_lower".to_string()),
+            Value::Int(4),
+        ];
+
+        let lower_result = handle(&mut interp, "parallel_map", &lower_args).unwrap();
+        let lower_resolved = await_promise(lower_result).unwrap();
+        match lower_resolved {
+            Value::Array(values) => {
+                assert!(matches!(&values[0], Value::Str(s) if s.as_str() == "a"));
+                assert!(matches!(&values[1], Value::Str(s) if s.as_str() == "bc"));
+            }
+            _ => panic!("Expected Array result"),
+        }
+    }
+
+    #[test]
+    fn test_parallel_map_rayon_validates_mapper_input_types() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])),
+            Value::NativeFunction("upper".to_string()),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "parallel_map", &args).unwrap();
+        match result {
+            Value::Error(msg) => {
+                assert!(msg.contains("expects string elements"));
+            }
+            _ => panic!("Expected Value::Error for invalid mapper element types"),
         }
     }
 
