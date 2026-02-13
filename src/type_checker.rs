@@ -1900,6 +1900,22 @@ impl TypeChecker {
         );
 
         self.functions.insert(
+            "par_map".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None, Some(TypeAnnotation::Int)], // array, mapper, optional limit
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
+            "par_each".to_string(),
+            FunctionSignature {
+                param_types: vec![None, None, Some(TypeAnnotation::Int)], // array, mapper, optional limit
+                return_type: None,
+            },
+        );
+
+        self.functions.insert(
             "set_task_pool_size".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::Int)], // size

@@ -878,6 +878,68 @@ pub fn handle(
             handle(_interp, "Promise.all", &promise_all_args)
         }
 
+        "par_map" => {
+            // par_map is an alias for parallel_map
+            handle(_interp, "parallel_map", args)
+        }
+
+        "par_each" => {
+            // par_each(array: Array, func: Function|NativeFunction, concurrency_limit?: Int) -> Promise<Null>
+            // Apply a mapper across array elements concurrently and resolve when all work is complete.
+            // Return value is discarded, but any rejection is propagated.
+            let mapped_result = match handle(_interp, "parallel_map", args) {
+                Some(value) => value,
+                None => {
+                    return Some(Value::Error(
+                        "par_each() internal error: parallel_map handler unavailable".to_string(),
+                    ));
+                }
+            };
+
+            match mapped_result {
+                Value::Promise { receiver, .. } => {
+                    let (tx, rx) = tokio::sync::oneshot::channel();
+
+                    AsyncRuntime::spawn_task(async move {
+                        let await_result = {
+                            let rx = {
+                                let mut receiver_guard = receiver.lock().unwrap();
+                                let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+                                drop(dummy_tx);
+                                std::mem::replace(&mut *receiver_guard, dummy_rx)
+                            };
+
+                            rx.await
+                        };
+
+                        match await_result {
+                            Ok(Ok(_)) => {
+                                let _ = tx.send(Ok(Value::Null));
+                            }
+                            Ok(Err(err)) => {
+                                let _ = tx.send(Err(err));
+                            }
+                            Err(_) => {
+                                let _ = tx.send(Err(
+                                    "Promise channel closed before resolution".to_string()
+                                ));
+                            }
+                        }
+
+                        Value::Null
+                    });
+
+                    Some(Value::Promise {
+                        receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                        is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                        cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                        task_handle: None,
+                    })
+                }
+                immediate => Some(immediate),
+            }
+        }
+
         "set_task_pool_size" => {
             // set_task_pool_size(size: Int) -> Int
             // Sets default async task pool size used when no explicit concurrency_limit is provided.
@@ -1091,6 +1153,79 @@ mod tests {
 
         let result = handle(&mut interp, "parallel_map", &args).unwrap();
         let resolved = await_promise(result);
+        match resolved {
+            Ok(_) => panic!("Expected Promise rejection for missing file"),
+            Err(msg) => assert!(msg.contains("Promise 0 rejected")),
+        }
+    }
+
+    #[test]
+    fn test_par_map_alias_matches_parallel_map_behavior() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value("x"),
+                string_value("yz"),
+                string_value("wxyz"),
+            ])),
+            Value::NativeFunction("len".to_string()),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "par_map", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                match &values[0] {
+                    Value::Int(n) => assert_eq!(*n, 1),
+                    _ => panic!("Expected Int at index 0"),
+                }
+                match &values[1] {
+                    Value::Int(n) => assert_eq!(*n, 2),
+                    _ => panic!("Expected Int at index 1"),
+                }
+                match &values[2] {
+                    Value::Int(n) => assert_eq!(*n, 4),
+                    _ => panic!("Expected Int at index 2"),
+                }
+            }
+            _ => panic!("Expected Array result"),
+        }
+    }
+
+    #[test]
+    fn test_par_each_resolves_to_null_on_success() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value("hello"),
+                string_value("ruff"),
+                string_value("world"),
+            ])),
+            Value::NativeFunction("len".to_string()),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "par_each", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        assert!(matches!(resolved, Value::Null));
+    }
+
+    #[test]
+    fn test_par_each_propagates_rejected_promise() {
+        let missing_file = unique_temp_dir("ruff_par_each_missing");
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![string_value(&missing_file)])),
+            Value::NativeFunction("async_read_file".to_string()),
+        ];
+
+        let result = handle(&mut interp, "par_each", &args).unwrap();
+        let resolved = await_promise(result);
+
         match resolved {
             Ok(_) => panic!("Expected Promise rejection for missing file"),
             Err(msg) => assert!(msg.contains("Promise 0 rejected")),

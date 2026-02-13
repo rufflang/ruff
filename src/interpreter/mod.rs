@@ -422,6 +422,8 @@ impl Interpreter {
             "promise_all",
             "await_all",
             "parallel_map",
+            "par_map",
+            "par_each",
             "set_task_pool_size",
             "get_task_pool_size",
             // Testing assertion functions
@@ -972,6 +974,8 @@ impl Interpreter {
         self.env.define("await_all".to_string(), Value::NativeFunction("await_all".to_string())); // Alias
         self.env
             .define("parallel_map".to_string(), Value::NativeFunction("parallel_map".to_string()));
+        self.env.define("par_map".to_string(), Value::NativeFunction("par_map".to_string()));
+        self.env.define("par_each".to_string(), Value::NativeFunction("par_each".to_string()));
         self.env.define(
             "set_task_pool_size".to_string(),
             Value::NativeFunction("set_task_pool_size".to_string()),
