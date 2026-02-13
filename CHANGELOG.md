@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Rayon Parallel Iteration Integration (P0 Option 3 step)**:
+  - Integrated `rayon` for CPU-parallel iteration in `parallel_map(...)`
+  - Added fast-path parallel execution for supported synchronous native mappers:
+    - `len`
+    - `upper` / `to_upper`
+    - `lower` / `to_lower`
+  - Preserved existing async promise-based fallback behavior for unsupported mappers and user-defined functions
+  - Added unit and full interpreter-pipeline coverage for rayon-backed paths
+
 - **Parallel Mapping Aliases for Async Workflows (P0)**:
   - Added `par_map(array, func, concurrency_limit?)` as a concise alias for `parallel_map(...)`
   - Added `par_each(array, func, concurrency_limit?)` for concurrent side-effect workflows that resolve to `null` on success

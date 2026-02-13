@@ -85,6 +85,7 @@ These are planned post-v0.9.0 and are candidates for v0.10.0 scope.
 - `parallel_map(array, func, concurrency_limit?)` for bounded concurrent mapping workflows
 - `par_map(array, func, concurrency_limit?)` alias for concise concurrent mapping syntax
 - `par_each(array, func, concurrency_limit?)` for concurrent side-effect workflows
+- Rayon-backed parallel mapping fast path for supported native mappers (`len`, `upper`/`to_upper`, `lower`/`to_lower`)
 - Configurable default async task pool sizing via `set_task_pool_size(size)` / `get_task_pool_size()`
 - Promises work correctly with await syntax
 - Small-scale concurrency performs well (10 files in 1.26ms = 126μs/file)
@@ -186,7 +187,7 @@ Value::Promise { receiver, .. } => {
 - Keep async I/O for truly async operations
 
 **Implementation Steps**:
-- [ ] Integrate rayon for parallel iteration
+- [x] Integrate rayon for parallel iteration
 - [ ] JIT-compile closures passed to parallel iterators
 - [ ] Benchmark against Python's ProcessPoolExecutor
 
