@@ -293,6 +293,15 @@ If you are new to the project, read this first.
 
 ## CLI & Arguments
 
+### `bench-cross` defaults are CWD-relative
+- **Problem:** Running `cargo run --release -- bench-cross` from `benchmarks/cross-language` fails with script-not-found errors.
+- **Rule:** `bench-cross` default paths (`benchmarks/cross-language/bench_parallel_map.ruff`, `benchmarks/cross-language/bench_process_pool.py`) are resolved relative to the current working directory.
+- **Why:** Clap default values are plain relative strings; they are not normalized to repo root automatically.
+- **Solution:** Run from repo root or pass explicit `--ruff-script` / `--python-script` values appropriate for current directory.
+- **Implication:** CLI behavior varies by CWD unless the command normalizes defaults in code.
+
+(Discovered during: 2026-02-13_18-52_bench-cross-cwd-gotcha.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
