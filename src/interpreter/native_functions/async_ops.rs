@@ -1536,6 +1536,26 @@ mod tests {
     }
 
     #[test]
+    fn test_par_map_alias_with_bytecode_mapper() {
+        let mut interp = Interpreter::new();
+        let mapper = bytecode_increment_mapper();
+
+        let args = vec![Value::Array(Arc::new(vec![Value::Int(0), Value::Int(5)])), mapper];
+
+        let result = handle(&mut interp, "par_map", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 2);
+                assert!(matches!(&values[0], Value::Int(n) if *n == 1));
+                assert!(matches!(&values[1], Value::Int(n) if *n == 6));
+            }
+            _ => panic!("Expected Array result"),
+        }
+    }
+
+    #[test]
     fn test_set_task_pool_size_round_trip() {
         let mut interp = Interpreter::new();
 
