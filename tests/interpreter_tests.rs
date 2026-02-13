@@ -2499,6 +2499,48 @@ fn test_await_all_large_array_uses_configured_default_pool() {
 }
 
 #[test]
+fn test_par_map_alias_works_in_pipeline() {
+    let code = r#"
+        values := ["a", "bc", "def"]
+        results := await par_map(values, len, 2)
+        count := len(results)
+        first := results[0]
+        second := results[1]
+        third := results[2]
+        ok := count == 3 && first == 1 && second == 2 && third == 3
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_par_each_resolves_null_and_completes() {
+    let code = r#"
+        values := ["aa", "bbb", "cccc"]
+        result := await par_each(values, len, 2)
+        result_type := type(result)
+        is_null_result := result_type == "null"
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("is_null_result"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_par_each_propagates_rejection() {
+    let code = r#"
+        result := await par_each(["/tmp/ruff_missing_par_each_pipeline.txt"], async_read_file)
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(
+        interp.env.get("result"),
+        Some(Value::Error(message)) if message.contains("Promise 0 rejected")
+    ));
+}
+
+#[test]
 fn test_current_timestamp() {
     let code = r#"
         ts := current_timestamp()
