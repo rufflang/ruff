@@ -143,6 +143,7 @@
   - **Task Management**: `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)` ✅
   - **Promise Coordination**: `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)` ✅
   - **Parallel Mapping**: `parallel_map(array, func, concurrency_limit?)` ✅
+  - **Parallel Aliases**: `par_map(array, func, concurrency_limit?)`, `par_each(array, func, concurrency_limit?)` ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Performance**: 2-3x speedup for I/O-bound workloads ✅
@@ -159,6 +160,10 @@
 
     # Bounded concurrent mapping
     let contents := await parallel_map(files, async_read_file, 64)
+
+    # Short aliases for parallel workflows
+    let lengths := await par_map(["a", "bb", "ccc"], len, 2)
+    await par_each(files, async_read_file, 32)
 
     # Configure default batching when no explicit concurrency_limit is passed
     let previous := set_task_pool_size(32)
@@ -221,6 +226,7 @@
     - `async_sleep(ms)`, `async_timeout(promise, ms)`
     - `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)`
     - `parallel_map(array, func, concurrency_limit?)`
+    - `par_map(array, func, concurrency_limit?)`, `par_each(array, func, concurrency_limit?)`
     - `set_task_pool_size(size)`, `get_task_pool_size()`
     - `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)`
   - **Performance**: 2-3x speedup for I/O-bound workloads

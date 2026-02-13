@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Parallel Mapping Aliases for Async Workflows (P0)**:
+  - Added `par_map(array, func, concurrency_limit?)` as a concise alias for `parallel_map(...)`
+  - Added `par_each(array, func, concurrency_limit?)` for concurrent side-effect workflows that resolve to `null` on success
+  - `par_each(...)` preserves async rejection behavior (promise failures propagate to callers)
+  - Added comprehensive coverage across:
+    - native async handler unit tests for alias behavior and rejection propagation
+    - full lexer/parser/interpreter pipeline integration tests
+
 - **Parallel Map for Bounded Async Mapping (P0 quick win)**:
   - Added `parallel_map(array, func, concurrency_limit?)` for concurrent mapping with optional bounded batching
   - Supports native functions and user-defined functions as mapper callbacks
