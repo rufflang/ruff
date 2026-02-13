@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **JIT-Compiled Bytecode Closures in Parallel Iterators (P0 Option 3 step)**:
+  - Added VM/JIT execution lane for `Value::BytecodeFunction` mappers used with `parallel_map(...)` and `par_map(...)`
+  - Added public VM helper to eagerly compile bytecode functions (`jit_compile_bytecode_function`) before mapping execution
+  - `parallel_map` now routes bytecode-closure mapper calls through VM `call_function_from_jit(...)` to leverage compiled execution when available
+  - Added dedicated tests covering:
+    - bytecode mapper result correctness through `parallel_map`
+    - alias behavior through `par_map`
+
 - **Rayon Parallel Iteration Integration (P0 Option 3 step)**:
   - Integrated `rayon` for CPU-parallel iteration in `parallel_map(...)`
   - Added fast-path parallel execution for supported synchronous native mappers:
