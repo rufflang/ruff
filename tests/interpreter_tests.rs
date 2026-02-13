@@ -2541,6 +2541,30 @@ fn test_par_each_propagates_rejection() {
 }
 
 #[test]
+fn test_parallel_map_rayon_upper_pipeline() {
+    let code = r#"
+        words := ["ruff", "lang", "jit"]
+        mapped := await parallel_map(words, upper, 4)
+        ok := mapped[0] == "RUFF" && mapped[1] == "LANG" && mapped[2] == "JIT"
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_parallel_map_rayon_len_pipeline_with_mixed_collections() {
+    let code = r#"
+        values := ["abc", [1, 2, 3, 4], {"x": 1, "y": 2, "z": 3}]
+        sizes := await parallel_map(values, len, 3)
+        ok := sizes[0] == 3 && sizes[1] == 4 && sizes[2] == 3
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
 fn test_current_timestamp() {
     let code = r#"
         ts := current_timestamp()
