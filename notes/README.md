@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-13_18-31_parallel-map-jit-closures-and-rayon.md** — ✅ COMPLETED: Implemented roadmap Option 3 iterator execution upgrades (`rayon` fast path + VM/JIT bytecode-closure lane for `parallel_map`/`par_map`), added targeted coverage, documented trap-prone JIT negative-test constraints, and updated roadmap/changelog/readme.
+
 - **2026-02-12_18-19_promise-all-large-array-optimization.md** — ✅ COMPLETED: Implemented P0 `Promise.all`/`await_all` large-array optimization by replacing per-promise await-task spawning with bounded in-task polling, added high-volume integration tests, and updated roadmap/changelog/readme status.
 
 - **2026-02-12_16-35-configurable-task-pool-sizing.md** — ✅ COMPLETED: Implemented P0 configurable async task pool sizing defaults (`set_task_pool_size` / `get_task_pool_size`), wired default batching through `promise_all`/`await_all`/`parallel_map`, added comprehensive unit+integration coverage, and captured test-harness error-path gotchas.

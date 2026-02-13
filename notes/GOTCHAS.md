@@ -407,6 +407,16 @@ If you are new to the project, read this first.
 - **Rule:** Pattern match handles Function, GeneratorDef, falls through to `_ => Value::Int(0)` for others
 - **Implication:** NativeFunction, StructDef methods, and other callables handled elsewhere
 
+### BytecodeFunction Mappers Must Use VM Execution APIs
+
+- **Problem:** Passing `Value::BytecodeFunction` into interpreter-side call helpers can silently produce wrong fallback behavior.
+- **Rule:** Do NOT route bytecode closures through `call_user_function`; use VM execution (`call_function_from_jit`) and optional eager compile helpers.
+- **Why:** Interpreter call helper does not execute bytecode closures; VM call path owns bytecode/JIT execution semantics.
+- **Location:** `src/interpreter/mod.rs` (`call_user_function`) + `src/vm.rs` (`call_function_from_jit`)
+- **Implication:** For native helpers like `parallel_map`, add explicit bytecode-function branch rather than relying on generic callable fallback.
+
+(Discovered during: 2026-02-13_18-31_parallel-map-jit-closures-and-rayon.md)
+
 (Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
 
 ### User-creatable types need constructor functions
