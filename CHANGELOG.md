@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cross-Language ProcessPool Benchmark Harness (P0 Option 3 step)**:
+  - Added `ruff bench-cross` command to benchmark Ruff `parallel_map(...)` against Python `ProcessPoolExecutor`
+  - Added metric parser/validator module at `src/benchmarks/cross_language.rs` with checksum equivalence guard
+  - Added dedicated benchmark artifacts:
+    - `benchmarks/cross-language/bench_parallel_map.ruff`
+    - `benchmarks/cross-language/bench_process_pool.py`
+  - Added comprehensive unit coverage for metric parsing and speedup calculations
+
 - **JIT-Compiled Bytecode Closures in Parallel Iterators (P0 Option 3 step)**:
   - Added VM/JIT execution lane for `Value::BytecodeFunction` mappers used with `parallel_map(...)` and `par_map(...)`
   - Added public VM helper to eagerly compile bytecode functions (`jit_compile_bytecode_function`) before mapping execution

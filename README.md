@@ -146,6 +146,7 @@
   - **Parallel Aliases**: `par_map(array, func, concurrency_limit?)`, `par_each(array, func, concurrency_limit?)` ✅
   - **Rayon Fast Path**: `parallel_map(...)` uses rayon-backed parallel iteration for native mappers `len`, `upper`/`to_upper`, and `lower`/`to_lower` ✅
   - **JIT Closure Path**: `parallel_map(...)` / `par_map(...)` routes bytecode closures through VM JIT execution when available ✅
+  - **Cross-Language ProcessPool Benchmark**: `ruff bench-cross` compares Ruff `parallel_map(...)` performance with Python `ProcessPoolExecutor` using equivalent benchmark artifacts ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Performance**: 2-3x speedup for I/O-bound workloads ✅

@@ -190,7 +190,7 @@ Value::Promise { receiver, .. } => {
 **Implementation Steps**:
 - [x] Integrate rayon for parallel iteration
 - [x] JIT-compile closures passed to parallel iterators
-- [ ] Benchmark against Python's ProcessPoolExecutor
+- [x] Benchmark against Python's ProcessPoolExecutor via `ruff bench-cross` and cross-language benchmark artifacts
 
 **Estimated Effort**: 2-3 weeks  
 **Complexity**: High (JIT + threading)  
