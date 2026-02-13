@@ -340,6 +340,22 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-12_16-35-configurable-task-pool-sizing.md)
 
+### `FuturesUnordered` requires one concrete future type
+- **Problem:** Replacing batched await logic with `FuturesUnordered` fails to compile with type mismatch errors (`E0308`) when pushing multiple inline `async` blocks.
+- **Rule:** Build all in-flight futures through one closure/function so every pushed future has the same concrete type.
+- **Why:** Distinct `async` block literals always have different anonymous types, even when bodies are equivalent.
+- **Implication:** For bounded async polling in native runtime code, centralize future creation (`let make_future = |...| async move { ... }`) before pushing.
+
+(Discovered during: 2026-02-12_18-19_promise-all-large-array-optimization.md)
+
+### Disk pressure can break fmt/build workflows
+- **Problem:** `cargo fmt`/build can fail with `No space left on device (os error 28)` during heavy local iteration.
+- **Rule:** Check and prune `target/` when formatter/build failures look like I/O errors.
+- **Why:** Ruff build artifacts can grow to multi-GB size in active sessions.
+- **Implication:** Before deep debugging odd formatter/build failures, run `du -sh target` and clean artifacts if needed.
+
+(Discovered during: 2026-02-12_18-19_promise-all-large-array-optimization.md)
+
 ### jsonwebtoken 10.x requires explicit CryptoProvider feature selection
 - **Problem:** Full test suite panics in JWT tests with `Could not automatically determine the process-level CryptoProvider...`
 - **Rule:** Configure `jsonwebtoken` with exactly one provider feature in `Cargo.toml` (e.g. `features = ["rust_crypto"]`)
