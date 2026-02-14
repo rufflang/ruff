@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduced allocation/churn in `Promise.all(...)` hot path by preallocating receiver/future vectors and reusing a single debug flag check
   - Added integration coverage for mixed immediate/promise mapper behavior and immediate-only fast path
 
+- **Cached Await Reuse for Frequently-Awaited Operations (P0 Optimization step)**:
+  - Added cache-aware promise aggregation in `Promise.all(...)` and `parallel_map(...)`
+  - Already-polled promises now resolve from cached results without re-consuming oneshot receivers
+  - Aggregation paths now persist resolved/rejected outcomes back into each source promise cache to accelerate repeated awaits
+  - Added integration coverage for:
+    - reusing a previously awaited promise in `promise_all([p, p], ...)`
+    - reusing a cached promise returned by a `parallel_map(...)` mapper
+
 - **Cross-Language Async SSG Benchmark Harness (P0 Option 1 validation)**:
   - Added `ruff bench-ssg` command to execute a reproducible 10,000-file async SSG workload in Ruff
   - Added optional Python baseline comparison via `ruff bench-ssg --compare-python`

@@ -152,6 +152,7 @@
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Mixed-Result Promise Overhead Optimization**: `parallel_map(...)` avoids synthetic promise wrapping for immediate mapper results and only awaits real async receivers ✅
+  - **Cached Await Reuse**: frequently-awaited promises are reused from cache in `promise_all(...)`, `await_all(...)`, and `parallel_map(...)` aggregation paths ✅
   - **Async VM Suspend/Resume Foundation**: added VM execution state snapshot APIs (`save_execution_state`, `restore_execution_state`) for upcoming non-blocking async VM context switching ✅
   - **Async VM Context Switching Foundation**: added VM execution context lifecycle/switch APIs (`create_execution_context`, `create_execution_context_from_current`, `switch_execution_context`, `remove_execution_context`) for cooperative runtime scheduling ✅
   - **Cooperative Await Yield/Resume**: `Await` supports non-blocking suspension with cooperative execution APIs (`execute_until_suspend`, `resume_execution_context`) instead of blocking VM execution when cooperative mode is used ✅
