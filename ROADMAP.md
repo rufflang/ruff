@@ -236,7 +236,7 @@ Value::Promise { receiver, .. } => {
 - [x] Test with SSG benchmark harness (`ruff bench-ssg`)
 
 **Phase 3: Optimization (1 week)**
-- [ ] Profile async execution to find bottlenecks
+- [x] Profile async execution to find bottlenecks (`ruff bench-ssg --profile-async` stage breakdown + bottleneck summary)
 - [ ] Optimize Promise creation/resolution overhead
 - [ ] Add caching for frequently-awaited operations
 - [ ] Test scalability with 10K+ concurrent operations

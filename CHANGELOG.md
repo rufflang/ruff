@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Async SSG Bottleneck Profiling (P0 Optimization step)**:
+  - Added `--profile-async` flag to `ruff bench-ssg` for per-stage timing breakdown output
+  - `bench-ssg` now reports read-stage and render/write-stage timings when benchmark scripts emit profiling metrics
+  - Added bottleneck summary output (largest stage + profiled-time share)
+  - Extended SSG benchmark artifacts to emit stage metrics:
+    - Ruff script emits `RUFF_SSG_READ_MS` and `RUFF_SSG_RENDER_WRITE_MS`
+    - Python baseline emits `PYTHON_SSG_READ_MS` and `PYTHON_SSG_RENDER_WRITE_MS`
+  - Added comprehensive parser/profile tests in `src/benchmarks/ssg.rs` for optional metric parsing and bottleneck-stage calculations
+
 - **Cross-Language Async SSG Benchmark Harness (P0 Option 1 validation)**:
   - Added `ruff bench-ssg` command to execute a reproducible 10,000-file async SSG workload in Ruff
   - Added optional Python baseline comparison via `ruff bench-ssg --compare-python`

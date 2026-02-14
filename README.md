@@ -148,6 +148,7 @@
   - **JIT Closure Path**: `parallel_map(...)` / `par_map(...)` routes bytecode closures through VM JIT execution when available ✅
   - **Cross-Language ProcessPool Benchmark**: `ruff bench-cross` compares Ruff `parallel_map(...)` performance with Python `ProcessPoolExecutor` using equivalent benchmark artifacts ✅
   - **Cross-Language Async SSG Benchmark**: `ruff bench-ssg` runs a reproducible 10K-file async static-site workload with optional Python comparison (`--compare-python`) ✅
+  - **Async Stage Bottleneck Profiling**: `ruff bench-ssg --profile-async` prints read vs render/write stage timings and bottleneck share ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Async VM Suspend/Resume Foundation**: added VM execution state snapshot APIs (`save_execution_state`, `restore_execution_state`) for upcoming non-blocking async VM context switching ✅
@@ -183,6 +184,8 @@
     #   cargo run -- bench-ssg
     # Ruff vs Python baseline
     #   cargo run -- bench-ssg --compare-python
+    # Include stage-level async bottleneck profiling output
+    #   cargo run -- bench-ssg --compare-python --profile-async
     
     # Async HTTP with timeout
     let response := await async_timeout(async_http_get(url), 5000)
