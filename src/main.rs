@@ -102,6 +102,25 @@ enum Commands {
         python: String,
     },
 
+    /// Run the async SSG benchmark and optionally compare with Python
+    BenchSsg {
+        /// Path to Ruff SSG benchmark script
+        #[arg(long, default_value = "benchmarks/cross-language/bench_ssg.ruff")]
+        ruff_script: PathBuf,
+
+        /// Compare against the Python baseline benchmark
+        #[arg(long, default_value_t = false)]
+        compare_python: bool,
+
+        /// Path to Python SSG benchmark script
+        #[arg(long, default_value = "benchmarks/cross-language/bench_ssg.py")]
+        python_script: PathBuf,
+
+        /// Python executable to use for comparison
+        #[arg(long, default_value = "python3")]
+        python: String,
+    },
+
     /// Profile a Ruff script (CPU, memory, JIT stats)
     Profile {
         /// Path to the .ruff file
@@ -404,6 +423,65 @@ async fn main() {
                 }
                 Err(e) => {
                     eprintln!("Cross-language benchmark failed: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+
+        Commands::BenchSsg { ruff_script, compare_python, python_script, python } => {
+            use benchmarks::run_ssg_benchmark;
+
+            let ruff_binary = match std::env::current_exe() {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Failed to determine Ruff binary path: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if !ruff_script.exists() {
+                eprintln!("Ruff SSG benchmark script not found: {}", ruff_script.display());
+                std::process::exit(1);
+            }
+
+            let python_script_path = if compare_python {
+                if !python_script.exists() {
+                    eprintln!("Python SSG benchmark script not found: {}", python_script.display());
+                    std::process::exit(1);
+                }
+                Some(python_script.as_path())
+            } else {
+                None
+            };
+
+            let python_binary = if compare_python { Some(python.as_str()) } else { None };
+
+            match run_ssg_benchmark(
+                ruff_binary.as_path(),
+                ruff_script.as_path(),
+                python_binary,
+                python_script_path,
+            ) {
+                Ok(result) => {
+                    println!("Ruff async SSG benchmark");
+                    println!("------------------------");
+                    println!("Files rendered: {}", result.files);
+                    println!("Ruff build time: {:.3} ms", result.ruff_build_ms);
+                    println!("Ruff throughput: {:.2} files/sec", result.ruff_files_per_sec);
+                    println!("Ruff checksum: {}", result.ruff_checksum);
+
+                    if let (Some(python_build_ms), Some(python_files_per_sec)) =
+                        (result.python_build_ms, result.python_files_per_sec)
+                    {
+                        println!("Python build time: {:.3} ms", python_build_ms);
+                        println!("Python throughput: {:.2} files/sec", python_files_per_sec);
+                        if let Some(speedup) = result.ruff_vs_python_speedup() {
+                            println!("Ruff speedup vs Python: {:.2}x", speedup);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("SSG benchmark failed: {}", e);
                     std::process::exit(1);
                 }
             }

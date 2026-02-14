@@ -1,0 +1,71 @@
+# Ruff async SSG benchmark
+# Emits machine-readable metrics consumed by `ruff bench-ssg`
+
+file_count := 10000
+batch_size := 256
+create_dir("tmp")
+base_dir := "tmp/ruff_ssg_bench_" + to_string(performance_now())
+input_dir := base_dir + "/input"
+output_dir := base_dir + "/output"
+
+create_dir(base_dir)
+create_dir(input_dir)
+create_dir(output_dir)
+
+# Seed markdown source files
+write_promises := []
+i := 0
+while i < file_count {
+    source_path := input_dir + "/post_" + to_string(i) + ".md"
+    source_body := "# Post " + to_string(i) + "\n\nGenerated page " + to_string(i)
+    write_promises := push(write_promises, async_write_file(source_path, source_body))
+    i := i + 1
+}
+
+await await_all(write_promises, batch_size)
+
+# Benchmark render pipeline (async read + async write)
+start_ms := performance_now()
+
+read_promises := []
+i := 0
+while i < file_count {
+    source_path := input_dir + "/post_" + to_string(i) + ".md"
+    read_promises := push(read_promises, async_read_file(source_path))
+    i := i + 1
+}
+
+source_pages := await await_all(read_promises, batch_size)
+
+checksum := 0
+render_promises := []
+i := 0
+while i < file_count {
+    output_path := output_dir + "/post_" + to_string(i) + ".html"
+    html := "<html><body><h1>Post " + to_string(i) + "</h1><article>" + source_pages[i] + "</article></body></html>"
+    checksum := checksum + len(html)
+    render_promises := push(render_promises, async_write_file(output_path, html))
+    i := i + 1
+}
+
+await await_all(render_promises, batch_size)
+
+elapsed_ms := performance_now() - start_ms
+files_per_sec := (to_float(file_count) * 1000.0) / elapsed_ms
+
+print("RUFF_SSG_FILES=" + to_string(file_count))
+print("RUFF_SSG_BUILD_MS=" + to_string(elapsed_ms))
+print("RUFF_SSG_FILES_PER_SEC=" + to_string(files_per_sec))
+print("RUFF_SSG_CHECKSUM=" + to_string(checksum))
+
+# Cleanup generated files
+cleanup_index := 0
+while cleanup_index < file_count {
+    delete_file(input_dir + "/post_" + to_string(cleanup_index) + ".md")
+    delete_file(output_dir + "/post_" + to_string(cleanup_index) + ".html")
+    cleanup_index := cleanup_index + 1
+}
+
+os_rmdir(input_dir)
+os_rmdir(output_dir)
+os_rmdir(base_dir)
