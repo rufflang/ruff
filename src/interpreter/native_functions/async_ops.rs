@@ -29,6 +29,33 @@ fn resolved_promise(result: Result<Value, String>) -> Value {
     }
 }
 
+fn read_cached_promise_result(
+    is_polled: &Arc<Mutex<bool>>,
+    cached_result: &Arc<Mutex<Option<Result<Value, String>>>>,
+) -> Option<Result<Value, String>> {
+    let polled = is_polled.lock().unwrap();
+    if !*polled {
+        return None;
+    }
+
+    let cached = cached_result.lock().unwrap();
+    match cached.as_ref() {
+        Some(result) => Some(result.clone()),
+        None => Some(Err("Promise polled but no result cached".to_string())),
+    }
+}
+
+fn cache_promise_result(
+    is_polled: &Arc<Mutex<bool>>,
+    cached_result: &Arc<Mutex<Option<Result<Value, String>>>>,
+    result: Result<Value, String>,
+) {
+    let mut polled = is_polled.lock().unwrap();
+    let mut cached = cached_result.lock().unwrap();
+    *cached = Some(result);
+    *polled = true;
+}
+
 fn supports_rayon_parallel_map_native(mapper_name: &str) -> bool {
     matches!(mapper_name, "len" | "to_upper" | "upper" | "to_lower" | "lower")
 }
@@ -815,15 +842,37 @@ pub fn handle(
                 });
             }
 
-            // Extract receivers from all promises
-            let mut receivers = Vec::with_capacity(promises.len());
+            let mut results = vec![Value::Null; promises.len()];
+            // (result_index, receiver, is_polled, cached_result)
+            let mut pending_promises = Vec::with_capacity(promises.len());
+
             for (idx, promise) in promises.iter().enumerate() {
                 match promise {
-                    Value::Promise { receiver, .. } => {
+                    Value::Promise { receiver, is_polled, cached_result, .. } => {
+                        if let Some(cached) = read_cached_promise_result(is_polled, cached_result) {
+                            match cached {
+                                Ok(value) => {
+                                    results[idx] = value;
+                                }
+                                Err(err) => {
+                                    return Some(resolved_promise(Err(format!(
+                                        "Promise {} rejected: {}",
+                                        idx, err
+                                    ))));
+                                }
+                            }
+                            continue;
+                        }
+
                         if debug_async {
                             eprintln!("Promise.all: extracting receiver from promise {}", idx);
                         }
-                        receivers.push((idx, receiver.clone()));
+                        pending_promises.push((
+                            idx,
+                            receiver.clone(),
+                            is_polled.clone(),
+                            cached_result.clone(),
+                        ));
                     }
                     _ => {
                         return Some(Value::Error(format!(
@@ -834,13 +883,21 @@ pub fn handle(
                 }
             }
 
+            if pending_promises.is_empty() {
+                return Some(resolved_promise(Ok(Value::Array(Arc::new(results)))));
+            }
+
             if debug_async {
-                eprintln!("Promise.all: extracted {} receivers, spawning task", receivers.len());
+                eprintln!(
+                    "Promise.all: extracted {} pending receivers ({} served from cache), spawning task",
+                    pending_promises.len(),
+                    promises.len() - pending_promises.len()
+                );
             }
 
             // Create channel for final result
             let (tx, rx) = tokio::sync::oneshot::channel();
-            let count = receivers.len();
+            let count = pending_promises.len();
             let effective_batch_size = concurrency_limit.min(count.max(1));
 
             // Spawn task that awaits all promises concurrently
@@ -848,20 +905,20 @@ pub fn handle(
                 if debug_async {
                     eprintln!(
                         "Promise.all: inside spawned task, extracting {} receivers",
-                        receivers.len()
+                        pending_promises.len()
                     );
                 }
 
                 // Extract all receivers
                 let mut futures = Vec::with_capacity(count);
-                for (idx, receiver_arc) in receivers {
+                for (idx, receiver_arc, is_polled, cached_result) in pending_promises {
                     let actual_rx = {
                         let mut recv_guard = receiver_arc.lock().unwrap();
                         let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
                         drop(dummy_tx);
                         std::mem::replace(&mut *recv_guard, dummy_rx)
                     };
-                    futures.push((idx, actual_rx));
+                    futures.push((idx, actual_rx, is_polled, cached_result));
                 }
 
                 if debug_async {
@@ -878,24 +935,29 @@ pub fn handle(
                 // Await receivers with bounded in-task concurrency (no per-receiver tokio::spawn overhead)
                 let mut pending = futures.into_iter();
                 let mut in_flight = FuturesUnordered::new();
-                let make_wait_future = |idx, rx| async move { (idx, rx.await) };
+                let make_wait_future = |idx, rx, is_polled, cached_result| async move {
+                    (idx, rx.await, is_polled, cached_result)
+                };
 
                 for _ in 0..effective_batch_size {
                     match pending.next() {
-                        Some((idx, rx)) => {
-                            in_flight.push(make_wait_future(idx, rx));
+                        Some((idx, rx, is_polled, cached_result)) => {
+                            in_flight.push(make_wait_future(idx, rx, is_polled, cached_result));
                         }
                         None => break,
                     }
                 }
 
-                while let Some((idx, recv_result)) = in_flight.next().await {
+                while let Some((idx, recv_result, is_polled, cached_result)) =
+                    in_flight.next().await
+                {
                     if debug_async {
                         eprintln!("Promise.all: awaiting task {}/{}", completed + 1, count);
                     }
 
                     match recv_result {
                         Ok(Ok(value)) => {
+                            cache_promise_result(&is_polled, &cached_result, Ok(value.clone()));
                             if debug_async {
                                 eprintln!("Promise.all: task {} resolved successfully", idx);
                             }
@@ -903,6 +965,7 @@ pub fn handle(
                             completed += 1;
                         }
                         Ok(Err(err)) => {
+                            cache_promise_result(&is_polled, &cached_result, Err(err.clone()));
                             if debug_async {
                                 eprintln!("Promise.all: task {} rejected: {}", idx, err);
                             }
@@ -910,6 +973,13 @@ pub fn handle(
                             return Value::Null;
                         }
                         Err(_) => {
+                            let channel_error =
+                                "Promise never resolved (channel closed)".to_string();
+                            cache_promise_result(
+                                &is_polled,
+                                &cached_result,
+                                Err(channel_error.clone()),
+                            );
                             if debug_async {
                                 eprintln!(
                                     "Promise.all: task {} channel closed (Err from oneshot)",
@@ -924,8 +994,15 @@ pub fn handle(
                         }
                     }
 
-                    if let Some((next_idx, next_rx)) = pending.next() {
-                        in_flight.push(make_wait_future(next_idx, next_rx));
+                    if let Some((next_idx, next_rx, next_is_polled, next_cached_result)) =
+                        pending.next()
+                    {
+                        in_flight.push(make_wait_future(
+                            next_idx,
+                            next_rx,
+                            next_is_polled,
+                            next_cached_result,
+                        ));
                     }
                 }
 
@@ -1022,6 +1099,7 @@ pub fn handle(
             }
 
             let mut mapped_results = vec![Value::Null; array.len()];
+            // (result_index, receiver, is_polled, cached_result)
             let mut pending_receivers = Vec::new();
 
             for (idx, element) in array.iter().enumerate() {
@@ -1036,7 +1114,25 @@ pub fn handle(
                     Value::Error(_) | Value::ErrorObject { .. } => {
                         return Some(mapped);
                     }
-                    Value::Promise { receiver, .. } => pending_receivers.push((idx, receiver)),
+                    Value::Promise { receiver, is_polled, cached_result, .. } => {
+                        if let Some(cached) = read_cached_promise_result(&is_polled, &cached_result)
+                        {
+                            match cached {
+                                Ok(value) => {
+                                    mapped_results[idx] = value;
+                                }
+                                Err(err) => {
+                                    return Some(resolved_promise(Err(format!(
+                                        "Promise {} rejected: {}",
+                                        idx, err
+                                    ))));
+                                }
+                            }
+                            continue;
+                        }
+
+                        pending_receivers.push((idx, receiver, is_polled, cached_result));
+                    }
                     immediate => {
                         mapped_results[idx] = immediate;
                     }
@@ -1057,37 +1153,52 @@ pub fn handle(
 
             AsyncRuntime::spawn_task(async move {
                 let mut futures = Vec::with_capacity(count);
-                for (idx, receiver_arc) in pending_receivers {
+                for (idx, receiver_arc, is_polled, cached_result) in pending_receivers {
                     let actual_rx = {
                         let mut recv_guard = receiver_arc.lock().unwrap();
                         let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
                         drop(dummy_tx);
                         std::mem::replace(&mut *recv_guard, dummy_rx)
                     };
-                    futures.push((idx, actual_rx));
+                    futures.push((idx, actual_rx, is_polled, cached_result));
                 }
 
                 let mut pending = futures.into_iter();
                 let mut in_flight = FuturesUnordered::new();
-                let make_wait_future = |idx, rx| async move { (idx, rx.await) };
+                let make_wait_future = |idx, rx, is_polled, cached_result| async move {
+                    (idx, rx.await, is_polled, cached_result)
+                };
 
                 for _ in 0..effective_batch_size {
                     match pending.next() {
-                        Some((idx, rx)) => in_flight.push(make_wait_future(idx, rx)),
+                        Some((idx, rx, is_polled, cached_result)) => {
+                            in_flight.push(make_wait_future(idx, rx, is_polled, cached_result))
+                        }
                         None => break,
                     }
                 }
 
-                while let Some((idx, recv_result)) = in_flight.next().await {
+                while let Some((idx, recv_result, is_polled, cached_result)) =
+                    in_flight.next().await
+                {
                     match recv_result {
                         Ok(Ok(value)) => {
+                            cache_promise_result(&is_polled, &cached_result, Ok(value.clone()));
                             mapped_results[idx] = value;
                         }
                         Ok(Err(err)) => {
+                            cache_promise_result(&is_polled, &cached_result, Err(err.clone()));
                             let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
                             return Value::Null;
                         }
                         Err(_) => {
+                            let channel_error =
+                                "Promise never resolved (channel closed)".to_string();
+                            cache_promise_result(
+                                &is_polled,
+                                &cached_result,
+                                Err(channel_error.clone()),
+                            );
                             let _ = tx.send(Err(format!(
                                 "Promise {} never resolved (channel closed)",
                                 idx
@@ -1096,8 +1207,15 @@ pub fn handle(
                         }
                     }
 
-                    if let Some((next_idx, next_rx)) = pending.next() {
-                        in_flight.push(make_wait_future(next_idx, next_rx));
+                    if let Some((next_idx, next_rx, next_is_polled, next_cached_result)) =
+                        pending.next()
+                    {
+                        in_flight.push(make_wait_future(
+                            next_idx,
+                            next_rx,
+                            next_is_polled,
+                            next_cached_result,
+                        ));
                     }
                 }
 
