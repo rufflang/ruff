@@ -84,6 +84,177 @@ use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 pub const DEFAULT_ASYNC_TASK_POOL_SIZE: usize = 256;
 
+#[derive(Clone, Debug)]
+enum SpawnCapturedValue {
+    Tagged { tag: String, fields: Vec<(String, SpawnCapturedValue)> },
+    Int(i64),
+    Float(f64),
+    Str(String),
+    Bool(bool),
+    Null,
+    Bytes(Vec<u8>),
+    NativeFunction(String),
+    Struct { name: String, fields: Vec<(String, SpawnCapturedValue)> },
+    Array(Vec<SpawnCapturedValue>),
+    Dict(Vec<(String, SpawnCapturedValue)>),
+    FixedDict(Vec<(String, SpawnCapturedValue)>),
+    IntDict(Vec<(i64, SpawnCapturedValue)>),
+    DenseIntDict(Vec<SpawnCapturedValue>),
+    DenseIntDictInt(Vec<Option<i64>>),
+    DenseIntDictIntFull(Vec<i64>),
+    Result { is_ok: bool, value: Box<SpawnCapturedValue> },
+    Option { is_some: bool, value: Box<SpawnCapturedValue> },
+}
+
+impl SpawnCapturedValue {
+    fn from_value(value: &Value) -> Option<Self> {
+        match value {
+            Value::Tagged { tag, fields } => {
+                let mut captured_fields = Vec::with_capacity(fields.len());
+                for (field_name, field_value) in fields {
+                    let captured_value = Self::from_value(field_value)?;
+                    captured_fields.push((field_name.clone(), captured_value));
+                }
+                Some(SpawnCapturedValue::Tagged { tag: tag.clone(), fields: captured_fields })
+            }
+            Value::Int(number) => Some(SpawnCapturedValue::Int(*number)),
+            Value::Float(number) => Some(SpawnCapturedValue::Float(*number)),
+            Value::Str(text) => Some(SpawnCapturedValue::Str(text.as_ref().clone())),
+            Value::Bool(boolean) => Some(SpawnCapturedValue::Bool(*boolean)),
+            Value::Null => Some(SpawnCapturedValue::Null),
+            Value::Bytes(bytes) => Some(SpawnCapturedValue::Bytes(bytes.clone())),
+            Value::NativeFunction(name) => Some(SpawnCapturedValue::NativeFunction(name.clone())),
+            Value::Struct { name, fields } => {
+                let mut captured_fields = Vec::with_capacity(fields.len());
+                for (field_name, field_value) in fields {
+                    let captured_value = Self::from_value(field_value)?;
+                    captured_fields.push((field_name.clone(), captured_value));
+                }
+                Some(SpawnCapturedValue::Struct { name: name.clone(), fields: captured_fields })
+            }
+            Value::Array(elements) => {
+                let mut captured_elements = Vec::with_capacity(elements.len());
+                for element in elements.iter() {
+                    captured_elements.push(Self::from_value(element)?);
+                }
+                Some(SpawnCapturedValue::Array(captured_elements))
+            }
+            Value::Dict(entries) => {
+                let mut captured_entries = Vec::with_capacity(entries.len());
+                for (key, dict_value) in entries.iter() {
+                    captured_entries.push((key.to_string(), Self::from_value(dict_value)?));
+                }
+                Some(SpawnCapturedValue::Dict(captured_entries))
+            }
+            Value::FixedDict { keys, values } => {
+                if keys.len() != values.len() {
+                    return None;
+                }
+
+                let mut captured_entries = Vec::with_capacity(keys.len());
+                for (key, dict_value) in keys.iter().zip(values.iter()) {
+                    captured_entries.push((key.to_string(), Self::from_value(dict_value)?));
+                }
+                Some(SpawnCapturedValue::FixedDict(captured_entries))
+            }
+            Value::IntDict(entries) => {
+                let mut captured_entries = Vec::with_capacity(entries.len());
+                for (key, dict_value) in entries.iter() {
+                    captured_entries.push((*key, Self::from_value(dict_value)?));
+                }
+                Some(SpawnCapturedValue::IntDict(captured_entries))
+            }
+            Value::DenseIntDict(values) => {
+                let mut captured_values = Vec::with_capacity(values.len());
+                for dict_value in values.iter() {
+                    captured_values.push(Self::from_value(dict_value)?);
+                }
+                Some(SpawnCapturedValue::DenseIntDict(captured_values))
+            }
+            Value::DenseIntDictInt(values) => {
+                Some(SpawnCapturedValue::DenseIntDictInt(values.as_ref().clone()))
+            }
+            Value::DenseIntDictIntFull(values) => {
+                Some(SpawnCapturedValue::DenseIntDictIntFull(values.as_ref().clone()))
+            }
+            Value::Result { is_ok, value } => Some(SpawnCapturedValue::Result {
+                is_ok: *is_ok,
+                value: Box::new(Self::from_value(value)?),
+            }),
+            Value::Option { is_some, value } => Some(SpawnCapturedValue::Option {
+                is_some: *is_some,
+                value: Box::new(Self::from_value(value)?),
+            }),
+            _ => None,
+        }
+    }
+
+    fn into_value(self) -> Value {
+        match self {
+            SpawnCapturedValue::Tagged { tag, fields } => {
+                let mut value_fields = HashMap::with_capacity(fields.len());
+                for (field_name, field_value) in fields {
+                    value_fields.insert(field_name, field_value.into_value());
+                }
+                Value::Tagged { tag, fields: value_fields }
+            }
+            SpawnCapturedValue::Int(number) => Value::Int(number),
+            SpawnCapturedValue::Float(number) => Value::Float(number),
+            SpawnCapturedValue::Str(text) => Value::Str(Arc::new(text)),
+            SpawnCapturedValue::Bool(boolean) => Value::Bool(boolean),
+            SpawnCapturedValue::Null => Value::Null,
+            SpawnCapturedValue::Bytes(bytes) => Value::Bytes(bytes),
+            SpawnCapturedValue::NativeFunction(name) => Value::NativeFunction(name),
+            SpawnCapturedValue::Struct { name, fields } => {
+                let mut value_fields = HashMap::with_capacity(fields.len());
+                for (field_name, field_value) in fields {
+                    value_fields.insert(field_name, field_value.into_value());
+                }
+                Value::Struct { name, fields: value_fields }
+            }
+            SpawnCapturedValue::Array(elements) => {
+                Value::Array(Arc::new(elements.into_iter().map(|v| v.into_value()).collect()))
+            }
+            SpawnCapturedValue::Dict(entries) => {
+                let mut map = DictMap::default();
+                for (key, dict_value) in entries {
+                    map.insert(Arc::from(key), dict_value.into_value());
+                }
+                Value::Dict(Arc::new(map))
+            }
+            SpawnCapturedValue::FixedDict(entries) => {
+                let mut keys = Vec::with_capacity(entries.len());
+                let mut values = Vec::with_capacity(entries.len());
+                for (key, dict_value) in entries {
+                    keys.push(Arc::<str>::from(key));
+                    values.push(dict_value.into_value());
+                }
+                Value::FixedDict { keys: Arc::new(keys), values }
+            }
+            SpawnCapturedValue::IntDict(entries) => {
+                let mut map = IntDictMap::default();
+                for (key, dict_value) in entries {
+                    map.insert(key, dict_value.into_value());
+                }
+                Value::IntDict(Arc::new(map))
+            }
+            SpawnCapturedValue::DenseIntDict(values) => Value::DenseIntDict(Arc::new(
+                values.into_iter().map(|dict_value| dict_value.into_value()).collect(),
+            )),
+            SpawnCapturedValue::DenseIntDictInt(values) => Value::DenseIntDictInt(Arc::new(values)),
+            SpawnCapturedValue::DenseIntDictIntFull(values) => {
+                Value::DenseIntDictIntFull(Arc::new(values))
+            }
+            SpawnCapturedValue::Result { is_ok, value } => {
+                Value::Result { is_ok, value: Box::new(value.into_value()) }
+            }
+            SpawnCapturedValue::Option { is_some, value } => {
+                Value::Option { is_some, value: Box::new(value.into_value()) }
+            }
+        }
+    }
+}
+
 /// Main interpreter that executes Ruff programs
 pub struct Interpreter {
     pub env: Environment,
@@ -138,6 +309,20 @@ impl Interpreter {
         let previous_size = self.async_task_pool_size;
         self.async_task_pool_size = size;
         previous_size
+    }
+
+    fn capture_spawn_bindings(&self) -> Vec<(String, SpawnCapturedValue)> {
+        let mut merged_bindings: HashMap<String, SpawnCapturedValue> = HashMap::new();
+
+        for scope in &self.env.scopes {
+            for (name, value) in scope {
+                if let Some(captured_value) = SpawnCapturedValue::from_value(value) {
+                    merged_bindings.insert(name.clone(), captured_value);
+                }
+            }
+        }
+
+        merged_bindings.into_iter().collect()
     }
 
     /// Get all built-in function names (for VM initialization)
@@ -2601,11 +2786,17 @@ impl Interpreter {
             Stmt::Spawn { body } => {
                 // Clone the body for the spawned thread
                 let body_clone = body.clone();
+                let captured_bindings = self.capture_spawn_bindings();
 
-                // Spawn a new thread to execute the body
-                // Note: The spawned code runs in isolation and cannot access the parent environment
+                // Spawn a new thread to execute the body with a transferable snapshot
+                // of parent bindings. Unsupported non-transferable values remain isolated.
                 std::thread::spawn(move || {
                     let mut thread_interp = Interpreter::new();
+
+                    for (name, captured_value) in captured_bindings {
+                        thread_interp.env.define(name, captured_value.into_value());
+                    }
+
                     thread_interp.eval_stmts(&body_clone);
                 });
                 // Don't wait for the thread to finish - it runs in the background
