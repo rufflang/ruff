@@ -152,6 +152,7 @@
   - **Async VM Suspend/Resume Foundation**: added VM execution state snapshot APIs (`save_execution_state`, `restore_execution_state`) for upcoming non-blocking async VM context switching ✅
   - **Async VM Context Switching Foundation**: added VM execution context lifecycle/switch APIs (`create_execution_context`, `create_execution_context_from_current`, `switch_execution_context`, `remove_execution_context`) for cooperative runtime scheduling ✅
   - **Cooperative Await Yield/Resume**: `Await` supports non-blocking suspension with cooperative execution APIs (`execute_until_suspend`, `resume_execution_context`) instead of blocking VM execution when cooperative mode is used ✅
+  - **Async VM Cooperative Scheduler**: added cooperative scheduler APIs (`run_scheduler_round`, `run_scheduler_until_complete`, `pending_execution_context_count`) to drive multiple suspended VM contexts to completion ✅
   - **Performance**: 2-3x speedup for I/O-bound workloads ✅
   - **Testing**: Comprehensive test suite in `examples/test_async_phase5.ruff` ✅
   - **Examples**:

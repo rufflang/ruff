@@ -152,7 +152,7 @@ Value::Promise { receiver, .. } => {
 - [x] Refactor VM to support suspendable execution (save/restore VM state)
 - [x] Implement VM context switching for concurrent execution
 - [x] Change Await opcode to yield instead of block
-- [ ] Add VM scheduler to manage multiple concurrent VM contexts
+- [x] Add VM scheduler to manage multiple concurrent VM contexts
 - [ ] Test with SSG benchmark (target: <5 seconds for 10K files)
 
 **Estimated Effort**: 2-3 weeks  
@@ -232,7 +232,7 @@ Value::Promise { receiver, .. } => {
 - [x] Design VM state save/restore mechanism
 - [x] Implement VM context for suspendable execution
 - [x] Change Await opcode from block_on() to yield/resume
-- [ ] Add VM scheduler for managing concurrent contexts
+- [x] Add VM scheduler for managing concurrent contexts
 - [ ] Test with SSG benchmark (target: <5 seconds)
 
 **Phase 3: Optimization (1 week)**

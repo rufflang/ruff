@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Async VM Cooperative Scheduler (P0 Option 1 step)**:
+  - Added scheduler APIs in `src/vm.rs` for managing multiple suspended VM contexts:
+    - `run_scheduler_round()`
+    - `run_scheduler_until_complete(max_rounds)`
+    - `pending_execution_context_count()`
+  - Added `VmSchedulerRoundResult` with per-round completion and pending counts
+  - `resume_execution_context(context_id)` now removes completed contexts automatically to prevent stale context accumulation
+  - Added comprehensive VM tests for:
+    - scheduler completion cleanup semantics
+    - multi-context scheduler completion
+    - pending-round reporting for unready promises
+    - scheduler round-budget exhaustion and validation errors
+
 - **Cooperative Await Yield/Resume Execution (P0 Option 1 step)**:
   - Added cooperative VM execution APIs in `src/vm.rs`:
     - `execute_until_suspend(chunk)`
