@@ -13,7 +13,8 @@ chan.send(42)
 
 print("Receiving from channel...")
 value := chan.receive()
-print("Received: " + value)
+print("Received:")
+print(value)
 print("")
 
 # Example 2: Multiple messages
@@ -32,17 +33,19 @@ msg3 := msg_chan.receive()
 print("Got: " + msg1 + " " + msg2 + msg3)
 print("")
 
-# Example 3: Producer-consumer pattern
+# Example 3: Producer-consumer pattern (Note: spawn runs in isolation)
 print("3. Producer-consumer pattern")
 result_chan := channel()
 
 print("Spawning producer thread...")
+# NOTE: The current spawn implementation runs in isolation and cannot
+# access variables from the parent scope, including the result_chan.
+# This example demonstrates the syntax but won't actually send data.
+# For working producer-consumer, send data in the same scope.
 spawn {
     # Producer: simulate some work
     print("  Producer: Generating data...")
-    result_chan.send("data-packet-1")
-    result_chan.send("data-packet-2")
-    result_chan.send("data-packet-3")
+    # result_chan not accessible here - runs in isolation
     print("  Producer: All data sent")
 }
 
@@ -53,9 +56,10 @@ data1 := result_chan.receive()
 data2 := result_chan.receive()
 data3 := result_chan.receive()
 
-print("Received: " + data1)
-print("Received: " + data2)
-print("Received: " + data3)
+print("Received:")
+print(data1)
+print(data2)
+print(data3)
 print("")
 
 # Example 4: Empty channel returns null
@@ -63,7 +67,8 @@ print("4. Empty channel behavior")
 empty_chan := channel()
 empty_result := empty_chan.receive()
 
-if empty_result == null {
+# Check if null (in Ruff, use == null or check type)
+if type(empty_result) == "null" {
     print("Empty channel returns null (non-blocking)")
 }
 print("")
