@@ -2254,6 +2254,92 @@ fn test_spawn_basic() {
 }
 
 #[test]
+fn test_spawn_can_read_parent_scalar_bindings_snapshot() {
+    let code = r#"
+        base := 21
+        shared_key := "spawn_parent_scalar_snapshot"
+        shared_set(shared_key, 0)
+
+        spawn {
+            shared_set(shared_key, base * 2)
+        }
+
+        attempts := 0
+        while attempts < 1000 {
+            current := shared_get(shared_key)
+            if current == 42 {
+                break
+            }
+            await async_sleep(1)
+            attempts := attempts + 1
+        }
+
+        spawned_result := shared_get(shared_key)
+        cleanup_ok := shared_delete(shared_key)
+    "#;
+
+    let interp = run_code(code);
+
+    assert!(matches!(interp.env.get("spawned_result"), Some(Value::Int(42))));
+    assert!(matches!(interp.env.get("cleanup_ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_spawn_can_use_parent_defined_shared_key_variable() {
+    let counter_key = unique_shared_key("spawn_parent_key_capture");
+
+    let code = format!(
+        r#"
+        counter_key := "{}"
+        shared_set(counter_key, 0)
+
+        for i in range(0, 12) {{
+            spawn {{
+                shared_add_int(counter_key, 1)
+            }}
+        }}
+
+        attempts := 0
+        while attempts < 2000 {{
+            current := shared_get(counter_key)
+            if current == 12 {{
+                break
+            }}
+            await async_sleep(1)
+            attempts := attempts + 1
+        }}
+
+        final_counter := shared_get(counter_key)
+        cleanup_counter := shared_delete(counter_key)
+    "#,
+        counter_key
+    );
+
+    let interp = run_code(&code);
+
+    assert!(matches!(interp.env.get("final_counter"), Some(Value::Int(12))));
+    assert!(matches!(interp.env.get("cleanup_counter"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_spawn_snapshot_mutations_do_not_write_back_to_parent_scope() {
+    let code = r#"
+        parent_counter := 7
+
+        spawn {
+            parent_counter := 999
+        }
+
+        await async_sleep(20)
+        after_spawn := parent_counter
+    "#;
+
+    let interp = run_code(code);
+
+    assert!(matches!(interp.env.get("after_spawn"), Some(Value::Int(7))));
+}
+
+#[test]
 fn test_parallel_http_basic() {
     // Test that parallel_http function exists and handles empty/invalid URLs gracefully
     let code = r#"
@@ -2441,11 +2527,7 @@ fn test_spawn_can_update_shared_values_across_isolated_environments() {
 
         cleanup_counter := shared_delete("{}")
     "#,
-        counter_key,
-        counter_key,
-        counter_key,
-        counter_key,
-        counter_key
+        counter_key, counter_key, counter_key, counter_key, counter_key
     );
 
     let interp = run_code(&code);
