@@ -276,6 +276,28 @@ struct ExceptionHandlerFrame {
     frame_offset: usize,
 }
 
+/// Snapshot of VM execution state for suspend/resume workflows.
+///
+/// This is the foundational data structure for async VM context switching.
+/// It captures all mutable execution state required to pause and later resume
+/// bytecode execution from the same instruction pointer and stack state.
+#[derive(Debug, Clone)]
+pub struct VmExecutionSnapshot {
+    ip: usize,
+    stack: Vec<Value>,
+    call_frames: Vec<CallFrame>,
+    chunk: BytecodeChunk,
+    upvalues: Vec<Upvalue>,
+    exception_handlers: Vec<ExceptionHandlerFrame>,
+    function_call_stack: Vec<String>,
+    function_call_counts: HashMap<String, usize>,
+    recursion_depth: usize,
+    max_recursion_depth: usize,
+    int_key_cache: HashMap<i64, Arc<str>>,
+    jit_obj_stack: Vec<Value>,
+    globals: Arc<Mutex<Environment>>,
+}
+
 /// Generator state for suspended execution
 /// Infrastructure for generator resume functionality
 #[allow(dead_code)] // TODO: Full generator state restoration
@@ -378,6 +400,50 @@ impl VM {
 
     fn set_chunk(&mut self, chunk: BytecodeChunk) {
         self.chunk = chunk;
+    }
+
+    /// Capture a full execution snapshot for later restoration.
+    ///
+    /// This enables suspendable VM execution by preserving instruction pointer,
+    /// stacks, frames, and runtime metadata needed to continue execution
+    /// without restarting from the beginning.
+    pub fn save_execution_state(&self) -> VmExecutionSnapshot {
+        VmExecutionSnapshot {
+            ip: self.ip,
+            stack: self.stack.clone(),
+            call_frames: self.call_frames.clone(),
+            chunk: self.chunk.clone(),
+            upvalues: self.upvalues.clone(),
+            exception_handlers: self.exception_handlers.clone(),
+            function_call_stack: self.function_call_stack.clone(),
+            function_call_counts: self.function_call_counts.clone(),
+            recursion_depth: self.recursion_depth,
+            max_recursion_depth: self.max_recursion_depth,
+            int_key_cache: self.int_key_cache.clone(),
+            jit_obj_stack: self.jit_obj_stack.clone(),
+            globals: Arc::clone(&self.globals),
+        }
+    }
+
+    /// Restore a previously saved execution snapshot.
+    ///
+    /// This rewinds the VM to the exact saved execution state so that
+    /// bytecode execution can resume from the captured instruction pointer.
+    pub fn restore_execution_state(&mut self, snapshot: VmExecutionSnapshot) {
+        self.ip = snapshot.ip;
+        self.stack = snapshot.stack;
+        self.call_frames = snapshot.call_frames;
+        self.chunk = snapshot.chunk;
+        self.upvalues = snapshot.upvalues;
+        self.exception_handlers = snapshot.exception_handlers;
+        self.function_call_stack = snapshot.function_call_stack;
+        self.function_call_counts = snapshot.function_call_counts;
+        self.recursion_depth = snapshot.recursion_depth;
+        self.max_recursion_depth = snapshot.max_recursion_depth;
+        self.int_key_cache = snapshot.int_key_cache;
+        self.jit_obj_stack = snapshot.jit_obj_stack;
+        self.globals = snapshot.globals;
+        self.interpreter.set_env(Arc::clone(&self.globals));
     }
 
     /// Set the global environment (for accessing built-in functions)
@@ -5774,6 +5840,152 @@ mod tests {
             Ok(other) => panic!("Expected string, got: {:?}", other),
             Err(e) => panic!("VM error: {}", e),
         }
+    }
+
+    #[test]
+    fn test_save_restore_execution_state_round_trip() {
+        let mut vm = VM::new();
+
+        let mut snapshot_chunk = BytecodeChunk::new();
+        snapshot_chunk.name = Some("snapshot_chunk".to_string());
+        snapshot_chunk.instructions.push(OpCode::Return);
+
+        vm.ip = 7;
+        vm.stack = vec![Value::Int(99), Value::Bool(true)];
+        vm.chunk = snapshot_chunk.clone();
+        vm.upvalues = vec![Upvalue {
+            value: Arc::new(Mutex::new(Value::Int(123))),
+            is_closed: true,
+            stack_index: None,
+        }];
+        vm.exception_handlers =
+            vec![ExceptionHandlerFrame { catch_ip: 19, stack_offset: 2, frame_offset: 1 }];
+        vm.function_call_stack = vec!["outer".to_string(), "inner".to_string()];
+        vm.function_call_counts.insert("hot_fn".to_string(), 42);
+        vm.recursion_depth = 3;
+        vm.max_recursion_depth = 5;
+        vm.int_key_cache.insert(7, Arc::from("7"));
+        vm.jit_obj_stack = vec![Value::Str(Arc::new("jit-object".to_string()))];
+
+        let mut frame_chunk = BytecodeChunk::new();
+        frame_chunk.name = Some("frame_chunk".to_string());
+        vm.call_frames.push(CallFrame {
+            return_ip: 11,
+            stack_offset: 1,
+            locals: HashMap::from([("local_x".to_string(), Value::Int(10))]),
+            local_slots: vec![Value::Int(10), Value::Bool(false)],
+            captured: HashMap::new(),
+            prev_chunk: Some(frame_chunk),
+            is_async: false,
+        });
+
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define("saved_var".to_string(), Value::Int(314));
+        }
+
+        let snapshot = vm.save_execution_state();
+
+        vm.ip = 0;
+        vm.stack.clear();
+        vm.call_frames.clear();
+        vm.chunk = BytecodeChunk::new();
+        vm.upvalues.clear();
+        vm.exception_handlers.clear();
+        vm.function_call_stack.clear();
+        vm.function_call_counts.clear();
+        vm.recursion_depth = 0;
+        vm.max_recursion_depth = 0;
+        vm.int_key_cache.clear();
+        vm.jit_obj_stack.clear();
+        vm.set_globals(Arc::new(Mutex::new(Environment::new())));
+
+        vm.restore_execution_state(snapshot);
+
+        assert_eq!(vm.ip, 7);
+        assert_eq!(vm.stack.len(), 2);
+        assert!(matches!(vm.stack.first(), Some(Value::Int(99))));
+        assert!(matches!(vm.stack.get(1), Some(Value::Bool(true))));
+        assert_eq!(vm.call_frames.len(), 1);
+        assert_eq!(vm.call_frames[0].return_ip, 11);
+        assert_eq!(vm.call_frames[0].stack_offset, 1);
+        assert!(matches!(vm.call_frames[0].locals.get("local_x"), Some(Value::Int(10))));
+        assert_eq!(vm.call_frames[0].local_slots.len(), 2);
+        assert_eq!(vm.chunk.name.as_deref(), Some("snapshot_chunk"));
+        assert_eq!(vm.upvalues.len(), 1);
+        assert!(vm.upvalues[0].is_closed);
+        assert_eq!(vm.exception_handlers.len(), 1);
+        assert_eq!(vm.exception_handlers[0].catch_ip, 19);
+        assert_eq!(vm.function_call_stack, vec!["outer".to_string(), "inner".to_string()]);
+        assert_eq!(vm.function_call_counts.get("hot_fn"), Some(&42));
+        assert_eq!(vm.recursion_depth, 3);
+        assert_eq!(vm.max_recursion_depth, 5);
+        assert_eq!(vm.int_key_cache.get(&7), Some(&Arc::from("7")));
+        assert_eq!(vm.jit_obj_stack.len(), 1);
+        match vm.jit_obj_stack.first() {
+            Some(Value::Str(s)) => assert_eq!(s.as_ref(), "jit-object"),
+            other => panic!("Expected Value::Str for jit_obj_stack[0], got: {:?}", other),
+        }
+        let globals = vm.globals.lock().unwrap();
+        assert!(matches!(globals.get("saved_var"), Some(Value::Int(314))));
+    }
+
+    #[test]
+    fn test_execution_snapshot_isolated_from_mutations_after_save() {
+        let mut vm = VM::new();
+        vm.ip = 2;
+        vm.stack.push(Value::Int(1));
+        vm.function_call_stack.push("original".to_string());
+
+        let snapshot = vm.save_execution_state();
+
+        vm.ip = 99;
+        vm.stack.push(Value::Int(2));
+        vm.function_call_stack.push("mutated".to_string());
+
+        assert_eq!(snapshot.ip, 2);
+        assert_eq!(snapshot.stack.len(), 1);
+        assert!(matches!(snapshot.stack.first(), Some(Value::Int(1))));
+        assert_eq!(snapshot.function_call_stack, vec!["original".to_string()]);
+    }
+
+    #[test]
+    fn test_restore_execution_state_replaces_globals_reference() {
+        let mut vm = VM::new();
+
+        let snapshot_globals = Arc::new(Mutex::new(Environment::new()));
+        {
+            let mut globals = snapshot_globals.lock().unwrap();
+            globals.define("from_snapshot".to_string(), Value::Int(88));
+        }
+
+        let snapshot = VmExecutionSnapshot {
+            ip: 0,
+            stack: Vec::new(),
+            call_frames: Vec::new(),
+            chunk: BytecodeChunk::new(),
+            upvalues: Vec::new(),
+            exception_handlers: Vec::new(),
+            function_call_stack: Vec::new(),
+            function_call_counts: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 0,
+            int_key_cache: HashMap::new(),
+            jit_obj_stack: Vec::new(),
+            globals: Arc::clone(&snapshot_globals),
+        };
+
+        vm.set_globals(Arc::new(Mutex::new(Environment::new())));
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define("other".to_string(), Value::Int(1));
+        }
+
+        vm.restore_execution_state(snapshot);
+
+        let globals = vm.globals.lock().unwrap();
+        assert!(matches!(globals.get("from_snapshot"), Some(Value::Int(88))));
+        assert!(globals.get("other").is_none());
     }
 
     #[test]
