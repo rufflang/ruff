@@ -149,7 +149,7 @@ Value::Promise { receiver, .. } => {
 4. **Use tokio's select!/join! patterns**: Multiple VM contexts can run concurrently
 
 **Implementation Steps**:
-- [ ] Refactor VM to support suspendable execution (save/restore VM state)
+- [x] Refactor VM to support suspendable execution (save/restore VM state)
 - [ ] Implement VM context switching for concurrent execution
 - [ ] Change Await opcode to yield instead of block
 - [ ] Add VM scheduler to manage multiple concurrent VM contexts
@@ -229,7 +229,7 @@ Value::Promise { receiver, .. } => {
 - [ ] Test with SSG benchmark (target: <10 seconds)
 
 **Phase 2: Async VM (2-3 weeks) - True Async/Await**
-- [ ] Design VM state save/restore mechanism
+- [x] Design VM state save/restore mechanism
 - [ ] Implement VM context for suspendable execution
 - [ ] Change Await opcode from block_on() to yield/resume
 - [ ] Add VM scheduler for managing concurrent contexts

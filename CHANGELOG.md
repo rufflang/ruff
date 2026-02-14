@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Async VM Suspend/Resume State Snapshot Foundation (P0 Option 1 step)**:
+  - Added `VmExecutionSnapshot` in `src/vm.rs` to capture resumable VM runtime state
+  - Added public VM APIs:
+    - `save_execution_state()`
+    - `restore_execution_state(snapshot)`
+  - Snapshot now preserves:
+    - instruction pointer and active bytecode chunk
+    - value stack, call frames, upvalues, and exception handler stack
+    - recursion/function-call metadata and integer-key cache state
+    - globals environment reference (with interpreter environment re-sync on restore)
+  - Added comprehensive VM tests for:
+    - full round-trip state restore integrity
+    - snapshot immutability after post-save VM mutations
+    - globals reference replacement during restore
+
 - **Cross-Language ProcessPool Benchmark Harness (P0 Option 3 step)**:
   - Added `ruff bench-cross` command to benchmark Ruff `parallel_map(...)` against Python `ProcessPoolExecutor`
   - Added metric parser/validator module at `src/benchmarks/cross_language.rs` with checksum equivalence guard

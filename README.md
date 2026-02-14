@@ -149,6 +149,7 @@
   - **Cross-Language ProcessPool Benchmark**: `ruff bench-cross` compares Ruff `parallel_map(...)` performance with Python `ProcessPoolExecutor` using equivalent benchmark artifacts ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
+  - **Async VM Suspend/Resume Foundation**: added VM execution state snapshot APIs (`save_execution_state`, `restore_execution_state`) for upcoming non-blocking async VM context switching ✅
   - **Performance**: 2-3x speedup for I/O-bound workloads ✅
   - **Testing**: Comprehensive test suite in `examples/test_async_phase5.ruff` ✅
   - **Examples**:
