@@ -2368,6 +2368,20 @@ fn test_promise_all_single_arg_still_works() {
 }
 
 #[test]
+fn test_promise_all_reuses_cached_polled_promise_results() {
+    let code = r#"
+        p := async_sleep(1)
+        first := await p
+
+        results := await promise_all([p, p], 2)
+        ok := type(first) == "null" && len(results) == 2 && type(results[0]) == "null" && type(results[1]) == "null"
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
 fn test_promise_all_rejects_zero_concurrency_limit() {
     let code = r#"
         result := promise_all([async_sleep(1)], 0)
@@ -2580,6 +2594,24 @@ fn test_parallel_map_handles_mixed_immediate_and_promise_results() {
         values := [1, 2, 3, 4]
         mapped := await parallel_map(values, maybe_async_value, 2)
         ok := mapped[0] == 2 && type(mapped[1]) == "null" && mapped[2] == 6 && type(mapped[3]) == "null"
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_parallel_map_reuses_cached_mapper_promises() {
+    let code = r#"
+        cached := async_sleep(1)
+        await cached
+
+        func return_cached(_) {
+            return cached
+        }
+
+        mapped := await parallel_map([1, 2, 3], return_cached, 2)
+        ok := len(mapped) == 3 && type(mapped[0]) == "null" && type(mapped[1]) == "null" && type(mapped[2]) == "null"
     "#;
 
     let interp = run_code(code);
