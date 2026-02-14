@@ -207,20 +207,27 @@ Value::Promise { receiver, .. } => {
 - Option 3 is interesting but doesn't address async I/O bottleneck
 
 **Phase 1: Quick Wins (1 week) - Task Batching**
-- [ ] Choose concurrency model (Recommendation: Option 1 - Goroutines)
-- [ ] Implement `spawn` keyword and scheduler
-- [ ] Add `channel()` for message passing
-- [ ] Implement `await_all()` for synchronization
-- [ ] Thread-safe Value type operations
+- [x] Choose concurrency model (Implemented: Basic goroutine-style spawn)
+- [x] Implement `spawn` keyword and scheduler (Basic implementation complete)
+- [x] Add `channel()` for message passing (Implemented with send/receive methods)
+- [x] Fix VM/JIT support for channels (Bug fix: FieldGet now supports Channel methods)
+- [x] Implement `await_all()` for synchronization (Already implemented as alias for Promise.all)
+- [ ] Thread-safe Value type operations (Partial: channels are thread-safe, but spawn runs in isolation)
+- [ ] Shared-state concurrency (Current spawn creates isolated environments)
+
+**Status Note**: Basic spawn/channel infrastructure exists but has limitations:
+- `spawn` creates an isolated interpreter (no shared state with parent)
+- Channels work for single-threaded communication
+- For true concurrent shared-state execution, need to implement thread-safe Value sharing
 
 **Phase 2: Runtime Integration (1-2 weeks)**
-- [ ] Integrate async runtime (tokio/smol)
-- [ ] Make file I/O operations async-aware
-- [ ] Add thread pool for blocking operations
-- [ ] Ensure JIT-compiled code can run on any thread
+- [x] Integrate async runtime (tokio/smol) (Tokio already integrated)
+- [x] Make file I/O operations async-aware (Done: read_file, write_file, list_dir use tokio::fs)
+- [x] Add thread pool for blocking operations (Done: configurable task pool sizing)
+- [x] Ensure JIT-compiled code can run on any thread (Done: VM execution is thread-compatible)
 
 **Phase 3: Testing & Benchmarks (1 week)**
-- [ ] Add concurrency test suite
+- [x] Add concurrency test suite (Basic tests exist, expanded with scalability tests)
 - [x] Re-run SSG benchmark with parallelism (`ruff bench-ssg --compare-python`)
 - [ ] Target: 10K file SSG build in <1 second (using all cores)
 - [x] Add `parallel_map(array, func, limit)` with concurrency control

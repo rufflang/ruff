@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Channel Method Calls in VM/JIT**:
+  - Fixed `Cannot access field on non-struct` error when calling channel methods (`send`, `receive`)
+  - Added Channel support to VM's `FieldGet` opcode
+  - Channel methods now work correctly with JIT-compiled code
+  - Fixed `call_native_function_vm` to handle `__channel_method_` prefix
+  - Channels can now be used with full JIT performance
+
 ### Added
 
 - **10K+ Concurrency Scalability Testing (Phase 3 Completion)**:
