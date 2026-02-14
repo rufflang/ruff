@@ -108,6 +108,10 @@ enum Commands {
         #[arg(long, default_value = "benchmarks/cross-language/bench_ssg.ruff")]
         ruff_script: PathBuf,
 
+        /// Print per-stage timing breakdown and bottleneck summary when available
+        #[arg(long, default_value_t = false)]
+        profile_async: bool,
+
         /// Compare against the Python baseline benchmark
         #[arg(long, default_value_t = false)]
         compare_python: bool,
@@ -428,7 +432,13 @@ async fn main() {
             }
         }
 
-        Commands::BenchSsg { ruff_script, compare_python, python_script, python } => {
+        Commands::BenchSsg {
+            ruff_script,
+            profile_async,
+            compare_python,
+            python_script,
+            python,
+        } => {
             use benchmarks::run_ssg_benchmark;
 
             let ruff_binary = match std::env::current_exe() {
@@ -470,6 +480,29 @@ async fn main() {
                     println!("Ruff throughput: {:.2} files/sec", result.ruff_files_per_sec);
                     println!("Ruff checksum: {}", result.ruff_checksum);
 
+                    if profile_async {
+                        if let Some(ruff_profile) = result.ruff_stage_profile.as_ref() {
+                            println!("Ruff stage breakdown:");
+                            println!("  read stage: {:.3} ms", ruff_profile.read_ms);
+                            println!(
+                                "  render/write stage: {:.3} ms",
+                                ruff_profile.render_write_ms
+                            );
+                            if let Some((stage_name, stage_ms, stage_percent)) =
+                                ruff_profile.bottleneck_stage()
+                            {
+                                println!(
+                                    "  bottleneck: {} ({:.3} ms, {:.2}% of profiled time)",
+                                    stage_name, stage_ms, stage_percent
+                                );
+                            }
+                        } else {
+                            println!(
+                                "Ruff stage breakdown: unavailable (metrics not emitted by script)"
+                            );
+                        }
+                    }
+
                     if let (Some(python_build_ms), Some(python_files_per_sec)) =
                         (result.python_build_ms, result.python_files_per_sec)
                     {
@@ -477,6 +510,29 @@ async fn main() {
                         println!("Python throughput: {:.2} files/sec", python_files_per_sec);
                         if let Some(speedup) = result.ruff_vs_python_speedup() {
                             println!("Ruff speedup vs Python: {:.2}x", speedup);
+                        }
+
+                        if profile_async {
+                            if let Some(python_profile) = result.python_stage_profile.as_ref() {
+                                println!("Python stage breakdown:");
+                                println!("  read stage: {:.3} ms", python_profile.read_ms);
+                                println!(
+                                    "  render/write stage: {:.3} ms",
+                                    python_profile.render_write_ms
+                                );
+                                if let Some((stage_name, stage_ms, stage_percent)) =
+                                    python_profile.bottleneck_stage()
+                                {
+                                    println!(
+                                        "  bottleneck: {} ({:.3} ms, {:.2}% of profiled time)",
+                                        stage_name, stage_ms, stage_percent
+                                    );
+                                }
+                            } else {
+                                println!(
+                                    "Python stage breakdown: unavailable (metrics not emitted by script)"
+                                );
+                            }
                         }
                     }
                 }

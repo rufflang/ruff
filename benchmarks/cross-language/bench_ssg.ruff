@@ -36,6 +36,7 @@ while i < file_count {
 }
 
 source_pages := await await_all(read_promises, batch_size)
+read_stage_ms := performance_now() - start_ms
 
 checksum := 0
 render_promises := []
@@ -49,6 +50,7 @@ while i < file_count {
 }
 
 await await_all(render_promises, batch_size)
+render_write_stage_ms := (performance_now() - start_ms) - read_stage_ms
 
 elapsed_ms := performance_now() - start_ms
 files_per_sec := (to_float(file_count) * 1000.0) / elapsed_ms
@@ -57,6 +59,8 @@ print("RUFF_SSG_FILES=" + to_string(file_count))
 print("RUFF_SSG_BUILD_MS=" + to_string(elapsed_ms))
 print("RUFF_SSG_FILES_PER_SEC=" + to_string(files_per_sec))
 print("RUFF_SSG_CHECKSUM=" + to_string(checksum))
+print("RUFF_SSG_READ_MS=" + to_string(read_stage_ms))
+print("RUFF_SSG_RENDER_WRITE_MS=" + to_string(render_write_stage_ms))
 
 # Cleanup generated files
 cleanup_index := 0

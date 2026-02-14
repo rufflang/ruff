@@ -2,13 +2,40 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Debug, Clone)]
+pub struct SsgStageProfile {
+    pub read_ms: f64,
+    pub render_write_ms: f64,
+}
+
+impl SsgStageProfile {
+    pub fn total_profiled_ms(&self) -> f64 {
+        self.read_ms + self.render_write_ms
+    }
+
+    pub fn bottleneck_stage(&self) -> Option<(&'static str, f64, f64)> {
+        let total = self.total_profiled_ms();
+        if total <= 0.0 {
+            return None;
+        }
+
+        if self.read_ms >= self.render_write_ms {
+            Some(("read", self.read_ms, (self.read_ms / total) * 100.0))
+        } else {
+            Some(("render/write", self.render_write_ms, (self.render_write_ms / total) * 100.0))
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SsgBenchmarkResult {
     pub files: usize,
     pub ruff_build_ms: f64,
     pub ruff_files_per_sec: f64,
     pub ruff_checksum: i128,
+    pub ruff_stage_profile: Option<SsgStageProfile>,
     pub python_build_ms: Option<f64>,
     pub python_files_per_sec: Option<f64>,
+    pub python_stage_profile: Option<SsgStageProfile>,
 }
 
 impl SsgBenchmarkResult {
@@ -37,6 +64,22 @@ fn parse_metric_value(output: &str, metric_key: &str) -> Result<f64, String> {
     }
 
     Err(format!("Metric '{}' not found in output", metric_key))
+}
+
+fn parse_metric_value_optional(output: &str, metric_key: &str) -> Result<Option<f64>, String> {
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if let Some((key, value)) = trimmed.split_once('=') {
+            if key.trim() == metric_key {
+                let parsed = value.trim().parse::<f64>().map_err(|e| {
+                    format!("Metric '{}' had invalid numeric value '{}': {}", metric_key, value, e)
+                })?;
+                return Ok(Some(parsed));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 fn parse_metric_usize(output: &str, metric_key: &str) -> Result<usize, String> {
@@ -106,10 +149,7 @@ fn determine_workspace_root(script_path: &Path) -> PathBuf {
         current_dir.join(script_path)
     };
 
-    let mut current = absolute_script_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .to_path_buf();
+    let mut current = absolute_script_path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
 
     loop {
         if current.join("Cargo.toml").exists() || current.join("tmp").exists() {
@@ -144,14 +184,26 @@ pub fn run_ssg_benchmark(
     let ruff_build_ms = parse_metric_value(&ruff_output, "RUFF_SSG_BUILD_MS")?;
     let ruff_files_per_sec = parse_metric_value(&ruff_output, "RUFF_SSG_FILES_PER_SEC")?;
     let ruff_checksum = parse_checksum(&ruff_output, "RUFF_SSG_CHECKSUM")?;
+    let ruff_read_ms = parse_metric_value_optional(&ruff_output, "RUFF_SSG_READ_MS")?;
+    let ruff_render_write_ms =
+        parse_metric_value_optional(&ruff_output, "RUFF_SSG_RENDER_WRITE_MS")?;
+
+    let ruff_stage_profile = match (ruff_read_ms, ruff_render_write_ms) {
+        (Some(read_ms), Some(render_write_ms)) => {
+            Some(SsgStageProfile { read_ms, render_write_ms })
+        }
+        _ => None,
+    };
 
     let mut result = SsgBenchmarkResult {
         files,
         ruff_build_ms,
         ruff_files_per_sec,
         ruff_checksum,
+        ruff_stage_profile,
         python_build_ms: None,
         python_files_per_sec: None,
+        python_stage_profile: None,
     };
 
     if let (Some(python_binary), Some(python_script)) = (python_binary, python_script) {
@@ -164,6 +216,16 @@ pub fn run_ssg_benchmark(
         let python_build_ms = parse_metric_value(&python_output, "PYTHON_SSG_BUILD_MS")?;
         let python_files_per_sec = parse_metric_value(&python_output, "PYTHON_SSG_FILES_PER_SEC")?;
         let python_checksum = parse_checksum(&python_output, "PYTHON_SSG_CHECKSUM")?;
+        let python_read_ms = parse_metric_value_optional(&python_output, "PYTHON_SSG_READ_MS")?;
+        let python_render_write_ms =
+            parse_metric_value_optional(&python_output, "PYTHON_SSG_RENDER_WRITE_MS")?;
+
+        let python_stage_profile = match (python_read_ms, python_render_write_ms) {
+            (Some(read_ms), Some(render_write_ms)) => {
+                Some(SsgStageProfile { read_ms, render_write_ms })
+            }
+            _ => None,
+        };
 
         if python_files != result.files {
             return Err(format!(
@@ -181,6 +243,7 @@ pub fn run_ssg_benchmark(
 
         result.python_build_ms = Some(python_build_ms);
         result.python_files_per_sec = Some(python_files_per_sec);
+        result.python_stage_profile = python_stage_profile;
     }
 
     Ok(result)
@@ -233,14 +296,67 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_metric_value_optional_present() {
+        let output = "RUFF_SSG_READ_MS=14.25";
+        let value = parse_metric_value_optional(output, "RUFF_SSG_READ_MS").unwrap();
+        assert_eq!(value, Some(14.25));
+    }
+
+    #[test]
+    fn test_parse_metric_value_optional_absent_returns_none() {
+        let output = "RUFF_SSG_BUILD_MS=120.0";
+        let value = parse_metric_value_optional(output, "RUFF_SSG_RENDER_WRITE_MS").unwrap();
+        assert_eq!(value, None);
+    }
+
+    #[test]
+    fn test_parse_metric_value_optional_invalid_returns_error() {
+        let output = "RUFF_SSG_RENDER_WRITE_MS=fast";
+        let err = parse_metric_value_optional(output, "RUFF_SSG_RENDER_WRITE_MS").unwrap_err();
+        assert!(err.contains("invalid numeric value"));
+    }
+
+    #[test]
+    fn test_stage_profile_total_profiled_ms() {
+        let profile = SsgStageProfile { read_ms: 25.0, render_write_ms: 75.0 };
+        assert_eq!(profile.total_profiled_ms(), 100.0);
+    }
+
+    #[test]
+    fn test_stage_profile_bottleneck_read() {
+        let profile = SsgStageProfile { read_ms: 80.0, render_write_ms: 20.0 };
+        let bottleneck = profile.bottleneck_stage().unwrap();
+        assert_eq!(bottleneck.0, "read");
+        assert!((bottleneck.1 - 80.0).abs() < 0.0001);
+        assert!((bottleneck.2 - 80.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_stage_profile_bottleneck_render_write() {
+        let profile = SsgStageProfile { read_ms: 30.0, render_write_ms: 70.0 };
+        let bottleneck = profile.bottleneck_stage().unwrap();
+        assert_eq!(bottleneck.0, "render/write");
+        assert!((bottleneck.1 - 70.0).abs() < 0.0001);
+        assert!((bottleneck.2 - 70.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_stage_profile_bottleneck_zero_total_returns_none() {
+        let profile = SsgStageProfile { read_ms: 0.0, render_write_ms: 0.0 };
+        assert!(profile.bottleneck_stage().is_none());
+    }
+
+    #[test]
     fn test_speedup_calculation() {
         let result = SsgBenchmarkResult {
             files: 10000,
             ruff_build_ms: 1000.0,
             ruff_files_per_sec: 10000.0,
             ruff_checksum: 100,
+            ruff_stage_profile: None,
             python_build_ms: Some(2500.0),
             python_files_per_sec: Some(4000.0),
+            python_stage_profile: None,
         };
 
         assert!((result.ruff_vs_python_speedup().unwrap() - 2.5).abs() < 0.0001);
@@ -253,8 +369,10 @@ mod tests {
             ruff_build_ms: 1000.0,
             ruff_files_per_sec: 10000.0,
             ruff_checksum: 100,
+            ruff_stage_profile: None,
             python_build_ms: None,
             python_files_per_sec: None,
+            python_stage_profile: None,
         };
 
         assert!(result.ruff_vs_python_speedup().is_none());
@@ -267,8 +385,10 @@ mod tests {
             ruff_build_ms: 0.0,
             ruff_files_per_sec: 0.0,
             ruff_checksum: 100,
+            ruff_stage_profile: None,
             python_build_ms: Some(1000.0),
             python_files_per_sec: Some(10000.0),
+            python_stage_profile: None,
         };
 
         assert_eq!(result.ruff_vs_python_speedup().unwrap(), 0.0);
