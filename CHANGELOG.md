@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Async VM Execution Context Switching Foundation (P0 Option 1 step)**:
+  - Added stable VM context IDs via `VmContextId`
+  - Added VM context lifecycle APIs in `src/vm.rs`:
+    - `create_execution_context(snapshot)`
+    - `create_execution_context_from_current()`
+    - `switch_execution_context(context_id)`
+    - `remove_execution_context(context_id)`
+    - `list_execution_context_ids()` / `active_execution_context_id()` / `has_execution_context(...)`
+  - Switching contexts now persists the currently active VM state back into its context snapshot before restoring the target context
+  - Added comprehensive VM tests for context creation/listing, switching state persistence, missing-context errors, and active-context removal protection
+
 - **Async VM Suspend/Resume State Snapshot Foundation (P0 Option 1 step)**:
   - Added `VmExecutionSnapshot` in `src/vm.rs` to capture resumable VM runtime state
   - Added public VM APIs:

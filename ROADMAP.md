@@ -150,7 +150,7 @@ Value::Promise { receiver, .. } => {
 
 **Implementation Steps**:
 - [x] Refactor VM to support suspendable execution (save/restore VM state)
-- [ ] Implement VM context switching for concurrent execution
+- [x] Implement VM context switching for concurrent execution
 - [ ] Change Await opcode to yield instead of block
 - [ ] Add VM scheduler to manage multiple concurrent VM contexts
 - [ ] Test with SSG benchmark (target: <5 seconds for 10K files)
@@ -230,7 +230,7 @@ Value::Promise { receiver, .. } => {
 
 **Phase 2: Async VM (2-3 weeks) - True Async/Await**
 - [x] Design VM state save/restore mechanism
-- [ ] Implement VM context for suspendable execution
+- [x] Implement VM context for suspendable execution
 - [ ] Change Await opcode from block_on() to yield/resume
 - [ ] Add VM scheduler for managing concurrent contexts
 - [ ] Test with SSG benchmark (target: <5 seconds)
