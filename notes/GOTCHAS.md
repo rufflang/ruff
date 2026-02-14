@@ -312,6 +312,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-13_18-52_bench-cross-cwd-gotcha.md)
 
+### `bench-ssg` subprocess execution must normalize CWD and use workspace `tmp/`
+- **Problem:** `bench-ssg` can fail with process spawn/path errors or trigger local permission prompts when temp paths are outside workspace.
+- **Rule:** Run Ruff/Python benchmark subprocesses from detected workspace root and write generated files under repo-local `tmp/`.
+- **Why:** Relative benchmark script paths and OS temp directories are environment-sensitive; workspace-local paths are deterministic and permission-friendly.
+- **Solution:** `src/benchmarks/ssg.rs` determines workspace root before process spawn; `benchmarks/cross-language/bench_ssg.py` writes under `<repo>/tmp`; `bench_ssg.ruff` ensures `tmp` exists.
+- **Implication:** `bench-ssg` remains reproducible across invocation locations and avoids unnecessary system temp permission friction.
+
+(Discovered during: 2026-02-13_23-03_bench-ssg-harness-and-cwd-tmp-gotchas.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.

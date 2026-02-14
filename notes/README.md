@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-13_23-03_bench-ssg-harness-and-cwd-tmp-gotchas.md** — ✅ COMPLETED: Added `bench-ssg` cross-language async SSG benchmark harness (Ruff + Python), implemented parser/validator + tests, documented roadmap/changelog/readme updates, and captured CWD + workspace-tmp gotchas.
+
 - **2026-02-13_19-45_vm-cooperative-scheduler-rounds.md** — ✅ COMPLETED: Implemented cooperative VM scheduler APIs (`run_scheduler_round`, `run_scheduler_until_complete`, `pending_execution_context_count`), added comprehensive scheduler tests (pending/completion/error paths), and documented milestone updates in roadmap/changelog/readme.
 
 - **2026-02-13_19-31_vm-cooperative-await-yield-resume.md** — ✅ COMPLETED: Implemented async VM Option 1 milestones for suspendable execution (`VmExecutionSnapshot`), execution context switching (`VmContextId` lifecycle/switch APIs), and cooperative `Await` yield/resume (`execute_until_suspend` / `resume_execution_context`) with comprehensive VM coverage and roadmap/docs updates.
