@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Python baseline emits `PYTHON_SSG_READ_MS` and `PYTHON_SSG_RENDER_WRITE_MS`
   - Added comprehensive parser/profile tests in `src/benchmarks/ssg.rs` for optional metric parsing and bottleneck-stage calculations
 
+- **Promise Creation/Resolution Overhead Optimization (P0 Optimization step)**:
+  - Optimized `parallel_map(...)` mixed-result path to avoid creating synthetic oneshot-backed promises for immediate mapper values
+  - `parallel_map(...)` now:
+    - preserves immediate results directly in preallocated output slots
+    - awaits only real promise receivers with bounded in-task concurrency
+    - resolves immediately when all mapper outputs are non-promise values
+  - Reduced allocation/churn in `Promise.all(...)` hot path by preallocating receiver/future vectors and reusing a single debug flag check
+  - Added integration coverage for mixed immediate/promise mapper behavior and immediate-only fast path
+
 - **Cross-Language Async SSG Benchmark Harness (P0 Option 1 validation)**:
   - Added `ruff bench-ssg` command to execute a reproducible 10,000-file async SSG workload in Ruff
   - Added optional Python baseline comparison via `ruff bench-ssg --compare-python`

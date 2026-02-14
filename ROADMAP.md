@@ -237,7 +237,7 @@ Value::Promise { receiver, .. } => {
 
 **Phase 3: Optimization (1 week)**
 - [x] Profile async execution to find bottlenecks (`ruff bench-ssg --profile-async` stage breakdown + bottleneck summary)
-- [ ] Optimize Promise creation/resolution overhead
+- [x] Optimize Promise creation/resolution overhead (`parallel_map` mixed-result fast path + reduced Promise.all allocation churn)
 - [ ] Add caching for frequently-awaited operations
 - [ ] Test scalability with 10K+ concurrent operations
 
