@@ -2565,6 +2565,40 @@ fn test_parallel_map_rayon_len_pipeline_with_mixed_collections() {
 }
 
 #[test]
+fn test_parallel_map_handles_mixed_immediate_and_promise_results() {
+    let code = r#"
+        func maybe_async_value(x) {
+            if x == 2 {
+                return async_sleep(1)
+            }
+            if x == 4 {
+                return async_sleep(1)
+            }
+            return x * 2
+        }
+
+        values := [1, 2, 3, 4]
+        mapped := await parallel_map(values, maybe_async_value, 2)
+        ok := mapped[0] == 2 && type(mapped[1]) == "null" && mapped[2] == 6 && type(mapped[3]) == "null"
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_parallel_map_immediate_only_mapper_fast_path() {
+    let code = r#"
+        values := ["a", "bb", "ccc", "dddd"]
+        mapped := await parallel_map(values, len, 2)
+        ok := mapped[0] == 1 && mapped[1] == 2 && mapped[2] == 3 && mapped[3] == 4
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
 fn test_current_timestamp() {
     let code = r#"
         ts := current_timestamp()
