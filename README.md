@@ -147,6 +147,7 @@
   - **Rayon Fast Path**: `parallel_map(...)` uses rayon-backed parallel iteration for native mappers `len`, `upper`/`to_upper`, and `lower`/`to_lower` ✅
   - **JIT Closure Path**: `parallel_map(...)` / `par_map(...)` routes bytecode closures through VM JIT execution when available ✅
   - **Cross-Language ProcessPool Benchmark**: `ruff bench-cross` compares Ruff `parallel_map(...)` performance with Python `ProcessPoolExecutor` using equivalent benchmark artifacts ✅
+  - **Cross-Language Async SSG Benchmark**: `ruff bench-ssg` runs a reproducible 10K-file async static-site workload with optional Python comparison (`--compare-python`) ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Async VM Suspend/Resume Foundation**: added VM execution state snapshot APIs (`save_execution_state`, `restore_execution_state`) for upcoming non-blocking async VM context switching ✅
@@ -176,6 +177,12 @@
     let previous := set_task_pool_size(32)
     let results := await await_all(writes)  # Uses configured default of 32
     set_task_pool_size(previous)
+
+    # Cross-language async SSG benchmark (10K files)
+    # Ruff-only run
+    #   cargo run -- bench-ssg
+    # Ruff vs Python baseline
+    #   cargo run -- bench-ssg --compare-python
     
     # Async HTTP with timeout
     let response := await async_timeout(async_http_get(url), 5000)

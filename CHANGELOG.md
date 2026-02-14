@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cross-Language Async SSG Benchmark Harness (P0 Option 1 validation)**:
+  - Added `ruff bench-ssg` command to execute a reproducible 10,000-file async SSG workload in Ruff
+  - Added optional Python baseline comparison via `ruff bench-ssg --compare-python`
+  - Added benchmark artifacts:
+    - `benchmarks/cross-language/bench_ssg.ruff`
+    - `benchmarks/cross-language/bench_ssg.py`
+  - Added benchmark parser/validator module at `src/benchmarks/ssg.rs` with checksum + file-count equivalence checks
+  - Added comprehensive unit tests for metric parsing and speedup calculations
+  - Latest baseline run (`ruff bench-ssg --compare-python`):
+    - Ruff: `73,392.770 ms` (`136.25 files/sec`)
+    - Python: `4,390.775 ms` (`2,277.50 files/sec`)
+    - Relative speed: Ruff `0.06x` vs Python baseline
+
 - **Async VM Cooperative Scheduler (P0 Option 1 step)**:
   - Added scheduler APIs in `src/vm.rs` for managing multiple suspended VM contexts:
     - `run_scheduler_round()`

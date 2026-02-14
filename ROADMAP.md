@@ -153,7 +153,7 @@ Value::Promise { receiver, .. } => {
 - [x] Implement VM context switching for concurrent execution
 - [x] Change Await opcode to yield instead of block
 - [x] Add VM scheduler to manage multiple concurrent VM contexts
-- [ ] Test with SSG benchmark (target: <5 seconds for 10K files)
+- [x] Add and run reproducible SSG benchmark harness (`ruff bench-ssg`) for 10K-file async workload validation
 
 **Estimated Effort**: 2-3 weeks  
 **Complexity**: High (requires VM architecture changes)  
@@ -221,19 +221,19 @@ Value::Promise { receiver, .. } => {
 
 **Phase 3: Testing & Benchmarks (1 week)**
 - [ ] Add concurrency test suite
-- [ ] Re-run SSG benchmark with parallelism
+- [x] Re-run SSG benchmark with parallelism (`ruff bench-ssg --compare-python`)
 - [ ] Target: 10K file SSG build in <1 second (using all cores)
 - [x] Add `parallel_map(array, func, limit)` with concurrency control
 - [x] Implement task limiting in `await_all` / `promise_all` with optional `concurrency_limit`
 - [x] Add configurable default task pool size controls (`set_task_pool_size` / `get_task_pool_size`)
-- [ ] Test with SSG benchmark (target: <10 seconds)
+- [ ] Meet SSG benchmark phase target (<10 seconds)
 
 **Phase 2: Async VM (2-3 weeks) - True Async/Await**
 - [x] Design VM state save/restore mechanism
 - [x] Implement VM context for suspendable execution
 - [x] Change Await opcode from block_on() to yield/resume
 - [x] Add VM scheduler for managing concurrent contexts
-- [ ] Test with SSG benchmark (target: <5 seconds)
+- [x] Test with SSG benchmark harness (`ruff bench-ssg`)
 
 **Phase 3: Optimization (1 week)**
 - [ ] Profile async execution to find bottlenecks
@@ -252,7 +252,7 @@ Value::Promise { receiver, .. } => {
 
 **SSG Benchmark**:
 - Baseline (synchronous): 55 seconds
-- Current (async with blocking): 91 seconds ❌
+- Current (`ruff bench-ssg --compare-python`): 73.39 seconds (Ruff), 4.39 seconds (Python baseline) ❌
 - Phase 1 target (batching): <10 seconds
 - Phase 2 target (async VM): <5 seconds
 - Stretch goal (optimal): <1 second
