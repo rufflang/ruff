@@ -31,6 +31,15 @@ pub enum VmExecutionResult {
     Suspended { context_id: VmContextId },
 }
 
+/// Result of a single scheduler round over registered execution contexts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VmSchedulerRoundResult {
+    /// Number of contexts that completed during this round.
+    pub completed_contexts: usize,
+    /// Number of contexts that remain pending after this round.
+    pub pending_contexts: usize,
+}
+
 /// Upvalue: heap-allocated captured variable for closures
 #[derive(Debug, Clone)]
 /// Upvalue - captured variable for closures
@@ -761,7 +770,13 @@ impl VM {
         self.cooperative_suspend_enabled = false;
 
         match result {
-            Ok(_) => Ok(VmExecutionResult::Completed),
+            Ok(_) => {
+                self.execution_contexts.remove(&context_id);
+                if self.active_execution_context == Some(context_id) {
+                    self.active_execution_context = None;
+                }
+                Ok(VmExecutionResult::Completed)
+            }
             Err(error) => {
                 if let Some(suspended_context_id) = Self::parse_suspend_error(&error) {
                     Ok(VmExecutionResult::Suspended { context_id: suspended_context_id })
@@ -770,6 +785,69 @@ impl VM {
                 }
             }
         }
+    }
+
+    /// Returns the number of pending cooperative execution contexts.
+    pub fn pending_execution_context_count(&self) -> usize {
+        self.execution_contexts.len()
+    }
+
+    /// Run one cooperative round over all currently registered execution contexts.
+    ///
+    /// Each pending context is resumed once in deterministic ID order.
+    /// Completed contexts are removed automatically.
+    pub fn run_scheduler_round(&mut self) -> Result<VmSchedulerRoundResult, String> {
+        let context_ids = self.list_execution_context_ids();
+        let mut completed_contexts = 0;
+
+        for context_id in context_ids {
+            if !self.has_execution_context(context_id) {
+                continue;
+            }
+
+            match self.resume_execution_context(context_id)? {
+                VmExecutionResult::Completed => {
+                    completed_contexts += 1;
+                }
+                VmExecutionResult::Suspended { .. } => {}
+            }
+        }
+
+        Ok(VmSchedulerRoundResult {
+            completed_contexts,
+            pending_contexts: self.pending_execution_context_count(),
+        })
+    }
+
+    /// Run the cooperative scheduler until all contexts complete or a round limit is hit.
+    ///
+    /// Returns an error when pending contexts remain after `max_rounds`.
+    pub fn run_scheduler_until_complete(&mut self, max_rounds: usize) -> Result<(), String> {
+        if 0 == max_rounds {
+            return Err("Scheduler max_rounds must be greater than 0".to_string());
+        }
+
+        for _ in 0..max_rounds {
+            if 0 == self.pending_execution_context_count() {
+                return Ok(());
+            }
+
+            let round_result = self.run_scheduler_round()?;
+
+            if 0 == round_result.pending_contexts {
+                return Ok(());
+            }
+
+            if 0 == round_result.completed_contexts {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+
+        Err(format!(
+            "Scheduler did not complete all contexts within {} rounds ({} pending)",
+            max_rounds,
+            self.pending_execution_context_count()
+        ))
     }
 
     /// Execute a bytecode chunk
@@ -6061,6 +6139,14 @@ mod tests {
         vm.execute(chunk)
     }
 
+    fn compile_chunk(code: &str) -> BytecodeChunk {
+        let tokens = lexer::tokenize(code);
+        let mut parser = Parser::new(tokens);
+        let ast = parser.parse();
+        let mut compiler = Compiler::new();
+        compiler.compile(&ast).expect("compile should succeed")
+    }
+
     #[test]
     fn test_async_function_definition() {
         let code = r#"
@@ -6310,11 +6396,7 @@ mod tests {
             return 7
         "#;
 
-        let tokens = lexer::tokenize(code);
-        let mut parser = Parser::new(tokens);
-        let ast = parser.parse();
-        let mut compiler = Compiler::new();
-        let chunk = compiler.compile(&ast).expect("compile should succeed");
+        let chunk = compile_chunk(code);
 
         let mut vm = VM::new();
         {
@@ -6357,17 +6439,162 @@ mod tests {
             return 42
         "#;
 
-        let tokens = lexer::tokenize(code);
-        let mut parser = Parser::new(tokens);
-        let ast = parser.parse();
-        let mut compiler = Compiler::new();
-        let chunk = compiler.compile(&ast).expect("compile should succeed");
+        let chunk = compile_chunk(code);
 
         let mut vm = VM::new();
         let result =
             vm.execute_until_suspend(chunk).expect("cooperative execution should not fail");
 
         assert!(matches!(result, VmExecutionResult::Completed));
+    }
+
+    #[test]
+    fn test_resume_execution_context_removes_completed_context() {
+        let code = r#"
+            p := async_sleep(5)
+            await p
+            return 1
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        let suspended_context = match vm.execute_until_suspend(chunk).expect("initial run") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("expected suspension"),
+        };
+
+        let mut done = false;
+        for _ in 0..50 {
+            thread::sleep(Duration::from_millis(2));
+            match vm.resume_execution_context(suspended_context).expect("resume should not fail") {
+                VmExecutionResult::Suspended { .. } => {}
+                VmExecutionResult::Completed => {
+                    done = true;
+                    break;
+                }
+            }
+        }
+
+        assert!(done, "context did not complete in expected window");
+        assert_eq!(vm.pending_execution_context_count(), 0);
+        assert!(!vm.has_execution_context(suspended_context));
+        assert_eq!(vm.active_execution_context_id(), None);
+    }
+
+    #[test]
+    fn test_run_scheduler_round_for_completed_contexts() {
+        let mut vm = VM::new();
+
+        let mut chunk_a = BytecodeChunk::new();
+        chunk_a.name = Some("ctx_a".to_string());
+        chunk_a.instructions = vec![OpCode::Return];
+
+        let context_a = vm.create_execution_context(VmExecutionSnapshot {
+            ip: 0,
+            stack: vec![Value::Int(11)],
+            call_frames: Vec::new(),
+            chunk: chunk_a,
+            upvalues: Vec::new(),
+            exception_handlers: Vec::new(),
+            function_call_stack: Vec::new(),
+            function_call_counts: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 0,
+            int_key_cache: HashMap::new(),
+            jit_obj_stack: Vec::new(),
+            globals: Arc::clone(&vm.globals),
+        });
+
+        let mut chunk_b = BytecodeChunk::new();
+        chunk_b.name = Some("ctx_b".to_string());
+        chunk_b.instructions = vec![OpCode::Return];
+
+        let context_b = vm.create_execution_context(VmExecutionSnapshot {
+            ip: 0,
+            stack: vec![Value::Int(22)],
+            call_frames: Vec::new(),
+            chunk: chunk_b,
+            upvalues: Vec::new(),
+            exception_handlers: Vec::new(),
+            function_call_stack: Vec::new(),
+            function_call_counts: HashMap::new(),
+            recursion_depth: 0,
+            max_recursion_depth: 0,
+            int_key_cache: HashMap::new(),
+            jit_obj_stack: Vec::new(),
+            globals: Arc::clone(&vm.globals),
+        });
+
+        let round_result = vm.run_scheduler_round().expect("scheduler round should succeed");
+
+        assert_eq!(round_result.completed_contexts, 2);
+        assert_eq!(round_result.pending_contexts, 0);
+        assert!(!vm.has_execution_context(context_a));
+        assert!(!vm.has_execution_context(context_b));
+        assert_eq!(vm.pending_execution_context_count(), 0);
+    }
+
+    #[test]
+    fn test_run_scheduler_until_complete_with_pending_async_contexts() {
+        let code_one = r#"
+            p := async_sleep(8)
+            await p
+            return 1
+        "#;
+
+        let code_two = r#"
+            p := async_sleep(12)
+            await p
+            return 2
+        "#;
+
+        let chunk_one = compile_chunk(code_one);
+        let chunk_two = compile_chunk(code_two);
+
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        let context_one = match vm.execute_until_suspend(chunk_one).expect("chunk one run") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("chunk one should suspend"),
+        };
+
+        let context_two = match vm.execute_until_suspend(chunk_two).expect("chunk two run") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("chunk two should suspend"),
+        };
+
+        assert!(vm.has_execution_context(context_one));
+        assert!(vm.has_execution_context(context_two));
+        assert_eq!(vm.pending_execution_context_count(), 2);
+
+        vm.run_scheduler_until_complete(300).expect("scheduler should complete both contexts");
+
+        assert_eq!(vm.pending_execution_context_count(), 0);
+        assert!(!vm.has_execution_context(context_one));
+        assert!(!vm.has_execution_context(context_two));
+        assert_eq!(vm.active_execution_context_id(), None);
+    }
+
+    #[test]
+    fn test_run_scheduler_until_complete_rejects_zero_rounds() {
+        let mut vm = VM::new();
+        let err = vm.run_scheduler_until_complete(0).expect_err("zero rounds should fail");
+        assert!(err.contains("max_rounds"));
     }
 
     #[test]
