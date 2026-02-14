@@ -154,6 +154,7 @@
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Mixed-Result Promise Overhead Optimization**: `parallel_map(...)` avoids synthetic promise wrapping for immediate mapper results and only awaits real async receivers ✅
   - **Cached Await Reuse**: frequently-awaited promises are reused from cache in `promise_all(...)`, `await_all(...)`, and `parallel_map(...)` aggregation paths ✅
+  - **Spawn Parent-Binding Snapshots**: `spawn { ... }` workers can read transferable parent bindings (for example shared-store keys) while keeping parent write-back isolated ✅
   - **Async VM Suspend/Resume Foundation**: added VM execution state snapshot APIs (`save_execution_state`, `restore_execution_state`) for upcoming non-blocking async VM context switching ✅
   - **Async VM Context Switching Foundation**: added VM execution context lifecycle/switch APIs (`create_execution_context`, `create_execution_context_from_current`, `switch_execution_context`, `remove_execution_context`) for cooperative runtime scheduling ✅
   - **Cooperative Await Yield/Resume**: `Await` supports non-blocking suspension with cooperative execution APIs (`execute_until_suspend`, `resume_execution_context`) instead of blocking VM execution when cooperative mode is used ✅
@@ -182,14 +183,15 @@
     let results := await await_all(writes)  # Uses configured default of 32
     set_task_pool_size(previous)
 
-    # Thread-safe shared values across isolated spawn environments
-    shared_set("counter", 0)
+    # Thread-safe shared values with parent-defined key capture inside spawn workers
+    counter_key := "counter"
+    shared_set(counter_key, 0)
     for i in range(0, 20) {
       spawn {
-        shared_add_int("counter", 1)
+        shared_add_int(counter_key, 1)
       }
     }
-    final_counter := shared_get("counter")
+    final_counter := shared_get(counter_key)
 
     # Cross-language async SSG benchmark (10K files)
     # Ruff-only run

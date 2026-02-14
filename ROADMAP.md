@@ -213,13 +213,13 @@ Value::Promise { receiver, .. } => {
 - [x] Fix VM/JIT support for channels (Bug fix: FieldGet now supports Channel methods)
 - [x] Implement `await_all()` for synchronization (Already implemented as alias for Promise.all)
 - [x] Thread-safe Value type operations (Implemented via shared-value builtins: `shared_set/get/has/delete/add_int`)
-- [ ] Shared-state concurrency (Current spawn creates isolated environments)
+- [x] Shared-state concurrency (Spawn now captures transferable parent binding snapshots for worker visibility)
 
-**Status Note**: Basic spawn/channel infrastructure exists but has limitations:
-- `spawn` creates an isolated interpreter (no direct lexical environment sharing)
-- Shared state coordination is now available through thread-safe shared-value builtins (`shared_set/get/has/delete/add_int`)
-- Channels work for single-threaded communication
-- Remaining work is richer shared-state semantics (beyond global-key shared values)
+**Status Note**: Spawn/channel infrastructure now supports parent-binding snapshot visibility:
+- `spawn` workers receive transferable parent binding snapshots (readable in spawned code)
+- Shared state coordination is available through thread-safe shared-value builtins (`shared_set/get/has/delete/add_int`)
+- Parent scope write-back remains isolated by design (no implicit cross-thread mutation)
+- Future work can extend richer shared-state APIs beyond key-based shared-value coordination
 
 **Phase 2: Runtime Integration (1-2 weeks)**
 - [x] Integrate async runtime (tokio/smol) (Tokio already integrated)

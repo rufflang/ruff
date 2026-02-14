@@ -18,6 +18,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Spawn Parent-Binding Snapshot Capture (P0 shared-state milestone)**:
+  - `spawn { ... }` now receives a transferable snapshot of parent bindings at spawn time
+  - Spawned workers can reference parent-defined scalar/collection values (for example shared-store keys)
+  - Preserves non-blocking spawn semantics while keeping parent scope write-back isolated
+  - Added comprehensive integration tests covering:
+    - scalar capture visibility inside spawned workers
+    - parent-defined shared-key usage from spawned workers
+    - no write-back of spawned local mutations into parent scope
+  - Example usage:
+    ```ruff
+    counter_key := "jobs_counter"
+    shared_set(counter_key, 0)
+
+    for i in range(0, 12) {
+        spawn {
+            shared_add_int(counter_key, 1)
+        }
+    }
+    ```
+
 - **Thread-Safe Shared Value Operations for Spawn Concurrency (P0 Phase 1 completion)**:
   - Added process-wide thread-safe shared value builtins:
     - `shared_set(key, value)`
