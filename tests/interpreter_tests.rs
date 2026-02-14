@@ -4253,3 +4253,85 @@ fn test_generator_fibonacci() {
     let interp = run_code(code);
     assert!(matches!(interp.env.get("fib"), Some(Value::Generator { .. })));
 }
+
+#[test]
+fn test_parallel_map_scalability_10k() {
+    // Test that parallel_map can handle 10,000 concurrent operations efficiently
+    // This addresses the Phase 3 roadmap item: "Test scalability with 10K+ concurrent operations"
+    let code = r#"
+        items := range(0, 10000)
+        result_promise := parallel_map(items, func(x) { return x * x }, 100)
+        results := await result_promise
+        count := len(results)
+        first := results[0]
+        last := results[9999]
+    "#;
+
+    let interp = run_code(code);
+
+    // Verify all 10,000 results were computed
+    assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 10000));
+    
+    // Verify correctness of results
+    assert!(matches!(interp.env.get("first"), Some(Value::Int(n)) if n == 0)); // 0^2 = 0
+    assert!(matches!(interp.env.get("last"), Some(Value::Int(n)) if n == 99980001)); // 9999^2 = 99980001
+}
+
+#[test]
+fn test_promise_all_scalability() {
+    // Test promise_all with multiple parallel_map operations (10K items total)
+    let code = r#"
+        items1 := range(0, 1000)
+        items2 := range(1000, 2000)
+        items3 := range(2000, 3000)
+        items4 := range(3000, 4000)
+        items5 := range(4000, 5000)
+        items6 := range(5000, 6000)
+        items7 := range(6000, 7000)
+        items8 := range(7000, 8000)
+        items9 := range(8000, 9000)
+        items10 := range(9000, 10000)
+
+        promises := [
+            parallel_map(items1, func(x) { return x * 2 }, 100),
+            parallel_map(items2, func(x) { return x * 2 }, 100),
+            parallel_map(items3, func(x) { return x * 2 }, 100),
+            parallel_map(items4, func(x) { return x * 2 }, 100),
+            parallel_map(items5, func(x) { return x * 2 }, 100),
+            parallel_map(items6, func(x) { return x * 2 }, 100),
+            parallel_map(items7, func(x) { return x * 2 }, 100),
+            parallel_map(items8, func(x) { return x * 2 }, 100),
+            parallel_map(items9, func(x) { return x * 2 }, 100),
+            parallel_map(items10, func(x) { return x * 2 }, 100)
+        ]
+
+        result_arrays := await promise_all(promises, 10)
+        total := 0
+        for arr in result_arrays {
+            total := total + len(arr)
+        }
+    "#;
+
+    let interp = run_code(code);
+
+    // Verify all 10,000 items were processed
+    assert!(matches!(interp.env.get("total"), Some(Value::Int(n)) if n == 10000));
+}
+
+#[test]
+fn test_par_each_scalability() {
+    // Test par_each with 10,000 concurrent operations
+    let code = r#"
+        items := range(0, 10000)
+        result_promise := par_each(items, func(x) { 
+            return x * x + x * 2
+        }, 100)
+        await result_promise
+        verified := true
+    "#;
+
+    let interp = run_code(code);
+
+    // Verify the operation completed successfully
+    assert!(matches!(interp.env.get("verified"), Some(Value::Bool(true))));
+}
