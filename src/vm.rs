@@ -6649,9 +6649,8 @@ mod tests {
             VmExecutionResult::Completed => panic!("expected suspension"),
         }
 
-        let err = vm
-            .run_scheduler_until_complete(1)
-            .expect_err("single round should be insufficient");
+        let err =
+            vm.run_scheduler_until_complete(1).expect_err("single round should be insufficient");
         assert!(err.contains("did not complete"));
         assert!(err.contains("pending"));
     }
