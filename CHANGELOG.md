@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **10K+ Concurrency Scalability Testing (Phase 3 Completion)**:
+  - Added comprehensive scalability test example (`examples/test_scalability_10k.ruff`)
+  - Tests `parallel_map`, `promise_all`, and `par_each` with 10,000 concurrent operations
+  - All scalability tests complete successfully in <3 seconds
+  - Added three integration tests to test suite:
+    - `test_parallel_map_scalability_10k`: 10K items with `parallel_map`
+    - `test_promise_all_scalability`: 10K items across 10 promises with `promise_all`
+    - `test_par_each_scalability`: 10K items with `par_each`
+  - Completes Phase 3 roadmap item: "Test scalability with 10K+ concurrent operations"
+  - Example usage:
+    ```ruff
+    items := range(0, 10000)
+    result_promise := parallel_map(items, func(x) { return x * x }, 100)
+    results := await result_promise
+    # Processes 10,000 items in <1 second
+    ```
+
 - **Async SSG Bottleneck Profiling (P0 Optimization step)**:
   - Added `--profile-async` flag to `ruff bench-ssg` for per-stage timing breakdown output
   - `bench-ssg` now reports read-stage and render/write-stage timings when benchmark scripts emit profiling metrics

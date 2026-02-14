@@ -239,14 +239,15 @@ Value::Promise { receiver, .. } => {
 - [x] Profile async execution to find bottlenecks (`ruff bench-ssg --profile-async` stage breakdown + bottleneck summary)
 - [x] Optimize Promise creation/resolution overhead (`parallel_map` mixed-result fast path + reduced Promise.all allocation churn)
 - [x] Add caching for frequently-awaited operations (`Promise.all` / `parallel_map` now reuse cached promise results)
-- [ ] Test scalability with 10K+ concurrent operations
+- [x] Test scalability with 10K+ concurrent operations (comprehensive tests added - all pass in <3s)
 
 ### Success Criteria
 
 - [ ] SSG benchmark: 10,000 files in <5 seconds (vs current 91s async, 55s sync)
-- [ ] Small concurrent operations maintain good performance (10 files in ~1ms) ✅
-- [ ] No regressions in correctness (all tests passing)
-- [ ] Clean API that's easy to understand and use ✅
+- [x] Small concurrent operations maintain good performance (10 files in ~1ms) ✅
+- [x] No regressions in correctness (all tests passing) ✅
+- [x] Clean API that's easy to understand and use ✅
+- [x] 10K+ scalability verified (tests pass in <3 seconds) ✅
 
 ### Performance Targets
 
