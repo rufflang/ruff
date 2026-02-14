@@ -144,6 +144,7 @@
   - **Promise Coordination**: `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)` ✅
   - **Parallel Mapping**: `parallel_map(array, func, concurrency_limit?)` ✅
   - **Parallel Aliases**: `par_map(array, func, concurrency_limit?)`, `par_each(array, func, concurrency_limit?)` ✅
+  - **Shared Thread-Safe Values**: `shared_set/get/has/delete/add_int` for spawn-safe cross-thread coordination ✅
   - **Rayon Fast Path**: `parallel_map(...)` uses rayon-backed parallel iteration for native mappers `len`, `upper`/`to_upper`, and `lower`/`to_lower` ✅
   - **JIT Closure Path**: `parallel_map(...)` / `par_map(...)` routes bytecode closures through VM JIT execution when available ✅
   - **Cross-Language ProcessPool Benchmark**: `ruff bench-cross` compares Ruff `parallel_map(...)` performance with Python `ProcessPoolExecutor` using equivalent benchmark artifacts ✅
@@ -180,6 +181,15 @@
     let previous := set_task_pool_size(32)
     let results := await await_all(writes)  # Uses configured default of 32
     set_task_pool_size(previous)
+
+    # Thread-safe shared values across isolated spawn environments
+    shared_set("counter", 0)
+    for i in range(0, 20) {
+      spawn {
+        shared_add_int("counter", 1)
+      }
+    }
+    final_counter := shared_get("counter")
 
     # Cross-language async SSG benchmark (10K files)
     # Ruff-only run

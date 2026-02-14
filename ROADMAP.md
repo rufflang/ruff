@@ -212,13 +212,14 @@ Value::Promise { receiver, .. } => {
 - [x] Add `channel()` for message passing (Implemented with send/receive methods)
 - [x] Fix VM/JIT support for channels (Bug fix: FieldGet now supports Channel methods)
 - [x] Implement `await_all()` for synchronization (Already implemented as alias for Promise.all)
-- [ ] Thread-safe Value type operations (Partial: channels are thread-safe, but spawn runs in isolation)
+- [x] Thread-safe Value type operations (Implemented via shared-value builtins: `shared_set/get/has/delete/add_int`)
 - [ ] Shared-state concurrency (Current spawn creates isolated environments)
 
 **Status Note**: Basic spawn/channel infrastructure exists but has limitations:
-- `spawn` creates an isolated interpreter (no shared state with parent)
+- `spawn` creates an isolated interpreter (no direct lexical environment sharing)
+- Shared state coordination is now available through thread-safe shared-value builtins (`shared_set/get/has/delete/add_int`)
 - Channels work for single-threaded communication
-- For true concurrent shared-state execution, need to implement thread-safe Value sharing
+- Remaining work is richer shared-state semantics (beyond global-key shared values)
 
 **Phase 2: Runtime Integration (1-2 weeks)**
 - [x] Integrate async runtime (tokio/smol) (Tokio already integrated)

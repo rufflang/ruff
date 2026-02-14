@@ -18,6 +18,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Thread-Safe Shared Value Operations for Spawn Concurrency (P0 Phase 1 completion)**:
+  - Added process-wide thread-safe shared value builtins:
+    - `shared_set(key, value)`
+    - `shared_get(key)`
+    - `shared_has(key)`
+    - `shared_delete(key)`
+    - `shared_add_int(key, delta)`
+  - Shared values are synchronized with `Arc<Mutex<...>>` storage so updates are safe across spawned interpreters
+  - Enables practical cross-thread coordination despite `spawn` using isolated environments
+  - Added comprehensive integration tests for:
+    - shared value lifecycle (set/get/has/delete)
+    - atomic-style integer accumulation with validation error paths
+    - `spawn` workers updating a shared counter across isolated interpreters
+  - Example usage:
+    ```ruff
+    shared_set("counter", 0)
+    for i in range(0, 20) {
+        spawn {
+            shared_add_int("counter", 1)
+        }
+    }
+    ```
+
 - **10K+ Concurrency Scalability Testing (Phase 3 Completion)**:
   - Added comprehensive scalability test example (`examples/test_scalability_10k.ruff`)
   - Tests `parallel_map`, `promise_all`, and `par_each` with 10,000 concurrent operations
