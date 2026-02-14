@@ -214,6 +214,22 @@ If you are new to the project, read this first.
 
 ## Runtime / Evaluator
 
+### Promise receivers are single-consumer; aggregation must check cached results first
+- **Problem:** Reusing a previously-awaited promise in aggregators (e.g., `promise_all([p, p], ...)`) can fail with channel-closed errors.
+- **Rule:** Any aggregation path that consumes `Value::Promise.receiver` must first check `is_polled` + `cached_result` and use cached result when available.
+- **Why:** Promise receiver is a oneshot channel moved out via `std::mem::replace(...)`; it is not reusable after first consumption.
+- **Implication:** `Promise.all(...)` / `parallel_map(...)` must treat cache-aware reuse as correctness behavior, not just optimization.
+
+(Discovered during: 2026-02-14_10-10_promise-cache-reuse-and-parallel-map-overhead.md)
+
+### Keep immediate mapper outputs immediate in `parallel_map(...)`
+- **Problem:** Wrapping every non-Promise mapper output into synthetic Promise channels adds avoidable overhead.
+- **Rule:** In `parallel_map(...)`, store immediate values directly and await only true Promise receivers.
+- **Why:** Synthetic oneshot Promise normalization creates allocation/churn without semantic benefit for already-immediate values.
+- **Implication:** Split aggregation into immediate lane + pending async lane for lower overhead and clearer behavior.
+
+(Discovered during: 2026-02-14_10-10_promise-cache-reuse-and-parallel-map-overhead.md)
+
 ### ErrorObject has specific field structure, not a generic HashMap
 - **Problem:** Creating ErrorObject with made-up fields like "details" causes runtime failures
 - **Rule:** ErrorObject has exactly 4 fields: `message` (String), `stack` (Array), `line` (Number), `cause` (Value/null)

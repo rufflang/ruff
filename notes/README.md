@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-14_10-10_promise-cache-reuse-and-parallel-map-overhead.md** — ✅ COMPLETED: Implemented cache-aware Promise reuse in `Promise.all(...)`/`parallel_map(...)`, eliminated synthetic Promise wrapping for immediate mapper results, added integration coverage for repeated-await reuse, and captured receiver-consumption gotchas.
+
 - **2026-02-13_23-03_bench-ssg-harness-and-cwd-tmp-gotchas.md** — ✅ COMPLETED: Added `bench-ssg` cross-language async SSG benchmark harness (Ruff + Python), implemented parser/validator + tests, documented roadmap/changelog/readme updates, and captured CWD + workspace-tmp gotchas.
 
 - **2026-02-13_19-45_vm-cooperative-scheduler-rounds.md** — ✅ COMPLETED: Implemented cooperative VM scheduler APIs (`run_scheduler_round`, `run_scheduler_until_complete`, `pending_execution_context_count`), added comprehensive scheduler tests (pending/completion/error paths), and documented milestone updates in roadmap/changelog/readme.
