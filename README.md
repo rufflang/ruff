@@ -1324,15 +1324,21 @@ print("Main thread continues without waiting")
 ```ruff
 chan := channel()
 
-spawn {
-    result := expensive_computation()
-    chan.send(result)
-}
+# Send values to channel
+chan.send("message 1")
+chan.send(42)
+chan.send(true)
 
-# Receive result from background thread
-value := chan.receive()
-print("Got result: " + value)
+# Receive values (FIFO order)
+msg := chan.receive()  # "message 1"
+num := chan.receive()  # 42
+flag := chan.receive()  # true
+
+# Empty channel returns null
+empty := chan.receive()  # null
 ```
+
+**Note**: Current `spawn` implementation runs in an isolated environment. For shared-state concurrency with channels across threads, use async patterns with `parallel_map`, `par_each`, or Promise-based concurrency.
 
 **Key Features**:
 - **3x faster** parallel HTTP requests for AI model comparison
