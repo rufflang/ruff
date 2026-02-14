@@ -4003,7 +4003,7 @@ impl VM {
                 OpCode::FieldGet(field) => {
                     let object = self.stack.pop().ok_or("Stack underflow")?;
 
-                    let result = match object {
+                    let result = match &object {
                         Value::Struct { name, fields } => {
                             if let Some(value) = fields.get(&field) {
                                 value.clone()
@@ -4034,6 +4034,13 @@ impl VM {
                             }
                             Err(_) => Value::Null,
                         },
+                        Value::Channel(_) => {
+                            // For channels, we need to push the channel back on the stack
+                            // and return a marker that this is a method call
+                            // The Call opcode will handle the actual method invocation
+                            self.stack.push(object.clone());
+                            Value::NativeFunction(format!("__channel_method_{}", field))
+                        }
                         _ => return Err("Cannot access field on non-struct".to_string()),
                     };
 
@@ -4866,9 +4873,49 @@ impl VM {
     fn call_native_function_vm(
         &mut self,
         function: Value,
-        args: Vec<Value>,
+        mut args: Vec<Value>,
     ) -> Result<Value, String> {
         if let Value::NativeFunction(name) = function {
+            // Handle channel method calls
+            if name.starts_with("__channel_method_") {
+                let method_name = name.strip_prefix("__channel_method_").unwrap();
+                // The channel object was pushed onto the stack before the function marker
+                // So it's at the bottom of our "args" - but actually, it's still on the stack
+                // because FieldGet pushed it back. We need to pop it from the stack!
+                let channel = self.stack.pop().ok_or("Stack underflow getting channel")?;
+                
+                if let Value::Channel(chan) = channel {
+                    return match method_name {
+                        "send" => {
+                            if args.is_empty() {
+                                return Err("send requires a value argument".to_string());
+                            }
+                            let value = args.remove(0);
+                            let chan_lock = chan.lock().unwrap();
+                            let (sender, _) = &*chan_lock;
+                            match sender.send(value) {
+                                Ok(_) => Ok(Value::Bool(true)),
+                                Err(_) => Err("Failed to send to channel".to_string()),
+                            }
+                        }
+                        "receive" => {
+                            let chan_lock = chan.lock().unwrap();
+                            let (_, receiver) = &*chan_lock;
+                            match receiver.try_recv() {
+                                Ok(value) => Ok(value),
+                                Err(std::sync::mpsc::TryRecvError::Empty) => Ok(Value::Null),
+                                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                    Err("Channel disconnected".to_string())
+                                }
+                            }
+                        }
+                        _ => Err(format!("Channel has no method '{}'", method_name)),
+                    };
+                } else {
+                    return Err("Expected Channel for channel method call".to_string());
+                }
+            }
+            
             if let Some(result) = self.call_vm_higher_order(&name, &args) {
                 return result;
             }
