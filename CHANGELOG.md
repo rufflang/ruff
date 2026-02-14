@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cooperative Await Yield/Resume Execution (P0 Option 1 step)**:
+  - Added cooperative VM execution APIs in `src/vm.rs`:
+    - `execute_until_suspend(chunk)`
+    - `resume_execution_context(context_id)`
+  - Added `VmExecutionResult` to report cooperative execution state (`Completed` vs `Suspended`)
+  - `OpCode::Await` now supports non-blocking cooperative polling via `try_recv()` and suspends execution contexts instead of blocking when cooperative mode is enabled
+  - Suspended await contexts now preserve state by rewinding IP to re-run `Await` on resume and snapshotting the active context
+  - Added VM tests covering:
+    - suspension/resume flow for pending async await
+    - cooperative completion flow with no suspension
+
 - **Async VM Execution Context Switching Foundation (P0 Option 1 step)**:
   - Added stable VM context IDs via `VmContextId`
   - Added VM context lifecycle APIs in `src/vm.rs`:
