@@ -568,6 +568,35 @@ If you are new to the project, read this first.
 
 ## Async/Await & Concurrency
 
+### Cooperative VM Await currently uses an internal suspend sentinel
+
+- **Problem:** Cooperative suspension must propagate through VM internals even though `execute()` returns `Result<Value, String>`.
+- **Rule:** Suspension is encoded internally with a sentinel-prefixed error string and converted back to `VmExecutionResult` only at cooperative API boundaries.
+- **Why:** Existing VM execution contract is string-error based; changing the core loop signature in one step would cause broad churn.
+- **Location:** `src/vm.rs` (`VM_SUSPEND_ERROR_PREFIX`, `execute_until_suspend`, `resume_execution_context`, `parse_suspend_error`)
+- **Implication:** External callers should never parse suspend sentinel strings directly; they should only use cooperative APIs.
+
+(Discovered during: 2026-02-13_19-31_vm-cooperative-await-yield-resume.md)
+
+### Suspend points in opcode handlers must rewind for replay correctness
+
+- **Problem:** A suspended `Await` can lose state or skip execution on resume.
+- **Rule:** If an opcode pre-mutates IP/stack before deciding to suspend, restore replay state before snapshotting.
+- **Why:** The VM dispatch loop increments `ip` before opcode execution and `Await` pops the promise before completion.
+- **Fix pattern:** For pending cooperative `Await`, push promise back and set `self.ip = self.ip.saturating_sub(1)` before saving context.
+- **Implication:** Any future suspendable opcode must preserve deterministic replay boundaries.
+
+(Discovered during: 2026-02-13_19-31_vm-cooperative-await-yield-resume.md)
+
+### VM unit tests need explicit native symbol bindings for direct bytecode execution
+
+- **Problem:** VM tests fail with `Undefined global` for native functions (for example `async_sleep`) even when the runtime supports them.
+- **Rule:** In VM-only tests, register each native function name used by the compiled Ruff snippet into globals explicitly.
+- **Why:** Direct bytecode VM test paths do not implicitly register every interpreter builtin symbol.
+- **Implication:** Before debugging opcode behavior, verify required native names are defined in test globals.
+
+(Discovered during: 2026-02-13_19-31_vm-cooperative-await-yield-resume.md)
+
 ### Tokio oneshot receivers are single-use and must be extracted from Arc<Mutex<>>
 
 - **Problem:** Cannot await tokio::oneshot::Receiver while holding mutex guard - causes type errors or deadlocks

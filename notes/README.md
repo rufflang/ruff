@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-13_19-31_vm-cooperative-await-yield-resume.md** — ✅ COMPLETED: Implemented async VM Option 1 milestones for suspendable execution (`VmExecutionSnapshot`), execution context switching (`VmContextId` lifecycle/switch APIs), and cooperative `Await` yield/resume (`execute_until_suspend` / `resume_execution_context`) with comprehensive VM coverage and roadmap/docs updates.
+
 - **2026-02-13_18-52_bench-cross-cwd-gotcha.md** — ✅ COMPLETED: Reproduced `bench-cross` failure from non-root working directory, confirmed CWD-relative default path resolution, and documented safe invocation + prevention guidance.
 
 - **2026-02-13_18-31_parallel-map-jit-closures-and-rayon.md** — ✅ COMPLETED: Implemented roadmap Option 3 iterator execution upgrades (`rayon` fast path + VM/JIT bytecode-closure lane for `parallel_map`/`par_map`), added targeted coverage, documented trap-prone JIT negative-test constraints, and updated roadmap/changelog/readme.
