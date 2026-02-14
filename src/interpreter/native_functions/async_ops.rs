@@ -796,8 +796,10 @@ pub fn handle(
                 _interp.get_async_task_pool_size()
             };
 
+            let debug_async = std::env::var("DEBUG_ASYNC").is_ok();
+
             // Debug logging
-            if std::env::var("DEBUG_ASYNC").is_ok() {
+            if debug_async {
                 eprintln!("Promise.all: received {} promises", promises.len());
             }
 
@@ -814,11 +816,11 @@ pub fn handle(
             }
 
             // Extract receivers from all promises
-            let mut receivers = Vec::new();
+            let mut receivers = Vec::with_capacity(promises.len());
             for (idx, promise) in promises.iter().enumerate() {
                 match promise {
                     Value::Promise { receiver, .. } => {
-                        if std::env::var("DEBUG_ASYNC").is_ok() {
+                        if debug_async {
                             eprintln!("Promise.all: extracting receiver from promise {}", idx);
                         }
                         receivers.push((idx, receiver.clone()));
@@ -832,7 +834,7 @@ pub fn handle(
                 }
             }
 
-            if std::env::var("DEBUG_ASYNC").is_ok() {
+            if debug_async {
                 eprintln!("Promise.all: extracted {} receivers, spawning task", receivers.len());
             }
 
@@ -843,7 +845,7 @@ pub fn handle(
 
             // Spawn task that awaits all promises concurrently
             AsyncRuntime::spawn_task(async move {
-                if std::env::var("DEBUG_ASYNC").is_ok() {
+                if debug_async {
                     eprintln!(
                         "Promise.all: inside spawned task, extracting {} receivers",
                         receivers.len()
@@ -851,7 +853,7 @@ pub fn handle(
                 }
 
                 // Extract all receivers
-                let mut futures = Vec::new();
+                let mut futures = Vec::with_capacity(count);
                 for (idx, receiver_arc) in receivers {
                     let actual_rx = {
                         let mut recv_guard = receiver_arc.lock().unwrap();
@@ -862,7 +864,7 @@ pub fn handle(
                     futures.push((idx, actual_rx));
                 }
 
-                if std::env::var("DEBUG_ASYNC").is_ok() {
+                if debug_async {
                     eprintln!(
                         "Promise.all: prepared {} futures, awaiting with bounded in-task concurrency",
                         futures.len()
@@ -888,27 +890,27 @@ pub fn handle(
                 }
 
                 while let Some((idx, recv_result)) = in_flight.next().await {
-                    if std::env::var("DEBUG_ASYNC").is_ok() {
+                    if debug_async {
                         eprintln!("Promise.all: awaiting task {}/{}", completed + 1, count);
                     }
 
                     match recv_result {
                         Ok(Ok(value)) => {
-                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                            if debug_async {
                                 eprintln!("Promise.all: task {} resolved successfully", idx);
                             }
                             results[idx] = value;
                             completed += 1;
                         }
                         Ok(Err(err)) => {
-                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                            if debug_async {
                                 eprintln!("Promise.all: task {} rejected: {}", idx, err);
                             }
                             let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
                             return Value::Null;
                         }
                         Err(_) => {
-                            if std::env::var("DEBUG_ASYNC").is_ok() {
+                            if debug_async {
                                 eprintln!(
                                     "Promise.all: task {} channel closed (Err from oneshot)",
                                     idx
@@ -927,7 +929,7 @@ pub fn handle(
                     }
                 }
 
-                if std::env::var("DEBUG_ASYNC").is_ok() {
+                if debug_async {
                     eprintln!("Promise.all: all tasks resolved, sending {} results", results.len());
                 }
 
@@ -1019,8 +1021,10 @@ pub fn handle(
                 return Some(jit_bytecode_result);
             }
 
-            let mut mapped_promises = Vec::with_capacity(array.len());
-            for element in array.iter() {
+            let mut mapped_results = vec![Value::Null; array.len()];
+            let mut pending_receivers = Vec::new();
+
+            for (idx, element) in array.iter().enumerate() {
                 let mapped = match &mapper {
                     Value::NativeFunction(name) => {
                         _interp.call_native_function_impl(name, &[element.clone()])
@@ -1032,26 +1036,81 @@ pub fn handle(
                     Value::Error(_) | Value::ErrorObject { .. } => {
                         return Some(mapped);
                     }
-                    Value::Promise { .. } => mapped_promises.push(mapped),
+                    Value::Promise { receiver, .. } => pending_receivers.push((idx, receiver)),
                     immediate => {
-                        let (tx, rx) = tokio::sync::oneshot::channel();
-                        let _ = tx.send(Ok(immediate));
-                        mapped_promises.push(Value::Promise {
-                            receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
-                            is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
-                            cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
-                            task_handle: None,
-                        });
+                        mapped_results[idx] = immediate;
                     }
                 }
             }
 
-            let mut promise_all_args = vec![Value::Array(Arc::new(mapped_promises))];
-            if let Some(limit) = concurrency_limit {
-                promise_all_args.push(Value::Int(limit));
+            if pending_receivers.is_empty() {
+                return Some(resolved_promise(Ok(Value::Array(Arc::new(mapped_results)))));
             }
 
-            handle(_interp, "Promise.all", &promise_all_args)
+            let count = pending_receivers.len();
+            let effective_batch_size = (concurrency_limit
+                .unwrap_or(_interp.get_async_task_pool_size() as i64)
+                .max(1) as usize)
+                .min(count.max(1));
+
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            AsyncRuntime::spawn_task(async move {
+                let mut futures = Vec::with_capacity(count);
+                for (idx, receiver_arc) in pending_receivers {
+                    let actual_rx = {
+                        let mut recv_guard = receiver_arc.lock().unwrap();
+                        let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+                        drop(dummy_tx);
+                        std::mem::replace(&mut *recv_guard, dummy_rx)
+                    };
+                    futures.push((idx, actual_rx));
+                }
+
+                let mut pending = futures.into_iter();
+                let mut in_flight = FuturesUnordered::new();
+                let make_wait_future = |idx, rx| async move { (idx, rx.await) };
+
+                for _ in 0..effective_batch_size {
+                    match pending.next() {
+                        Some((idx, rx)) => in_flight.push(make_wait_future(idx, rx)),
+                        None => break,
+                    }
+                }
+
+                while let Some((idx, recv_result)) = in_flight.next().await {
+                    match recv_result {
+                        Ok(Ok(value)) => {
+                            mapped_results[idx] = value;
+                        }
+                        Ok(Err(err)) => {
+                            let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
+                            return Value::Null;
+                        }
+                        Err(_) => {
+                            let _ = tx.send(Err(format!(
+                                "Promise {} never resolved (channel closed)",
+                                idx
+                            )));
+                            return Value::Null;
+                        }
+                    }
+
+                    if let Some((next_idx, next_rx)) = pending.next() {
+                        in_flight.push(make_wait_future(next_idx, next_rx));
+                    }
+                }
+
+                let _ = tx.send(Ok(Value::Array(Arc::new(mapped_results))));
+                Value::Null
+            });
+
+            Some(Value::Promise {
+                receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
+            })
         }
 
         "par_map" => {
@@ -1270,7 +1329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parallel_map_wraps_non_promise_results() {
+    fn test_parallel_map_handles_non_promise_results() {
         let mut interp = Interpreter::new();
         let args = vec![
             Value::Array(Arc::new(vec![
