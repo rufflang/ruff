@@ -6598,6 +6598,65 @@ mod tests {
     }
 
     #[test]
+    fn test_run_scheduler_round_reports_pending_for_unready_context() {
+        let code = r#"
+            p := async_sleep(40)
+            await p
+            return 9
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        let context_id = match vm.execute_until_suspend(chunk).expect("initial run") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("expected suspension"),
+        };
+
+        let round_result = vm.run_scheduler_round().expect("scheduler round should succeed");
+        assert_eq!(round_result.completed_contexts, 0);
+        assert_eq!(round_result.pending_contexts, 1);
+        assert!(vm.has_execution_context(context_id));
+    }
+
+    #[test]
+    fn test_run_scheduler_until_complete_errors_when_round_budget_exhausted() {
+        let code = r#"
+            p := async_sleep(80)
+            await p
+            return 3
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        match vm.execute_until_suspend(chunk).expect("initial run") {
+            VmExecutionResult::Suspended { .. } => {}
+            VmExecutionResult::Completed => panic!("expected suspension"),
+        }
+
+        let err = vm
+            .run_scheduler_until_complete(1)
+            .expect_err("single round should be insufficient");
+        assert!(err.contains("did not complete"));
+        assert!(err.contains("pending"));
+    }
+
+    #[test]
     fn test_simple_return() {
         let code = r#"
             func get_number() {
