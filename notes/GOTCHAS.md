@@ -189,6 +189,16 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
 
+### Use `BytecodeChunk::new()` in tests, not full struct literals
+
+- **Problem:** VM/unit tests fail to compile after `BytecodeChunk` field additions.
+- **Symptom:** Rust error `E0063` with "missing fields ... in initializer of `bytecode::BytecodeChunk`".
+- **Rule:** Prefer `BytecodeChunk::new()` and set only fields needed for the test (commonly `name`, `instructions`).
+- **Why:** `BytecodeChunk` evolves; struct literals become brittle and require touching many tests when internal metadata fields are added.
+- **Implication:** Only use full literals when a test must explicitly validate non-default metadata fields.
+
+(Discovered during: 2026-02-13_19-45_vm-cooperative-scheduler-rounds.md)
+
 ### Ruff variables are globally scoped within script files
 
 - **Problem:** Test file reusing variable names like `sum` and `i` showed unexpected values

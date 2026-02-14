@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-13_19-45_vm-cooperative-scheduler-rounds.md** — ✅ COMPLETED: Implemented cooperative VM scheduler APIs (`run_scheduler_round`, `run_scheduler_until_complete`, `pending_execution_context_count`), added comprehensive scheduler tests (pending/completion/error paths), and documented milestone updates in roadmap/changelog/readme.
+
 - **2026-02-13_19-31_vm-cooperative-await-yield-resume.md** — ✅ COMPLETED: Implemented async VM Option 1 milestones for suspendable execution (`VmExecutionSnapshot`), execution context switching (`VmContextId` lifecycle/switch APIs), and cooperative `Await` yield/resume (`execute_until_suspend` / `resume_execution_context`) with comprehensive VM coverage and roadmap/docs updates.
 
 - **2026-02-13_18-52_bench-cross-cwd-gotcha.md** — ✅ COMPLETED: Reproduced `bench-cross` failure from non-root working directory, confirmed CWD-relative default path resolution, and documented safe invocation + prevention guidance.
