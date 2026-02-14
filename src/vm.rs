@@ -19,6 +19,9 @@ use std::sync::{Arc, Mutex};
 const JIT_FUNCTION_THRESHOLD: usize = 100;
 const DENSE_INT_DICT_MIN_CAPACITY: usize = 131072;
 
+/// Stable identifier for a suspendable VM execution context.
+pub type VmContextId = u64;
+
 /// Upvalue: heap-allocated captured variable for closures
 #[derive(Debug, Clone)]
 /// Upvalue - captured variable for closures
@@ -109,6 +112,15 @@ pub struct VM {
     /// Tokio runtime handle for spawning async tasks
     /// This allows the VM to spawn truly concurrent async tasks
     runtime_handle: tokio::runtime::Handle,
+
+    /// Saved execution contexts used for cooperative VM context switching.
+    execution_contexts: HashMap<VmContextId, VmExecutionSnapshot>,
+
+    /// Currently active execution context ID, if any.
+    active_execution_context: Option<VmContextId>,
+
+    /// Monotonic context ID generator.
+    next_execution_context_id: VmContextId,
 }
 
 /// Unique identifier for a call site (location in bytecode where a Call occurs)
@@ -393,6 +405,9 @@ impl VM {
                 // If not in a tokio runtime, create one
                 crate::interpreter::AsyncRuntime::runtime().handle().clone()
             }),
+            execution_contexts: HashMap::new(),
+            active_execution_context: None,
+            next_execution_context_id: 1,
         };
 
         vm
@@ -444,6 +459,87 @@ impl VM {
         self.jit_obj_stack = snapshot.jit_obj_stack;
         self.globals = snapshot.globals;
         self.interpreter.set_env(Arc::clone(&self.globals));
+    }
+
+    fn allocate_execution_context_id(&mut self) -> VmContextId {
+        let id = self.next_execution_context_id;
+        self.next_execution_context_id = self.next_execution_context_id.saturating_add(1);
+        id
+    }
+
+    /// Register an execution context from an existing snapshot.
+    pub fn create_execution_context(&mut self, snapshot: VmExecutionSnapshot) -> VmContextId {
+        let context_id = self.allocate_execution_context_id();
+        self.execution_contexts.insert(context_id, snapshot);
+        context_id
+    }
+
+    /// Register an execution context by snapshotting current VM state.
+    pub fn create_execution_context_from_current(&mut self) -> VmContextId {
+        let snapshot = self.save_execution_state();
+        let context_id = self.create_execution_context(snapshot);
+
+        if self.active_execution_context.is_none() {
+            self.active_execution_context = Some(context_id);
+        }
+
+        context_id
+    }
+
+    /// Returns the currently active execution context ID.
+    pub fn active_execution_context_id(&self) -> Option<VmContextId> {
+        self.active_execution_context
+    }
+
+    /// Returns true if an execution context with the given ID exists.
+    pub fn has_execution_context(&self, context_id: VmContextId) -> bool {
+        self.execution_contexts.contains_key(&context_id)
+    }
+
+    /// List all registered execution context IDs in sorted order.
+    pub fn list_execution_context_ids(&self) -> Vec<VmContextId> {
+        let mut ids: Vec<VmContextId> = self.execution_contexts.keys().cloned().collect();
+        ids.sort_unstable();
+        ids
+    }
+
+    /// Switch VM execution to a previously registered context.
+    ///
+    /// Saves the currently active context (if any), restores target context state,
+    /// and marks target as active.
+    pub fn switch_execution_context(
+        &mut self,
+        target_context_id: VmContextId,
+    ) -> Result<(), String> {
+        let target_snapshot = self
+            .execution_contexts
+            .get(&target_context_id)
+            .cloned()
+            .ok_or_else(|| format!("Execution context {} not found", target_context_id))?;
+
+        if let Some(active_context_id) = self.active_execution_context {
+            if active_context_id != target_context_id {
+                let current_snapshot = self.save_execution_state();
+                self.execution_contexts.insert(active_context_id, current_snapshot);
+            }
+        }
+
+        self.restore_execution_state(target_snapshot);
+        self.active_execution_context = Some(target_context_id);
+        Ok(())
+    }
+
+    /// Remove a non-active execution context.
+    pub fn remove_execution_context(&mut self, context_id: VmContextId) -> Result<(), String> {
+        if self.active_execution_context == Some(context_id) {
+            return Err(format!("Cannot remove active execution context {}", context_id));
+        }
+
+        if self.execution_contexts.remove(&context_id).is_none() {
+            return Err(format!("Execution context {} not found", context_id));
+        }
+
+        Ok(())
     }
 
     /// Set the global environment (for accessing built-in functions)
@@ -5986,6 +6082,83 @@ mod tests {
         let globals = vm.globals.lock().unwrap();
         assert!(matches!(globals.get("from_snapshot"), Some(Value::Int(88))));
         assert!(globals.get("other").is_none());
+    }
+
+    #[test]
+    fn test_create_and_list_execution_context_ids() {
+        let mut vm = VM::new();
+        vm.ip = 10;
+        let id_one = vm.create_execution_context_from_current();
+
+        vm.ip = 20;
+        let id_two = vm.create_execution_context_from_current();
+
+        assert_ne!(id_one, id_two);
+        assert_eq!(vm.active_execution_context_id(), Some(id_one));
+        assert!(vm.has_execution_context(id_one));
+        assert!(vm.has_execution_context(id_two));
+        assert_eq!(vm.list_execution_context_ids(), vec![id_one, id_two]);
+    }
+
+    #[test]
+    fn test_switch_execution_context_restores_target_and_saves_previous() {
+        let mut vm = VM::new();
+
+        vm.ip = 100;
+        vm.stack = vec![Value::Int(1)];
+        let snapshot_one = vm.save_execution_state();
+
+        vm.ip = 200;
+        vm.stack = vec![Value::Int(2)];
+        let snapshot_two = vm.save_execution_state();
+
+        let context_one = vm.create_execution_context(snapshot_one);
+        let context_two = vm.create_execution_context(snapshot_two);
+
+        vm.switch_execution_context(context_one).expect("switch to context_one should succeed");
+        assert_eq!(vm.active_execution_context_id(), Some(context_one));
+        assert_eq!(vm.ip, 100);
+        assert!(matches!(vm.stack.first(), Some(Value::Int(1))));
+
+        vm.ip = 150;
+        vm.stack = vec![Value::Int(15)];
+
+        vm.switch_execution_context(context_two).expect("switch to context_two should succeed");
+        assert_eq!(vm.active_execution_context_id(), Some(context_two));
+        assert_eq!(vm.ip, 200);
+        assert!(matches!(vm.stack.first(), Some(Value::Int(2))));
+
+        vm.switch_execution_context(context_one)
+            .expect("switch back to context_one should succeed");
+        assert_eq!(vm.active_execution_context_id(), Some(context_one));
+        assert_eq!(vm.ip, 150);
+        assert!(matches!(vm.stack.first(), Some(Value::Int(15))));
+    }
+
+    #[test]
+    fn test_switch_execution_context_missing_context_returns_error() {
+        let mut vm = VM::new();
+        let error =
+            vm.switch_execution_context(999).expect_err("switching to missing context should fail");
+        assert!(error.contains("not found"));
+    }
+
+    #[test]
+    fn test_remove_execution_context_rejects_active_context() {
+        let mut vm = VM::new();
+        vm.ip = 5;
+
+        let active_context = vm.create_execution_context_from_current();
+        let extra_context = vm.create_execution_context(vm.save_execution_state());
+
+        let active_err = vm
+            .remove_execution_context(active_context)
+            .expect_err("active context removal should fail");
+        assert!(active_err.contains("Cannot remove active"));
+
+        vm.remove_execution_context(extra_context)
+            .expect("non-active context removal should succeed");
+        assert!(!vm.has_execution_context(extra_context));
     }
 
     #[test]
