@@ -12,6 +12,12 @@
 use ruff::interpreter::{Environment, Interpreter, Value};
 use ruff::lexer::tokenize;
 use ruff::parser::Parser;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+fn unique_shared_key(prefix: &str) -> String {
+    static SHARED_KEY_COUNTER: AtomicU64 = AtomicU64::new(1);
+    format!("{}_{}", prefix, SHARED_KEY_COUNTER.fetch_add(1, Ordering::Relaxed))
+}
 
 fn run_code(code: &str) -> Interpreter {
     let tokens = tokenize(code);
@@ -2302,6 +2308,153 @@ fn test_channel_empty() {
 }
 
 #[test]
+fn test_shared_value_lifecycle_operations() {
+    let shared_key = unique_shared_key("shared_value_lifecycle");
+
+    let code = format!(
+        r#"
+        key := "{}"
+
+        created := shared_set(key, 41)
+        exists_before := shared_has(key)
+        value_before := shared_get(key)
+
+        updated := shared_set(key, 99)
+        value_after := shared_get(key)
+
+        deleted := shared_delete(key)
+        exists_after := shared_has(key)
+    "#,
+        shared_key
+    );
+
+    let interp = run_code(&code);
+
+    assert!(matches!(interp.env.get("created"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("exists_before"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("value_before"), Some(Value::Int(41))));
+    assert!(matches!(interp.env.get("updated"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("value_after"), Some(Value::Int(99))));
+    assert!(matches!(interp.env.get("deleted"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("exists_after"), Some(Value::Bool(false))));
+}
+
+#[test]
+fn test_shared_add_int_success_and_error_paths() {
+    let base_key = unique_shared_key("shared_add_int");
+
+    let code = format!(
+        r#"
+        key := "{}"
+
+        shared_set(key, 0)
+        plus_five := shared_add_int(key, 5)
+        plus_two := shared_add_int(key, 2)
+        final_value := shared_get(key)
+
+        bad_delta := shared_add_int(key, "1")
+
+        shared_delete(key)
+    "#,
+        base_key
+    );
+
+    let interp = run_code(&code);
+
+    assert!(matches!(interp.env.get("plus_five"), Some(Value::Int(5))));
+    assert!(matches!(interp.env.get("plus_two"), Some(Value::Int(7))));
+    assert!(matches!(interp.env.get("final_value"), Some(Value::Int(7))));
+    assert!(
+        matches!(interp.env.get("bad_delta"), Some(Value::Error(msg)) if msg.contains("delta must be an int"))
+    );
+}
+
+#[test]
+fn test_shared_add_int_rejects_non_int_target_value() {
+    let base_key = unique_shared_key("shared_add_int_non_int");
+
+    let code = format!(
+        r#"
+        key := "{}"
+        shared_set(key, "not an int")
+        result := shared_add_int(key, 1)
+        shared_delete(key)
+    "#,
+        base_key
+    );
+
+    let interp = run_code(&code);
+
+    assert!(matches!(
+        interp.env.get("result"),
+        Some(Value::Error(msg)) if msg.contains("to reference an int")
+    ));
+}
+
+#[test]
+fn test_shared_add_int_rejects_missing_key() {
+    let base_key = unique_shared_key("shared_add_int_missing");
+
+    let code = format!(
+        r#"
+        missing_key := "{}"
+        result := shared_add_int(missing_key, 1)
+    "#,
+        base_key
+    );
+
+    let interp = run_code(&code);
+
+    assert!(matches!(
+        interp.env.get("result"),
+        Some(Value::Error(msg)) if msg.contains("not found")
+    ));
+}
+
+#[test]
+fn test_spawn_can_update_shared_values_across_isolated_environments() {
+    let counter_key = unique_shared_key("spawn_shared_counter");
+
+    let code = format!(
+        r#"
+        shared_set("{}", 0)
+
+        for i in range(0, 20) {{
+            spawn {{
+                shared_add_int("{}", 1)
+            }}
+        }}
+
+        attempts := 0
+
+        while attempts < 2000 {{
+            current := shared_get("{}")
+            if current == 20 {{
+                break
+            }}
+            await async_sleep(1)
+            attempts := attempts + 1
+        }}
+
+        final_counter := shared_get("{}")
+        completed := final_counter == 20
+
+        cleanup_counter := shared_delete("{}")
+    "#,
+        counter_key,
+        counter_key,
+        counter_key,
+        counter_key,
+        counter_key
+    );
+
+    let interp = run_code(&code);
+
+    assert!(matches!(interp.env.get("completed"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("cleanup_counter"), Some(Value::Bool(true))));
+}
+
+#[test]
 fn test_parallel_http_empty_array() {
     let code = r#"
         urls := []
@@ -4271,10 +4424,11 @@ fn test_parallel_map_scalability_10k() {
 
     // Verify all 10,000 results were computed
     assert!(matches!(interp.env.get("count"), Some(Value::Int(n)) if n == 10000));
-    
+
     // Verify correctness of results
     assert!(matches!(interp.env.get("first"), Some(Value::Int(n)) if n == 0)); // 0^2 = 0
-    assert!(matches!(interp.env.get("last"), Some(Value::Int(n)) if n == 99980001)); // 9999^2 = 99980001
+    assert!(matches!(interp.env.get("last"), Some(Value::Int(n)) if n == 99980001));
+    // 9999^2 = 99980001
 }
 
 #[test]

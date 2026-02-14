@@ -408,6 +408,11 @@ impl Interpreter {
             "stack_to_array",
             // Concurrency functions
             "channel",
+            "shared_set",
+            "shared_get",
+            "shared_has",
+            "shared_delete",
+            "shared_add_int",
             // Async operations
             "async_sleep",
             "async_timeout",
@@ -939,6 +944,17 @@ impl Interpreter {
 
         // Concurrency functions
         self.env.define("channel".to_string(), Value::NativeFunction("channel".to_string()));
+        self.env.define("shared_set".to_string(), Value::NativeFunction("shared_set".to_string()));
+        self.env.define("shared_get".to_string(), Value::NativeFunction("shared_get".to_string()));
+        self.env.define("shared_has".to_string(), Value::NativeFunction("shared_has".to_string()));
+        self.env.define(
+            "shared_delete".to_string(),
+            Value::NativeFunction("shared_delete".to_string()),
+        );
+        self.env.define(
+            "shared_add_int".to_string(),
+            Value::NativeFunction("shared_add_int".to_string()),
+        );
 
         // Async operations
         self.env
