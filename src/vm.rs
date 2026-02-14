@@ -22,6 +22,15 @@ const DENSE_INT_DICT_MIN_CAPACITY: usize = 131072;
 /// Stable identifier for a suspendable VM execution context.
 pub type VmContextId = u64;
 
+const VM_SUSPEND_ERROR_PREFIX: &str = "__VM_SUSPENDED_CONTEXT__:";
+
+/// Result of cooperative VM execution.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VmExecutionResult {
+    Completed,
+    Suspended { context_id: VmContextId },
+}
+
 /// Upvalue: heap-allocated captured variable for closures
 #[derive(Debug, Clone)]
 /// Upvalue - captured variable for closures
@@ -121,6 +130,12 @@ pub struct VM {
 
     /// Monotonic context ID generator.
     next_execution_context_id: VmContextId,
+
+    /// Enables cooperative suspend/resume semantics for Await.
+    cooperative_suspend_enabled: bool,
+
+    /// Skip reset branch on the next execute() call (used for resume paths).
+    skip_execute_reset_once: bool,
 }
 
 /// Unique identifier for a call site (location in bytecode where a Call occurs)
@@ -408,6 +423,8 @@ impl VM {
             execution_contexts: HashMap::new(),
             active_execution_context: None,
             next_execution_context_id: 1,
+            cooperative_suspend_enabled: false,
+            skip_execute_reset_once: false,
         };
 
         vm
@@ -465,6 +482,16 @@ impl VM {
         let id = self.next_execution_context_id;
         self.next_execution_context_id = self.next_execution_context_id.saturating_add(1);
         id
+    }
+
+    fn suspend_error(context_id: VmContextId) -> String {
+        format!("{}{}", VM_SUSPEND_ERROR_PREFIX, context_id)
+    }
+
+    fn parse_suspend_error(error: &str) -> Option<VmContextId> {
+        error
+            .strip_prefix(VM_SUSPEND_ERROR_PREFIX)
+            .and_then(|value| value.parse::<VmContextId>().ok())
     }
 
     /// Register an execution context from an existing snapshot.
@@ -698,12 +725,63 @@ impl VM {
         values
     }
 
+    /// Execute bytecode cooperatively until completion or Await suspension.
+    pub fn execute_until_suspend(
+        &mut self,
+        chunk: BytecodeChunk,
+    ) -> Result<VmExecutionResult, String> {
+        self.cooperative_suspend_enabled = true;
+        self.active_execution_context = None;
+
+        let result = self.execute(chunk);
+        self.cooperative_suspend_enabled = false;
+
+        match result {
+            Ok(_) => Ok(VmExecutionResult::Completed),
+            Err(error) => {
+                if let Some(context_id) = Self::parse_suspend_error(&error) {
+                    Ok(VmExecutionResult::Suspended { context_id })
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    }
+
+    /// Resume a previously suspended execution context.
+    pub fn resume_execution_context(
+        &mut self,
+        context_id: VmContextId,
+    ) -> Result<VmExecutionResult, String> {
+        self.switch_execution_context(context_id)?;
+        self.cooperative_suspend_enabled = true;
+        self.skip_execute_reset_once = true;
+
+        let result = self.execute(BytecodeChunk::new());
+        self.cooperative_suspend_enabled = false;
+
+        match result {
+            Ok(_) => Ok(VmExecutionResult::Completed),
+            Err(error) => {
+                if let Some(suspended_context_id) = Self::parse_suspend_error(&error) {
+                    Ok(VmExecutionResult::Suspended { context_id: suspended_context_id })
+                } else {
+                    Err(error)
+                }
+            }
+        }
+    }
+
     /// Execute a bytecode chunk
     pub fn execute(&mut self, chunk: BytecodeChunk) -> Result<Value, String> {
         let _hashmap_profile_guard = HashMapProfileGuard::new();
-        self.set_chunk(chunk);
-        self.ip = 0;
-        self.stack.clear();
+        if self.skip_execute_reset_once {
+            self.skip_execute_reset_once = false;
+        } else {
+            self.set_chunk(chunk);
+            self.ip = 0;
+            self.stack.clear();
+        }
 
         // Try to JIT-compile the entire script for maximum performance
         let allow_script_jit = self.jit_enabled && std::env::var("DISABLE_SCRIPT_JIT").is_err();
@@ -4167,7 +4245,7 @@ impl VM {
                     let promise = self.stack.pop().ok_or("Stack underflow in Await")?;
 
                     match promise {
-                        Value::Promise { receiver, is_polled, cached_result, .. } => {
+                        Value::Promise { receiver, is_polled, cached_result, task_handle } => {
                             // Check if we've already polled this promise
                             {
                                 let polled = is_polled.lock().unwrap();
@@ -4190,6 +4268,67 @@ impl VM {
                                         }
                                     }
                                 }
+                            }
+
+                            if self.cooperative_suspend_enabled {
+                                let try_result = {
+                                    let mut recv_guard = receiver.lock().unwrap();
+                                    recv_guard.try_recv()
+                                };
+
+                                match try_result {
+                                    Ok(Ok(value)) => {
+                                        let mut polled = is_polled.lock().unwrap();
+                                        let mut cached = cached_result.lock().unwrap();
+                                        *cached = Some(Ok(value.clone()));
+                                        *polled = true;
+                                        self.stack.push(value);
+                                    }
+                                    Ok(Err(error)) => {
+                                        let mut polled = is_polled.lock().unwrap();
+                                        let mut cached = cached_result.lock().unwrap();
+                                        *cached = Some(Err(error.clone()));
+                                        *polled = true;
+                                        return Err(format!("Promise rejected: {}", error));
+                                    }
+                                    Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
+                                        let pending_promise = Value::Promise {
+                                            receiver,
+                                            is_polled,
+                                            cached_result,
+                                            task_handle,
+                                        };
+
+                                        self.stack.push(pending_promise);
+                                        self.ip = self.ip.saturating_sub(1);
+
+                                        let context_id = if let Some(active_context) =
+                                            self.active_execution_context
+                                        {
+                                            active_context
+                                        } else {
+                                            let new_context =
+                                                self.create_execution_context_from_current();
+                                            self.active_execution_context = Some(new_context);
+                                            new_context
+                                        };
+
+                                        let snapshot = self.save_execution_state();
+                                        self.execution_contexts.insert(context_id, snapshot);
+                                        return Err(Self::suspend_error(context_id));
+                                    }
+                                    Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
+                                        let mut polled = is_polled.lock().unwrap();
+                                        let mut cached = cached_result.lock().unwrap();
+                                        *cached = Some(Err("Promise never resolved".to_string()));
+                                        *polled = true;
+                                        return Err(
+                                            "Promise never resolved (channel closed)".to_string()
+                                        );
+                                    }
+                                }
+
+                                continue;
                             }
 
                             // Poll the promise using tokio runtime - blocks until result is ready
@@ -5906,6 +6045,8 @@ mod tests {
     use crate::compiler::Compiler;
     use crate::lexer;
     use crate::parser::Parser;
+    use std::thread;
+    use std::time::Duration;
 
     /// Helper to compile and run Ruff code through the VM
     fn run_vm_code(code: &str) -> Result<Value, String> {
@@ -6159,6 +6300,74 @@ mod tests {
         vm.remove_execution_context(extra_context)
             .expect("non-active context removal should succeed");
         assert!(!vm.has_execution_context(extra_context));
+    }
+
+    #[test]
+    fn test_execute_until_suspend_and_resume_for_pending_await() {
+        let code = r#"
+            p := async_sleep(25)
+            await p
+            return 7
+        "#;
+
+        let tokens = lexer::tokenize(code);
+        let mut parser = Parser::new(tokens);
+        let ast = parser.parse();
+        let mut compiler = Compiler::new();
+        let chunk = compiler.compile(&ast).expect("compile should succeed");
+
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+        let first_result =
+            vm.execute_until_suspend(chunk).expect("cooperative execution should not error");
+
+        let context_id = match first_result {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => {
+                panic!("expected suspension for async_sleep await, got completion")
+            }
+        };
+
+        let mut completed = false;
+        for _ in 0..30 {
+            thread::sleep(Duration::from_millis(3));
+            match vm.resume_execution_context(context_id).expect("resume should not fail") {
+                VmExecutionResult::Suspended { context_id: resumed_context_id } => {
+                    assert_eq!(resumed_context_id, context_id);
+                }
+                VmExecutionResult::Completed => {
+                    completed = true;
+                    break;
+                }
+            }
+        }
+
+        assert!(completed, "execution did not complete after resume attempts");
+    }
+
+    #[test]
+    fn test_execute_until_suspend_completes_without_pending_await() {
+        let code = r#"
+            return 42
+        "#;
+
+        let tokens = lexer::tokenize(code);
+        let mut parser = Parser::new(tokens);
+        let ast = parser.parse();
+        let mut compiler = Compiler::new();
+        let chunk = compiler.compile(&ast).expect("compile should succeed");
+
+        let mut vm = VM::new();
+        let result =
+            vm.execute_until_suspend(chunk).expect("cooperative execution should not fail");
+
+        assert!(matches!(result, VmExecutionResult::Completed));
     }
 
     #[test]
