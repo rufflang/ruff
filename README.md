@@ -17,6 +17,12 @@
   - Deeply nested function bodies remain safe to release without recursive drop stack overflows
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **AST/Runtime Function Body Separation (P2)**
+  - Runtime function values now reference opaque function-body handles instead of embedding AST body vectors directly
+  - Interpreter function execution now resolves body statements through handle-backed storage
+  - Function-body handle lifecycle is reference-counted with safe final-release cleanup
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 ### Just Completed in v0.9.0 (Phase 1) ✅
 
 * **Bytecode VM Integration** 🚀

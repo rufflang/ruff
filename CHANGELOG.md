@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
+  - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
+  - Added internal function-body store with reference-counted handle lifecycle management
+  - Preserved deep-nesting drop safety via iterative statement-tree drop traversal on final body release
+  - Updated interpreter call sites to evaluate function bodies through handle-backed views
+  - Added coverage for handle clone/drop safety and storage sharing behavior
+
 - **Architecture Cleanup: LeakyFunctionBody Replaced with Iterative Drop Traversal (P2)**:
   - Replaced leak-on-drop `LeakyFunctionBody` storage with `Arc`-backed managed storage and custom iterative drop traversal
   - Eliminated deliberate function-body memory leakage while preserving deep-nesting safety during drop

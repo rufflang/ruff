@@ -11,13 +11,12 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 ## 🎯 What's Next (Priority Order)
 
 **IMMEDIATE (v0.10.0)**:
-1. **🏗️ Architecture Cleanup (P1/P2)** - isolate runtime from AST and remove leaky internals
-2. **📦 Release Hardening (P1)** - stabilize APIs and prepare v1.0 trajectory
-3. **🧪 Optional Static Typing Design (Exploratory)** - narrow design surface and implementation plan
+1. **📦 Release Hardening (P1)** - stabilize APIs and prepare v1.0 trajectory
+2. **🧪 Optional Static Typing Design (Exploratory)** - narrow design surface and implementation plan
 
 **AFTER v0.10.0**:
-4. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus for v0.11.0
-5. **Developer Experience** - LSP, formatter, linter, package management
+3. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus for v0.11.0
+4. **Developer Experience** - LSP, formatter, linter, package management
 
 ---
 
@@ -34,23 +33,6 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 v0.9.0 work is complete and archived in [CHANGELOG.md](CHANGELOG.md).  
 This roadmap intentionally tracks only upcoming items.
-
----
-
-## v0.10.0 - Architecture Cleanup Tasks (P2)
-
-These are the remaining architecture cleanup tasks for v0.10.0 scope.
-
----
-
-### Separate AST from Runtime Values (P2)
-
-**Status**: Planned  
-**Estimated Effort**: Large (3-4 weeks)
-
-**Problem**: Runtime `Value::Function` contains raw AST (`Vec<Stmt>`).
-
-**Solution**: Compile functions to IR/bytecode, don't store AST in runtime values.
 
 ---
 
