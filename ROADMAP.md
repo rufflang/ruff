@@ -54,6 +54,11 @@ This roadmap intentionally tracks only upcoming items.
     - Hardened collection size API argument validation for `queue_size(...)` and `stack_size(...)`
     - Added integration regression coverage for async/filesystem/collection argument-shape parity (`promise_all`/`await_all`, `join_path`/`path_join`, `queue_size`/`stack_size`)
 
+- **Unknown Native Dispatch Contract (✅ Complete, February 2026)**
+    - Removed silent unknown-native fallback in modular native dispatcher
+    - Unknown native names now return explicit runtime errors for faster API drift detection
+    - Added dispatcher-level regression coverage to ensure newly introduced high-risk builtins do not regress into unknown-native fallback
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

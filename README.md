@@ -45,6 +45,11 @@
     - `queue_size(...)` / `stack_size(...)`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Unknown Native Dispatch Contract (P1)**
+  - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
+  - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 ### Just Completed in v0.9.0 (Phase 1) ✅
 
 * **Bytecode VM Integration** 🚀

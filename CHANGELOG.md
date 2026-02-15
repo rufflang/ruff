@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Native Dispatcher Unknown-Function Contract (P1)**:
+  - Removed silent unknown-native fallback from modular native dispatch (`Value::Int(0)`)
+  - Unknown native function names now return explicit runtime errors: `Unknown native function: <name>`
+  - Added dispatcher-level regression tests that lock this contract and verify critical recently added APIs do not regress into unknown-native fallback:
+    - `ssg_render_pages`
+    - `join_path` / `path_join`
+    - `queue_size` / `stack_size`
+    - `shared_*` builtins
+    - `async_read_files` / `async_write_files`
+    - `promise_all` / `await_all`
+    - `set_task_pool_size` / `get_task_pool_size`
+
 - **Release Hardening: VM/Interpreter Builtin API Parity Contract (P1)**:
   - Synced `Interpreter::get_builtin_names()` with interpreter native registrations for VM-visible builtins
   - Added missing API entries for string utility methods, `bytes`, database pool APIs, and TCP/UDP network helpers
