@@ -184,6 +184,62 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             }
         }
 
+        "regex_match" => {
+            if let (Some(Value::Str(text)), Some(Value::Str(pattern))) = (args.first(), args.get(1))
+            {
+                Value::Bool(builtins::regex_match(text.as_ref(), pattern.as_ref()))
+            } else {
+                Value::Error(
+                    "regex_match requires two string arguments (text, pattern)".to_string(),
+                )
+            }
+        }
+
+        "regex_find_all" => {
+            if let (Some(Value::Str(text)), Some(Value::Str(pattern))) = (args.first(), args.get(1))
+            {
+                let matches = builtins::regex_find_all(text.as_ref(), pattern.as_ref());
+                let values: Vec<Value> =
+                    matches.into_iter().map(|s| Value::Str(Arc::new(s))).collect();
+                Value::Array(Arc::new(values))
+            } else {
+                Value::Error(
+                    "regex_find_all requires two string arguments (text, pattern)".to_string(),
+                )
+            }
+        }
+
+        "regex_replace" => {
+            if let (Some(Value::Str(text)), Some(Value::Str(pattern)), Some(Value::Str(replacement))) =
+                (args.first(), args.get(1), args.get(2))
+            {
+                Value::Str(Arc::new(builtins::regex_replace(
+                    text.as_ref(),
+                    pattern.as_ref(),
+                    replacement.as_ref(),
+                )))
+            } else {
+                Value::Error(
+                    "regex_replace requires three string arguments (text, pattern, replacement)"
+                        .to_string(),
+                )
+            }
+        }
+
+        "regex_split" => {
+            if let (Some(Value::Str(text)), Some(Value::Str(pattern))) = (args.first(), args.get(1))
+            {
+                let parts = builtins::regex_split(text.as_ref(), pattern.as_ref());
+                let values: Vec<Value> =
+                    parts.into_iter().map(|s| Value::Str(Arc::new(s))).collect();
+                Value::Array(Arc::new(values))
+            } else {
+                Value::Error(
+                    "regex_split requires two string arguments (text, pattern)".to_string(),
+                )
+            }
+        }
+
         "join" => {
             if let (Some(Value::Array(arr)), Some(Value::Str(separator))) =
                 (args.first(), args.get(1))
@@ -420,6 +476,68 @@ mod tests {
             }
             _ => panic!("Expected Value::Error for non-array input"),
         }
+    }
+
+    #[test]
+    fn test_regex_match_and_find_all() {
+        let match_result = handle(
+            "regex_match",
+            &[str_value("hello123"), str_value("^[a-z]+\\d+$")],
+        )
+        .unwrap();
+        assert!(matches!(match_result, Value::Bool(true)));
+
+        let find_all_result = handle(
+            "regex_find_all",
+            &[str_value("a1 b22 c333"), str_value("\\d+")],
+        )
+        .unwrap();
+
+        match find_all_result {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                assert!(matches!(&values[0], Value::Str(s) if s.as_ref() == "1"));
+                assert!(matches!(&values[1], Value::Str(s) if s.as_ref() == "22"));
+                assert!(matches!(&values[2], Value::Str(s) if s.as_ref() == "333"));
+            }
+            _ => panic!("Expected Value::Array from regex_find_all"),
+        }
+    }
+
+    #[test]
+    fn test_regex_replace_and_split() {
+        let replace_result = handle(
+            "regex_replace",
+            &[str_value("a1 b22"), str_value("\\d+"), str_value("#")],
+        )
+        .unwrap();
+        assert!(matches!(&replace_result, Value::Str(s) if s.as_ref() == "a# b#"));
+
+        let split_result = handle(
+            "regex_split",
+            &[str_value("a, b; c"), str_value("[,;]\\s*")],
+        )
+        .unwrap();
+
+        match split_result {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                assert!(matches!(&values[0], Value::Str(s) if s.as_ref() == "a"));
+                assert!(matches!(&values[1], Value::Str(s) if s.as_ref() == "b"));
+                assert!(matches!(&values[2], Value::Str(s) if s.as_ref() == "c"));
+            }
+            _ => panic!("Expected Value::Array from regex_split"),
+        }
+    }
+
+    #[test]
+    fn test_regex_argument_validation_errors() {
+        let match_error = handle("regex_match", &[Value::Int(1)]).unwrap();
+        assert!(matches!(match_error, Value::Error(message) if message.contains("regex_match requires two string arguments")));
+
+        let replace_error =
+            handle("regex_replace", &[str_value("a"), str_value("b")]).unwrap();
+        assert!(matches!(replace_error, Value::Error(message) if message.contains("regex_replace requires three string arguments")));
     }
 
     #[test]
