@@ -1857,6 +1857,137 @@ mod tests {
     }
 
     #[test]
+    fn test_async_read_files_reads_multiple_files_in_order() {
+        let temp_dir = unique_temp_dir("ruff_async_read_files");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_a = format!("{}/a.txt", temp_dir);
+        let file_b = format!("{}/b.txt", temp_dir);
+        let file_c = format!("{}/c.txt", temp_dir);
+
+        fs::write(&file_a, "alpha").unwrap();
+        fs::write(&file_b, "beta").unwrap();
+        fs::write(&file_c, "gamma").unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value(&file_a),
+                string_value(&file_b),
+                string_value(&file_c),
+            ])),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "async_read_files", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 3);
+                assert!(matches!(&values[0], Value::Str(s) if s.as_str() == "alpha"));
+                assert!(matches!(&values[1], Value::Str(s) if s.as_str() == "beta"));
+                assert!(matches!(&values[2], Value::Str(s) if s.as_str() == "gamma"));
+            }
+            _ => panic!("Expected Array result"),
+        }
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_async_read_files_rejects_invalid_path_element() {
+        let mut interp = Interpreter::new();
+        let args = vec![Value::Array(Arc::new(vec![Value::Int(1)]))];
+
+        let result = handle(&mut interp, "async_read_files", &args).unwrap();
+        match result {
+            Value::Error(msg) => assert!(msg.contains("path at index 0 must be a string")),
+            _ => panic!("Expected Value::Error for invalid path element"),
+        }
+    }
+
+    #[test]
+    fn test_async_read_files_propagates_missing_file_error() {
+        let missing_path = unique_temp_dir("ruff_async_read_files_missing");
+        let mut interp = Interpreter::new();
+        let args = vec![Value::Array(Arc::new(vec![string_value(&missing_path)])), Value::Int(4)];
+
+        let result = handle(&mut interp, "async_read_files", &args).unwrap();
+        let resolved = await_promise(result);
+        match resolved {
+            Ok(_) => panic!("Expected async_read_files promise rejection for missing file"),
+            Err(msg) => assert!(msg.contains("Failed to read file")),
+        }
+    }
+
+    #[test]
+    fn test_async_write_files_writes_all_files_and_returns_bools() {
+        let temp_dir = unique_temp_dir("ruff_async_write_files");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_a = format!("{}/a.txt", temp_dir);
+        let file_b = format!("{}/b.txt", temp_dir);
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![string_value(&file_a), string_value(&file_b)])),
+            Value::Array(Arc::new(vec![string_value("first"), string_value("second")])),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "async_write_files", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Array(values) => {
+                assert_eq!(values.len(), 2);
+                assert!(matches!(&values[0], Value::Bool(true)));
+                assert!(matches!(&values[1], Value::Bool(true)));
+            }
+            _ => panic!("Expected Array result"),
+        }
+
+        assert_eq!(fs::read_to_string(&file_a).unwrap(), "first");
+        assert_eq!(fs::read_to_string(&file_b).unwrap(), "second");
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_async_write_files_validates_lengths_and_types() {
+        let mut interp = Interpreter::new();
+
+        let mismatched = handle(
+            &mut interp,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![string_value("a.txt")])),
+                Value::Array(Arc::new(vec![string_value("first"), string_value("second")])),
+            ],
+        )
+        .unwrap();
+        match mismatched {
+            Value::Error(msg) => assert!(msg.contains("must have the same length")),
+            _ => panic!("Expected Value::Error for mismatched lengths"),
+        }
+
+        let invalid_content = handle(
+            &mut interp,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![string_value("a.txt")])),
+                Value::Array(Arc::new(vec![Value::Int(123)])),
+            ],
+        )
+        .unwrap();
+        match invalid_content {
+            Value::Error(msg) => assert!(msg.contains("content at index 0 must be a string")),
+            _ => panic!("Expected Value::Error for invalid content type"),
+        }
+    }
+
+    #[test]
     fn test_parallel_map_rayon_len_mixed_collection_inputs() {
         let mut dict = DictMap::default();
         dict.insert("a".to_string().into(), Value::Int(1));
