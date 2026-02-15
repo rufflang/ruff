@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - required high-risk builtin entries are present
     - builtin list contains no duplicate names
 
+- **Release Hardening: Alias and OS/Path Builtin Compatibility (P1)**:
+  - Added missing modular native handlers for public OS/path APIs:
+    - `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ`
+    - `join_path`, `path_join`, `dirname`, `basename`, `path_exists`
+    - `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension`
+  - Added missing queue/stack size native handlers and registration parity:
+    - `queue_size`, `stack_size`
+  - Added integration coverage for:
+    - alias behavior parity (`to_upper`/`upper`, `to_lower`/`lower`, `replace_str`/`replace`)
+    - path alias/core operations contract
+    - queue/stack size contract behavior
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

@@ -44,10 +44,15 @@ This roadmap intentionally tracks only upcoming items.
     - Synchronized VM builtin name registry (`get_builtin_names`) with interpreter-native registrations for release stability
     - Added regression coverage to detect missing and duplicate builtin API entries
 
+- **Alias + OS/Path API Compatibility Contract (✅ Complete, February 2026)**
+    - Restored modular runtime support for declared OS/path builtins and path aliases
+    - Added queue/stack size API parity (`queue_size`, `stack_size`) in modular native handlers
+    - Added integration tests for alias equivalence and path/collection API behavior
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0
-- Continue expanding API compatibility regression coverage for VM/interpreter parity
+- Continue expanding API compatibility regression coverage for VM/interpreter parity and argument-shape compatibility
 
 ---
 

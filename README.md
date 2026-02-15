@@ -30,6 +30,12 @@
   - Added regression tests that guard required builtin availability and prevent duplicate builtin-name entries
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Alias + OS/Path API Compatibility Contract (P1)**
+  - Added modular native handlers for declared OS/path builtins and path aliases to keep runtime API behavior stable
+  - Added queue/stack size parity builtins (`queue_size`, `stack_size`) with interpreter + VM-visible registration consistency
+  - Added integration tests for alias equivalence and path/collection API compatibility behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 ### Just Completed in v0.9.0 (Phase 1) ✅
 
 * **Bytecode VM Integration** 🚀
