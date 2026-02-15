@@ -99,6 +99,12 @@
   - Expanded release-hardening dispatcher coverage for migrated HTTP APIs and removed these entries from known dispatch gaps
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Database Module Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for declared database APIs: `db_connect`, `db_execute`, `db_query`, `db_close`, `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`, `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`
+  - Added contract tests for SQLite-backed query/execute flows, transaction lifecycle behavior, pool lifecycle behavior, and argument-shape validation
+  - Expanded release-hardening dispatcher coverage for migrated database APIs and removed these entries from known dispatch gaps
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback

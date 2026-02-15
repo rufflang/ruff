@@ -107,6 +107,12 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded dispatcher-level release-hardening contract coverage for migrated HTTP APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated HTTP APIs
 
+- **Database Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared database APIs (`db_connect`, `db_execute`, `db_query`, `db_close`, `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`, `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`)
+    - Added native-function regression tests for SQLite-backed connect/execute/query/close behavior, transaction lifecycle, pool lifecycle, and argument-shape/error-shape validation
+    - Expanded dispatcher-level release-hardening contract coverage for migrated database APIs
+    - Reduced exhaustive dispatch known-gap list by removing now-migrated database APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

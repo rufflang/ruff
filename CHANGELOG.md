@@ -135,6 +135,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - argument-shape validation errors
   - Expanded dispatcher-level hardening coverage for migrated HTTP APIs and reduced exhaustive known-gap list by removing migrated HTTP entries
 
+- **Release Hardening: Database Module Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handlers for declared database APIs:
+    - `db_connect`, `db_execute`, `db_query`, `db_close`
+    - `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`
+    - `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`
+  - Implemented database runtime behavior parity for sqlite/postgres/mysql connection variants, transaction lifecycle helpers, connection pooling contracts, and last-insert-ID retrieval
+  - Added comprehensive native-function coverage (SQLite-focused) for:
+    - connect/execute/query/close workflows
+    - transaction begin/commit/rollback flows
+    - pool acquire/release/stats/close behavior
+    - argument-shape validation errors
+  - Expanded dispatcher-level hardening coverage for migrated database APIs and reduced exhaustive known-gap list by removing migrated database entries
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management
