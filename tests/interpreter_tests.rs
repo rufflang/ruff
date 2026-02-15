@@ -226,6 +226,104 @@ fn test_queue_and_stack_size_contract() {
 }
 
 #[test]
+fn test_path_join_alias_argument_shape_contract() {
+    let interp_no_args_a = run_code("no_args_a := join_path()");
+    let interp_no_args_b = run_code("no_args_b := path_join()");
+    let interp_bad_type_a = run_code("bad_type_a := join_path(\"root\", 42)");
+    let interp_bad_type_b = run_code("bad_type_b := path_join(\"root\", 42)");
+
+    assert!(matches!(
+        interp_no_args_a.env.get("no_args_a"),
+        Some(Value::Error(message)) if message.contains("requires at least one string argument")
+    ));
+    assert!(matches!(
+        interp_no_args_b.env.get("no_args_b"),
+        Some(Value::Error(message)) if message.contains("requires at least one string argument")
+    ));
+    assert!(matches!(
+        interp_bad_type_a.env.get("bad_type_a"),
+        Some(Value::Error(message)) if message.contains("argument 2 must be a string")
+    ));
+    assert!(matches!(
+        interp_bad_type_b.env.get("bad_type_b"),
+        Some(Value::Error(message)) if message.contains("argument 2 must be a string")
+    ));
+}
+
+#[test]
+fn test_queue_and_stack_size_argument_shape_contract() {
+    let interp_q_missing = run_code("q_missing := queue_size()");
+    let interp_q_wrong = run_code("q_wrong := queue_size([1, 2])");
+    let interp_q_extra = run_code("q_extra := queue_size(Queue([1]), Queue([2]))");
+    let interp_s_missing = run_code("s_missing := stack_size()");
+    let interp_s_wrong = run_code("s_wrong := stack_size([1, 2])");
+    let interp_s_extra = run_code("s_extra := stack_size(Stack([1]), Stack([2]))");
+
+    assert!(matches!(
+        interp_q_missing.env.get("q_missing"),
+        Some(Value::Error(message)) if message.contains("expects 1 argument")
+    ));
+    assert!(matches!(
+        interp_q_wrong.env.get("q_wrong"),
+        Some(Value::Error(message)) if message.contains("requires a Queue argument")
+    ));
+    assert!(matches!(
+        interp_q_extra.env.get("q_extra"),
+        Some(Value::Error(message)) if message.contains("expects 1 argument")
+    ));
+
+    assert!(matches!(
+        interp_s_missing.env.get("s_missing"),
+        Some(Value::Error(message)) if message.contains("expects 1 argument")
+    ));
+    assert!(matches!(
+        interp_s_wrong.env.get("s_wrong"),
+        Some(Value::Error(message)) if message.contains("requires a Stack argument")
+    ));
+    assert!(matches!(
+        interp_s_extra.env.get("s_extra"),
+        Some(Value::Error(message)) if message.contains("expects 1 argument")
+    ));
+}
+
+#[test]
+fn test_promise_all_and_await_all_argument_shape_contract() {
+    let interp_p_non_array = run_code("p_non_array := promise_all(\"bad\")");
+    let interp_a_non_array = run_code("a_non_array := await_all(\"bad\")");
+    let interp_p_bad_limit = run_code("p_bad_limit := promise_all([async_sleep(1)], \"2\")");
+    let interp_a_bad_limit = run_code("a_bad_limit := await_all([async_sleep(1)], \"2\")");
+    let interp_p_zero_limit = run_code("p_zero_limit := promise_all([async_sleep(1)], 0)");
+    let interp_a_zero_limit = run_code("a_zero_limit := await_all([async_sleep(1)], 0)");
+
+    assert!(matches!(
+        interp_p_non_array.env.get("p_non_array"),
+        Some(Value::Error(message)) if message.contains("requires an array of promises")
+    ));
+    assert!(matches!(
+        interp_a_non_array.env.get("a_non_array"),
+        Some(Value::Error(message)) if message.contains("requires an array of promises")
+    ));
+
+    assert!(matches!(
+        interp_p_bad_limit.env.get("p_bad_limit"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be an integer")
+    ));
+    assert!(matches!(
+        interp_a_bad_limit.env.get("a_bad_limit"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be an integer")
+    ));
+
+    assert!(matches!(
+        interp_p_zero_limit.env.get("p_zero_limit"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be > 0")
+    ));
+    assert!(matches!(
+        interp_a_zero_limit.env.get("a_zero_limit"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be > 0")
+    ));
+}
+
+#[test]
 fn test_field_assignment_struct() {
     let code = r#"
         struct Person {
