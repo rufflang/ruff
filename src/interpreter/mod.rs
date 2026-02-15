@@ -374,6 +374,11 @@ impl Interpreter {
             "to_camel_case",
             "to_snake_case",
             "to_kebab_case",
+            "index_of",
+            "repeat",
+            "char_at",
+            "is_empty",
+            "count_chars",
             // Array functions
             "push",
             "append",
@@ -414,8 +419,6 @@ impl Interpreter {
             "items",
             "has_key",
             "get",
-            "remove",
-            "clear",
             "merge",
             // Advanced dict methods
             "invert",
@@ -430,6 +433,7 @@ impl Interpreter {
             "to_float",
             "to_string",
             "to_bool",
+            "bytes",
             // Type checking functions
             "type",
             "is_int",
@@ -562,6 +566,11 @@ impl Interpreter {
             "db_execute",
             "db_query",
             "db_close",
+            "db_pool",
+            "db_pool_acquire",
+            "db_pool_release",
+            "db_pool_stats",
+            "db_pool_close",
             "db_begin",
             "db_commit",
             "db_rollback",
@@ -651,6 +660,18 @@ impl Interpreter {
             // Process management functions
             "spawn_process",
             "pipe_commands",
+            // Network functions
+            "tcp_listen",
+            "tcp_accept",
+            "tcp_connect",
+            "tcp_send",
+            "tcp_receive",
+            "tcp_close",
+            "tcp_set_nonblocking",
+            "udp_bind",
+            "udp_send_to",
+            "udp_receive_from",
+            "udp_close",
         ]
     }
 

@@ -12,6 +12,7 @@
 use ruff::interpreter::{Environment, Interpreter, Value};
 use ruff::lexer::tokenize;
 use ruff::parser::Parser;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 fn unique_shared_key(prefix: &str) -> String {
@@ -27,6 +28,48 @@ fn run_code(code: &str) -> Interpreter {
     interp.eval_stmts(&program);
     interp
 }
+
+#[test]
+fn test_builtin_names_include_release_hardening_contract_entries() {
+    let builtins: HashSet<&str> = Interpreter::get_builtin_names().into_iter().collect();
+
+    let required = vec![
+        "bytes",
+        "index_of",
+        "repeat",
+        "char_at",
+        "is_empty",
+        "count_chars",
+        "db_pool",
+        "db_pool_acquire",
+        "db_pool_release",
+        "db_pool_stats",
+        "db_pool_close",
+        "tcp_listen",
+        "tcp_accept",
+        "tcp_connect",
+        "tcp_send",
+        "tcp_receive",
+        "tcp_close",
+        "tcp_set_nonblocking",
+        "udp_bind",
+        "udp_send_to",
+        "udp_receive_from",
+        "udp_close",
+    ];
+
+    for name in required {
+        assert!(builtins.contains(name), "Missing builtin from API contract: {}", name);
+    }
+}
+
+#[test]
+fn test_builtin_names_do_not_contain_duplicates() {
+    let names = Interpreter::get_builtin_names();
+    let unique: HashSet<&str> = names.iter().copied().collect();
+    assert_eq!(names.len(), unique.len(), "Duplicate names found in builtin API list");
+}
+
 #[test]
 fn test_field_assignment_struct() {
     let code = r#"
