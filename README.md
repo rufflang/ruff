@@ -10,6 +10,13 @@
 
 ## Project Status
 
+### v0.10.0 Architecture Cleanup Progress ✅
+
+* **Leaky Function Body Drop Path Removed (P2)**
+  - Runtime function body storage now uses iterative statement-tree drop traversal instead of leak-on-drop behavior
+  - Deeply nested function bodies remain safe to release without recursive drop stack overflows
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 ### Just Completed in v0.9.0 (Phase 1) ✅
 
 * **Bytecode VM Integration** 🚀

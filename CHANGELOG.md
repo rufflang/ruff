@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Architecture Cleanup: LeakyFunctionBody Replaced with Iterative Drop Traversal (P2)**:
+  - Replaced leak-on-drop `LeakyFunctionBody` storage with `Arc`-backed managed storage and custom iterative drop traversal
+  - Eliminated deliberate function-body memory leakage while preserving deep-nesting safety during drop
+  - Added coverage for:
+    - deep nested function-body drop regression (`20,000` nested loop statements)
+    - clone/drop lifecycle safety
+    - function-body content retention behavior
+
 - **Channel Method Calls in VM/JIT**:
   - Fixed `Cannot access field on non-struct` error when calling channel methods (`send`, `receive`)
   - Added Channel support to VM's `FieldGet` opcode

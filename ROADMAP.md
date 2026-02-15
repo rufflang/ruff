@@ -39,16 +39,7 @@ This roadmap intentionally tracks only upcoming items.
 
 ## v0.10.0 - Architecture Cleanup Tasks (P2)
 
-These are planned post-v0.9.0 and are candidates for v0.10.0 scope.
-
-### Fix LeakyFunctionBody (P2)
-
-**Status**: Planned  
-**Estimated Effort**: Medium (1-2 weeks)
-
-**Problem**: Memory leak from recursive drop on deeply nested function bodies.
-
-**Solution**: Implement iterative drop traversal or arena allocation.
+These are the remaining architecture cleanup tasks for v0.10.0 scope.
 
 ---
 
