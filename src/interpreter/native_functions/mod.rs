@@ -105,6 +105,15 @@ mod tests {
             "ssg_render_pages",
             "contains",
             "index_of",
+            "io_read_bytes",
+            "io_write_bytes",
+            "io_append_bytes",
+            "io_read_at",
+            "io_write_at",
+            "io_seek_read",
+            "io_file_metadata",
+            "io_truncate",
+            "io_copy_range",
             "join_path",
             "path_join",
             "queue_size",
@@ -140,15 +149,6 @@ mod tests {
         let skip_probe_names = ["input", "exit", "sleep", "execute"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps = vec![
-            "io_read_bytes".to_string(),
-            "io_write_bytes".to_string(),
-            "io_append_bytes".to_string(),
-            "io_read_at".to_string(),
-            "io_write_at".to_string(),
-            "io_seek_read".to_string(),
-            "io_file_metadata".to_string(),
-            "io_truncate".to_string(),
-            "io_copy_range".to_string(),
             "http_get".to_string(),
             "http_post".to_string(),
             "http_put".to_string(),
@@ -259,5 +259,25 @@ mod tests {
             ],
         );
         assert!(matches!(index_of_array, Value::Int(1)));
+    }
+
+    #[test]
+    fn test_release_hardening_io_module_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let read_bytes_missing = call_native_function(&mut interpreter, "io_read_bytes", &[]);
+        assert!(
+            matches!(read_bytes_missing, Value::Error(message) if message.contains("requires two arguments: path and count"))
+        );
+
+        let read_at_missing = call_native_function(&mut interpreter, "io_read_at", &[]);
+        assert!(
+            matches!(read_at_missing, Value::Error(message) if message.contains("requires three arguments: path, offset, and count"))
+        );
+
+        let copy_range_missing = call_native_function(&mut interpreter, "io_copy_range", &[]);
+        assert!(
+            matches!(copy_range_missing, Value::Error(message) if message.contains("requires four arguments: source, dest, offset, and count"))
+        );
     }
 }
