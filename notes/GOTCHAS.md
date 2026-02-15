@@ -345,6 +345,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-13_23-03_bench-ssg-harness-and-cwd-tmp-gotchas.md)
 
+### `bench-ssg` timing comparisons are noisy; use Ruff-only stage profiling for optimization signals
+- **Problem:** Single-run `bench-ssg --compare-python` numbers can swing significantly between runs, obscuring whether a Ruff-side optimization helped.
+- **Rule:** For Ruff runtime optimization decisions, compare `ruff bench-ssg --profile-async` before/after in the same environment and use multiple runs when possible.
+- **Why:** Cross-language runs include additional contention/variability (filesystem cache state and two sequential workloads), while Ruff-only stage profiling isolates Ruff-side changes.
+- **Implication:** Treat one-off compare-python numbers as trend indicators, not hard pass/fail gates for micro-optimizations.
+
+(Discovered during: 2026-02-15_08-36_native-ssg-render-builtin-optimization.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.

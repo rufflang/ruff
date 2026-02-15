@@ -18,6 +18,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Native Bulk SSG Rendering Builtin (P0 Optimization step)**:
+  - Added `ssg_render_pages(source_pages)` native function for high-volume static page wrapping
+  - Returns a dictionary with:
+    - `pages`: rendered HTML page array
+    - `checksum`: aggregate output checksum for benchmark equivalence checks
+  - Updated `benchmarks/cross-language/bench_ssg.ruff` to use native bulk rendering before `async_write_files(...)`
+  - Added comprehensive validation tests in `src/interpreter/native_functions/strings.rs` for:
+    - valid page rendering + checksum behavior
+    - non-array input errors
+    - non-string page element errors
+    - invalid argument count errors
+  - Measured Ruff-only `bench-ssg --profile-async` impact (10,000 files, local run):
+    - Before native rendering: `33,107.557 ms` (`302.05 files/sec`)
+    - After native rendering: `23,178.914 ms` (`431.43 files/sec`)
+    - Improvement: ~`29.99%` faster total build time in this benchmark path
+
 - **Bulk Async File I/O Builtins for SSG-Scale Workloads (P0 Optimization step)**:
   - Added `async_read_files(paths, concurrency_limit?)` for bounded concurrent multi-file reads
   - Added `async_write_files(paths, contents, concurrency_limit?)` for bounded concurrent multi-file writes

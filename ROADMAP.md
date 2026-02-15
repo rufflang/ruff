@@ -248,6 +248,7 @@ Value::Promise { receiver, .. } => {
 - [x] Optimize Promise creation/resolution overhead (`parallel_map` mixed-result fast path + reduced Promise.all allocation churn)
 - [x] Add caching for frequently-awaited operations (`Promise.all` / `parallel_map` now reuse cached promise results)
 - [x] Add bulk async file operations (`async_read_files` / `async_write_files`) and migrate SSG harness to reduce per-file promise overhead
+- [x] Offload SSG page wrapping to native bulk rendering (`ssg_render_pages`) to reduce interpreter-side render-loop overhead
 - [x] Test scalability with 10K+ concurrent operations (comprehensive tests added - all pass in <3s)
 
 ### Success Criteria
@@ -262,7 +263,7 @@ Value::Promise { receiver, .. } => {
 
 **SSG Benchmark**:
 - Baseline (synchronous): 55 seconds
-- Current (`ruff bench-ssg --compare-python`): 64.27 seconds (Ruff), 3.64 seconds (Python baseline) ❌
+- Current (`ruff bench-ssg --compare-python`): 36.26 seconds (Ruff), 7.71 seconds (Python baseline) ❌
 - Phase 1 target (batching): <10 seconds
 - Phase 2 target (async VM): <5 seconds
 - Stretch goal (optimal): <1 second
@@ -546,4 +547,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*Last Updated: February 13, 2026*
+*Last Updated: February 15, 2026*

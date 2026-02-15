@@ -141,6 +141,7 @@
   - **Async HTTP**: `async_http_get(url)`, `async_http_post(url, body, headers?)` ✅
   - **Async File I/O**: `async_read_file(path)`, `async_write_file(path, content)` ✅
   - **Bulk Async File I/O**: `async_read_files(paths, concurrency_limit?)`, `async_write_files(paths, contents, concurrency_limit?)` ✅
+  - **Native Bulk SSG Rendering**: `ssg_render_pages(source_pages)` for high-volume HTML wrapping + checksum aggregation ✅
   - **Task Management**: `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)` ✅
   - **Promise Coordination**: `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)` ✅
   - **Parallel Mapping**: `parallel_map(array, func, concurrency_limit?)` ✅
@@ -177,6 +178,9 @@
 
     # Bulk async file operations for high-volume pipelines
     let markdown_pages := await async_read_files(source_paths, 128)
+    rendered := ssg_render_pages(markdown_pages)
+    html_pages := rendered["pages"]
+    checksum := rendered["checksum"]
     await async_write_files(output_paths, html_pages, 128)
 
     # Short aliases for parallel workflows
