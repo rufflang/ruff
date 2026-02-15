@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-15_17-13_release-hardening-modular-dispatch-gap-closures.md** — ✅ COMPLETED: Closed iterative v0.10 release-hardening modular dispatch gaps for string polymorphic APIs (`contains`/`index_of`), advanced `io_*`, declared HTTP APIs, and declared `db_*` APIs; added module+dispatcher contract coverage and captured migration-ledger + SQLite-first DB testing gotchas.
+
 - **2026-02-15_16-17_release-hardening-dispatch-gap-slices.md** — ✅ COMPLETED: Implemented iterative v0.10 dispatch hardening slices (par_each contract expansion, exhaustive drift guard + safe probe policy, modular migration of system env/args APIs, data-format/encoding APIs, and regex APIs), added targeted regression coverage, and documented migration-ledger testing rules.
 
 - **2026-02-15_09-51_release-hardening-native-dispatch-contract.md** — ✅ COMPLETED: Hardened v0.10.0 native dispatcher behavior by replacing silent unknown-native fallback with explicit runtime errors, added dispatcher-level regression coverage for high-risk recently added builtins, and documented dual-target test-output expectations.

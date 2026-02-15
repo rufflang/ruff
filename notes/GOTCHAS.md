@@ -724,6 +724,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_16-17_release-hardening-dispatch-gap-slices.md)
 
+### Database hardening tests should anchor on SQLite for deterministic CI
+
+- **Problem:** Modular `db_*` handlers support sqlite/postgres/mysql, but test environments typically do not guarantee live Postgres/MySQL services.
+- **Rule:** Validate dispatch/contract behavior with SQLite-backed tests first; keep Postgres/MySQL paths implemented but avoid hard test dependencies on external DB infrastructure.
+- **Why:** SQLite runs in-process and makes argument-shape, transaction, pool, and query contract tests stable and reproducible.
+- **Implication:** Use SQLite for baseline regression confidence, then treat Postgres/MySQL integration verification as environment-specific follow-up work.
+
+(Discovered during: 2026-02-15_17-13_release-hardening-modular-dispatch-gap-closures.md)
+
 ### Value enum cannot derive PartialEq due to interior mutability
 
 - **Problem:** Cannot use `assert_eq!(value1, value2)` in tests - compiler error about missing PartialEq
