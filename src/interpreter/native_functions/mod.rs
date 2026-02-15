@@ -131,4 +131,125 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_release_hardening_builtin_dispatch_coverage_for_declared_builtins() {
+        let mut interpreter = Interpreter::new();
+        let skip_probe_names = ["input", "exit", "sleep", "execute"];
+        let mut unknown_builtin_names = Vec::new();
+        let expected_known_legacy_dispatch_gaps = vec![
+            "contains".to_string(),
+            "index_of".to_string(),
+            "io_read_bytes".to_string(),
+            "io_write_bytes".to_string(),
+            "io_append_bytes".to_string(),
+            "io_read_at".to_string(),
+            "io_write_at".to_string(),
+            "io_seek_read".to_string(),
+            "io_file_metadata".to_string(),
+            "io_truncate".to_string(),
+            "io_copy_range".to_string(),
+            "parse_json".to_string(),
+            "to_json".to_string(),
+            "parse_toml".to_string(),
+            "to_toml".to_string(),
+            "parse_yaml".to_string(),
+            "to_yaml".to_string(),
+            "parse_csv".to_string(),
+            "to_csv".to_string(),
+            "encode_base64".to_string(),
+            "decode_base64".to_string(),
+            "env".to_string(),
+            "env_or".to_string(),
+            "env_int".to_string(),
+            "env_float".to_string(),
+            "env_bool".to_string(),
+            "env_required".to_string(),
+            "env_set".to_string(),
+            "env_list".to_string(),
+            "args".to_string(),
+            "arg_parser".to_string(),
+            "regex_match".to_string(),
+            "regex_find_all".to_string(),
+            "regex_replace".to_string(),
+            "regex_split".to_string(),
+            "http_get".to_string(),
+            "http_post".to_string(),
+            "http_put".to_string(),
+            "http_delete".to_string(),
+            "http_get_binary".to_string(),
+            "http_get_stream".to_string(),
+            "http_server".to_string(),
+            "http_response".to_string(),
+            "json_response".to_string(),
+            "html_response".to_string(),
+            "redirect_response".to_string(),
+            "set_header".to_string(),
+            "set_headers".to_string(),
+            "db_connect".to_string(),
+            "db_execute".to_string(),
+            "db_query".to_string(),
+            "db_close".to_string(),
+            "db_pool".to_string(),
+            "db_pool_acquire".to_string(),
+            "db_pool_release".to_string(),
+            "db_pool_stats".to_string(),
+            "db_pool_close".to_string(),
+            "db_begin".to_string(),
+            "db_commit".to_string(),
+            "db_rollback".to_string(),
+            "db_last_insert_id".to_string(),
+            "Set".to_string(),
+            "load_image".to_string(),
+            "zip_create".to_string(),
+            "zip_add_file".to_string(),
+            "zip_add_dir".to_string(),
+            "zip_close".to_string(),
+            "unzip".to_string(),
+            "sha256".to_string(),
+            "md5".to_string(),
+            "md5_file".to_string(),
+            "hash_password".to_string(),
+            "verify_password".to_string(),
+            "aes_encrypt".to_string(),
+            "aes_decrypt".to_string(),
+            "aes_encrypt_bytes".to_string(),
+            "aes_decrypt_bytes".to_string(),
+            "rsa_generate_keypair".to_string(),
+            "rsa_encrypt".to_string(),
+            "rsa_decrypt".to_string(),
+            "rsa_sign".to_string(),
+            "rsa_verify".to_string(),
+            "spawn_process".to_string(),
+            "pipe_commands".to_string(),
+            "tcp_listen".to_string(),
+            "tcp_accept".to_string(),
+            "tcp_connect".to_string(),
+            "tcp_send".to_string(),
+            "tcp_receive".to_string(),
+            "tcp_close".to_string(),
+            "tcp_set_nonblocking".to_string(),
+            "udp_bind".to_string(),
+            "udp_send_to".to_string(),
+            "udp_receive_from".to_string(),
+            "udp_close".to_string(),
+        ];
+
+        for builtin_name in Interpreter::get_builtin_names() {
+            if skip_probe_names.contains(&builtin_name) {
+                continue;
+            }
+
+            let result = call_native_function(&mut interpreter, builtin_name, &[]);
+            if is_unknown_native_error(&result) {
+                unknown_builtin_names.push(builtin_name.to_string());
+            }
+        }
+
+        assert_eq!(
+            unknown_builtin_names,
+            expected_known_legacy_dispatch_gaps,
+            "Declared builtin dispatch drift changed. If a gap was fixed, remove it from expected list; if a new gap appeared, investigate and either fix dispatch or explicitly acknowledge it here."
+        );
+    }
 }
