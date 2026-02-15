@@ -53,6 +53,11 @@
   - Added integration argument-shape/error-shape parity tests for shared-value APIs, map aliases, and task-pool sizing APIs
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **`par_each(...)` Alias Contract Coverage Follow-Through (P1)**
+  - Added release-hardening dispatch coverage so `par_each` cannot silently regress into unknown-native fallback
+  - Added argument-shape/error-shape contract tests for `par_each(...)`, including parity checks against `parallel_map(...)`
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback

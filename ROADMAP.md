@@ -66,6 +66,10 @@ This roadmap intentionally tracks only upcoming items.
       - `shared_set/get/has/delete/add_int`
       - `set_task_pool_size(...)` / `get_task_pool_size(...)`
 
+- **`par_each(...)` Alias Contract Coverage Follow-Through (✅ Complete, February 2026)**
+    - Added release-hardening dispatch coverage so `par_each` cannot regress into unknown-native fallback
+    - Added argument-shape + error-shape contract coverage for `par_each(...)` and parity checks against `parallel_map(...)`
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

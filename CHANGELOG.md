@@ -61,6 +61,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `shared_*` APIs (arity, key type, integer delta validation)
     - task-pool sizing APIs (`set_task_pool_size(...)`, `get_task_pool_size(...)`)
 
+- **Release Hardening: `par_each(...)` Alias Contract Coverage Follow-Through (P1)**:
+  - Extended dispatcher-level unknown-native fallback coverage to include `par_each`
+  - Added async argument-shape and error-shape contract tests for `par_each(...)` covering:
+    - non-array input rejection
+    - non-callable mapper rejection
+    - invalid concurrency-limit rejection
+    - validation error-shape parity with `parallel_map(...)`
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management
