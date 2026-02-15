@@ -84,6 +84,11 @@ This roadmap intentionally tracks only upcoming items.
     - Added targeted native-function tests for round-trip behavior and argument-shape validation
     - Reduced exhaustive dispatch known-gap list by removing now-migrated data-format/encoding APIs
 
+- **Regex Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for `regex_match`, `regex_find_all`, `regex_replace`, and `regex_split`
+    - Added targeted native-function tests for regex behavior and argument-shape validation
+    - Reduced exhaustive dispatch known-gap list by removing now-migrated regex APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

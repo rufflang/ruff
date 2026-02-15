@@ -91,6 +91,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added dedicated native-function tests for round-trip behavior and argument-shape validation across data-format and Base64 APIs
   - Reduced exhaustive dispatch known-gap list by removing these migrated data-format/encoding APIs
 
+- **Release Hardening: Regex Modular Dispatch Gap Closure (P1)**:
+  - Added modular native handlers for:
+    - `regex_match`
+    - `regex_find_all`
+    - `regex_replace`
+    - `regex_split`
+  - Added native-function tests for regex match/find/replace/split behavior plus argument-shape validation
+  - Reduced exhaustive dispatch known-gap list by removing migrated regex APIs
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

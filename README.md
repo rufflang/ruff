@@ -75,6 +75,12 @@
   - Reduced exhaustive known-gap list as migrated data-format/encoding APIs moved under modular coverage
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Regex Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for `regex_match`, `regex_find_all`, `regex_replace`, and `regex_split`
+  - Added targeted tests for regex behavior and argument-shape validation
+  - Reduced exhaustive known-gap list as migrated regex APIs moved under modular coverage
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback
