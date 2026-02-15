@@ -18,6 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Bulk Async File I/O Builtins for SSG-Scale Workloads (P0 Optimization step)**:
+  - Added `async_read_files(paths, concurrency_limit?)` for bounded concurrent multi-file reads
+  - Added `async_write_files(paths, contents, concurrency_limit?)` for bounded concurrent multi-file writes
+  - Added comprehensive native-function coverage for:
+    - ordered multi-file read behavior
+    - full multi-file write + output verification
+    - input validation (path/content element types, array length mismatch, invalid concurrency limits)
+    - propagated I/O error behavior for missing files
+  - Updated `benchmarks/cross-language/bench_ssg.ruff` to use bulk async APIs instead of per-file promise arrays
+  - Measured impact on `ruff bench-ssg` (10,000 files, local run):
+    - Before: `57,685.809 ms` (`173.35 files/sec`)
+    - After: `51,713.739 ms` (`193.37 files/sec`)
+    - Improvement: ~`10.35%` faster Ruff build time in this benchmark path
+
 - **Spawn Parent-Binding Snapshot Capture (P0 shared-state milestone)**:
   - `spawn { ... }` now receives a transferable snapshot of parent bindings at spawn time
   - Spawned workers can reference parent-defined scalar/collection values (for example shared-store keys)
