@@ -79,6 +79,11 @@ This roadmap intentionally tracks only upcoming items.
     - Added targeted native-function tests for env contracts and ArgParser creation shape
     - Reduced exhaustive dispatch known-gap list by removing now-migrated system APIs
 
+- **Data-Format and Base64 Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for JSON/TOML/YAML/CSV parse/serialize APIs and Base64 encode/decode APIs
+    - Added targeted native-function tests for round-trip behavior and argument-shape validation
+    - Reduced exhaustive dispatch known-gap list by removing now-migrated data-format/encoding APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

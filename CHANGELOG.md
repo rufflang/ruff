@@ -81,6 +81,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added native-function tests for env round-trip behavior, env error-object behavior, and `arg_parser` struct-shape contract
   - Reduced exhaustive dispatch known-gap list by removing system env/args APIs now covered by modular dispatcher
 
+- **Release Hardening: Data-Format and Base64 Modular Dispatch Gap Closure (P1)**:
+  - Added modular native handlers for:
+    - `parse_json`, `to_json`
+    - `parse_toml`, `to_toml`
+    - `parse_yaml`, `to_yaml`
+    - `parse_csv`, `to_csv`
+    - `encode_base64`, `decode_base64`
+  - Added dedicated native-function tests for round-trip behavior and argument-shape validation across data-format and Base64 APIs
+  - Reduced exhaustive dispatch known-gap list by removing these migrated data-format/encoding APIs
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management
