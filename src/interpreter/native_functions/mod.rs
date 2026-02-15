@@ -69,5 +69,5 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
     }
 
     // Unknown function
-    Value::Int(0)
+    Value::Error(format!("Unknown native function: {}", name))
 }
