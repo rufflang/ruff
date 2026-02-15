@@ -697,14 +697,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md)
 
-### Unknown native fallback currently returns `Value::Int(0)` (silent failure risk)
+### Unknown native dispatch is fail-fast; unexpected `0` means builtin semantics, not dispatcher fallback
 
-- **Problem:** Missing native handler branches can degrade into non-obvious results instead of explicit errors.
-- **Rule:** When a declared builtin behaves unexpectedly (often `0`), verify handler coverage in modular native files before debugging call sites.
-- **Why:** `src/interpreter/native_functions/mod.rs` currently returns `Value::Int(0)` for unknown names.
-- **Implication:** API hardening should include explicit compatibility tests for declared builtins/aliases and consider future tightening of unknown-native behavior.
+- **Problem:** It is easy to keep debugging parser/call-site logic when a builtin appears to return `0`.
+- **Rule:** Unknown native names now return explicit errors (`Unknown native function: <name>`). If you still see `0`, investigate the builtin's own implementation path rather than dispatcher unknown-name fallback.
+- **Why:** `src/interpreter/native_functions/mod.rs` was hardened from silent `Value::Int(0)` fallback to `Value::Error(...)` for unknown names.
+- **Implication:** Keep dispatcher contract tests for high-risk builtins so registration/handler drift fails loudly.
 
-(Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md)
+(Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md; updated during: 2026-02-15_09-51_release-hardening-native-dispatch-contract.md)
 
 ### Value enum cannot derive PartialEq due to interior mutability
 

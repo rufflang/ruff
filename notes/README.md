@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-15_09-51_release-hardening-native-dispatch-contract.md** — ✅ COMPLETED: Hardened v0.10.0 native dispatcher behavior by replacing silent unknown-native fallback with explicit runtime errors, added dispatcher-level regression coverage for high-risk recently added builtins, and documented dual-target test-output expectations.
+
 - **2026-02-15_11-30_release-hardening-argument-shape-contract.md** — ✅ COMPLETED: Implemented v0.10.0 release-hardening API argument-shape contract updates for filesystem aliases (`join_path`/`path_join`) and collection size APIs (`queue_size`/`stack_size`), added async/filesystem/collections regression coverage, and documented runtime error short-circuit testing gotcha.
 
 - **2026-02-15_09-18_release-hardening-alias-api-contract.md** — ✅ COMPLETED: Hardened v0.10.0 API stability by fixing builtin declaration/dispatch drift, restoring missing OS/path + queue/stack API handlers in modular native functions, adding alias/API contract integration coverage, and documenting silent unknown-native fallback risks.
