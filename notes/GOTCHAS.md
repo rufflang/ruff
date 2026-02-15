@@ -684,6 +684,28 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-27_20-54_phase5-tokio-async-runtime.md)
 
+### Builtin declaration in `mod.rs` does NOT guarantee runtime implementation after modularization
+
+- **Problem:** A builtin can appear fully registered (`get_builtin_names`, `register_builtins`) but still behave incorrectly at runtime.
+- **Root cause:** Actual execution goes through `src/interpreter/native_functions/mod.rs` dispatcher; missing handler branches in category modules (`filesystem.rs`, `collections.rs`, etc.) are easy to miss.
+- **Rule:** For every builtin or alias, update all three surfaces:
+  1. `Interpreter::get_builtin_names()`
+  2. `Interpreter::register_builtins()`
+  3. Native handler match arm in the correct `src/interpreter/native_functions/*.rs` module
+- **Why:** Post-modularization API drift can pass superficial registration checks while failing behaviorally.
+- **Implication:** Prefer behavior-level contract tests (execute builtin and validate output), not name-list checks alone.
+
+(Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md)
+
+### Unknown native fallback currently returns `Value::Int(0)` (silent failure risk)
+
+- **Problem:** Missing native handler branches can degrade into non-obvious results instead of explicit errors.
+- **Rule:** When a declared builtin behaves unexpectedly (often `0`), verify handler coverage in modular native files before debugging call sites.
+- **Why:** `src/interpreter/native_functions/mod.rs` currently returns `Value::Int(0)` for unknown names.
+- **Implication:** API hardening should include explicit compatibility tests for declared builtins/aliases and consider future tightening of unknown-native behavior.
+
+(Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md)
+
 ### Value enum cannot derive PartialEq due to interior mutability
 
 - **Problem:** Cannot use `assert_eq!(value1, value2)` in tests - compiler error about missing PartialEq
