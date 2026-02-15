@@ -1310,6 +1310,14 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
         }
 
+        "queue_size" => {
+            if let Some(Value::Queue(queue)) = arg_values.first() {
+                Value::Int(queue.len() as i64)
+            } else {
+                Value::Int(0)
+            }
+        }
+
         "queue_to_array" => {
             if let Some(Value::Queue(queue)) = arg_values.first() {
                 Value::Array(Arc::new(queue.iter().cloned().collect()))
@@ -1363,6 +1371,14 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 Value::Bool(stack.is_empty())
             } else {
                 Value::Bool(true)
+            }
+        }
+
+        "stack_size" => {
+            if let Some(Value::Stack(stack)) = arg_values.first() {
+                Value::Int(stack.len() as i64)
+            } else {
+                Value::Int(0)
             }
         }
 

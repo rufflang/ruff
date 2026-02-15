@@ -1136,6 +1136,7 @@ impl Interpreter {
             "queue_is_empty".to_string(),
             Value::NativeFunction("queue_is_empty".to_string()),
         );
+        self.env.define("queue_size".to_string(), Value::NativeFunction("queue_size".to_string()));
         self.env.define(
             "queue_to_array".to_string(),
             Value::NativeFunction("queue_to_array".to_string()),
@@ -1150,6 +1151,7 @@ impl Interpreter {
             "stack_is_empty".to_string(),
             Value::NativeFunction("stack_is_empty".to_string()),
         );
+        self.env.define("stack_size".to_string(), Value::NativeFunction("stack_size".to_string()));
         self.env.define(
             "stack_to_array".to_string(),
             Value::NativeFunction("stack_to_array".to_string()),

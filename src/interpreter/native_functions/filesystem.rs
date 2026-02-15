@@ -3,6 +3,7 @@
 // Filesystem operation native functions
 
 use crate::interpreter::{AsyncRuntime, Interpreter, Value};
+use crate::{builtins, interpreter::DictMap};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
@@ -384,6 +385,131 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 }
             } else {
                 Value::Error("copy_file requires string arguments".to_string())
+            }
+        }
+
+        // OS module functions
+        "os_getcwd" => match std::env::current_dir() {
+            Ok(path) => Value::Str(Arc::new(path.to_string_lossy().to_string())),
+            Err(e) => Value::Error(format!("Cannot get current directory: {}", e)),
+        },
+
+        "os_chdir" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match std::env::set_current_dir(path.as_ref()) {
+                    Ok(_) => Value::Bool(true),
+                    Err(e) => Value::Error(format!(
+                        "Cannot change directory to '{}': {}",
+                        path.as_ref(),
+                        e
+                    )),
+                }
+            } else {
+                Value::Error("os_chdir requires a string argument (path)".to_string())
+            }
+        }
+
+        "os_rmdir" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match std::fs::remove_dir(path.as_ref()) {
+                    Ok(_) => Value::Bool(true),
+                    Err(e) => {
+                        Value::Error(format!("Cannot remove directory '{}': {}", path.as_ref(), e))
+                    }
+                }
+            } else {
+                Value::Error("os_rmdir requires a string argument (path)".to_string())
+            }
+        }
+
+        "os_environ" => {
+            let mut dict = DictMap::default();
+            for (key, value) in std::env::vars() {
+                dict.insert(Arc::<str>::from(key), Value::Str(Arc::new(value)));
+            }
+            Value::Dict(Arc::new(dict))
+        }
+
+        // Path operation functions
+        "join_path" | "path_join" => {
+            let parts: Vec<String> = arg_values
+                .iter()
+                .filter_map(|value| match value {
+                    Value::Str(s) => Some(s.as_ref().clone()),
+                    _ => None,
+                })
+                .collect();
+
+            if parts.is_empty() {
+                Value::Error(format!("{} requires at least one string argument", name))
+            } else {
+                Value::Str(Arc::new(builtins::join_path(&parts)))
+            }
+        }
+
+        "dirname" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                Value::Str(Arc::new(builtins::dirname(path.as_ref())))
+            } else {
+                Value::Error("dirname requires a string argument (path)".to_string())
+            }
+        }
+
+        "basename" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                Value::Str(Arc::new(builtins::basename(path.as_ref())))
+            } else {
+                Value::Error("basename requires a string argument (path)".to_string())
+            }
+        }
+
+        "path_exists" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                Value::Bool(builtins::path_exists(path.as_ref()))
+            } else {
+                Value::Error("path_exists requires a string argument (path)".to_string())
+            }
+        }
+
+        "path_absolute" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match std::fs::canonicalize(Path::new(path.as_ref())) {
+                    Ok(abs_path) => Value::Str(Arc::new(abs_path.to_string_lossy().to_string())),
+                    Err(e) => Value::Error(format!(
+                        "Cannot get absolute path for '{}': {}",
+                        path.as_ref(),
+                        e
+                    )),
+                }
+            } else {
+                Value::Error("path_absolute requires a string argument (path)".to_string())
+            }
+        }
+
+        "path_is_dir" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                Value::Bool(Path::new(path.as_ref()).is_dir())
+            } else {
+                Value::Error("path_is_dir requires a string argument (path)".to_string())
+            }
+        }
+
+        "path_is_file" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                Value::Bool(Path::new(path.as_ref()).is_file())
+            } else {
+                Value::Error("path_is_file requires a string argument (path)".to_string())
+            }
+        }
+
+        "path_extension" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match Path::new(path.as_ref()).extension() {
+                    Some(ext) => Value::Str(Arc::new(ext.to_string_lossy().to_string())),
+                    None => Value::Str(Arc::new(String::new())),
+                }
+            } else {
+                Value::Error("path_extension requires a string argument (path)".to_string())
             }
         }
 

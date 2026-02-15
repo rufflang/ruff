@@ -56,6 +56,21 @@ fn test_builtin_names_include_release_hardening_contract_entries() {
         "udp_send_to",
         "udp_receive_from",
         "udp_close",
+        "os_getcwd",
+        "os_chdir",
+        "os_rmdir",
+        "os_environ",
+        "join_path",
+        "dirname",
+        "basename",
+        "path_exists",
+        "path_join",
+        "path_absolute",
+        "path_is_dir",
+        "path_is_file",
+        "path_extension",
+        "queue_size",
+        "stack_size",
     ];
 
     for name in required {
@@ -68,6 +83,146 @@ fn test_builtin_names_do_not_contain_duplicates() {
     let names = Interpreter::get_builtin_names();
     let unique: HashSet<&str> = names.iter().copied().collect();
     assert_eq!(names.len(), unique.len(), "Duplicate names found in builtin API list");
+}
+
+#[test]
+fn test_builtin_aliases_match_canonical_behavior() {
+    let code = r#"
+        source := "HeLLo"
+        upper_a := to_upper(source)
+        upper_b := upper(source)
+
+        lower_a := to_lower(source)
+        lower_b := lower(source)
+
+        replace_a := replace_str("a-b-c", "-", "_")
+        replace_b := replace("a-b-c", "-", "_")
+    "#;
+
+    let interp = run_code(code);
+
+    match (interp.env.get("upper_a"), interp.env.get("upper_b")) {
+        (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
+        _ => panic!("Expected upper alias results to be strings"),
+    }
+
+    match (interp.env.get("lower_a"), interp.env.get("lower_b")) {
+        (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
+        _ => panic!("Expected lower alias results to be strings"),
+    }
+
+    match (interp.env.get("replace_a"), interp.env.get("replace_b")) {
+        (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
+        _ => panic!("Expected replace alias results to be strings"),
+    }
+}
+
+#[test]
+fn test_path_builtin_alias_and_core_operations() {
+    let unique = unique_shared_key("path_hardening");
+    let temp_dir = std::env::temp_dir().join(format!("ruff_{}", unique));
+    std::fs::create_dir_all(&temp_dir).expect("failed to create temp dir for path tests");
+    let temp_file = temp_dir.join("sample.txt");
+    std::fs::write(&temp_file, "hardening").expect("failed to write temp file");
+
+    let dir_str = temp_dir.to_string_lossy().to_string();
+    let file_str = temp_file.to_string_lossy().to_string();
+
+    let code = format!(
+        r#"
+        joined_a := join_path("{dir}", "sample.txt")
+        joined_b := path_join("{dir}", "sample.txt")
+        exists_flag := path_exists("{file}")
+        is_file_flag := path_is_file("{file}")
+        is_dir_flag := path_is_dir("{dir}")
+        ext := path_extension("{file}")
+        base := basename("{file}")
+        parent := dirname("{file}")
+        abs_path := path_absolute("{file}")
+    "#,
+        dir = dir_str,
+        file = file_str,
+    );
+
+    let interp = run_code(&code);
+
+    match (interp.env.get("joined_a"), interp.env.get("joined_b")) {
+        (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
+        _ => panic!("Expected join_path/path_join to return strings"),
+    }
+
+    match interp.env.get("exists_flag") {
+        Some(Value::Bool(v)) => assert!(v),
+        _ => panic!("Expected exists_flag bool true"),
+    }
+
+    match interp.env.get("is_file_flag") {
+        Some(Value::Bool(v)) => assert!(v),
+        _ => panic!("Expected is_file_flag bool true"),
+    }
+
+    match interp.env.get("is_dir_flag") {
+        Some(Value::Bool(v)) => assert!(v),
+        _ => panic!("Expected is_dir_flag bool true"),
+    }
+
+    match interp.env.get("ext") {
+        Some(Value::Str(v)) => assert_eq!("txt", v.as_ref()),
+        _ => panic!("Expected ext string"),
+    }
+
+    match interp.env.get("base") {
+        Some(Value::Str(v)) => assert_eq!("sample.txt", v.as_ref()),
+        _ => panic!("Expected base string"),
+    }
+
+    match interp.env.get("parent") {
+        Some(Value::Str(v)) => assert!(!v.is_empty()),
+        _ => panic!("Expected parent string"),
+    }
+
+    match interp.env.get("abs_path") {
+        Some(Value::Str(v)) => assert!(!v.is_empty()),
+        _ => panic!("Expected abs_path string"),
+    }
+
+    std::fs::remove_file(&temp_file).expect("failed to clean up temp file");
+    std::fs::remove_dir(&temp_dir).expect("failed to clean up temp dir");
+}
+
+#[test]
+fn test_queue_and_stack_size_contract() {
+    let code = r#"
+        q := Queue([1, 2, 3])
+        qs := queue_size(q)
+        qe := queue_is_empty(q)
+
+        s := Stack([1, 2, 3, 4])
+        ss := stack_size(s)
+        se := stack_is_empty(s)
+    "#;
+
+    let interp = run_code(code);
+
+    match interp.env.get("qs") {
+        Some(Value::Int(v)) => assert_eq!(3, v),
+        _ => panic!("Expected qs int"),
+    }
+
+    match interp.env.get("qe") {
+        Some(Value::Bool(v)) => assert!(!v),
+        _ => panic!("Expected qe bool"),
+    }
+
+    match interp.env.get("ss") {
+        Some(Value::Int(v)) => assert_eq!(4, v),
+        _ => panic!("Expected ss int"),
+    }
+
+    match interp.env.get("se") {
+        Some(Value::Bool(v)) => assert!(!v),
+        _ => panic!("Expected se bool"),
+    }
 }
 
 #[test]
