@@ -69,6 +69,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - invalid concurrency-limit rejection
     - validation error-shape parity with `parallel_map(...)`
 
+- **Release Hardening: Exhaustive Builtin Dispatch Drift Guard (P1)**:
+  - Added full declared-builtin dispatch contract coverage that iterates `Interpreter::get_builtin_names()` and probes modular native dispatch behavior
+  - Added explicit test guard for known legacy dispatch gaps so newly introduced API drift is detected immediately
+  - Added safety skip list for side-effecting probes (`input`, `exit`, `sleep`, `execute`) to keep hardening checks deterministic in CI
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

@@ -58,6 +58,11 @@
   - Added argument-shape/error-shape contract tests for `par_each(...)`, including parity checks against `parallel_map(...)`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Exhaustive Builtin Dispatch Drift Guard (P1)**
+  - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
+  - Added explicit known legacy-gap guardrail plus safety skips for side-effecting probes (`input`, `exit`, `sleep`, `execute`)
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback

@@ -70,6 +70,10 @@ This roadmap intentionally tracks only upcoming items.
     - Added release-hardening dispatch coverage so `par_each` cannot regress into unknown-native fallback
     - Added argument-shape + error-shape contract coverage for `par_each(...)` and parity checks against `parallel_map(...)`
 
+- **Exhaustive Builtin Dispatch Drift Guard (✅ Complete, February 2026)**
+    - Added release-hardening test coverage that probes all declared builtins from `get_builtin_names()` against modular native dispatch
+    - Added explicit known-gap contract guardrail plus side-effect safety skips to detect new dispatch drift early while preserving deterministic CI behavior
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0
