@@ -11,13 +11,13 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 ## 🎯 What's Next (Priority Order)
 
 **IMMEDIATE (v0.10.0)**:
-1. **🔥 Parallel Processing / Concurrency (P0)** - critical real-world throughput work
-2. **🏗️ Architecture Cleanup (P1/P2)** - isolate runtime from AST and remove leaky internals
-3. **📦 Release Hardening (P1)** - stabilize APIs and prepare v1.0 trajectory
+1. **🏗️ Architecture Cleanup (P1/P2)** - isolate runtime from AST and remove leaky internals
+2. **📦 Release Hardening (P1)** - stabilize APIs and prepare v1.0 trajectory
+3. **🧪 Optional Static Typing Design (Exploratory)** - narrow design surface and implementation plan
 
 **AFTER v0.10.0**:
-4. **Developer Experience** - LSP, formatter, linter, package management
-5. **Optional Static Typing** - gradual typing exploration and optimization paths
+4. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus for v0.11.0
+5. **Developer Experience** - LSP, formatter, linter, package management
 
 ---
 
@@ -63,215 +63,47 @@ These are planned post-v0.9.0 and are candidates for v0.10.0 scope.
 
 ---
 
-## v0.10.0 - Parallel Processing & Concurrency (P0)
+## v0.11.0 - Parallel Processing & Concurrency (P0)
 
-**Focus**: Enable multicore parallelism for real-world I/O-bound workloads  
-**Timeline**: Q1 2026 (Before v1.0)  
+**Focus**: Deliver production-grade async throughput for large I/O-bound workloads (SSG priority)  
+**Timeline**: Q2-Q3 2026  
 **Priority**: P0 - CRITICAL for production performance perception  
-**Status**: ⚠️ IN PROGRESS - Async I/O infrastructure complete, but architecture limits prevent full performance gains
+**Status**: Planned (execution focus shifted from v0.10.0)
 
-### Current Implementation Status (2026-01-29)
+### Scope (Forward Work Only)
 
-**✅ COMPLETED**:
-- Tokio runtime integration (tokio 1.x)
-- VM stores tokio::runtime::Handle for spawning async tasks
-- Promise Value type includes task_handle for true async execution
-- File I/O operations now truly async using tokio::fs:
-  - `read_file()` - async file reading
-  - `write_file()` - async file writing
-  - `list_dir()` - async directory listing
-- `await_all()` utility function for concurrent promise execution
-- `await_all(promises, concurrency_limit)` / `promise_all(promises, concurrency_limit)` batching support
-- `parallel_map(array, func, concurrency_limit?)` for bounded concurrent mapping workflows
-- `par_map(array, func, concurrency_limit?)` alias for concise concurrent mapping syntax
-- `par_each(array, func, concurrency_limit?)` for concurrent side-effect workflows
-- Rayon-backed parallel mapping fast path for supported native mappers (`len`, `upper`/`to_upper`, `lower`/`to_lower`)
-- VM/JIT execution lane for `BytecodeFunction` closures passed to `parallel_map` / `par_map`
-- Configurable default async task pool sizing via `set_task_pool_size(size)` / `get_task_pool_size()`
-- Promises work correctly with await syntax
-- Small-scale concurrency performs well (10 files in 1.26ms = 126μs/file)
+Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
+v0.11.0 tracks only the remaining performance and architecture work.
 
-**❌ LIMITATIONS DISCOVERED**:
-- **VM Architecture Bottleneck**: Each `await` blocks the entire VM with `block_on()` (synchronous execution model)
-- **Large-scale concurrency overhead**: Spawning 10K+ tokio tasks has excessive overhead
-  - 10,001 files: 91 seconds (worse than 55s synchronous baseline!)
-  - Batching helps per-batch speed but batches process serially (196s total)
-- **Async functions still synchronous**: User-defined async functions don't spawn concurrent tasks
-- **No true parallelism**: Cannot utilize multiple CPU cores for parallel execution
+### Remaining High-Priority Workstreams
 
-### Problem Statement
+1. **Async VM Integration Completion**
+     - Make cooperative suspend/resume path the default execution model for async-heavy workflows.
+     - Remove remaining `block_on()` bottlenecks from VM await execution paths.
+     - Ensure user-defined async functions can execute with true concurrency semantics.
 
-**Current Situation**: 
-- JIT makes compute-heavy code 30-50x faster than Python ✅
-- File I/O operations are now truly async with tokio ✅
-- Small concurrent workloads perform well (10 files in 1.26ms) ✅
-- BUT: Large-scale concurrency is slower than sequential execution ❌
-  - SSG benchmark: 10,000 files processed in 91-196 seconds (async)
-  - SSG baseline: 55 seconds (synchronous)
-  - Python equivalent: 0.05 seconds (1000x faster!)
+2. **SSG Throughput Focus (Primary Benchmark Gate)**
+     - Continue reducing render/write overhead in `bench-ssg` execution path.
+     - Add additional native bulk helpers where script-level hot loops dominate.
+     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
 
-**Root Cause**:
-- VM's synchronous execution model: `block_on()` serializes all awaits
-- Each await opcode blocks the entire VM thread
-- Spawning 10K+ tasks simultaneously creates massive overhead
-- Python's `ProcessPoolExecutor` uses all CPU cores (8-10x parallel speedup)
-- Async functions in Ruff code still execute synchronously (not spawned as tasks)
-
-**Impact**: Without true async VM execution, Ruff appears "slow" on I/O-bound workloads despite having async infrastructure.
-
-### Next Steps to Complete Async Implementation
-
-The async infrastructure is in place but the VM architecture prevents full performance gains. Here are the options to proceed:
-
-#### ⭐ Recommended: Option 1 - Async VM Execution Model
-
-**Goal**: Remove `block_on()` from the VM's Await opcode to allow true concurrent execution.
-
-**What's Working Now**:
-- ✅ File I/O operations spawn tokio tasks and return Promises immediately
-- ✅ `await_all()` can wait for multiple promises concurrently
-- ✅ Small-scale concurrency performs well
-
-**The Bottleneck**:
-```rust
-// Current approach in vm.rs Await opcode (BLOCKS THE VM!)
-Value::Promise { receiver, .. } => {
-    self.runtime_handle.block_on(async {
-        receiver.recv().await  // This blocks the entire VM thread!
-    })
-}
-```
-
-**Solution**:
-1. **Make the VM itself async**: The entire VM execution loop needs to be async-aware
-2. **Replace `block_on()` with polling**: When hitting an await, save VM state and yield control
-3. **Implement cooperative scheduling**: VM can execute other tasks while waiting for I/O
-4. **Use tokio's select!/join! patterns**: Multiple VM contexts can run concurrently
-
-**Implementation Steps**:
-- [x] Refactor VM to support suspendable execution (save/restore VM state)
-- [x] Implement VM context switching for concurrent execution
-- [x] Change Await opcode to yield instead of block
-- [x] Add VM scheduler to manage multiple concurrent VM contexts
-- [x] Add and run reproducible SSG benchmark harness (`ruff bench-ssg`) for 10K-file async workload validation
-
-**Estimated Effort**: 2-3 weeks  
-**Complexity**: High (requires VM architecture changes)  
-**Impact**: Would enable true async/await performance
-
-#### Option 2 - Task Batching & Concurrency Limits
-
-**Goal**: Work within current VM constraints but optimize task spawning.
-
-**Approach**:
-- Implement semaphore-based concurrency limiting (e.g., max 100 concurrent tasks)
-- Batch large operations to avoid spawning 10K+ tasks at once
-- Add native functions for controlled parallel execution
-
-**Implementation Steps**:
-- [x] Add `parallel_map(array, func, concurrency_limit)` native function
-- [x] Implement batching-based task limiting in `promise_all` / `await_all` (optional `concurrency_limit`)
-- [x] Add configurable task pool sizing
-- [x] Optimize Promise.all for large arrays (removed per-promise await-task spawning overhead)
-
-**Estimated Effort**: 1 week  
-**Complexity**: Medium  
-**Impact**: Would improve large-scale performance but still limited by VM blocking
-
-#### Option 3 - Hybrid JIT + Parallel Execution
-
-**Goal**: Combine JIT compilation with parallel task execution.
-
-**Approach**:
-- Use Rayon-style parallel iterators for compute-heavy loops
-- JIT-compile loop bodies, execute in parallel across threads
-- Keep async I/O for truly async operations
-
-**Implementation Steps**:
-- [x] Integrate rayon for parallel iteration
-- [x] JIT-compile closures passed to parallel iterators
-- [x] Benchmark against Python's ProcessPoolExecutor via `ruff bench-cross` and cross-language benchmark artifacts
-
-**Estimated Effort**: 2-3 weeks  
-**Complexity**: High (JIT + threading)  
-**Impact**: Best of both worlds (JIT speed + parallelism)
-
-### Implementation Priority
-
-**RECOMMENDED PATH**: Start with **Option 2** (Task Batching) as a quick win, then pursue **Option 1** (Async VM) for full async/await performance.
-
-**Rationale**:
-- Option 2 can be completed in 1 week and provide immediate improvements
-- Option 2 doesn't require VM architecture changes
-- Option 1 is the "correct" long-term solution but requires significant refactoring
-- Option 3 is interesting but doesn't address async I/O bottleneck
-
-**Phase 1: Quick Wins (1 week) - Task Batching**
-- [x] Choose concurrency model (Implemented: Basic goroutine-style spawn)
-- [x] Implement `spawn` keyword and scheduler (Basic implementation complete)
-- [x] Add `channel()` for message passing (Implemented with send/receive methods)
-- [x] Fix VM/JIT support for channels (Bug fix: FieldGet now supports Channel methods)
-- [x] Implement `await_all()` for synchronization (Already implemented as alias for Promise.all)
-- [x] Thread-safe Value type operations (Implemented via shared-value builtins: `shared_set/get/has/delete/add_int`)
-- [x] Shared-state concurrency (Spawn now captures transferable parent binding snapshots for worker visibility)
-
-**Status Note**: Spawn/channel infrastructure now supports parent-binding snapshot visibility:
-- `spawn` workers receive transferable parent binding snapshots (readable in spawned code)
-- Shared state coordination is available through thread-safe shared-value builtins (`shared_set/get/has/delete/add_int`)
-- Parent scope write-back remains isolated by design (no implicit cross-thread mutation)
-- Future work can extend richer shared-state APIs beyond key-based shared-value coordination
-
-**Phase 2: Runtime Integration (1-2 weeks)**
-- [x] Integrate async runtime (tokio/smol) (Tokio already integrated)
-- [x] Make file I/O operations async-aware (Done: read_file, write_file, list_dir use tokio::fs)
-- [x] Add thread pool for blocking operations (Done: configurable task pool sizing)
-- [x] Ensure JIT-compiled code can run on any thread (Done: VM execution is thread-compatible)
-
-**Phase 3: Testing & Benchmarks (1 week)**
-- [x] Add concurrency test suite (Basic tests exist, expanded with scalability tests)
-- [x] Re-run SSG benchmark with parallelism (`ruff bench-ssg --compare-python`)
-- [ ] Target: 10K file SSG build in <1 second (using all cores)
-- [x] Add `parallel_map(array, func, limit)` with concurrency control
-- [x] Implement task limiting in `await_all` / `promise_all` with optional `concurrency_limit`
-- [x] Add configurable default task pool size controls (`set_task_pool_size` / `get_task_pool_size`)
-- [ ] Meet SSG benchmark phase target (<10 seconds)
-
-**Phase 2: Async VM (2-3 weeks) - True Async/Await**
-- [x] Design VM state save/restore mechanism
-- [x] Implement VM context for suspendable execution
-- [x] Change Await opcode from block_on() to yield/resume
-- [x] Add VM scheduler for managing concurrent contexts
-- [x] Test with SSG benchmark harness (`ruff bench-ssg`)
-
-**Phase 3: Optimization (1 week)**
-- [x] Profile async execution to find bottlenecks (`ruff bench-ssg --profile-async` stage breakdown + bottleneck summary)
-- [x] Optimize Promise creation/resolution overhead (`parallel_map` mixed-result fast path + reduced Promise.all allocation churn)
-- [x] Add caching for frequently-awaited operations (`Promise.all` / `parallel_map` now reuse cached promise results)
-- [x] Add bulk async file operations (`async_read_files` / `async_write_files`) and migrate SSG harness to reduce per-file promise overhead
-- [x] Offload SSG page wrapping to native bulk rendering (`ssg_render_pages`) to reduce interpreter-side render-loop overhead
-- [x] Test scalability with 10K+ concurrent operations (comprehensive tests added - all pass in <3s)
+3. **Benchmark Stability & Measurement Quality**
+     - Add repeat-run/median reporting to reduce one-off benchmark noise.
+     - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
+     - Keep cross-language runs (`--compare-python`) for directional trend tracking.
 
 ### Success Criteria
 
-- [ ] SSG benchmark: 10,000 files in <5 seconds (vs current 91s async, 55s sync)
-- [x] Small concurrent operations maintain good performance (10 files in ~1ms) ✅
-- [x] No regressions in correctness (all tests passing) ✅
-- [x] Clean API that's easy to understand and use ✅
-- [x] 10K+ scalability verified (tests pass in <3 seconds) ✅
+- `bench-ssg` Ruff build time: **<10 seconds** (phase target)
+- Stretch target: **<5 seconds**
+- No regressions in correctness (`cargo test` remains green)
+- Async API surface remains stable and documented
 
-### Performance Targets
+### Performance Snapshot (Tracking)
 
-**SSG Benchmark**:
-- Baseline (synchronous): 55 seconds
-- Current (`ruff bench-ssg --compare-python`): 36.26 seconds (Ruff), 7.71 seconds (Python baseline) ❌
-- Phase 1 target (batching): <10 seconds
-- Phase 2 target (async VM): <5 seconds
-- Stretch goal (optimal): <1 second
-
-**Microbenchmarks**:
-- Small concurrency (10 files): ~1.26ms ✅
-- Spawn overhead: <10ms per 100 tasks
-- Promise resolution: <100μs per promise
+- Baseline (synchronous): ~55 seconds
+- Current (`ruff bench-ssg --compare-python`): ~36 seconds (Ruff local sample)
+- Target (v0.11.0): <10 seconds
 
 ---
 
@@ -314,7 +146,7 @@ Typed code could enable 10-50x performance improvements through:
 
 ---
 
-## v0.11.0 - Developer Experience
+## v0.12.0 - Developer Experience
 
 **Focus**: World-class tooling for productivity  
 **Timeline**: Q3 2026  
@@ -534,10 +366,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Version Strategy
 
-- **v0.8.0**: VM + JIT foundation ✅
-- **v0.9.0**: JIT performance (beat Python) ← CURRENT
-- **v0.10.0**: Optional static typing (exploratory)
-- **v0.11.0**: Developer experience (LSP, package manager)
+- **v0.10.0**: Architecture cleanup + release hardening + typing exploration
+- **v0.11.0**: Parallel processing / concurrency performance (SSG focus)
+- **v0.12.0**: Developer experience (LSP, package manager)
 - **v1.0.0**: Production-ready 🎉
 
 **See Also**:
