@@ -1857,6 +1857,81 @@ mod tests {
     }
 
     #[test]
+    fn test_par_each_rejects_non_array_input() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Int(7),
+            Value::NativeFunction("len".to_string()),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "par_each", &args).unwrap();
+        match result {
+            Value::Error(msg) => {
+                assert!(msg.contains("first argument must be an array"));
+            }
+            _ => panic!("Expected Value::Error for non-array input"),
+        }
+    }
+
+    #[test]
+    fn test_par_each_rejects_non_callable_mapper() {
+        let mut interp = Interpreter::new();
+        let args = vec![Value::Array(Arc::new(vec![Value::Int(1)])), Value::Int(123)];
+
+        let result = handle(&mut interp, "par_each", &args).unwrap();
+        match result {
+            Value::Error(msg) => {
+                assert!(msg.contains("second argument must be a callable function"));
+            }
+            _ => panic!("Expected Value::Error for non-callable mapper"),
+        }
+    }
+
+    #[test]
+    fn test_par_each_validates_concurrency_limit() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![Value::Int(1)])),
+            Value::NativeFunction("len".to_string()),
+            Value::Int(0),
+        ];
+
+        let result = handle(&mut interp, "par_each", &args).unwrap();
+        match result {
+            Value::Error(msg) => {
+                assert!(msg.contains("concurrency_limit must be > 0"));
+            }
+            _ => panic!("Expected Value::Error for invalid concurrency limit"),
+        }
+    }
+
+    #[test]
+    fn test_par_each_alias_error_shape_matches_parallel_map_for_validation() {
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![Value::Int(1)])),
+            Value::NativeFunction("len".to_string()),
+            Value::Int(0),
+        ];
+
+        let parallel_map_result = handle(&mut interp, "parallel_map", &args).unwrap();
+        let par_each_result = handle(&mut interp, "par_each", &args).unwrap();
+
+        let parallel_message = match parallel_map_result {
+            Value::Error(msg) => msg,
+            other => panic!("Expected Value::Error from parallel_map validation, got {:?}", other),
+        };
+
+        let par_each_message = match par_each_result {
+            Value::Error(msg) => msg,
+            other => panic!("Expected Value::Error from par_each validation, got {:?}", other),
+        };
+
+        assert_eq!(par_each_message, parallel_message);
+    }
+
+    #[test]
     fn test_async_read_files_reads_multiple_files_in_order() {
         let temp_dir = unique_temp_dir("ruff_async_read_files");
         fs::create_dir_all(&temp_dir).unwrap();

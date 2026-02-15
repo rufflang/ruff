@@ -116,6 +116,7 @@ mod tests {
             "async_write_files",
             "promise_all",
             "await_all",
+            "par_each",
             "set_task_pool_size",
             "get_task_pool_size",
         ];
