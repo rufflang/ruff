@@ -32,18 +32,17 @@ start_ms := performance_now()
 source_pages := await async_read_files(source_paths, batch_size)
 read_stage_ms := performance_now() - start_ms
 
-checksum := 0
 output_paths := []
-html_pages := []
 i := 0
 while i < file_count {
     output_path := output_dir + "/post_" + to_string(i) + ".html"
-    html := "<html><body><h1>Post " + to_string(i) + "</h1><article>" + source_pages[i] + "</article></body></html>"
-    checksum := checksum + len(html)
     output_paths := push(output_paths, output_path)
-    html_pages := push(html_pages, html)
     i := i + 1
 }
+
+rendered := ssg_render_pages(source_pages)
+html_pages := rendered["pages"]
+checksum := rendered["checksum"]
 
 await async_write_files(output_paths, html_pages, batch_size)
 render_write_stage_ms := (performance_now() - start_ms) - read_stage_ms

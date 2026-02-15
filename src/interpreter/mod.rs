@@ -361,6 +361,7 @@ impl Interpreter {
             "replace",
             "split",
             "join",
+            "ssg_render_pages",
             "starts_with",
             "ends_with",
             "pad_left",
@@ -694,6 +695,10 @@ impl Interpreter {
         self.env.define("replace".to_string(), Value::NativeFunction("replace".to_string())); // Alias
         self.env.define("split".to_string(), Value::NativeFunction("split".to_string()));
         self.env.define("join".to_string(), Value::NativeFunction("join".to_string()));
+        self.env.define(
+            "ssg_render_pages".to_string(),
+            Value::NativeFunction("ssg_render_pages".to_string()),
+        );
         self.env
             .define("starts_with".to_string(), Value::NativeFunction("starts_with".to_string()));
         self.env.define("ends_with".to_string(), Value::NativeFunction("ends_with".to_string()));

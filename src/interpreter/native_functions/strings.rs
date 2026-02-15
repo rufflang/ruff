@@ -3,7 +3,7 @@
 // String manipulation native functions
 
 use crate::builtins;
-use crate::interpreter::Value;
+use crate::interpreter::{DictMap, Value};
 use std::sync::Arc;
 
 pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
@@ -202,6 +202,55 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                 Value::Str(Arc::new(builtins::join(&strings, &**separator)))
             } else {
                 Value::Str(Arc::new(String::new()))
+            }
+        }
+
+        "ssg_render_pages" => {
+            // ssg_render_pages(source_pages: Array<String>) -> Dict
+            // Returns { "pages": Array<String>, "checksum": Int }
+            if args.len() != 1 {
+                Value::Error(format!(
+                    "ssg_render_pages() expects 1 argument (array of source pages), got {}",
+                    args.len()
+                ))
+            } else {
+                match args.first() {
+                    Some(Value::Array(source_pages)) => {
+                        let mut rendered_pages = Vec::with_capacity(source_pages.len());
+                        let mut checksum: i64 = 0;
+
+                        for (index, page) in source_pages.iter().enumerate() {
+                            let source_body = match page {
+                                Value::Str(body) => body,
+                                _ => {
+                                    return Some(Value::Error(format!(
+                                        "ssg_render_pages() source page at index {} must be a string",
+                                        index
+                                    )));
+                                }
+                            };
+
+                            let index_str = index.to_string();
+                            let mut html = String::with_capacity(source_body.len() + 64);
+                            html.push_str("<html><body><h1>Post ");
+                            html.push_str(index_str.as_str());
+                            html.push_str("</h1><article>");
+                            html.push_str(source_body.as_ref());
+                            html.push_str("</article></body></html>");
+
+                            checksum += html.len() as i64;
+                            rendered_pages.push(Value::Str(Arc::new(html)));
+                        }
+
+                        let mut result = DictMap::default();
+                        result.insert("pages".into(), Value::Array(Arc::new(rendered_pages)));
+                        result.insert("checksum".into(), Value::Int(checksum));
+                        Value::Dict(Arc::new(result))
+                    }
+                    _ => Value::Error(
+                        "ssg_render_pages() requires an array of source page strings".to_string(),
+                    ),
+                }
             }
         }
 
