@@ -109,6 +109,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - array polymorphic dispatch behavior
   - Reduced exhaustive dispatch known-gap list by removing `contains` and `index_of`
 
+- **Release Hardening: IO Module Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handlers for advanced IO APIs:
+    - `io_read_bytes`, `io_write_bytes`, `io_append_bytes`
+    - `io_read_at`, `io_write_at`, `io_seek_read`
+    - `io_file_metadata`, `io_truncate`, `io_copy_range`
+  - Preserved legacy argument-shape/error-shape contracts (non-negative offset/count/size validation, typed path/bytes requirements, and consistent operation-specific failure messages)
+  - Added comprehensive native-function coverage for:
+    - read/write/append round-trip behavior
+    - offset-based read/write/seek behavior
+    - metadata and truncate behavior
+    - range-copy behavior
+    - argument-shape validation errors
+  - Expanded dispatcher-level hardening coverage for `io_*` APIs and reduced exhaustive known-gap list by removing migrated IO entries
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

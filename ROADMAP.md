@@ -95,6 +95,12 @@ This roadmap intentionally tracks only upcoming items.
     - Added targeted contract coverage for string success behavior plus argument-shape/error-shape validation
     - Reduced exhaustive dispatch known-gap list by removing migrated string APIs
 
+- **IO Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for advanced IO APIs (`io_read_bytes`, `io_write_bytes`, `io_append_bytes`, `io_read_at`, `io_write_at`, `io_seek_read`, `io_file_metadata`, `io_truncate`, `io_copy_range`)
+    - Added native-function regression tests for round-trip, offset, metadata/truncate, range-copy, and argument-shape/error-shape contracts
+    - Expanded dispatcher-level release-hardening contract coverage for migrated `io_*` APIs
+    - Reduced exhaustive dispatch known-gap list by removing now-migrated IO APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

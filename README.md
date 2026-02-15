@@ -87,6 +87,12 @@
   - Added dispatcher and native-function contract tests for behavior, argument-shape, and error-shape coverage
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **IO Module Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for advanced IO APIs: `io_read_bytes`, `io_write_bytes`, `io_append_bytes`, `io_read_at`, `io_write_at`, `io_seek_read`, `io_file_metadata`, `io_truncate`, `io_copy_range`
+  - Added contract tests covering round-trip read/write flows, offset-based operations, metadata/truncate behavior, range-copy behavior, and argument-shape validation
+  - Expanded release-hardening dispatcher contract coverage for migrated `io_*` APIs and removed these entries from known dispatch gaps
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback
