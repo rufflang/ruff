@@ -127,6 +127,19 @@ mod tests {
             "redirect_response",
             "set_header",
             "set_headers",
+            "db_connect",
+            "db_execute",
+            "db_query",
+            "db_close",
+            "db_pool",
+            "db_pool_acquire",
+            "db_pool_release",
+            "db_pool_stats",
+            "db_pool_close",
+            "db_begin",
+            "db_commit",
+            "db_rollback",
+            "db_last_insert_id",
             "join_path",
             "path_join",
             "queue_size",
@@ -162,19 +175,6 @@ mod tests {
         let skip_probe_names = ["input", "exit", "sleep", "execute"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps = vec![
-            "db_connect".to_string(),
-            "db_execute".to_string(),
-            "db_query".to_string(),
-            "db_close".to_string(),
-            "db_pool".to_string(),
-            "db_pool_acquire".to_string(),
-            "db_pool_release".to_string(),
-            "db_pool_stats".to_string(),
-            "db_pool_close".to_string(),
-            "db_begin".to_string(),
-            "db_commit".to_string(),
-            "db_rollback".to_string(),
-            "db_last_insert_id".to_string(),
             "Set".to_string(),
             "load_image".to_string(),
             "zip_create".to_string(),
@@ -301,5 +301,25 @@ mod tests {
             &[Value::Int(200), Value::Str(std::sync::Arc::new("ok".to_string()))],
         );
         assert!(matches!(response_shape, Value::HttpResponse { status, .. } if status == 200));
+    }
+
+    #[test]
+    fn test_release_hardening_database_module_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let connect_missing = call_native_function(&mut interpreter, "db_connect", &[]);
+        assert!(
+            matches!(connect_missing, Value::Error(message) if message.contains("db_connect requires database type"))
+        );
+
+        let execute_missing = call_native_function(&mut interpreter, "db_execute", &[]);
+        assert!(
+            matches!(execute_missing, Value::Error(message) if message.contains("db_execute requires a database connection"))
+        );
+
+        let pool_missing = call_native_function(&mut interpreter, "db_pool", &[]);
+        assert!(
+            matches!(pool_missing, Value::Error(message) if message.contains("db_pool requires database type and connection string"))
+        );
     }
 }
