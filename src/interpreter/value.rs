@@ -13,7 +13,6 @@ use rusqlite::Connection as SqliteConnection;
 use std::collections::HashMap;
 use std::fs::File;
 use std::hash::BuildHasherDefault;
-use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use zip::ZipWriter;
 
@@ -35,27 +34,126 @@ pub type DenseIntDictIntFull = Vec<i64>;
 /// Hash map for string-keyed dictionaries.
 pub type DictMap = HashMap<Arc<str>, Value, BuildHasherDefault<AHasher>>;
 
-/// Wrapper type for function bodies that prevents deep recursion during drop.
+/// Stores function bodies and drops deeply nested statement trees iteratively.
 ///
-/// The issue: Function bodies are Vec<Stmt>, and Stmt contains nested Vec<Stmt>
-/// (in For, If, While, etc.). When Rust's automatic drop runs during program cleanup,
-/// it recurses deeply through these structures, causing stack overflow.
+/// Function bodies can contain very deep nesting through statements like loops,
+/// `if`, `match`, and nested function definitions. Rust's default drop is recursive
+/// for this shape and can overflow the stack at shutdown or when large AST graphs
+/// are released.
 ///
-/// Solution: This wrapper uses ManuallyDrop to prevent automatic dropping of the Arc.
-/// The memory will be leaked, but since this only happens during program shutdown,
-/// the OS will reclaim all memory anyway.
-///
-/// TODO (Roadmap Task #29): Replace with iterative drop or arena allocation
+/// This container keeps existing call sites stable while replacing the old
+/// leak-on-drop strategy with a non-recursive drop traversal.
 #[derive(Clone)]
-pub struct LeakyFunctionBody(ManuallyDrop<Arc<Vec<Stmt>>>);
+pub struct LeakyFunctionBody(Arc<FunctionBodyStorage>);
+
+#[derive(Clone)]
+struct FunctionBodyStorage {
+    body: Vec<Stmt>,
+}
+
+impl Drop for FunctionBodyStorage {
+    fn drop(&mut self) {
+        let body = std::mem::take(&mut self.body);
+        drop_stmt_tree_iterative(body);
+    }
+}
+
+fn drop_stmt_tree_iterative(root: Vec<Stmt>) {
+    let mut stack = root;
+
+    while let Some(mut stmt) = stack.pop() {
+        match &mut stmt {
+            Stmt::FuncDef { body, .. }
+            | Stmt::Loop { body, .. }
+            | Stmt::For { body, .. }
+            | Stmt::While { body, .. }
+            | Stmt::Block(body)
+            | Stmt::Spawn { body }
+            | Stmt::Test { body, .. }
+            | Stmt::TestSetup { body }
+            | Stmt::TestTeardown { body } => {
+                stack.extend(std::mem::take(body));
+            }
+            Stmt::Match { cases, default, .. } => {
+                for (_, case_body) in std::mem::take(cases) {
+                    stack.extend(case_body);
+                }
+                if let Some(default_body) = default.take() {
+                    stack.extend(default_body);
+                }
+            }
+            Stmt::If { then_branch, else_branch, .. } => {
+                stack.extend(std::mem::take(then_branch));
+                if let Some(else_body) = else_branch.take() {
+                    stack.extend(else_body);
+                }
+            }
+            Stmt::TryExcept { try_block, except_block, .. } => {
+                stack.extend(std::mem::take(try_block));
+                stack.extend(std::mem::take(except_block));
+            }
+            Stmt::Export { stmt } => {
+                let inner_stmt = std::mem::replace(stmt, Box::new(Stmt::Block(Vec::new())));
+                stack.push(*inner_stmt);
+            }
+            Stmt::StructDef { methods, .. } | Stmt::TestGroup { tests: methods, .. } => {
+                stack.extend(std::mem::take(methods));
+            }
+            Stmt::Let { .. }
+            | Stmt::Const { .. }
+            | Stmt::Assign { .. }
+            | Stmt::EnumDef { .. }
+            | Stmt::ExprStmt(_)
+            | Stmt::Return(_)
+            | Stmt::Break
+            | Stmt::Continue
+            | Stmt::Import { .. } => {}
+        }
+    }
+}
 
 impl LeakyFunctionBody {
     pub fn new(body: Vec<Stmt>) -> Self {
-        LeakyFunctionBody(ManuallyDrop::new(Arc::new(body)))
+        LeakyFunctionBody(Arc::new(FunctionBodyStorage { body }))
     }
 
     pub fn get(&self) -> &Vec<Stmt> {
-        &self.0
+        &self.0.body
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LeakyFunctionBody;
+    use crate::ast::Stmt;
+
+    fn deeply_nested_loop_stmt(depth: usize) -> Stmt {
+        let mut current = Stmt::Break;
+        for _ in 0..depth {
+            current = Stmt::Loop { condition: None, body: vec![current] };
+        }
+        current
+    }
+
+    #[test]
+    fn function_body_retains_statements() {
+        let body = LeakyFunctionBody::new(vec![Stmt::Break, Stmt::Continue]);
+        assert_eq!(2, body.get().len());
+    }
+
+    #[test]
+    fn cloned_function_body_can_be_dropped_multiple_times() {
+        let body = LeakyFunctionBody::new(vec![Stmt::Break]);
+        let clone = body.clone();
+
+        drop(clone);
+        drop(body);
+    }
+
+    #[test]
+    fn drops_deeply_nested_function_body_without_recursion_overflow() {
+        let body = LeakyFunctionBody::new(vec![deeply_nested_loop_stmt(20000)]);
+        drop(body);
     }
 }
 
