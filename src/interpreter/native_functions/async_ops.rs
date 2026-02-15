@@ -573,6 +573,115 @@ pub fn handle(
             })
         }
 
+        "async_read_files" => {
+            // async_read_files(paths: Array<String>, concurrency_limit?: Int) -> Promise<Array<String>>
+            // Reads multiple files concurrently with bounded in-task concurrency.
+            if args.len() != 1 && args.len() != 2 {
+                return Some(Value::Error(format!(
+                    "async_read_files() expects 1 or 2 arguments (paths, optional concurrency_limit), got {}",
+                    args.len()
+                )));
+            }
+
+            let path_values = match &args[0] {
+                Value::Array(arr) => arr.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "async_read_files() first argument must be an array of string paths"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let concurrency_limit = if args.len() == 2 {
+                match &args[1] {
+                    Value::Int(n) if *n > 0 => *n as usize,
+                    Value::Int(n) => {
+                        return Some(Value::Error(format!(
+                            "async_read_files() concurrency_limit must be > 0, got {}",
+                            n
+                        )));
+                    }
+                    _ => {
+                        return Some(Value::Error(
+                            "async_read_files() optional concurrency_limit must be an integer"
+                                .to_string(),
+                        ));
+                    }
+                }
+            } else {
+                _interp.get_async_task_pool_size()
+            };
+
+            if path_values.is_empty() {
+                return Some(resolved_promise(Ok(Value::Array(Arc::new(vec![])))));
+            }
+
+            let mut paths = Vec::with_capacity(path_values.len());
+            for (idx, value) in path_values.iter().enumerate() {
+                match value {
+                    Value::Str(path) => paths.push(path.as_ref().clone()),
+                    _ => {
+                        return Some(Value::Error(format!(
+                            "async_read_files() path at index {} must be a string",
+                            idx
+                        )));
+                    }
+                }
+            }
+
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let count = paths.len();
+            let effective_batch_size = concurrency_limit.min(count.max(1));
+
+            AsyncRuntime::spawn_task(async move {
+                let mut results = vec![Value::Null; count];
+                let mut pending = paths.into_iter().enumerate();
+                let mut in_flight = FuturesUnordered::new();
+
+                let make_read_future = |idx: usize, path: String| async move {
+                    let read_result = tokio::fs::read_to_string(path.as_str()).await;
+                    (idx, path, read_result)
+                };
+
+                for _ in 0..effective_batch_size {
+                    match pending.next() {
+                        Some((idx, path)) => in_flight.push(make_read_future(idx, path)),
+                        None => break,
+                    }
+                }
+
+                while let Some((idx, path, read_result)) = in_flight.next().await {
+                    match read_result {
+                        Ok(content) => {
+                            results[idx] = Value::Str(Arc::new(content));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(format!(
+                                "Failed to read file '{}' (index {}): {}",
+                                path, idx, e
+                            )));
+                            return Value::Null;
+                        }
+                    }
+
+                    if let Some((next_idx, next_path)) = pending.next() {
+                        in_flight.push(make_read_future(next_idx, next_path));
+                    }
+                }
+
+                let _ = tx.send(Ok(Value::Array(Arc::new(results))));
+                Value::Null
+            });
+
+            Some(Value::Promise {
+                receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
+            })
+        }
+
         "async_write_file" => {
             // async_write_file(path: String, content: String) -> Promise<Bool>
             // Non-blocking file write
@@ -619,6 +728,150 @@ pub fn handle(
             });
 
             // Return promise
+            Some(Value::Promise {
+                receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
+            })
+        }
+
+        "async_write_files" => {
+            // async_write_files(paths: Array<String>, contents: Array<String>, concurrency_limit?: Int)
+            //   -> Promise<Array<Bool>>
+            // Writes multiple files concurrently with bounded in-task concurrency.
+            if args.len() != 2 && args.len() != 3 {
+                return Some(Value::Error(format!(
+                    "async_write_files() expects 2 or 3 arguments (paths, contents, optional concurrency_limit), got {}",
+                    args.len()
+                )));
+            }
+
+            let path_values = match &args[0] {
+                Value::Array(arr) => arr.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "async_write_files() first argument must be an array of string paths"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let content_values = match &args[1] {
+                Value::Array(arr) => arr.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "async_write_files() second argument must be an array of string contents"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            if path_values.len() != content_values.len() {
+                return Some(Value::Error(format!(
+                    "async_write_files() paths and contents arrays must have the same length (paths={}, contents={})",
+                    path_values.len(),
+                    content_values.len()
+                )));
+            }
+
+            let concurrency_limit = if args.len() == 3 {
+                match &args[2] {
+                    Value::Int(n) if *n > 0 => *n as usize,
+                    Value::Int(n) => {
+                        return Some(Value::Error(format!(
+                            "async_write_files() concurrency_limit must be > 0, got {}",
+                            n
+                        )));
+                    }
+                    _ => {
+                        return Some(Value::Error(
+                            "async_write_files() optional concurrency_limit must be an integer"
+                                .to_string(),
+                        ));
+                    }
+                }
+            } else {
+                _interp.get_async_task_pool_size()
+            };
+
+            if path_values.is_empty() {
+                return Some(resolved_promise(Ok(Value::Array(Arc::new(vec![])))));
+            }
+
+            let mut writes = Vec::with_capacity(path_values.len());
+            for (idx, (path_value, content_value)) in
+                path_values.iter().zip(content_values.iter()).enumerate()
+            {
+                let path = match path_value {
+                    Value::Str(path) => path.as_ref().clone(),
+                    _ => {
+                        return Some(Value::Error(format!(
+                            "async_write_files() path at index {} must be a string",
+                            idx
+                        )));
+                    }
+                };
+
+                let content = match content_value {
+                    Value::Str(content) => content.as_ref().clone(),
+                    _ => {
+                        return Some(Value::Error(format!(
+                            "async_write_files() content at index {} must be a string",
+                            idx
+                        )));
+                    }
+                };
+
+                writes.push((path, content));
+            }
+
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let count = writes.len();
+            let effective_batch_size = concurrency_limit.min(count.max(1));
+
+            AsyncRuntime::spawn_task(async move {
+                let mut results = vec![Value::Null; count];
+                let mut pending = writes.into_iter().enumerate();
+                let mut in_flight = FuturesUnordered::new();
+
+                let make_write_future = |idx: usize, path: String, content: String| async move {
+                    let write_result = tokio::fs::write(path.as_str(), content.as_str()).await;
+                    (idx, path, write_result)
+                };
+
+                for _ in 0..effective_batch_size {
+                    match pending.next() {
+                        Some((idx, (path, content))) => {
+                            in_flight.push(make_write_future(idx, path, content))
+                        }
+                        None => break,
+                    }
+                }
+
+                while let Some((idx, path, write_result)) = in_flight.next().await {
+                    match write_result {
+                        Ok(_) => {
+                            results[idx] = Value::Bool(true);
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(format!(
+                                "Failed to write file '{}' (index {}): {}",
+                                path, idx, e
+                            )));
+                            return Value::Null;
+                        }
+                    }
+
+                    if let Some((next_idx, (next_path, next_content))) = pending.next() {
+                        in_flight.push(make_write_future(next_idx, next_path, next_content));
+                    }
+                }
+
+                let _ = tx.send(Ok(Value::Array(Arc::new(results))));
+                Value::Null
+            });
+
             Some(Value::Promise {
                 receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
                 is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),

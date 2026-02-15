@@ -13,43 +13,39 @@ create_dir(input_dir)
 create_dir(output_dir)
 
 # Seed markdown source files
-write_promises := []
+source_paths := []
+source_bodies := []
 i := 0
 while i < file_count {
     source_path := input_dir + "/post_" + to_string(i) + ".md"
     source_body := "# Post " + to_string(i) + "\n\nGenerated page " + to_string(i)
-    write_promises := push(write_promises, async_write_file(source_path, source_body))
+    source_paths := push(source_paths, source_path)
+    source_bodies := push(source_bodies, source_body)
     i := i + 1
 }
 
-await await_all(write_promises, batch_size)
+await async_write_files(source_paths, source_bodies, batch_size)
 
 # Benchmark render pipeline (async read + async write)
 start_ms := performance_now()
 
-read_promises := []
-i := 0
-while i < file_count {
-    source_path := input_dir + "/post_" + to_string(i) + ".md"
-    read_promises := push(read_promises, async_read_file(source_path))
-    i := i + 1
-}
-
-source_pages := await await_all(read_promises, batch_size)
+source_pages := await async_read_files(source_paths, batch_size)
 read_stage_ms := performance_now() - start_ms
 
 checksum := 0
-render_promises := []
+output_paths := []
+html_pages := []
 i := 0
 while i < file_count {
     output_path := output_dir + "/post_" + to_string(i) + ".html"
     html := "<html><body><h1>Post " + to_string(i) + "</h1><article>" + source_pages[i] + "</article></body></html>"
     checksum := checksum + len(html)
-    render_promises := push(render_promises, async_write_file(output_path, html))
+    output_paths := push(output_paths, output_path)
+    html_pages := push(html_pages, html)
     i := i + 1
 }
 
-await await_all(render_promises, batch_size)
+await async_write_files(output_paths, html_pages, batch_size)
 render_write_stage_ms := (performance_now() - start_ms) - read_stage_ms
 
 elapsed_ms := performance_now() - start_ms

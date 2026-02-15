@@ -604,7 +604,9 @@ impl Interpreter {
             "async_http_get",
             "async_http_post",
             "async_read_file",
+            "async_read_files",
             "async_write_file",
+            "async_write_files",
             "spawn_task",
             "await_task",
             "cancel_task",
@@ -1161,8 +1163,16 @@ impl Interpreter {
             Value::NativeFunction("async_read_file".to_string()),
         );
         self.env.define(
+            "async_read_files".to_string(),
+            Value::NativeFunction("async_read_files".to_string()),
+        );
+        self.env.define(
             "async_write_file".to_string(),
             Value::NativeFunction("async_write_file".to_string()),
+        );
+        self.env.define(
+            "async_write_files".to_string(),
+            Value::NativeFunction("async_write_files".to_string()),
         );
         self.env.define("spawn_task".to_string(), Value::NativeFunction("spawn_task".to_string()));
         self.env.define("await_task".to_string(), Value::NativeFunction("await_task".to_string()));
