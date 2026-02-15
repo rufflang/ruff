@@ -100,6 +100,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added native-function tests for regex match/find/replace/split behavior plus argument-shape validation
   - Reduced exhaustive dispatch known-gap list by removing migrated regex APIs
 
+- **Release Hardening: String Polymorphic Dispatch Gap Closure (`contains` / `index_of`) (P1)**:
+  - Closed modular dispatch drift for declared string APIs `contains` and `index_of` so they no longer hit unknown-native fallback during dispatcher hardening probes
+  - Preserved polymorphic behavior by delegating array-first calls to collection handlers while enforcing explicit string argument-shape validation in string handlers
+  - Added comprehensive dispatcher + native-function contract coverage for:
+    - string success behavior (`contains`, `index_of`)
+    - argument-shape and error-shape validation
+    - array polymorphic dispatch behavior
+  - Reduced exhaustive dispatch known-gap list by removing `contains` and `index_of`
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

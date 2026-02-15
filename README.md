@@ -81,6 +81,12 @@
   - Reduced exhaustive known-gap list as migrated regex APIs moved under modular coverage
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **String Polymorphic Dispatch Gap Closure (P1)**
+  - Closed modular dispatch drift for `contains` and `index_of` so declared APIs no longer fall back to unknown-native behavior
+  - Preserved array polymorphism by delegating array-first calls to collections handlers while enforcing explicit string argument-shape validation
+  - Added dispatcher and native-function contract tests for behavior, argument-shape, and error-shape coverage
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback

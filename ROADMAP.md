@@ -89,6 +89,12 @@ This roadmap intentionally tracks only upcoming items.
     - Added targeted native-function tests for regex behavior and argument-shape validation
     - Reduced exhaustive dispatch known-gap list by removing now-migrated regex APIs
 
+- **String Polymorphic Dispatch Gap Closure (`contains` / `index_of`) (✅ Complete, February 2026)**
+    - Closed modular dispatch drift so declared builtins `contains` and `index_of` no longer regress into unknown-native fallback
+    - Preserved polymorphic array behavior by delegating array-first calls to collection handlers
+    - Added targeted contract coverage for string success behavior plus argument-shape/error-shape validation
+    - Reduced exhaustive dispatch known-gap list by removing migrated string APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0
