@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-15_16-17_release-hardening-dispatch-gap-slices.md** — ✅ COMPLETED: Implemented iterative v0.10 dispatch hardening slices (par_each contract expansion, exhaustive drift guard + safe probe policy, modular migration of system env/args APIs, data-format/encoding APIs, and regex APIs), added targeted regression coverage, and documented migration-ledger testing rules.
+
 - **2026-02-15_09-51_release-hardening-native-dispatch-contract.md** — ✅ COMPLETED: Hardened v0.10.0 native dispatcher behavior by replacing silent unknown-native fallback with explicit runtime errors, added dispatcher-level regression coverage for high-risk recently added builtins, and documented dual-target test-output expectations.
 
 - **2026-02-15_11-30_release-hardening-argument-shape-contract.md** — ✅ COMPLETED: Implemented v0.10.0 release-hardening API argument-shape contract updates for filesystem aliases (`join_path`/`path_join`) and collection size APIs (`queue_size`/`stack_size`), added async/filesystem/collections regression coverage, and documented runtime error short-circuit testing gotcha.
