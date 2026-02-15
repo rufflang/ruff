@@ -45,6 +45,14 @@
     - `queue_size(...)` / `stack_size(...)`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Expanded Async/Concurrency API Compatibility Regression Coverage (P1)**
+  - Extended builtin API contract coverage to lock newly introduced concurrency and async entries:
+    - `shared_set` / `shared_get` / `shared_has` / `shared_delete` / `shared_add_int`
+    - `parallel_map(...)` / `par_map(...)`
+    - `set_task_pool_size(...)` / `get_task_pool_size(...)`
+  - Added integration argument-shape/error-shape parity tests for shared-value APIs, map aliases, and task-pool sizing APIs
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback

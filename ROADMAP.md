@@ -59,10 +59,17 @@ This roadmap intentionally tracks only upcoming items.
     - Unknown native names now return explicit runtime errors for faster API drift detection
     - Added dispatcher-level regression coverage to ensure newly introduced high-risk builtins do not regress into unknown-native fallback
 
+- **Expanded API Compatibility Regression Coverage for Newer Async/Concurrency APIs (✅ Complete, February 2026)**
+    - Extended builtin API contract coverage for newly introduced concurrency/async entries in `get_builtin_names`
+    - Added integration argument-shape/error-shape parity coverage for:
+      - `parallel_map(...)` / `par_map(...)`
+      - `shared_set/get/has/delete/add_int`
+      - `set_task_pool_size(...)` / `get_task_pool_size(...)`
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0
-- Continue expanding API compatibility regression coverage for VM/interpreter parity on newly introduced builtins
+- Continue compatibility contract expansion as future builtins and aliases are introduced
 
 ---
 

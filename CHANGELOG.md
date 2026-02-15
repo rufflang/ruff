@@ -51,6 +51,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - collection size APIs (`queue_size`/`stack_size`)
     - async aliases (`promise_all`/`await_all`) for non-array and concurrency-limit validation parity
 
+- **Release Hardening: Expanded Compatibility Regression Coverage for Newer Async/Concurrency APIs (P1)**:
+  - Extended builtin API contract tests to lock newly introduced async/concurrency-facing entries in `Interpreter::get_builtin_names()`:
+    - `shared_set`, `shared_get`, `shared_has`, `shared_delete`, `shared_add_int`
+    - `parallel_map`, `par_map`
+    - `set_task_pool_size`, `get_task_pool_size`
+  - Added integration argument-shape/error-shape parity tests for:
+    - `parallel_map(...)` / `par_map(...)` (arity, non-array input, non-callable mapper, invalid concurrency limits)
+    - `shared_*` APIs (arity, key type, integer delta validation)
+    - task-pool sizing APIs (`set_task_pool_size(...)`, `get_task_pool_size(...)`)
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management
