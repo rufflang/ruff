@@ -114,6 +114,19 @@ mod tests {
             "io_file_metadata",
             "io_truncate",
             "io_copy_range",
+            "http_get",
+            "http_post",
+            "http_put",
+            "http_delete",
+            "http_get_binary",
+            "http_get_stream",
+            "http_server",
+            "http_response",
+            "json_response",
+            "html_response",
+            "redirect_response",
+            "set_header",
+            "set_headers",
             "join_path",
             "path_join",
             "queue_size",
@@ -149,19 +162,6 @@ mod tests {
         let skip_probe_names = ["input", "exit", "sleep", "execute"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps = vec![
-            "http_get".to_string(),
-            "http_post".to_string(),
-            "http_put".to_string(),
-            "http_delete".to_string(),
-            "http_get_binary".to_string(),
-            "http_get_stream".to_string(),
-            "http_server".to_string(),
-            "http_response".to_string(),
-            "json_response".to_string(),
-            "html_response".to_string(),
-            "redirect_response".to_string(),
-            "set_header".to_string(),
-            "set_headers".to_string(),
             "db_connect".to_string(),
             "db_execute".to_string(),
             "db_query".to_string(),
@@ -279,5 +279,27 @@ mod tests {
         assert!(
             matches!(copy_range_missing, Value::Error(message) if message.contains("requires four arguments: source, dest, offset, and count"))
         );
+    }
+
+    #[test]
+    fn test_release_hardening_http_module_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let get_missing = call_native_function(&mut interpreter, "http_get", &[]);
+        assert!(
+            matches!(get_missing, Value::Error(message) if message.contains("http_get requires a URL string"))
+        );
+
+        let post_missing = call_native_function(&mut interpreter, "http_post", &[]);
+        assert!(
+            matches!(post_missing, Value::Error(message) if message.contains("http_post requires URL and JSON body strings"))
+        );
+
+        let response_shape = call_native_function(
+            &mut interpreter,
+            "http_response",
+            &[Value::Int(200), Value::Str(std::sync::Arc::new("ok".to_string()))],
+        );
+        assert!(matches!(response_shape, Value::HttpResponse { status, .. } if status == 200));
     }
 }
