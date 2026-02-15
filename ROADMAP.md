@@ -71,6 +71,41 @@ This roadmap intentionally tracks only upcoming items.
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0
 - Continue compatibility contract expansion as future builtins and aliases are introduced
 
+### v0.10 Remaining Work Queue (Use in Future Chats)
+
+#### 1) Release Hardening Follow-Through (P1)
+
+**Status**: Ready to execute (iterative)
+
+**Run This in Future Chats**:
+- Pick newly added or recently modified builtins/aliases since last hardening pass.
+- Add/extend compatibility contract tests for:
+    - builtin-name list parity (`get_builtin_names`)
+    - alias behavior parity
+    - argument-shape + error-shape parity
+    - unknown-native dispatch safety
+- Run full validation (`cargo test`, warning-free build) and update docs.
+
+**Done Criteria (v0.10)**:
+- No known drift between declared, registered, and dispatched external APIs.
+- Contract coverage exists for each newly introduced public builtin/alias in v0.10 scope.
+- Changelog and README hardening notes stay synchronized with implemented coverage.
+
+#### 2) Optional Static Typing Design Package (Exploratory)
+
+**Status**: Ready to execute (design-only for v0.10)
+
+**Run This in Future Chats**:
+- Stage 1: finalize annotation surface proposal (functions, variables, collections) with parser/type-check impact notes.
+- Stage 2: define optional runtime type-check mode contract (enable/disable behavior, error format, compatibility expectations).
+- Stage 3: document typed-JIT optimization strategy boundaries (what is in scope vs deferred).
+- Produce one consolidated design decision summary in docs.
+
+**Done Criteria (v0.10)**:
+- A concrete design document exists for optional typing (syntax, semantics, migration/compatibility notes).
+- Open decisions and non-goals are explicitly listed.
+- No commitment to mandatory typing or v1.0 breaking changes.
+
 ---
 
 ## v0.11.0 - Parallel Processing & Concurrency (P0)
