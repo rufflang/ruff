@@ -93,6 +93,12 @@
   - Expanded release-hardening dispatcher contract coverage for migrated `io_*` APIs and removed these entries from known dispatch gaps
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **HTTP Module Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for declared HTTP request/response/server APIs: `http_get`, `http_post`, `http_put`, `http_delete`, `http_get_binary`, `http_get_stream`, `http_server`, `set_header`, `set_headers`, `http_response`, `json_response`, `html_response`, `redirect_response`
+  - Added contract tests for response/helper behavior, header mutation, redirect/server construction, and argument-shape validation
+  - Expanded release-hardening dispatcher coverage for migrated HTTP APIs and removed these entries from known dispatch gaps
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback

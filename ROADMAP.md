@@ -101,6 +101,12 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded dispatcher-level release-hardening contract coverage for migrated `io_*` APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated IO APIs
 
+- **HTTP Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared HTTP request/response/server APIs (`http_get`, `http_post`, `http_put`, `http_delete`, `http_get_binary`, `http_get_stream`, `http_server`, `set_header`, `set_headers`, `http_response`, `json_response`, `html_response`, `redirect_response`)
+    - Added native-function regression tests for response helper/header contracts, redirect/server helper behavior, and argument-shape/error-shape validation
+    - Expanded dispatcher-level release-hardening contract coverage for migrated HTTP APIs
+    - Reduced exhaustive dispatch known-gap list by removing now-migrated HTTP APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

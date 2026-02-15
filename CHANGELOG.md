@@ -123,6 +123,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - argument-shape validation errors
   - Expanded dispatcher-level hardening coverage for `io_*` APIs and reduced exhaustive known-gap list by removing migrated IO entries
 
+- **Release Hardening: HTTP Module Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handlers for declared HTTP APIs:
+    - `http_get`, `http_post`, `http_put`, `http_delete`, `http_get_binary`, `http_get_stream`
+    - `http_server`, `set_header`, `set_headers`
+    - `http_response`, `json_response`, `html_response`, `redirect_response`
+  - Preserved legacy argument-shape and helper-construction behavior for HTTP response/server/header utilities
+  - Added comprehensive native-function coverage for:
+    - HTTP response helper creation and header mutation contracts
+    - redirect/server helper contracts
+    - argument-shape validation errors
+  - Expanded dispatcher-level hardening coverage for migrated HTTP APIs and reduced exhaustive known-gap list by removing migrated HTTP entries
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management
