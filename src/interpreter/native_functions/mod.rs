@@ -71,3 +71,63 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
     // Unknown function
     Value::Error(format!("Unknown native function: {}", name))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::call_native_function;
+    use crate::interpreter::{Interpreter, Value};
+
+    fn is_unknown_native_error(value: &Value) -> bool {
+        if let Value::Error(message) = value {
+            message.starts_with("Unknown native function:")
+        } else {
+            false
+        }
+    }
+
+    #[test]
+    fn test_unknown_native_function_returns_explicit_error() {
+        let mut interpreter = Interpreter::new();
+        let result = call_native_function(&mut interpreter, "__unknown_native_test__", &[]);
+
+        match result {
+            Value::Error(message) => {
+                assert_eq!(message, "Unknown native function: __unknown_native_test__");
+            }
+            other => panic!("Expected Value::Error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_release_hardening_builtin_dispatch_coverage_for_recent_apis() {
+        let mut interpreter = Interpreter::new();
+        let critical_builtin_names = [
+            "ssg_render_pages",
+            "join_path",
+            "path_join",
+            "queue_size",
+            "stack_size",
+            "shared_set",
+            "shared_get",
+            "shared_has",
+            "shared_delete",
+            "shared_add_int",
+            "async_read_files",
+            "async_write_files",
+            "promise_all",
+            "await_all",
+            "set_task_pool_size",
+            "get_task_pool_size",
+        ];
+
+        for builtin_name in critical_builtin_names {
+            let result = call_native_function(&mut interpreter, builtin_name, &[]);
+            assert!(
+                !is_unknown_native_error(&result),
+                "Builtin '{}' unexpectedly hit unknown-native fallback with result {:?}",
+                builtin_name,
+                result
+            );
+        }
+    }
+}
