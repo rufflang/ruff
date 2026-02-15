@@ -362,3 +362,89 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
 
     Some(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn str_value(value: &str) -> Value {
+        Value::Str(Arc::new(value.to_string()))
+    }
+
+    #[test]
+    fn test_ssg_render_pages_success_returns_pages_and_checksum() {
+        let args = vec![Value::Array(Arc::new(vec![
+            str_value("# Post 0\n\nGenerated page 0"),
+            str_value("# Post 1\n\nGenerated page 1"),
+        ]))];
+
+        let result = handle("ssg_render_pages", &args).unwrap();
+        match result {
+            Value::Dict(dict) => {
+                let pages = dict.get("pages").expect("pages key missing");
+                let checksum = dict.get("checksum").expect("checksum key missing");
+
+                match pages {
+                    Value::Array(values) => {
+                        assert_eq!(values.len(), 2);
+                        assert!(
+                            matches!(&values[0], Value::Str(s) if s.as_ref() == "<html><body><h1>Post 0</h1><article># Post 0\n\nGenerated page 0</article></body></html>")
+                        );
+                        assert!(
+                            matches!(&values[1], Value::Str(s) if s.as_ref() == "<html><body><h1>Post 1</h1><article># Post 1\n\nGenerated page 1</article></body></html>")
+                        );
+                    }
+                    _ => panic!("Expected pages to be an Array"),
+                }
+
+                let expected_checksum = "<html><body><h1>Post 0</h1><article># Post 0\n\nGenerated page 0</article></body></html>".len() as i64
+                    + "<html><body><h1>Post 1</h1><article># Post 1\n\nGenerated page 1</article></body></html>".len() as i64;
+
+                match checksum {
+                    Value::Int(value) => assert_eq!(*value, expected_checksum),
+                    _ => panic!("Expected checksum to be an Int"),
+                }
+            }
+            _ => panic!("Expected Dict result from ssg_render_pages"),
+        }
+    }
+
+    #[test]
+    fn test_ssg_render_pages_requires_array_argument() {
+        let args = vec![str_value("not-an-array")];
+        let result = handle("ssg_render_pages", &args).unwrap();
+
+        match result {
+            Value::Error(message) => {
+                assert!(message.contains("requires an array of source page strings"));
+            }
+            _ => panic!("Expected Value::Error for non-array input"),
+        }
+    }
+
+    #[test]
+    fn test_ssg_render_pages_requires_string_elements() {
+        let args = vec![Value::Array(Arc::new(vec![Value::Int(1)]))];
+        let result = handle("ssg_render_pages", &args).unwrap();
+
+        match result {
+            Value::Error(message) => {
+                assert!(message.contains("source page at index 0 must be a string"));
+            }
+            _ => panic!("Expected Value::Error for non-string source page"),
+        }
+    }
+
+    #[test]
+    fn test_ssg_render_pages_validates_argument_count() {
+        let args = vec![Value::Array(Arc::new(vec![])), Value::Array(Arc::new(vec![]))];
+        let result = handle("ssg_render_pages", &args).unwrap();
+
+        match result {
+            Value::Error(message) => {
+                assert!(message.contains("expects 1 argument"));
+            }
+            _ => panic!("Expected Value::Error for invalid argument count"),
+        }
+    }
+}
