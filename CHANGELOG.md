@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: VM/Interpreter Builtin API Parity Contract (P1)**:
+  - Synced `Interpreter::get_builtin_names()` with interpreter native registrations for VM-visible builtins
+  - Added missing API entries for string utility methods, `bytes`, database pool APIs, and TCP/UDP network helpers
+  - Removed duplicate builtin entries from the public builtin-name list
+  - Added integration tests that lock the release-hardening API contract by checking:
+    - required high-risk builtin entries are present
+    - builtin list contains no duplicate names
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

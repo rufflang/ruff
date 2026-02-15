@@ -36,6 +36,21 @@ This roadmap intentionally tracks only upcoming items.
 
 ---
 
+## v0.10.0 - Release Hardening (P1)
+
+### Completed Milestones
+
+- **Builtin API Parity Contract (✅ Complete, February 2026)**
+    - Synchronized VM builtin name registry (`get_builtin_names`) with interpreter-native registrations for release stability
+    - Added regression coverage to detect missing and duplicate builtin API entries
+
+### Remaining Focus
+
+- Stabilize external-facing runtime APIs and aliases ahead of v1.0
+- Continue expanding API compatibility regression coverage for VM/interpreter parity
+
+---
+
 ## v0.11.0 - Parallel Processing & Concurrency (P0)
 
 **Focus**: Deliver production-grade async throughput for large I/O-bound workloads (SSG priority)  

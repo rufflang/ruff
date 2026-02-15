@@ -23,6 +23,13 @@
   - Function-body handle lifecycle is reference-counted with safe final-release cleanup
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+### v0.10.0 Release Hardening Progress ✅
+
+* **VM/Interpreter Builtin API Parity Contract (P1)**
+  - Synchronized VM builtin registry names with interpreter native registrations for stable cross-runtime behavior
+  - Added regression tests that guard required builtin availability and prevent duplicate builtin-name entries
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 ### Just Completed in v0.9.0 (Phase 1) ✅
 
 * **Bytecode VM Integration** 🚀
