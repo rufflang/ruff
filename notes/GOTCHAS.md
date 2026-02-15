@@ -230,13 +230,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-14_10-10_promise-cache-reuse-and-parallel-map-overhead.md)
 
-### `spawn` does not share lexical environment; use `shared_*` builtins for cross-thread state
-- **Problem:** Values defined in parent scope are not visible/mutable directly inside spawned blocks.
-- **Rule:** Treat `spawn` workers as isolated interpreters; coordinate cross-thread state explicitly using `shared_set/get/has/delete/add_int`.
-- **Why:** `Stmt::Spawn` constructs a fresh interpreter instance rather than sharing the parent `Environment`.
-- **Implication:** Any spawn test or feature expecting parent-variable capture will fail unless rewritten to use explicit shared keys/channels.
+### `spawn` uses transferable parent-binding snapshots; parent write-back is still isolated
+- **Problem:** It is easy to assume either full lexical sharing or full isolation and write the wrong coordination logic.
+- **Rule:** `spawn` workers receive a transferable snapshot of parent bindings at spawn time, but spawned assignments do NOT write through to parent scope.
+- **Why:** `Stmt::Spawn` still creates a fresh interpreter; parent data is copied for supported value variants instead of sharing the parent `Environment` by reference.
+- **Implication:** Use parent capture for worker inputs (e.g., shared-store keys), and use `shared_set/get/has/delete/add_int` for cross-thread observable updates.
 
-(Discovered during: 2026-02-14_13-09_shared-thread-safe-value-ops.md)
+(Discovered during: 2026-02-14_13-09_shared-thread-safe-value-ops.md and 2026-02-14_17-08_spawn-parent-binding-snapshot-concurrency.md)
 
 ### ErrorObject has specific field structure, not a generic HashMap
 - **Problem:** Creating ErrorObject with made-up fields like "details" causes runtime failures

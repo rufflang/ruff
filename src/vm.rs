@@ -4883,7 +4883,7 @@ impl VM {
                 // So it's at the bottom of our "args" - but actually, it's still on the stack
                 // because FieldGet pushed it back. We need to pop it from the stack!
                 let channel = self.stack.pop().ok_or("Stack underflow getting channel")?;
-                
+
                 if let Value::Channel(chan) = channel {
                     return match method_name {
                         "send" => {
@@ -4915,7 +4915,7 @@ impl VM {
                     return Err("Expected Channel for channel method call".to_string());
                 }
             }
-            
+
             if let Some(result) = self.call_vm_higher_order(&name, &args) {
                 return result;
             }

@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-14_17-08_spawn-parent-binding-snapshot-concurrency.md** — ✅ COMPLETED: Implemented spawn transferable parent-binding snapshots for worker visibility, added integration tests for captured inputs + parent write-back isolation, updated roadmap/changelog/readme, and captured transferability/write-through gotchas.
+
 - **2026-02-14_13-09_shared-thread-safe-value-ops.md** — ✅ COMPLETED: Implemented P0 thread-safe shared value operations (`shared_set/get/has/delete/add_int`) for spawn coordination, added comprehensive integration coverage, updated roadmap/changelog/readme, and captured spawn-isolation + test short-circuit gotchas.
 
 - **2026-02-14_10-10_promise-cache-reuse-and-parallel-map-overhead.md** — ✅ COMPLETED: Implemented cache-aware Promise reuse in `Promise.all(...)`/`parallel_map(...)`, eliminated synthetic Promise wrapping for immediate mapper results, added integration coverage for repeated-await reuse, and captured receiver-consumption gotchas.
