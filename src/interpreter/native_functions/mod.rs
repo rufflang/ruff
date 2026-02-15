@@ -103,6 +103,8 @@ mod tests {
         let mut interpreter = Interpreter::new();
         let critical_builtin_names = [
             "ssg_render_pages",
+            "contains",
+            "index_of",
             "join_path",
             "path_join",
             "queue_size",
@@ -138,8 +140,6 @@ mod tests {
         let skip_probe_names = ["input", "exit", "sleep", "execute"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps = vec![
-            "contains".to_string(),
-            "index_of".to_string(),
             "io_read_bytes".to_string(),
             "io_write_bytes".to_string(),
             "io_append_bytes".to_string(),
@@ -227,5 +227,37 @@ mod tests {
             expected_known_legacy_dispatch_gaps,
             "Declared builtin dispatch drift changed. If a gap was fixed, remove it from expected list; if a new gap appeared, investigate and either fix dispatch or explicitly acknowledge it here."
         );
+    }
+
+    #[test]
+    fn test_release_hardening_contains_index_of_argument_and_polymorphic_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let contains_missing_args = call_native_function(&mut interpreter, "contains", &[]);
+        assert!(
+            matches!(contains_missing_args, Value::Error(message) if message.contains("contains() requires two arguments"))
+        );
+
+        let index_of_missing_args = call_native_function(&mut interpreter, "index_of", &[]);
+        assert!(
+            matches!(index_of_missing_args, Value::Error(message) if message.contains("index_of() requires two arguments"))
+        );
+
+        let contains_array = call_native_function(
+            &mut interpreter,
+            "contains",
+            &[Value::Array(std::sync::Arc::new(vec![Value::Int(1), Value::Int(2)])), Value::Int(2)],
+        );
+        assert!(matches!(contains_array, Value::Bool(true)));
+
+        let index_of_array = call_native_function(
+            &mut interpreter,
+            "index_of",
+            &[
+                Value::Array(std::sync::Arc::new(vec![Value::Int(10), Value::Int(20)])),
+                Value::Int(20),
+            ],
+        );
+        assert!(matches!(index_of_array, Value::Int(1)));
     }
 }

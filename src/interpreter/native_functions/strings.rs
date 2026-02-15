@@ -94,12 +94,25 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
         }
 
         "contains" => {
-            // Polymorphic: works with strings (other types handled in collections)
-            match (args.first(), args.get(1)) {
-                (Some(Value::Str(s)), Some(Value::Str(substr))) => {
-                    Value::Int(if builtins::contains(&**s, &**substr) { 1 } else { 0 })
+            // Polymorphic: strings handled here, arrays delegated to collections.rs
+            match args.first() {
+                Some(Value::Array(_)) => return None,
+                Some(Value::Str(s)) => match args.get(1) {
+                    Some(Value::Str(substr)) => {
+                        Value::Int(if builtins::contains(&**s, &**substr) { 1 } else { 0 })
+                    }
+                    _ => Value::Error(
+                        "contains() requires two arguments: string/array and substring/item"
+                            .to_string(),
+                    ),
+                },
+                Some(_) => {
+                    Value::Error("contains() first argument must be a string or array".to_string())
                 }
-                _ => return None, // Let collections.rs handle array case
+                None => Value::Error(
+                    "contains() requires two arguments: string/array and substring/item"
+                        .to_string(),
+                ),
             }
         }
 
@@ -150,12 +163,25 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
         }
 
         "index_of" => {
-            // Polymorphic: works with strings (other types handled in collections)
-            match (args.first(), args.get(1)) {
-                (Some(Value::Str(s)), Some(Value::Str(substr))) => {
-                    Value::Int(builtins::index_of(&**s, &**substr) as i64)
+            // Polymorphic: strings handled here, arrays delegated to collections.rs
+            match args.first() {
+                Some(Value::Array(_)) => return None,
+                Some(Value::Str(s)) => match args.get(1) {
+                    Some(Value::Str(substr)) => {
+                        Value::Int(builtins::index_of(&**s, &**substr) as i64)
+                    }
+                    _ => Value::Error(
+                        "index_of() requires two arguments: string/array and substring/item"
+                            .to_string(),
+                    ),
+                },
+                Some(_) => {
+                    Value::Error("index_of() first argument must be a string or array".to_string())
                 }
-                _ => return None, // Let collections.rs handle array case
+                None => Value::Error(
+                    "index_of() requires two arguments: string/array and substring/item"
+                        .to_string(),
+                ),
             }
         }
 
@@ -210,8 +236,11 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
         }
 
         "regex_replace" => {
-            if let (Some(Value::Str(text)), Some(Value::Str(pattern)), Some(Value::Str(replacement))) =
-                (args.first(), args.get(1), args.get(2))
+            if let (
+                Some(Value::Str(text)),
+                Some(Value::Str(pattern)),
+                Some(Value::Str(replacement)),
+            ) = (args.first(), args.get(1), args.get(2))
             {
                 Value::Str(Arc::new(builtins::regex_replace(
                     text.as_ref(),
@@ -480,18 +509,12 @@ mod tests {
 
     #[test]
     fn test_regex_match_and_find_all() {
-        let match_result = handle(
-            "regex_match",
-            &[str_value("hello123"), str_value("^[a-z]+\\d+$")],
-        )
-        .unwrap();
+        let match_result =
+            handle("regex_match", &[str_value("hello123"), str_value("^[a-z]+\\d+$")]).unwrap();
         assert!(matches!(match_result, Value::Bool(true)));
 
-        let find_all_result = handle(
-            "regex_find_all",
-            &[str_value("a1 b22 c333"), str_value("\\d+")],
-        )
-        .unwrap();
+        let find_all_result =
+            handle("regex_find_all", &[str_value("a1 b22 c333"), str_value("\\d+")]).unwrap();
 
         match find_all_result {
             Value::Array(values) => {
@@ -506,18 +529,13 @@ mod tests {
 
     #[test]
     fn test_regex_replace_and_split() {
-        let replace_result = handle(
-            "regex_replace",
-            &[str_value("a1 b22"), str_value("\\d+"), str_value("#")],
-        )
-        .unwrap();
+        let replace_result =
+            handle("regex_replace", &[str_value("a1 b22"), str_value("\\d+"), str_value("#")])
+                .unwrap();
         assert!(matches!(&replace_result, Value::Str(s) if s.as_ref() == "a# b#"));
 
-        let split_result = handle(
-            "regex_split",
-            &[str_value("a, b; c"), str_value("[,;]\\s*")],
-        )
-        .unwrap();
+        let split_result =
+            handle("regex_split", &[str_value("a, b; c"), str_value("[,;]\\s*")]).unwrap();
 
         match split_result {
             Value::Array(values) => {
@@ -533,11 +551,62 @@ mod tests {
     #[test]
     fn test_regex_argument_validation_errors() {
         let match_error = handle("regex_match", &[Value::Int(1)]).unwrap();
-        assert!(matches!(match_error, Value::Error(message) if message.contains("regex_match requires two string arguments")));
+        assert!(
+            matches!(match_error, Value::Error(message) if message.contains("regex_match requires two string arguments"))
+        );
 
-        let replace_error =
-            handle("regex_replace", &[str_value("a"), str_value("b")]).unwrap();
-        assert!(matches!(replace_error, Value::Error(message) if message.contains("regex_replace requires three string arguments")));
+        let replace_error = handle("regex_replace", &[str_value("a"), str_value("b")]).unwrap();
+        assert!(
+            matches!(replace_error, Value::Error(message) if message.contains("regex_replace requires three string arguments"))
+        );
+    }
+
+    #[test]
+    fn test_contains_and_index_of_string_behavior() {
+        let contains_true =
+            handle("contains", &[str_value("ruff language"), str_value("lang")]).unwrap();
+        assert!(matches!(contains_true, Value::Int(1)));
+
+        let contains_false =
+            handle("contains", &[str_value("ruff language"), str_value("python")]).unwrap();
+        assert!(matches!(contains_false, Value::Int(0)));
+
+        let index_found = handle("index_of", &[str_value("abcabc"), str_value("ca")]).unwrap();
+        assert!(matches!(index_found, Value::Int(2)));
+
+        let index_missing = handle("index_of", &[str_value("abcabc"), str_value("zz")]).unwrap();
+        assert!(matches!(index_missing, Value::Int(-1)));
+    }
+
+    #[test]
+    fn test_contains_and_index_of_argument_shape_errors() {
+        let contains_missing = handle("contains", &[str_value("ruff")]).unwrap();
+        assert!(
+            matches!(contains_missing, Value::Error(message) if message.contains("contains() requires two arguments"))
+        );
+
+        let index_missing = handle("index_of", &[str_value("ruff")]).unwrap();
+        assert!(
+            matches!(index_missing, Value::Error(message) if message.contains("index_of() requires two arguments"))
+        );
+
+        let contains_invalid_type = handle("contains", &[Value::Int(1), str_value("x")]).unwrap();
+        assert!(
+            matches!(contains_invalid_type, Value::Error(message) if message.contains("first argument must be a string or array"))
+        );
+
+        let index_invalid_type = handle("index_of", &[Value::Bool(true), str_value("x")]).unwrap();
+        assert!(
+            matches!(index_invalid_type, Value::Error(message) if message.contains("first argument must be a string or array"))
+        );
+    }
+
+    #[test]
+    fn test_contains_and_index_of_delegate_array_case_to_collections() {
+        let array_args =
+            [Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])), Value::Int(2)];
+        assert!(handle("contains", &array_args).is_none());
+        assert!(handle("index_of", &array_args).is_none());
     }
 
     #[test]
