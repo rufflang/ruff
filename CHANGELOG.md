@@ -74,6 +74,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added explicit test guard for known legacy dispatch gaps so newly introduced API drift is detected immediately
   - Added safety skip list for side-effecting probes (`input`, `exit`, `sleep`, `execute`) to keep hardening checks deterministic in CI
 
+- **Release Hardening: System Env/Args Modular Dispatch Gap Closure (P1)**:
+  - Added modular native handlers for:
+    - `env`, `env_or`, `env_int`, `env_float`, `env_bool`, `env_required`, `env_set`, `env_list`
+    - `args`, `arg_parser`
+  - Added native-function tests for env round-trip behavior, env error-object behavior, and `arg_parser` struct-shape contract
+  - Reduced exhaustive dispatch known-gap list by removing system env/args APIs now covered by modular dispatcher
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management
