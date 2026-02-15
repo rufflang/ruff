@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - path alias/core operations contract
     - queue/stack size contract behavior
 
+- **Release Hardening: API Argument-Shape Compatibility Contract (P1)**:
+  - Hardened path alias argument handling so `join_path(...)` and `path_join(...)` reject non-string path segments consistently
+  - Hardened collection size APIs so `queue_size(...)` and `stack_size(...)` now enforce exact argument shape:
+    - exactly 1 argument required
+    - argument must be `Queue`/`Stack` respectively
+  - Added integration coverage for argument-shape compatibility across high-traffic APIs:
+    - filesystem aliases (`join_path`/`path_join`)
+    - collection size APIs (`queue_size`/`stack_size`)
+    - async aliases (`promise_all`/`await_all`) for non-array and concurrency-limit validation parity
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

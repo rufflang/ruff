@@ -36,6 +36,15 @@
   - Added integration tests for alias equivalence and path/collection API compatibility behavior
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **API Argument-Shape Compatibility Contract (P1)**
+  - Hardened argument-shape validation for filesystem aliases: `join_path(...)` and `path_join(...)`
+  - Hardened collection size APIs to enforce explicit argument contracts: `queue_size(...)`, `stack_size(...)`
+  - Added integration contract tests spanning async/filesystem/collections parity:
+    - `promise_all(...)` / `await_all(...)`
+    - `join_path(...)` / `path_join(...)`
+    - `queue_size(...)` / `stack_size(...)`
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 ### Just Completed in v0.9.0 (Phase 1) ✅
 
 * **Bytecode VM Integration** 🚀

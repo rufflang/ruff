@@ -49,10 +49,15 @@ This roadmap intentionally tracks only upcoming items.
     - Added queue/stack size API parity (`queue_size`, `stack_size`) in modular native handlers
     - Added integration tests for alias equivalence and path/collection API behavior
 
+- **API Argument-Shape Compatibility Contract (✅ Complete, February 2026)**
+    - Hardened filesystem alias argument-shape behavior for `join_path(...)` and `path_join(...)`
+    - Hardened collection size API argument validation for `queue_size(...)` and `stack_size(...)`
+    - Added integration regression coverage for async/filesystem/collection argument-shape parity (`promise_all`/`await_all`, `join_path`/`path_join`, `queue_size`/`stack_size`)
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0
-- Continue expanding API compatibility regression coverage for VM/interpreter parity and argument-shape compatibility
+- Continue expanding API compatibility regression coverage for VM/interpreter parity on newly introduced builtins
 
 ---
 
