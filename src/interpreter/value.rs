@@ -13,6 +13,9 @@ use rusqlite::Connection as SqliteConnection;
 use std::collections::HashMap;
 use std::fs::File;
 use std::hash::BuildHasherDefault;
+use std::ops::Deref;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
 use zip::ZipWriter;
 
@@ -43,12 +46,25 @@ pub type DictMap = HashMap<Arc<str>, Value, BuildHasherDefault<AHasher>>;
 ///
 /// This container keeps existing call sites stable while replacing the old
 /// leak-on-drop strategy with a non-recursive drop traversal.
-#[derive(Clone)]
-pub struct LeakyFunctionBody(Arc<FunctionBodyStorage>);
+pub struct LeakyFunctionBody {
+    id: usize,
+}
 
 #[derive(Clone)]
 struct FunctionBodyStorage {
     body: Vec<Stmt>,
+}
+
+struct StoredFunctionBody {
+    refs: usize,
+    storage: Arc<FunctionBodyStorage>,
+}
+
+static FUNCTION_BODY_STORE: OnceLock<Mutex<HashMap<usize, StoredFunctionBody>>> = OnceLock::new();
+static NEXT_FUNCTION_BODY_ID: AtomicUsize = AtomicUsize::new(1);
+
+fn function_body_store() -> &'static Mutex<HashMap<usize, StoredFunctionBody>> {
+    FUNCTION_BODY_STORE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 impl Drop for FunctionBodyStorage {
@@ -112,13 +128,60 @@ fn drop_stmt_tree_iterative(root: Vec<Stmt>) {
     }
 }
 
+pub struct FunctionBodyRef {
+    storage: Arc<FunctionBodyStorage>,
+}
+
+impl Deref for FunctionBodyRef {
+    type Target = Vec<Stmt>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage.body
+    }
+}
+
+impl Clone for LeakyFunctionBody {
+    fn clone(&self) -> Self {
+        let mut store = function_body_store().lock().unwrap();
+        if let Some(entry) = store.get_mut(&self.id) {
+            entry.refs += 1;
+        }
+
+        LeakyFunctionBody { id: self.id }
+    }
+}
+
+impl Drop for LeakyFunctionBody {
+    fn drop(&mut self) {
+        let mut store = function_body_store().lock().unwrap();
+        if let Some(entry) = store.get_mut(&self.id) {
+            if entry.refs > 1 {
+                entry.refs -= 1;
+            } else {
+                store.remove(&self.id);
+            }
+        }
+    }
+}
+
 impl LeakyFunctionBody {
     pub fn new(body: Vec<Stmt>) -> Self {
-        LeakyFunctionBody(Arc::new(FunctionBodyStorage { body }))
+        let id = NEXT_FUNCTION_BODY_ID.fetch_add(1, Ordering::Relaxed);
+        let storage = Arc::new(FunctionBodyStorage { body });
+
+        let mut store = function_body_store().lock().unwrap();
+        store.insert(id, StoredFunctionBody { refs: 1, storage });
+
+        LeakyFunctionBody { id }
     }
 
-    pub fn get(&self) -> &Vec<Stmt> {
-        &self.0.body
+    pub fn get(&self) -> FunctionBodyRef {
+        let store = function_body_store().lock().unwrap();
+        if let Some(entry) = store.get(&self.id) {
+            FunctionBodyRef { storage: Arc::clone(&entry.storage) }
+        } else {
+            FunctionBodyRef { storage: Arc::new(FunctionBodyStorage { body: Vec::new() }) }
+        }
     }
 }
 
@@ -154,6 +217,14 @@ mod tests {
     fn drops_deeply_nested_function_body_without_recursion_overflow() {
         let body = LeakyFunctionBody::new(vec![deeply_nested_loop_stmt(20000)]);
         drop(body);
+    }
+
+    #[test]
+    fn cloned_handles_share_same_function_body_storage() {
+        let body = LeakyFunctionBody::new(vec![Stmt::Break, Stmt::Continue]);
+        let clone = body.clone();
+
+        assert_eq!(body.get().len(), clone.get().len());
     }
 }
 

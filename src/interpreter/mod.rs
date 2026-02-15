@@ -1371,7 +1371,7 @@ impl Interpreter {
                     }
 
                     // Execute function body
-                    self.eval_stmts(body.get());
+                    self.eval_stmts(&body.get());
 
                     // Get return value
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -1414,7 +1414,7 @@ impl Interpreter {
                     }
 
                     // Execute function body
-                    self.eval_stmts(body.get());
+                    self.eval_stmts(&body.get());
 
                     // Get return value
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -1486,7 +1486,7 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.eval_stmts(body.get());
+                    self.eval_stmts(&body.get());
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -1536,7 +1536,7 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.eval_stmts(body.get());
+                    self.eval_stmts(&body.get());
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -1674,7 +1674,7 @@ impl Interpreter {
                         self.env.define(param.clone(), req_obj);
                     }
 
-                    self.eval_stmts(body.get());
+                    self.eval_stmts(&body.get());
 
                     // Get result
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -3002,7 +3002,7 @@ impl Interpreter {
                             }
 
                             // Execute function body
-                            self.eval_stmts(body.get());
+                            self.eval_stmts(&body.get());
                             let mut result = Value::Int(0);
                             if let Some(Value::Return(val)) = self.return_value.clone() {
                                 self.return_value = None;
@@ -3809,7 +3809,7 @@ impl Interpreter {
                                 }
 
                                 // Execute method body
-                                self.eval_stmts(body.get());
+                                self.eval_stmts(&body.get());
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
                                 {
@@ -3872,7 +3872,7 @@ impl Interpreter {
                                 }
                             }
 
-                            self.eval_stmts(body.get());
+                            self.eval_stmts(&body.get());
 
                             let result = if let Some(Value::Return(val)) = self.return_value.clone()
                             {
@@ -3907,7 +3907,7 @@ impl Interpreter {
                                 }
                             }
 
-                            self.eval_stmts(body.get());
+                            self.eval_stmts(&body.get());
 
                             let result = if let Some(Value::Return(val)) = self.return_value.clone()
                             {
@@ -3962,7 +3962,7 @@ impl Interpreter {
                             }
 
                             // Execute the async function body
-                            async_interpreter.eval_stmts(body.get());
+                            async_interpreter.eval_stmts(&body.get());
 
                             // Get the return value
                             let result =
@@ -4044,7 +4044,7 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.eval_stmts(body.get());
+                                self.eval_stmts(&body.get());
 
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
@@ -4080,7 +4080,7 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.eval_stmts(body.get());
+                                self.eval_stmts(&body.get());
 
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
