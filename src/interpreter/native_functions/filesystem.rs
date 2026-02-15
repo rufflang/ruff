@@ -432,17 +432,23 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         // Path operation functions
         "join_path" | "path_join" => {
-            let parts: Vec<String> = arg_values
-                .iter()
-                .filter_map(|value| match value {
-                    Value::Str(s) => Some(s.as_ref().clone()),
-                    _ => None,
-                })
-                .collect();
-
-            if parts.is_empty() {
+            if arg_values.is_empty() {
                 Value::Error(format!("{} requires at least one string argument", name))
             } else {
+                let mut parts: Vec<String> = Vec::with_capacity(arg_values.len());
+                for (index, value) in arg_values.iter().enumerate() {
+                    match value {
+                        Value::Str(s) => parts.push(s.as_ref().clone()),
+                        _ => {
+                            return Some(Value::Error(format!(
+                                "{} argument {} must be a string",
+                                name,
+                                index + 1
+                            )));
+                        }
+                    }
+                }
+
                 Value::Str(Arc::new(builtins::join_path(&parts)))
             }
         }

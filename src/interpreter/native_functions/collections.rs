@@ -1311,10 +1311,15 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "queue_size" => {
-            if let Some(Value::Queue(queue)) = arg_values.first() {
+            if arg_values.len() != 1 {
+                Value::Error(format!(
+                    "queue_size expects 1 argument (queue), got {}",
+                    arg_values.len()
+                ))
+            } else if let Some(Value::Queue(queue)) = arg_values.first() {
                 Value::Int(queue.len() as i64)
             } else {
-                Value::Int(0)
+                Value::Error("queue_size requires a Queue argument".to_string())
             }
         }
 
@@ -1375,10 +1380,15 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "stack_size" => {
-            if let Some(Value::Stack(stack)) = arg_values.first() {
+            if arg_values.len() != 1 {
+                Value::Error(format!(
+                    "stack_size expects 1 argument (stack), got {}",
+                    arg_values.len()
+                ))
+            } else if let Some(Value::Stack(stack)) = arg_values.first() {
                 Value::Int(stack.len() as i64)
             } else {
-                Value::Int(0)
+                Value::Error("stack_size requires a Stack argument".to_string())
             }
         }
 
