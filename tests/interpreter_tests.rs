@@ -71,6 +71,15 @@ fn test_builtin_names_include_release_hardening_contract_entries() {
         "path_extension",
         "queue_size",
         "stack_size",
+        "shared_set",
+        "shared_get",
+        "shared_has",
+        "shared_delete",
+        "shared_add_int",
+        "parallel_map",
+        "par_map",
+        "set_task_pool_size",
+        "get_task_pool_size",
     ];
 
     for name in required {
@@ -320,6 +329,146 @@ fn test_promise_all_and_await_all_argument_shape_contract() {
     assert!(matches!(
         interp_a_zero_limit.env.get("a_zero_limit"),
         Some(Value::Error(message)) if message.contains("concurrency_limit must be > 0")
+    ));
+}
+
+#[test]
+fn test_parallel_map_and_par_map_argument_shape_contract() {
+    let interp_parallel_missing = run_code("parallel_missing := parallel_map()");
+    let interp_alias_missing = run_code("alias_missing := par_map()");
+    let interp_parallel_non_array = run_code("parallel_non_array := parallel_map(1, len)");
+    let interp_alias_non_array = run_code("alias_non_array := par_map(1, len)");
+    let interp_parallel_non_callable = run_code("parallel_non_callable := parallel_map([1], 123)");
+    let interp_alias_non_callable = run_code("alias_non_callable := par_map([1], 123)");
+    let interp_parallel_bad_limit = run_code("parallel_bad_limit := parallel_map([1], len, \"2\")");
+    let interp_alias_bad_limit = run_code("alias_bad_limit := par_map([1], len, \"2\")");
+    let interp_parallel_zero_limit = run_code("parallel_zero_limit := parallel_map([1], len, 0)");
+    let interp_alias_zero_limit = run_code("alias_zero_limit := par_map([1], len, 0)");
+
+    assert!(matches!(
+        interp_parallel_missing.env.get("parallel_missing"),
+        Some(Value::Error(message)) if message.contains("expects 2 or 3 arguments")
+    ));
+    assert!(matches!(
+        interp_alias_missing.env.get("alias_missing"),
+        Some(Value::Error(message)) if message.contains("expects 2 or 3 arguments")
+    ));
+    assert!(matches!(
+        interp_parallel_non_array.env.get("parallel_non_array"),
+        Some(Value::Error(message)) if message.contains("first argument must be an array")
+    ));
+    assert!(matches!(
+        interp_alias_non_array.env.get("alias_non_array"),
+        Some(Value::Error(message)) if message.contains("first argument must be an array")
+    ));
+    assert!(matches!(
+        interp_parallel_non_callable.env.get("parallel_non_callable"),
+        Some(Value::Error(message)) if message.contains("second argument must be a callable function")
+    ));
+    assert!(matches!(
+        interp_alias_non_callable.env.get("alias_non_callable"),
+        Some(Value::Error(message)) if message.contains("second argument must be a callable function")
+    ));
+    assert!(matches!(
+        interp_parallel_bad_limit.env.get("parallel_bad_limit"),
+        Some(Value::Error(message)) if message.contains("optional concurrency_limit must be an integer")
+    ));
+    assert!(matches!(
+        interp_alias_bad_limit.env.get("alias_bad_limit"),
+        Some(Value::Error(message)) if message.contains("optional concurrency_limit must be an integer")
+    ));
+    assert!(matches!(
+        interp_parallel_zero_limit.env.get("parallel_zero_limit"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be > 0")
+    ));
+    assert!(matches!(
+        interp_alias_zero_limit.env.get("alias_zero_limit"),
+        Some(Value::Error(message)) if message.contains("concurrency_limit must be > 0")
+    ));
+}
+
+#[test]
+fn test_shared_value_argument_shape_contract() {
+    let interp_set_missing = run_code("set_missing := shared_set()");
+    let interp_set_bad_key = run_code("set_bad_key := shared_set(1, 2)");
+    let interp_get_missing = run_code("get_missing := shared_get()");
+    let interp_get_bad_key = run_code("get_bad_key := shared_get(1)");
+    let interp_has_missing = run_code("has_missing := shared_has()");
+    let interp_has_bad_key = run_code("has_bad_key := shared_has(1)");
+    let interp_delete_missing = run_code("delete_missing := shared_delete()");
+    let interp_delete_bad_key = run_code("delete_bad_key := shared_delete(1)");
+    let interp_add_missing = run_code("add_missing := shared_add_int()");
+    let interp_add_bad_key = run_code("add_bad_key := shared_add_int(1, 2)");
+    let interp_add_bad_delta = run_code("add_bad_delta := shared_add_int(\"k\", \"2\")");
+
+    assert!(matches!(
+        interp_set_missing.env.get("set_missing"),
+        Some(Value::Error(message)) if message.contains("requires (key, value) arguments")
+    ));
+    assert!(matches!(
+        interp_set_bad_key.env.get("set_bad_key"),
+        Some(Value::Error(message)) if message.contains("key must be a string")
+    ));
+    assert!(matches!(
+        interp_get_missing.env.get("get_missing"),
+        Some(Value::Error(message)) if message.contains("requires one key argument")
+    ));
+    assert!(matches!(
+        interp_get_bad_key.env.get("get_bad_key"),
+        Some(Value::Error(message)) if message.contains("key must be a string")
+    ));
+    assert!(matches!(
+        interp_has_missing.env.get("has_missing"),
+        Some(Value::Error(message)) if message.contains("requires one key argument")
+    ));
+    assert!(matches!(
+        interp_has_bad_key.env.get("has_bad_key"),
+        Some(Value::Error(message)) if message.contains("key must be a string")
+    ));
+    assert!(matches!(
+        interp_delete_missing.env.get("delete_missing"),
+        Some(Value::Error(message)) if message.contains("requires one key argument")
+    ));
+    assert!(matches!(
+        interp_delete_bad_key.env.get("delete_bad_key"),
+        Some(Value::Error(message)) if message.contains("key must be a string")
+    ));
+    assert!(matches!(
+        interp_add_missing.env.get("add_missing"),
+        Some(Value::Error(message)) if message.contains("requires (key, delta) arguments")
+    ));
+    assert!(matches!(
+        interp_add_bad_key.env.get("add_bad_key"),
+        Some(Value::Error(message)) if message.contains("key must be a string")
+    ));
+    assert!(matches!(
+        interp_add_bad_delta.env.get("add_bad_delta"),
+        Some(Value::Error(message)) if message.contains("delta must be an int")
+    ));
+}
+
+#[test]
+fn test_task_pool_size_argument_shape_contract() {
+    let interp_set_missing = run_code("set_missing := set_task_pool_size()");
+    let interp_set_bad_type = run_code("set_bad_type := set_task_pool_size(\"8\")");
+    let interp_set_bad_value = run_code("set_bad_value := set_task_pool_size(0)");
+    let interp_get_extra = run_code("get_extra := get_task_pool_size(1)");
+
+    assert!(matches!(
+        interp_set_missing.env.get("set_missing"),
+        Some(Value::Error(message)) if message.contains("expects 1 argument")
+    ));
+    assert!(matches!(
+        interp_set_bad_type.env.get("set_bad_type"),
+        Some(Value::Error(message)) if message.contains("requires an integer size argument")
+    ));
+    assert!(matches!(
+        interp_set_bad_value.env.get("set_bad_value"),
+        Some(Value::Error(message)) if message.contains("size must be > 0")
+    ));
+    assert!(matches!(
+        interp_get_extra.env.get("get_extra"),
+        Some(Value::Error(message)) if message.contains("expects 0 arguments")
     ));
 }
 
