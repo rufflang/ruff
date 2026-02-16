@@ -23,6 +23,15 @@
   - Function-body handle lifecycle is reference-counted with safe final-release cleanup
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+### v0.10.0 Optional Static Typing Design Progress ✅
+
+* **Optional Static Typing Design Package (Exploratory)**
+  - Added a consolidated design document at `docs/OPTIONAL_TYPING_DESIGN.md`
+  - Finalized proposed annotation surface for functions, variables, and collection types with parser/type-check impact notes
+  - Defined optional runtime type-check mode contract and deterministic type-error shape targets
+  - Documented typed-JIT optimization boundaries, migration compatibility notes, open decisions, and explicit non-goals
+  - See [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md) for status alignment
+
 ### v0.10.0 Release Hardening Progress ✅
 
 * **Array + Higher-Order Collection API Contract Follow-Through (P1)**

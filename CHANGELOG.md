@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Optional Static Typing Design Package (Exploratory, v0.10.0)**:
+  - Added consolidated design document at `docs/OPTIONAL_TYPING_DESIGN.md` covering:
+    - annotation surface proposal for function signatures, variable declarations, and generic collection forms
+    - optional runtime type-check mode contract and deterministic type-error shape targets
+    - typed-JIT optimization boundaries, explicit non-goals, migration/compatibility posture, and open decisions
+
 ### Fixed
 
 - **Release Hardening: Array and Higher-Order Collection API Contract Follow-Through (P1)**:

@@ -12,7 +12,7 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 **IMMEDIATE (v0.10.0)**:
 1. **📦 Release Hardening (P1)** - stabilize APIs and prepare v1.0 trajectory
-2. **🧪 Optional Static Typing Design (Exploratory)** - narrow design surface and implementation plan
+2. **🧪 Optional Static Typing Design (Exploratory, ✅ Complete February 2026)** - see `docs/OPTIONAL_TYPING_DESIGN.md`
 
 **AFTER v0.10.0**:
 3. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus for v0.11.0
@@ -222,6 +222,12 @@ This roadmap intentionally tracks only upcoming items.
     - Added contract coverage for valid conversion behavior and invalid parse/conversion error-shape behavior
     - Added `bytes(...)` validation coverage for value-range and argument-shape errors
 
+- **Optional Static Typing Design Package (✅ Complete, February 2026)**
+    - Added a consolidated exploratory design document at `docs/OPTIONAL_TYPING_DESIGN.md`
+    - Finalized proposed annotation surface for functions, variables, and collection types with parser/type-check impact notes
+    - Defined optional runtime type-check mode contract (opt-in behavior, expected error shape, and compatibility posture)
+    - Documented typed-JIT optimization boundaries, explicit non-goals, migration compatibility notes, and open decisions
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0
@@ -249,13 +255,11 @@ This roadmap intentionally tracks only upcoming items.
 
 #### 2) Optional Static Typing Design Package (Exploratory)
 
-**Status**: Ready to execute (design-only for v0.10)
+**Status**: ✅ Complete (design package delivered, February 2026)
 
-**Run This in Future Chats**:
-- Stage 1: finalize annotation surface proposal (functions, variables, collections) with parser/type-check impact notes.
-- Stage 2: define optional runtime type-check mode contract (enable/disable behavior, error format, compatibility expectations).
-- Stage 3: document typed-JIT optimization strategy boundaries (what is in scope vs deferred).
-- Produce one consolidated design decision summary in docs.
+**Output**:
+- Consolidated design document: `docs/OPTIONAL_TYPING_DESIGN.md`
+- Includes annotation surface, optional runtime type-check contract, typed-JIT boundaries, migration notes, open decisions, and non-goals
 
 **Done Criteria (v0.10)**:
 - A concrete design document exists for optional typing (syntax, semantics, migration/compatibility notes).
