@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: System Random/Time + Env/Args Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
+    - Random/time APIs: `random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`
+    - Env/args APIs: `env`, `env_or`, `env_int`, `env_float`, `env_bool`, `env_required`, `env_set`, `env_list`, `args`, `arg_parser`
+  - Added comprehensive release-hardening strict-arity coverage at both module and dispatcher integration layers, including explicit extra-argument rejection checks
+
 - **Release Hardening: System Operation Dispatch + Contract Follow-Through (P1)**:
   - Added modular native dispatch coverage for declared system operation builtins:
     - `input`, `exit`, `sleep`, `execute`
