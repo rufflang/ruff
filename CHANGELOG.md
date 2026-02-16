@@ -59,6 +59,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - single-arg and two-arg math operation behavior
     - missing/invalid argument fallback behavior (`Int(0)`) for compatibility with existing runtime contracts
 
+- **Release Hardening: Collections and Format API Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for collection and formatting builtins:
+    - `range`
+    - `keys`, `values`, `items`, `has_key`, `get`, `merge`, `invert`, `update`, `get_default`
+    - `format`
+  - Added release-hardening behavior and contract coverage for:
+    - `range(...)` one-arg/two-arg success behavior and numeric argument-shape validation errors
+    - deterministic dictionary key ordering behavior for `keys(...)`, `values(...)`, and `items(...)`
+    - dict lookup/update semantics (`has_key`, `get`, `get_default`, `merge`, `update`, `invert`) including fallback/error shapes
+    - `format(...)` sprintf-style placeholder behavior (`%s`, `%d`) and template argument-shape errors
+
 - **Release Hardening: Conversion + `bytes(...)` Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for conversion/validation builtins:
     - `parse_int`, `parse_float`

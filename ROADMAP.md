@@ -155,6 +155,10 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for math APIs (`abs`, `sqrt`, `pow`, `floor`, `ceil`, `round`, `min`, `max`, `sin`, `cos`, `tan`, `log`, `exp`)
     - Added deterministic behavior contracts plus compatibility fallback contracts for missing/invalid argument shapes
 
+- **Collections and Format API Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for collection/format APIs (`range`, `keys`, `values`, `items`, `has_key`, `get`, `merge`, `invert`, `update`, `get_default`, `format`)
+    - Added deterministic dict-order contracts, lookup/update behavior contracts, range argument-shape contracts, and `format(...)` placeholder/argument-shape contracts
+
 - **Polymorphic `len(...)` Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage to include `len`
     - Added polymorphic contract coverage for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`

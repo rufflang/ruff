@@ -119,6 +119,11 @@
   - Added deterministic behavior and fallback contract tests for representative numeric inputs and missing/invalid argument-shape compatibility behavior
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Collections and Format API Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for collection/format APIs: `range`, `keys`, `values`, `items`, `has_key`, `get`, `merge`, `invert`, `update`, `get_default`, `format`
+  - Added deterministic dict-order tests, lookup/update behavior tests, range argument-shape tests, and `format(...)` placeholder/argument-shape tests
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Polymorphic `len(...)` Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage to include `len`
   - Added polymorphic contract tests for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`
