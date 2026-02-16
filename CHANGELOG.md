@@ -409,13 +409,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `hash_password`, `verify_password`
     - `aes_encrypt`, `aes_decrypt`, `aes_encrypt_bytes`, `aes_decrypt_bytes`
     - `rsa_generate_keypair`, `rsa_encrypt`, `rsa_decrypt`, `rsa_sign`, `rsa_verify`
+  - Hardened strict arity contracts across all crypto/hash entry points so extra arguments no longer pass through implicit positional matching
   - Preserved legacy crypto contract behavior for argument validation, hash formatting, bcrypt verify semantics, AES base64 payload conventions, and RSA key/signature error-object shape
   - Added comprehensive native-function coverage for:
     - deterministic hash vectors and file-hash behavior
     - bcrypt hash/verify success + failure behavior
     - AES string/bytes encrypt-decrypt round trips
     - RSA keypair generation, encrypt/decrypt round trip, and sign/verify contract behavior
-    - argument-shape and key-size validation errors
+    - argument-shape, strict-arity, and key-size validation errors
   - Expanded dispatcher-level hardening coverage for crypto APIs and reduced exhaustive known-gap list by removing migrated crypto entries
 
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:

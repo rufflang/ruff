@@ -239,7 +239,8 @@
 
 * **Crypto Module Modular Dispatch Gap Closure (P1)**
   - Added modular handlers for declared crypto/hash APIs: `sha256`, `md5`, `md5_file`, `hash_password`, `verify_password`, `aes_encrypt`, `aes_decrypt`, `aes_encrypt_bytes`, `aes_decrypt_bytes`, `rsa_generate_keypair`, `rsa_encrypt`, `rsa_decrypt`, `rsa_sign`, `rsa_verify`
-  - Added contract tests for hash vectors, file hashing, bcrypt verify semantics, AES string/bytes round trips, RSA keygen/encrypt/decrypt/sign/verify behavior, and argument-shape validation
+  - Added contract tests for hash vectors, file hashing, bcrypt verify semantics, AES string/bytes round trips, RSA keygen/encrypt/decrypt/sign/verify behavior, and argument-shape/strict-arity validation
+  - Hardened strict arity contracts across crypto/hash APIs so extra arguments now return deterministic contract errors
   - Expanded release-hardening dispatcher coverage for migrated crypto APIs and removed these entries from known dispatch gaps
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
