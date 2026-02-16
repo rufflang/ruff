@@ -2663,6 +2663,368 @@ mod tests {
     }
 
     #[test]
+    fn test_release_hardening_async_batch_file_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let read_missing_args = call_native_function(&mut interpreter, "async_read_files", &[]);
+        assert!(
+            matches!(read_missing_args, Value::Error(message) if message.contains("expects 1 or 2 arguments"))
+        );
+
+        let read_non_array =
+            call_native_function(&mut interpreter, "async_read_files", &[Value::Int(1)]);
+        assert!(
+            matches!(read_non_array, Value::Error(message) if message.contains("first argument must be an array of string paths"))
+        );
+
+        let read_non_positive_limit = call_native_function(
+            &mut interpreter,
+            "async_read_files",
+            &[Value::Array(Arc::new(vec![])), Value::Int(0)],
+        );
+        assert!(
+            matches!(read_non_positive_limit, Value::Error(message) if message.contains("concurrency_limit must be > 0"))
+        );
+
+        let read_non_int_limit = call_native_function(
+            &mut interpreter,
+            "async_read_files",
+            &[
+                Value::Array(Arc::new(vec![])),
+                Value::Str(Arc::new("2".to_string())),
+            ],
+        );
+        assert!(
+            matches!(read_non_int_limit, Value::Error(message) if message.contains("optional concurrency_limit must be an integer"))
+        );
+
+        let read_bad_path_element = call_native_function(
+            &mut interpreter,
+            "async_read_files",
+            &[Value::Array(Arc::new(vec![Value::Int(1)]))],
+        );
+        assert!(
+            matches!(read_bad_path_element, Value::Error(message) if message.contains("path at index 0 must be a string"))
+        );
+
+        let write_missing_args = call_native_function(&mut interpreter, "async_write_files", &[]);
+        assert!(
+            matches!(write_missing_args, Value::Error(message) if message.contains("expects 2 or 3 arguments"))
+        );
+
+        let write_non_array_paths = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[Value::Int(1), Value::Array(Arc::new(vec![]))],
+        );
+        assert!(
+            matches!(write_non_array_paths, Value::Error(message) if message.contains("first argument must be an array of string paths"))
+        );
+
+        let write_non_array_contents = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[Value::Array(Arc::new(vec![])), Value::Int(1)],
+        );
+        assert!(
+            matches!(write_non_array_contents, Value::Error(message) if message.contains("second argument must be an array of string contents"))
+        );
+
+        let write_mismatched_lengths = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![Value::Str(Arc::new("a.txt".to_string()))])),
+                Value::Array(Arc::new(vec![])),
+            ],
+        );
+        assert!(
+            matches!(write_mismatched_lengths, Value::Error(message) if message.contains("paths and contents arrays must have the same length"))
+        );
+
+        let write_non_positive_limit = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![])),
+                Value::Array(Arc::new(vec![])),
+                Value::Int(0),
+            ],
+        );
+        assert!(
+            matches!(write_non_positive_limit, Value::Error(message) if message.contains("concurrency_limit must be > 0"))
+        );
+
+        let write_non_int_limit = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![])),
+                Value::Array(Arc::new(vec![])),
+                Value::Str(Arc::new("2".to_string())),
+            ],
+        );
+        assert!(
+            matches!(write_non_int_limit, Value::Error(message) if message.contains("optional concurrency_limit must be an integer"))
+        );
+
+        let write_bad_path_element = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![Value::Int(1)])),
+                Value::Array(Arc::new(vec![Value::Str(Arc::new("value".to_string()))])),
+            ],
+        );
+        assert!(
+            matches!(write_bad_path_element, Value::Error(message) if message.contains("path at index 0 must be a string"))
+        );
+
+        let write_bad_content_element = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![Value::Str(Arc::new("a.txt".to_string()))])),
+                Value::Array(Arc::new(vec![Value::Int(1)])),
+            ],
+        );
+        assert!(
+            matches!(write_bad_content_element, Value::Error(message) if message.contains("content at index 0 must be a string"))
+        );
+
+        let base_dir = tmp_test_path("async_batch_file_contracts");
+        let _ = std::fs::remove_dir_all(&base_dir);
+        std::fs::create_dir_all(&base_dir).expect("async batch hardening dir should be created");
+
+        let first_path = format!("{}/first.txt", base_dir);
+        let second_path = format!("{}/second.txt", base_dir);
+
+        let write_success = call_native_function(
+            &mut interpreter,
+            "async_write_files",
+            &[
+                Value::Array(Arc::new(vec![
+                    Value::Str(Arc::new(first_path.clone())),
+                    Value::Str(Arc::new(second_path.clone())),
+                ])),
+                Value::Array(Arc::new(vec![
+                    Value::Str(Arc::new("alpha".to_string())),
+                    Value::Str(Arc::new("beta".to_string())),
+                ])),
+                Value::Int(1),
+            ],
+        );
+
+        let write_results = await_native_promise(write_success);
+        assert!(matches!(write_results, Ok(Value::Array(results)) if results.len() == 2
+            && matches!(&results[0], Value::Bool(true))
+            && matches!(&results[1], Value::Bool(true))));
+
+        assert_eq!(
+            std::fs::read_to_string(&first_path).expect("first async-written file should exist"),
+            "alpha"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&second_path).expect("second async-written file should exist"),
+            "beta"
+        );
+
+        let read_success = call_native_function(
+            &mut interpreter,
+            "async_read_files",
+            &[
+                Value::Array(Arc::new(vec![
+                    Value::Str(Arc::new(first_path.clone())),
+                    Value::Str(Arc::new(second_path.clone())),
+                ])),
+                Value::Int(1),
+            ],
+        );
+
+        let read_results = await_native_promise(read_success);
+        assert!(matches!(read_results, Ok(Value::Array(results)) if results.len() == 2
+            && matches!(&results[0], Value::Str(content) if content.as_ref() == "alpha")
+            && matches!(&results[1], Value::Str(content) if content.as_ref() == "beta")));
+
+        let _ = std::fs::remove_dir_all(base_dir);
+    }
+
+    #[test]
+    fn test_release_hardening_shared_state_and_task_pool_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let shared_key = format!(
+            "RUFF_RELEASE_HARDENING_SHARED_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after UNIX_EPOCH")
+                .as_nanos()
+        );
+
+        let shared_set_missing = call_native_function(&mut interpreter, "shared_set", &[]);
+        assert!(
+            matches!(shared_set_missing, Value::Error(message) if message.contains("shared_set requires (key, value) arguments"))
+        );
+
+        let shared_set_bad_key = call_native_function(
+            &mut interpreter,
+            "shared_set",
+            &[Value::Int(1), Value::Int(2)],
+        );
+        assert!(
+            matches!(shared_set_bad_key, Value::Error(message) if message.contains("shared_set key must be a string"))
+        );
+
+        let shared_get_missing = call_native_function(&mut interpreter, "shared_get", &[]);
+        assert!(
+            matches!(shared_get_missing, Value::Error(message) if message.contains("shared_get requires one key argument"))
+        );
+
+        let shared_get_missing_key = call_native_function(
+            &mut interpreter,
+            "shared_get",
+            &[Value::Str(Arc::new("RUFF_RELEASE_HARDENING_SHARED_MISSING".to_string()))],
+        );
+        assert!(
+            matches!(shared_get_missing_key, Value::Error(message) if message.contains("key 'RUFF_RELEASE_HARDENING_SHARED_MISSING' not found"))
+        );
+
+        let shared_set_ok = call_native_function(
+            &mut interpreter,
+            "shared_set",
+            &[
+                Value::Str(Arc::new(shared_key.clone())),
+                Value::Int(10),
+            ],
+        );
+        assert!(matches!(shared_set_ok, Value::Bool(true)));
+
+        let shared_has_true = call_native_function(
+            &mut interpreter,
+            "shared_has",
+            &[Value::Str(Arc::new(shared_key.clone()))],
+        );
+        assert!(matches!(shared_has_true, Value::Bool(true)));
+
+        let shared_get_ok = call_native_function(
+            &mut interpreter,
+            "shared_get",
+            &[Value::Str(Arc::new(shared_key.clone()))],
+        );
+        assert!(matches!(shared_get_ok, Value::Int(10)));
+
+        let shared_add_missing = call_native_function(&mut interpreter, "shared_add_int", &[]);
+        assert!(
+            matches!(shared_add_missing, Value::Error(message) if message.contains("shared_add_int requires (key, delta) arguments"))
+        );
+
+        let shared_add_bad_delta = call_native_function(
+            &mut interpreter,
+            "shared_add_int",
+            &[
+                Value::Str(Arc::new(shared_key.clone())),
+                Value::Str(Arc::new("1".to_string())),
+            ],
+        );
+        assert!(
+            matches!(shared_add_bad_delta, Value::Error(message) if message.contains("delta must be an int"))
+        );
+
+        let shared_add_missing_key = call_native_function(
+            &mut interpreter,
+            "shared_add_int",
+            &[
+                Value::Str(Arc::new("RUFF_RELEASE_HARDENING_SHARED_ADD_MISSING".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(shared_add_missing_key, Value::Error(message) if message.contains("key 'RUFF_RELEASE_HARDENING_SHARED_ADD_MISSING' not found"))
+        );
+
+        let shared_add_ok = call_native_function(
+            &mut interpreter,
+            "shared_add_int",
+            &[
+                Value::Str(Arc::new(shared_key.clone())),
+                Value::Int(5),
+            ],
+        );
+        assert!(matches!(shared_add_ok, Value::Int(15)));
+
+        let shared_get_after_add = call_native_function(
+            &mut interpreter,
+            "shared_get",
+            &[Value::Str(Arc::new(shared_key.clone()))],
+        );
+        assert!(matches!(shared_get_after_add, Value::Int(15)));
+
+        let shared_delete_missing = call_native_function(&mut interpreter, "shared_delete", &[]);
+        assert!(
+            matches!(shared_delete_missing, Value::Error(message) if message.contains("shared_delete requires one key argument"))
+        );
+
+        let shared_delete_ok = call_native_function(
+            &mut interpreter,
+            "shared_delete",
+            &[Value::Str(Arc::new(shared_key.clone()))],
+        );
+        assert!(matches!(shared_delete_ok, Value::Bool(true)));
+
+        let shared_has_false = call_native_function(
+            &mut interpreter,
+            "shared_has",
+            &[Value::Str(Arc::new(shared_key.clone()))],
+        );
+        assert!(matches!(shared_has_false, Value::Bool(false)));
+
+        let get_task_pool_with_args =
+            call_native_function(&mut interpreter, "get_task_pool_size", &[Value::Int(1)]);
+        assert!(
+            matches!(get_task_pool_with_args, Value::Error(message) if message.contains("expects 0 arguments"))
+        );
+
+        let set_task_pool_missing = call_native_function(&mut interpreter, "set_task_pool_size", &[]);
+        assert!(
+            matches!(set_task_pool_missing, Value::Error(message) if message.contains("expects 1 argument"))
+        );
+
+        let set_task_pool_non_positive =
+            call_native_function(&mut interpreter, "set_task_pool_size", &[Value::Int(0)]);
+        assert!(
+            matches!(set_task_pool_non_positive, Value::Error(message) if message.contains("size must be > 0"))
+        );
+
+        let set_task_pool_bad_type = call_native_function(
+            &mut interpreter,
+            "set_task_pool_size",
+            &[Value::Str(Arc::new("4".to_string()))],
+        );
+        assert!(
+            matches!(set_task_pool_bad_type, Value::Error(message) if message.contains("requires an integer size argument"))
+        );
+
+        let initial_pool_size = call_native_function(&mut interpreter, "get_task_pool_size", &[]);
+        let initial_pool_size_value = match initial_pool_size {
+            Value::Int(size) => {
+                assert!(size > 0);
+                size
+            }
+            other => panic!("Expected Int from get_task_pool_size(), got {:?}", other),
+        };
+
+        let set_task_pool_same = call_native_function(
+            &mut interpreter,
+            "set_task_pool_size",
+            &[Value::Int(initial_pool_size_value)],
+        );
+        assert!(matches!(set_task_pool_same, Value::Int(previous) if previous > 0));
+
+        let final_pool_size = call_native_function(&mut interpreter, "get_task_pool_size", &[]);
+        assert!(matches!(final_pool_size, Value::Int(size) if size > 0));
+    }
+
+    #[test]
     fn test_release_hardening_ssg_render_pages_dispatch_contracts() {
         let mut interpreter = Interpreter::new();
 
