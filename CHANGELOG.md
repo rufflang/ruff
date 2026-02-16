@@ -189,6 +189,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `parallel_http`
     - `jwt_encode` / `jwt_decode`
     - `oauth2_auth_url` / `oauth2_get_token`
+  - Hardened strict arity contracts for HTTP request/response helpers and advanced HTTP APIs so extra arguments no longer silently pass through:
+    - `parallel_http`, `http_get`, `http_post`, `http_put`, `http_delete`, `http_get_binary`, `http_get_stream`, `http_server`
+    - `set_header`, `set_headers`, `http_response`, `json_response`, `html_response`, `redirect_response`
+    - `jwt_encode`, `jwt_decode`, `oauth2_auth_url`, `oauth2_get_token`
   - Added release-hardening argument-shape and error-shape contract coverage for all advanced HTTP APIs above
   - Added behavior contract coverage for:
     - empty-input `parallel_http(...)` result shape

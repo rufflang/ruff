@@ -109,6 +109,7 @@
 
 * **Advanced HTTP API Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage for HTTP auth/concurrency APIs: `parallel_http`, `jwt_encode`, `jwt_decode`, `oauth2_auth_url`, `oauth2_get_token`
+  - Hardened strict arity contracts for HTTP request/response helpers and advanced HTTP APIs so extra arguments return deterministic contract errors
   - Added argument-shape/error-shape contract tests for these advanced HTTP APIs
   - Added behavior contract tests for empty `parallel_http(...)` shape, JWT encode/decode payload integrity, and OAuth2 authorization URL output structure
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details

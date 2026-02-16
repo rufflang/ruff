@@ -145,6 +145,7 @@ This roadmap intentionally tracks only upcoming items.
 - **Advanced HTTP API Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage for HTTP auth/concurrency APIs (`parallel_http`, `jwt_encode`, `jwt_decode`, `oauth2_auth_url`, `oauth2_get_token`)
     - Added argument-shape/error-shape contract coverage for all advanced HTTP APIs above
+    - Hardened strict arity contracts for HTTP request/response helpers and advanced HTTP APIs so extra arguments now return deterministic contract errors instead of being silently ignored
     - Added behavior contract coverage for empty `parallel_http(...)` shape, JWT encode/decode payload integrity, and OAuth2 authorization URL output structure
 
 - **Core Alias Behavior Parity Follow-Through (✅ Complete, February 2026)**
