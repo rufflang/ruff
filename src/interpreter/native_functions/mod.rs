@@ -426,16 +426,17 @@ mod tests {
     #[test]
     fn test_release_hardening_builtin_dispatch_coverage_for_declared_builtins() {
         let mut interpreter = Interpreter::new();
-        let skip_probe_names = ["input", "exit"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps: Vec<String> = vec![];
 
         for builtin_name in Interpreter::get_builtin_names() {
-            if skip_probe_names.contains(&builtin_name) {
-                continue;
-            }
+            let probe_args = match builtin_name {
+                "input" => vec![Value::Int(1)],
+                "exit" => vec![Value::Str(Arc::new("non-numeric".to_string()))],
+                _ => vec![],
+            };
 
-            let result = call_native_function(&mut interpreter, builtin_name, &[]);
+            let result = call_native_function(&mut interpreter, builtin_name, &probe_args);
             if is_unknown_native_error(&result) {
                 unknown_builtin_names.push(builtin_name.to_string());
             }
