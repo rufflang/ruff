@@ -799,12 +799,28 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         // OS module functions
-        "os_getcwd" => match std::env::current_dir() {
-            Ok(path) => Value::Str(Arc::new(path.to_string_lossy().to_string())),
-            Err(e) => Value::Error(format!("Cannot get current directory: {}", e)),
-        },
+        "os_getcwd" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "os_getcwd() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            match std::env::current_dir() {
+                Ok(path) => Value::Str(Arc::new(path.to_string_lossy().to_string())),
+                Err(e) => Value::Error(format!("Cannot get current directory: {}", e)),
+            }
+        }
 
         "os_chdir" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "os_chdir() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::env::set_current_dir(path.as_ref()) {
                     Ok(_) => Value::Bool(true),
@@ -820,6 +836,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "os_rmdir" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "os_rmdir() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::remove_dir(path.as_ref()) {
                     Ok(_) => Value::Bool(true),
@@ -833,6 +856,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "os_environ" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "os_environ() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
             let mut dict = DictMap::default();
             for (key, value) in std::env::vars() {
                 dict.insert(Arc::<str>::from(key), Value::Str(Arc::new(value)));
@@ -864,6 +894,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "dirname" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "dirname() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 Value::Str(Arc::new(builtins::dirname(path.as_ref())))
             } else {
@@ -872,6 +909,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "basename" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "basename() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 Value::Str(Arc::new(builtins::basename(path.as_ref())))
             } else {
@@ -880,6 +924,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "path_exists" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "path_exists() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 Value::Bool(builtins::path_exists(path.as_ref()))
             } else {
@@ -888,6 +939,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "path_absolute" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "path_absolute() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::canonicalize(Path::new(path.as_ref())) {
                     Ok(abs_path) => Value::Str(Arc::new(abs_path.to_string_lossy().to_string())),
@@ -903,6 +961,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "path_is_dir" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "path_is_dir() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 Value::Bool(Path::new(path.as_ref()).is_dir())
             } else {
@@ -911,6 +976,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "path_is_file" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "path_is_file() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 Value::Bool(Path::new(path.as_ref()).is_file())
             } else {
@@ -919,6 +991,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "path_extension" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "path_extension() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match Path::new(path.as_ref()).extension() {
                     Some(ext) => Value::Str(Arc::new(ext.to_string_lossy().to_string())),
