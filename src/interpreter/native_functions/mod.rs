@@ -268,6 +268,19 @@ mod tests {
             "elapsed",
             "format_date",
             "parse_date",
+            "abs",
+            "sqrt",
+            "pow",
+            "floor",
+            "ceil",
+            "round",
+            "min",
+            "max",
+            "sin",
+            "cos",
+            "tan",
+            "log",
+            "exp",
         ];
 
         for builtin_name in critical_builtin_names {
@@ -1056,6 +1069,77 @@ mod tests {
 
         let parse_date_missing = call_native_function(&mut interpreter, "parse_date", &[]);
         assert!(matches!(parse_date_missing, Value::Error(message) if message.contains("parse_date requires date string and format string")));
+    }
+
+    #[test]
+    fn test_release_hardening_math_behavior_and_fallback_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let abs_ok = call_native_function(&mut interpreter, "abs", &[Value::Int(-42)]);
+        assert!(matches!(abs_ok, Value::Float(value) if (value - 42.0).abs() < 1e-12));
+
+        let sqrt_ok = call_native_function(&mut interpreter, "sqrt", &[Value::Int(49)]);
+        assert!(matches!(sqrt_ok, Value::Float(value) if (value - 7.0).abs() < 1e-12));
+
+        let pow_ok =
+            call_native_function(&mut interpreter, "pow", &[Value::Int(2), Value::Int(8)]);
+        assert!(matches!(pow_ok, Value::Float(value) if (value - 256.0).abs() < 1e-12));
+
+        let floor_ok = call_native_function(&mut interpreter, "floor", &[Value::Float(3.9)]);
+        assert!(matches!(floor_ok, Value::Float(value) if (value - 3.0).abs() < 1e-12));
+
+        let ceil_ok = call_native_function(&mut interpreter, "ceil", &[Value::Float(3.1)]);
+        assert!(matches!(ceil_ok, Value::Float(value) if (value - 4.0).abs() < 1e-12));
+
+        let round_ok = call_native_function(&mut interpreter, "round", &[Value::Float(3.5)]);
+        assert!(matches!(round_ok, Value::Float(value) if (value - 4.0).abs() < 1e-12));
+
+        let min_ok =
+            call_native_function(&mut interpreter, "min", &[Value::Int(3), Value::Int(7)]);
+        assert!(matches!(min_ok, Value::Float(value) if (value - 3.0).abs() < 1e-12));
+
+        let max_ok =
+            call_native_function(&mut interpreter, "max", &[Value::Int(3), Value::Int(7)]);
+        assert!(matches!(max_ok, Value::Float(value) if (value - 7.0).abs() < 1e-12));
+
+        let sin_ok = call_native_function(&mut interpreter, "sin", &[Value::Int(0)]);
+        assert!(matches!(sin_ok, Value::Float(value) if value.abs() < 1e-12));
+
+        let cos_ok = call_native_function(&mut interpreter, "cos", &[Value::Int(0)]);
+        assert!(matches!(cos_ok, Value::Float(value) if (value - 1.0).abs() < 1e-12));
+
+        let tan_ok = call_native_function(&mut interpreter, "tan", &[Value::Int(0)]);
+        assert!(matches!(tan_ok, Value::Float(value) if value.abs() < 1e-12));
+
+        let log_ok = call_native_function(
+            &mut interpreter,
+            "log",
+            &[Value::Float(std::f64::consts::E)],
+        );
+        assert!(matches!(log_ok, Value::Float(value) if (value - 1.0).abs() < 1e-12));
+
+        let exp_ok = call_native_function(&mut interpreter, "exp", &[Value::Int(1)]);
+        assert!(matches!(exp_ok, Value::Float(value) if (value - std::f64::consts::E).abs() < 1e-12));
+
+        let abs_missing = call_native_function(&mut interpreter, "abs", &[]);
+        assert!(matches!(abs_missing, Value::Int(0)));
+
+        let abs_invalid_type = call_native_function(
+            &mut interpreter,
+            "abs",
+            &[Value::Str(Arc::new("invalid".to_string()))],
+        );
+        assert!(matches!(abs_invalid_type, Value::Int(0)));
+
+        let pow_missing = call_native_function(&mut interpreter, "pow", &[Value::Int(2)]);
+        assert!(matches!(pow_missing, Value::Int(0)));
+
+        let pow_invalid_type = call_native_function(
+            &mut interpreter,
+            "pow",
+            &[Value::Int(2), Value::Str(Arc::new("bad".to_string()))],
+        );
+        assert!(matches!(pow_invalid_type, Value::Int(0)));
     }
 
     #[test]
