@@ -125,6 +125,15 @@ mod tests {
         let mut interpreter = Interpreter::new();
         let critical_builtin_names = [
             "len",
+            "type",
+            "is_int",
+            "is_float",
+            "is_string",
+            "is_bool",
+            "is_array",
+            "is_dict",
+            "is_null",
+            "is_function",
             "Set",
             "ssg_render_pages",
             "upper",
@@ -350,6 +359,97 @@ mod tests {
 
         let missing_args_len = call_native_function(&mut interpreter, "len", &[]);
         assert!(matches!(missing_args_len, Value::Int(0)));
+    }
+
+    #[test]
+    fn test_release_hardening_type_and_is_introspection_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let type_string = call_native_function(
+            &mut interpreter,
+            "type",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(matches!(type_string, Value::Str(name) if name.as_ref() == "string"));
+
+        let type_array = call_native_function(
+            &mut interpreter,
+            "type",
+            &[Value::Array(Arc::new(vec![Value::Int(1)]))],
+        );
+        assert!(matches!(type_array, Value::Str(name) if name.as_ref() == "array"));
+
+        let type_null = call_native_function(&mut interpreter, "type", &[Value::Null]);
+        assert!(matches!(type_null, Value::Str(name) if name.as_ref() == "null"));
+
+        let type_missing = call_native_function(&mut interpreter, "type", &[]);
+        assert!(
+            matches!(type_missing, Value::Error(message) if message.contains("type() requires one argument"))
+        );
+
+        let is_int_true = call_native_function(&mut interpreter, "is_int", &[Value::Int(7)]);
+        assert!(matches!(is_int_true, Value::Bool(true)));
+        let is_int_false = call_native_function(&mut interpreter, "is_int", &[Value::Float(7.0)]);
+        assert!(matches!(is_int_false, Value::Bool(false)));
+        let is_int_missing = call_native_function(&mut interpreter, "is_int", &[]);
+        assert!(matches!(is_int_missing, Value::Bool(false)));
+
+        let is_float_true =
+            call_native_function(&mut interpreter, "is_float", &[Value::Float(7.5)]);
+        assert!(matches!(is_float_true, Value::Bool(true)));
+        let is_float_false = call_native_function(&mut interpreter, "is_float", &[Value::Int(7)]);
+        assert!(matches!(is_float_false, Value::Bool(false)));
+
+        let is_string_true = call_native_function(
+            &mut interpreter,
+            "is_string",
+            &[Value::Str(Arc::new("x".to_string()))],
+        );
+        assert!(matches!(is_string_true, Value::Bool(true)));
+        let is_string_false =
+            call_native_function(&mut interpreter, "is_string", &[Value::Bool(true)]);
+        assert!(matches!(is_string_false, Value::Bool(false)));
+
+        let is_bool_true = call_native_function(&mut interpreter, "is_bool", &[Value::Bool(true)]);
+        assert!(matches!(is_bool_true, Value::Bool(true)));
+        let is_bool_false = call_native_function(
+            &mut interpreter,
+            "is_bool",
+            &[Value::Str(Arc::new("true".to_string()))],
+        );
+        assert!(matches!(is_bool_false, Value::Bool(false)));
+
+        let is_array_true =
+            call_native_function(&mut interpreter, "is_array", &[Value::Array(Arc::new(vec![]))]);
+        assert!(matches!(is_array_true, Value::Bool(true)));
+        let is_array_false = call_native_function(&mut interpreter, "is_array", &[Value::Null]);
+        assert!(matches!(is_array_false, Value::Bool(false)));
+
+        let mut dict = crate::interpreter::DictMap::default();
+        dict.insert("k".into(), Value::Int(1));
+        let is_dict_true =
+            call_native_function(&mut interpreter, "is_dict", &[Value::Dict(Arc::new(dict))]);
+        assert!(matches!(is_dict_true, Value::Bool(true)));
+        let is_dict_false =
+            call_native_function(&mut interpreter, "is_dict", &[Value::Array(Arc::new(vec![]))]);
+        assert!(matches!(is_dict_false, Value::Bool(false)));
+
+        let is_null_true = call_native_function(&mut interpreter, "is_null", &[Value::Null]);
+        assert!(matches!(is_null_true, Value::Bool(true)));
+        let is_null_false = call_native_function(&mut interpreter, "is_null", &[Value::Int(0)]);
+        assert!(matches!(is_null_false, Value::Bool(false)));
+
+        let is_function_true = call_native_function(
+            &mut interpreter,
+            "is_function",
+            &[Value::NativeFunction("len".to_string())],
+        );
+        assert!(matches!(is_function_true, Value::Bool(true)));
+        let is_function_false =
+            call_native_function(&mut interpreter, "is_function", &[Value::Int(1)]);
+        assert!(matches!(is_function_false, Value::Bool(false)));
+        let is_function_missing = call_native_function(&mut interpreter, "is_function", &[]);
+        assert!(matches!(is_function_missing, Value::Bool(false)));
     }
 
     #[test]
