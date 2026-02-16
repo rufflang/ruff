@@ -281,6 +281,17 @@ mod tests {
             "tan",
             "log",
             "exp",
+            "range",
+            "keys",
+            "values",
+            "items",
+            "has_key",
+            "get",
+            "merge",
+            "invert",
+            "update",
+            "get_default",
+            "format",
         ];
 
         for builtin_name in critical_builtin_names {
@@ -1140,6 +1151,168 @@ mod tests {
             &[Value::Int(2), Value::Str(Arc::new("bad".to_string()))],
         );
         assert!(matches!(pow_invalid_type, Value::Int(0)));
+    }
+
+    #[test]
+    fn test_release_hardening_collections_and_format_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let range_one_arg = call_native_function(&mut interpreter, "range", &[Value::Int(3)]);
+        assert!(matches!(range_one_arg, Value::Array(values) if values.len() == 3
+            && matches!(&values[0], Value::Int(0))
+            && matches!(&values[1], Value::Int(1))
+            && matches!(&values[2], Value::Int(2))));
+
+        let range_two_arg =
+            call_native_function(&mut interpreter, "range", &[Value::Int(2), Value::Int(5)]);
+        assert!(matches!(range_two_arg, Value::Array(values) if values.len() == 3
+            && matches!(&values[0], Value::Int(2))
+            && matches!(&values[1], Value::Int(3))
+            && matches!(&values[2], Value::Int(4))));
+
+        let range_invalid = call_native_function(
+            &mut interpreter,
+            "range",
+            &[Value::Str(Arc::new("bad".to_string()))],
+        );
+        assert!(matches!(range_invalid, Value::Error(message) if message.contains("range() requires numeric arguments")));
+
+        let mut left_dict = crate::interpreter::DictMap::default();
+        left_dict.insert("b".into(), Value::Int(2));
+        left_dict.insert("a".into(), Value::Int(1));
+        let mut right_dict = crate::interpreter::DictMap::default();
+        right_dict.insert("b".into(), Value::Int(20));
+        right_dict.insert("c".into(), Value::Int(3));
+
+        let dict_value = Value::Dict(Arc::new(left_dict.clone()));
+
+        let keys_result = call_native_function(&mut interpreter, "keys", &[dict_value.clone()]);
+        assert!(matches!(keys_result, Value::Array(keys) if keys.len() == 2
+            && matches!(&keys[0], Value::Str(k) if k.as_ref() == "a")
+            && matches!(&keys[1], Value::Str(k) if k.as_ref() == "b")));
+
+        let values_result =
+            call_native_function(&mut interpreter, "values", &[dict_value.clone()]);
+        assert!(matches!(values_result, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Int(1))
+            && matches!(&values[1], Value::Int(2))));
+
+        let items_result = call_native_function(&mut interpreter, "items", &[dict_value.clone()]);
+        assert!(matches!(items_result, Value::Array(items) if items.len() == 2
+            && matches!(&items[0], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Str(k) if k.as_ref() == "a")
+                && matches!(&pair[1], Value::Int(1)))
+            && matches!(&items[1], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Str(k) if k.as_ref() == "b")
+                && matches!(&pair[1], Value::Int(2)))));
+
+        let has_key_true = call_native_function(
+            &mut interpreter,
+            "has_key",
+            &[dict_value.clone(), Value::Str(Arc::new("a".to_string()))],
+        );
+        assert!(matches!(has_key_true, Value::Int(1)));
+
+        let has_key_false = call_native_function(
+            &mut interpreter,
+            "has_key",
+            &[dict_value.clone(), Value::Str(Arc::new("missing".to_string()))],
+        );
+        assert!(matches!(has_key_false, Value::Int(0)));
+
+        let get_found = call_native_function(
+            &mut interpreter,
+            "get",
+            &[dict_value.clone(), Value::Str(Arc::new("b".to_string()))],
+        );
+        assert!(matches!(get_found, Value::Int(2)));
+
+        let get_missing_with_default = call_native_function(
+            &mut interpreter,
+            "get",
+            &[
+                dict_value.clone(),
+                Value::Str(Arc::new("missing".to_string())),
+                Value::Int(99),
+            ],
+        );
+        assert!(matches!(get_missing_with_default, Value::Int(99)));
+
+        let get_default_found = call_native_function(
+            &mut interpreter,
+            "get_default",
+            &[
+                dict_value.clone(),
+                Value::Str(Arc::new("a".to_string())),
+                Value::Int(100),
+            ],
+        );
+        assert!(matches!(get_default_found, Value::Int(1)));
+
+        let get_default_missing = call_native_function(
+            &mut interpreter,
+            "get_default",
+            &[
+                dict_value.clone(),
+                Value::Str(Arc::new("missing".to_string())),
+                Value::Int(100),
+            ],
+        );
+        assert!(matches!(get_default_missing, Value::Int(100)));
+
+        let get_default_bad_shape =
+            call_native_function(&mut interpreter, "get_default", &[dict_value.clone()]);
+        assert!(matches!(get_default_bad_shape, Value::Error(message) if message.contains("get_default() requires 3 arguments")));
+
+        let merge_result = call_native_function(
+            &mut interpreter,
+            "merge",
+            &[Value::Dict(Arc::new(left_dict.clone())), Value::Dict(Arc::new(right_dict.clone()))],
+        );
+        assert!(matches!(merge_result, Value::Dict(merged)
+            if matches!(merged.get("a"), Some(Value::Int(1)))
+            && matches!(merged.get("b"), Some(Value::Int(20)))
+            && matches!(merged.get("c"), Some(Value::Int(3)) )));
+
+        let update_result = call_native_function(
+            &mut interpreter,
+            "update",
+            &[Value::Dict(Arc::new(left_dict.clone())), Value::Dict(Arc::new(right_dict.clone()))],
+        );
+        assert!(matches!(update_result, Value::Dict(updated)
+            if matches!(updated.get("a"), Some(Value::Int(1)))
+            && matches!(updated.get("b"), Some(Value::Int(20)))
+            && matches!(updated.get("c"), Some(Value::Int(3)) )));
+
+        let invert_result = call_native_function(
+            &mut interpreter,
+            "invert",
+            &[Value::Dict(Arc::new(left_dict.clone()))],
+        );
+        assert!(matches!(invert_result, Value::Dict(inverted)
+            if matches!(inverted.get("1"), Some(Value::Str(v)) if v.as_ref() == "a")
+            && matches!(inverted.get("2"), Some(Value::Str(v)) if v.as_ref() == "b")));
+
+        let invert_bad_shape = call_native_function(&mut interpreter, "invert", &[Value::Int(1)]);
+        assert!(matches!(invert_bad_shape, Value::Error(message) if message.contains("invert() requires a dict argument")));
+
+        let format_ok = call_native_function(
+            &mut interpreter,
+            "format",
+            &[
+                Value::Str(Arc::new("Hello %s, you have %d tasks".to_string())),
+                Value::Str(Arc::new("Ruff".to_string())),
+                Value::Int(3),
+            ],
+        );
+        assert!(matches!(format_ok, Value::Str(result) if result.as_ref() == "Hello Ruff, you have 3 tasks"));
+
+        let format_missing_template = call_native_function(&mut interpreter, "format", &[]);
+        assert!(matches!(format_missing_template, Value::Error(message) if message.contains("format() requires at least 1 argument")));
+
+        let format_bad_template =
+            call_native_function(&mut interpreter, "format", &[Value::Int(1)]);
+        assert!(matches!(format_bad_template, Value::Error(message) if message.contains("format() first argument must be a string")));
     }
 
     #[test]
