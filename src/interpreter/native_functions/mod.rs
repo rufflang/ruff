@@ -895,11 +895,7 @@ mod tests {
         let substring_ok = call_native_function(
             &mut interpreter,
             "substring",
-            &[
-                Value::Str(Arc::new("ruff-language".to_string())),
-                Value::Int(0),
-                Value::Int(4),
-            ],
+            &[Value::Str(Arc::new("ruff-language".to_string())), Value::Int(0), Value::Int(4)],
         );
         assert!(matches!(substring_ok, Value::Str(value) if value.as_ref() == "ruff"));
 
@@ -947,10 +943,7 @@ mod tests {
         let split_ok = call_native_function(
             &mut interpreter,
             "split",
-            &[
-                Value::Str(Arc::new("a,b,c".to_string())),
-                Value::Str(Arc::new(",".to_string())),
-            ],
+            &[Value::Str(Arc::new("a,b,c".to_string())), Value::Str(Arc::new(",".to_string()))],
         );
         assert!(matches!(split_ok, Value::Array(parts) if parts.len() == 3
             && matches!(&parts[0], Value::Str(s) if s.as_ref() == "a")
@@ -1028,14 +1021,18 @@ mod tests {
             "pad_left",
             &[Value::Str(Arc::new("ruff".to_string()))],
         );
-        assert!(matches!(pad_left_missing, Value::Error(message) if message.contains("pad_left() requires 3 arguments")));
+        assert!(
+            matches!(pad_left_missing, Value::Error(message) if message.contains("pad_left() requires 3 arguments"))
+        );
 
         let pad_right_missing = call_native_function(
             &mut interpreter,
             "pad_right",
             &[Value::Str(Arc::new("ruff".to_string()))],
         );
-        assert!(matches!(pad_right_missing, Value::Error(message) if message.contains("pad_right() requires 3 arguments")));
+        assert!(
+            matches!(pad_right_missing, Value::Error(message) if message.contains("pad_right() requires 3 arguments"))
+        );
 
         let lines_ok = call_native_function(
             &mut interpreter,
@@ -1047,7 +1044,9 @@ mod tests {
             && matches!(&parts[1], Value::Str(s) if s.as_ref() == "second")));
 
         let lines_invalid = call_native_function(&mut interpreter, "lines", &[Value::Int(1)]);
-        assert!(matches!(lines_invalid, Value::Error(message) if message.contains("lines() requires a string argument")));
+        assert!(
+            matches!(lines_invalid, Value::Error(message) if message.contains("lines() requires a string argument"))
+        );
 
         let words_ok = call_native_function(
             &mut interpreter,
@@ -1060,7 +1059,9 @@ mod tests {
             && matches!(&parts[2], Value::Str(s) if s.as_ref() == "2026")));
 
         let words_invalid = call_native_function(&mut interpreter, "words", &[Value::Bool(true)]);
-        assert!(matches!(words_invalid, Value::Error(message) if message.contains("words() requires a string argument")));
+        assert!(
+            matches!(words_invalid, Value::Error(message) if message.contains("words() requires a string argument"))
+        );
 
         let reverse_ok = call_native_function(
             &mut interpreter,
@@ -1070,7 +1071,9 @@ mod tests {
         assert!(matches!(reverse_ok, Value::Str(value) if value.as_ref() == "🔥ba"));
 
         let reverse_invalid = call_native_function(&mut interpreter, "str_reverse", &[Value::Null]);
-        assert!(matches!(reverse_invalid, Value::Error(message) if message.contains("str_reverse() requires a string argument")));
+        assert!(
+            matches!(reverse_invalid, Value::Error(message) if message.contains("str_reverse() requires a string argument"))
+        );
 
         let slugify_ok = call_native_function(
             &mut interpreter,
@@ -1079,8 +1082,11 @@ mod tests {
         );
         assert!(matches!(slugify_ok, Value::Str(value) if value.as_ref() == "ruff-lang-2026"));
 
-        let slugify_invalid = call_native_function(&mut interpreter, "slugify", &[Value::Int(2026)]);
-        assert!(matches!(slugify_invalid, Value::Error(message) if message.contains("slugify() requires a string argument")));
+        let slugify_invalid =
+            call_native_function(&mut interpreter, "slugify", &[Value::Int(2026)]);
+        assert!(
+            matches!(slugify_invalid, Value::Error(message) if message.contains("slugify() requires a string argument"))
+        );
 
         let truncate_ok = call_native_function(
             &mut interpreter,
@@ -1107,12 +1113,11 @@ mod tests {
         let truncate_missing = call_native_function(
             &mut interpreter,
             "truncate",
-            &[
-                Value::Str(Arc::new("Ruff".to_string())),
-                Value::Int(2),
-            ],
+            &[Value::Str(Arc::new("Ruff".to_string())), Value::Int(2)],
         );
-        assert!(matches!(truncate_missing, Value::Error(message) if message.contains("truncate() requires 3 arguments")));
+        assert!(
+            matches!(truncate_missing, Value::Error(message) if message.contains("truncate() requires 3 arguments"))
+        );
 
         let camel_ok = call_native_function(
             &mut interpreter,
@@ -1135,15 +1140,26 @@ mod tests {
         );
         assert!(matches!(kebab_ok, Value::Str(value) if value.as_ref() == "ruff-language-tools"));
 
-        let camel_invalid =
-            call_native_function(&mut interpreter, "to_camel_case", &[Value::Array(Arc::new(vec![]))]);
-        assert!(matches!(camel_invalid, Value::Error(message) if message.contains("to_camel_case() requires a string argument")));
+        let camel_invalid = call_native_function(
+            &mut interpreter,
+            "to_camel_case",
+            &[Value::Array(Arc::new(vec![]))],
+        );
+        assert!(
+            matches!(camel_invalid, Value::Error(message) if message.contains("to_camel_case() requires a string argument"))
+        );
 
-        let snake_invalid = call_native_function(&mut interpreter, "to_snake_case", &[Value::Int(1)]);
-        assert!(matches!(snake_invalid, Value::Error(message) if message.contains("to_snake_case() requires a string argument")));
+        let snake_invalid =
+            call_native_function(&mut interpreter, "to_snake_case", &[Value::Int(1)]);
+        assert!(
+            matches!(snake_invalid, Value::Error(message) if message.contains("to_snake_case() requires a string argument"))
+        );
 
-        let kebab_invalid = call_native_function(&mut interpreter, "to_kebab_case", &[Value::Bool(true)]);
-        assert!(matches!(kebab_invalid, Value::Error(message) if message.contains("to_kebab_case() requires a string argument")));
+        let kebab_invalid =
+            call_native_function(&mut interpreter, "to_kebab_case", &[Value::Bool(true)]);
+        assert!(
+            matches!(kebab_invalid, Value::Error(message) if message.contains("to_kebab_case() requires a string argument"))
+        );
     }
 
     #[test]
@@ -1154,17 +1170,18 @@ mod tests {
         assert!(matches!(random_value, Value::Float(value) if (0.0..=1.0).contains(&value)));
 
         let random_int_missing = call_native_function(&mut interpreter, "random_int", &[]);
-        assert!(matches!(random_int_missing, Value::Error(message) if message.contains("random_int requires two number arguments")));
-
-        let random_int_value = call_native_function(
-            &mut interpreter,
-            "random_int",
-            &[Value::Int(3), Value::Int(7)],
+        assert!(
+            matches!(random_int_missing, Value::Error(message) if message.contains("random_int requires two number arguments"))
         );
+
+        let random_int_value =
+            call_native_function(&mut interpreter, "random_int", &[Value::Int(3), Value::Int(7)]);
         assert!(matches!(random_int_value, Value::Int(value) if (3..=7).contains(&value)));
 
         let random_choice_missing = call_native_function(&mut interpreter, "random_choice", &[]);
-        assert!(matches!(random_choice_missing, Value::Error(message) if message.contains("random_choice requires an array argument")));
+        assert!(
+            matches!(random_choice_missing, Value::Error(message) if message.contains("random_choice requires an array argument"))
+        );
 
         let random_choice_value = call_native_function(
             &mut interpreter,
@@ -1174,20 +1191,20 @@ mod tests {
         assert!(matches!(random_choice_value, Value::Int(10) | Value::Int(20) | Value::Int(30)));
 
         let set_seed_missing = call_native_function(&mut interpreter, "set_random_seed", &[]);
-        assert!(matches!(set_seed_missing, Value::Error(message) if message.contains("set_random_seed requires a number argument")));
+        assert!(
+            matches!(set_seed_missing, Value::Error(message) if message.contains("set_random_seed requires a number argument"))
+        );
 
         let clear_seed_result = call_native_function(&mut interpreter, "clear_random_seed", &[]);
         assert!(matches!(clear_seed_result, Value::Null));
 
-        let seed_result = call_native_function(&mut interpreter, "set_random_seed", &[Value::Int(12345)]);
+        let seed_result =
+            call_native_function(&mut interpreter, "set_random_seed", &[Value::Int(12345)]);
         assert!(matches!(seed_result, Value::Null));
 
         let seeded_random_a = call_native_function(&mut interpreter, "random", &[]);
-        let seeded_random_int_a = call_native_function(
-            &mut interpreter,
-            "random_int",
-            &[Value::Int(1), Value::Int(100)],
-        );
+        let seeded_random_int_a =
+            call_native_function(&mut interpreter, "random_int", &[Value::Int(1), Value::Int(100)]);
         let seeded_choice_a = call_native_function(
             &mut interpreter,
             "random_choice",
@@ -1199,11 +1216,8 @@ mod tests {
         assert!(matches!(reseed_result, Value::Null));
 
         let seeded_random_b = call_native_function(&mut interpreter, "random", &[]);
-        let seeded_random_int_b = call_native_function(
-            &mut interpreter,
-            "random_int",
-            &[Value::Int(1), Value::Int(100)],
-        );
+        let seeded_random_int_b =
+            call_native_function(&mut interpreter, "random_int", &[Value::Int(1), Value::Int(100)]);
         let seeded_choice_b = call_native_function(
             &mut interpreter,
             "random_choice",
@@ -1212,7 +1226,9 @@ mod tests {
 
         match (seeded_random_a, seeded_random_b) {
             (Value::Float(a), Value::Float(b)) => assert!((a - b).abs() < f64::EPSILON),
-            (left, right) => panic!("Expected seeded random floats, got {:?} and {:?}", left, right),
+            (left, right) => {
+                panic!("Expected seeded random floats, got {:?} and {:?}", left, right)
+            }
         }
         match (seeded_random_int_a, seeded_random_int_b) {
             (Value::Int(a), Value::Int(b)) => assert_eq!(a, b),
@@ -1230,14 +1246,17 @@ mod tests {
         let now_value = call_native_function(&mut interpreter, "now", &[]);
         assert!(matches!(now_value, Value::Float(value) if value > 0.0));
 
-        let current_timestamp_value = call_native_function(&mut interpreter, "current_timestamp", &[]);
+        let current_timestamp_value =
+            call_native_function(&mut interpreter, "current_timestamp", &[]);
         assert!(matches!(current_timestamp_value, Value::Int(value) if value > 0));
 
         let performance_now_start = call_native_function(&mut interpreter, "performance_now", &[]);
         let performance_now_end = call_native_function(&mut interpreter, "performance_now", &[]);
         match (performance_now_start, performance_now_end) {
             (Value::Float(start), Value::Float(end)) => assert!(end >= start),
-            (left, right) => panic!("Expected performance_now floats, got {:?} and {:?}", left, right),
+            (left, right) => {
+                panic!("Expected performance_now floats, got {:?} and {:?}", left, right)
+            }
         }
 
         let time_us_start = call_native_function(&mut interpreter, "time_us", &[]);
@@ -1262,8 +1281,11 @@ mod tests {
             call_native_function(&mut interpreter, "format_duration", &[Value::Float(2.5)]);
         assert!(matches!(format_duration_ms, Value::Str(value) if value.as_ref() == "2.50ms"));
 
-        let format_duration_missing = call_native_function(&mut interpreter, "format_duration", &[]);
-        assert!(matches!(format_duration_missing, Value::Error(message) if message.contains("format_duration requires a number argument")));
+        let format_duration_missing =
+            call_native_function(&mut interpreter, "format_duration", &[]);
+        assert!(
+            matches!(format_duration_missing, Value::Error(message) if message.contains("format_duration requires a number argument"))
+        );
 
         let elapsed_ok = call_native_function(
             &mut interpreter,
@@ -1273,20 +1295,21 @@ mod tests {
         assert!(matches!(elapsed_ok, Value::Float(value) if (value - 5.5).abs() < 1e-12));
 
         let elapsed_missing = call_native_function(&mut interpreter, "elapsed", &[]);
-        assert!(matches!(elapsed_missing, Value::Error(message) if message.contains("elapsed requires two number arguments")));
+        assert!(
+            matches!(elapsed_missing, Value::Error(message) if message.contains("elapsed requires two number arguments"))
+        );
 
         let format_date_epoch = call_native_function(
             &mut interpreter,
             "format_date",
-            &[
-                Value::Float(0.0),
-                Value::Str(Arc::new("YYYY-MM-DD".to_string())),
-            ],
+            &[Value::Float(0.0), Value::Str(Arc::new("YYYY-MM-DD".to_string()))],
         );
         assert!(matches!(format_date_epoch, Value::Str(value) if value.as_ref() == "1970-01-01"));
 
         let format_date_missing = call_native_function(&mut interpreter, "format_date", &[]);
-        assert!(matches!(format_date_missing, Value::Error(message) if message.contains("format_date requires timestamp")));
+        assert!(
+            matches!(format_date_missing, Value::Error(message) if message.contains("format_date requires timestamp"))
+        );
 
         let parse_date_epoch = call_native_function(
             &mut interpreter,
@@ -1309,7 +1332,9 @@ mod tests {
         assert!(matches!(parse_date_invalid, Value::Float(value) if value == 0.0));
 
         let parse_date_missing = call_native_function(&mut interpreter, "parse_date", &[]);
-        assert!(matches!(parse_date_missing, Value::Error(message) if message.contains("parse_date requires date string and format string")));
+        assert!(
+            matches!(parse_date_missing, Value::Error(message) if message.contains("parse_date requires date string and format string"))
+        );
     }
 
     #[test]
@@ -1322,8 +1347,7 @@ mod tests {
         let sqrt_ok = call_native_function(&mut interpreter, "sqrt", &[Value::Int(49)]);
         assert!(matches!(sqrt_ok, Value::Float(value) if (value - 7.0).abs() < 1e-12));
 
-        let pow_ok =
-            call_native_function(&mut interpreter, "pow", &[Value::Int(2), Value::Int(8)]);
+        let pow_ok = call_native_function(&mut interpreter, "pow", &[Value::Int(2), Value::Int(8)]);
         assert!(matches!(pow_ok, Value::Float(value) if (value - 256.0).abs() < 1e-12));
 
         let floor_ok = call_native_function(&mut interpreter, "floor", &[Value::Float(3.9)]);
@@ -1335,12 +1359,10 @@ mod tests {
         let round_ok = call_native_function(&mut interpreter, "round", &[Value::Float(3.5)]);
         assert!(matches!(round_ok, Value::Float(value) if (value - 4.0).abs() < 1e-12));
 
-        let min_ok =
-            call_native_function(&mut interpreter, "min", &[Value::Int(3), Value::Int(7)]);
+        let min_ok = call_native_function(&mut interpreter, "min", &[Value::Int(3), Value::Int(7)]);
         assert!(matches!(min_ok, Value::Float(value) if (value - 3.0).abs() < 1e-12));
 
-        let max_ok =
-            call_native_function(&mut interpreter, "max", &[Value::Int(3), Value::Int(7)]);
+        let max_ok = call_native_function(&mut interpreter, "max", &[Value::Int(3), Value::Int(7)]);
         assert!(matches!(max_ok, Value::Float(value) if (value - 7.0).abs() < 1e-12));
 
         let sin_ok = call_native_function(&mut interpreter, "sin", &[Value::Int(0)]);
@@ -1352,15 +1374,14 @@ mod tests {
         let tan_ok = call_native_function(&mut interpreter, "tan", &[Value::Int(0)]);
         assert!(matches!(tan_ok, Value::Float(value) if value.abs() < 1e-12));
 
-        let log_ok = call_native_function(
-            &mut interpreter,
-            "log",
-            &[Value::Float(std::f64::consts::E)],
-        );
+        let log_ok =
+            call_native_function(&mut interpreter, "log", &[Value::Float(std::f64::consts::E)]);
         assert!(matches!(log_ok, Value::Float(value) if (value - 1.0).abs() < 1e-12));
 
         let exp_ok = call_native_function(&mut interpreter, "exp", &[Value::Int(1)]);
-        assert!(matches!(exp_ok, Value::Float(value) if (value - std::f64::consts::E).abs() < 1e-12));
+        assert!(
+            matches!(exp_ok, Value::Float(value) if (value - std::f64::consts::E).abs() < 1e-12)
+        );
 
         let abs_missing = call_native_function(&mut interpreter, "abs", &[]);
         assert!(matches!(abs_missing, Value::Int(0)));
@@ -1405,7 +1426,9 @@ mod tests {
             "range",
             &[Value::Str(Arc::new("bad".to_string()))],
         );
-        assert!(matches!(range_invalid, Value::Error(message) if message.contains("range() requires numeric arguments")));
+        assert!(
+            matches!(range_invalid, Value::Error(message) if message.contains("range() requires numeric arguments"))
+        );
 
         let mut left_dict = crate::interpreter::DictMap::default();
         left_dict.insert("b".into(), Value::Int(2));
@@ -1421,8 +1444,7 @@ mod tests {
             && matches!(&keys[0], Value::Str(k) if k.as_ref() == "a")
             && matches!(&keys[1], Value::Str(k) if k.as_ref() == "b")));
 
-        let values_result =
-            call_native_function(&mut interpreter, "values", &[dict_value.clone()]);
+        let values_result = call_native_function(&mut interpreter, "values", &[dict_value.clone()]);
         assert!(matches!(values_result, Value::Array(values) if values.len() == 2
             && matches!(&values[0], Value::Int(1))
             && matches!(&values[1], Value::Int(2))));
@@ -1460,39 +1482,29 @@ mod tests {
         let get_missing_with_default = call_native_function(
             &mut interpreter,
             "get",
-            &[
-                dict_value.clone(),
-                Value::Str(Arc::new("missing".to_string())),
-                Value::Int(99),
-            ],
+            &[dict_value.clone(), Value::Str(Arc::new("missing".to_string())), Value::Int(99)],
         );
         assert!(matches!(get_missing_with_default, Value::Int(99)));
 
         let get_default_found = call_native_function(
             &mut interpreter,
             "get_default",
-            &[
-                dict_value.clone(),
-                Value::Str(Arc::new("a".to_string())),
-                Value::Int(100),
-            ],
+            &[dict_value.clone(), Value::Str(Arc::new("a".to_string())), Value::Int(100)],
         );
         assert!(matches!(get_default_found, Value::Int(1)));
 
         let get_default_missing = call_native_function(
             &mut interpreter,
             "get_default",
-            &[
-                dict_value.clone(),
-                Value::Str(Arc::new("missing".to_string())),
-                Value::Int(100),
-            ],
+            &[dict_value.clone(), Value::Str(Arc::new("missing".to_string())), Value::Int(100)],
         );
         assert!(matches!(get_default_missing, Value::Int(100)));
 
         let get_default_bad_shape =
             call_native_function(&mut interpreter, "get_default", &[dict_value.clone()]);
-        assert!(matches!(get_default_bad_shape, Value::Error(message) if message.contains("get_default() requires 3 arguments")));
+        assert!(
+            matches!(get_default_bad_shape, Value::Error(message) if message.contains("get_default() requires 3 arguments"))
+        );
 
         let merge_result = call_native_function(
             &mut interpreter,
@@ -1524,7 +1536,9 @@ mod tests {
             && matches!(inverted.get("2"), Some(Value::Str(v)) if v.as_ref() == "b")));
 
         let invert_bad_shape = call_native_function(&mut interpreter, "invert", &[Value::Int(1)]);
-        assert!(matches!(invert_bad_shape, Value::Error(message) if message.contains("invert() requires a dict argument")));
+        assert!(
+            matches!(invert_bad_shape, Value::Error(message) if message.contains("invert() requires a dict argument"))
+        );
 
         let format_ok = call_native_function(
             &mut interpreter,
@@ -1535,14 +1549,20 @@ mod tests {
                 Value::Int(3),
             ],
         );
-        assert!(matches!(format_ok, Value::Str(result) if result.as_ref() == "Hello Ruff, you have 3 tasks"));
+        assert!(
+            matches!(format_ok, Value::Str(result) if result.as_ref() == "Hello Ruff, you have 3 tasks")
+        );
 
         let format_missing_template = call_native_function(&mut interpreter, "format", &[]);
-        assert!(matches!(format_missing_template, Value::Error(message) if message.contains("format() requires at least 1 argument")));
+        assert!(
+            matches!(format_missing_template, Value::Error(message) if message.contains("format() requires at least 1 argument"))
+        );
 
         let format_bad_template =
             call_native_function(&mut interpreter, "format", &[Value::Int(1)]);
-        assert!(matches!(format_bad_template, Value::Error(message) if message.contains("format() first argument must be a string")));
+        assert!(
+            matches!(format_bad_template, Value::Error(message) if message.contains("format() first argument must be a string"))
+        );
     }
 
     #[test]
@@ -1606,7 +1626,9 @@ mod tests {
             "to_csv",
             &[Value::Array(Arc::new(vec![Value::Dict(Arc::new(csv_row))]))],
         );
-        assert!(matches!(to_csv_ok, Value::Str(csv) if csv.contains("name") && csv.contains("Ruff")));
+        assert!(
+            matches!(to_csv_ok, Value::Str(csv) if csv.contains("name") && csv.contains("Ruff"))
+        );
 
         let encode_base64_ok = call_native_function(
             &mut interpreter,
@@ -1622,19 +1644,28 @@ mod tests {
             call_native_function(&mut interpreter, "decode_base64", &[Value::Str(encoded)]);
         assert!(matches!(decode_base64_ok, Value::Bytes(bytes) if bytes == b"ruff"));
 
-        let parse_json_bad_shape = call_native_function(&mut interpreter, "parse_json", &[Value::Int(1)]);
-        assert!(matches!(parse_json_bad_shape, Value::Error(message) if message.contains("parse_json requires a string argument")));
+        let parse_json_bad_shape =
+            call_native_function(&mut interpreter, "parse_json", &[Value::Int(1)]);
+        assert!(
+            matches!(parse_json_bad_shape, Value::Error(message) if message.contains("parse_json requires a string argument"))
+        );
 
         let to_json_missing = call_native_function(&mut interpreter, "to_json", &[]);
-        assert!(matches!(to_json_missing, Value::Error(message) if message.contains("to_json requires a value argument")));
+        assert!(
+            matches!(to_json_missing, Value::Error(message) if message.contains("to_json requires a value argument"))
+        );
 
         let decode_base64_bad_shape =
             call_native_function(&mut interpreter, "decode_base64", &[Value::Int(1)]);
-        assert!(matches!(decode_base64_bad_shape, Value::Error(message) if message.contains("decode_base64 requires a string argument")));
+        assert!(
+            matches!(decode_base64_bad_shape, Value::Error(message) if message.contains("decode_base64 requires a string argument"))
+        );
 
         let encode_base64_bad_shape =
             call_native_function(&mut interpreter, "encode_base64", &[Value::Int(1)]);
-        assert!(matches!(encode_base64_bad_shape, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument")));
+        assert!(
+            matches!(encode_base64_bad_shape, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument"))
+        );
 
         let regex_match_ok = call_native_function(
             &mut interpreter,
@@ -1683,15 +1714,20 @@ mod tests {
             && matches!(&parts[1], Value::Str(value) if value.as_ref() == "b")
             && matches!(&parts[2], Value::Str(value) if value.as_ref() == "c")));
 
-        let regex_match_bad_shape = call_native_function(&mut interpreter, "regex_match", &[Value::Int(1)]);
-        assert!(matches!(regex_match_bad_shape, Value::Error(message) if message.contains("regex_match requires two string arguments")));
+        let regex_match_bad_shape =
+            call_native_function(&mut interpreter, "regex_match", &[Value::Int(1)]);
+        assert!(
+            matches!(regex_match_bad_shape, Value::Error(message) if message.contains("regex_match requires two string arguments"))
+        );
 
         let regex_replace_bad_shape = call_native_function(
             &mut interpreter,
             "regex_replace",
             &[Value::Str(Arc::new("a".to_string())), Value::Str(Arc::new("b".to_string()))],
         );
-        assert!(matches!(regex_replace_bad_shape, Value::Error(message) if message.contains("regex_replace requires three string arguments")));
+        assert!(
+            matches!(regex_replace_bad_shape, Value::Error(message) if message.contains("regex_replace requires three string arguments"))
+        );
     }
 
     #[test]
@@ -1702,7 +1738,9 @@ mod tests {
         assert!(matches!(assert_true, Value::Bool(true)));
 
         let assert_false = call_native_function(&mut interpreter, "assert", &[Value::Bool(false)]);
-        assert!(matches!(assert_false, Value::Error(message) if message.contains("Assertion failed")));
+        assert!(
+            matches!(assert_false, Value::Error(message) if message.contains("Assertion failed"))
+        );
 
         let assert_equal_ok =
             call_native_function(&mut interpreter, "assert_equal", &[Value::Int(7), Value::Int(7)]);
@@ -1710,13 +1748,19 @@ mod tests {
 
         let assert_equal_bad_shape =
             call_native_function(&mut interpreter, "assert_equal", &[Value::Int(7)]);
-        assert!(matches!(assert_equal_bad_shape, Value::Error(message) if message.contains("assert_equal requires 2 arguments")));
+        assert!(
+            matches!(assert_equal_bad_shape, Value::Error(message) if message.contains("assert_equal requires 2 arguments"))
+        );
 
-        let assert_true_ok = call_native_function(&mut interpreter, "assert_true", &[Value::Bool(true)]);
+        let assert_true_ok =
+            call_native_function(&mut interpreter, "assert_true", &[Value::Bool(true)]);
         assert!(matches!(assert_true_ok, Value::Bool(true)));
 
-        let assert_true_bad_type = call_native_function(&mut interpreter, "assert_true", &[Value::Int(1)]);
-        assert!(matches!(assert_true_bad_type, Value::Error(message) if message.contains("assert_true requires a boolean argument")));
+        let assert_true_bad_type =
+            call_native_function(&mut interpreter, "assert_true", &[Value::Int(1)]);
+        assert!(
+            matches!(assert_true_bad_type, Value::Error(message) if message.contains("assert_true requires a boolean argument"))
+        );
 
         let assert_false_ok =
             call_native_function(&mut interpreter, "assert_false", &[Value::Bool(false)]);
@@ -1729,9 +1773,14 @@ mod tests {
         );
         assert!(matches!(assert_contains_array, Value::Bool(true)));
 
-        let assert_contains_bad_shape =
-            call_native_function(&mut interpreter, "assert_contains", &[Value::Str(Arc::new("x".to_string()))]);
-        assert!(matches!(assert_contains_bad_shape, Value::Error(message) if message.contains("assert_contains requires 2 arguments")));
+        let assert_contains_bad_shape = call_native_function(
+            &mut interpreter,
+            "assert_contains",
+            &[Value::Str(Arc::new("x".to_string()))],
+        );
+        assert!(
+            matches!(assert_contains_bad_shape, Value::Error(message) if message.contains("assert_contains requires 2 arguments"))
+        );
 
         let debug_result = call_native_function(
             &mut interpreter,
@@ -1748,10 +1797,7 @@ mod tests {
         let env_set_result = call_native_function(
             &mut interpreter,
             "env_set",
-            &[
-                Value::Str(Arc::new(env_key.to_string())),
-                Value::Str(Arc::new("42".to_string())),
-            ],
+            &[Value::Str(Arc::new(env_key.to_string())), Value::Str(Arc::new("42".to_string()))],
         );
         assert!(matches!(env_set_result, Value::Null));
 
@@ -1842,7 +1888,9 @@ mod tests {
         assert!(matches!(os_chdir_result, Value::Bool(true)));
 
         let os_getcwd_after = call_native_function(&mut interpreter, "os_getcwd", &[]);
-        assert!(matches!(os_getcwd_after, Value::Str(path) if path.as_ref().as_str() == temp_dir_string));
+        assert!(
+            matches!(os_getcwd_after, Value::Str(path) if path.as_ref().as_str() == temp_dir_string)
+        );
 
         std::env::set_current_dir(&cwd_before).expect("cwd should restore");
 
@@ -1896,7 +1944,9 @@ mod tests {
             "path_absolute",
             &[Value::Str(Arc::new(file_path.clone()))],
         );
-        assert!(matches!(path_absolute_result, Value::Str(path) if path.as_ref().ends_with("sample.ruff")));
+        assert!(
+            matches!(path_absolute_result, Value::Str(path) if path.as_ref().ends_with("sample.ruff"))
+        );
 
         std::fs::remove_file(&file_path).expect("sample file should remove");
         let os_rmdir_result = call_native_function(
@@ -1909,14 +1959,22 @@ mod tests {
         let os_environ_result = call_native_function(&mut interpreter, "os_environ", &[]);
         assert!(matches!(os_environ_result, Value::Dict(map) if map.contains_key(env_key)));
 
-        let os_chdir_bad_shape = call_native_function(&mut interpreter, "os_chdir", &[Value::Int(1)]);
-        assert!(matches!(os_chdir_bad_shape, Value::Error(message) if message.contains("os_chdir requires a string argument")));
+        let os_chdir_bad_shape =
+            call_native_function(&mut interpreter, "os_chdir", &[Value::Int(1)]);
+        assert!(
+            matches!(os_chdir_bad_shape, Value::Error(message) if message.contains("os_chdir requires a string argument"))
+        );
 
         let dirname_bad_shape = call_native_function(&mut interpreter, "dirname", &[Value::Int(1)]);
-        assert!(matches!(dirname_bad_shape, Value::Error(message) if message.contains("dirname requires a string argument")));
+        assert!(
+            matches!(dirname_bad_shape, Value::Error(message) if message.contains("dirname requires a string argument"))
+        );
 
-        let path_exists_bad_shape = call_native_function(&mut interpreter, "path_exists", &[Value::Bool(true)]);
-        assert!(matches!(path_exists_bad_shape, Value::Error(message) if message.contains("path_exists requires a string argument")));
+        let path_exists_bad_shape =
+            call_native_function(&mut interpreter, "path_exists", &[Value::Bool(true)]);
+        assert!(
+            matches!(path_exists_bad_shape, Value::Error(message) if message.contains("path_exists requires a string argument"))
+        );
     }
 
     #[test]
@@ -2613,6 +2671,220 @@ mod tests {
             call_native_function(&mut interpreter, "rsa_generate_keypair", &[Value::Int(1024)]);
         assert!(
             matches!(rsa_bad_size, Value::Error(message) if message.contains("RSA key size must be 2048 or 4096 bits"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_set_queue_stack_method_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let set_add = call_native_function(
+            &mut interpreter,
+            "set_add",
+            &[Value::Set(vec![Value::Int(1)]), Value::Int(2)],
+        );
+        assert!(matches!(set_add, Value::Set(values) if values.len() == 2));
+
+        let set_add_duplicate = call_native_function(
+            &mut interpreter,
+            "set_add",
+            &[Value::Set(vec![Value::Int(1), Value::Int(2)]), Value::Int(2)],
+        );
+        assert!(matches!(set_add_duplicate, Value::Set(values) if values.len() == 2));
+
+        let set_has_true = call_native_function(
+            &mut interpreter,
+            "set_has",
+            &[Value::Set(vec![Value::Int(3), Value::Int(5)]), Value::Int(5)],
+        );
+        assert!(matches!(set_has_true, Value::Bool(true)));
+
+        let set_has_false = call_native_function(
+            &mut interpreter,
+            "set_has",
+            &[Value::Set(vec![Value::Int(3), Value::Int(5)]), Value::Int(7)],
+        );
+        assert!(matches!(set_has_false, Value::Bool(false)));
+
+        let set_remove = call_native_function(
+            &mut interpreter,
+            "set_remove",
+            &[Value::Set(vec![Value::Int(1), Value::Int(2), Value::Int(3)]), Value::Int(2)],
+        );
+        assert!(matches!(set_remove, Value::Set(values) if values.len() == 2));
+
+        let set_union = call_native_function(
+            &mut interpreter,
+            "set_union",
+            &[
+                Value::Set(vec![Value::Int(1), Value::Int(2)]),
+                Value::Set(vec![Value::Int(2), Value::Int(3)]),
+            ],
+        );
+        assert!(matches!(set_union, Value::Set(values) if values.len() == 3));
+
+        let set_intersect = call_native_function(
+            &mut interpreter,
+            "set_intersect",
+            &[
+                Value::Set(vec![Value::Int(1), Value::Int(2), Value::Int(3)]),
+                Value::Set(vec![Value::Int(2), Value::Int(3), Value::Int(4)]),
+            ],
+        );
+        assert!(matches!(set_intersect, Value::Set(values) if values.len() == 2
+            && values.iter().any(|value| matches!(value, Value::Int(2)))
+            && values.iter().any(|value| matches!(value, Value::Int(3)))));
+
+        let set_difference = call_native_function(
+            &mut interpreter,
+            "set_difference",
+            &[
+                Value::Set(vec![Value::Int(1), Value::Int(2), Value::Int(3)]),
+                Value::Set(vec![Value::Int(2), Value::Int(4)]),
+            ],
+        );
+        assert!(matches!(set_difference, Value::Set(values) if values.len() == 2
+            && values.iter().any(|value| matches!(value, Value::Int(1)))
+            && values.iter().any(|value| matches!(value, Value::Int(3)))));
+
+        let set_to_array = call_native_function(
+            &mut interpreter,
+            "set_to_array",
+            &[Value::Set(vec![Value::Int(8), Value::Int(9)])],
+        );
+        assert!(matches!(set_to_array, Value::Array(values) if values.len() == 2));
+
+        let queue_constructor = call_native_function(
+            &mut interpreter,
+            "Queue",
+            &[Value::Array(Arc::new(vec![Value::Int(10), Value::Int(20)]))],
+        );
+        assert!(matches!(queue_constructor, Value::Queue(queue) if queue.len() == 2));
+
+        let queue_enqueue = call_native_function(
+            &mut interpreter,
+            "queue_enqueue",
+            &[Value::Queue(std::collections::VecDeque::from(vec![Value::Int(1)])), Value::Int(2)],
+        );
+        assert!(matches!(queue_enqueue, Value::Queue(queue) if queue.len() == 2));
+
+        let queue_dequeue = call_native_function(
+            &mut interpreter,
+            "queue_dequeue",
+            &[Value::Queue(std::collections::VecDeque::from(vec![Value::Int(1), Value::Int(2)]))],
+        );
+        assert!(matches!(queue_dequeue, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Queue(queue) if queue.len() == 1)
+            && matches!(&values[1], Value::Int(1))));
+
+        let queue_peek = call_native_function(
+            &mut interpreter,
+            "queue_peek",
+            &[Value::Queue(std::collections::VecDeque::from(vec![Value::Int(42), Value::Int(99)]))],
+        );
+        assert!(matches!(queue_peek, Value::Int(42)));
+
+        let queue_is_empty_false = call_native_function(
+            &mut interpreter,
+            "queue_is_empty",
+            &[Value::Queue(std::collections::VecDeque::from(vec![Value::Int(1)]))],
+        );
+        assert!(matches!(queue_is_empty_false, Value::Bool(false)));
+
+        let queue_is_empty_true = call_native_function(
+            &mut interpreter,
+            "queue_is_empty",
+            &[Value::Queue(std::collections::VecDeque::new())],
+        );
+        assert!(matches!(queue_is_empty_true, Value::Bool(true)));
+
+        let queue_to_array = call_native_function(
+            &mut interpreter,
+            "queue_to_array",
+            &[Value::Queue(std::collections::VecDeque::from(vec![Value::Int(7), Value::Int(8)]))],
+        );
+        assert!(matches!(queue_to_array, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Int(7))
+            && matches!(&values[1], Value::Int(8))));
+
+        let queue_size_ok = call_native_function(
+            &mut interpreter,
+            "queue_size",
+            &[Value::Queue(std::collections::VecDeque::from(vec![
+                Value::Int(1),
+                Value::Int(2),
+                Value::Int(3),
+            ]))],
+        );
+        assert!(matches!(queue_size_ok, Value::Int(3)));
+
+        let queue_size_bad_type =
+            call_native_function(&mut interpreter, "queue_size", &[Value::Int(1)]);
+        assert!(
+            matches!(queue_size_bad_type, Value::Error(message) if message.contains("queue_size requires a Queue argument"))
+        );
+
+        let stack_constructor = call_native_function(
+            &mut interpreter,
+            "Stack",
+            &[Value::Array(Arc::new(vec![Value::Int(3), Value::Int(4)]))],
+        );
+        assert!(matches!(stack_constructor, Value::Stack(values) if values.len() == 2));
+
+        let stack_push = call_native_function(
+            &mut interpreter,
+            "stack_push",
+            &[Value::Stack(vec![Value::Int(1)]), Value::Int(2)],
+        );
+        assert!(matches!(stack_push, Value::Stack(values) if values.len() == 2));
+
+        let stack_pop = call_native_function(
+            &mut interpreter,
+            "stack_pop",
+            &[Value::Stack(vec![Value::Int(1), Value::Int(2)])],
+        );
+        assert!(matches!(stack_pop, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Stack(stack) if stack.len() == 1)
+            && matches!(&values[1], Value::Int(2))));
+
+        let stack_peek = call_native_function(
+            &mut interpreter,
+            "stack_peek",
+            &[Value::Stack(vec![Value::Int(5), Value::Int(6)])],
+        );
+        assert!(matches!(stack_peek, Value::Int(6)));
+
+        let stack_is_empty_false = call_native_function(
+            &mut interpreter,
+            "stack_is_empty",
+            &[Value::Stack(vec![Value::Int(1)])],
+        );
+        assert!(matches!(stack_is_empty_false, Value::Bool(false)));
+
+        let stack_is_empty_true =
+            call_native_function(&mut interpreter, "stack_is_empty", &[Value::Stack(vec![])]);
+        assert!(matches!(stack_is_empty_true, Value::Bool(true)));
+
+        let stack_to_array = call_native_function(
+            &mut interpreter,
+            "stack_to_array",
+            &[Value::Stack(vec![Value::Int(11), Value::Int(12)])],
+        );
+        assert!(matches!(stack_to_array, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Int(11))
+            && matches!(&values[1], Value::Int(12))));
+
+        let stack_size_ok = call_native_function(
+            &mut interpreter,
+            "stack_size",
+            &[Value::Stack(vec![Value::Int(1), Value::Int(2), Value::Int(3)])],
+        );
+        assert!(matches!(stack_size_ok, Value::Int(3)));
+
+        let stack_size_bad_type =
+            call_native_function(&mut interpreter, "stack_size", &[Value::Int(1)]);
+        assert!(
+            matches!(stack_size_bad_type, Value::Error(message) if message.contains("stack_size requires a Stack argument"))
         );
     }
 
