@@ -368,6 +368,17 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-16_00-46_release-hardening-set-queue-stack-contracts.md)
 
+### Native contract tests cannot nest `call_native_function(&mut interpreter, ...)`
+- **Problem:** Inline nested native calls in argument arrays fail to compile with `E0499` mutable-borrow errors.
+- **Rule:** Evaluate inner native call into a local variable first, then pass that value to the outer call.
+- **Why:** `call_native_function` requires `&mut Interpreter`; nesting attempts overlapping mutable borrows while outer-call args are being evaluated.
+- **Workflow:**
+  1. `let inner = call_native_function(&mut interpreter, "foo", &args);`
+  2. `let outer = call_native_function(&mut interpreter, "bar", &[inner, other]);`
+- **Implication:** When writing release-hardening tests, stage intermediate values explicitly; do not inline chained `call_native_function` expressions.
+
+(Discovered during: 2026-02-16_09-42_release-hardening-async-runtime-task-channel-contracts.md)
+
 ### Full-suite async runtime failures should be isolated before treating as regressions
 - **Problem:** `cargo test` may occasionally report `interpreter::async_runtime::tests::test_concurrent_tasks` as failed, then pass immediately in isolation.
 - **Rule:** When an unrelated async runtime test fails once, re-run the exact test in isolation first, then require one full-suite green run before concluding status.
