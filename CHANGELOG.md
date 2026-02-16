@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Async Runtime + Task/Channel Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for async/concurrency builtins:
+    - `channel`, `async_sleep`, `async_timeout`, `async_http_get`, `async_http_post`
+    - `async_read_file`, `async_write_file`, `spawn_task`, `await_task`, `cancel_task`
+  - Added release-hardening behavior and contract coverage for:
+    - `async_sleep(...)` and `async_timeout(...)` argument-shape validation and success/timeout behavior
+    - async file wrapper lifecycle (`async_write_file` → `async_read_file`) plus argument-shape validation
+    - async HTTP wrapper argument-shape validation (`async_http_get`, `async_http_post`)
+    - channel return-shape behavior and task-handle lifecycle contracts (`spawn_task`, `await_task`, `cancel_task`)
+
 - **Release Hardening: Filesystem Core API Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for core filesystem builtins:
     - `read_file`, `write_file`, `append_file`, `file_exists`, `read_lines`, `list_dir`, `create_dir`

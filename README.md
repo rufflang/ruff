@@ -25,6 +25,11 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Async Runtime + Task/Channel Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for async/concurrency APIs: `channel`, `async_sleep`, `async_timeout`, `async_http_get`, `async_http_post`, `async_read_file`, `async_write_file`, `spawn_task`, `await_task`, `cancel_task`
+  - Added behavior and argument/error-shape contract tests for async timeout/sleep behavior, async file wrapper lifecycle, async HTTP wrapper validation, and task-handle lifecycle behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Filesystem Core API Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage for core filesystem APIs: `read_file`, `write_file`, `append_file`, `file_exists`, `read_lines`, `list_dir`, `create_dir`, `file_size`, `delete_file`, `rename_file`, `copy_file`, `read_binary_file`, `write_binary_file`
   - Added behavior and argument/error-shape contract tests covering text/binary file round trips, directory/listing lifecycle behavior, and file mutation/cleanup operations

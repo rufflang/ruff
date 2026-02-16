@@ -40,6 +40,9 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+    - Expanded release-hardening critical dispatcher coverage for async runtime and task/channel APIs (`channel`, `async_sleep`, `async_timeout`, `async_http_get`, `async_http_post`, `async_read_file`, `async_write_file`, `spawn_task`, `await_task`, `cancel_task`)
+    - Added behavior plus argument-shape/error-shape contract coverage for async sleep/timeout behavior, async file wrapper lifecycle behavior, async HTTP wrapper argument-shape validation, and task-handle lifecycle semantics
+
     - Expanded release-hardening critical dispatcher coverage for core filesystem APIs (`read_file`, `write_file`, `append_file`, `file_exists`, `read_lines`, `list_dir`, `create_dir`, `file_size`, `delete_file`, `rename_file`, `copy_file`, `read_binary_file`, `write_binary_file`)
     - Added behavior plus argument-shape/error-shape contract coverage for text and binary file lifecycle operations, directory/listing operations, and mutation/cleanup operations
 
