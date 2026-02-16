@@ -75,7 +75,7 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
 #[cfg(test)]
 mod tests {
     use super::call_native_function;
-    use crate::interpreter::{Interpreter, Value};
+    use crate::interpreter::{AsyncRuntime, Interpreter, LeakyFunctionBody, Value};
     use std::sync::Arc;
 
     fn available_tcp_port() -> i64 {
@@ -105,6 +105,29 @@ mod tests {
         } else {
             false
         }
+    }
+
+    fn await_native_promise(value: Value) -> Result<Value, String> {
+        match value {
+            Value::Promise { receiver, .. } => AsyncRuntime::block_on(async {
+                let rx = {
+                    let mut receiver_guard = receiver.lock().unwrap();
+                    let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
+                    drop(dummy_tx);
+                    std::mem::replace(&mut *receiver_guard, dummy_rx)
+                };
+
+                match rx.await {
+                    Ok(result) => result,
+                    Err(_) => Err("Promise channel closed before resolution".to_string()),
+                }
+            }),
+            other => panic!("Expected Promise value, got {:?}", other),
+        }
+    }
+
+    fn noop_spawnable_function() -> Value {
+        Value::Function(vec![], LeakyFunctionBody::new(Vec::<crate::ast::Stmt>::new()), None)
     }
 
     #[test]
@@ -173,6 +196,16 @@ mod tests {
             "Promise.all",
             "parallel_map",
             "par_map",
+            "channel",
+            "async_sleep",
+            "async_timeout",
+            "async_http_get",
+            "async_http_post",
+            "async_read_file",
+            "async_write_file",
+            "spawn_task",
+            "await_task",
+            "cancel_task",
             "contains",
             "index_of",
             "io_read_bytes",
@@ -410,6 +443,185 @@ mod tests {
             unknown_builtin_names,
             expected_known_legacy_dispatch_gaps,
             "Declared builtin dispatch drift changed. If a gap was fixed, remove it from expected list; if a new gap appeared, investigate and either fix dispatch or explicitly acknowledge it here."
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_async_sleep_timeout_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let sleep_missing_args = call_native_function(&mut interpreter, "async_sleep", &[]);
+        assert!(
+            matches!(sleep_missing_args, Value::Error(message) if message.contains("expects 1 argument"))
+        );
+
+        let sleep_negative =
+            call_native_function(&mut interpreter, "async_sleep", &[Value::Int(-1)]);
+        assert!(
+            matches!(sleep_negative, Value::Error(message) if message.contains("requires non-negative milliseconds"))
+        );
+
+        let timeout_wrong_first_arg =
+            call_native_function(&mut interpreter, "async_timeout", &[Value::Int(1), Value::Int(5)]);
+        assert!(
+            matches!(timeout_wrong_first_arg, Value::Error(message) if message.contains("requires a Promise as first argument"))
+        );
+
+        let timeout_non_positive_sleep =
+            call_native_function(&mut interpreter, "async_sleep", &[Value::Int(1)]);
+        let timeout_non_positive = call_native_function(
+            &mut interpreter,
+            "async_timeout",
+            &[timeout_non_positive_sleep, Value::Int(0)],
+        );
+        assert!(
+            matches!(timeout_non_positive, Value::Error(message) if message.contains("requires positive timeout_ms"))
+        );
+
+        let quick_sleep = call_native_function(&mut interpreter, "async_sleep", &[Value::Int(2)]);
+        let timeout_success =
+            call_native_function(&mut interpreter, "async_timeout", &[quick_sleep, Value::Int(50)]);
+        let timeout_success_result = await_native_promise(timeout_success);
+        assert!(matches!(timeout_success_result, Ok(Value::Null)));
+
+        let slow_sleep = call_native_function(&mut interpreter, "async_sleep", &[Value::Int(30)]);
+        let timeout_failure =
+            call_native_function(&mut interpreter, "async_timeout", &[slow_sleep, Value::Int(1)]);
+        let timeout_failure_result = await_native_promise(timeout_failure);
+        assert!(
+            matches!(timeout_failure_result, Err(message) if message.contains("Timeout after"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_async_http_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let http_get_wrong_arity = call_native_function(
+            &mut interpreter,
+            "async_http_get",
+            &[Value::Str(Arc::new("https://example.com".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(http_get_wrong_arity, Value::Error(message) if message.contains("expects 1 argument"))
+        );
+
+        let http_get_wrong_type = call_native_function(&mut interpreter, "async_http_get", &[Value::Int(1)]);
+        assert!(
+            matches!(http_get_wrong_type, Value::Error(message) if message.contains("requires a string URL argument"))
+        );
+
+        let http_post_wrong_arity = call_native_function(
+            &mut interpreter,
+            "async_http_post",
+            &[Value::Str(Arc::new("https://example.com".to_string()))],
+        );
+        assert!(
+            matches!(http_post_wrong_arity, Value::Error(message) if message.contains("expects 2-3 arguments"))
+        );
+
+        let http_post_bad_headers = call_native_function(
+            &mut interpreter,
+            "async_http_post",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Str(Arc::new("payload".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(http_post_bad_headers, Value::Error(message) if message.contains("headers must be a dictionary"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_async_file_wrapper_contracts() {
+        let mut interpreter = Interpreter::new();
+        let file_path = tmp_test_path("release_hardening_async_file_wrapper.txt");
+
+        let async_read_bad_arg = call_native_function(&mut interpreter, "async_read_file", &[Value::Int(1)]);
+        assert!(
+            matches!(async_read_bad_arg, Value::Error(message) if message.contains("requires a string path argument"))
+        );
+
+        let async_write_bad_arg = call_native_function(
+            &mut interpreter,
+            "async_write_file",
+            &[Value::Str(Arc::new(file_path.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(async_write_bad_arg, Value::Error(message) if message.contains("requires a string content argument"))
+        );
+
+        let write_promise = call_native_function(
+            &mut interpreter,
+            "async_write_file",
+            &[
+                Value::Str(Arc::new(file_path.clone())),
+                Value::Str(Arc::new("release-hardening-async".to_string())),
+            ],
+        );
+        let write_result = await_native_promise(write_promise);
+        assert!(matches!(write_result, Ok(Value::Bool(true))));
+
+        let read_promise = call_native_function(
+            &mut interpreter,
+            "async_read_file",
+            &[Value::Str(Arc::new(file_path.clone()))],
+        );
+        let read_result = await_native_promise(read_promise);
+        assert!(
+            matches!(read_result, Ok(Value::Str(content)) if content.as_ref() == "release-hardening-async")
+        );
+
+        let _ = std::fs::remove_file(file_path);
+    }
+
+    #[test]
+    fn test_release_hardening_channel_and_task_handle_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let channel_value = call_native_function(&mut interpreter, "channel", &[]);
+        assert!(matches!(channel_value, Value::Channel(_)));
+
+        let spawn_bad_arg = call_native_function(&mut interpreter, "spawn_task", &[Value::Int(1)]);
+        assert!(
+            matches!(spawn_bad_arg, Value::Error(message) if message.contains("requires an async function argument"))
+        );
+
+        let task_handle = call_native_function(
+            &mut interpreter,
+            "spawn_task",
+            &[noop_spawnable_function()],
+        );
+        assert!(matches!(task_handle, Value::TaskHandle { .. }));
+
+        let await_task_promise =
+            call_native_function(&mut interpreter, "await_task", &[task_handle.clone()]);
+        let await_task_result = await_native_promise(await_task_promise);
+        assert!(matches!(await_task_result, Ok(Value::Null)));
+
+        let await_task_consumed =
+            call_native_function(&mut interpreter, "await_task", &[task_handle.clone()]);
+        let await_task_consumed_result = await_native_promise(await_task_consumed);
+        assert!(
+            matches!(await_task_consumed_result, Err(message) if message.contains("already consumed"))
+        );
+
+        let cancel_target =
+            call_native_function(&mut interpreter, "spawn_task", &[noop_spawnable_function()]);
+        let cancel_result =
+            call_native_function(&mut interpreter, "cancel_task", &[cancel_target.clone()]);
+        assert!(matches!(cancel_result, Value::Bool(true)));
+
+        let cancel_again_result =
+            call_native_function(&mut interpreter, "cancel_task", &[cancel_target.clone()]);
+        assert!(matches!(cancel_again_result, Value::Bool(false)));
+
+        let await_cancelled = call_native_function(&mut interpreter, "await_task", &[cancel_target]);
+        let await_cancelled_result = await_native_promise(await_cancelled);
+        assert!(
+            matches!(await_cancelled_result, Err(message) if message.contains("already consumed"))
         );
     }
 
