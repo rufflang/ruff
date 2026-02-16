@@ -40,6 +40,11 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+- **Set Constructor Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared `Set(...)` constructor
+    - Preserved constructor-shape behavior for empty/default construction, array-based construction, and deduplicated set semantics
+    - Added release-hardening contract coverage and reduced exhaustive dispatch known-gap list by removing `Set`
+
 - **Builtin API Parity Contract (✅ Complete, February 2026)**
     - Synchronized VM builtin name registry (`get_builtin_names`) with interpreter-native registrations for release stability
     - Added regression coverage to detect missing and duplicate builtin API entries

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Set Constructor Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch support for declared `Set(...)` constructor
+  - Preserved constructor contract behavior:
+    - `Set()` returns an empty set
+    - `Set([...])` deduplicates values using interpreter equality semantics
+    - Non-array input and invalid arity now return explicit constructor-shape errors
+  - Expanded release-hardening dispatcher coverage to include `Set` and reduced exhaustive dispatch known-gap list by removing `Set`
+
 - **Release Hardening: Native Dispatcher Unknown-Function Contract (P1)**:
   - Removed silent unknown-native fallback from modular native dispatch (`Value::Int(0)`)
   - Unknown native function names now return explicit runtime errors: `Unknown native function: <name>`
