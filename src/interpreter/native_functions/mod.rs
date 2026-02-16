@@ -145,6 +145,11 @@ mod tests {
             "http_put",
             "http_delete",
             "http_get_binary",
+            "parallel_http",
+            "jwt_encode",
+            "jwt_decode",
+            "oauth2_auth_url",
+            "oauth2_get_token",
             "http_get_stream",
             "http_server",
             "http_response",
@@ -325,6 +330,101 @@ mod tests {
             &[Value::Int(200), Value::Str(std::sync::Arc::new("ok".to_string()))],
         );
         assert!(matches!(response_shape, Value::HttpResponse { status, .. } if status == 200));
+
+        let parallel_http_missing = call_native_function(&mut interpreter, "parallel_http", &[]);
+        assert!(
+            matches!(parallel_http_missing, Value::Error(message) if message.contains("parallel_http requires an array of URL strings"))
+        );
+
+        let jwt_encode_missing = call_native_function(&mut interpreter, "jwt_encode", &[]);
+        assert!(
+            matches!(jwt_encode_missing, Value::Error(message) if message.contains("jwt_encode requires a dictionary payload and secret key string"))
+        );
+
+        let jwt_decode_missing = call_native_function(&mut interpreter, "jwt_decode", &[]);
+        assert!(
+            matches!(jwt_decode_missing, Value::Error(message) if message.contains("jwt_decode requires a token string and secret key string"))
+        );
+
+        let oauth2_auth_url_missing =
+            call_native_function(&mut interpreter, "oauth2_auth_url", &[]);
+        assert!(
+            matches!(oauth2_auth_url_missing, Value::Error(message) if message.contains("oauth2_auth_url requires client_id, redirect_uri, auth_url, and scope strings"))
+        );
+
+        let oauth2_get_token_missing =
+            call_native_function(&mut interpreter, "oauth2_get_token", &[]);
+        assert!(
+            matches!(oauth2_get_token_missing, Value::Error(message) if message.contains("oauth2_get_token requires code, client_id, client_secret, token_url, and redirect_uri strings"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_http_advanced_api_behavior_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let parallel_http_empty = call_native_function(
+            &mut interpreter,
+            "parallel_http",
+            &[Value::Array(Arc::new(vec![]))],
+        );
+        assert!(matches!(parallel_http_empty, Value::Array(results) if results.is_empty()));
+
+        let mut payload = crate::interpreter::DictMap::default();
+        payload.insert("sub".into(), Value::Str(Arc::new("user-123".to_string())));
+        payload.insert("role".into(), Value::Str(Arc::new("admin".to_string())));
+
+        let secret = Value::Str(Arc::new("release-hardening-secret".to_string()));
+        let encoded = call_native_function(
+            &mut interpreter,
+            "jwt_encode",
+            &[Value::Dict(Arc::new(payload.clone())), secret.clone()],
+        );
+
+        let token = match encoded {
+            Value::Str(token) => {
+                assert!(!token.is_empty());
+                token
+            }
+            other => panic!("Expected JWT token string from jwt_encode, got {:?}", other),
+        };
+
+        let decoded = call_native_function(
+            &mut interpreter,
+            "jwt_decode",
+            &[Value::Str(token.clone()), secret.clone()],
+        );
+        match decoded {
+            Value::Dict(decoded_payload) => {
+                assert!(
+                    matches!(decoded_payload.get("sub"), Some(Value::Str(sub)) if sub.as_ref() == "user-123")
+                );
+                assert!(
+                    matches!(decoded_payload.get("role"), Some(Value::Str(role)) if role.as_ref() == "admin")
+                );
+            }
+            other => panic!("Expected Dict payload from jwt_decode, got {:?}", other),
+        }
+
+        let auth_url = call_native_function(
+            &mut interpreter,
+            "oauth2_auth_url",
+            &[
+                Value::Str(Arc::new("client-abc".to_string())),
+                Value::Str(Arc::new("https://example.com/callback".to_string())),
+                Value::Str(Arc::new("https://auth.example.com/authorize".to_string())),
+                Value::Str(Arc::new("read write".to_string())),
+            ],
+        );
+
+        match auth_url {
+            Value::Str(url) => {
+                assert!(url.contains("client_id=client-abc"));
+                assert!(url.contains("redirect_uri=https%3A%2F%2Fexample.com%2Fcallback"));
+                assert!(url.contains("scope=read+write") || url.contains("scope=read%20write"));
+            }
+            other => panic!("Expected URL string from oauth2_auth_url, got {:?}", other),
+        }
     }
 
     #[test]
