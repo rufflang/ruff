@@ -105,6 +105,12 @@
   - Expanded release-hardening dispatcher coverage for migrated database APIs and removed these entries from known dispatch gaps
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Process Management Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for declared process APIs: `spawn_process`, `pipe_commands`
+  - Added contract tests for process result struct behavior, pipeline output behavior, and argument-shape validation
+  - Expanded release-hardening dispatcher coverage for migrated process APIs and removed these entries from known dispatch gaps
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback

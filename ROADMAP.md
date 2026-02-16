@@ -113,6 +113,12 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded dispatcher-level release-hardening contract coverage for migrated database APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated database APIs
 
+- **Process Management Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared process APIs (`spawn_process`, `pipe_commands`)
+    - Added native-function regression tests for process result struct shape, pipeline output behavior, and argument-shape/error-shape validation
+    - Expanded dispatcher-level release-hardening contract coverage for migrated process APIs
+    - Reduced exhaustive dispatch known-gap list by removing now-migrated process APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

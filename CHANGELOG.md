@@ -148,6 +148,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - argument-shape validation errors
   - Expanded dispatcher-level hardening coverage for migrated database APIs and reduced exhaustive known-gap list by removing migrated database entries
 
+- **Release Hardening: Process Management Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handlers for declared process APIs:
+    - `spawn_process`
+    - `pipe_commands`
+  - Preserved legacy process-contract behavior for command-array validation, structured `ProcessResult` output fields, and pipeline error-object shape
+  - Added comprehensive native-function coverage for:
+    - `spawn_process` argument-shape validation and successful `ProcessResult` struct behavior
+    - `pipe_commands` argument-shape validation and single-command pipeline output behavior
+  - Expanded dispatcher-level hardening coverage for process APIs and reduced exhaustive known-gap list by removing `spawn_process` and `pipe_commands`
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management
