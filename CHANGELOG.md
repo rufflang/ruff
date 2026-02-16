@@ -32,6 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - successful image round-trip behavior (`load_image` returns `Image` with expected dimensions/format)
   - Reduced exhaustive dispatch known-gap list by removing migrated `load_image`
 
+- **Release Hardening: Network Module Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handlers for declared TCP/UDP APIs:
+    - `tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`
+    - `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`
+  - Preserved legacy runtime contracts for socket setup/connect/send/receive lifecycle behavior, non-blocking mode toggles, and structured UDP receive payload shape
+  - Added release-hardening contract coverage for:
+    - dispatcher-level API coverage (`get_builtin_names` probe + recent-API coverage)
+    - argument-shape and error-shape validation for all TCP/UDP entry points
+    - end-to-end TCP and UDP round-trip behavior contracts
+  - Reduced exhaustive dispatch known-gap list by removing migrated network APIs
+
 - **Release Hardening: Set Constructor Modular Dispatch Gap Closure (P1)**:
   - Added modular native dispatch support for declared `Set(...)` constructor
   - Preserved constructor contract behavior:

@@ -40,6 +40,11 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+- **Network Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared TCP/UDP APIs (`tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`, `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`)
+    - Added release-hardening tests for argument-shape/error-shape validation and end-to-end TCP/UDP round-trip behavior contracts
+    - Reduced exhaustive dispatch known-gap list by removing migrated network APIs
+
 - **Image Loading Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared image API (`load_image`)
     - Added release-hardening tests for argument-shape validation, missing-file error behavior, and successful image load contracts

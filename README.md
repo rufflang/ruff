@@ -25,6 +25,12 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Network Module Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for declared TCP/UDP APIs: `tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`, `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`
+  - Added release-hardening contract tests for argument-shape/error-shape validation and end-to-end TCP/UDP round-trip behavior
+  - Reduced exhaustive known-gap list by removing migrated network APIs
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Image Loading Modular Dispatch Gap Closure (P1)**
   - Added modular handler for declared image API: `load_image`
   - Added release-hardening contract tests for argument-shape validation, missing-file error behavior, and successful image-load behavior
