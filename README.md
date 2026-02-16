@@ -99,6 +99,11 @@
   - Added behavior parity contract tests for `to_upper(...)` / `upper(...)`, `to_lower(...)` / `lower(...)`, `replace_str(...)` / `replace(...)`, and `push(...)` / `append(...)`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **String Utility Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for string utility APIs: `starts_with`, `ends_with`, `repeat`, `char_at`, `is_empty`, `count_chars`
+  - Added behavior and fallback contract tests for predicate behavior, repeat/char-access behavior, missing/invalid argument-shape behavior, and Unicode character counting behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Polymorphic `len(...)` Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage to include `len`
   - Added polymorphic contract tests for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`

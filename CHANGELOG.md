@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: String Utility Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for string utility builtins:
+    - `starts_with`
+    - `ends_with`
+    - `repeat`
+    - `char_at`
+    - `is_empty`
+    - `count_chars`
+  - Added release-hardening behavior and fallback contract coverage for:
+    - expected true/false behavior of prefix/suffix predicates
+    - repeat and character-access behavior contracts
+    - fallback behavior on missing/invalid argument shapes
+    - Unicode-aware character counting shape checks
+
 - **Release Hardening: Conversion + `bytes(...)` Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for conversion/validation builtins:
     - `parse_int`, `parse_float`
