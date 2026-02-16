@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - split tokenization shape and missing-delimiter fallback behavior
     - join mixed-value stringification and missing-separator fallback behavior
 
+- **Release Hardening: Random and Time API Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for system random/time/date builtins:
+    - `random`, `random_int`, `random_choice`
+    - `set_random_seed`, `clear_random_seed`
+    - `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`
+    - `format_duration`, `elapsed`, `format_date`, `parse_date`
+  - Added release-hardening deterministic and shape-contract coverage for:
+    - seeded random determinism across repeated seed resets
+    - random range and random-choice result-shape behavior
+    - monotonic/non-negative timing API behavior contracts
+    - duration/date formatting and date parsing behavior plus missing/invalid argument-shape errors
+
 - **Release Hardening: Conversion + `bytes(...)` Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for conversion/validation builtins:
     - `parse_int`, `parse_float`

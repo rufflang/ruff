@@ -147,6 +147,10 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for string transform/tokenization APIs (`substring`, `capitalize`, `trim`, `trim_start`, `trim_end`, `split`, `join`)
     - Added behavior and fallback contract coverage for substring bounds/missing arguments, capitalization/trim-family behavior, split shape/missing-delimiter fallback, and join stringification/missing-separator fallback
 
+- **Random and Time API Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for system random/time/date APIs (`random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`)
+    - Added deterministic seeded-random parity contracts, random range/choice shape contracts, monotonic timing contracts, and formatting/parsing argument-shape contracts
+
 - **Polymorphic `len(...)` Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage to include `len`
     - Added polymorphic contract coverage for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`

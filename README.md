@@ -109,6 +109,11 @@
   - Added behavior and fallback contract tests for substring behavior, capitalization/trim-family behavior, split shape behavior, join mixed-value behavior, and missing-argument fallback behavior
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Random and Time API Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for random/time/date APIs: `random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`
+  - Added deterministic seeded-random parity tests, random range/choice shape tests, monotonic timing tests, and formatting/parsing argument-shape contract tests
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Polymorphic `len(...)` Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage to include `len`
   - Added polymorphic contract tests for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`
