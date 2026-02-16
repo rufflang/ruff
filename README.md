@@ -114,6 +114,12 @@
   - Added behavior and error/fallback contract tests for padding semantics, tokenization output shape, Unicode reverse behavior, slug normalization, truncate suffix handling, and case-conversion argument validation
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Data-Format/Base64 + Regex Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for data-format/base64 APIs: `parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`, `encode_base64`, `decode_base64`
+  - Expanded release-hardening critical dispatcher coverage for regex APIs: `regex_match`, `regex_find_all`, `regex_replace`, `regex_split`
+  - Added behavior and argument/error-shape contract tests for parse/serialize round trips, base64 behavior, and regex match/find/replace/split behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Random and Time API Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage for random/time/date APIs: `random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`
   - Added deterministic seeded-random parity tests, random range/choice shape tests, monotonic timing tests, and formatting/parsing argument-shape contract tests

@@ -151,6 +151,11 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for advanced string APIs (`pad_left`, `pad_right`, `lines`, `words`, `str_reverse`, `slugify`, `truncate`, `to_camel_case`, `to_snake_case`, `to_kebab_case`)
     - Added behavior and error/fallback contract coverage for padding semantics, line/word tokenization shape, Unicode reverse behavior, slug normalization behavior, truncate suffix handling, and case-conversion argument validation
 
+- **Data-Format/Base64 + Regex Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for data-format/base64 APIs (`parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`, `encode_base64`, `decode_base64`)
+    - Expanded release-hardening critical dispatcher coverage for regex APIs (`regex_match`, `regex_find_all`, `regex_replace`, `regex_split`)
+    - Added behavior plus argument-shape/error-shape contract coverage for parse/serialize round trips, base64 encode/decode behavior, and regex match/find/replace/split behavior
+
 - **Random and Time API Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage for system random/time/date APIs (`random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`)
     - Added deterministic seeded-random parity contracts, random range/choice shape contracts, monotonic timing contracts, and formatting/parsing argument-shape contracts

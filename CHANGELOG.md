@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Data-Format/Base64 + Regex Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for data-format and regex builtins:
+    - `parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`
+    - `encode_base64`, `decode_base64`
+    - `regex_match`, `regex_find_all`, `regex_replace`, `regex_split`
+  - Added release-hardening behavior and contract coverage for:
+    - parse/serialize round-trip result-shape behavior across JSON/TOML/YAML/CSV
+    - Base64 string encode/decode behavior and bytes result-shape validation
+    - regex match/find/replace/split deterministic behavior contracts
+    - argument-shape and error-shape validation for all APIs above
+
 - **Release Hardening: Advanced String Methods Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for advanced string builtins:
     - `pad_left`, `pad_right`
