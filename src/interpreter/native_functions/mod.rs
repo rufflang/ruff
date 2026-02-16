@@ -158,6 +158,20 @@ mod tests {
             "get_task_pool_size",
             "spawn_process",
             "pipe_commands",
+            "sha256",
+            "md5",
+            "md5_file",
+            "hash_password",
+            "verify_password",
+            "aes_encrypt",
+            "aes_decrypt",
+            "aes_encrypt_bytes",
+            "aes_decrypt_bytes",
+            "rsa_generate_keypair",
+            "rsa_encrypt",
+            "rsa_decrypt",
+            "rsa_sign",
+            "rsa_verify",
         ];
 
         for builtin_name in critical_builtin_names {
@@ -184,20 +198,6 @@ mod tests {
             "zip_add_dir".to_string(),
             "zip_close".to_string(),
             "unzip".to_string(),
-            "sha256".to_string(),
-            "md5".to_string(),
-            "md5_file".to_string(),
-            "hash_password".to_string(),
-            "verify_password".to_string(),
-            "aes_encrypt".to_string(),
-            "aes_decrypt".to_string(),
-            "aes_encrypt_bytes".to_string(),
-            "aes_decrypt_bytes".to_string(),
-            "rsa_generate_keypair".to_string(),
-            "rsa_encrypt".to_string(),
-            "rsa_decrypt".to_string(),
-            "rsa_sign".to_string(),
-            "rsa_verify".to_string(),
             "tcp_listen".to_string(),
             "tcp_accept".to_string(),
             "tcp_connect".to_string(),
@@ -335,6 +335,39 @@ mod tests {
         let pipe_missing = call_native_function(&mut interpreter, "pipe_commands", &[]);
         assert!(
             matches!(pipe_missing, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_crypto_module_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let sha_missing = call_native_function(&mut interpreter, "sha256", &[]);
+        assert!(
+            matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string argument"))
+        );
+
+        let verify_missing = call_native_function(
+            &mut interpreter,
+            "verify_password",
+            &[Value::Str(std::sync::Arc::new("only_one".to_string()))],
+        );
+        assert!(
+            matches!(verify_missing, Value::Error(message) if message.contains("verify_password requires"))
+        );
+
+        let aes_missing = call_native_function(
+            &mut interpreter,
+            "aes_encrypt",
+            &[Value::Str(std::sync::Arc::new("plaintext".to_string()))],
+        );
+        assert!(
+            matches!(aes_missing, Value::Error(message) if message.contains("aes_encrypt requires"))
+        );
+
+        let rsa_bad_size = call_native_function(&mut interpreter, "rsa_generate_keypair", &[Value::Int(1024)]);
+        assert!(
+            matches!(rsa_bad_size, Value::Error(message) if message.contains("RSA key size must be 2048 or 4096 bits"))
         );
     }
 }

@@ -360,3 +360,195 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
     Some(result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::handle;
+    use crate::interpreter::Value;
+    use std::fs;
+    use std::sync::Arc;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn string_value(value: &str) -> Value {
+        Value::Str(Arc::new(value.to_string()))
+    }
+
+    fn unique_temp_file(prefix: &str) -> String {
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let mut path = std::env::temp_dir();
+        path.push(format!("{}_{}.txt", prefix, nanos));
+        path.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn test_sha256_and_md5_hashes_match_known_values() {
+        let sha = handle("sha256", &[string_value("ruff")]).unwrap();
+        assert!(
+            matches!(sha, Value::Str(value) if value.as_ref() == "acadbba99747a5451261c15ae4f389a22e9273135dc696de72c8ceae660cf2b0")
+        );
+
+        let md5 = handle("md5", &[string_value("ruff")]).unwrap();
+        assert!(matches!(md5, Value::Str(value) if value.as_ref() == "a5e1a5d93ff242b745f5cf87aeb726d5"));
+    }
+
+    #[test]
+    fn test_md5_file_hashes_file_contents() {
+        let path = unique_temp_file("ruff_crypto_md5_file");
+        fs::write(&path, "ruff-file-hash").unwrap();
+
+        let result = handle("md5_file", &[string_value(&path)]).unwrap();
+        assert!(matches!(result, Value::Str(_)));
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_hash_password_and_verify_password_round_trip() {
+        let password = "hardening-secret";
+        let hashed = handle("hash_password", &[string_value(password)]).unwrap();
+
+        let hash_string = match hashed {
+            Value::Str(value) => value,
+            other => panic!("Expected Value::Str hash, got {:?}", other),
+        };
+
+        let verify_ok =
+            handle("verify_password", &[string_value(password), Value::Str(hash_string.clone())])
+                .unwrap();
+        assert!(matches!(verify_ok, Value::Bool(true)));
+
+        let verify_fail =
+            handle("verify_password", &[string_value("wrong"), Value::Str(hash_string)])
+                .unwrap();
+        assert!(matches!(verify_fail, Value::Bool(false)));
+    }
+
+    #[test]
+    fn test_aes_encrypt_and_decrypt_round_trip() {
+        let plaintext = "ruff-aes-roundtrip";
+        let key = "key-material";
+
+        let encrypted = handle("aes_encrypt", &[string_value(plaintext), string_value(key)]).unwrap();
+        let ciphertext = match encrypted {
+            Value::Str(value) => value,
+            other => panic!("Expected ciphertext string, got {:?}", other),
+        };
+
+        let decrypted =
+            handle("aes_decrypt", &[Value::Str(ciphertext), string_value(key)]).unwrap();
+        assert!(matches!(decrypted, Value::Str(value) if value.as_ref() == plaintext));
+    }
+
+    #[test]
+    fn test_aes_encrypt_bytes_and_decrypt_bytes_round_trip() {
+        let payload = "binary-payload";
+        let key = "key-material";
+
+        let encrypted =
+            handle("aes_encrypt_bytes", &[string_value(payload), string_value(key)]).unwrap();
+        let ciphertext = match encrypted {
+            Value::Str(value) => value,
+            other => panic!("Expected ciphertext string, got {:?}", other),
+        };
+
+        let decrypted =
+            handle("aes_decrypt_bytes", &[Value::Str(ciphertext), string_value(key)]).unwrap();
+        assert!(matches!(decrypted, Value::Str(value) if value.as_ref() == payload));
+    }
+
+    #[test]
+    fn test_rsa_generate_encrypt_decrypt_sign_and_verify() {
+        let keypair = handle("rsa_generate_keypair", &[Value::Int(2048)]).unwrap();
+
+        let (private_pem, public_pem) = match keypair {
+            Value::Dict(map) => {
+                let private = match map.get("private") {
+                    Some(Value::Str(value)) => value.clone(),
+                    other => panic!("Expected private PEM string, got {:?}", other),
+                };
+                let public = match map.get("public") {
+                    Some(Value::Str(value)) => value.clone(),
+                    other => panic!("Expected public PEM string, got {:?}", other),
+                };
+                (private, public)
+            }
+            other => panic!("Expected keypair dict, got {:?}", other),
+        };
+
+        let message = "ruff-rsa-contract";
+
+        let encrypted =
+            handle("rsa_encrypt", &[string_value(message), Value::Str(public_pem.clone())])
+                .unwrap();
+        let ciphertext = match encrypted {
+            Value::Str(value) => value,
+            other => panic!("Expected RSA ciphertext string, got {:?}", other),
+        };
+
+        let decrypted =
+            handle("rsa_decrypt", &[Value::Str(ciphertext), Value::Str(private_pem.clone())])
+                .unwrap();
+        assert!(matches!(decrypted, Value::Str(value) if value.as_ref() == message));
+
+        let signature =
+            handle("rsa_sign", &[string_value(message), Value::Str(private_pem)]).unwrap();
+        let signature_b64 = match signature {
+            Value::Str(value) => value,
+            other => panic!("Expected RSA signature string, got {:?}", other),
+        };
+
+        let verified = handle(
+            "rsa_verify",
+            &[
+                string_value(message),
+                Value::Str(signature_b64.clone()),
+                Value::Str(public_pem.clone()),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(verified, Value::Bool(true)));
+
+        let tampered = handle(
+            "rsa_verify",
+            &[
+                string_value("tampered"),
+                Value::Str(signature_b64),
+                Value::Str(public_pem),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(tampered, Value::Bool(false)));
+    }
+
+    #[test]
+    fn test_crypto_argument_validation_contracts() {
+        let sha_missing = handle("sha256", &[]).unwrap();
+        assert!(
+            matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string argument"))
+        );
+
+        let verify_missing = handle("verify_password", &[string_value("only_one")]).unwrap();
+        assert!(
+            matches!(verify_missing, Value::Error(message) if message.contains("verify_password requires"))
+        );
+
+        let aes_missing = handle("aes_encrypt", &[string_value("plain")]).unwrap();
+        assert!(
+            matches!(aes_missing, Value::Error(message) if message.contains("aes_encrypt requires"))
+        );
+
+        let rsa_bad_size = handle("rsa_generate_keypair", &[Value::Int(1024)]).unwrap();
+        assert!(
+            matches!(rsa_bad_size, Value::Error(message) if message.contains("RSA key size must be 2048 or 4096 bits"))
+        );
+
+        let rsa_verify_missing = handle(
+            "rsa_verify",
+            &[string_value("msg"), string_value("sig")],
+        )
+        .unwrap();
+        assert!(
+            matches!(rsa_verify_missing, Value::Error(message) if message.contains("rsa_verify requires"))
+        );
+    }
+}
