@@ -3660,6 +3660,18 @@ mod tests {
             matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string argument"))
         );
 
+        let sha_extra = call_native_function(
+            &mut interpreter,
+            "sha256",
+            &[
+                Value::Str(std::sync::Arc::new("data".to_string())),
+                Value::Str(std::sync::Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(
+            matches!(sha_extra, Value::Error(message) if message.contains("sha256 requires a string argument"))
+        );
+
         let verify_missing = call_native_function(
             &mut interpreter,
             "verify_password",
@@ -3667,6 +3679,19 @@ mod tests {
         );
         assert!(
             matches!(verify_missing, Value::Error(message) if message.contains("verify_password requires"))
+        );
+
+        let verify_extra = call_native_function(
+            &mut interpreter,
+            "verify_password",
+            &[
+                Value::Str(std::sync::Arc::new("pw".to_string())),
+                Value::Str(std::sync::Arc::new("hash".to_string())),
+                Value::Str(std::sync::Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(
+            matches!(verify_extra, Value::Error(message) if message.contains("verify_password requires"))
         );
 
         let aes_missing = call_native_function(
@@ -3678,10 +3703,49 @@ mod tests {
             matches!(aes_missing, Value::Error(message) if message.contains("aes_encrypt requires"))
         );
 
+        let aes_extra = call_native_function(
+            &mut interpreter,
+            "aes_encrypt",
+            &[
+                Value::Str(std::sync::Arc::new("plaintext".to_string())),
+                Value::Str(std::sync::Arc::new("key".to_string())),
+                Value::Str(std::sync::Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(
+            matches!(aes_extra, Value::Error(message) if message.contains("aes_encrypt requires"))
+        );
+
         let rsa_bad_size =
             call_native_function(&mut interpreter, "rsa_generate_keypair", &[Value::Int(1024)]);
         assert!(
             matches!(rsa_bad_size, Value::Error(message) if message.contains("RSA key size must be 2048 or 4096 bits"))
+        );
+
+        let rsa_keypair_extra = call_native_function(
+            &mut interpreter,
+            "rsa_generate_keypair",
+            &[
+                Value::Int(2048),
+                Value::Str(std::sync::Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(
+            matches!(rsa_keypair_extra, Value::Error(message) if message.contains("rsa_generate_keypair requires"))
+        );
+
+        let rsa_verify_extra = call_native_function(
+            &mut interpreter,
+            "rsa_verify",
+            &[
+                Value::Str(std::sync::Arc::new("msg".to_string())),
+                Value::Str(std::sync::Arc::new("sig".to_string())),
+                Value::Str(std::sync::Arc::new("pubkey".to_string())),
+                Value::Str(std::sync::Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(
+            matches!(rsa_verify_extra, Value::Error(message) if message.contains("rsa_verify requires"))
         );
     }
 

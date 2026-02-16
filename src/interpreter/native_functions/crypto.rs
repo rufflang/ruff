@@ -20,6 +20,10 @@ fn error_object(message: String) -> Value {
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         "sha256" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("sha256 requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(data)) = arg_values.first() {
                 let mut hasher = Sha256::new();
                 hasher.update(data.as_bytes());
@@ -31,6 +35,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "md5" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("md5 requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(data)) = arg_values.first() {
                 let mut hasher = Md5::new();
                 hasher.update(data.as_bytes());
@@ -42,6 +50,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "md5_file" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("md5_file requires a string path argument".to_string()));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read(path.as_ref()) {
                     Ok(contents) => {
@@ -60,6 +72,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "hash_password" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "hash_password requires a string password argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(password)) = arg_values.first() {
                 match bcrypt::hash(password.as_ref(), bcrypt::DEFAULT_COST) {
                     Ok(hashed) => Value::Str(Arc::new(hashed)),
@@ -70,7 +88,15 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
-        "verify_password" => match (arg_values.first(), arg_values.get(1)) {
+        "verify_password" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "verify_password requires (string_password, string_hash) arguments"
+                        .to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(password)), Some(Value::Str(hash))) => {
                 match bcrypt::verify(password.as_ref(), hash.as_ref()) {
                     Ok(is_valid) => Value::Bool(is_valid),
@@ -80,9 +106,17 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => Value::Error(
                 "verify_password requires (string_password, string_hash) arguments".to_string(),
             ),
-        },
+            }
+        }
 
-        "aes_encrypt" => match (arg_values.first(), arg_values.get(1)) {
+        "aes_encrypt" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "aes_encrypt requires (plaintext_string, key_string) arguments".to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(plaintext)), Some(Value::Str(key))) => {
                 let mut hasher = Sha256::new();
                 hasher.update(key.as_bytes());
@@ -106,9 +140,17 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => {
                 Value::Error("aes_encrypt requires (plaintext_string, key_string) arguments".to_string())
             }
-        },
+            }
+        }
 
-        "aes_decrypt" => match (arg_values.first(), arg_values.get(1)) {
+        "aes_decrypt" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "aes_decrypt requires (ciphertext_string, key_string) arguments".to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
                 let mut hasher = Sha256::new();
                 hasher.update(key.as_bytes());
@@ -142,9 +184,17 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => Value::Error(
                 "aes_decrypt requires (ciphertext_string, key_string) arguments".to_string(),
             ),
-        },
+            }
+        }
 
-        "aes_encrypt_bytes" => match (arg_values.first(), arg_values.get(1)) {
+        "aes_encrypt_bytes" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "aes_encrypt_bytes requires (data_string, key_string) arguments".to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(data)), Some(Value::Str(key))) => {
                 let mut hasher = Sha256::new();
                 hasher.update(key.as_bytes());
@@ -168,9 +218,18 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => {
                 Value::Error("aes_encrypt_bytes requires (data_string, key_string) arguments".to_string())
             }
-        },
+            }
+        }
 
-        "aes_decrypt_bytes" => match (arg_values.first(), arg_values.get(1)) {
+        "aes_decrypt_bytes" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "aes_decrypt_bytes requires (ciphertext_string, key_string) arguments"
+                        .to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
                 let mut hasher = Sha256::new();
                 hasher.update(key.as_bytes());
@@ -206,9 +265,16 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 "aes_decrypt_bytes requires (ciphertext_string, key_string) arguments"
                     .to_string(),
             ),
-        },
+            }
+        }
 
         "rsa_generate_keypair" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "rsa_generate_keypair requires an integer (2048 or 4096)".to_string(),
+                ));
+            }
+
             if let Some(Value::Int(bits)) = arg_values.first() {
                 let bits_usize = *bits as usize;
                 if bits_usize != 2048 && bits_usize != 4096 {
@@ -252,7 +318,15 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
-        "rsa_encrypt" => match (arg_values.first(), arg_values.get(1)) {
+        "rsa_encrypt" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "rsa_encrypt requires (plaintext_string, public_key_pem) arguments"
+                        .to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(plaintext)), Some(Value::Str(public_key_pem))) => {
                 match RsaPublicKey::from_public_key_pem(public_key_pem.as_ref()) {
                     Ok(public_key) => {
@@ -272,9 +346,18 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => Value::Error(
                 "rsa_encrypt requires (plaintext_string, public_key_pem) arguments".to_string(),
             ),
-        },
+            }
+        }
 
-        "rsa_decrypt" => match (arg_values.first(), arg_values.get(1)) {
+        "rsa_decrypt" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "rsa_decrypt requires (ciphertext_string, private_key_pem) arguments"
+                        .to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(ciphertext_b64)), Some(Value::Str(private_key_pem))) => {
                 match RsaPrivateKey::from_pkcs8_pem(private_key_pem.as_ref()) {
                     Ok(private_key) => {
@@ -302,9 +385,17 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => Value::Error(
                 "rsa_decrypt requires (ciphertext_string, private_key_pem) arguments".to_string(),
             ),
-        },
+            }
+        }
 
-        "rsa_sign" => match (arg_values.first(), arg_values.get(1)) {
+        "rsa_sign" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(
+                    "rsa_sign requires (message_string, private_key_pem) arguments".to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1)) {
             (Some(Value::Str(message)), Some(Value::Str(private_key_pem))) => {
                 match RsaPrivateKey::from_pkcs8_pem(private_key_pem.as_ref()) {
                     Ok(private_key) => {
@@ -323,9 +414,18 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => Value::Error(
                 "rsa_sign requires (message_string, private_key_pem) arguments".to_string(),
             ),
-        },
+            }
+        }
 
-        "rsa_verify" => match (arg_values.first(), arg_values.get(1), arg_values.get(2)) {
+        "rsa_verify" => {
+            if arg_values.len() != 3 {
+                return Some(Value::Error(
+                    "rsa_verify requires (message, signature, public_key_pem) arguments"
+                        .to_string(),
+                ));
+            }
+
+            match (arg_values.first(), arg_values.get(1), arg_values.get(2)) {
             (Some(Value::Str(message)), Some(Value::Str(signature_b64)), Some(Value::Str(public_key_pem))) => {
                 match RsaPublicKey::from_public_key_pem(public_key_pem.as_ref()) {
                     Ok(public_key) => match base64::engine::general_purpose::STANDARD
@@ -353,7 +453,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             _ => Value::Error(
                 "rsa_verify requires (message, signature, public_key_pem) arguments".to_string(),
             ),
-        },
+            }
+        }
 
         _ => return None,
     };
@@ -527,9 +628,23 @@ mod tests {
             matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string argument"))
         );
 
+        let sha_extra = handle("sha256", &[string_value("data"), string_value("extra")]).unwrap();
+        assert!(
+            matches!(sha_extra, Value::Error(message) if message.contains("sha256 requires a string argument"))
+        );
+
         let verify_missing = handle("verify_password", &[string_value("only_one")]).unwrap();
         assert!(
             matches!(verify_missing, Value::Error(message) if message.contains("verify_password requires"))
+        );
+
+        let verify_extra = handle(
+            "verify_password",
+            &[string_value("pw"), string_value("hash"), string_value("extra")],
+        )
+        .unwrap();
+        assert!(
+            matches!(verify_extra, Value::Error(message) if message.contains("verify_password requires"))
         );
 
         let aes_missing = handle("aes_encrypt", &[string_value("plain")]).unwrap();
@@ -537,9 +652,24 @@ mod tests {
             matches!(aes_missing, Value::Error(message) if message.contains("aes_encrypt requires"))
         );
 
+        let aes_extra = handle(
+            "aes_encrypt",
+            &[string_value("plain"), string_value("key"), string_value("extra")],
+        )
+        .unwrap();
+        assert!(
+            matches!(aes_extra, Value::Error(message) if message.contains("aes_encrypt requires"))
+        );
+
         let rsa_bad_size = handle("rsa_generate_keypair", &[Value::Int(1024)]).unwrap();
         assert!(
             matches!(rsa_bad_size, Value::Error(message) if message.contains("RSA key size must be 2048 or 4096 bits"))
+        );
+
+        let rsa_keypair_extra =
+            handle("rsa_generate_keypair", &[Value::Int(2048), string_value("extra")]).unwrap();
+        assert!(
+            matches!(rsa_keypair_extra, Value::Error(message) if message.contains("rsa_generate_keypair requires"))
         );
 
         let rsa_verify_missing = handle(
@@ -549,6 +679,20 @@ mod tests {
         .unwrap();
         assert!(
             matches!(rsa_verify_missing, Value::Error(message) if message.contains("rsa_verify requires"))
+        );
+
+        let rsa_verify_extra = handle(
+            "rsa_verify",
+            &[
+                string_value("msg"),
+                string_value("sig"),
+                string_value("pubkey"),
+                string_value("extra"),
+            ],
+        )
+        .unwrap();
+        assert!(
+            matches!(rsa_verify_extra, Value::Error(message) if message.contains("rsa_verify requires"))
         );
     }
 }
