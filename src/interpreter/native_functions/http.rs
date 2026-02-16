@@ -10,6 +10,13 @@ use std::sync::Arc;
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         "parallel_http" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "parallel_http() expects 1 argument (urls), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Array(urls)) = arg_values.first() {
                 let url_strings: Vec<String> = urls
                     .iter()
@@ -54,6 +61,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_get" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "http_get() expects 1 argument (url), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(url)) = arg_values.first() {
                 match builtins::http_get(url.as_ref()) {
                     Ok(result_map) => Value::Dict(Arc::new(result_map)),
@@ -65,6 +79,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_post" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "http_post() expects 2 arguments (url, body), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Str(url)), Some(Value::Str(body))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -78,6 +99,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_put" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "http_put() expects 2 arguments (url, body), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Str(url)), Some(Value::Str(body))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -91,6 +119,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_delete" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "http_delete() expects 1 argument (url), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(url)) = arg_values.first() {
                 match builtins::http_delete(url.as_ref()) {
                     Ok(result_map) => Value::Dict(Arc::new(result_map)),
@@ -102,6 +137,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_get_binary" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "http_get_binary() expects 1 argument (url), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(url)) = arg_values.first() {
                 match builtins::http_get_binary(url.as_ref()) {
                     Ok(bytes) => Value::Bytes(bytes),
@@ -113,6 +155,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_get_stream" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "http_get_stream() expects 1 argument (url), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(url)) = arg_values.first() {
                 match builtins::http_get_stream(url.as_ref()) {
                     Ok(bytes) => Value::Bytes(bytes),
@@ -124,6 +173,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_server" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "http_server() expects 1 argument (port), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Int(port)) = arg_values.first() {
                 Value::HttpServer { port: *port as u16, routes: Vec::new() }
             } else {
@@ -132,6 +188,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "set_header" => {
+            if arg_values.len() != 3 {
+                return Some(Value::Error(format!(
+                    "set_header() expects 3 arguments (response, name, value), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(response), Some(Value::Str(key)), Some(Value::Str(value))) =
                 (arg_values.first(), arg_values.get(1), arg_values.get(2))
             {
@@ -156,6 +219,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "set_headers" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "set_headers() expects 2 arguments (response, headers), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(response), Some(Value::Dict(headers_dict))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -185,6 +255,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_response" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "http_response() expects 2 arguments (status, body), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Int(status)), Some(Value::Str(body))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -199,6 +276,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "json_response" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "json_response() expects 2 arguments (status, data), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Int(status)), Some(data)) = (arg_values.first(), arg_values.get(1))
             {
                 let body = builtins::to_json(data).unwrap_or_else(|_| "{}".to_string());
@@ -211,6 +295,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "html_response" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "html_response() expects 2 arguments (status, html), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Int(status)), Some(Value::Str(html))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -227,6 +318,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "redirect_response" => {
+            if !(1..=2).contains(&arg_values.len()) {
+                return Some(Value::Error(format!(
+                    "redirect_response() expects 1-2 arguments (url, headers?), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(url)) = arg_values.first() {
                 let mut headers = HashMap::new();
                 headers.insert("Location".to_string(), url.as_ref().to_string());
@@ -253,6 +351,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "jwt_encode" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "jwt_encode() expects 2 arguments (payload, secret), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Dict(payload)), Some(Value::Str(secret))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -268,6 +373,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "jwt_decode" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "jwt_decode() expects 2 arguments (token, secret), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Str(token)), Some(Value::Str(secret))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -281,6 +393,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "oauth2_auth_url" => {
+            if arg_values.len() != 4 {
+                return Some(Value::Error(format!(
+                    "oauth2_auth_url() expects 4 arguments (client_id, redirect_uri, auth_url, scope), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (
                 Some(Value::Str(client_id)),
                 Some(Value::Str(redirect_uri)),
@@ -303,6 +422,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "oauth2_get_token" => {
+            if arg_values.len() != 5 {
+                return Some(Value::Error(format!(
+                    "oauth2_get_token() expects 5 arguments (code, client_id, client_secret, token_url, redirect_uri), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (
                 Some(Value::Str(code)),
                 Some(Value::Str(client_id)),
@@ -446,7 +572,16 @@ mod tests {
 
         let post_error = handle("http_post", &[str_value("https://example.com")]).unwrap();
         assert!(
-            matches!(post_error, Value::Error(message) if message.contains("http_post requires URL and JSON body strings"))
+            matches!(post_error, Value::Error(message) if message.contains("http_post() expects 2 arguments"))
+        );
+
+        let get_extra_error = handle(
+            "http_get",
+            &[str_value("https://example.com"), str_value("extra")],
+        )
+        .unwrap();
+        assert!(
+            matches!(get_extra_error, Value::Error(message) if message.contains("http_get() expects 1 argument"))
         );
 
         let set_header_error =

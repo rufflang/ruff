@@ -2462,15 +2462,95 @@ mod tests {
     fn test_release_hardening_http_module_dispatch_argument_contracts() {
         let mut interpreter = Interpreter::new();
 
+        let get_extra = call_native_function(
+            &mut interpreter,
+            "http_get",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Str(Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(matches!(get_extra, Value::Error(message) if message.contains("http_get() expects 1 argument")));
+
         let get_missing = call_native_function(&mut interpreter, "http_get", &[]);
         assert!(
-            matches!(get_missing, Value::Error(message) if message.contains("http_get requires a URL string"))
+            matches!(get_missing, Value::Error(message) if message.contains("http_get() expects 1 argument"))
         );
+
+        let post_extra = call_native_function(
+            &mut interpreter,
+            "http_post",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Str(Arc::new("{}".to_string())),
+                Value::Str(Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(matches!(post_extra, Value::Error(message) if message.contains("http_post() expects 2 arguments")));
 
         let post_missing = call_native_function(&mut interpreter, "http_post", &[]);
         assert!(
-            matches!(post_missing, Value::Error(message) if message.contains("http_post requires URL and JSON body strings"))
+            matches!(post_missing, Value::Error(message) if message.contains("http_post() expects 2 arguments"))
         );
+
+        let put_extra = call_native_function(
+            &mut interpreter,
+            "http_put",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Str(Arc::new("{}".to_string())),
+                Value::Str(Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(matches!(put_extra, Value::Error(message) if message.contains("http_put() expects 2 arguments")));
+
+        let delete_extra = call_native_function(
+            &mut interpreter,
+            "http_delete",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Str(Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(matches!(delete_extra, Value::Error(message) if message.contains("http_delete() expects 1 argument")));
+
+        let binary_extra = call_native_function(
+            &mut interpreter,
+            "http_get_binary",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(matches!(binary_extra, Value::Error(message) if message.contains("http_get_binary() expects 1 argument")));
+
+        let stream_extra = call_native_function(
+            &mut interpreter,
+            "http_get_stream",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(matches!(stream_extra, Value::Error(message) if message.contains("http_get_stream() expects 1 argument")));
+
+        let server_extra = call_native_function(
+            &mut interpreter,
+            "http_server",
+            &[Value::Int(8080), Value::Int(1)],
+        );
+        assert!(matches!(server_extra, Value::Error(message) if message.contains("http_server() expects 1 argument")));
+
+        let response_extra = call_native_function(
+            &mut interpreter,
+            "http_response",
+            &[
+                Value::Int(200),
+                Value::Str(std::sync::Arc::new("ok".to_string())),
+                Value::Str(std::sync::Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(matches!(response_extra, Value::Error(message) if message.contains("http_response() expects 2 arguments")));
 
         let response_shape = call_native_function(
             &mut interpreter,
@@ -2479,32 +2559,140 @@ mod tests {
         );
         assert!(matches!(response_shape, Value::HttpResponse { status, .. } if status == 200));
 
+        let json_response_extra = call_native_function(
+            &mut interpreter,
+            "json_response",
+            &[Value::Int(200), Value::Null, Value::Int(1)],
+        );
+        assert!(matches!(json_response_extra, Value::Error(message) if message.contains("json_response() expects 2 arguments")));
+
+        let html_response_extra = call_native_function(
+            &mut interpreter,
+            "html_response",
+            &[
+                Value::Int(200),
+                Value::Str(Arc::new("<h1>ok</h1>".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(matches!(html_response_extra, Value::Error(message) if message.contains("html_response() expects 2 arguments")));
+
+        let redirect_extra = call_native_function(
+            &mut interpreter,
+            "redirect_response",
+            &[
+                Value::Str(Arc::new("https://example.com".to_string())),
+                Value::Dict(Arc::new(crate::interpreter::DictMap::default())),
+                Value::Int(1),
+            ],
+        );
+        assert!(matches!(redirect_extra, Value::Error(message) if message.contains("redirect_response() expects 1-2 arguments")));
+
+        let set_header_extra = call_native_function(
+            &mut interpreter,
+            "set_header",
+            &[
+                Value::Int(1),
+                Value::Str(Arc::new("X-Test".to_string())),
+                Value::Str(Arc::new("ok".to_string())),
+                Value::Int(2),
+            ],
+        );
+        assert!(matches!(set_header_extra, Value::Error(message) if message.contains("set_header() expects 3 arguments")));
+
+        let set_headers_extra = call_native_function(
+            &mut interpreter,
+            "set_headers",
+            &[
+                Value::Int(1),
+                Value::Dict(Arc::new(crate::interpreter::DictMap::default())),
+                Value::Int(2),
+            ],
+        );
+        assert!(matches!(set_headers_extra, Value::Error(message) if message.contains("set_headers() expects 2 arguments")));
+
         let parallel_http_missing = call_native_function(&mut interpreter, "parallel_http", &[]);
         assert!(
-            matches!(parallel_http_missing, Value::Error(message) if message.contains("parallel_http requires an array of URL strings"))
+            matches!(parallel_http_missing, Value::Error(message) if message.contains("parallel_http() expects 1 argument"))
         );
+
+        let parallel_http_extra = call_native_function(
+            &mut interpreter,
+            "parallel_http",
+            &[Value::Array(Arc::new(vec![])), Value::Int(1)],
+        );
+        assert!(matches!(parallel_http_extra, Value::Error(message) if message.contains("parallel_http() expects 1 argument")));
 
         let jwt_encode_missing = call_native_function(&mut interpreter, "jwt_encode", &[]);
         assert!(
-            matches!(jwt_encode_missing, Value::Error(message) if message.contains("jwt_encode requires a dictionary payload and secret key string"))
+            matches!(jwt_encode_missing, Value::Error(message) if message.contains("jwt_encode() expects 2 arguments"))
         );
+
+        let jwt_encode_extra = call_native_function(
+            &mut interpreter,
+            "jwt_encode",
+            &[
+                Value::Dict(Arc::new(crate::interpreter::DictMap::default())),
+                Value::Str(Arc::new("secret".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(matches!(jwt_encode_extra, Value::Error(message) if message.contains("jwt_encode() expects 2 arguments")));
 
         let jwt_decode_missing = call_native_function(&mut interpreter, "jwt_decode", &[]);
         assert!(
-            matches!(jwt_decode_missing, Value::Error(message) if message.contains("jwt_decode requires a token string and secret key string"))
+            matches!(jwt_decode_missing, Value::Error(message) if message.contains("jwt_decode() expects 2 arguments"))
         );
+
+        let jwt_decode_extra = call_native_function(
+            &mut interpreter,
+            "jwt_decode",
+            &[
+                Value::Str(Arc::new("token".to_string())),
+                Value::Str(Arc::new("secret".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(matches!(jwt_decode_extra, Value::Error(message) if message.contains("jwt_decode() expects 2 arguments")));
 
         let oauth2_auth_url_missing =
             call_native_function(&mut interpreter, "oauth2_auth_url", &[]);
         assert!(
-            matches!(oauth2_auth_url_missing, Value::Error(message) if message.contains("oauth2_auth_url requires client_id, redirect_uri, auth_url, and scope strings"))
+            matches!(oauth2_auth_url_missing, Value::Error(message) if message.contains("oauth2_auth_url() expects 4 arguments"))
         );
+
+        let oauth2_auth_url_extra = call_native_function(
+            &mut interpreter,
+            "oauth2_auth_url",
+            &[
+                Value::Str(Arc::new("client".to_string())),
+                Value::Str(Arc::new("https://example.com/callback".to_string())),
+                Value::Str(Arc::new("https://auth.example.com/authorize".to_string())),
+                Value::Str(Arc::new("read".to_string())),
+                Value::Str(Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(matches!(oauth2_auth_url_extra, Value::Error(message) if message.contains("oauth2_auth_url() expects 4 arguments")));
 
         let oauth2_get_token_missing =
             call_native_function(&mut interpreter, "oauth2_get_token", &[]);
         assert!(
-            matches!(oauth2_get_token_missing, Value::Error(message) if message.contains("oauth2_get_token requires code, client_id, client_secret, token_url, and redirect_uri strings"))
+            matches!(oauth2_get_token_missing, Value::Error(message) if message.contains("oauth2_get_token() expects 5 arguments"))
         );
+
+        let oauth2_get_token_extra = call_native_function(
+            &mut interpreter,
+            "oauth2_get_token",
+            &[
+                Value::Str(Arc::new("code".to_string())),
+                Value::Str(Arc::new("client".to_string())),
+                Value::Str(Arc::new("secret".to_string())),
+                Value::Str(Arc::new("https://auth.example.com/token".to_string())),
+                Value::Str(Arc::new("https://example.com/callback".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(matches!(oauth2_get_token_extra, Value::Error(message) if message.contains("oauth2_get_token() expects 5 arguments")));
     }
 
     #[test]
