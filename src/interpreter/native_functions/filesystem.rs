@@ -4,10 +4,53 @@
 
 use crate::interpreter::{AsyncRuntime, Interpreter, Value};
 use crate::{builtins, interpreter::DictMap};
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use zip::{write::FileOptions, ZipArchive, ZipWriter};
+
+fn zip_add_dir_recursive(
+    zip_writer: &mut ZipWriter<File>,
+    directory_path: &Path,
+    zip_prefix: &str,
+) -> Result<(), String> {
+    let entries = std::fs::read_dir(directory_path)
+        .map_err(|error| format!("Failed to read directory: {}", error))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Failed to read entry: {}", error))?;
+        let entry_path = entry.path();
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        let zip_path = if zip_prefix.is_empty() {
+            file_name.to_string()
+        } else {
+            format!("{}/{}", zip_prefix, file_name)
+        };
+
+        if entry_path.is_dir() {
+            let options = FileOptions::default();
+            zip_writer
+                .add_directory(&zip_path, options)
+                .map_err(|error| format!("Failed to add directory '{}': {}", zip_path, error))?;
+            zip_add_dir_recursive(zip_writer, &entry_path, &zip_path)?;
+        } else {
+            let file_contents = std::fs::read(&entry_path)
+                .map_err(|error| format!("Failed to read '{}': {}", entry_path.display(), error))?;
+            let options =
+                FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            zip_writer
+                .start_file(&zip_path, options)
+                .map_err(|error| format!("Failed to start file '{}': {}", zip_path, error))?;
+            zip_writer
+                .write_all(&file_contents)
+                .map_err(|error| format!("Failed to write file '{}': {}", zip_path, error))?;
+        }
+    }
+
+    Ok(())
+}
 
 pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -227,6 +270,264 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 )
             }
         }
+
+        "zip_create" => {
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match File::create(path.as_ref()) {
+                    Ok(file) => {
+                        let writer = ZipWriter::new(file);
+                        Value::ZipArchive {
+                            writer: Arc::new(Mutex::new(Some(writer))),
+                            path: path.as_ref().clone(),
+                        }
+                    }
+                    Err(error) => Value::ErrorObject {
+                        message: format!(
+                            "Failed to create zip file '{}': {}",
+                            path.as_ref(),
+                            error
+                        ),
+                        stack: Vec::new(),
+                        line: None,
+                        cause: None,
+                    },
+                }
+            } else {
+                Value::Error("zip_create requires a string path argument".to_string())
+            }
+        }
+
+        "zip_add_file" => match (arg_values.first(), arg_values.get(1)) {
+            (Some(Value::ZipArchive { writer, .. }), Some(Value::Str(source_path))) => {
+                let mut writer_guard = writer.lock().unwrap();
+                if let Some(zip_writer) = writer_guard.as_mut() {
+                    match std::fs::read(source_path.as_ref()) {
+                        Ok(file_contents) => {
+                            let file_name = Path::new(source_path.as_ref())
+                                .file_name()
+                                .and_then(|name| name.to_str())
+                                .unwrap_or(source_path.as_ref());
+                            let options = FileOptions::default()
+                                .compression_method(zip::CompressionMethod::Deflated);
+
+                            match zip_writer.start_file(file_name, options) {
+                                Ok(_) => match zip_writer.write_all(&file_contents) {
+                                    Ok(_) => Value::Bool(true),
+                                    Err(error) => Value::ErrorObject {
+                                        message: format!("Failed to write file to zip: {}", error),
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                },
+                                Err(error) => Value::ErrorObject {
+                                    message: format!(
+                                        "Failed to start zip entry '{}': {}",
+                                        file_name, error
+                                    ),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            }
+                        }
+                        Err(error) => Value::ErrorObject {
+                            message: format!(
+                                "Failed to read source file '{}': {}",
+                                source_path.as_ref(),
+                                error
+                            ),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("Zip archive has been closed".to_string())
+                }
+            }
+            _ => Value::Error(
+                "zip_add_file requires (ZipArchive, string_path) arguments".to_string(),
+            ),
+        },
+
+        "zip_add_dir" => match (arg_values.first(), arg_values.get(1)) {
+            (Some(Value::ZipArchive { writer, .. }), Some(Value::Str(directory_path))) => {
+                let mut writer_guard = writer.lock().unwrap();
+                if let Some(zip_writer) = writer_guard.as_mut() {
+                    let directory_path = Path::new(directory_path.as_ref());
+                    match zip_add_dir_recursive(zip_writer, directory_path, "") {
+                        Ok(_) => Value::Bool(true),
+                        Err(message) => Value::ErrorObject {
+                            message,
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("Zip archive has been closed".to_string())
+                }
+            }
+            _ => {
+                Value::Error("zip_add_dir requires (ZipArchive, string_path) arguments".to_string())
+            }
+        },
+
+        "zip_close" => {
+            if let Some(Value::ZipArchive { writer, .. }) = arg_values.first() {
+                let mut writer_guard = writer.lock().unwrap();
+                if let Some(mut zip_writer) = writer_guard.take() {
+                    match zip_writer.finish() {
+                        Ok(_) => Value::Bool(true),
+                        Err(error) => Value::ErrorObject {
+                            message: format!("Failed to finalize zip archive: {}", error),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    }
+                } else {
+                    Value::Error("Zip archive has already been closed".to_string())
+                }
+            } else {
+                Value::Error("zip_close requires a ZipArchive argument".to_string())
+            }
+        }
+
+        "unzip" => match (arg_values.first(), arg_values.get(1)) {
+            (Some(Value::Str(zip_path)), Some(Value::Str(output_dir))) => {
+                match File::open(zip_path.as_ref()) {
+                    Ok(file) => match ZipArchive::new(file) {
+                        Ok(mut archive) => {
+                            if let Err(error) = std::fs::create_dir_all(output_dir.as_ref()) {
+                                return Some(Value::ErrorObject {
+                                    message: format!(
+                                        "Failed to create output directory '{}': {}",
+                                        output_dir.as_ref(),
+                                        error
+                                    ),
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                });
+                            }
+
+                            let mut extracted_files = Vec::new();
+
+                            for entry_index in 0..archive.len() {
+                                match archive.by_index(entry_index) {
+                                    Ok(mut archive_file) => {
+                                        let output_path = Path::new(output_dir.as_ref())
+                                            .join(archive_file.name());
+
+                                        if archive_file.is_dir() {
+                                            if let Err(error) =
+                                                std::fs::create_dir_all(&output_path)
+                                            {
+                                                return Some(Value::ErrorObject {
+                                                    message: format!(
+                                                        "Failed to create directory '{}': {}",
+                                                        output_path.display(),
+                                                        error
+                                                    ),
+                                                    stack: Vec::new(),
+                                                    line: None,
+                                                    cause: None,
+                                                });
+                                            }
+                                        } else {
+                                            if let Some(parent) = output_path.parent() {
+                                                if let Err(error) = std::fs::create_dir_all(parent)
+                                                {
+                                                    return Some(Value::ErrorObject {
+                                                            message: format!(
+                                                                "Failed to create parent directory for '{}': {}",
+                                                                output_path.display(),
+                                                                error
+                                                            ),
+                                                            stack: Vec::new(),
+                                                            line: None,
+                                                            cause: None,
+                                                        });
+                                                }
+                                            }
+
+                                            match File::create(&output_path) {
+                                                Ok(mut output_file) => {
+                                                    if let Err(error) = std::io::copy(
+                                                        &mut archive_file,
+                                                        &mut output_file,
+                                                    ) {
+                                                        return Some(Value::ErrorObject {
+                                                            message: format!(
+                                                                "Failed to extract file '{}': {}",
+                                                                archive_file.name(),
+                                                                error
+                                                            ),
+                                                            stack: Vec::new(),
+                                                            line: None,
+                                                            cause: None,
+                                                        });
+                                                    }
+                                                    extracted_files.push(Value::Str(Arc::new(
+                                                        output_path.to_string_lossy().to_string(),
+                                                    )));
+                                                }
+                                                Err(error) => {
+                                                    return Some(Value::ErrorObject {
+                                                        message: format!(
+                                                            "Failed to create output file '{}': {}",
+                                                            output_path.display(),
+                                                            error
+                                                        ),
+                                                        stack: Vec::new(),
+                                                        line: None,
+                                                        cause: None,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(error) => {
+                                        return Some(Value::ErrorObject {
+                                            message: format!(
+                                                "Failed to read zip entry {}: {}",
+                                                entry_index, error
+                                            ),
+                                            stack: Vec::new(),
+                                            line: None,
+                                            cause: None,
+                                        });
+                                    }
+                                }
+                            }
+
+                            Value::Array(Arc::new(extracted_files))
+                        }
+                        Err(error) => Value::ErrorObject {
+                            message: format!(
+                                "Failed to open zip archive '{}': {}",
+                                zip_path.as_ref(),
+                                error
+                            ),
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        },
+                    },
+                    Err(error) => Value::ErrorObject {
+                        message: format!("Failed to open file '{}': {}", zip_path.as_ref(), error),
+                        stack: Vec::new(),
+                        line: None,
+                        cause: None,
+                    },
+                }
+            }
+            _ => Value::Error(
+                "unzip requires (string_zip_path, string_output_dir) arguments".to_string(),
+            ),
+        },
 
         "append_file" => {
             if arg_values.len() < 2 {
