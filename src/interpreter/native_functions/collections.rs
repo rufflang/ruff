@@ -7,6 +7,16 @@ use crate::interpreter::{DictMap, IntDictMap, Interpreter, Value};
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
+fn strict_arity_error(function_name: &str, expected: usize, got: usize) -> Value {
+    Value::Error(format!(
+        "{} expects {} argument{}, got {}",
+        function_name,
+        expected,
+        if 1 == expected { "" } else { "s" },
+        got
+    ))
+}
+
 pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         // Polymorphic len function - handles arrays, dicts, sets, queues, stacks, bytes
@@ -43,7 +53,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
         // Array functions
         "push" | "append" => {
-            if let Some(Value::Array(arr)) = arg_values.first().cloned() {
+            if 2 != arg_values.len() {
+                strict_arity_error(name, 2, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first().cloned() {
                 if let Some(item) = arg_values.get(1).cloned() {
                     let mut arr_clone = arr;
                     let arr_mut = Arc::make_mut(&mut arr_clone);
@@ -58,7 +70,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "pop" => {
-            if let Some(Value::Array(arr)) = arg_values.first().cloned() {
+            if 1 != arg_values.len() {
+                strict_arity_error("pop", 1, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first().cloned() {
                 let mut arr_clone = arr;
                 let arr_mut = Arc::make_mut(&mut arr_clone);
                 let popped = arr_mut.pop().unwrap_or(Value::Int(0));
@@ -69,8 +83,13 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "slice" => {
-            if let (Some(Value::Array(arr)), Some(Value::Int(start)), Some(Value::Int(end))) =
-                (arg_values.first(), arg_values.get(1), arg_values.get(2))
+            if 3 != arg_values.len() {
+                strict_arity_error("slice", 3, arg_values.len())
+            } else if let (
+                Some(Value::Array(arr)),
+                Some(Value::Int(start)),
+                Some(Value::Int(end)),
+            ) = (arg_values.first(), arg_values.get(1), arg_values.get(2))
             {
                 let start_idx = (*start as usize).max(0).min(arr.len());
                 let end_idx = (*end as usize).max(start_idx).min(arr.len());
@@ -81,7 +100,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "concat" => {
-            if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
+            if 2 != arg_values.len() {
+                strict_arity_error("concat", 2, arg_values.len())
+            } else if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
                 (arg_values.first(), arg_values.get(1))
             {
                 let mut result = Vec::with_capacity(arr1.len() + arr2.len());
@@ -94,7 +115,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "insert" => {
-            if let (Some(Value::Array(arr)), Some(index_val), Some(item)) =
+            if 3 != arg_values.len() {
+                strict_arity_error("insert", 3, arg_values.len())
+            } else if let (Some(Value::Array(arr)), Some(index_val), Some(item)) =
                 (arg_values.first().cloned(), arg_values.get(1), arg_values.get(2).cloned())
             {
                 let index = match index_val {
@@ -112,108 +135,137 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
         }
 
-        "remove" => match (arg_values.first().cloned(), arg_values.get(1)) {
-            (Some(Value::Array(arr)), Some(item)) => {
-                Value::Array(Arc::new(builtins::array_remove((*arr).clone(), item)))
-            }
-            (Some(Value::Dict(dict)), Some(Value::Str(key))) => {
-                let mut dict_clone = dict.clone();
-                let dict_mut = Arc::make_mut(&mut dict_clone);
-                let removed = dict_mut.remove(key.as_str()).unwrap_or(Value::Int(0));
-                Value::Array(Arc::new(vec![Value::Dict(dict_clone), removed]))
-            }
-            (Some(Value::IntDict(dict)), Some(key_val)) => {
-                let int_key = match key_val {
-                    Value::Int(i) => Some(*i),
-                    Value::Str(key) => key.parse::<i64>().ok(),
-                    _ => None,
-                };
-                let mut dict_clone = dict.clone();
-                let dict_mut = Arc::make_mut(&mut dict_clone);
-                let removed = if let Some(key) = int_key {
-                    dict_mut.remove(&key).unwrap_or(Value::Int(0))
-                } else {
-                    Value::Int(0)
-                };
-                Value::Array(Arc::new(vec![Value::IntDict(dict_clone), removed]))
-            }
-            (Some(Value::DenseIntDict(values)), Some(key_val)) => {
-                let int_key = match key_val {
-                    Value::Int(i) => Some(*i),
-                    Value::Str(key) => key.parse::<i64>().ok(),
-                    _ => None,
-                };
-                if let Some(key) = int_key {
-                    if key >= 0 && (key as usize) < values.len() {
-                        let mut int_dict = IntDictMap::default();
-                        int_dict.reserve(values.len());
-                        for (index, value) in values.iter().enumerate() {
-                            int_dict.insert(index as i64, value.clone());
-                        }
-                        let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
-                        Value::Array(Arc::new(vec![Value::IntDict(Arc::new(int_dict)), removed]))
-                    } else {
-                        Value::Array(Arc::new(vec![Value::DenseIntDict(values), Value::Int(0)]))
+        "remove" => {
+            if 2 != arg_values.len() {
+                strict_arity_error("remove", 2, arg_values.len())
+            } else {
+                match (arg_values.first().cloned(), arg_values.get(1)) {
+                    (Some(Value::Array(arr)), Some(item)) => {
+                        Value::Array(Arc::new(builtins::array_remove((*arr).clone(), item)))
                     }
-                } else {
-                    Value::Array(Arc::new(vec![Value::DenseIntDict(values), Value::Int(0)]))
+                    (Some(Value::Dict(dict)), Some(Value::Str(key))) => {
+                        let mut dict_clone = dict.clone();
+                        let dict_mut = Arc::make_mut(&mut dict_clone);
+                        let removed = dict_mut.remove(key.as_str()).unwrap_or(Value::Int(0));
+                        Value::Array(Arc::new(vec![Value::Dict(dict_clone), removed]))
+                    }
+                    (Some(Value::IntDict(dict)), Some(key_val)) => {
+                        let int_key = match key_val {
+                            Value::Int(i) => Some(*i),
+                            Value::Str(key) => key.parse::<i64>().ok(),
+                            _ => None,
+                        };
+                        let mut dict_clone = dict.clone();
+                        let dict_mut = Arc::make_mut(&mut dict_clone);
+                        let removed = if let Some(key) = int_key {
+                            dict_mut.remove(&key).unwrap_or(Value::Int(0))
+                        } else {
+                            Value::Int(0)
+                        };
+                        Value::Array(Arc::new(vec![Value::IntDict(dict_clone), removed]))
+                    }
+                    (Some(Value::DenseIntDict(values)), Some(key_val)) => {
+                        let int_key = match key_val {
+                            Value::Int(i) => Some(*i),
+                            Value::Str(key) => key.parse::<i64>().ok(),
+                            _ => None,
+                        };
+                        if let Some(key) = int_key {
+                            if key >= 0 && (key as usize) < values.len() {
+                                let mut int_dict = IntDictMap::default();
+                                int_dict.reserve(values.len());
+                                for (index, value) in values.iter().enumerate() {
+                                    int_dict.insert(index as i64, value.clone());
+                                }
+                                let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
+                                Value::Array(Arc::new(vec![
+                                    Value::IntDict(Arc::new(int_dict)),
+                                    removed,
+                                ]))
+                            } else {
+                                Value::Array(Arc::new(vec![
+                                    Value::DenseIntDict(values),
+                                    Value::Int(0),
+                                ]))
+                            }
+                        } else {
+                            Value::Array(Arc::new(vec![Value::DenseIntDict(values), Value::Int(0)]))
+                        }
+                    }
+                    (Some(Value::DenseIntDictInt(values)), Some(key_val)) => {
+                        let int_key = match key_val {
+                            Value::Int(i) => Some(*i),
+                            Value::Str(key) => key.parse::<i64>().ok(),
+                            _ => None,
+                        };
+                        if let Some(key) = int_key {
+                            if key >= 0 && (key as usize) < values.len() {
+                                let mut int_dict = IntDictMap::default();
+                                int_dict.reserve(values.len());
+                                for (index, value) in values.iter().enumerate() {
+                                    int_dict.insert(
+                                        index as i64,
+                                        (*value).map(Value::Int).unwrap_or(Value::Null),
+                                    );
+                                }
+                                let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
+                                Value::Array(Arc::new(vec![
+                                    Value::IntDict(Arc::new(int_dict)),
+                                    removed,
+                                ]))
+                            } else {
+                                Value::Array(Arc::new(vec![
+                                    Value::DenseIntDictInt(values),
+                                    Value::Int(0),
+                                ]))
+                            }
+                        } else {
+                            Value::Array(Arc::new(vec![
+                                Value::DenseIntDictInt(values),
+                                Value::Int(0),
+                            ]))
+                        }
+                    }
+                    (Some(Value::DenseIntDictIntFull(values)), Some(key_val)) => {
+                        let int_key = match key_val {
+                            Value::Int(i) => Some(*i),
+                            Value::Str(key) => key.parse::<i64>().ok(),
+                            _ => None,
+                        };
+                        if let Some(key) = int_key {
+                            if key >= 0 && (key as usize) < values.len() {
+                                let mut int_dict = IntDictMap::default();
+                                int_dict.reserve(values.len());
+                                for (index, value) in values.iter().enumerate() {
+                                    int_dict.insert(index as i64, Value::Int(*value));
+                                }
+                                let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
+                                Value::Array(Arc::new(vec![
+                                    Value::IntDict(Arc::new(int_dict)),
+                                    removed,
+                                ]))
+                            } else {
+                                Value::Array(Arc::new(vec![
+                                    Value::DenseIntDictIntFull(values),
+                                    Value::Int(0),
+                                ]))
+                            }
+                        } else {
+                            Value::Array(Arc::new(vec![
+                                Value::DenseIntDictIntFull(values),
+                                Value::Int(0),
+                            ]))
+                        }
+                    }
+                    _ => Value::Array(Arc::new(vec![])),
                 }
             }
-            (Some(Value::DenseIntDictInt(values)), Some(key_val)) => {
-                let int_key = match key_val {
-                    Value::Int(i) => Some(*i),
-                    Value::Str(key) => key.parse::<i64>().ok(),
-                    _ => None,
-                };
-                if let Some(key) = int_key {
-                    if key >= 0 && (key as usize) < values.len() {
-                        let mut int_dict = IntDictMap::default();
-                        int_dict.reserve(values.len());
-                        for (index, value) in values.iter().enumerate() {
-                            int_dict.insert(
-                                index as i64,
-                                (*value).map(Value::Int).unwrap_or(Value::Null),
-                            );
-                        }
-                        let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
-                        Value::Array(Arc::new(vec![Value::IntDict(Arc::new(int_dict)), removed]))
-                    } else {
-                        Value::Array(Arc::new(vec![Value::DenseIntDictInt(values), Value::Int(0)]))
-                    }
-                } else {
-                    Value::Array(Arc::new(vec![Value::DenseIntDictInt(values), Value::Int(0)]))
-                }
-            }
-            (Some(Value::DenseIntDictIntFull(values)), Some(key_val)) => {
-                let int_key = match key_val {
-                    Value::Int(i) => Some(*i),
-                    Value::Str(key) => key.parse::<i64>().ok(),
-                    _ => None,
-                };
-                if let Some(key) = int_key {
-                    if key >= 0 && (key as usize) < values.len() {
-                        let mut int_dict = IntDictMap::default();
-                        int_dict.reserve(values.len());
-                        for (index, value) in values.iter().enumerate() {
-                            int_dict.insert(index as i64, Value::Int(*value));
-                        }
-                        let removed = int_dict.remove(&key).unwrap_or(Value::Int(0));
-                        Value::Array(Arc::new(vec![Value::IntDict(Arc::new(int_dict)), removed]))
-                    } else {
-                        Value::Array(Arc::new(vec![
-                            Value::DenseIntDictIntFull(values),
-                            Value::Int(0),
-                        ]))
-                    }
-                } else {
-                    Value::Array(Arc::new(vec![Value::DenseIntDictIntFull(values), Value::Int(0)]))
-                }
-            }
-            _ => Value::Array(Arc::new(vec![])),
-        },
+        }
 
         "remove_at" => {
-            if let (Some(Value::Array(arr)), Some(index_val)) =
+            if 2 != arg_values.len() {
+                strict_arity_error("remove_at", 2, arg_values.len())
+            } else if let (Some(Value::Array(arr)), Some(index_val)) =
                 (arg_values.first().cloned(), arg_values.get(1))
             {
                 let index = match index_val {
@@ -235,14 +287,24 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             }
         }
 
-        "clear" => match arg_values.first() {
-            Some(Value::Array(_)) => Value::Array(Arc::new(builtins::array_clear())),
-            Some(Value::Dict(_)) => Value::Dict(Arc::new(DictMap::default())),
-            _ => Value::Array(Arc::new(vec![])),
-        },
+        "clear" => {
+            if 1 != arg_values.len() {
+                strict_arity_error("clear", 1, arg_values.len())
+            } else {
+                match arg_values.first() {
+                    Some(Value::Array(_)) => Value::Array(Arc::new(builtins::array_clear())),
+                    Some(Value::Dict(_)) => Value::Dict(Arc::new(DictMap::default())),
+                    _ => Value::Array(Arc::new(vec![])),
+                }
+            }
+        }
 
         // Array higher-order functions that need interpreter
         "map" => {
+            if 2 != arg_values.len() {
+                return Some(strict_arity_error("map", 2, arg_values.len()));
+            }
+
             if arg_values.len() < 2 {
                 return Some(Value::Error(
                     "map requires two arguments: array and function".to_string(),
@@ -276,6 +338,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "filter" => {
+            if 2 != arg_values.len() {
+                return Some(strict_arity_error("filter", 2, arg_values.len()));
+            }
+
             if arg_values.len() < 2 {
                 return Some(Value::Error(
                     "filter requires two arguments: array and function".to_string(),
@@ -313,6 +379,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "reduce" => {
+            if 3 != arg_values.len() {
+                return Some(strict_arity_error("reduce", 3, arg_values.len()));
+            }
+
             if arg_values.len() < 3 {
                 return Some(Value::Error(
                     "reduce requires three arguments: array, initial value, and function"
@@ -343,6 +413,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "find" => {
+            if 2 != arg_values.len() {
+                return Some(strict_arity_error("find", 2, arg_values.len()));
+            }
+
             if arg_values.len() < 2 {
                 return Some(Value::Error(
                     "find requires two arguments: array and function".to_string(),
@@ -377,6 +451,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "any" => {
+            if 2 != arg_values.len() {
+                return Some(strict_arity_error("any", 2, arg_values.len()));
+            }
+
             if arg_values.len() < 2 {
                 return Some(Value::Error(
                     "any requires two arguments: array and function".to_string(),
@@ -411,6 +489,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "all" => {
+            if 2 != arg_values.len() {
+                return Some(strict_arity_error("all", 2, arg_values.len()));
+            }
+
             if arg_values.len() < 2 {
                 return Some(Value::Error(
                     "all requires two arguments: array and function".to_string(),
@@ -445,7 +527,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "sort" => {
-            if let Some(Value::Array(arr)) = arg_values.first() {
+            if 1 != arg_values.len() {
+                strict_arity_error("sort", 1, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first() {
                 let mut sorted = (**arr).clone();
                 sorted.sort_by(|a, b| match (a, b) {
                     (Value::Int(x), Value::Int(y)) => x.cmp(y),
@@ -468,7 +552,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "reverse" => {
-            if let Some(Value::Array(arr)) = arg_values.first() {
+            if 1 != arg_values.len() {
+                strict_arity_error("reverse", 1, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first() {
                 let mut reversed = (**arr).clone();
                 reversed.reverse();
                 Value::Array(Arc::new(reversed))
@@ -478,7 +564,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "unique" => {
-            if let Some(Value::Array(arr)) = arg_values.first() {
+            if 1 != arg_values.len() {
+                strict_arity_error("unique", 1, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first() {
                 let mut seen = HashSet::new();
                 let mut result = Vec::new();
 
@@ -495,7 +583,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "sum" => {
-            if let Some(Value::Array(arr)) = arg_values.first() {
+            if 1 != arg_values.len() {
+                strict_arity_error("sum", 1, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first() {
                 let mut int_sum: i64 = 0;
                 let mut float_sum: f64 = 0.0;
                 let mut has_float = false;
@@ -531,7 +621,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "chunk" => {
-            if let (Some(Value::Array(arr)), Some(size_val)) =
+            if 2 != arg_values.len() {
+                strict_arity_error("chunk", 2, arg_values.len())
+            } else if let (Some(Value::Array(arr)), Some(size_val)) =
                 (arg_values.first(), arg_values.get(1))
             {
                 let size = match size_val {
@@ -546,7 +638,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "flatten" => {
-            if let Some(Value::Array(arr)) = arg_values.first() {
+            if 1 != arg_values.len() {
+                strict_arity_error("flatten", 1, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first() {
                 Value::Array(Arc::new(builtins::array_flatten(&**arr)))
             } else {
                 Value::Error("flatten() requires an array argument".to_string())
@@ -554,7 +648,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "zip" => {
-            if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
+            if 2 != arg_values.len() {
+                strict_arity_error("zip", 2, arg_values.len())
+            } else if let (Some(Value::Array(arr1)), Some(Value::Array(arr2))) =
                 (arg_values.first(), arg_values.get(1))
             {
                 Value::Array(Arc::new(builtins::array_zip(&**arr1, &**arr2)))
@@ -564,7 +660,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "enumerate" => {
-            if let Some(Value::Array(arr)) = arg_values.first() {
+            if 1 != arg_values.len() {
+                strict_arity_error("enumerate", 1, arg_values.len())
+            } else if let Some(Value::Array(arr)) = arg_values.first() {
                 Value::Array(Arc::new(builtins::array_enumerate(&**arr)))
             } else {
                 Value::Error("enumerate() requires an array argument".to_string())
@@ -572,7 +670,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "take" => {
-            if let (Some(Value::Array(arr)), Some(n_val)) = (arg_values.first(), arg_values.get(1))
+            if 2 != arg_values.len() {
+                strict_arity_error("take", 2, arg_values.len())
+            } else if let (Some(Value::Array(arr)), Some(n_val)) =
+                (arg_values.first(), arg_values.get(1))
             {
                 let n = match n_val {
                     Value::Int(n) => *n,
@@ -586,7 +687,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "skip" => {
-            if let (Some(Value::Array(arr)), Some(n_val)) = (arg_values.first(), arg_values.get(1))
+            if 2 != arg_values.len() {
+                strict_arity_error("skip", 2, arg_values.len())
+            } else if let (Some(Value::Array(arr)), Some(n_val)) =
+                (arg_values.first(), arg_values.get(1))
             {
                 let n = match n_val {
                     Value::Int(n) => *n,
@@ -600,7 +704,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "windows" => {
-            if let (Some(Value::Array(arr)), Some(size_val)) =
+            if 2 != arg_values.len() {
+                strict_arity_error("windows", 2, arg_values.len())
+            } else if let (Some(Value::Array(arr)), Some(size_val)) =
                 (arg_values.first(), arg_values.get(1))
             {
                 let size = match size_val {
@@ -1424,4 +1530,143 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
     };
 
     Some(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle;
+    use crate::interpreter::{Interpreter, LeakyFunctionBody, Value};
+    use std::sync::Arc;
+
+    #[test]
+    fn test_array_and_higher_order_collection_strict_arity_contracts() {
+        let mut interpreter = Interpreter::new();
+        let array_arg = Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)]));
+        let function_arg = Value::Function(vec![], LeakyFunctionBody::new(Vec::new()), None);
+
+        let strict_arity_cases: Vec<(&str, Vec<Value>, &str)> = vec![
+            ("push", vec![array_arg.clone()], "expects 2 arguments"),
+            ("pop", vec![], "expects 1 argument"),
+            ("slice", vec![array_arg.clone(), Value::Int(0)], "expects 3 arguments"),
+            (
+                "concat",
+                vec![array_arg.clone(), array_arg.clone(), Value::Int(7)],
+                "expects 2 arguments",
+            ),
+            (
+                "insert",
+                vec![array_arg.clone(), Value::Int(0), Value::Int(9), Value::Int(1)],
+                "expects 3 arguments",
+            ),
+            (
+                "remove",
+                vec![array_arg.clone(), Value::Int(2), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "remove_at",
+                vec![array_arg.clone(), Value::Int(0), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            ("clear", vec![], "expects 1 argument"),
+            (
+                "map",
+                vec![array_arg.clone(), function_arg.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "filter",
+                vec![array_arg.clone(), function_arg.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "reduce",
+                vec![array_arg.clone(), Value::Int(0), function_arg.clone(), Value::Int(1)],
+                "expects 3 arguments",
+            ),
+            (
+                "find",
+                vec![array_arg.clone(), function_arg.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "any",
+                vec![array_arg.clone(), function_arg.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "all",
+                vec![array_arg.clone(), function_arg.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            ("sort", vec![array_arg.clone(), Value::Int(1)], "expects 1 argument"),
+            ("reverse", vec![array_arg.clone(), Value::Int(1)], "expects 1 argument"),
+            ("unique", vec![array_arg.clone(), Value::Int(1)], "expects 1 argument"),
+            ("sum", vec![array_arg.clone(), Value::Int(1)], "expects 1 argument"),
+            ("chunk", vec![array_arg.clone(), Value::Int(2), Value::Int(1)], "expects 2 arguments"),
+            ("flatten", vec![array_arg.clone(), Value::Int(1)], "expects 1 argument"),
+            (
+                "zip",
+                vec![array_arg.clone(), array_arg.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            ("enumerate", vec![array_arg.clone(), Value::Int(1)], "expects 1 argument"),
+            ("take", vec![array_arg.clone(), Value::Int(2), Value::Int(1)], "expects 2 arguments"),
+            ("skip", vec![array_arg.clone(), Value::Int(2), Value::Int(1)], "expects 2 arguments"),
+            (
+                "windows",
+                vec![array_arg.clone(), Value::Int(2), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+        ];
+
+        for (name, args, expected_message) in strict_arity_cases {
+            let result = handle(&mut interpreter, name, &args).expect("handler should match");
+            assert!(
+                matches!(result, Value::Error(ref message) if message.contains(expected_message)),
+                "Expected strict-arity contract for {} to contain '{}', got {:?}",
+                name,
+                expected_message,
+                result
+            );
+        }
+    }
+
+    #[test]
+    fn test_array_collection_behavior_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let sort_input = Value::Array(Arc::new(vec![Value::Int(3), Value::Int(1), Value::Int(2)]));
+        let sort_result =
+            handle(&mut interpreter, "sort", &[sort_input]).expect("handler should match");
+        assert!(matches!(sort_result, Value::Array(values) if values.len() == 3
+            && matches!(&values[0], Value::Int(1))
+            && matches!(&values[1], Value::Int(2))
+            && matches!(&values[2], Value::Int(3))));
+
+        let sum_result = handle(
+            &mut interpreter,
+            "sum",
+            &[Value::Array(Arc::new(vec![Value::Int(2), Value::Int(3), Value::Int(5)]))],
+        )
+        .expect("handler should match");
+        assert!(matches!(sum_result, Value::Int(10)));
+
+        let zip_result = handle(
+            &mut interpreter,
+            "zip",
+            &[
+                Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])),
+                Value::Array(Arc::new(vec![Value::Int(10), Value::Int(20)])),
+            ],
+        )
+        .expect("handler should match");
+        assert!(matches!(zip_result, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Int(1))
+                && matches!(&pair[1], Value::Int(10)))
+            && matches!(&values[1], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Int(2))
+                && matches!(&pair[1], Value::Int(20)))));
+    }
 }

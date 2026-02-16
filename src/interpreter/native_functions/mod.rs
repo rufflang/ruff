@@ -170,6 +170,31 @@ mod tests {
             "lower",
             "replace",
             "append",
+            "push",
+            "pop",
+            "insert",
+            "remove",
+            "remove_at",
+            "clear",
+            "slice",
+            "concat",
+            "map",
+            "filter",
+            "reduce",
+            "find",
+            "sort",
+            "reverse",
+            "unique",
+            "sum",
+            "any",
+            "all",
+            "chunk",
+            "flatten",
+            "zip",
+            "enumerate",
+            "take",
+            "skip",
+            "windows",
             "starts_with",
             "ends_with",
             "repeat",
@@ -1942,6 +1967,239 @@ mod tests {
         assert!(
             matches!(format_bad_template, Value::Error(message) if message.contains("format() first argument must be a string"))
         );
+    }
+
+    #[test]
+    fn test_release_hardening_array_and_higher_order_collection_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let base_array = Value::Array(Arc::new(vec![Value::Int(3), Value::Int(1), Value::Int(2)]));
+        let other_array = Value::Array(Arc::new(vec![Value::Int(9), Value::Int(8)]));
+        let empty_function = Value::Function(vec![], LeakyFunctionBody::new(Vec::new()), None);
+
+        let strict_arity_cases: Vec<(&str, Vec<Value>, &str)> = vec![
+            ("push", vec![base_array.clone()], "expects 2 arguments"),
+            ("pop", vec![], "expects 1 argument"),
+            ("slice", vec![base_array.clone(), Value::Int(0)], "expects 3 arguments"),
+            (
+                "concat",
+                vec![base_array.clone(), other_array.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "insert",
+                vec![base_array.clone(), Value::Int(1), Value::Int(99), Value::Int(7)],
+                "expects 3 arguments",
+            ),
+            (
+                "remove",
+                vec![base_array.clone(), Value::Int(1), Value::Int(2)],
+                "expects 2 arguments",
+            ),
+            (
+                "remove_at",
+                vec![base_array.clone(), Value::Int(0), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            ("clear", vec![], "expects 1 argument"),
+            (
+                "map",
+                vec![base_array.clone(), empty_function.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "filter",
+                vec![base_array.clone(), empty_function.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "reduce",
+                vec![base_array.clone(), Value::Int(0), empty_function.clone(), Value::Int(1)],
+                "expects 3 arguments",
+            ),
+            (
+                "find",
+                vec![base_array.clone(), empty_function.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "any",
+                vec![base_array.clone(), empty_function.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            (
+                "all",
+                vec![base_array.clone(), empty_function.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            ("sort", vec![base_array.clone(), Value::Int(1)], "expects 1 argument"),
+            ("reverse", vec![base_array.clone(), Value::Int(1)], "expects 1 argument"),
+            ("unique", vec![base_array.clone(), Value::Int(1)], "expects 1 argument"),
+            ("sum", vec![base_array.clone(), Value::Int(1)], "expects 1 argument"),
+            (
+                "chunk",
+                vec![base_array.clone(), Value::Int(2), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            ("flatten", vec![base_array.clone(), Value::Int(1)], "expects 1 argument"),
+            (
+                "zip",
+                vec![base_array.clone(), other_array.clone(), Value::Int(1)],
+                "expects 2 arguments",
+            ),
+            ("enumerate", vec![base_array.clone(), Value::Int(1)], "expects 1 argument"),
+            ("take", vec![base_array.clone(), Value::Int(2), Value::Int(1)], "expects 2 arguments"),
+            ("skip", vec![base_array.clone(), Value::Int(2), Value::Int(1)], "expects 2 arguments"),
+        ];
+
+        for (name, args, expected_message) in strict_arity_cases {
+            let result = call_native_function(&mut interpreter, name, &args);
+            assert!(
+                matches!(result, Value::Error(ref message) if message.contains(expected_message)),
+                "Expected strict-arity contract for {} to contain '{}', got {:?}",
+                name,
+                expected_message,
+                result
+            );
+        }
+
+        let windows_strict_arity = call_native_function(
+            &mut interpreter,
+            "windows",
+            &[base_array.clone(), Value::Int(2), Value::Int(1)],
+        );
+        assert!(
+            matches!(windows_strict_arity, Value::Error(message) if message.contains("expects 2 arguments"))
+        );
+
+        let push_success =
+            call_native_function(&mut interpreter, "push", &[base_array.clone(), Value::Int(4)]);
+        assert!(matches!(push_success, Value::Array(values) if values.len() == 4
+            && matches!(&values[0], Value::Int(3))
+            && matches!(&values[1], Value::Int(1))
+            && matches!(&values[2], Value::Int(2))
+            && matches!(&values[3], Value::Int(4))));
+
+        let sort_success = call_native_function(&mut interpreter, "sort", &[base_array.clone()]);
+        assert!(matches!(sort_success, Value::Array(values) if values.len() == 3
+            && matches!(&values[0], Value::Int(1))
+            && matches!(&values[1], Value::Int(2))
+            && matches!(&values[2], Value::Int(3))));
+
+        let reverse_success = call_native_function(
+            &mut interpreter,
+            "reverse",
+            &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)]))],
+        );
+        assert!(matches!(reverse_success, Value::Array(values) if values.len() == 3
+            && matches!(&values[0], Value::Int(3))
+            && matches!(&values[1], Value::Int(2))
+            && matches!(&values[2], Value::Int(1))));
+
+        let sum_success = call_native_function(
+            &mut interpreter,
+            "sum",
+            &[Value::Array(Arc::new(vec![Value::Int(2), Value::Int(3), Value::Int(5)]))],
+        );
+        assert!(matches!(sum_success, Value::Int(10)));
+
+        let chunk_success =
+            call_native_function(&mut interpreter, "chunk", &[base_array.clone(), Value::Int(2)]);
+        assert!(matches!(chunk_success, Value::Array(chunks) if chunks.len() == 2
+            && matches!(&chunks[0], Value::Array(first) if first.len() == 2)
+            && matches!(&chunks[1], Value::Array(second) if second.len() == 1)));
+
+        let flatten_success = call_native_function(
+            &mut interpreter,
+            "flatten",
+            &[Value::Array(Arc::new(vec![
+                Value::Int(1),
+                Value::Array(Arc::new(vec![Value::Int(2), Value::Int(3)])),
+            ]))],
+        );
+        assert!(matches!(flatten_success, Value::Array(values) if values.len() == 3
+            && matches!(&values[0], Value::Int(1))
+            && matches!(&values[1], Value::Int(2))
+            && matches!(&values[2], Value::Int(3))));
+
+        let zip_success = call_native_function(
+            &mut interpreter,
+            "zip",
+            &[base_array.clone(), Value::Array(Arc::new(vec![Value::Int(10), Value::Int(20)]))],
+        );
+        assert!(matches!(zip_success, Value::Array(pairs) if pairs.len() == 2
+            && matches!(&pairs[0], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Int(3))
+                && matches!(&pair[1], Value::Int(10)))
+            && matches!(&pairs[1], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Int(1))
+                && matches!(&pair[1], Value::Int(20)))));
+
+        let enumerate_success = call_native_function(
+            &mut interpreter,
+            "enumerate",
+            &[Value::Array(Arc::new(vec![
+                Value::Str(Arc::new("a".to_string())),
+                Value::Str(Arc::new("b".to_string())),
+            ]))],
+        );
+        assert!(matches!(enumerate_success, Value::Array(entries) if entries.len() == 2
+            && matches!(&entries[0], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Int(0))
+                && matches!(&pair[1], Value::Str(v) if v.as_ref() == "a"))
+            && matches!(&entries[1], Value::Array(pair) if pair.len() == 2
+                && matches!(&pair[0], Value::Int(1))
+                && matches!(&pair[1], Value::Str(v) if v.as_ref() == "b"))));
+
+        let take_success =
+            call_native_function(&mut interpreter, "take", &[base_array.clone(), Value::Int(2)]);
+        assert!(matches!(take_success, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Int(3))
+            && matches!(&values[1], Value::Int(1))));
+
+        let skip_success =
+            call_native_function(&mut interpreter, "skip", &[base_array.clone(), Value::Int(1)]);
+        assert!(matches!(skip_success, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Int(1))
+            && matches!(&values[1], Value::Int(2))));
+
+        let windows_success =
+            call_native_function(&mut interpreter, "windows", &[base_array.clone(), Value::Int(2)]);
+        assert!(matches!(windows_success, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Array(window) if window.len() == 2)
+            && matches!(&values[1], Value::Array(window) if window.len() == 2)));
+
+        let map_success = call_native_function(
+            &mut interpreter,
+            "map",
+            &[base_array.clone(), empty_function.clone()],
+        );
+        assert!(matches!(map_success, Value::Array(values) if values.len() == 3));
+
+        let filter_success = call_native_function(
+            &mut interpreter,
+            "filter",
+            &[base_array.clone(), empty_function.clone()],
+        );
+        assert!(matches!(filter_success, Value::Array(values) if values.is_empty()));
+
+        let find_success = call_native_function(
+            &mut interpreter,
+            "find",
+            &[base_array.clone(), empty_function.clone()],
+        );
+        assert!(matches!(find_success, Value::Int(0)));
+
+        let any_success = call_native_function(
+            &mut interpreter,
+            "any",
+            &[base_array.clone(), empty_function.clone()],
+        );
+        assert!(matches!(any_success, Value::Bool(false)));
+
+        let all_success =
+            call_native_function(&mut interpreter, "all", &[base_array, empty_function]);
+        assert!(matches!(all_success, Value::Bool(false)));
     }
 
     #[test]
