@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Conversion + Introspection API Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
+    - Conversion APIs: `parse_int`, `parse_float`, `to_int`, `to_float`, `to_string`, `to_bool`, `bytes`
+    - Introspection APIs: `type`, `is_int`, `is_float`, `is_string`, `is_bool`, `is_array`, `is_dict`, `is_null`, `is_function`
+  - Preserved compatibility fallback behavior for missing-argument `is_*` checks (`false`) while rejecting extra arguments deterministically
+  - Added comprehensive release-hardening contract coverage at both module and dispatcher integration layers, including explicit extra-argument rejection checks for all APIs above
+
 - **Release Hardening: Assertion API Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
     - `assert`

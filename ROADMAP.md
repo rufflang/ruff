@@ -40,6 +40,10 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+    - Hardened strict arity contracts for conversion and introspection APIs so trailing arguments now return deterministic contract errors (`parse_int`, `parse_float`, `to_int`, `to_float`, `to_string`, `to_bool`, `bytes`, `type`, `is_int`, `is_float`, `is_string`, `is_bool`, `is_array`, `is_dict`, `is_null`, `is_function`)
+    - Added comprehensive release-hardening contract coverage for conversion/introspection strict-arity behavior at both module and dispatcher integration layers
+    - Preserved missing-argument compatibility fallback behavior for `is_*` checks (`false`) while hardening extra-argument rejection
+
     - Hardened strict arity contracts for assertion/testing APIs so trailing arguments now return deterministic contract errors (`assert`, `assert_equal`, `assert_true`, `assert_false`, `assert_contains`)
     - Added comprehensive release-hardening contract coverage for assertion/testing strict-arity behavior at both module and dispatcher integration layers
     - Preserved `debug(...)` variadic compatibility with explicit regression coverage
