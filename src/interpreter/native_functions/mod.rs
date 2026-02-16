@@ -78,6 +78,18 @@ mod tests {
     use crate::interpreter::{Interpreter, Value};
     use std::sync::Arc;
 
+    fn available_tcp_port() -> i64 {
+        let listener =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("ephemeral tcp listener should bind");
+        listener.local_addr().expect("ephemeral tcp listener should have local addr").port() as i64
+    }
+
+    fn available_udp_port() -> i64 {
+        let socket =
+            std::net::UdpSocket::bind("127.0.0.1:0").expect("ephemeral udp socket should bind");
+        socket.local_addr().expect("ephemeral udp socket should have local addr").port() as i64
+    }
+
     fn tmp_test_path(file_name: &str) -> String {
         let mut path = std::env::current_dir().expect("current_dir should resolve");
         path.push("tmp");
@@ -175,6 +187,17 @@ mod tests {
             "zip_add_dir",
             "zip_close",
             "unzip",
+            "tcp_listen",
+            "tcp_accept",
+            "tcp_connect",
+            "tcp_send",
+            "tcp_receive",
+            "tcp_close",
+            "tcp_set_nonblocking",
+            "udp_bind",
+            "udp_send_to",
+            "udp_receive_from",
+            "udp_close",
             "sha256",
             "md5",
             "md5_file",
@@ -207,19 +230,7 @@ mod tests {
         let mut interpreter = Interpreter::new();
         let skip_probe_names = ["input", "exit", "sleep", "execute"];
         let mut unknown_builtin_names = Vec::new();
-        let expected_known_legacy_dispatch_gaps = vec![
-            "tcp_listen".to_string(),
-            "tcp_accept".to_string(),
-            "tcp_connect".to_string(),
-            "tcp_send".to_string(),
-            "tcp_receive".to_string(),
-            "tcp_close".to_string(),
-            "tcp_set_nonblocking".to_string(),
-            "udp_bind".to_string(),
-            "udp_send_to".to_string(),
-            "udp_receive_from".to_string(),
-            "udp_close".to_string(),
-        ];
+        let expected_known_legacy_dispatch_gaps: Vec<String> = vec![];
 
         for builtin_name in Interpreter::get_builtin_names() {
             if skip_probe_names.contains(&builtin_name) {
@@ -395,6 +406,212 @@ mod tests {
         }
 
         let _ = std::fs::remove_file(image_path);
+    }
+
+    #[test]
+    fn test_release_hardening_network_module_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let tcp_listen_missing = call_native_function(&mut interpreter, "tcp_listen", &[]);
+        assert!(
+            matches!(tcp_listen_missing, Value::Error(message) if message.contains("tcp_listen requires (string_host, int_port) arguments"))
+        );
+
+        let tcp_accept_missing = call_native_function(&mut interpreter, "tcp_accept", &[]);
+        assert!(
+            matches!(tcp_accept_missing, Value::Error(message) if message.contains("tcp_accept requires a TcpListener argument"))
+        );
+
+        let tcp_connect_missing = call_native_function(&mut interpreter, "tcp_connect", &[]);
+        assert!(
+            matches!(tcp_connect_missing, Value::Error(message) if message.contains("tcp_connect requires (string_host, int_port) arguments"))
+        );
+
+        let tcp_send_missing = call_native_function(&mut interpreter, "tcp_send", &[]);
+        assert!(
+            matches!(tcp_send_missing, Value::Error(message) if message.contains("tcp_send requires (TcpStream, string_or_bytes_data) arguments"))
+        );
+
+        let tcp_receive_missing = call_native_function(&mut interpreter, "tcp_receive", &[]);
+        assert!(
+            matches!(tcp_receive_missing, Value::Error(message) if message.contains("tcp_receive requires (TcpStream, int_size) arguments"))
+        );
+
+        let tcp_close_missing = call_native_function(&mut interpreter, "tcp_close", &[]);
+        assert!(
+            matches!(tcp_close_missing, Value::Error(message) if message.contains("tcp_close requires a TcpStream or TcpListener argument"))
+        );
+
+        let tcp_nonblocking_missing =
+            call_native_function(&mut interpreter, "tcp_set_nonblocking", &[]);
+        assert!(
+            matches!(tcp_nonblocking_missing, Value::Error(message) if message.contains("tcp_set_nonblocking requires (TcpStream/TcpListener, bool) arguments"))
+        );
+
+        let udp_bind_missing = call_native_function(&mut interpreter, "udp_bind", &[]);
+        assert!(
+            matches!(udp_bind_missing, Value::Error(message) if message.contains("udp_bind requires (string_host, int_port) arguments"))
+        );
+
+        let udp_send_missing = call_native_function(&mut interpreter, "udp_send_to", &[]);
+        assert!(
+            matches!(udp_send_missing, Value::Error(message) if message.contains("udp_send_to requires (UdpSocket, string_or_bytes_data, string_host, int_port) arguments"))
+        );
+
+        let udp_receive_missing = call_native_function(&mut interpreter, "udp_receive_from", &[]);
+        assert!(
+            matches!(udp_receive_missing, Value::Error(message) if message.contains("udp_receive_from requires (UdpSocket, int_size) arguments"))
+        );
+
+        let udp_close_missing = call_native_function(&mut interpreter, "udp_close", &[]);
+        assert!(
+            matches!(udp_close_missing, Value::Error(message) if message.contains("udp_close requires a UdpSocket argument"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_network_module_round_trip_behaviors() {
+        let tcp_port = available_tcp_port();
+        let mut server_interpreter = Interpreter::new();
+
+        let listener = call_native_function(
+            &mut server_interpreter,
+            "tcp_listen",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(tcp_port)],
+        );
+        let listener_value = match listener {
+            Value::TcpListener { .. } => listener,
+            other => panic!("Expected TcpListener from tcp_listen, got {:?}", other),
+        };
+
+        let listener_for_client = listener_value.clone();
+        let client_thread = std::thread::spawn(move || {
+            let mut client_interpreter = Interpreter::new();
+            let stream = call_native_function(
+                &mut client_interpreter,
+                "tcp_connect",
+                &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(tcp_port)],
+            );
+            let stream_value = match stream {
+                Value::TcpStream { .. } => stream,
+                other => panic!("Expected TcpStream from tcp_connect, got {:?}", other),
+            };
+
+            let sent = call_native_function(
+                &mut client_interpreter,
+                "tcp_send",
+                &[stream_value.clone(), Value::Str(Arc::new("network-payload".to_string()))],
+            );
+            assert!(matches!(sent, Value::Int(15)));
+
+            let close_result =
+                call_native_function(&mut client_interpreter, "tcp_close", &[stream_value]);
+            assert!(matches!(close_result, Value::Bool(true)));
+
+            let close_listener_result =
+                call_native_function(&mut client_interpreter, "tcp_close", &[listener_for_client]);
+            assert!(matches!(close_listener_result, Value::Bool(true)));
+        });
+
+        let accepted =
+            call_native_function(&mut server_interpreter, "tcp_accept", &[listener_value.clone()]);
+        let accepted_stream = match accepted {
+            Value::TcpStream { .. } => accepted,
+            other => panic!("Expected TcpStream from tcp_accept, got {:?}", other),
+        };
+
+        let tcp_receive = call_native_function(
+            &mut server_interpreter,
+            "tcp_receive",
+            &[accepted_stream.clone(), Value::Int(128)],
+        );
+        assert!(matches!(tcp_receive, Value::Str(data) if data.as_ref() == "network-payload"));
+
+        let nonblocking_stream_result = call_native_function(
+            &mut server_interpreter,
+            "tcp_set_nonblocking",
+            &[accepted_stream.clone(), Value::Bool(false)],
+        );
+        assert!(matches!(nonblocking_stream_result, Value::Bool(true)));
+
+        let nonblocking_listener_result = call_native_function(
+            &mut server_interpreter,
+            "tcp_set_nonblocking",
+            &[listener_value.clone(), Value::Bool(false)],
+        );
+        assert!(matches!(nonblocking_listener_result, Value::Bool(true)));
+
+        let close_stream_result =
+            call_native_function(&mut server_interpreter, "tcp_close", &[accepted_stream]);
+        assert!(matches!(close_stream_result, Value::Bool(true)));
+
+        let close_listener_result =
+            call_native_function(&mut server_interpreter, "tcp_close", &[listener_value]);
+        assert!(matches!(close_listener_result, Value::Bool(true)));
+
+        client_thread.join().expect("tcp client thread should complete");
+
+        let udp_port = available_udp_port();
+        let mut udp_interpreter = Interpreter::new();
+
+        let receiver_socket = call_native_function(
+            &mut udp_interpreter,
+            "udp_bind",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(udp_port)],
+        );
+        let receiver_value = match receiver_socket {
+            Value::UdpSocket { .. } => receiver_socket,
+            other => panic!("Expected UdpSocket for receiver, got {:?}", other),
+        };
+
+        let sender_socket = call_native_function(
+            &mut udp_interpreter,
+            "udp_bind",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(0)],
+        );
+        let sender_value = match sender_socket {
+            Value::UdpSocket { .. } => sender_socket,
+            other => panic!("Expected UdpSocket for sender, got {:?}", other),
+        };
+
+        let udp_sent = call_native_function(
+            &mut udp_interpreter,
+            "udp_send_to",
+            &[
+                sender_value.clone(),
+                Value::Str(Arc::new("udp-payload".to_string())),
+                Value::Str(Arc::new("127.0.0.1".to_string())),
+                Value::Int(udp_port),
+            ],
+        );
+        assert!(matches!(udp_sent, Value::Int(11)));
+
+        let udp_received = call_native_function(
+            &mut udp_interpreter,
+            "udp_receive_from",
+            &[receiver_value.clone(), Value::Int(128)],
+        );
+
+        match udp_received {
+            Value::Dict(result) => {
+                assert!(
+                    matches!(result.get("data"), Some(Value::Str(data)) if data.as_ref() == "udp-payload")
+                );
+                assert!(matches!(result.get("size"), Some(Value::Int(11))));
+                assert!(
+                    matches!(result.get("from"), Some(Value::Str(from)) if from.as_ref().contains("127.0.0.1:"))
+                );
+            }
+            other => panic!("Expected udp_receive_from dictionary result, got {:?}", other),
+        }
+
+        let udp_close_sender =
+            call_native_function(&mut udp_interpreter, "udp_close", &[sender_value]);
+        assert!(matches!(udp_close_sender, Value::Bool(true)));
+
+        let udp_close_receiver =
+            call_native_function(&mut udp_interpreter, "udp_close", &[receiver_value]);
+        assert!(matches!(udp_close_receiver, Value::Bool(true)));
     }
 
     #[test]
