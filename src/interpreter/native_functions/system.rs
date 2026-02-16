@@ -253,6 +253,84 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             Value::Struct { name: "ArgParser".to_string(), fields }
         }
 
+        "input" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("input() expects 0-1 arguments".to_string()));
+            }
+
+            let prompt = match arg_values.first() {
+                Some(Value::Str(value)) => value.to_string(),
+                Some(_) => {
+                    return Some(Value::Error(
+                        "input() requires a string prompt when provided".to_string(),
+                    ))
+                }
+                None => String::new(),
+            };
+
+            print!("{}", prompt);
+            let _ = std::io::stdout().flush();
+
+            let mut input = String::new();
+            match std::io::stdin().read_line(&mut input) {
+                Ok(_) => Value::Str(Arc::new(input.trim_end().to_string())),
+                Err(_) => Value::Str(Arc::new(String::new())),
+            }
+        }
+
+        "exit" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("exit() expects 0-1 arguments".to_string()));
+            }
+
+            let exit_code = match arg_values.first() {
+                Some(Value::Int(code)) => *code as i32,
+                Some(Value::Float(code)) => *code as i32,
+                Some(_) => {
+                    return Some(Value::Error(
+                        "exit() requires a numeric exit code when provided".to_string(),
+                    ))
+                }
+                None => 0,
+            };
+
+            std::process::exit(exit_code);
+        }
+
+        "sleep" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("sleep() expects 1 argument".to_string()));
+            }
+
+            let millis = match arg_values.first() {
+                Some(Value::Int(value)) => *value as f64,
+                Some(Value::Float(value)) => *value,
+                _ => return Some(Value::Error("sleep() requires a number argument".to_string())),
+            };
+
+            if millis < 0.0 {
+                return Some(Value::Error(
+                    "sleep() requires non-negative milliseconds".to_string(),
+                ));
+            }
+
+            builtins::sleep_ms(millis);
+            Value::Int(0)
+        }
+
+        "execute" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("execute() expects 1 argument".to_string()));
+            }
+
+            match arg_values.first() {
+                Some(Value::Str(command)) => {
+                    Value::Str(Arc::new(builtins::execute_command(command.as_ref())))
+                }
+                _ => Value::Error("execute() requires a string command".to_string()),
+            }
+        }
+
         "spawn_process" => {
             if arg_values.len() != 1 {
                 return Some(Value::Error(
