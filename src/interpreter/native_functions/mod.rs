@@ -76,6 +76,16 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
 mod tests {
     use super::call_native_function;
     use crate::interpreter::{Interpreter, Value};
+    use std::sync::Arc;
+
+    fn tmp_test_path(file_name: &str) -> String {
+        let mut path = std::env::current_dir().expect("current_dir should resolve");
+        path.push("tmp");
+        path.push("native_zip_dispatch_tests");
+        std::fs::create_dir_all(&path).expect("zip test tmp dir should be created");
+        path.push(file_name);
+        path.to_string_lossy().to_string()
+    }
 
     fn is_unknown_native_error(value: &Value) -> bool {
         if let Value::Error(message) = value {
@@ -159,6 +169,11 @@ mod tests {
             "get_task_pool_size",
             "spawn_process",
             "pipe_commands",
+            "zip_create",
+            "zip_add_file",
+            "zip_add_dir",
+            "zip_close",
+            "unzip",
             "sha256",
             "md5",
             "md5_file",
@@ -193,11 +208,6 @@ mod tests {
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps = vec![
             "load_image".to_string(),
-            "zip_create".to_string(),
-            "zip_add_file".to_string(),
-            "zip_add_dir".to_string(),
-            "zip_close".to_string(),
-            "unzip".to_string(),
             "tcp_listen".to_string(),
             "tcp_accept".to_string(),
             "tcp_connect".to_string(),
@@ -336,6 +346,116 @@ mod tests {
         assert!(
             matches!(pipe_missing, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
         );
+    }
+
+    #[test]
+    fn test_release_hardening_zip_module_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let zip_create_missing = call_native_function(&mut interpreter, "zip_create", &[]);
+        assert!(
+            matches!(zip_create_missing, Value::Error(message) if message.contains("zip_create requires a string path argument"))
+        );
+
+        let zip_add_file_missing = call_native_function(&mut interpreter, "zip_add_file", &[]);
+        assert!(
+            matches!(zip_add_file_missing, Value::Error(message) if message.contains("zip_add_file requires (ZipArchive, string_path) arguments"))
+        );
+
+        let zip_add_dir_missing = call_native_function(&mut interpreter, "zip_add_dir", &[]);
+        assert!(
+            matches!(zip_add_dir_missing, Value::Error(message) if message.contains("zip_add_dir requires (ZipArchive, string_path) arguments"))
+        );
+
+        let zip_close_missing = call_native_function(&mut interpreter, "zip_close", &[]);
+        assert!(
+            matches!(zip_close_missing, Value::Error(message) if message.contains("zip_close requires a ZipArchive argument"))
+        );
+
+        let unzip_missing = call_native_function(&mut interpreter, "unzip", &[]);
+        assert!(
+            matches!(unzip_missing, Value::Error(message) if message.contains("unzip requires (string_zip_path, string_output_dir) arguments"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_zip_module_round_trip_behaviors() {
+        let mut interpreter = Interpreter::new();
+        let archive_path = tmp_test_path("dispatch_zip_roundtrip.zip");
+        let source_file_path = tmp_test_path("dispatch_zip_source.txt");
+        let source_dir_path = tmp_test_path("dispatch_zip_source_dir");
+        let nested_file_path = format!("{}/nested.txt", source_dir_path);
+        let unzip_output_path = tmp_test_path("dispatch_zip_unzip_output");
+
+        std::fs::write(&source_file_path, "zip dispatch content")
+            .expect("seed zip file should be written");
+        std::fs::create_dir_all(&source_dir_path).expect("seed zip directory should be created");
+        std::fs::write(&nested_file_path, "zip nested content")
+            .expect("nested file should be written");
+
+        let zip_archive = call_native_function(
+            &mut interpreter,
+            "zip_create",
+            &[Value::Str(Arc::new(archive_path.clone()))],
+        );
+        let archive_value = match zip_archive {
+            Value::ZipArchive { .. } => zip_archive,
+            other => panic!("Expected zip archive from zip_create, got {:?}", other),
+        };
+
+        let add_file_result = call_native_function(
+            &mut interpreter,
+            "zip_add_file",
+            &[archive_value.clone(), Value::Str(Arc::new(source_file_path.clone()))],
+        );
+        assert!(matches!(add_file_result, Value::Bool(true)));
+
+        let add_dir_result = call_native_function(
+            &mut interpreter,
+            "zip_add_dir",
+            &[archive_value.clone(), Value::Str(Arc::new(source_dir_path.clone()))],
+        );
+        assert!(matches!(add_dir_result, Value::Bool(true)));
+
+        let close_result =
+            call_native_function(&mut interpreter, "zip_close", &[archive_value.clone()]);
+        assert!(matches!(close_result, Value::Bool(true)));
+
+        let close_again_result =
+            call_native_function(&mut interpreter, "zip_close", &[archive_value.clone()]);
+        assert!(
+            matches!(close_again_result, Value::Error(message) if message.contains("already been closed"))
+        );
+
+        let unzip_result = call_native_function(
+            &mut interpreter,
+            "unzip",
+            &[
+                Value::Str(Arc::new(archive_path.clone())),
+                Value::Str(Arc::new(unzip_output_path.clone())),
+            ],
+        );
+
+        match unzip_result {
+            Value::Array(extracted_paths) => {
+                assert!(!extracted_paths.is_empty());
+            }
+            other => panic!("Expected extracted file list from unzip, got {:?}", other),
+        }
+
+        let extracted_file = format!("{}/dispatch_zip_source.txt", unzip_output_path);
+        let extracted_nested_file = format!("{}/nested.txt", unzip_output_path);
+        let extracted_file_content =
+            std::fs::read_to_string(&extracted_file).expect("extracted source file should exist");
+        let extracted_nested_content = std::fs::read_to_string(&extracted_nested_file)
+            .expect("extracted nested file should exist");
+        assert_eq!(extracted_file_content, "zip dispatch content");
+        assert_eq!(extracted_nested_content, "zip nested content");
+
+        let _ = std::fs::remove_file(archive_path);
+        let _ = std::fs::remove_file(source_file_path);
+        let _ = std::fs::remove_dir_all(source_dir_path);
+        let _ = std::fs::remove_dir_all(unzip_output_path);
     }
 
     #[test]
