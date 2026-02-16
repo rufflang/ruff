@@ -369,7 +369,7 @@ If you are new to the project, read this first.
 - **Why:** Patterns like `arg_values.first()` + `arg_values.get(1)` validate required positions but do not reject extras.
 - **Implication:** Release-hardening tests must include both missing-argument and extra-argument contracts; otherwise API drift can hide behind lenient matching.
 
-(Discovered during: 2026-02-16_10-15_release-hardening-crypto-strict-arity-contracts.md, 2026-02-16_10-37_release-hardening-filesystem-strict-arity-contracts.md)
+(Discovered during: 2026-02-16_10-15_release-hardening-crypto-strict-arity-contracts.md, 2026-02-16_10-37_release-hardening-filesystem-strict-arity-contracts.md, 2026-02-16_11-54_release-hardening-network-strict-arity-contracts.md)
 
 ---
 

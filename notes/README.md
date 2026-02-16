@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_11-54_release-hardening-network-strict-arity-contracts.md** — ✅ COMPLETED: Hardened v0.10.0 P1 declared TCP/UDP APIs with explicit strict-arity guards, added comprehensive extra-argument rejection contracts, synchronized roadmap/changelog/readme, and documented formatter spillover + positional-arity gotchas.
+
 - **2026-02-16_10-37_release-hardening-filesystem-strict-arity-contracts.md** — ✅ COMPLETED: Hardened v0.10.0 P1 core filesystem API strict-arity contracts (reject trailing args), expanded dispatcher contract coverage, synchronized roadmap/changelog/readme, and documented implicit positional-match arity gotcha.
 
 - **2026-02-16_10-15_release-hardening-crypto-strict-arity-contracts.md** — ✅ COMPLETED: Hardened v0.10.0 P1 crypto/hash API strict-arity contracts (reject trailing args), expanded native+dispatcher argument-shape coverage, synchronized roadmap/changelog/readme, and documented positional-match arity gotcha.
