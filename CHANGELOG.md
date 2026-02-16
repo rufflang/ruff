@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `input(...)` non-string prompt and extra-argument calls
     - `exit(...)` non-numeric code and extra-argument calls
   - Added release-hardening contract coverage for all system operation builtins above, including success-path behavior checks for `sleep(...)` and `execute(...)`
-  - Reduced declared-builtin dispatch probe safety skips from (`input`, `exit`, `sleep`, `execute`) to (`input`, `exit`) now that `sleep` and `execute` are migrated under modular dispatch
+  - Removed declared-builtin dispatch probe skips entirely by switching `input` and `exit` to safe non-side-effect probe arguments (`input(Int)`, `exit(String)`)
 
 - **Release Hardening: Database + Process + Archive API Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
@@ -354,7 +354,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Release Hardening: Exhaustive Builtin Dispatch Drift Guard (P1)**:
   - Added full declared-builtin dispatch contract coverage that iterates `Interpreter::get_builtin_names()` and probes modular native dispatch behavior
   - Added explicit test guard for known legacy dispatch gaps so newly introduced API drift is detected immediately
-  - Added safety skip list for blocking/terminal probes (`input`, `exit`) to keep hardening checks deterministic in CI
+  - Added safe-probe strategy for blocking/terminal APIs (`input`, `exit`) so exhaustive drift checks remain deterministic without skipping those builtins
 
 - **Release Hardening: System Env/Args Modular Dispatch Gap Closure (P1)**:
   - Added modular native handlers for:

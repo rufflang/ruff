@@ -196,7 +196,7 @@
 
 * **Exhaustive Builtin Dispatch Drift Guard (P1)**
   - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
-  - Added explicit known legacy-gap guardrail plus safety skips for blocking/terminal probes (`input`, `exit`)
+  - Added explicit known legacy-gap guardrail plus safe-probe handling for blocking/terminal APIs (`input`, `exit`) so no declared builtins are skipped in drift coverage
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
 * **System Env/Args Modular Dispatch Gap Closure (P1)**
@@ -208,7 +208,7 @@
 * **System Operation Dispatch + Contract Follow-Through (P1)**
   - Added modular handlers for declared system operation APIs: `input`, `exit`, `sleep`, `execute`
   - Added release-hardening contract tests for strict arity and wrong-type validation across all four APIs
-  - Added success-path behavior checks for `sleep(...)` and `execute(...)`, and reduced dispatch-probe safety skips by removing `sleep` and `execute`
+  - Added success-path behavior checks for `sleep(...)` and `execute(...)`, and removed remaining dispatch-probe skips by probing `input`/`exit` via non-side-effect argument shapes
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
 * **Data-Format and Base64 Modular Dispatch Gap Closure (P1)**

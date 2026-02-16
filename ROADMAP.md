@@ -92,7 +92,7 @@ This roadmap intentionally tracks only upcoming items.
     - Added argument-shape + error-shape contract coverage for `par_each(...)` and parity checks against `parallel_map(...)`
 
     - Added release-hardening test coverage that probes all declared builtins from `get_builtin_names()` against modular native dispatch
-    - Added explicit known-gap contract guardrail plus blocking/terminal safety skips (`input`, `exit`) to detect new dispatch drift early while preserving deterministic CI behavior
+    - Added explicit known-gap contract guardrail plus safe-probe strategy for blocking/terminal APIs (`input`, `exit`) to detect dispatch drift early while preserving deterministic CI behavior
 
     - Added modular dispatch coverage for env and CLI argument APIs (`env*`, `args`, `arg_parser`)
     - Added targeted native-function tests for env contracts and ArgParser creation shape
@@ -100,7 +100,7 @@ This roadmap intentionally tracks only upcoming items.
 
     - Added modular dispatch coverage for side-effecting system operation APIs (`input`, `exit`, `sleep`, `execute`)
     - Added release-hardening contract coverage for system operation argument-shape behavior (strict arity plus wrong-type validation)
-    - Reduced exhaustive dispatch probe safety skips to blocking/terminal APIs only (`input`, `exit`) after migrating `sleep` and `execute`
+    - Removed exhaustive dispatch probe skips by probing `input`/`exit` with non-side-effect argument shapes in drift coverage
 
     - Added modular dispatch coverage for JSON/TOML/YAML/CSV parse/serialize APIs and Base64 encode/decode APIs
     - Added targeted native-function tests for round-trip behavior and argument-shape validation
