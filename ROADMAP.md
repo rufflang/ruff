@@ -40,110 +40,95 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
-- **Network Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared TCP/UDP APIs (`tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`, `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`)
     - Added release-hardening tests for argument-shape/error-shape validation and end-to-end TCP/UDP round-trip behavior contracts
     - Reduced exhaustive dispatch known-gap list by removing migrated network APIs
 
-- **Image Loading Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared image API (`load_image`)
     - Added release-hardening tests for argument-shape validation, missing-file error behavior, and successful image load contracts
     - Reduced exhaustive dispatch known-gap list by removing migrated `load_image`
 
-- **Compression/Archive Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared compression/archive APIs (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)
     - Added release-hardening tests for zip argument-shape/error-shape contracts and end-to-end zip/unzip round-trip behavior
     - Reduced exhaustive dispatch known-gap list by removing migrated compression/archive APIs
 
-- **Set Constructor Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared `Set(...)` constructor
     - Preserved constructor-shape behavior for empty/default construction, array-based construction, and deduplicated set semantics
     - Added release-hardening contract coverage and reduced exhaustive dispatch known-gap list by removing `Set`
 
-- **Builtin API Parity Contract (✅ Complete, February 2026)**
     - Synchronized VM builtin name registry (`get_builtin_names`) with interpreter-native registrations for release stability
     - Added regression coverage to detect missing and duplicate builtin API entries
 
-- **Alias + OS/Path API Compatibility Contract (✅ Complete, February 2026)**
     - Restored modular runtime support for declared OS/path builtins and path aliases
     - Added queue/stack size API parity (`queue_size`, `stack_size`) in modular native handlers
     - Added integration tests for alias equivalence and path/collection API behavior
 
-- **API Argument-Shape Compatibility Contract (✅ Complete, February 2026)**
     - Hardened filesystem alias argument-shape behavior for `join_path(...)` and `path_join(...)`
     - Hardened collection size API argument validation for `queue_size(...)` and `stack_size(...)`
     - Added integration regression coverage for async/filesystem/collection argument-shape parity (`promise_all`/`await_all`, `join_path`/`path_join`, `queue_size`/`stack_size`)
 
-- **Unknown Native Dispatch Contract (✅ Complete, February 2026)**
     - Removed silent unknown-native fallback in modular native dispatcher
     - Unknown native names now return explicit runtime errors for faster API drift detection
     - Added dispatcher-level regression coverage to ensure newly introduced high-risk builtins do not regress into unknown-native fallback
 
-- **Expanded API Compatibility Regression Coverage for Newer Async/Concurrency APIs (✅ Complete, February 2026)**
     - Extended builtin API contract coverage for newly introduced concurrency/async entries in `get_builtin_names`
     - Added integration argument-shape/error-shape parity coverage for:
       - `parallel_map(...)` / `par_map(...)`
       - `shared_set/get/has/delete/add_int`
       - `set_task_pool_size(...)` / `get_task_pool_size(...)`
 
-- **`par_each(...)` Alias Contract Coverage Follow-Through (✅ Complete, February 2026)**
     - Added release-hardening dispatch coverage so `par_each` cannot regress into unknown-native fallback
     - Added argument-shape + error-shape contract coverage for `par_each(...)` and parity checks against `parallel_map(...)`
 
-- **Exhaustive Builtin Dispatch Drift Guard (✅ Complete, February 2026)**
     - Added release-hardening test coverage that probes all declared builtins from `get_builtin_names()` against modular native dispatch
     - Added explicit known-gap contract guardrail plus side-effect safety skips to detect new dispatch drift early while preserving deterministic CI behavior
 
-- **System Env/Args Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for env and CLI argument APIs (`env*`, `args`, `arg_parser`)
     - Added targeted native-function tests for env contracts and ArgParser creation shape
     - Reduced exhaustive dispatch known-gap list by removing now-migrated system APIs
 
-- **Data-Format and Base64 Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for JSON/TOML/YAML/CSV parse/serialize APIs and Base64 encode/decode APIs
     - Added targeted native-function tests for round-trip behavior and argument-shape validation
     - Reduced exhaustive dispatch known-gap list by removing now-migrated data-format/encoding APIs
 
-- **Regex Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for `regex_match`, `regex_find_all`, `regex_replace`, and `regex_split`
     - Added targeted native-function tests for regex behavior and argument-shape validation
     - Reduced exhaustive dispatch known-gap list by removing now-migrated regex APIs
 
-- **String Polymorphic Dispatch Gap Closure (`contains` / `index_of`) (✅ Complete, February 2026)**
     - Closed modular dispatch drift so declared builtins `contains` and `index_of` no longer regress into unknown-native fallback
     - Preserved polymorphic array behavior by delegating array-first calls to collection handlers
     - Added targeted contract coverage for string success behavior plus argument-shape/error-shape validation
     - Reduced exhaustive dispatch known-gap list by removing migrated string APIs
 
-- **IO Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for advanced IO APIs (`io_read_bytes`, `io_write_bytes`, `io_append_bytes`, `io_read_at`, `io_write_at`, `io_seek_read`, `io_file_metadata`, `io_truncate`, `io_copy_range`)
     - Added native-function regression tests for round-trip, offset, metadata/truncate, range-copy, and argument-shape/error-shape contracts
     - Expanded dispatcher-level release-hardening contract coverage for migrated `io_*` APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated IO APIs
 
-- **HTTP Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared HTTP request/response/server APIs (`http_get`, `http_post`, `http_put`, `http_delete`, `http_get_binary`, `http_get_stream`, `http_server`, `set_header`, `set_headers`, `http_response`, `json_response`, `html_response`, `redirect_response`)
     - Added native-function regression tests for response helper/header contracts, redirect/server helper behavior, and argument-shape/error-shape validation
     - Expanded dispatcher-level release-hardening contract coverage for migrated HTTP APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated HTTP APIs
 
-- **Database Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared database APIs (`db_connect`, `db_execute`, `db_query`, `db_close`, `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`, `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`)
     - Added native-function regression tests for SQLite-backed connect/execute/query/close behavior, transaction lifecycle, pool lifecycle, and argument-shape/error-shape validation
     - Expanded dispatcher-level release-hardening contract coverage for migrated database APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated database APIs
 
-- **Process Management Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared process APIs (`spawn_process`, `pipe_commands`)
     - Added native-function regression tests for process result struct shape, pipeline output behavior, and argument-shape/error-shape validation
     - Expanded dispatcher-level release-hardening contract coverage for migrated process APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated process APIs
 
-- **Crypto Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared crypto/hash APIs (`sha256`, `md5`, `md5_file`, `hash_password`, `verify_password`, `aes_encrypt/decrypt`, `aes_encrypt_bytes/decrypt_bytes`, `rsa_generate_keypair`, `rsa_encrypt/decrypt`, `rsa_sign`, `rsa_verify`)
     - Added native-function regression tests for hash vectors, bcrypt verify behavior, AES string/bytes round trips, RSA keygen/encrypt/decrypt/sign/verify behavior, and argument-shape/key-size validation
     - Expanded dispatcher-level release-hardening contract coverage for migrated crypto APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated crypto APIs
+
+- **Async Alias + SSG Contract Follow-Through (✅ Complete, February 2026)**
+        - Expanded release-hardening critical dispatcher coverage for async alias surfaces (`Promise.all`, `parallel_map`, `par_map`)
+        - Added async alias argument-shape/error-shape parity contract coverage for `Promise.all(...)` / `promise_all(...)` / `await_all(...)` and `parallel_map(...)` / `par_map(...)` / `par_each(...)`
+        - Added release-hardening contract coverage for `ssg_render_pages(...)` argument validation and successful result-shape behavior
 
 ### Remaining Focus
 

@@ -82,6 +82,12 @@
   - Added argument-shape/error-shape contract tests for `par_each(...)`, including parity checks against `parallel_map(...)`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Async Alias + SSG Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for async alias surfaces: `Promise.all`, `parallel_map`, `par_map`
+  - Added argument-shape/error-shape parity tests for `Promise.all(...)` / `promise_all(...)` / `await_all(...)` and `parallel_map(...)` / `par_map(...)` / `par_each(...)`
+  - Added release-hardening contract tests for `ssg_render_pages(...)` argument validation and successful result-shape behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Exhaustive Builtin Dispatch Drift Guard (P1)**
   - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
   - Added explicit known legacy-gap guardrail plus safety skips for side-effecting probes (`input`, `exit`, `sleep`, `execute`)

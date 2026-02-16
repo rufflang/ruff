@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Async Alias + SSG Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for async alias surfaces:
+    - `Promise.all`
+    - `parallel_map`
+    - `par_map`
+  - Added release-hardening argument-shape and error-shape parity coverage for:
+    - `Promise.all(...)` / `promise_all(...)` / `await_all(...)`
+    - `parallel_map(...)` / `par_map(...)` / `par_each(...)`
+  - Added release-hardening contract coverage for `ssg_render_pages(...)` including:
+    - arity validation
+    - array/source-element type validation
+    - successful result shape (`pages` + `checksum`)
+
 - **Release Hardening: Compression/Archive Modular Dispatch Gap Closure (P1)**:
   - Added modular native dispatch handlers for declared compression/archive APIs:
     - `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
