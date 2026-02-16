@@ -168,7 +168,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "write_file" => {
-            if arg_values.len() < 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(
                     "write_file requires two arguments: path and content".to_string(),
                 ));
@@ -187,6 +187,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
         // Synchronous fallback versions for compatibility
         "read_file_sync" | "read_file" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "read_file_sync requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read_to_string(path.as_ref()) {
                     Ok(content) => Value::Str(Arc::new(content)),
@@ -237,6 +243,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "read_binary_file" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "read_binary_file requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read(path.as_ref()) {
                     Ok(bytes) => Value::Bytes(bytes),
@@ -250,7 +262,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "write_binary_file" => {
-            if arg_values.len() < 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(
                     "write_binary_file requires two arguments: path and bytes".to_string(),
                 ));
@@ -551,7 +563,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         },
 
         "append_file" => {
-            if arg_values.len() < 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(
                     "append_file requires two arguments: path and content".to_string(),
                 ));
@@ -576,6 +588,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "file_exists" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "file_exists requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 if Path::new(path.as_ref()).exists() {
                     Value::Bool(true)
@@ -588,6 +606,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "read_lines" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "read_lines requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read_to_string(path.as_ref()) {
                     Ok(content) => {
@@ -605,6 +629,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "list_dir" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "list_dir requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read_dir(path.as_ref()) {
                     Ok(entries) => {
@@ -626,6 +656,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "create_dir" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "create_dir requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::create_dir_all(path.as_ref()) {
                     Ok(_) => Value::Bool(true),
@@ -639,6 +675,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "file_size" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "file_size requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::metadata(path.as_ref()) {
                     Ok(metadata) => Value::Int(metadata.len() as i64),
@@ -652,6 +694,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "delete_file" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "delete_file requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::remove_file(path.as_ref()) {
                     Ok(_) => Value::Bool(true),
@@ -665,7 +713,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "rename_file" => {
-            if arg_values.len() < 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(
                     "rename_file requires two arguments: old_path and new_path".to_string(),
                 ));
@@ -688,7 +736,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "copy_file" => {
-            if arg_values.len() < 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(
                     "copy_file requires two arguments: source and dest".to_string(),
                 ));

@@ -2236,9 +2236,34 @@ mod tests {
             matches!(read_missing, Value::Error(message) if message.contains("read_file_sync requires a string path argument"))
         );
 
+        let read_extra = call_native_function(
+            &mut interpreter,
+            "read_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-missing.txt".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(read_extra, Value::Error(message) if message.contains("read_file_sync requires a string path argument"))
+        );
+
         let write_missing = call_native_function(&mut interpreter, "write_file", &[]);
         assert!(
             matches!(write_missing, Value::Error(message) if message.contains("write_file requires two arguments"))
+        );
+
+        let write_extra = call_native_function(
+            &mut interpreter,
+            "write_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-write.txt".to_string())),
+                Value::Str(Arc::new("content".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(write_extra, Value::Error(message) if message.contains("write_file requires two arguments"))
         );
 
         let append_missing = call_native_function(&mut interpreter, "append_file", &[]);
@@ -2246,9 +2271,34 @@ mod tests {
             matches!(append_missing, Value::Error(message) if message.contains("append_file requires two arguments"))
         );
 
+        let append_extra = call_native_function(
+            &mut interpreter,
+            "append_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-append.txt".to_string())),
+                Value::Str(Arc::new("content".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(append_extra, Value::Error(message) if message.contains("append_file requires two arguments"))
+        );
+
         let exists_missing = call_native_function(&mut interpreter, "file_exists", &[]);
         assert!(
             matches!(exists_missing, Value::Error(message) if message.contains("file_exists requires a string path argument"))
+        );
+
+        let exists_extra = call_native_function(
+            &mut interpreter,
+            "file_exists",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-file.txt".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(exists_extra, Value::Error(message) if message.contains("file_exists requires a string path argument"))
         );
 
         let lines_missing = call_native_function(&mut interpreter, "read_lines", &[]);
@@ -2256,9 +2306,33 @@ mod tests {
             matches!(lines_missing, Value::Error(message) if message.contains("read_lines requires a string path argument"))
         );
 
+        let lines_extra = call_native_function(
+            &mut interpreter,
+            "read_lines",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-lines.txt".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(lines_extra, Value::Error(message) if message.contains("read_lines requires a string path argument"))
+        );
+
         let list_missing = call_native_function(&mut interpreter, "list_dir", &[]);
         assert!(
             matches!(list_missing, Value::Error(message) if message.contains("list_dir requires a string path argument"))
+        );
+
+        let list_extra = call_native_function(
+            &mut interpreter,
+            "list_dir",
+            &[
+                Value::Str(Arc::new("/tmp".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(list_extra, Value::Error(message) if message.contains("list_dir requires a string path argument"))
         );
 
         let create_missing = call_native_function(&mut interpreter, "create_dir", &[]);
@@ -2266,9 +2340,33 @@ mod tests {
             matches!(create_missing, Value::Error(message) if message.contains("create_dir requires a string path argument"))
         );
 
+        let create_extra = call_native_function(
+            &mut interpreter,
+            "create_dir",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-create-dir".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(create_extra, Value::Error(message) if message.contains("create_dir requires a string path argument"))
+        );
+
         let file_size_missing = call_native_function(&mut interpreter, "file_size", &[]);
         assert!(
             matches!(file_size_missing, Value::Error(message) if message.contains("file_size requires a string path argument"))
+        );
+
+        let file_size_extra = call_native_function(
+            &mut interpreter,
+            "file_size",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-size.txt".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(file_size_extra, Value::Error(message) if message.contains("file_size requires a string path argument"))
         );
 
         let delete_missing = call_native_function(&mut interpreter, "delete_file", &[]);
@@ -2276,9 +2374,34 @@ mod tests {
             matches!(delete_missing, Value::Error(message) if message.contains("delete_file requires a string path argument"))
         );
 
+        let delete_extra = call_native_function(
+            &mut interpreter,
+            "delete_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-delete.txt".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(delete_extra, Value::Error(message) if message.contains("delete_file requires a string path argument"))
+        );
+
         let rename_missing = call_native_function(&mut interpreter, "rename_file", &[]);
         assert!(
             matches!(rename_missing, Value::Error(message) if message.contains("rename_file requires two arguments"))
+        );
+
+        let rename_extra = call_native_function(
+            &mut interpreter,
+            "rename_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-old.txt".to_string())),
+                Value::Str(Arc::new("/tmp/ruff-new.txt".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(rename_extra, Value::Error(message) if message.contains("rename_file requires two arguments"))
         );
 
         let copy_missing = call_native_function(&mut interpreter, "copy_file", &[]);
@@ -2286,14 +2409,52 @@ mod tests {
             matches!(copy_missing, Value::Error(message) if message.contains("copy_file requires two arguments"))
         );
 
+        let copy_extra = call_native_function(
+            &mut interpreter,
+            "copy_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-src.txt".to_string())),
+                Value::Str(Arc::new("/tmp/ruff-dst.txt".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(copy_extra, Value::Error(message) if message.contains("copy_file requires two arguments"))
+        );
+
         let read_binary_missing = call_native_function(&mut interpreter, "read_binary_file", &[]);
         assert!(
             matches!(read_binary_missing, Value::Error(message) if message.contains("read_binary_file requires a string path argument"))
         );
 
+        let read_binary_extra = call_native_function(
+            &mut interpreter,
+            "read_binary_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-bin.bin".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(read_binary_extra, Value::Error(message) if message.contains("read_binary_file requires a string path argument"))
+        );
+
         let write_binary_missing = call_native_function(&mut interpreter, "write_binary_file", &[]);
         assert!(
             matches!(write_binary_missing, Value::Error(message) if message.contains("write_binary_file requires two arguments"))
+        );
+
+        let write_binary_extra = call_native_function(
+            &mut interpreter,
+            "write_binary_file",
+            &[
+                Value::Str(Arc::new("/tmp/ruff-bin.bin".to_string())),
+                Value::Bytes(vec![1, 2]),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(write_binary_extra, Value::Error(message) if message.contains("write_binary_file requires two arguments"))
         );
 
         let base_dir = tmp_test_path("filesystem_hardening");
