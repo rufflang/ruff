@@ -51,6 +51,11 @@
   - Reduced exhaustive known-gap list by removing migrated network APIs
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Network API Strict-Arity Contract Follow-Through (P1)**
+  - Hardened strict arity contracts for all declared TCP/UDP APIs so trailing arguments now return deterministic contract errors
+  - Added comprehensive strict-arity release-hardening contract tests covering extra-argument rejection for each TCP/UDP entry point
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Image Loading Modular Dispatch Gap Closure (P1)**
   - Added modular handler for declared image API: `load_image`
   - Added release-hardening contract tests for argument-shape validation, missing-file error behavior, and successful image-load behavior

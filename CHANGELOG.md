@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Network API Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts for declared TCP/UDP APIs so trailing arguments now return deterministic contract errors:
+    - `tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`
+    - `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`
+  - Added comprehensive release-hardening strict-arity contract coverage for all TCP/UDP APIs above, including explicit extra-argument rejection checks per entry point
+
 - **Release Hardening: Async Batch + Shared State/Task-Pool Contract Follow-Through (P1)**:
   - Added release-hardening contract coverage for async batch file APIs:
     - `async_read_files`

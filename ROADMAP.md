@@ -50,6 +50,8 @@ This roadmap intentionally tracks only upcoming items.
 
     - Added modular dispatch coverage for declared TCP/UDP APIs (`tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`, `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`)
     - Added release-hardening tests for argument-shape/error-shape validation and end-to-end TCP/UDP round-trip behavior contracts
+    - Hardened strict arity contracts for declared TCP/UDP APIs so trailing arguments now return deterministic contract errors
+    - Added comprehensive strict-arity contract coverage for all declared TCP/UDP APIs (extra-argument rejection per entry point)
     - Reduced exhaustive dispatch known-gap list by removing migrated network APIs
 
     - Added modular dispatch coverage for declared image API (`load_image`)
