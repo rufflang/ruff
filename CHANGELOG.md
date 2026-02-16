@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Database + Process + Archive API Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
+    - Database APIs: `db_connect`, `db_execute`, `db_query`, `db_close`, `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`, `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`
+    - Process APIs: `spawn_process`, `pipe_commands`
+    - Archive APIs: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
+  - Added comprehensive release-hardening contract coverage for extra-argument rejection at both module and dispatcher integration layers
+
 - **Release Hardening: Network API Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts for declared TCP/UDP APIs so trailing arguments now return deterministic contract errors:
     - `tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`

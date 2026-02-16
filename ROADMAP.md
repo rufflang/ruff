@@ -60,6 +60,7 @@ This roadmap intentionally tracks only upcoming items.
 
     - Added modular dispatch coverage for declared compression/archive APIs (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)
     - Added release-hardening tests for zip argument-shape/error-shape contracts and end-to-end zip/unzip round-trip behavior
+    - Hardened strict arity contracts for compression/archive APIs so trailing arguments now return deterministic contract errors
     - Reduced exhaustive dispatch known-gap list by removing migrated compression/archive APIs
 
     - Added modular dispatch coverage for declared `Set(...)` constructor
@@ -122,11 +123,13 @@ This roadmap intentionally tracks only upcoming items.
 
     - Added modular dispatch coverage for declared database APIs (`db_connect`, `db_execute`, `db_query`, `db_close`, `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`, `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`)
     - Added native-function regression tests for SQLite-backed connect/execute/query/close behavior, transaction lifecycle, pool lifecycle, and argument-shape/error-shape validation
+    - Hardened strict arity contracts for database APIs (`db_*`) so trailing arguments now return deterministic contract errors
     - Expanded dispatcher-level release-hardening contract coverage for migrated database APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated database APIs
 
     - Added modular dispatch coverage for declared process APIs (`spawn_process`, `pipe_commands`)
     - Added native-function regression tests for process result struct shape, pipeline output behavior, and argument-shape/error-shape validation
+    - Hardened strict arity contracts for process APIs (`spawn_process`, `pipe_commands`) so trailing arguments now return deterministic contract errors
     - Expanded dispatcher-level release-hardening contract coverage for migrated process APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated process APIs
 

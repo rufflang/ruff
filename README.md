@@ -65,6 +65,7 @@
 * **Compression/Archive Modular Dispatch Gap Closure (P1)**
   - Added modular handlers for declared archive APIs: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
   - Added release-hardening contract tests for argument-shape validation and zip/unzip round-trip behavior
+  - Hardened strict arity contracts so trailing arguments for `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, and `unzip` now return deterministic contract errors
   - Reduced exhaustive known-gap list by removing migrated compression/archive APIs
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
@@ -234,12 +235,14 @@
 * **Database Module Modular Dispatch Gap Closure (P1)**
   - Added modular handlers for declared database APIs: `db_connect`, `db_execute`, `db_query`, `db_close`, `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`, `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`
   - Added contract tests for SQLite-backed query/execute flows, transaction lifecycle behavior, pool lifecycle behavior, and argument-shape validation
+  - Hardened strict arity contracts for `db_*` APIs so trailing arguments now return deterministic contract errors
   - Expanded release-hardening dispatcher coverage for migrated database APIs and removed these entries from known dispatch gaps
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
 * **Process Management Modular Dispatch Gap Closure (P1)**
   - Added modular handlers for declared process APIs: `spawn_process`, `pipe_commands`
   - Added contract tests for process result struct behavior, pipeline output behavior, and argument-shape validation
+  - Hardened strict arity contracts for `spawn_process` and `pipe_commands` so trailing arguments now return deterministic contract errors
   - Expanded release-hardening dispatcher coverage for migrated process APIs and removed these entries from known dispatch gaps
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
