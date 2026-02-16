@@ -341,6 +341,19 @@ mod tests {
             "assert_true",
             "assert_false",
             "assert_contains",
+            "read_file",
+            "write_file",
+            "append_file",
+            "file_exists",
+            "read_lines",
+            "list_dir",
+            "create_dir",
+            "file_size",
+            "delete_file",
+            "rename_file",
+            "copy_file",
+            "read_binary_file",
+            "write_binary_file",
             "env",
             "env_or",
             "env_int",
@@ -1975,6 +1988,217 @@ mod tests {
         assert!(
             matches!(path_exists_bad_shape, Value::Error(message) if message.contains("path_exists requires a string argument"))
         );
+    }
+
+    #[test]
+    fn test_release_hardening_filesystem_core_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let read_missing = call_native_function(&mut interpreter, "read_file", &[]);
+        assert!(
+            matches!(read_missing, Value::Error(message) if message.contains("read_file_sync requires a string path argument"))
+        );
+
+        let write_missing = call_native_function(&mut interpreter, "write_file", &[]);
+        assert!(
+            matches!(write_missing, Value::Error(message) if message.contains("write_file requires two arguments"))
+        );
+
+        let append_missing = call_native_function(&mut interpreter, "append_file", &[]);
+        assert!(
+            matches!(append_missing, Value::Error(message) if message.contains("append_file requires two arguments"))
+        );
+
+        let exists_missing = call_native_function(&mut interpreter, "file_exists", &[]);
+        assert!(
+            matches!(exists_missing, Value::Error(message) if message.contains("file_exists requires a string path argument"))
+        );
+
+        let lines_missing = call_native_function(&mut interpreter, "read_lines", &[]);
+        assert!(
+            matches!(lines_missing, Value::Error(message) if message.contains("read_lines requires a string path argument"))
+        );
+
+        let list_missing = call_native_function(&mut interpreter, "list_dir", &[]);
+        assert!(
+            matches!(list_missing, Value::Error(message) if message.contains("list_dir requires a string path argument"))
+        );
+
+        let create_missing = call_native_function(&mut interpreter, "create_dir", &[]);
+        assert!(
+            matches!(create_missing, Value::Error(message) if message.contains("create_dir requires a string path argument"))
+        );
+
+        let file_size_missing = call_native_function(&mut interpreter, "file_size", &[]);
+        assert!(
+            matches!(file_size_missing, Value::Error(message) if message.contains("file_size requires a string path argument"))
+        );
+
+        let delete_missing = call_native_function(&mut interpreter, "delete_file", &[]);
+        assert!(
+            matches!(delete_missing, Value::Error(message) if message.contains("delete_file requires a string path argument"))
+        );
+
+        let rename_missing = call_native_function(&mut interpreter, "rename_file", &[]);
+        assert!(
+            matches!(rename_missing, Value::Error(message) if message.contains("rename_file requires two arguments"))
+        );
+
+        let copy_missing = call_native_function(&mut interpreter, "copy_file", &[]);
+        assert!(
+            matches!(copy_missing, Value::Error(message) if message.contains("copy_file requires two arguments"))
+        );
+
+        let read_binary_missing = call_native_function(&mut interpreter, "read_binary_file", &[]);
+        assert!(
+            matches!(read_binary_missing, Value::Error(message) if message.contains("read_binary_file requires a string path argument"))
+        );
+
+        let write_binary_missing = call_native_function(&mut interpreter, "write_binary_file", &[]);
+        assert!(
+            matches!(write_binary_missing, Value::Error(message) if message.contains("write_binary_file requires two arguments"))
+        );
+
+        let base_dir = tmp_test_path("filesystem_hardening");
+        let _ = std::fs::remove_dir_all(&base_dir);
+        std::fs::create_dir_all(&base_dir).expect("filesystem hardening dir should be created");
+
+        let text_file = format!("{}/sample.txt", base_dir);
+        let moved_file = format!("{}/sample.renamed.txt", base_dir);
+        let copied_file = format!("{}/sample.copy.txt", base_dir);
+        let nested_dir = format!("{}/nested", base_dir);
+        let binary_file = format!("{}/payload.bin", base_dir);
+
+        let write_ok = call_native_function(
+            &mut interpreter,
+            "write_file",
+            &[
+                Value::Str(Arc::new(text_file.clone())),
+                Value::Str(Arc::new("line-1\nline-2".to_string())),
+            ],
+        );
+        assert!(matches!(write_ok, Value::Bool(true)));
+
+        let read_ok = call_native_function(
+            &mut interpreter,
+            "read_file",
+            &[Value::Str(Arc::new(text_file.clone()))],
+        );
+        assert!(matches!(read_ok, Value::Str(content) if content.as_ref() == "line-1\nline-2"));
+
+        let append_ok = call_native_function(
+            &mut interpreter,
+            "append_file",
+            &[
+                Value::Str(Arc::new(text_file.clone())),
+                Value::Str(Arc::new("\nline-3".to_string())),
+            ],
+        );
+        assert!(matches!(append_ok, Value::Bool(true)));
+
+        let lines_ok = call_native_function(
+            &mut interpreter,
+            "read_lines",
+            &[Value::Str(Arc::new(text_file.clone()))],
+        );
+        assert!(matches!(lines_ok, Value::Array(lines) if lines.len() == 3));
+
+        let exists_true = call_native_function(
+            &mut interpreter,
+            "file_exists",
+            &[Value::Str(Arc::new(text_file.clone()))],
+        );
+        assert!(matches!(exists_true, Value::Bool(true)));
+
+        let file_size = call_native_function(
+            &mut interpreter,
+            "file_size",
+            &[Value::Str(Arc::new(text_file.clone()))],
+        );
+        assert!(matches!(file_size, Value::Int(size) if size > 0));
+
+        let rename_ok = call_native_function(
+            &mut interpreter,
+            "rename_file",
+            &[
+                Value::Str(Arc::new(text_file.clone())),
+                Value::Str(Arc::new(moved_file.clone())),
+            ],
+        );
+        assert!(matches!(rename_ok, Value::Bool(true)));
+
+        let copy_ok = call_native_function(
+            &mut interpreter,
+            "copy_file",
+            &[
+                Value::Str(Arc::new(moved_file.clone())),
+                Value::Str(Arc::new(copied_file.clone())),
+            ],
+        );
+        assert!(matches!(copy_ok, Value::Bool(true)));
+
+        let create_dir_ok = call_native_function(
+            &mut interpreter,
+            "create_dir",
+            &[Value::Str(Arc::new(nested_dir.clone()))],
+        );
+        assert!(matches!(create_dir_ok, Value::Bool(true)));
+
+        let list_dir_result = call_native_function(
+            &mut interpreter,
+            "list_dir",
+            &[Value::Str(Arc::new(base_dir.clone()))],
+        );
+        assert!(matches!(list_dir_result, Value::Array(entries) if entries.len() >= 3));
+
+        let write_binary_ok = call_native_function(
+            &mut interpreter,
+            "write_binary_file",
+            &[
+                Value::Str(Arc::new(binary_file.clone())),
+                Value::Bytes(vec![0, 1, 2, 255]),
+            ],
+        );
+        assert!(matches!(write_binary_ok, Value::Bool(true)));
+
+        let read_binary_ok = call_native_function(
+            &mut interpreter,
+            "read_binary_file",
+            &[Value::Str(Arc::new(binary_file.clone()))],
+        );
+        assert!(
+            matches!(read_binary_ok, Value::Bytes(bytes) if bytes.len() == 4 && bytes[0] == 0 && bytes[3] == 255)
+        );
+
+        let delete_binary_ok = call_native_function(
+            &mut interpreter,
+            "delete_file",
+            &[Value::Str(Arc::new(binary_file))],
+        );
+        assert!(matches!(delete_binary_ok, Value::Bool(true)));
+
+        let delete_copy_ok = call_native_function(
+            &mut interpreter,
+            "delete_file",
+            &[Value::Str(Arc::new(copied_file))],
+        );
+        assert!(matches!(delete_copy_ok, Value::Bool(true)));
+
+        let delete_renamed_ok = call_native_function(
+            &mut interpreter,
+            "delete_file",
+            &[Value::Str(Arc::new(moved_file.clone()))],
+        );
+        assert!(matches!(delete_renamed_ok, Value::Bool(true)));
+
+        let exists_after_delete = call_native_function(
+            &mut interpreter,
+            "file_exists",
+            &[Value::Str(Arc::new(moved_file))],
+        );
+        assert!(matches!(exists_after_delete, Value::Bool(false)));
+
+        let _ = std::fs::remove_dir_all(base_dir);
     }
 
     #[test]
