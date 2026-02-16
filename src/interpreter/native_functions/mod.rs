@@ -461,8 +461,11 @@ mod tests {
             matches!(sleep_negative, Value::Error(message) if message.contains("requires non-negative milliseconds"))
         );
 
-        let timeout_wrong_first_arg =
-            call_native_function(&mut interpreter, "async_timeout", &[Value::Int(1), Value::Int(5)]);
+        let timeout_wrong_first_arg = call_native_function(
+            &mut interpreter,
+            "async_timeout",
+            &[Value::Int(1), Value::Int(5)],
+        );
         assert!(
             matches!(timeout_wrong_first_arg, Value::Error(message) if message.contains("requires a Promise as first argument"))
         );
@@ -506,7 +509,8 @@ mod tests {
             matches!(http_get_wrong_arity, Value::Error(message) if message.contains("expects 1 argument"))
         );
 
-        let http_get_wrong_type = call_native_function(&mut interpreter, "async_http_get", &[Value::Int(1)]);
+        let http_get_wrong_type =
+            call_native_function(&mut interpreter, "async_http_get", &[Value::Int(1)]);
         assert!(
             matches!(http_get_wrong_type, Value::Error(message) if message.contains("requires a string URL argument"))
         );
@@ -539,7 +543,8 @@ mod tests {
         let mut interpreter = Interpreter::new();
         let file_path = tmp_test_path("release_hardening_async_file_wrapper.txt");
 
-        let async_read_bad_arg = call_native_function(&mut interpreter, "async_read_file", &[Value::Int(1)]);
+        let async_read_bad_arg =
+            call_native_function(&mut interpreter, "async_read_file", &[Value::Int(1)]);
         assert!(
             matches!(async_read_bad_arg, Value::Error(message) if message.contains("requires a string path argument"))
         );
@@ -594,7 +599,8 @@ mod tests {
             matches!(await_task_missing, Value::Error(message) if message.contains("await_task() expects 1 argument"))
         );
 
-        let await_task_bad_type = call_native_function(&mut interpreter, "await_task", &[Value::Int(1)]);
+        let await_task_bad_type =
+            call_native_function(&mut interpreter, "await_task", &[Value::Int(1)]);
         assert!(
             matches!(await_task_bad_type, Value::Error(message) if message.contains("await_task() requires a TaskHandle argument"))
         );
@@ -604,7 +610,8 @@ mod tests {
             matches!(cancel_task_missing, Value::Error(message) if message.contains("cancel_task() expects 1 argument"))
         );
 
-        let cancel_task_bad_type = call_native_function(&mut interpreter, "cancel_task", &[Value::Int(1)]);
+        let cancel_task_bad_type =
+            call_native_function(&mut interpreter, "cancel_task", &[Value::Int(1)]);
         assert!(
             matches!(cancel_task_bad_type, Value::Error(message) if message.contains("cancel_task() requires a TaskHandle argument"))
         );
@@ -614,11 +621,8 @@ mod tests {
             matches!(spawn_bad_arg, Value::Error(message) if message.contains("requires an async function argument"))
         );
 
-        let task_handle = call_native_function(
-            &mut interpreter,
-            "spawn_task",
-            &[noop_spawnable_function()],
-        );
+        let task_handle =
+            call_native_function(&mut interpreter, "spawn_task", &[noop_spawnable_function()]);
         assert!(matches!(task_handle, Value::TaskHandle { .. }));
 
         let await_task_promise =
@@ -643,7 +647,8 @@ mod tests {
             call_native_function(&mut interpreter, "cancel_task", &[cancel_target.clone()]);
         assert!(matches!(cancel_again_result, Value::Bool(false)));
 
-        let await_cancelled = call_native_function(&mut interpreter, "await_task", &[cancel_target]);
+        let await_cancelled =
+            call_native_function(&mut interpreter, "await_task", &[cancel_target]);
         let await_cancelled_result = await_native_promise(await_cancelled);
         assert!(
             matches!(await_cancelled_result, Err(message) if message.contains("already consumed"))
@@ -2239,10 +2244,7 @@ mod tests {
         let read_extra = call_native_function(
             &mut interpreter,
             "read_file",
-            &[
-                Value::Str(Arc::new("/tmp/ruff-missing.txt".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff-missing.txt".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(read_extra, Value::Error(message) if message.contains("read_file_sync requires a string path argument"))
@@ -2292,10 +2294,7 @@ mod tests {
         let exists_extra = call_native_function(
             &mut interpreter,
             "file_exists",
-            &[
-                Value::Str(Arc::new("/tmp/ruff-file.txt".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff-file.txt".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(exists_extra, Value::Error(message) if message.contains("file_exists requires a string path argument"))
@@ -2309,10 +2308,7 @@ mod tests {
         let lines_extra = call_native_function(
             &mut interpreter,
             "read_lines",
-            &[
-                Value::Str(Arc::new("/tmp/ruff-lines.txt".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff-lines.txt".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(lines_extra, Value::Error(message) if message.contains("read_lines requires a string path argument"))
@@ -2326,10 +2322,7 @@ mod tests {
         let list_extra = call_native_function(
             &mut interpreter,
             "list_dir",
-            &[
-                Value::Str(Arc::new("/tmp".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(list_extra, Value::Error(message) if message.contains("list_dir requires a string path argument"))
@@ -2343,10 +2336,7 @@ mod tests {
         let create_extra = call_native_function(
             &mut interpreter,
             "create_dir",
-            &[
-                Value::Str(Arc::new("/tmp/ruff-create-dir".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff-create-dir".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(create_extra, Value::Error(message) if message.contains("create_dir requires a string path argument"))
@@ -2360,10 +2350,7 @@ mod tests {
         let file_size_extra = call_native_function(
             &mut interpreter,
             "file_size",
-            &[
-                Value::Str(Arc::new("/tmp/ruff-size.txt".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff-size.txt".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(file_size_extra, Value::Error(message) if message.contains("file_size requires a string path argument"))
@@ -2377,10 +2364,7 @@ mod tests {
         let delete_extra = call_native_function(
             &mut interpreter,
             "delete_file",
-            &[
-                Value::Str(Arc::new("/tmp/ruff-delete.txt".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff-delete.txt".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(delete_extra, Value::Error(message) if message.contains("delete_file requires a string path argument"))
@@ -2430,10 +2414,7 @@ mod tests {
         let read_binary_extra = call_native_function(
             &mut interpreter,
             "read_binary_file",
-            &[
-                Value::Str(Arc::new("/tmp/ruff-bin.bin".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff-bin.bin".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(read_binary_extra, Value::Error(message) if message.contains("read_binary_file requires a string path argument"))
@@ -2518,20 +2499,14 @@ mod tests {
         let rename_ok = call_native_function(
             &mut interpreter,
             "rename_file",
-            &[
-                Value::Str(Arc::new(text_file.clone())),
-                Value::Str(Arc::new(moved_file.clone())),
-            ],
+            &[Value::Str(Arc::new(text_file.clone())), Value::Str(Arc::new(moved_file.clone()))],
         );
         assert!(matches!(rename_ok, Value::Bool(true)));
 
         let copy_ok = call_native_function(
             &mut interpreter,
             "copy_file",
-            &[
-                Value::Str(Arc::new(moved_file.clone())),
-                Value::Str(Arc::new(copied_file.clone())),
-            ],
+            &[Value::Str(Arc::new(moved_file.clone())), Value::Str(Arc::new(copied_file.clone()))],
         );
         assert!(matches!(copy_ok, Value::Bool(true)));
 
@@ -2552,10 +2527,7 @@ mod tests {
         let write_binary_ok = call_native_function(
             &mut interpreter,
             "write_binary_file",
-            &[
-                Value::Str(Arc::new(binary_file.clone())),
-                Value::Bytes(vec![0, 1, 2, 255]),
-            ],
+            &[Value::Str(Arc::new(binary_file.clone())), Value::Bytes(vec![0, 1, 2, 255])],
         );
         assert!(matches!(write_binary_ok, Value::Bool(true)));
 
@@ -2631,7 +2603,9 @@ mod tests {
                 Value::Str(Arc::new("extra".to_string())),
             ],
         );
-        assert!(matches!(get_extra, Value::Error(message) if message.contains("http_get() expects 1 argument")));
+        assert!(
+            matches!(get_extra, Value::Error(message) if message.contains("http_get() expects 1 argument"))
+        );
 
         let get_missing = call_native_function(&mut interpreter, "http_get", &[]);
         assert!(
@@ -2647,7 +2621,9 @@ mod tests {
                 Value::Str(Arc::new("extra".to_string())),
             ],
         );
-        assert!(matches!(post_extra, Value::Error(message) if message.contains("http_post() expects 2 arguments")));
+        assert!(
+            matches!(post_extra, Value::Error(message) if message.contains("http_post() expects 2 arguments"))
+        );
 
         let post_missing = call_native_function(&mut interpreter, "http_post", &[]);
         assert!(
@@ -2663,7 +2639,9 @@ mod tests {
                 Value::Str(Arc::new("extra".to_string())),
             ],
         );
-        assert!(matches!(put_extra, Value::Error(message) if message.contains("http_put() expects 2 arguments")));
+        assert!(
+            matches!(put_extra, Value::Error(message) if message.contains("http_put() expects 2 arguments"))
+        );
 
         let delete_extra = call_native_function(
             &mut interpreter,
@@ -2673,34 +2651,36 @@ mod tests {
                 Value::Str(Arc::new("extra".to_string())),
             ],
         );
-        assert!(matches!(delete_extra, Value::Error(message) if message.contains("http_delete() expects 1 argument")));
+        assert!(
+            matches!(delete_extra, Value::Error(message) if message.contains("http_delete() expects 1 argument"))
+        );
 
         let binary_extra = call_native_function(
             &mut interpreter,
             "http_get_binary",
-            &[
-                Value::Str(Arc::new("https://example.com".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("https://example.com".to_string())), Value::Int(1)],
         );
-        assert!(matches!(binary_extra, Value::Error(message) if message.contains("http_get_binary() expects 1 argument")));
+        assert!(
+            matches!(binary_extra, Value::Error(message) if message.contains("http_get_binary() expects 1 argument"))
+        );
 
         let stream_extra = call_native_function(
             &mut interpreter,
             "http_get_stream",
-            &[
-                Value::Str(Arc::new("https://example.com".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Str(Arc::new("https://example.com".to_string())), Value::Int(1)],
         );
-        assert!(matches!(stream_extra, Value::Error(message) if message.contains("http_get_stream() expects 1 argument")));
+        assert!(
+            matches!(stream_extra, Value::Error(message) if message.contains("http_get_stream() expects 1 argument"))
+        );
 
         let server_extra = call_native_function(
             &mut interpreter,
             "http_server",
             &[Value::Int(8080), Value::Int(1)],
         );
-        assert!(matches!(server_extra, Value::Error(message) if message.contains("http_server() expects 1 argument")));
+        assert!(
+            matches!(server_extra, Value::Error(message) if message.contains("http_server() expects 1 argument"))
+        );
 
         let response_extra = call_native_function(
             &mut interpreter,
@@ -2711,7 +2691,9 @@ mod tests {
                 Value::Str(std::sync::Arc::new("extra".to_string())),
             ],
         );
-        assert!(matches!(response_extra, Value::Error(message) if message.contains("http_response() expects 2 arguments")));
+        assert!(
+            matches!(response_extra, Value::Error(message) if message.contains("http_response() expects 2 arguments"))
+        );
 
         let response_shape = call_native_function(
             &mut interpreter,
@@ -2725,18 +2707,18 @@ mod tests {
             "json_response",
             &[Value::Int(200), Value::Null, Value::Int(1)],
         );
-        assert!(matches!(json_response_extra, Value::Error(message) if message.contains("json_response() expects 2 arguments")));
+        assert!(
+            matches!(json_response_extra, Value::Error(message) if message.contains("json_response() expects 2 arguments"))
+        );
 
         let html_response_extra = call_native_function(
             &mut interpreter,
             "html_response",
-            &[
-                Value::Int(200),
-                Value::Str(Arc::new("<h1>ok</h1>".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Int(200), Value::Str(Arc::new("<h1>ok</h1>".to_string())), Value::Int(1)],
         );
-        assert!(matches!(html_response_extra, Value::Error(message) if message.contains("html_response() expects 2 arguments")));
+        assert!(
+            matches!(html_response_extra, Value::Error(message) if message.contains("html_response() expects 2 arguments"))
+        );
 
         let redirect_extra = call_native_function(
             &mut interpreter,
@@ -2747,7 +2729,9 @@ mod tests {
                 Value::Int(1),
             ],
         );
-        assert!(matches!(redirect_extra, Value::Error(message) if message.contains("redirect_response() expects 1-2 arguments")));
+        assert!(
+            matches!(redirect_extra, Value::Error(message) if message.contains("redirect_response() expects 1-2 arguments"))
+        );
 
         let set_header_extra = call_native_function(
             &mut interpreter,
@@ -2759,7 +2743,9 @@ mod tests {
                 Value::Int(2),
             ],
         );
-        assert!(matches!(set_header_extra, Value::Error(message) if message.contains("set_header() expects 3 arguments")));
+        assert!(
+            matches!(set_header_extra, Value::Error(message) if message.contains("set_header() expects 3 arguments"))
+        );
 
         let set_headers_extra = call_native_function(
             &mut interpreter,
@@ -2770,7 +2756,9 @@ mod tests {
                 Value::Int(2),
             ],
         );
-        assert!(matches!(set_headers_extra, Value::Error(message) if message.contains("set_headers() expects 2 arguments")));
+        assert!(
+            matches!(set_headers_extra, Value::Error(message) if message.contains("set_headers() expects 2 arguments"))
+        );
 
         let parallel_http_missing = call_native_function(&mut interpreter, "parallel_http", &[]);
         assert!(
@@ -2782,7 +2770,9 @@ mod tests {
             "parallel_http",
             &[Value::Array(Arc::new(vec![])), Value::Int(1)],
         );
-        assert!(matches!(parallel_http_extra, Value::Error(message) if message.contains("parallel_http() expects 1 argument")));
+        assert!(
+            matches!(parallel_http_extra, Value::Error(message) if message.contains("parallel_http() expects 1 argument"))
+        );
 
         let jwt_encode_missing = call_native_function(&mut interpreter, "jwt_encode", &[]);
         assert!(
@@ -2798,7 +2788,9 @@ mod tests {
                 Value::Int(1),
             ],
         );
-        assert!(matches!(jwt_encode_extra, Value::Error(message) if message.contains("jwt_encode() expects 2 arguments")));
+        assert!(
+            matches!(jwt_encode_extra, Value::Error(message) if message.contains("jwt_encode() expects 2 arguments"))
+        );
 
         let jwt_decode_missing = call_native_function(&mut interpreter, "jwt_decode", &[]);
         assert!(
@@ -2814,7 +2806,9 @@ mod tests {
                 Value::Int(1),
             ],
         );
-        assert!(matches!(jwt_decode_extra, Value::Error(message) if message.contains("jwt_decode() expects 2 arguments")));
+        assert!(
+            matches!(jwt_decode_extra, Value::Error(message) if message.contains("jwt_decode() expects 2 arguments"))
+        );
 
         let oauth2_auth_url_missing =
             call_native_function(&mut interpreter, "oauth2_auth_url", &[]);
@@ -2833,7 +2827,9 @@ mod tests {
                 Value::Str(Arc::new("extra".to_string())),
             ],
         );
-        assert!(matches!(oauth2_auth_url_extra, Value::Error(message) if message.contains("oauth2_auth_url() expects 4 arguments")));
+        assert!(
+            matches!(oauth2_auth_url_extra, Value::Error(message) if message.contains("oauth2_auth_url() expects 4 arguments"))
+        );
 
         let oauth2_get_token_missing =
             call_native_function(&mut interpreter, "oauth2_get_token", &[]);
@@ -2853,7 +2849,9 @@ mod tests {
                 Value::Int(1),
             ],
         );
-        assert!(matches!(oauth2_get_token_extra, Value::Error(message) if message.contains("oauth2_get_token() expects 5 arguments")));
+        assert!(
+            matches!(oauth2_get_token_extra, Value::Error(message) if message.contains("oauth2_get_token() expects 5 arguments"))
+        );
     }
 
     #[test]
@@ -2942,6 +2940,118 @@ mod tests {
         assert!(
             matches!(pool_missing, Value::Error(message) if message.contains("db_pool requires database type and connection string"))
         );
+
+        let connect_extra = call_native_function(
+            &mut interpreter,
+            "db_connect",
+            &[
+                Value::Str(Arc::new("sqlite".to_string())),
+                Value::Str(Arc::new(":memory:".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(connect_extra, Value::Error(message) if message.contains("db_connect requires database type"))
+        );
+
+        let execute_extra = call_native_function(
+            &mut interpreter,
+            "db_execute",
+            &[
+                Value::Int(1),
+                Value::Str(Arc::new("SELECT 1".to_string())),
+                Value::Array(Arc::new(vec![])),
+                Value::Int(99),
+            ],
+        );
+        assert!(
+            matches!(execute_extra, Value::Error(message) if message.contains("db_execute requires 2 or 3 arguments"))
+        );
+
+        let query_extra = call_native_function(
+            &mut interpreter,
+            "db_query",
+            &[
+                Value::Int(1),
+                Value::Str(Arc::new("SELECT 1".to_string())),
+                Value::Array(Arc::new(vec![])),
+                Value::Int(99),
+            ],
+        );
+        assert!(
+            matches!(query_extra, Value::Error(message) if message.contains("db_query requires 2 or 3 arguments"))
+        );
+
+        let pool_extra = call_native_function(
+            &mut interpreter,
+            "db_pool",
+            &[
+                Value::Str(Arc::new("sqlite".to_string())),
+                Value::Str(Arc::new(":memory:".to_string())),
+                Value::Dict(Arc::new(crate::interpreter::DictMap::default())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(pool_extra, Value::Error(message) if message.contains("db_pool requires 2 or 3 arguments"))
+        );
+
+        for (name, args, expected_substring) in vec![
+            (
+                "db_close",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_close requires a database connection",
+            ),
+            (
+                "db_pool_acquire",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_pool_acquire requires a database pool",
+            ),
+            (
+                "db_pool_release",
+                vec![Value::Int(1), Value::Int(2), Value::Int(3)],
+                "db_pool_release requires two arguments",
+            ),
+            (
+                "db_pool_stats",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_pool_stats requires a database pool",
+            ),
+            (
+                "db_pool_close",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_pool_close requires a database pool",
+            ),
+            (
+                "db_begin",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_begin requires a database connection",
+            ),
+            (
+                "db_commit",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_commit requires a database connection",
+            ),
+            (
+                "db_rollback",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_rollback requires a database connection",
+            ),
+            (
+                "db_last_insert_id",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_last_insert_id requires a database connection",
+            ),
+        ] {
+            let result = call_native_function(&mut interpreter, name, &args);
+            assert!(
+                matches!(result, Value::Error(ref message) if message.contains(expected_substring)),
+                "Expected strict-arity rejection for {} with message containing '{}', got {:?}",
+                name,
+                expected_substring,
+                result
+            );
+        }
     }
 
     #[test]
@@ -2956,6 +3066,32 @@ mod tests {
         let pipe_missing = call_native_function(&mut interpreter, "pipe_commands", &[]);
         assert!(
             matches!(pipe_missing, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
+        );
+
+        let spawn_extra = call_native_function(
+            &mut interpreter,
+            "spawn_process",
+            &[
+                Value::Array(Arc::new(vec![Value::Str(Arc::new("echo".to_string()))])),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(spawn_extra, Value::Error(message) if message.contains("spawn_process requires an array of command arguments"))
+        );
+
+        let pipe_extra = call_native_function(
+            &mut interpreter,
+            "pipe_commands",
+            &[
+                Value::Array(Arc::new(vec![Value::Array(Arc::new(vec![Value::Str(Arc::new(
+                    "echo".to_string(),
+                ))]))])),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(pipe_extra, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
         );
     }
 
@@ -3063,10 +3199,7 @@ mod tests {
         let read_non_int_limit = call_native_function(
             &mut interpreter,
             "async_read_files",
-            &[
-                Value::Array(Arc::new(vec![])),
-                Value::Str(Arc::new("2".to_string())),
-            ],
+            &[Value::Array(Arc::new(vec![])), Value::Str(Arc::new("2".to_string()))],
         );
         assert!(
             matches!(read_non_int_limit, Value::Error(message) if message.contains("optional concurrency_limit must be an integer"))
@@ -3119,11 +3252,7 @@ mod tests {
         let write_non_positive_limit = call_native_function(
             &mut interpreter,
             "async_write_files",
-            &[
-                Value::Array(Arc::new(vec![])),
-                Value::Array(Arc::new(vec![])),
-                Value::Int(0),
-            ],
+            &[Value::Array(Arc::new(vec![])), Value::Array(Arc::new(vec![])), Value::Int(0)],
         );
         assert!(
             matches!(write_non_positive_limit, Value::Error(message) if message.contains("concurrency_limit must be > 0"))
@@ -3240,11 +3369,8 @@ mod tests {
             matches!(shared_set_missing, Value::Error(message) if message.contains("shared_set requires (key, value) arguments"))
         );
 
-        let shared_set_bad_key = call_native_function(
-            &mut interpreter,
-            "shared_set",
-            &[Value::Int(1), Value::Int(2)],
-        );
+        let shared_set_bad_key =
+            call_native_function(&mut interpreter, "shared_set", &[Value::Int(1), Value::Int(2)]);
         assert!(
             matches!(shared_set_bad_key, Value::Error(message) if message.contains("shared_set key must be a string"))
         );
@@ -3266,10 +3392,7 @@ mod tests {
         let shared_set_ok = call_native_function(
             &mut interpreter,
             "shared_set",
-            &[
-                Value::Str(Arc::new(shared_key.clone())),
-                Value::Int(10),
-            ],
+            &[Value::Str(Arc::new(shared_key.clone())), Value::Int(10)],
         );
         assert!(matches!(shared_set_ok, Value::Bool(true)));
 
@@ -3295,10 +3418,7 @@ mod tests {
         let shared_add_bad_delta = call_native_function(
             &mut interpreter,
             "shared_add_int",
-            &[
-                Value::Str(Arc::new(shared_key.clone())),
-                Value::Str(Arc::new("1".to_string())),
-            ],
+            &[Value::Str(Arc::new(shared_key.clone())), Value::Str(Arc::new("1".to_string()))],
         );
         assert!(
             matches!(shared_add_bad_delta, Value::Error(message) if message.contains("delta must be an int"))
@@ -3319,10 +3439,7 @@ mod tests {
         let shared_add_ok = call_native_function(
             &mut interpreter,
             "shared_add_int",
-            &[
-                Value::Str(Arc::new(shared_key.clone())),
-                Value::Int(5),
-            ],
+            &[Value::Str(Arc::new(shared_key.clone())), Value::Int(5)],
         );
         assert!(matches!(shared_add_ok, Value::Int(15)));
 
@@ -3358,7 +3475,8 @@ mod tests {
             matches!(get_task_pool_with_args, Value::Error(message) if message.contains("expects 0 arguments"))
         );
 
-        let set_task_pool_missing = call_native_function(&mut interpreter, "set_task_pool_size", &[]);
+        let set_task_pool_missing =
+            call_native_function(&mut interpreter, "set_task_pool_size", &[]);
         assert!(
             matches!(set_task_pool_missing, Value::Error(message) if message.contains("expects 1 argument"))
         );
@@ -3831,6 +3949,52 @@ mod tests {
         assert!(
             matches!(unzip_missing, Value::Error(message) if message.contains("unzip requires (string_zip_path, string_output_dir) arguments"))
         );
+
+        let zip_create_extra = call_native_function(
+            &mut interpreter,
+            "zip_create",
+            &[Value::Str(Arc::new("archive.zip".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(zip_create_extra, Value::Error(message) if message.contains("zip_create requires a string path argument"))
+        );
+
+        let zip_add_file_extra = call_native_function(
+            &mut interpreter,
+            "zip_add_file",
+            &[Value::Int(1), Value::Str(Arc::new("a.txt".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(zip_add_file_extra, Value::Error(message) if message.contains("zip_add_file requires (ZipArchive, string_path) arguments"))
+        );
+
+        let zip_add_dir_extra = call_native_function(
+            &mut interpreter,
+            "zip_add_dir",
+            &[Value::Int(1), Value::Str(Arc::new("dir".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(zip_add_dir_extra, Value::Error(message) if message.contains("zip_add_dir requires (ZipArchive, string_path) arguments"))
+        );
+
+        let zip_close_extra =
+            call_native_function(&mut interpreter, "zip_close", &[Value::Int(1), Value::Int(1)]);
+        assert!(
+            matches!(zip_close_extra, Value::Error(message) if message.contains("zip_close requires a ZipArchive argument"))
+        );
+
+        let unzip_extra = call_native_function(
+            &mut interpreter,
+            "unzip",
+            &[
+                Value::Str(Arc::new("archive.zip".to_string())),
+                Value::Str(Arc::new("out".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(unzip_extra, Value::Error(message) if message.contains("unzip requires (string_zip_path, string_output_dir) arguments"))
+        );
     }
 
     #[test]
@@ -3987,10 +4151,7 @@ mod tests {
         let rsa_keypair_extra = call_native_function(
             &mut interpreter,
             "rsa_generate_keypair",
-            &[
-                Value::Int(2048),
-                Value::Str(std::sync::Arc::new("extra".to_string())),
-            ],
+            &[Value::Int(2048), Value::Str(std::sync::Arc::new("extra".to_string()))],
         );
         assert!(
             matches!(rsa_keypair_extra, Value::Error(message) if message.contains("rsa_generate_keypair requires"))

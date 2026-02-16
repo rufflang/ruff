@@ -62,6 +62,13 @@ fn create_runtime() -> Result<tokio::runtime::Runtime, String> {
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         "db_connect" => {
+            if arg_values.len() > 2 {
+                return Some(Value::Error(
+                    "db_connect requires database type ('sqlite'|'postgres'|'mysql') and connection string"
+                        .to_string(),
+                ));
+            }
+
             if let (Some(Value::Str(db_type)), Some(Value::Str(connection_string))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -139,6 +146,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_execute" => {
+            if arg_values.len() > 3 {
+                return Some(Value::Error(
+                    "db_execute requires 2 or 3 arguments: connection, SQL string, optional params array"
+                        .to_string(),
+                ));
+            }
+
             if let Some(Value::Database { connection, db_type, .. }) = arg_values.first() {
                 if let Some(Value::Str(sql)) = arg_values.get(1) {
                     let params = arg_values.get(2);
@@ -256,6 +270,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_query" => {
+            if arg_values.len() > 3 {
+                return Some(Value::Error(
+                    "db_query requires 2 or 3 arguments: connection, SQL string, optional params array"
+                        .to_string(),
+                ));
+            }
+
             if let Some(Value::Database { connection, db_type, .. }) = arg_values.first() {
                 if let Some(Value::Str(sql)) = arg_values.get(1) {
                     let params = arg_values.get(2);
@@ -463,6 +484,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_close" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("db_close requires a database connection".to_string()));
+            }
+
             if let Some(Value::Database { .. }) = arg_values.first() {
                 Value::Bool(true)
             } else {
@@ -471,6 +496,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_pool" => {
+            if arg_values.len() > 3 {
+                return Some(Value::Error(
+                    "db_pool requires 2 or 3 arguments: database type, connection string, optional config dict"
+                        .to_string(),
+                ));
+            }
+
             if let (Some(Value::Str(db_type)), Some(Value::Str(connection_string))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -500,6 +532,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_pool_acquire" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("db_pool_acquire requires a database pool".to_string()));
+            }
+
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                 let pool_guard = pool.lock().unwrap();
                 match pool_guard.acquire() {
@@ -517,6 +553,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_pool_release" => {
+            if arg_values.len() > 2 {
+                return Some(Value::Error(
+                    "db_pool_release requires two arguments: database pool and database connection"
+                        .to_string(),
+                ));
+            }
+
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                 if let Some(Value::Database { connection, .. }) = arg_values.get(1) {
                     let pool_guard = pool.lock().unwrap();
@@ -536,6 +579,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_pool_stats" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("db_pool_stats requires a database pool".to_string()));
+            }
+
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                 let pool_guard = pool.lock().unwrap();
                 let stats = pool_guard.stats();
@@ -550,6 +597,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_pool_close" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("db_pool_close requires a database pool".to_string()));
+            }
+
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                 let pool_guard = pool.lock().unwrap();
                 pool_guard.close();
@@ -560,6 +611,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_begin" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error(
+                    "db_begin requires a database connection as first argument".to_string(),
+                ));
+            }
+
             let (connection, db_type, in_transaction) =
                 if let Some(Value::Database { connection, db_type, in_transaction, .. }) =
                     arg_values.first()
@@ -623,6 +680,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "db_commit" => match arg_values.first().cloned() {
+            _ if arg_values.len() > 1 => Value::Error(
+                "db_commit requires a database connection as first argument".to_string(),
+            ),
             Some(Value::Database { connection, db_type, in_transaction, .. }) => {
                 {
                     let in_trans = in_transaction.lock().unwrap();
@@ -678,6 +738,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         },
 
         "db_rollback" => match arg_values.first().cloned() {
+            _ if arg_values.len() > 1 => Value::Error(
+                "db_rollback requires a database connection as first argument".to_string(),
+            ),
             Some(Value::Database { connection, db_type, in_transaction, .. }) => {
                 {
                     let in_trans = in_transaction.lock().unwrap();
@@ -735,6 +798,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         },
 
         "db_last_insert_id" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error(
+                    "db_last_insert_id requires a database connection as first argument"
+                        .to_string(),
+                ));
+            }
+
             if let Some(Value::Database { connection, db_type, .. }) = arg_values.first() {
                 match (connection, db_type.as_str()) {
                     (DatabaseConnection::Sqlite(connection), "sqlite") => {
@@ -942,5 +1012,113 @@ mod tests {
         assert!(
             matches!(pool_error, Value::Error(message) if message.contains("db_pool requires database type and connection string"))
         );
+    }
+
+    #[test]
+    fn test_db_strict_arity_rejects_extra_arguments() {
+        let db_connect_extra =
+            handle("db_connect", &[str_value("sqlite"), str_value(":memory:"), Value::Int(1)])
+                .unwrap();
+        assert!(matches!(
+            db_connect_extra,
+            Value::Error(message)
+                if message
+                    .contains("db_connect requires database type ('sqlite'|'postgres'|'mysql') and connection string")
+        ));
+
+        let db_execute_extra = handle(
+            "db_execute",
+            &[Value::Int(1), str_value("SELECT 1"), Value::Array(Arc::new(vec![])), Value::Int(99)],
+        )
+        .unwrap();
+        assert!(matches!(
+            db_execute_extra,
+            Value::Error(message)
+                if message.contains("db_execute requires 2 or 3 arguments")
+        ));
+
+        let db_query_extra = handle(
+            "db_query",
+            &[Value::Int(1), str_value("SELECT 1"), Value::Array(Arc::new(vec![])), Value::Int(99)],
+        )
+        .unwrap();
+        assert!(matches!(
+            db_query_extra,
+            Value::Error(message)
+                if message.contains("db_query requires 2 or 3 arguments")
+        ));
+
+        let db_pool_extra = handle(
+            "db_pool",
+            &[
+                str_value("sqlite"),
+                str_value(":memory:"),
+                Value::Dict(Arc::new(DictMap::default())),
+                Value::Int(1),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(
+            db_pool_extra,
+            Value::Error(message)
+                if message.contains("db_pool requires 2 or 3 arguments")
+        ));
+
+        for (name, args, expected) in vec![
+            (
+                "db_close",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_close requires a database connection",
+            ),
+            (
+                "db_pool_acquire",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_pool_acquire requires a database pool",
+            ),
+            (
+                "db_pool_release",
+                vec![Value::Int(1), Value::Int(2), Value::Int(3)],
+                "db_pool_release requires two arguments",
+            ),
+            (
+                "db_pool_stats",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_pool_stats requires a database pool",
+            ),
+            (
+                "db_pool_close",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_pool_close requires a database pool",
+            ),
+            (
+                "db_begin",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_begin requires a database connection as first argument",
+            ),
+            (
+                "db_commit",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_commit requires a database connection as first argument",
+            ),
+            (
+                "db_rollback",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_rollback requires a database connection as first argument",
+            ),
+            (
+                "db_last_insert_id",
+                vec![Value::Int(1), Value::Int(2)],
+                "db_last_insert_id requires a database connection as first argument",
+            ),
+        ] {
+            let result = handle(name, &args).unwrap();
+            assert!(
+                matches!(result, Value::Error(ref message) if message.contains(expected)),
+                "Expected strict-arity contract for {} to contain '{}', got {:?}",
+                name,
+                expected,
+                result
+            );
+        }
     }
 }

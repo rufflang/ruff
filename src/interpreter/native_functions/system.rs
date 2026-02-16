@@ -254,11 +254,16 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "spawn_process" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "spawn_process requires an array of command arguments".to_string(),
+                ));
+            }
+
             if let Some(Value::Array(args)) = arg_values.first() {
                 if args.is_empty() {
                     return Some(Value::Error(
-                        "spawn_process requires a non-empty array of command arguments"
-                            .to_string(),
+                        "spawn_process requires a non-empty array of command arguments".to_string(),
                     ));
                 }
 
@@ -305,10 +310,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                                 "exitcode".to_string(),
                                 Value::Int(status.code().unwrap_or(-1) as i64),
                             );
-                            fields
-                                .insert("stdout".to_string(), Value::Str(Arc::new(stdout)));
-                            fields
-                                .insert("stderr".to_string(), Value::Str(Arc::new(stderr)));
+                            fields.insert("stdout".to_string(), Value::Str(Arc::new(stdout)));
+                            fields.insert("stderr".to_string(), Value::Str(Arc::new(stderr)));
                             fields.insert("success".to_string(), Value::Bool(status.success()));
 
                             Value::Struct { name: "ProcessResult".to_string(), fields }
@@ -333,6 +336,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "pipe_commands" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "pipe_commands requires an array of command arrays".to_string(),
+                ));
+            }
+
             if let Some(Value::Array(commands)) = arg_values.first() {
                 if commands.is_empty() {
                     return Some(Value::Error(
@@ -559,11 +568,8 @@ mod tests {
             Value::Error(message) if message == "spawn_process requires a non-empty array of command arguments"
         ));
 
-        let invalid_elem_result = handle(
-            "spawn_process",
-            &[Value::Array(Arc::new(vec![Value::Int(1)]))],
-        )
-        .unwrap();
+        let invalid_elem_result =
+            handle("spawn_process", &[Value::Array(Arc::new(vec![Value::Int(1)]))]).unwrap();
         assert!(matches!(
             invalid_elem_result,
             Value::Error(message) if message == "spawn_process requires an array of strings"
@@ -599,7 +605,8 @@ mod tests {
             Value::Error(message) if message == "pipe_commands requires an array of command arrays"
         ));
 
-        let empty_commands_result = handle("pipe_commands", &[Value::Array(Arc::new(vec![]))]).unwrap();
+        let empty_commands_result =
+            handle("pipe_commands", &[Value::Array(Arc::new(vec![]))]).unwrap();
         assert!(matches!(
             empty_commands_result,
             Value::Error(message) if message == "pipe_commands requires a non-empty array of commands"
@@ -636,5 +643,36 @@ mod tests {
 
         let result = handle("pipe_commands", &[Value::Array(Arc::new(vec![command]))]).unwrap();
         assert!(matches!(result, Value::Str(_)));
+    }
+
+    #[test]
+    fn test_process_api_strict_arity_rejects_extra_arguments() {
+        let spawn_extra = handle(
+            "spawn_process",
+            &[
+                Value::Array(Arc::new(vec![Value::Str(Arc::new("echo".to_string()))])),
+                Value::Int(1),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(
+            spawn_extra,
+            Value::Error(message) if message == "spawn_process requires an array of command arguments"
+        ));
+
+        let pipe_extra = handle(
+            "pipe_commands",
+            &[
+                Value::Array(Arc::new(vec![Value::Array(Arc::new(vec![Value::Str(Arc::new(
+                    "echo".to_string(),
+                ))]))])),
+                Value::Int(1),
+            ],
+        )
+        .unwrap();
+        assert!(matches!(
+            pipe_extra,
+            Value::Error(message) if message == "pipe_commands requires an array of command arrays"
+        ));
     }
 }
