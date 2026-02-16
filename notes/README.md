@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_16-12_release-hardening-safe-probe-input-exit.md** — ✅ COMPLETED: Removed remaining exhaustive declared-builtin dispatch probe gap by safely probing `input`/`exit` via deterministic contract-error paths (no blocking/termination), synchronized roadmap/changelog/readme wording, and documented safe-probe vs skip-list gotcha plus patch-anchor recovery workflow.
+
 - **2026-02-16_12-34_release-hardening-db-process-zip-strict-arity-contracts.md** — ✅ COMPLETED: Hardened v0.10.0 P1 strict-arity contracts for database (`db_*`), process (`spawn_process`, `pipe_commands`), and archive (`zip_*`, `unzip`) APIs; added comprehensive module+dispatcher extra-argument rejection coverage; synchronized roadmap/changelog/readme; documented cargo test single-filter + moved-value assertion gotchas.
 
 - **2026-02-16_11-54_release-hardening-network-strict-arity-contracts.md** — ✅ COMPLETED: Hardened v0.10.0 P1 declared TCP/UDP APIs with explicit strict-arity guards, added comprehensive extra-argument rejection contracts, synchronized roadmap/changelog/readme, and documented formatter spillover + positional-arity gotchas.

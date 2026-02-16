@@ -791,14 +791,17 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md; updated during: 2026-02-15_09-51_release-hardening-native-dispatch-contract.md)
 
-### Exhaustive builtin dispatch probes must skip side-effecting APIs
+### Exhaustive builtin dispatch probes should use safe-probe arguments for side-effecting APIs
 
-- **Problem:** Full dispatch probe tests can block, mutate environment/process state, or terminate the test run.
-- **Rule:** Do NOT blindly probe side-effecting builtins in exhaustive drift tests; maintain an explicit skip list (currently: `input`, `exit`, `sleep`, `execute`).
-- **Why:** Those APIs are intentionally process-interactive and are unsafe to execute as part of generic dispatch parity checks.
-- **Implication:** Exhaustive dispatch tests should validate *safe dispatch coverage*, not execute every side-effecting behavior.
+- **Problem:** Full dispatch probe tests can block, mutate environment/process state, or terminate the test run if side-effecting APIs are called on success paths.
+- **Rule:** Do NOT execute side-effecting success paths in exhaustive drift tests; probe those builtins with deterministic invalid-shape arguments instead of skipping them.
+- **Current safe probes:**
+  - `input` → call with `Int` (returns immediate argument-shape error)
+  - `exit` → call with `String` (returns immediate argument-shape error)
+- **Why:** This keeps exhaustive declared-builtin drift coverage complete while avoiding interactive/blocking/terminal side effects.
+- **Implication:** Prefer contract-error-path probes over skip lists when a builtin has a deterministic non-side-effect validation branch.
 
-(Discovered during: 2026-02-15_16-17_release-hardening-dispatch-gap-slices.md)
+(Discovered during: 2026-02-15_16-17_release-hardening-dispatch-gap-slices.md; updated during: 2026-02-16_16-12_release-hardening-safe-probe-input-exit.md)
 
 ### Treat dispatch known-gap list as an explicit migration ledger
 
