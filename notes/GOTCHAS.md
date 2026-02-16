@@ -933,6 +933,16 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-26_14-30_interpreter-modularization-gotchas.md)
 
+### Markdown heading insertion can accidentally re-scope existing bullet sections
+
+- **Problem:** Adding a new same-level heading inside a long status section can make all following bullets appear under the wrong heading.
+- **Rule:** In Markdown, headings define section ownership until the next heading of equal or higher level. There is no implicit return to a previous section.
+- **Why:** A docs update that inserts `###` between an existing heading and its bullet list silently changes which section those bullets belong to.
+- **Fix:** Reorder headings so each heading is immediately followed by the bullets intended for that section.
+- **Prevention:** After heading edits, re-read the surrounding 30-50 lines to verify section boundaries visually.
+
+(Discovered during: 2026-02-16_18-09_optional-static-typing-design-package.md)
+
 ### Line count is not a success metric for refactoring
 
 - **Problem:** Thinking "big file = bad design" leads to artificial splitting of tightly coupled code

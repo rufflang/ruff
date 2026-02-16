@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_18-09_optional-static-typing-design-package.md** — ✅ COMPLETED: Delivered the v0.10 exploratory optional static typing design package (`docs/OPTIONAL_TYPING_DESIGN.md`) covering annotation surface, optional runtime type-check contract, typed-JIT boundaries, migration/non-goal decisions, and synchronized roadmap/changelog/readme status.
+
 - **2026-02-16_17-28_release-hardening-array-higher-order-collection-contracts.md** — ✅ COMPLETED: Hardened strict-arity contracts for core array and higher-order collection APIs, added comprehensive module+dispatcher contract coverage, synchronized roadmap/changelog/readme, and documented `matches!` partial-move plus fixture-brittleness gotchas.
 
 - **2026-02-16_16-12_release-hardening-safe-probe-input-exit.md** — ✅ COMPLETED: Removed remaining exhaustive declared-builtin dispatch probe gap by safely probing `input`/`exit` via deterministic contract-error paths (no blocking/termination), synchronized roadmap/changelog/readme wording, and documented safe-probe vs skip-list gotcha plus patch-anchor recovery workflow.
