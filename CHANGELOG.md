@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: System Operation Dispatch + Contract Follow-Through (P1)**:
+  - Added modular native dispatch coverage for declared system operation builtins:
+    - `input`, `exit`, `sleep`, `execute`
+  - Hardened argument-shape contracts so deterministic validation errors are returned for:
+    - `sleep(...)` non-number, negative-millisecond, and wrong-arity calls
+    - `execute(...)` non-string and wrong-arity calls
+    - `input(...)` non-string prompt and extra-argument calls
+    - `exit(...)` non-numeric code and extra-argument calls
+  - Added release-hardening contract coverage for all system operation builtins above, including success-path behavior checks for `sleep(...)` and `execute(...)`
+  - Reduced declared-builtin dispatch probe safety skips from (`input`, `exit`, `sleep`, `execute`) to (`input`, `exit`) now that `sleep` and `execute` are migrated under modular dispatch
+
 - **Release Hardening: Database + Process + Archive API Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
     - Database APIs: `db_connect`, `db_execute`, `db_query`, `db_close`, `db_pool`, `db_pool_acquire`, `db_pool_release`, `db_pool_stats`, `db_pool_close`, `db_begin`, `db_commit`, `db_rollback`, `db_last_insert_id`
@@ -331,7 +342,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Release Hardening: Exhaustive Builtin Dispatch Drift Guard (P1)**:
   - Added full declared-builtin dispatch contract coverage that iterates `Interpreter::get_builtin_names()` and probes modular native dispatch behavior
   - Added explicit test guard for known legacy dispatch gaps so newly introduced API drift is detected immediately
-  - Added safety skip list for side-effecting probes (`input`, `exit`, `sleep`, `execute`) to keep hardening checks deterministic in CI
+  - Added safety skip list for blocking/terminal probes (`input`, `exit`) to keep hardening checks deterministic in CI
 
 - **Release Hardening: System Env/Args Modular Dispatch Gap Closure (P1)**:
   - Added modular native handlers for:
