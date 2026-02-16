@@ -27,7 +27,24 @@
   - **Fix:** Add explicit `len()` checks before type checks and add extra-arg tests in release-hardening suites.
   - **Prevention:** For every public API in a hardening slice, include both `missing` and `extra` argument-shape assertions.
 
-## Validation
+## Things I Learned
+- Shared handler arms (e.g. aliases) can have stable-but-surprising error strings; preserve existing message contracts unless intentionally migrating them.
+- Strict arity is an API-stability concern, not just type safety; trailing-argument acceptance is real surface-area drift.
+
+## Debug Notes (Only if applicable)
+- **Failing test / error:** None (focused and full suites were green after edits)
+- **Repro steps:** N/A
+- **Breakpoints / logs used:** N/A
+- **Final diagnosis:** Contract hardening only; no unrelated runtime regression surfaced.
+
+## Follow-ups / TODO (For Future Agents)
+- [ ] Continue strict-arity pass for remaining public builtin groups that still use positional matching without explicit count guards.
+- [ ] When hardening aliases, verify both alias and canonical names stay covered by contract tests.
+
+## Assumptions I Almost Made
+- I initially assumed `< 2` guards were equivalent to strict two-argument contracts; they are not, and they silently permit trailing args.
+
+## Validation Snapshot
 - Focused:
   - `cargo test test_release_hardening_filesystem_core_contracts -- --nocapture`
 - Full suite:

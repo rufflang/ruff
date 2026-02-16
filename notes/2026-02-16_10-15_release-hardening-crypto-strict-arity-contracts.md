@@ -34,7 +34,20 @@
 - Keeping the pre-existing error message text while tightening arity lets us harden behavior without broad test/doc churn.
 - Dispatcher-level contract tests in `native_functions/mod.rs` are the best place to guard API stability against drift, while module-level tests ensure local native behavior stays strict.
 
-## Validation
+## Debug Notes (Only if applicable)
+- **Failing test / error:** None (no failures after implementation edits)
+- **Repro steps:** N/A
+- **Breakpoints / logs used:** N/A
+- **Final diagnosis:** Strict arity gap only (no deeper runtime bug)
+
+## Follow-ups / TODO (For Future Agents)
+- [ ] Apply the same strict-arity hardening pattern to remaining public builtin groups that still rely on positional matching without `len()` guards.
+- [ ] Keep dispatcher-level tests in `src/interpreter/native_functions/mod.rs` and module-local tests synchronized when tightening argument contracts.
+
+## Assumptions I Almost Made
+- I initially assumed existing argument-shape tests already implied strict arity, but many handlers only validated required positions and tolerated trailing arguments.
+
+## Validation Snapshot
 - Focused tests:
   - `cargo test test_crypto_argument_validation_contracts -- --nocapture`
   - `cargo test test_release_hardening_crypto_module_dispatch_argument_contracts -- --nocapture`

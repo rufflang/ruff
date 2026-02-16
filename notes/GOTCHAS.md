@@ -363,6 +363,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-16_08-05_release-hardening-filesystem-core-contract-follow-through.md)
 
+### Positional argument matching does not enforce strict arity
+- **Problem:** Public builtins can silently accept trailing arguments even when required argument types are validated.
+- **Rule:** For hardening-sensitive public APIs, enforce explicit arity (`len() == N` or bounded range) before positional type matching.
+- **Why:** Patterns like `arg_values.first()` + `arg_values.get(1)` validate required positions but do not reject extras.
+- **Implication:** Release-hardening tests must include both missing-argument and extra-argument contracts; otherwise API drift can hide behind lenient matching.
+
+(Discovered during: 2026-02-16_10-15_release-hardening-crypto-strict-arity-contracts.md, 2026-02-16_10-37_release-hardening-filesystem-strict-arity-contracts.md)
+
 ---
 
 ## CLI & Arguments
