@@ -25,6 +25,13 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Array + Higher-Order Collection API Contract Follow-Through (P1)**
+  - Hardened strict arity contracts for core array and higher-order collection APIs so trailing arguments now return deterministic contract errors:
+    - `push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`
+    - `map`, `filter`, `reduce`, `find`, `any`, `all`, `sort`, `reverse`, `unique`, `sum`, `chunk`, `flatten`, `zip`, `enumerate`, `take`, `skip`, `windows`
+  - Added comprehensive release-hardening contract coverage at both native-module and dispatcher integration layers, including strict-arity rejection and representative behavior checks
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Async Batch + Shared State/Task-Pool Contract Follow-Through (P1)**
   - Added release-hardening contract coverage for async batch file APIs: `async_read_files`, `async_write_files`
   - Added release-hardening contract coverage for shared-state APIs: `shared_set`, `shared_get`, `shared_has`, `shared_delete`, `shared_add_int`

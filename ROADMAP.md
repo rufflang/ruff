@@ -40,6 +40,9 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+    - Hardened strict arity contracts for core array and higher-order collection APIs so trailing arguments now return deterministic contract errors (`push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`, `map`, `filter`, `reduce`, `find`, `any`, `all`, `sort`, `reverse`, `unique`, `sum`, `chunk`, `flatten`, `zip`, `enumerate`, `take`, `skip`, `windows`)
+    - Added comprehensive release-hardening coverage for the APIs above at both module and dispatcher integration layers, including strict-arity rejection and representative behavior contracts
+
     - Expanded release-hardening critical dispatcher coverage for async runtime and task/channel APIs (`channel`, `async_sleep`, `async_timeout`, `async_http_get`, `async_http_post`, `async_read_file`, `async_write_file`, `spawn_task`, `await_task`, `cancel_task`)
     - Added behavior plus argument-shape/error-shape contract coverage for async sleep/timeout behavior, async file wrapper lifecycle behavior, async HTTP wrapper argument-shape validation, and task-handle lifecycle semantics
     - Tightened async task/channel contract enforcement by requiring `channel()` zero-arity and adding explicit missing/wrong-type argument-shape coverage for `await_task(...)` and `cancel_task(...)`

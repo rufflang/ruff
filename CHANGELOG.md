@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Array and Higher-Order Collection API Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for core array and higher-order collection APIs:
+    - Core array APIs: `push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`
+    - Higher-order and utility APIs: `map`, `filter`, `reduce`, `find`, `any`, `all`, `sort`, `reverse`, `unique`, `sum`, `chunk`, `flatten`, `zip`, `enumerate`, `take`, `skip`, `windows`
+  - Added comprehensive release-hardening coverage at both module and dispatcher integration levels, including strict-arity rejection and representative behavior contract checks
+
 - **Release Hardening: OS/Path API Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
     - OS APIs: `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ`
