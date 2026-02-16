@@ -151,6 +151,10 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for system random/time/date APIs (`random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`)
     - Added deterministic seeded-random parity contracts, random range/choice shape contracts, monotonic timing contracts, and formatting/parsing argument-shape contracts
 
+- **Math API Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for math APIs (`abs`, `sqrt`, `pow`, `floor`, `ceil`, `round`, `min`, `max`, `sin`, `cos`, `tan`, `log`, `exp`)
+    - Added deterministic behavior contracts plus compatibility fallback contracts for missing/invalid argument shapes
+
 - **Polymorphic `len(...)` Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage to include `len`
     - Added polymorphic contract coverage for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`

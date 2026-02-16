@@ -48,6 +48,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - monotonic/non-negative timing API behavior contracts
     - duration/date formatting and date parsing behavior plus missing/invalid argument-shape errors
 
+- **Release Hardening: Math API Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for math builtins:
+    - `abs`, `sqrt`, `pow`
+    - `floor`, `ceil`, `round`
+    - `min`, `max`
+    - `sin`, `cos`, `tan`, `log`, `exp`
+  - Added release-hardening behavior and fallback contract coverage for:
+    - numeric correctness on representative deterministic inputs
+    - single-arg and two-arg math operation behavior
+    - missing/invalid argument fallback behavior (`Int(0)`) for compatibility with existing runtime contracts
+
 - **Release Hardening: Conversion + `bytes(...)` Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for conversion/validation builtins:
     - `parse_int`, `parse_float`

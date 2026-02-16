@@ -114,6 +114,11 @@
   - Added deterministic seeded-random parity tests, random range/choice shape tests, monotonic timing tests, and formatting/parsing argument-shape contract tests
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Math API Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for math APIs: `abs`, `sqrt`, `pow`, `floor`, `ceil`, `round`, `min`, `max`, `sin`, `cos`, `tan`, `log`, `exp`
+  - Added deterministic behavior and fallback contract tests for representative numeric inputs and missing/invalid argument-shape compatibility behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Polymorphic `len(...)` Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage to include `len`
   - Added polymorphic contract tests for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`
