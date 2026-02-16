@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_10-37_release-hardening-filesystem-strict-arity-contracts.md** — ✅ COMPLETED: Hardened v0.10.0 P1 core filesystem API strict-arity contracts (reject trailing args), expanded dispatcher contract coverage, synchronized roadmap/changelog/readme, and documented implicit positional-match arity gotcha.
+
 - **2026-02-16_10-15_release-hardening-crypto-strict-arity-contracts.md** — ✅ COMPLETED: Hardened v0.10.0 P1 crypto/hash API strict-arity contracts (reject trailing args), expanded native+dispatcher argument-shape coverage, synchronized roadmap/changelog/readme, and documented positional-match arity gotcha.
 
 - **2026-02-16_09-34_release-hardening-async-batch-shared-task-pool-contracts.md** — ✅ COMPLETED: Added release-hardening contract coverage for async batch file wrappers (`async_read_files`, `async_write_files`) and shared/task-pool APIs (`shared_*`, `set_task_pool_size`, `get_task_pool_size`), synchronized roadmap/changelog/readme, and documented process-global shared-store key-isolation gotchas.

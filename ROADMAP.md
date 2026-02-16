@@ -46,6 +46,7 @@ This roadmap intentionally tracks only upcoming items.
 
     - Expanded release-hardening critical dispatcher coverage for core filesystem APIs (`read_file`, `write_file`, `append_file`, `file_exists`, `read_lines`, `list_dir`, `create_dir`, `file_size`, `delete_file`, `rename_file`, `copy_file`, `read_binary_file`, `write_binary_file`)
     - Added behavior plus argument-shape/error-shape contract coverage for text and binary file lifecycle operations, directory/listing operations, and mutation/cleanup operations
+    - Hardened strict arity contracts for core filesystem APIs so trailing arguments now return deterministic contract errors
 
     - Added modular dispatch coverage for declared TCP/UDP APIs (`tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`, `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`)
     - Added release-hardening tests for argument-shape/error-shape validation and end-to-end TCP/UDP round-trip behavior contracts

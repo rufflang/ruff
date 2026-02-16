@@ -42,6 +42,7 @@
 * **Filesystem Core API Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage for core filesystem APIs: `read_file`, `write_file`, `append_file`, `file_exists`, `read_lines`, `list_dir`, `create_dir`, `file_size`, `delete_file`, `rename_file`, `copy_file`, `read_binary_file`, `write_binary_file`
   - Added behavior and argument/error-shape contract tests covering text/binary file round trips, directory/listing lifecycle behavior, and file mutation/cleanup operations
+  - Hardened strict arity contracts so trailing arguments for core filesystem APIs now return deterministic contract errors
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
 * **Network Module Modular Dispatch Gap Closure (P1)**
