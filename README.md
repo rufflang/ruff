@@ -104,6 +104,11 @@
   - Added behavior and fallback contract tests for predicate behavior, repeat/char-access behavior, missing/invalid argument-shape behavior, and Unicode character counting behavior
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **String Transform and Tokenization Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for string transform/tokenization APIs: `substring`, `capitalize`, `trim`, `trim_start`, `trim_end`, `split`, `join`
+  - Added behavior and fallback contract tests for substring behavior, capitalization/trim-family behavior, split shape behavior, join mixed-value behavior, and missing-argument fallback behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Polymorphic `len(...)` Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage to include `len`
   - Added polymorphic contract tests for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`

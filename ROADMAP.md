@@ -143,6 +143,10 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for string utility APIs (`starts_with`, `ends_with`, `repeat`, `char_at`, `is_empty`, `count_chars`)
     - Added behavior and fallback contract coverage for predicate behavior, repeat/character access behavior, missing/invalid argument-shape fallbacks, and Unicode character counting behavior
 
+- **String Transform and Tokenization Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for string transform/tokenization APIs (`substring`, `capitalize`, `trim`, `trim_start`, `trim_end`, `split`, `join`)
+    - Added behavior and fallback contract coverage for substring bounds/missing arguments, capitalization/trim-family behavior, split shape/missing-delimiter fallback, and join stringification/missing-separator fallback
+
 - **Polymorphic `len(...)` Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage to include `len`
     - Added polymorphic contract coverage for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`

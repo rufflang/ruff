@@ -23,6 +23,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - fallback behavior on missing/invalid argument shapes
     - Unicode-aware character counting shape checks
 
+- **Release Hardening: String Transform and Tokenization Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for string transform/tokenization builtins:
+    - `substring`
+    - `capitalize`
+    - `trim`, `trim_start`, `trim_end`
+    - `split`
+    - `join`
+  - Added release-hardening behavior and fallback contract coverage for:
+    - substring bounds and missing-argument fallback behavior
+    - capitalization and trim-family expected behavior
+    - split tokenization shape and missing-delimiter fallback behavior
+    - join mixed-value stringification and missing-separator fallback behavior
+
 - **Release Hardening: Conversion + `bytes(...)` Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for conversion/validation builtins:
     - `parse_int`, `parse_float`
