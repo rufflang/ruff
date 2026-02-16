@@ -153,6 +153,16 @@ mod tests {
             "char_at",
             "is_empty",
             "count_chars",
+            "pad_left",
+            "pad_right",
+            "lines",
+            "words",
+            "str_reverse",
+            "slugify",
+            "truncate",
+            "to_camel_case",
+            "to_snake_case",
+            "to_kebab_case",
             "substring",
             "capitalize",
             "trim",
@@ -914,6 +924,166 @@ mod tests {
             &[Value::Array(Arc::new(vec![Value::Str(Arc::new("ruff".to_string()))]))],
         );
         assert!(matches!(join_missing, Value::Str(value) if value.as_ref().is_empty()));
+    }
+
+    #[test]
+    fn test_release_hardening_advanced_string_methods_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let pad_left_ok = call_native_function(
+            &mut interpreter,
+            "pad_left",
+            &[
+                Value::Str(Arc::new("ruff".to_string())),
+                Value::Int(6),
+                Value::Str(Arc::new("0".to_string())),
+            ],
+        );
+        assert!(matches!(pad_left_ok, Value::Str(value) if value.as_ref() == "00ruff"));
+
+        let pad_left_width_short = call_native_function(
+            &mut interpreter,
+            "pad_left",
+            &[
+                Value::Str(Arc::new("ruff".to_string())),
+                Value::Int(2),
+                Value::Str(Arc::new("0".to_string())),
+            ],
+        );
+        assert!(matches!(pad_left_width_short, Value::Str(value) if value.as_ref() == "ruff"));
+
+        let pad_right_ok = call_native_function(
+            &mut interpreter,
+            "pad_right",
+            &[
+                Value::Str(Arc::new("ruff".to_string())),
+                Value::Int(6),
+                Value::Str(Arc::new(".".to_string())),
+            ],
+        );
+        assert!(matches!(pad_right_ok, Value::Str(value) if value.as_ref() == "ruff.."));
+
+        let pad_left_missing = call_native_function(
+            &mut interpreter,
+            "pad_left",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(matches!(pad_left_missing, Value::Error(message) if message.contains("pad_left() requires 3 arguments")));
+
+        let pad_right_missing = call_native_function(
+            &mut interpreter,
+            "pad_right",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(matches!(pad_right_missing, Value::Error(message) if message.contains("pad_right() requires 3 arguments")));
+
+        let lines_ok = call_native_function(
+            &mut interpreter,
+            "lines",
+            &[Value::Str(Arc::new("first\nsecond\n".to_string()))],
+        );
+        assert!(matches!(lines_ok, Value::Array(parts) if parts.len() == 2
+            && matches!(&parts[0], Value::Str(s) if s.as_ref() == "first")
+            && matches!(&parts[1], Value::Str(s) if s.as_ref() == "second")));
+
+        let lines_invalid = call_native_function(&mut interpreter, "lines", &[Value::Int(1)]);
+        assert!(matches!(lines_invalid, Value::Error(message) if message.contains("lines() requires a string argument")));
+
+        let words_ok = call_native_function(
+            &mut interpreter,
+            "words",
+            &[Value::Str(Arc::new("ruff   language\t2026".to_string()))],
+        );
+        assert!(matches!(words_ok, Value::Array(parts) if parts.len() == 3
+            && matches!(&parts[0], Value::Str(s) if s.as_ref() == "ruff")
+            && matches!(&parts[1], Value::Str(s) if s.as_ref() == "language")
+            && matches!(&parts[2], Value::Str(s) if s.as_ref() == "2026")));
+
+        let words_invalid = call_native_function(&mut interpreter, "words", &[Value::Bool(true)]);
+        assert!(matches!(words_invalid, Value::Error(message) if message.contains("words() requires a string argument")));
+
+        let reverse_ok = call_native_function(
+            &mut interpreter,
+            "str_reverse",
+            &[Value::Str(Arc::new("ab🔥".to_string()))],
+        );
+        assert!(matches!(reverse_ok, Value::Str(value) if value.as_ref() == "🔥ba"));
+
+        let reverse_invalid = call_native_function(&mut interpreter, "str_reverse", &[Value::Null]);
+        assert!(matches!(reverse_invalid, Value::Error(message) if message.contains("str_reverse() requires a string argument")));
+
+        let slugify_ok = call_native_function(
+            &mut interpreter,
+            "slugify",
+            &[Value::Str(Arc::new("Ruff Lang__2026!".to_string()))],
+        );
+        assert!(matches!(slugify_ok, Value::Str(value) if value.as_ref() == "ruff-lang-2026"));
+
+        let slugify_invalid = call_native_function(&mut interpreter, "slugify", &[Value::Int(2026)]);
+        assert!(matches!(slugify_invalid, Value::Error(message) if message.contains("slugify() requires a string argument")));
+
+        let truncate_ok = call_native_function(
+            &mut interpreter,
+            "truncate",
+            &[
+                Value::Str(Arc::new("Ruff Language".to_string())),
+                Value::Int(8),
+                Value::Str(Arc::new("...".to_string())),
+            ],
+        );
+        assert!(matches!(truncate_ok, Value::Str(value) if value.as_ref() == "Ruff ..."));
+
+        let truncate_tiny_limit = call_native_function(
+            &mut interpreter,
+            "truncate",
+            &[
+                Value::Str(Arc::new("Ruff".to_string())),
+                Value::Int(2),
+                Value::Str(Arc::new("...".to_string())),
+            ],
+        );
+        assert!(matches!(truncate_tiny_limit, Value::Str(value) if value.as_ref() == "..."));
+
+        let truncate_missing = call_native_function(
+            &mut interpreter,
+            "truncate",
+            &[
+                Value::Str(Arc::new("Ruff".to_string())),
+                Value::Int(2),
+            ],
+        );
+        assert!(matches!(truncate_missing, Value::Error(message) if message.contains("truncate() requires 3 arguments")));
+
+        let camel_ok = call_native_function(
+            &mut interpreter,
+            "to_camel_case",
+            &[Value::Str(Arc::new("Ruff language_tools".to_string()))],
+        );
+        assert!(matches!(camel_ok, Value::Str(value) if value.as_ref() == "ruffLanguageTools"));
+
+        let snake_ok = call_native_function(
+            &mut interpreter,
+            "to_snake_case",
+            &[Value::Str(Arc::new("RuffLanguageTools".to_string()))],
+        );
+        assert!(matches!(snake_ok, Value::Str(value) if value.as_ref() == "ruff_language_tools"));
+
+        let kebab_ok = call_native_function(
+            &mut interpreter,
+            "to_kebab_case",
+            &[Value::Str(Arc::new("RuffLanguageTools".to_string()))],
+        );
+        assert!(matches!(kebab_ok, Value::Str(value) if value.as_ref() == "ruff-language-tools"));
+
+        let camel_invalid =
+            call_native_function(&mut interpreter, "to_camel_case", &[Value::Array(Arc::new(vec![]))]);
+        assert!(matches!(camel_invalid, Value::Error(message) if message.contains("to_camel_case() requires a string argument")));
+
+        let snake_invalid = call_native_function(&mut interpreter, "to_snake_case", &[Value::Int(1)]);
+        assert!(matches!(snake_invalid, Value::Error(message) if message.contains("to_snake_case() requires a string argument")));
+
+        let kebab_invalid = call_native_function(&mut interpreter, "to_kebab_case", &[Value::Bool(true)]);
+        assert!(matches!(kebab_invalid, Value::Error(message) if message.contains("to_kebab_case() requires a string argument")));
     }
 
     #[test]
