@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Filesystem Core API Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for core filesystem builtins:
+    - `read_file`, `write_file`, `append_file`, `file_exists`, `read_lines`, `list_dir`, `create_dir`
+    - `file_size`, `delete_file`, `rename_file`, `copy_file`
+    - `read_binary_file`, `write_binary_file`
+  - Added release-hardening behavior and contract coverage for:
+    - argument-shape/error-shape validation for all file and binary file APIs above
+    - end-to-end text-file lifecycle contracts (`write_file` → `read_file` → `append_file` → `read_lines`)
+    - directory lifecycle and listing contracts (`create_dir`, `list_dir`) plus file metadata/existence contracts (`file_size`, `file_exists`)
+    - file mutation and cleanup contracts (`rename_file`, `copy_file`, `delete_file`) and binary round-trip behavior (`write_binary_file` / `read_binary_file`)
+
 - **Release Hardening: Env/OS-Path + Assertion Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for environment/system and testing/assertion builtins:
     - `env`, `env_or`, `env_int`, `env_float`, `env_bool`, `env_required`, `env_set`, `env_list`, `args`, `arg_parser`

@@ -25,6 +25,11 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Filesystem Core API Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for core filesystem APIs: `read_file`, `write_file`, `append_file`, `file_exists`, `read_lines`, `list_dir`, `create_dir`, `file_size`, `delete_file`, `rename_file`, `copy_file`, `read_binary_file`, `write_binary_file`
+  - Added behavior and argument/error-shape contract tests covering text/binary file round trips, directory/listing lifecycle behavior, and file mutation/cleanup operations
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Network Module Modular Dispatch Gap Closure (P1)**
   - Added modular handlers for declared TCP/UDP APIs: `tcp_listen`, `tcp_accept`, `tcp_connect`, `tcp_send`, `tcp_receive`, `tcp_close`, `tcp_set_nonblocking`, `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`
   - Added release-hardening contract tests for argument-shape/error-shape validation and end-to-end TCP/UDP round-trip behavior
