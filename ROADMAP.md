@@ -149,6 +149,11 @@ This roadmap intentionally tracks only upcoming items.
     - Added contract coverage for `type(...)` result-shape behavior (`string`, `array`, `null`) and missing-argument error shape
     - Added `is_*` bool-return contract coverage for matching/non-matching values plus missing-argument fallback behavior
 
+- **Conversion + `bytes(...)` Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for conversion/validation builtins (`parse_int`, `parse_float`, `to_int`, `to_float`, `to_string`, `to_bool`, `bytes`)
+    - Added contract coverage for valid conversion behavior and invalid parse/conversion error-shape behavior
+    - Added `bytes(...)` validation coverage for value-range and argument-shape errors
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

@@ -111,6 +111,12 @@
   - Added `is_*` bool-return contract tests for matching/non-matching values and missing-argument fallback behavior
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Conversion + `bytes(...)` Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for `parse_int`, `parse_float`, `to_int`, `to_float`, `to_string`, `to_bool`, and `bytes`
+  - Added contract tests for valid conversions plus invalid parse/conversion error-shape behavior
+  - Added `bytes(...)` contract tests for value-range and argument-shape validation errors
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Exhaustive Builtin Dispatch Drift Guard (P1)**
   - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
   - Added explicit known legacy-gap guardrail plus safety skips for side-effecting probes (`input`, `exit`, `sleep`, `execute`)

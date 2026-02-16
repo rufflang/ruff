@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Conversion + `bytes(...)` Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for conversion/validation builtins:
+    - `parse_int`, `parse_float`
+    - `to_int`, `to_float`, `to_string`, `to_bool`
+    - `bytes`
+  - Added release-hardening contract coverage for:
+    - valid conversion behavior (`parse_*`, `to_*`, `bytes`)
+    - invalid parse/conversion error-shape behavior
+    - `bytes(...)` range and argument-shape validation errors
+
 - **Release Hardening: `type(...)` + `is_*` Introspection Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for introspection builtins:
     - `type`
