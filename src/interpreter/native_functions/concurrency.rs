@@ -18,6 +18,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> O
     let result = match name {
         "channel" => {
             // channel() - creates a new channel for thread communication
+            if arg_values.len() != 0 {
+                return Some(Value::Error(format!(
+                    "channel() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
             use std::sync::mpsc;
             let (sender, receiver) = mpsc::channel();
             #[allow(clippy::arc_with_non_send_sync)]

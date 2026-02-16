@@ -581,8 +581,33 @@ mod tests {
     fn test_release_hardening_channel_and_task_handle_contracts() {
         let mut interpreter = Interpreter::new();
 
+        let channel_with_args = call_native_function(&mut interpreter, "channel", &[Value::Int(1)]);
+        assert!(
+            matches!(channel_with_args, Value::Error(message) if message.contains("channel() expects 0 arguments"))
+        );
+
         let channel_value = call_native_function(&mut interpreter, "channel", &[]);
         assert!(matches!(channel_value, Value::Channel(_)));
+
+        let await_task_missing = call_native_function(&mut interpreter, "await_task", &[]);
+        assert!(
+            matches!(await_task_missing, Value::Error(message) if message.contains("await_task() expects 1 argument"))
+        );
+
+        let await_task_bad_type = call_native_function(&mut interpreter, "await_task", &[Value::Int(1)]);
+        assert!(
+            matches!(await_task_bad_type, Value::Error(message) if message.contains("await_task() requires a TaskHandle argument"))
+        );
+
+        let cancel_task_missing = call_native_function(&mut interpreter, "cancel_task", &[]);
+        assert!(
+            matches!(cancel_task_missing, Value::Error(message) if message.contains("cancel_task() expects 1 argument"))
+        );
+
+        let cancel_task_bad_type = call_native_function(&mut interpreter, "cancel_task", &[Value::Int(1)]);
+        assert!(
+            matches!(cancel_task_bad_type, Value::Error(message) if message.contains("cancel_task() requires a TaskHandle argument"))
+        );
 
         let spawn_bad_arg = call_native_function(&mut interpreter, "spawn_task", &[Value::Int(1)]);
         assert!(
