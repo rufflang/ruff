@@ -25,11 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Expanded dispatcher-level critical API coverage for async/concurrency builtins:
     - `channel`, `async_sleep`, `async_timeout`, `async_http_get`, `async_http_post`
     - `async_read_file`, `async_write_file`, `spawn_task`, `await_task`, `cancel_task`
+  - Hardened runtime argument-shape contract behavior for `channel(...)` by enforcing explicit zero-arity validation (extra arguments now return deterministic error shape)
   - Added release-hardening behavior and contract coverage for:
     - `async_sleep(...)` and `async_timeout(...)` argument-shape validation and success/timeout behavior
     - async file wrapper lifecycle (`async_write_file` → `async_read_file`) plus argument-shape validation
     - async HTTP wrapper argument-shape validation (`async_http_get`, `async_http_post`)
     - channel return-shape behavior and task-handle lifecycle contracts (`spawn_task`, `await_task`, `cancel_task`)
+    - explicit missing/wrong-type argument contracts for `await_task(...)` and `cancel_task(...)` alongside `spawn_task(...)` validation
 
 - **Release Hardening: Filesystem Core API Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for core filesystem builtins:

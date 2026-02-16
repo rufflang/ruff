@@ -34,7 +34,9 @@
 
 * **Async Runtime + Task/Channel Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage for async/concurrency APIs: `channel`, `async_sleep`, `async_timeout`, `async_http_get`, `async_http_post`, `async_read_file`, `async_write_file`, `spawn_task`, `await_task`, `cancel_task`
+  - Hardened `channel()` contract behavior to enforce zero-arity validation (extra arguments now return explicit contract errors)
   - Added behavior and argument/error-shape contract tests for async timeout/sleep behavior, async file wrapper lifecycle, async HTTP wrapper validation, and task-handle lifecycle behavior
+  - Added explicit missing/wrong-type argument contract coverage for `await_task(...)` and `cancel_task(...)`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
 * **Filesystem Core API Contract Follow-Through (P1)**
