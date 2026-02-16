@@ -156,6 +156,8 @@ mod tests {
             "par_each",
             "set_task_pool_size",
             "get_task_pool_size",
+            "spawn_process",
+            "pipe_commands",
         ];
 
         for builtin_name in critical_builtin_names {
@@ -196,8 +198,6 @@ mod tests {
             "rsa_decrypt".to_string(),
             "rsa_sign".to_string(),
             "rsa_verify".to_string(),
-            "spawn_process".to_string(),
-            "pipe_commands".to_string(),
             "tcp_listen".to_string(),
             "tcp_accept".to_string(),
             "tcp_connect".to_string(),
@@ -320,6 +320,21 @@ mod tests {
         let pool_missing = call_native_function(&mut interpreter, "db_pool", &[]);
         assert!(
             matches!(pool_missing, Value::Error(message) if message.contains("db_pool requires database type and connection string"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_process_module_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let spawn_missing = call_native_function(&mut interpreter, "spawn_process", &[]);
+        assert!(
+            matches!(spawn_missing, Value::Error(message) if message.contains("spawn_process requires an array of command arguments"))
+        );
+
+        let pipe_missing = call_native_function(&mut interpreter, "pipe_commands", &[]);
+        assert!(
+            matches!(pipe_missing, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
         );
     }
 }

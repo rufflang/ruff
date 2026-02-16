@@ -544,4 +544,97 @@ mod tests {
             other => panic!("Expected Value::Struct from arg_parser(), got {:?}", other),
         }
     }
+
+    #[test]
+    fn test_spawn_process_rejects_invalid_argument_shape() {
+        let non_array_result = handle("spawn_process", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            non_array_result,
+            Value::Error(message) if message == "spawn_process requires an array of command arguments"
+        ));
+
+        let empty_args_result = handle("spawn_process", &[Value::Array(Arc::new(vec![]))]).unwrap();
+        assert!(matches!(
+            empty_args_result,
+            Value::Error(message) if message == "spawn_process requires a non-empty array of command arguments"
+        ));
+
+        let invalid_elem_result = handle(
+            "spawn_process",
+            &[Value::Array(Arc::new(vec![Value::Int(1)]))],
+        )
+        .unwrap();
+        assert!(matches!(
+            invalid_elem_result,
+            Value::Error(message) if message == "spawn_process requires an array of strings"
+        ));
+    }
+
+    #[test]
+    fn test_spawn_process_returns_process_result_struct() {
+        let exe_path = std::env::current_exe().expect("current exe path should be available");
+        let args = vec![
+            Value::Str(Arc::new(exe_path.to_string_lossy().to_string())),
+            Value::Str(Arc::new("--help".to_string())),
+        ];
+
+        let result = handle("spawn_process", &[Value::Array(Arc::new(args))]).unwrap();
+        match result {
+            Value::Struct { name, fields } => {
+                assert_eq!(name, "ProcessResult");
+                assert!(matches!(fields.get("exitcode"), Some(Value::Int(_))));
+                assert!(matches!(fields.get("stdout"), Some(Value::Str(_))));
+                assert!(matches!(fields.get("stderr"), Some(Value::Str(_))));
+                assert!(matches!(fields.get("success"), Some(Value::Bool(true))));
+            }
+            other => panic!("Expected ProcessResult struct from spawn_process, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_pipe_commands_rejects_invalid_argument_shape() {
+        let non_array_result = handle("pipe_commands", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            non_array_result,
+            Value::Error(message) if message == "pipe_commands requires an array of command arrays"
+        ));
+
+        let empty_commands_result = handle("pipe_commands", &[Value::Array(Arc::new(vec![]))]).unwrap();
+        assert!(matches!(
+            empty_commands_result,
+            Value::Error(message) if message == "pipe_commands requires a non-empty array of commands"
+        ));
+
+        let invalid_command_shape = handle(
+            "pipe_commands",
+            &[Value::Array(Arc::new(vec![Value::Str(Arc::new("echo".to_string()))]))],
+        )
+        .unwrap();
+        assert!(matches!(
+            invalid_command_shape,
+            Value::Error(message) if message == "pipe_commands requires an array of command arrays"
+        ));
+
+        let invalid_command_arg = handle(
+            "pipe_commands",
+            &[Value::Array(Arc::new(vec![Value::Array(Arc::new(vec![Value::Int(1)]))]))],
+        )
+        .unwrap();
+        assert!(matches!(
+            invalid_command_arg,
+            Value::Error(message) if message == "Each command must be an array of strings"
+        ));
+    }
+
+    #[test]
+    fn test_pipe_commands_returns_string_output_for_single_command_pipeline() {
+        let exe_path = std::env::current_exe().expect("current exe path should be available");
+        let command = Value::Array(Arc::new(vec![
+            Value::Str(Arc::new(exe_path.to_string_lossy().to_string())),
+            Value::Str(Arc::new("--help".to_string())),
+        ]));
+
+        let result = handle("pipe_commands", &[Value::Array(Arc::new(vec![command]))]).unwrap();
+        assert!(matches!(result, Value::Str(_)));
+    }
 }
