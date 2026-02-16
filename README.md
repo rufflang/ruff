@@ -34,6 +34,12 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Assertion API Strict-Arity Contract Follow-Through (P1)**
+  - Hardened strict arity contracts for assertion/testing APIs so trailing arguments now return deterministic contract errors: `assert`, `assert_equal`, `assert_true`, `assert_false`, `assert_contains`
+  - Added comprehensive release-hardening contract coverage at both native-module and dispatcher integration layers, including explicit extra-argument rejection checks for all assertion APIs above
+  - Preserved `debug(...)` variadic behavior with explicit regression coverage
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Array + Higher-Order Collection API Contract Follow-Through (P1)**
   - Hardened strict arity contracts for core array and higher-order collection APIs so trailing arguments now return deterministic contract errors:
     - `push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`

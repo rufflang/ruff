@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Assertion API Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
+    - `assert`
+    - `assert_equal`
+    - `assert_true`
+    - `assert_false`
+    - `assert_contains`
+  - Preserved `debug(...)` as intentionally variadic for compatibility while adding explicit module-level regression coverage to lock that behavior
+  - Added comprehensive release-hardening contract coverage at both module and dispatcher integration layers, including explicit extra-argument rejection checks for all assertion APIs above
+
 - **Release Hardening: Array and Higher-Order Collection API Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for core array and higher-order collection APIs:
     - Core array APIs: `push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`

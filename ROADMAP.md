@@ -40,6 +40,10 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+    - Hardened strict arity contracts for assertion/testing APIs so trailing arguments now return deterministic contract errors (`assert`, `assert_equal`, `assert_true`, `assert_false`, `assert_contains`)
+    - Added comprehensive release-hardening contract coverage for assertion/testing strict-arity behavior at both module and dispatcher integration layers
+    - Preserved `debug(...)` variadic compatibility with explicit regression coverage
+
     - Hardened strict arity contracts for core array and higher-order collection APIs so trailing arguments now return deterministic contract errors (`push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`, `map`, `filter`, `reduce`, `find`, `any`, `all`, `sort`, `reverse`, `unique`, `sum`, `chunk`, `flatten`, `zip`, `enumerate`, `take`, `skip`, `windows`)
     - Added comprehensive release-hardening coverage for the APIs above at both module and dispatcher integration layers, including strict-arity rejection and representative behavior contracts
 
