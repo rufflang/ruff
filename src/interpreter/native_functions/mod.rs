@@ -2379,6 +2379,19 @@ mod tests {
             matches!(assert_false, Value::Error(message) if message.contains("Assertion failed"))
         );
 
+        let assert_extra = call_native_function(
+            &mut interpreter,
+            "assert",
+            &[
+                Value::Bool(true),
+                Value::Str(Arc::new("ok".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(assert_extra, Value::Error(message) if message.contains("expects at most 2 arguments"))
+        );
+
         let assert_equal_ok =
             call_native_function(&mut interpreter, "assert_equal", &[Value::Int(7), Value::Int(7)]);
         assert!(matches!(assert_equal_ok, Value::Bool(true)));
@@ -2387,6 +2400,15 @@ mod tests {
             call_native_function(&mut interpreter, "assert_equal", &[Value::Int(7)]);
         assert!(
             matches!(assert_equal_bad_shape, Value::Error(message) if message.contains("assert_equal requires 2 arguments"))
+        );
+
+        let assert_equal_extra = call_native_function(
+            &mut interpreter,
+            "assert_equal",
+            &[Value::Int(7), Value::Int(7), Value::Int(7)],
+        );
+        assert!(
+            matches!(assert_equal_extra, Value::Error(message) if message.contains("assert_equal requires 2 arguments"))
         );
 
         let assert_true_ok =
@@ -2399,9 +2421,27 @@ mod tests {
             matches!(assert_true_bad_type, Value::Error(message) if message.contains("assert_true requires a boolean argument"))
         );
 
+        let assert_true_extra = call_native_function(
+            &mut interpreter,
+            "assert_true",
+            &[Value::Bool(true), Value::Bool(true)],
+        );
+        assert!(
+            matches!(assert_true_extra, Value::Error(message) if message.contains("assert_true requires exactly 1 argument"))
+        );
+
         let assert_false_ok =
             call_native_function(&mut interpreter, "assert_false", &[Value::Bool(false)]);
         assert!(matches!(assert_false_ok, Value::Bool(true)));
+
+        let assert_false_extra = call_native_function(
+            &mut interpreter,
+            "assert_false",
+            &[Value::Bool(false), Value::Bool(false)],
+        );
+        assert!(
+            matches!(assert_false_extra, Value::Error(message) if message.contains("assert_false requires exactly 1 argument"))
+        );
 
         let assert_contains_array = call_native_function(
             &mut interpreter,
@@ -2417,6 +2457,19 @@ mod tests {
         );
         assert!(
             matches!(assert_contains_bad_shape, Value::Error(message) if message.contains("assert_contains requires 2 arguments"))
+        );
+
+        let assert_contains_extra = call_native_function(
+            &mut interpreter,
+            "assert_contains",
+            &[
+                Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])),
+                Value::Int(2),
+                Value::Int(3),
+            ],
+        );
+        assert!(
+            matches!(assert_contains_extra, Value::Error(message) if message.contains("assert_contains requires 2 arguments"))
         );
 
         let debug_result = call_native_function(
