@@ -300,6 +300,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 ));
             }
 
+            if arg_values.len() > 2 {
+                return Some(Value::Error(
+                    "assert() expects at most 2 arguments: condition, [message]".to_string(),
+                ));
+            }
+
             let condition = match arg_values.first() {
                 Some(Value::Bool(b)) => *b,
                 Some(Value::Int(n)) => *n != 0,
@@ -329,7 +335,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "assert_equal" => {
-            if arg_values.len() < 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(
                     "assert_equal requires 2 arguments: actual, expected".to_string(),
                 ));
@@ -346,6 +352,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "assert_true" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "assert_true requires exactly 1 argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Bool(val)) = arg_values.first() {
                 if *val {
                     Value::Bool(true)
@@ -358,6 +370,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "assert_false" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "assert_false requires exactly 1 argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Bool(val)) = arg_values.first() {
                 if !*val {
                     Value::Bool(true)
@@ -370,7 +388,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "assert_contains" => {
-            if arg_values.len() < 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(
                     "assert_contains requires 2 arguments: collection, item".to_string(),
                 ));
@@ -454,4 +472,63 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     };
 
     Some(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle;
+    use crate::interpreter::Value;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_assertion_api_strict_arity_contracts() {
+        let assert_extra = handle(
+            "assert",
+            &[Value::Bool(true), Value::Str(Arc::new("ok".to_string())), Value::Int(1)],
+        )
+        .expect("assert should return a result");
+        assert!(matches!(assert_extra, Value::Error(message) if message.contains("expects at most 2 arguments")));
+
+        let assert_equal_extra = handle(
+            "assert_equal",
+            &[Value::Int(1), Value::Int(1), Value::Int(1)],
+        )
+        .expect("assert_equal should return a result");
+        assert!(matches!(assert_equal_extra, Value::Error(message) if message.contains("assert_equal requires 2 arguments")));
+
+        let assert_true_extra = handle("assert_true", &[Value::Bool(true), Value::Bool(true)])
+            .expect("assert_true should return a result");
+        assert!(matches!(assert_true_extra, Value::Error(message) if message.contains("assert_true requires exactly 1 argument")));
+
+        let assert_false_extra =
+            handle("assert_false", &[Value::Bool(false), Value::Bool(false)])
+                .expect("assert_false should return a result");
+        assert!(matches!(assert_false_extra, Value::Error(message) if message.contains("assert_false requires exactly 1 argument")));
+
+        let assert_contains_extra = handle(
+            "assert_contains",
+            &[
+                Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])),
+                Value::Int(2),
+                Value::Int(3),
+            ],
+        )
+        .expect("assert_contains should return a result");
+        assert!(matches!(assert_contains_extra, Value::Error(message) if message.contains("assert_contains requires 2 arguments")));
+    }
+
+    #[test]
+    fn test_debug_remains_variadic() {
+        let debug_result = handle(
+            "debug",
+            &[
+                Value::Str(Arc::new("release-hardening".to_string())),
+                Value::Int(1),
+                Value::Bool(true),
+            ],
+        )
+        .expect("debug should return a result");
+
+        assert!(matches!(debug_result, Value::Null));
+    }
 }
