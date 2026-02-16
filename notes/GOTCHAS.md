@@ -351,6 +351,15 @@ If you are new to the project, read this first.
 
 ## CLI & Arguments
 
+### `cargo test` takes one positional test-name filter
+- **Problem:** Passing multiple test names positionally (e.g. `cargo test test_a test_b -- --nocapture`) fails with `unexpected argument ... found`.
+- **Rule:** Use one positional test filter per command; run multiple targeted tests sequentially.
+- **Why:** Cargo CLI accepts at most one optional positional `TESTNAME` filter.
+- **Workflow:** `cargo test test_a -- --nocapture && cargo test test_b -- --nocapture`
+- **Implication:** Multi-test targeted validation should be command-chained, not combined in one positional argument list.
+
+(Discovered during: 2026-02-16_00-46_release-hardening-set-queue-stack-contracts.md)
+
 ### Full-suite async runtime failures should be isolated before treating as regressions
 - **Problem:** `cargo test` may occasionally report `interpreter::async_runtime::tests::test_concurrent_tasks` as failed, then pass immediately in isolation.
 - **Rule:** When an unrelated async runtime test fails once, re-run the exact test in isolation first, then require one full-suite green run before concluding status.
