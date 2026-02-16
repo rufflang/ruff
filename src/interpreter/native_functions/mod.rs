@@ -169,6 +169,7 @@ mod tests {
             "get_task_pool_size",
             "spawn_process",
             "pipe_commands",
+            "load_image",
             "zip_create",
             "zip_add_file",
             "zip_add_dir",
@@ -207,7 +208,6 @@ mod tests {
         let skip_probe_names = ["input", "exit", "sleep", "execute"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps = vec![
-            "load_image".to_string(),
             "tcp_listen".to_string(),
             "tcp_accept".to_string(),
             "tcp_connect".to_string(),
@@ -346,6 +346,55 @@ mod tests {
         assert!(
             matches!(pipe_missing, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
         );
+    }
+
+    #[test]
+    fn test_release_hardening_load_image_dispatch_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let load_image_missing_args = call_native_function(&mut interpreter, "load_image", &[]);
+        assert!(
+            matches!(load_image_missing_args, Value::Error(message) if message.contains("load_image requires a string path argument"))
+        );
+
+        let missing_path = tmp_test_path("dispatch_missing_image.png");
+        let load_image_missing_path = call_native_function(
+            &mut interpreter,
+            "load_image",
+            &[Value::Str(Arc::new(missing_path.clone()))],
+        );
+        assert!(
+            matches!(load_image_missing_path, Value::Error(message) if message.contains("Cannot load image") && message.contains(missing_path.as_str()))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_load_image_round_trip_behavior() {
+        let mut interpreter = Interpreter::new();
+        let image_path = tmp_test_path("dispatch_load_image.png");
+
+        let mut image_buffer = image::RgbaImage::new(2, 1);
+        image_buffer.put_pixel(0, 0, image::Rgba([255, 0, 0, 255]));
+        image_buffer.put_pixel(1, 0, image::Rgba([0, 255, 0, 255]));
+        image_buffer.save(&image_path).expect("seed image should be written");
+
+        let load_result = call_native_function(
+            &mut interpreter,
+            "load_image",
+            &[Value::Str(Arc::new(image_path.clone()))],
+        );
+
+        match load_result {
+            Value::Image { data, format } => {
+                assert_eq!(format, "png");
+                let image_data = data.lock().expect("image mutex should lock");
+                assert_eq!(image_data.width(), 2);
+                assert_eq!(image_data.height(), 1);
+            }
+            other => panic!("Expected Value::Image, got {:?}", other),
+        }
+
+        let _ = std::fs::remove_file(image_path);
     }
 
     #[test]
