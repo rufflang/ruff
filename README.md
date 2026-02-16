@@ -109,6 +109,11 @@
   - Added behavior and fallback contract tests for substring behavior, capitalization/trim-family behavior, split shape behavior, join mixed-value behavior, and missing-argument fallback behavior
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Advanced String Methods Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for advanced string APIs: `pad_left`, `pad_right`, `lines`, `words`, `str_reverse`, `slugify`, `truncate`, `to_camel_case`, `to_snake_case`, `to_kebab_case`
+  - Added behavior and error/fallback contract tests for padding semantics, tokenization output shape, Unicode reverse behavior, slug normalization, truncate suffix handling, and case-conversion argument validation
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Random and Time API Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage for random/time/date APIs: `random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`
   - Added deterministic seeded-random parity tests, random range/choice shape tests, monotonic timing tests, and formatting/parsing argument-shape contract tests

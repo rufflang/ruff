@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Advanced String Methods Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for advanced string builtins:
+    - `pad_left`, `pad_right`
+    - `lines`, `words`
+    - `str_reverse`, `slugify`, `truncate`
+    - `to_camel_case`, `to_snake_case`, `to_kebab_case`
+  - Added release-hardening behavior and contract coverage for:
+    - padding semantics (including width-short no-op behavior)
+    - line and word tokenization output-shape behavior
+    - Unicode-safe reverse behavior and slug normalization behavior
+    - truncate suffix behavior (including tiny-limit saturation) and argument-shape validation
+    - string case-conversion behavior and invalid-type error-shape validation
+
 - **Release Hardening: String Utility Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for string utility builtins:
     - `starts_with`
