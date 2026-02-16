@@ -156,6 +156,10 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for regex APIs (`regex_match`, `regex_find_all`, `regex_replace`, `regex_split`)
     - Added behavior plus argument-shape/error-shape contract coverage for parse/serialize round trips, base64 encode/decode behavior, and regex match/find/replace/split behavior
 
+- **Env/OS-Path + Assertion Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for env/system APIs (`env*`, `args`, `arg_parser`), OS/path APIs (`os_*`, `dirname`, `basename`, `path_*`), and testing/assertion APIs (`assert`, `debug`, `assert_equal`, `assert_true`, `assert_false`, `assert_contains`)
+    - Added behavior plus argument-shape/error-shape contract coverage for env typed parsing/default/required behavior, ArgParser shape, OS directory lifecycle, path helper semantics, and assertion success/failure validation
+
 - **Random and Time API Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage for system random/time/date APIs (`random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`)
     - Added deterministic seeded-random parity contracts, random range/choice shape contracts, monotonic timing contracts, and formatting/parsing argument-shape contracts

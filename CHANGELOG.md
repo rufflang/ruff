@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Env/OS-Path + Assertion Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for environment/system and testing/assertion builtins:
+    - `env`, `env_or`, `env_int`, `env_float`, `env_bool`, `env_required`, `env_set`, `env_list`, `args`, `arg_parser`
+    - `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ`, `dirname`, `basename`, `path_exists`, `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension`
+    - `assert`, `debug`, `assert_equal`, `assert_true`, `assert_false`, `assert_contains`
+  - Added release-hardening behavior and contract coverage for:
+    - env set/get/default/list and typed env parsing contracts (including required/missing behavior)
+    - ArgParser/args return-shape contracts and debug return-shape contract
+    - OS directory change/create/remove lifecycle behavior and path helper return-shape contracts
+    - assertion success/failure plus argument-shape validation contracts
+
 - **Release Hardening: Data-Format/Base64 + Regex Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for data-format and regex builtins:
     - `parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`
