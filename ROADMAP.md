@@ -40,6 +40,11 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+- **Compression/Archive Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared compression/archive APIs (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)
+    - Added release-hardening tests for zip argument-shape/error-shape contracts and end-to-end zip/unzip round-trip behavior
+    - Reduced exhaustive dispatch known-gap list by removing migrated compression/archive APIs
+
 - **Set Constructor Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared `Set(...)` constructor
     - Preserved constructor-shape behavior for empty/default construction, array-based construction, and deduplicated set semantics

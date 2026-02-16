@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Compression/Archive Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handlers for declared compression/archive APIs:
+    - `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
+  - Preserved legacy runtime contracts for:
+    - zip archive lifecycle and closed-archive errors
+    - file and recursive directory zip-entry behavior
+    - unzip extraction output and argument-shape/error-shape validation
+  - Added release-hardening contract coverage for:
+    - dispatcher-level API coverage (`get_builtin_names` probe + recent-API coverage)
+    - argument-shape and error-shape validation for all `zip_*` and `unzip` entry points
+    - end-to-end zip round-trip behavior (`zip_create` + `zip_add_file` + `zip_add_dir` + `zip_close` + `unzip`)
+  - Reduced exhaustive dispatch known-gap list by removing migrated compression/archive APIs
+
 - **Release Hardening: Set Constructor Modular Dispatch Gap Closure (P1)**:
   - Added modular native dispatch support for declared `Set(...)` constructor
   - Preserved constructor contract behavior:

@@ -25,6 +25,12 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Compression/Archive Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for declared archive APIs: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
+  - Added release-hardening contract tests for argument-shape validation and zip/unzip round-trip behavior
+  - Reduced exhaustive known-gap list by removing migrated compression/archive APIs
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Set Constructor Modular Dispatch Gap Closure (P1)**
   - Added modular dispatch support for declared `Set(...)` constructor in native function dispatcher
   - Preserved constructor contract behavior for empty construction, array input construction, deduplicated set semantics, and argument-shape validation errors
