@@ -214,6 +214,22 @@ If you are new to the project, read this first.
 
 ## Runtime / Evaluator
 
+### `format(...)` uses printf-style placeholders, not `{}` interpolation
+- **Problem:** Tests and examples written as `format("Hello {}, {}", ...)` fail to substitute values.
+- **Rule:** Ruff `format(...)` currently supports `%s`, `%d`, `%f` placeholders (and `%%` escape) via `builtins::format_string`.
+- **Why:** Placeholder parsing in `src/builtins.rs` is explicitly `%`-token based.
+- **Implication:** Use `%` placeholders in contracts/docs unless implementation is intentionally changed.
+
+(Discovered during: 2026-02-15_23-40_release-hardening-contract-slices-continuation.md)
+
+### `Value` is not `PartialEq`; tests must assert by shape, not direct equality
+- **Problem:** Rust tests fail to compile when using `assert_eq!(value_a, value_b)` on `Value`.
+- **Rule:** Compare `Value` with `matches!`/`match` and variant-specific assertions.
+- **Why:** `interpreter::value::Value` does not derive/implement `PartialEq`.
+- **Implication:** Contract tests should be explicit about expected variant/contents; avoid blanket equality checks.
+
+(Discovered during: 2026-02-15_23-40_release-hardening-contract-slices-continuation.md)
+
 ### Promise receivers are single-consumer; aggregation must check cached results first
 - **Problem:** Reusing a previously-awaited promise in aggregators (e.g., `promise_all([p, p], ...)`) can fail with channel-closed errors.
 - **Rule:** Any aggregation path that consumes `Value::Promise.receiver` must first check `is_polled` + `cached_result` and use cached result when available.
@@ -326,6 +342,14 @@ If you are new to the project, read this first.
 ---
 
 ## CLI & Arguments
+
+### Full-suite async runtime failures should be isolated before treating as regressions
+- **Problem:** `cargo test` may occasionally report `interpreter::async_runtime::tests::test_concurrent_tasks` as failed, then pass immediately in isolation.
+- **Rule:** When an unrelated async runtime test fails once, re-run the exact test in isolation first, then require one full-suite green run before concluding status.
+- **Why:** Full-suite scheduling/timing can produce transient contention-sensitive outcomes.
+- **Implication:** Avoid misattributing transient async test failures to unrelated feature slices.
+
+(Discovered during: 2026-02-15_23-40_release-hardening-contract-slices-continuation.md)
 
 ### `bench-cross` defaults are CWD-relative
 - **Problem:** Running `cargo run --release -- bench-cross` from `benchmarks/cross-language` fails with script-not-found errors.
