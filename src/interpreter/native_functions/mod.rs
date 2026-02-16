@@ -153,6 +153,13 @@ mod tests {
             "char_at",
             "is_empty",
             "count_chars",
+            "substring",
+            "capitalize",
+            "trim",
+            "trim_start",
+            "trim_end",
+            "split",
+            "join",
             "Promise.all",
             "parallel_map",
             "par_map",
@@ -771,6 +778,104 @@ mod tests {
 
         let count_chars_missing = call_native_function(&mut interpreter, "count_chars", &[]);
         assert!(matches!(count_chars_missing, Value::Int(0)));
+    }
+
+    #[test]
+    fn test_release_hardening_string_transform_and_tokenization_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let substring_ok = call_native_function(
+            &mut interpreter,
+            "substring",
+            &[
+                Value::Str(Arc::new("ruff-language".to_string())),
+                Value::Int(0),
+                Value::Int(4),
+            ],
+        );
+        assert!(matches!(substring_ok, Value::Str(value) if value.as_ref() == "ruff"));
+
+        let substring_missing = call_native_function(
+            &mut interpreter,
+            "substring",
+            &[Value::Str(Arc::new("ruff-language".to_string()))],
+        );
+        assert!(matches!(substring_missing, Value::Str(value) if value.as_ref().is_empty()));
+
+        let capitalize_ok = call_native_function(
+            &mut interpreter,
+            "capitalize",
+            &[Value::Str(Arc::new("ruff language".to_string()))],
+        );
+        assert!(matches!(capitalize_ok, Value::Str(value) if value.as_ref() == "Ruff language"));
+
+        let capitalize_missing = call_native_function(&mut interpreter, "capitalize", &[]);
+        assert!(matches!(capitalize_missing, Value::Str(value) if value.as_ref().is_empty()));
+
+        let trim_ok = call_native_function(
+            &mut interpreter,
+            "trim",
+            &[Value::Str(Arc::new("  ruff  ".to_string()))],
+        );
+        assert!(matches!(trim_ok, Value::Str(value) if value.as_ref() == "ruff"));
+
+        let trim_start_ok = call_native_function(
+            &mut interpreter,
+            "trim_start",
+            &[Value::Str(Arc::new("  ruff".to_string()))],
+        );
+        assert!(matches!(trim_start_ok, Value::Str(value) if value.as_ref() == "ruff"));
+
+        let trim_end_ok = call_native_function(
+            &mut interpreter,
+            "trim_end",
+            &[Value::Str(Arc::new("ruff  ".to_string()))],
+        );
+        assert!(matches!(trim_end_ok, Value::Str(value) if value.as_ref() == "ruff"));
+
+        let trim_missing = call_native_function(&mut interpreter, "trim", &[]);
+        assert!(matches!(trim_missing, Value::Str(value) if value.as_ref().is_empty()));
+
+        let split_ok = call_native_function(
+            &mut interpreter,
+            "split",
+            &[
+                Value::Str(Arc::new("a,b,c".to_string())),
+                Value::Str(Arc::new(",".to_string())),
+            ],
+        );
+        assert!(matches!(split_ok, Value::Array(parts) if parts.len() == 3
+            && matches!(&parts[0], Value::Str(s) if s.as_ref() == "a")
+            && matches!(&parts[1], Value::Str(s) if s.as_ref() == "b")
+            && matches!(&parts[2], Value::Str(s) if s.as_ref() == "c")));
+
+        let split_missing = call_native_function(
+            &mut interpreter,
+            "split",
+            &[Value::Str(Arc::new("a,b,c".to_string()))],
+        );
+        assert!(matches!(split_missing, Value::Array(parts) if parts.is_empty()));
+
+        let join_ok = call_native_function(
+            &mut interpreter,
+            "join",
+            &[
+                Value::Array(Arc::new(vec![
+                    Value::Str(Arc::new("ruff".to_string())),
+                    Value::Int(2026),
+                    Value::Bool(true),
+                ])),
+                Value::Str(Arc::new("-".to_string())),
+            ],
+        );
+        assert!(matches!(join_ok, Value::Str(value) if value.as_ref() == "ruff-2026-true"));
+
+        let join_missing = call_native_function(
+            &mut interpreter,
+            "join",
+            &[Value::Array(Arc::new(vec![Value::Str(Arc::new("ruff".to_string()))]))],
+        );
+        assert!(matches!(join_missing, Value::Str(value) if value.as_ref().is_empty()));
     }
 
     #[test]
