@@ -3558,6 +3558,107 @@ mod tests {
     }
 
     #[test]
+    fn test_release_hardening_network_module_strict_arity_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let tcp_listen_extra = call_native_function(
+            &mut interpreter,
+            "tcp_listen",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(80), Value::Int(1)],
+        );
+        assert!(
+            matches!(tcp_listen_extra, Value::Error(message) if message.contains("tcp_listen requires (string_host, int_port) arguments"))
+        );
+
+        let tcp_accept_extra =
+            call_native_function(&mut interpreter, "tcp_accept", &[Value::Int(1), Value::Int(2)]);
+        assert!(
+            matches!(tcp_accept_extra, Value::Error(message) if message.contains("tcp_accept requires a TcpListener argument"))
+        );
+
+        let tcp_connect_extra = call_native_function(
+            &mut interpreter,
+            "tcp_connect",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(80), Value::Int(1)],
+        );
+        assert!(
+            matches!(tcp_connect_extra, Value::Error(message) if message.contains("tcp_connect requires (string_host, int_port) arguments"))
+        );
+
+        let tcp_send_extra = call_native_function(
+            &mut interpreter,
+            "tcp_send",
+            &[Value::Int(1), Value::Str(Arc::new("payload".to_string())), Value::Int(2)],
+        );
+        assert!(
+            matches!(tcp_send_extra, Value::Error(message) if message.contains("tcp_send requires (TcpStream, string_or_bytes_data) arguments"))
+        );
+
+        let tcp_receive_extra = call_native_function(
+            &mut interpreter,
+            "tcp_receive",
+            &[Value::Int(1), Value::Int(16), Value::Int(2)],
+        );
+        assert!(
+            matches!(tcp_receive_extra, Value::Error(message) if message.contains("tcp_receive requires (TcpStream, int_size) arguments"))
+        );
+
+        let tcp_close_extra =
+            call_native_function(&mut interpreter, "tcp_close", &[Value::Int(1), Value::Int(2)]);
+        assert!(
+            matches!(tcp_close_extra, Value::Error(message) if message.contains("tcp_close requires a TcpStream or TcpListener argument"))
+        );
+
+        let tcp_nonblocking_extra = call_native_function(
+            &mut interpreter,
+            "tcp_set_nonblocking",
+            &[Value::Int(1), Value::Bool(true), Value::Int(2)],
+        );
+        assert!(
+            matches!(tcp_nonblocking_extra, Value::Error(message) if message.contains("tcp_set_nonblocking requires (TcpStream/TcpListener, bool) arguments"))
+        );
+
+        let udp_bind_extra = call_native_function(
+            &mut interpreter,
+            "udp_bind",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(80), Value::Int(1)],
+        );
+        assert!(
+            matches!(udp_bind_extra, Value::Error(message) if message.contains("udp_bind requires (string_host, int_port) arguments"))
+        );
+
+        let udp_send_extra = call_native_function(
+            &mut interpreter,
+            "udp_send_to",
+            &[
+                Value::Int(1),
+                Value::Str(Arc::new("payload".to_string())),
+                Value::Str(Arc::new("127.0.0.1".to_string())),
+                Value::Int(80),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(udp_send_extra, Value::Error(message) if message.contains("udp_send_to requires (UdpSocket, string_or_bytes_data, string_host, int_port) arguments"))
+        );
+
+        let udp_receive_extra = call_native_function(
+            &mut interpreter,
+            "udp_receive_from",
+            &[Value::Int(1), Value::Int(16), Value::Int(2)],
+        );
+        assert!(
+            matches!(udp_receive_extra, Value::Error(message) if message.contains("udp_receive_from requires (UdpSocket, int_size) arguments"))
+        );
+
+        let udp_close_extra =
+            call_native_function(&mut interpreter, "udp_close", &[Value::Int(1), Value::Int(2)]);
+        assert!(
+            matches!(udp_close_extra, Value::Error(message) if message.contains("udp_close requires a UdpSocket argument"))
+        );
+    }
+
+    #[test]
     fn test_release_hardening_network_module_round_trip_behaviors() {
         let tcp_port = available_tcp_port();
         let mut server_interpreter = Interpreter::new();
