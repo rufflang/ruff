@@ -1169,6 +1169,26 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         // Set functions
+        "Set" => {
+            if arg_values.len() > 1 {
+                Value::Error("Set constructor takes at most 1 argument".to_string())
+            } else if let Some(Value::Array(items)) = arg_values.first() {
+                let mut set_items: Vec<Value> = Vec::new();
+                for item in items.iter() {
+                    let exists =
+                        set_items.iter().any(|value| Interpreter::values_equal(value, item));
+                    if !exists {
+                        set_items.push(item.clone());
+                    }
+                }
+                Value::Set(set_items)
+            } else if arg_values.is_empty() {
+                Value::Set(Vec::new())
+            } else {
+                Value::Error("Set constructor requires an array argument".to_string())
+            }
+        }
+
         "set_add" => {
             if let (Some(Value::Set(mut set)), Some(item)) =
                 (arg_values.first().cloned(), arg_values.get(1).cloned())
