@@ -362,6 +362,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-12_16-17_commit-grouping-and-field-notes-ops.md)
 
+### `cargo fmt` can touch unrelated modules in this workspace
+- **Problem:** Running formatter during a focused feature slice can modify unrelated native-function files.
+- **Rule:** Always re-scope the working tree after `cargo fmt` before staging commits.
+- **Why:** Workspace formatting settings and file-level normalization can produce spillover edits outside the intended slice.
+- **Workflow:** 1) run `cargo fmt`, 2) inspect `git status --short`, 3) `git restore` unrelated files, 4) stage only feature files.
+- **Implication:** Treat formatter spillover as expected maintenance overhead; do not commit unrelated formatting churn with behavior changes.
+
+(Discovered during: 2026-02-15_22-01_release-hardening-load-image-network-dispatch.md)
+
 ### Dotted native names are fragile in Ruff call sites
 - **Problem:** Calling `Promise.all(...)` directly in Ruff code can behave differently than identifier aliases
 - **Rule:** Prefer identifier-safe aliases (`promise_all(...)`, `await_all(...)`) for user code and tests

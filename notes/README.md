@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-15_22-01_release-hardening-load-image-network-dispatch.md** — ✅ COMPLETED: Closed remaining v0.10 modular dispatch gaps for `load_image` and all declared TCP/UDP APIs, added comprehensive dispatcher + runtime contract coverage, and captured formatter spillover + drift-ledger synchronization gotchas.
+
 - **2026-02-15_20-53_set-constructor-dispatch-hardening.md** — ✅ COMPLETED: Closed v0.10 release-hardening modular dispatch gap for declared `Set(...)` constructor, added constructor-shape + dedup contract coverage, and documented drift-ledger synchronization rules.
 
 - **2026-02-15_20-13_crypto-dispatch-hardening.md** — ✅ COMPLETED: Closed v0.10 release-hardening modular dispatch gap for declared crypto/hash APIs (SHA/MD5, bcrypt, AES, RSA), added comprehensive native + dispatcher contract coverage, and documented hash-vector verification + migration-ledger synchronization gotchas.
