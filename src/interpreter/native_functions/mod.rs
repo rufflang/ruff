@@ -1516,16 +1516,30 @@ mod tests {
 
         let random_int_missing = call_native_function(&mut interpreter, "random_int", &[]);
         assert!(
-            matches!(random_int_missing, Value::Error(message) if message.contains("random_int requires two number arguments"))
+            matches!(random_int_missing, Value::Error(message) if message.contains("random_int() expects 2 arguments"))
+        );
+
+        let random_extra = call_native_function(&mut interpreter, "random", &[Value::Int(1)]);
+        assert!(
+            matches!(random_extra, Value::Error(message) if message.contains("random() expects 0 arguments"))
         );
 
         let random_int_value =
             call_native_function(&mut interpreter, "random_int", &[Value::Int(3), Value::Int(7)]);
         assert!(matches!(random_int_value, Value::Int(value) if (3..=7).contains(&value)));
 
+        let random_int_extra = call_native_function(
+            &mut interpreter,
+            "random_int",
+            &[Value::Int(3), Value::Int(7), Value::Int(9)],
+        );
+        assert!(
+            matches!(random_int_extra, Value::Error(message) if message.contains("random_int() expects 2 arguments"))
+        );
+
         let random_choice_missing = call_native_function(&mut interpreter, "random_choice", &[]);
         assert!(
-            matches!(random_choice_missing, Value::Error(message) if message.contains("random_choice requires an array argument"))
+            matches!(random_choice_missing, Value::Error(message) if message.contains("random_choice() expects 1 argument"))
         );
 
         let random_choice_value = call_native_function(
@@ -1537,7 +1551,13 @@ mod tests {
 
         let set_seed_missing = call_native_function(&mut interpreter, "set_random_seed", &[]);
         assert!(
-            matches!(set_seed_missing, Value::Error(message) if message.contains("set_random_seed requires a number argument"))
+            matches!(set_seed_missing, Value::Error(message) if message.contains("set_random_seed() expects 1 argument"))
+        );
+
+        let clear_seed_extra =
+            call_native_function(&mut interpreter, "clear_random_seed", &[Value::Int(1)]);
+        assert!(
+            matches!(clear_seed_extra, Value::Error(message) if message.contains("clear_random_seed() expects 0 arguments"))
         );
 
         let clear_seed_result = call_native_function(&mut interpreter, "clear_random_seed", &[]);
@@ -1629,7 +1649,7 @@ mod tests {
         let format_duration_missing =
             call_native_function(&mut interpreter, "format_duration", &[]);
         assert!(
-            matches!(format_duration_missing, Value::Error(message) if message.contains("format_duration requires a number argument"))
+            matches!(format_duration_missing, Value::Error(message) if message.contains("format_duration() expects 1 argument"))
         );
 
         let elapsed_ok = call_native_function(
@@ -1641,7 +1661,7 @@ mod tests {
 
         let elapsed_missing = call_native_function(&mut interpreter, "elapsed", &[]);
         assert!(
-            matches!(elapsed_missing, Value::Error(message) if message.contains("elapsed requires two number arguments"))
+            matches!(elapsed_missing, Value::Error(message) if message.contains("elapsed() expects 2 arguments"))
         );
 
         let format_date_epoch = call_native_function(
@@ -1653,7 +1673,7 @@ mod tests {
 
         let format_date_missing = call_native_function(&mut interpreter, "format_date", &[]);
         assert!(
-            matches!(format_date_missing, Value::Error(message) if message.contains("format_date requires timestamp"))
+            matches!(format_date_missing, Value::Error(message) if message.contains("format_date() expects 2 arguments"))
         );
 
         let parse_date_epoch = call_native_function(
@@ -1678,7 +1698,20 @@ mod tests {
 
         let parse_date_missing = call_native_function(&mut interpreter, "parse_date", &[]);
         assert!(
-            matches!(parse_date_missing, Value::Error(message) if message.contains("parse_date requires date string and format string"))
+            matches!(parse_date_missing, Value::Error(message) if message.contains("parse_date() expects 2 arguments"))
+        );
+
+        let parse_date_extra = call_native_function(
+            &mut interpreter,
+            "parse_date",
+            &[
+                Value::Str(Arc::new("1970-01-01".to_string())),
+                Value::Str(Arc::new("YYYY-MM-DD".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(parse_date_extra, Value::Error(message) if message.contains("parse_date() expects 2 arguments"))
         );
     }
 
@@ -2173,6 +2206,28 @@ mod tests {
         );
         assert!(matches!(env_or_result, Value::Str(value) if value.as_ref() == "fallback"));
 
+        let env_extra = call_native_function(
+            &mut interpreter,
+            "env",
+            &[Value::Str(Arc::new(env_key.to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(env_extra, Value::Error(message) if message.contains("env() expects 1 argument"))
+        );
+
+        let env_set_extra = call_native_function(
+            &mut interpreter,
+            "env_set",
+            &[
+                Value::Str(Arc::new(env_key.to_string())),
+                Value::Str(Arc::new("42".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(env_set_extra, Value::Error(message) if message.contains("env_set() expects 2 arguments"))
+        );
+
         let env_int_result = call_native_function(
             &mut interpreter,
             "env_int",
@@ -2204,8 +2259,18 @@ mod tests {
         let env_list_result = call_native_function(&mut interpreter, "env_list", &[]);
         assert!(matches!(env_list_result, Value::Dict(map) if map.contains_key(env_key)));
 
+        let env_list_extra = call_native_function(&mut interpreter, "env_list", &[Value::Int(1)]);
+        assert!(
+            matches!(env_list_extra, Value::Error(message) if message.contains("env_list() expects 0 arguments"))
+        );
+
         let args_result = call_native_function(&mut interpreter, "args", &[]);
         assert!(matches!(args_result, Value::Array(_)));
+
+        let args_extra = call_native_function(&mut interpreter, "args", &[Value::Int(1)]);
+        assert!(
+            matches!(args_extra, Value::Error(message) if message.contains("args() expects 0 arguments"))
+        );
 
         let arg_parser_result = call_native_function(&mut interpreter, "arg_parser", &[]);
         assert!(matches!(arg_parser_result, Value::Struct { name, fields }
@@ -2213,6 +2278,12 @@ mod tests {
             && fields.contains_key("_args")
             && fields.contains_key("_app_name")
             && fields.contains_key("_description")));
+
+        let arg_parser_extra =
+            call_native_function(&mut interpreter, "arg_parser", &[Value::Int(1)]);
+        assert!(
+            matches!(arg_parser_extra, Value::Error(message) if message.contains("arg_parser() expects 0 arguments"))
+        );
 
         let cwd_before = std::env::current_dir().expect("cwd should resolve");
 
