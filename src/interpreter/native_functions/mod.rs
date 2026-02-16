@@ -302,6 +302,20 @@ mod tests {
             "update",
             "get_default",
             "format",
+            "parse_json",
+            "to_json",
+            "parse_toml",
+            "to_toml",
+            "parse_yaml",
+            "to_yaml",
+            "parse_csv",
+            "to_csv",
+            "encode_base64",
+            "decode_base64",
+            "regex_match",
+            "regex_find_all",
+            "regex_replace",
+            "regex_split",
         ];
 
         for builtin_name in critical_builtin_names {
@@ -1483,6 +1497,155 @@ mod tests {
         let format_bad_template =
             call_native_function(&mut interpreter, "format", &[Value::Int(1)]);
         assert!(matches!(format_bad_template, Value::Error(message) if message.contains("format() first argument must be a string")));
+    }
+
+    #[test]
+    fn test_release_hardening_data_format_and_regex_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let parse_json_ok = call_native_function(
+            &mut interpreter,
+            "parse_json",
+            &[Value::Str(Arc::new("{\"name\":\"ruff\",\"n\":2}".to_string()))],
+        );
+        match parse_json_ok {
+            Value::Dict(map) => {
+                assert!(map.contains_key("name"));
+                assert!(map.contains_key("n"));
+            }
+            other => panic!("Expected parse_json dict result, got {:?}", other),
+        }
+
+        let mut sample_dict = crate::interpreter::DictMap::default();
+        sample_dict.insert("ok".into(), Value::Bool(true));
+        let to_json_ok = call_native_function(
+            &mut interpreter,
+            "to_json",
+            &[Value::Dict(Arc::new(sample_dict))],
+        );
+        assert!(matches!(to_json_ok, Value::Str(result) if result.contains("\"ok\":true")));
+
+        let parse_toml_ok = call_native_function(
+            &mut interpreter,
+            "parse_toml",
+            &[Value::Str(Arc::new("title = \"Ruff\"".to_string()))],
+        );
+        match parse_toml_ok {
+            Value::Dict(map) => assert!(map.contains_key("title")),
+            other => panic!("Expected parse_toml dict result, got {:?}", other),
+        }
+
+        let parse_yaml_ok = call_native_function(
+            &mut interpreter,
+            "parse_yaml",
+            &[Value::Str(Arc::new("name: Ruff".to_string()))],
+        );
+        match parse_yaml_ok {
+            Value::Dict(map) => assert!(map.contains_key("name")),
+            other => panic!("Expected parse_yaml dict result, got {:?}", other),
+        }
+
+        let parse_csv_ok = call_native_function(
+            &mut interpreter,
+            "parse_csv",
+            &[Value::Str(Arc::new("name,age\nRuff,2".to_string()))],
+        );
+        assert!(matches!(parse_csv_ok, Value::Array(rows) if rows.len() == 1));
+
+        let mut csv_row = crate::interpreter::DictMap::default();
+        csv_row.insert("name".into(), Value::Str(Arc::new("Ruff".to_string())));
+        csv_row.insert("age".into(), Value::Int(2));
+        let to_csv_ok = call_native_function(
+            &mut interpreter,
+            "to_csv",
+            &[Value::Array(Arc::new(vec![Value::Dict(Arc::new(csv_row))]))],
+        );
+        assert!(matches!(to_csv_ok, Value::Str(csv) if csv.contains("name") && csv.contains("Ruff")));
+
+        let encode_base64_ok = call_native_function(
+            &mut interpreter,
+            "encode_base64",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        let encoded = match encode_base64_ok {
+            Value::Str(value) => value,
+            other => panic!("Expected base64 string, got {:?}", other),
+        };
+
+        let decode_base64_ok =
+            call_native_function(&mut interpreter, "decode_base64", &[Value::Str(encoded)]);
+        assert!(matches!(decode_base64_ok, Value::Bytes(bytes) if bytes == b"ruff"));
+
+        let parse_json_bad_shape = call_native_function(&mut interpreter, "parse_json", &[Value::Int(1)]);
+        assert!(matches!(parse_json_bad_shape, Value::Error(message) if message.contains("parse_json requires a string argument")));
+
+        let to_json_missing = call_native_function(&mut interpreter, "to_json", &[]);
+        assert!(matches!(to_json_missing, Value::Error(message) if message.contains("to_json requires a value argument")));
+
+        let decode_base64_bad_shape =
+            call_native_function(&mut interpreter, "decode_base64", &[Value::Int(1)]);
+        assert!(matches!(decode_base64_bad_shape, Value::Error(message) if message.contains("decode_base64 requires a string argument")));
+
+        let encode_base64_bad_shape =
+            call_native_function(&mut interpreter, "encode_base64", &[Value::Int(1)]);
+        assert!(matches!(encode_base64_bad_shape, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument")));
+
+        let regex_match_ok = call_native_function(
+            &mut interpreter,
+            "regex_match",
+            &[
+                Value::Str(Arc::new("hello123".to_string())),
+                Value::Str(Arc::new("^[a-z]+\\d+$".to_string())),
+            ],
+        );
+        assert!(matches!(regex_match_ok, Value::Bool(true)));
+
+        let regex_find_all_ok = call_native_function(
+            &mut interpreter,
+            "regex_find_all",
+            &[
+                Value::Str(Arc::new("a1 b22 c333".to_string())),
+                Value::Str(Arc::new("\\d+".to_string())),
+            ],
+        );
+        assert!(matches!(regex_find_all_ok, Value::Array(matches) if matches.len() == 3
+            && matches!(&matches[0], Value::Str(value) if value.as_ref() == "1")
+            && matches!(&matches[1], Value::Str(value) if value.as_ref() == "22")
+            && matches!(&matches[2], Value::Str(value) if value.as_ref() == "333")));
+
+        let regex_replace_ok = call_native_function(
+            &mut interpreter,
+            "regex_replace",
+            &[
+                Value::Str(Arc::new("a1 b22".to_string())),
+                Value::Str(Arc::new("\\d+".to_string())),
+                Value::Str(Arc::new("#".to_string())),
+            ],
+        );
+        assert!(matches!(regex_replace_ok, Value::Str(value) if value.as_ref() == "a# b#"));
+
+        let regex_split_ok = call_native_function(
+            &mut interpreter,
+            "regex_split",
+            &[
+                Value::Str(Arc::new("a, b; c".to_string())),
+                Value::Str(Arc::new("[,;]\\s*".to_string())),
+            ],
+        );
+        assert!(matches!(regex_split_ok, Value::Array(parts) if parts.len() == 3
+            && matches!(&parts[0], Value::Str(value) if value.as_ref() == "a")
+            && matches!(&parts[1], Value::Str(value) if value.as_ref() == "b")
+            && matches!(&parts[2], Value::Str(value) if value.as_ref() == "c")));
+
+        let regex_match_bad_shape = call_native_function(&mut interpreter, "regex_match", &[Value::Int(1)]);
+        assert!(matches!(regex_match_bad_shape, Value::Error(message) if message.contains("regex_match requires two string arguments")));
+
+        let regex_replace_bad_shape = call_native_function(
+            &mut interpreter,
+            "regex_replace",
+            &[Value::Str(Arc::new("a".to_string())), Value::Str(Arc::new("b".to_string()))],
+        );
+        assert!(matches!(regex_replace_bad_shape, Value::Error(message) if message.contains("regex_replace requires three string arguments")));
     }
 
     #[test]
