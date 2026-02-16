@@ -316,6 +316,33 @@ mod tests {
             "regex_find_all",
             "regex_replace",
             "regex_split",
+            "assert",
+            "debug",
+            "assert_equal",
+            "assert_true",
+            "assert_false",
+            "assert_contains",
+            "env",
+            "env_or",
+            "env_int",
+            "env_float",
+            "env_bool",
+            "env_required",
+            "env_set",
+            "env_list",
+            "args",
+            "arg_parser",
+            "os_getcwd",
+            "os_chdir",
+            "os_rmdir",
+            "os_environ",
+            "dirname",
+            "basename",
+            "path_exists",
+            "path_absolute",
+            "path_is_dir",
+            "path_is_file",
+            "path_extension",
         ];
 
         for builtin_name in critical_builtin_names {
@@ -1646,6 +1673,231 @@ mod tests {
             &[Value::Str(Arc::new("a".to_string())), Value::Str(Arc::new("b".to_string()))],
         );
         assert!(matches!(regex_replace_bad_shape, Value::Error(message) if message.contains("regex_replace requires three string arguments")));
+    }
+
+    #[test]
+    fn test_release_hardening_env_os_path_and_assert_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let assert_true = call_native_function(&mut interpreter, "assert", &[Value::Bool(true)]);
+        assert!(matches!(assert_true, Value::Bool(true)));
+
+        let assert_false = call_native_function(&mut interpreter, "assert", &[Value::Bool(false)]);
+        assert!(matches!(assert_false, Value::Error(message) if message.contains("Assertion failed")));
+
+        let assert_equal_ok =
+            call_native_function(&mut interpreter, "assert_equal", &[Value::Int(7), Value::Int(7)]);
+        assert!(matches!(assert_equal_ok, Value::Bool(true)));
+
+        let assert_equal_bad_shape =
+            call_native_function(&mut interpreter, "assert_equal", &[Value::Int(7)]);
+        assert!(matches!(assert_equal_bad_shape, Value::Error(message) if message.contains("assert_equal requires 2 arguments")));
+
+        let assert_true_ok = call_native_function(&mut interpreter, "assert_true", &[Value::Bool(true)]);
+        assert!(matches!(assert_true_ok, Value::Bool(true)));
+
+        let assert_true_bad_type = call_native_function(&mut interpreter, "assert_true", &[Value::Int(1)]);
+        assert!(matches!(assert_true_bad_type, Value::Error(message) if message.contains("assert_true requires a boolean argument")));
+
+        let assert_false_ok =
+            call_native_function(&mut interpreter, "assert_false", &[Value::Bool(false)]);
+        assert!(matches!(assert_false_ok, Value::Bool(true)));
+
+        let assert_contains_array = call_native_function(
+            &mut interpreter,
+            "assert_contains",
+            &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])), Value::Int(2)],
+        );
+        assert!(matches!(assert_contains_array, Value::Bool(true)));
+
+        let assert_contains_bad_shape =
+            call_native_function(&mut interpreter, "assert_contains", &[Value::Str(Arc::new("x".to_string()))]);
+        assert!(matches!(assert_contains_bad_shape, Value::Error(message) if message.contains("assert_contains requires 2 arguments")));
+
+        let debug_result = call_native_function(
+            &mut interpreter,
+            "debug",
+            &[Value::Str(Arc::new("release-hardening".to_string())), Value::Int(1)],
+        );
+        assert!(matches!(debug_result, Value::Null));
+
+        let env_key = "RUFF_RELEASE_HARDENING_ENV_TEST";
+        let env_bool_invalid_key = "RUFF_RELEASE_HARDENING_ENV_BOOL_INVALID";
+        let env_missing_key = "RUFF_RELEASE_HARDENING_ENV_MISSING";
+        std::env::remove_var(env_missing_key);
+
+        let env_set_result = call_native_function(
+            &mut interpreter,
+            "env_set",
+            &[
+                Value::Str(Arc::new(env_key.to_string())),
+                Value::Str(Arc::new("42".to_string())),
+            ],
+        );
+        assert!(matches!(env_set_result, Value::Null));
+
+        let env_bool_seed = call_native_function(
+            &mut interpreter,
+            "env_set",
+            &[
+                Value::Str(Arc::new(env_bool_invalid_key.to_string())),
+                Value::Str(Arc::new("definitely-not-bool".to_string())),
+            ],
+        );
+        assert!(matches!(env_bool_seed, Value::Null));
+
+        let env_get_result = call_native_function(
+            &mut interpreter,
+            "env",
+            &[Value::Str(Arc::new(env_key.to_string()))],
+        );
+        assert!(matches!(env_get_result, Value::Str(value) if value.as_ref() == "42"));
+
+        let env_or_result = call_native_function(
+            &mut interpreter,
+            "env_or",
+            &[
+                Value::Str(Arc::new(env_missing_key.to_string())),
+                Value::Str(Arc::new("fallback".to_string())),
+            ],
+        );
+        assert!(matches!(env_or_result, Value::Str(value) if value.as_ref() == "fallback"));
+
+        let env_int_result = call_native_function(
+            &mut interpreter,
+            "env_int",
+            &[Value::Str(Arc::new(env_key.to_string()))],
+        );
+        assert!(matches!(env_int_result, Value::Int(42)));
+
+        let env_float_result = call_native_function(
+            &mut interpreter,
+            "env_float",
+            &[Value::Str(Arc::new(env_key.to_string()))],
+        );
+        assert!(matches!(env_float_result, Value::Float(value) if (value - 42.0).abs() < 1e-12));
+
+        let env_bool_bad_parse = call_native_function(
+            &mut interpreter,
+            "env_bool",
+            &[Value::Str(Arc::new(env_bool_invalid_key.to_string()))],
+        );
+        assert!(matches!(env_bool_bad_parse, Value::Bool(false)));
+
+        let env_required_missing = call_native_function(
+            &mut interpreter,
+            "env_required",
+            &[Value::Str(Arc::new(env_missing_key.to_string()))],
+        );
+        assert!(matches!(env_required_missing, Value::ErrorObject { .. }));
+
+        let env_list_result = call_native_function(&mut interpreter, "env_list", &[]);
+        assert!(matches!(env_list_result, Value::Dict(map) if map.contains_key(env_key)));
+
+        let args_result = call_native_function(&mut interpreter, "args", &[]);
+        assert!(matches!(args_result, Value::Array(_)));
+
+        let arg_parser_result = call_native_function(&mut interpreter, "arg_parser", &[]);
+        assert!(matches!(arg_parser_result, Value::Struct { name, fields }
+            if name == "ArgParser"
+            && fields.contains_key("_args")
+            && fields.contains_key("_app_name")
+            && fields.contains_key("_description")));
+
+        let cwd_before = std::env::current_dir().expect("cwd should resolve");
+
+        let mut temp_dir = cwd_before.clone();
+        temp_dir.push("tmp");
+        temp_dir.push("release_hardening_os_path_contract");
+        std::fs::create_dir_all(&temp_dir).expect("temp hardening dir should be created");
+        let temp_dir_string = temp_dir.to_string_lossy().to_string();
+
+        let os_getcwd_before = call_native_function(&mut interpreter, "os_getcwd", &[]);
+        assert!(matches!(os_getcwd_before, Value::Str(_)));
+
+        let os_chdir_result = call_native_function(
+            &mut interpreter,
+            "os_chdir",
+            &[Value::Str(Arc::new(temp_dir_string.clone()))],
+        );
+        assert!(matches!(os_chdir_result, Value::Bool(true)));
+
+        let os_getcwd_after = call_native_function(&mut interpreter, "os_getcwd", &[]);
+        assert!(matches!(os_getcwd_after, Value::Str(path) if path.as_ref().as_str() == temp_dir_string));
+
+        std::env::set_current_dir(&cwd_before).expect("cwd should restore");
+
+        let dirname_result = call_native_function(
+            &mut interpreter,
+            "dirname",
+            &[Value::Str(Arc::new("a/b/file.ruff".to_string()))],
+        );
+        assert!(matches!(dirname_result, Value::Str(value) if value.as_ref().ends_with("a/b")));
+
+        let basename_result = call_native_function(
+            &mut interpreter,
+            "basename",
+            &[Value::Str(Arc::new("a/b/file.ruff".to_string()))],
+        );
+        assert!(matches!(basename_result, Value::Str(value) if value.as_ref() == "file.ruff"));
+
+        let path_exists_true = call_native_function(
+            &mut interpreter,
+            "path_exists",
+            &[Value::Str(Arc::new(temp_dir_string.clone()))],
+        );
+        assert!(matches!(path_exists_true, Value::Bool(true)));
+
+        let path_is_dir_true = call_native_function(
+            &mut interpreter,
+            "path_is_dir",
+            &[Value::Str(Arc::new(temp_dir_string.clone()))],
+        );
+        assert!(matches!(path_is_dir_true, Value::Bool(true)));
+
+        let file_path = format!("{}/sample.ruff", temp_dir_string);
+        std::fs::write(&file_path, "print(1)").expect("sample file should write");
+
+        let path_is_file_true = call_native_function(
+            &mut interpreter,
+            "path_is_file",
+            &[Value::Str(Arc::new(file_path.clone()))],
+        );
+        assert!(matches!(path_is_file_true, Value::Bool(true)));
+
+        let path_extension_result = call_native_function(
+            &mut interpreter,
+            "path_extension",
+            &[Value::Str(Arc::new(file_path.clone()))],
+        );
+        assert!(matches!(path_extension_result, Value::Str(ext) if ext.as_ref() == "ruff"));
+
+        let path_absolute_result = call_native_function(
+            &mut interpreter,
+            "path_absolute",
+            &[Value::Str(Arc::new(file_path.clone()))],
+        );
+        assert!(matches!(path_absolute_result, Value::Str(path) if path.as_ref().ends_with("sample.ruff")));
+
+        std::fs::remove_file(&file_path).expect("sample file should remove");
+        let os_rmdir_result = call_native_function(
+            &mut interpreter,
+            "os_rmdir",
+            &[Value::Str(Arc::new(temp_dir_string.clone()))],
+        );
+        assert!(matches!(os_rmdir_result, Value::Bool(true)));
+
+        let os_environ_result = call_native_function(&mut interpreter, "os_environ", &[]);
+        assert!(matches!(os_environ_result, Value::Dict(map) if map.contains_key(env_key)));
+
+        let os_chdir_bad_shape = call_native_function(&mut interpreter, "os_chdir", &[Value::Int(1)]);
+        assert!(matches!(os_chdir_bad_shape, Value::Error(message) if message.contains("os_chdir requires a string argument")));
+
+        let dirname_bad_shape = call_native_function(&mut interpreter, "dirname", &[Value::Int(1)]);
+        assert!(matches!(dirname_bad_shape, Value::Error(message) if message.contains("dirname requires a string argument")));
+
+        let path_exists_bad_shape = call_native_function(&mut interpreter, "path_exists", &[Value::Bool(true)]);
+        assert!(matches!(path_exists_bad_shape, Value::Error(message) if message.contains("path_exists requires a string argument")));
     }
 
     #[test]
