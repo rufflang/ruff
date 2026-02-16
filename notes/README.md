@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-15_20-53_set-constructor-dispatch-hardening.md** — ✅ COMPLETED: Closed v0.10 release-hardening modular dispatch gap for declared `Set(...)` constructor, added constructor-shape + dedup contract coverage, and documented drift-ledger synchronization rules.
+
 - **2026-02-15_20-13_crypto-dispatch-hardening.md** — ✅ COMPLETED: Closed v0.10 release-hardening modular dispatch gap for declared crypto/hash APIs (SHA/MD5, bcrypt, AES, RSA), added comprehensive native + dispatcher contract coverage, and documented hash-vector verification + migration-ledger synchronization gotchas.
 
 - **2026-02-15_20-03_process-dispatch-hardening.md** — ✅ COMPLETED: Closed v0.10 release-hardening modular dispatch gap for process APIs (`spawn_process`, `pipe_commands`), added comprehensive native + dispatcher contract coverage, and documented commit-scoping/known-gap synchronization gotchas.

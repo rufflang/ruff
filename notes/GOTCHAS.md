@@ -724,6 +724,18 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_16-17_release-hardening-dispatch-gap-slices.md)
 
+### `Set(...)` constructor migration needs behavior-contract coverage, not just dispatch coverage
+
+- **Problem:** A migrated constructor builtin can pass unknown-native fallback checks while still regressing constructor semantics.
+- **Rule:** When migrating `Set(...)`, validate all constructor contracts together:
+  - `Set()` must return an empty set,
+  - `Set(array)` must deduplicate using `Interpreter::values_equal(...)`,
+  - non-array input and invalid arity must return explicit `Value::Error`.
+- **Why:** Dispatcher-level probes only prove routing; they do not prove constructor shape/equality behavior.
+- **Implication:** Pair constructor migration with dedicated behavior tests and update known-gap ledger in the same change.
+
+(Discovered during: 2026-02-15_20-53_set-constructor-dispatch-hardening.md)
+
 ### Database hardening tests should anchor on SQLite for deterministic CI
 
 - **Problem:** Modular `db_*` handlers support sqlite/postgres/mysql, but test environments typically do not guarantee live Postgres/MySQL services.
