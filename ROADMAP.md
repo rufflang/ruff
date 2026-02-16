@@ -130,6 +130,11 @@ This roadmap intentionally tracks only upcoming items.
         - Added async alias argument-shape/error-shape parity contract coverage for `Promise.all(...)` / `promise_all(...)` / `await_all(...)` and `parallel_map(...)` / `par_map(...)` / `par_each(...)`
         - Added release-hardening contract coverage for `ssg_render_pages(...)` argument validation and successful result-shape behavior
 
+- **Advanced HTTP API Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for HTTP auth/concurrency APIs (`parallel_http`, `jwt_encode`, `jwt_decode`, `oauth2_auth_url`, `oauth2_get_token`)
+    - Added argument-shape/error-shape contract coverage for all advanced HTTP APIs above
+    - Added behavior contract coverage for empty `parallel_http(...)` shape, JWT encode/decode payload integrity, and OAuth2 authorization URL output structure
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

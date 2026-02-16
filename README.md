@@ -88,6 +88,12 @@
   - Added release-hardening contract tests for `ssg_render_pages(...)` argument validation and successful result-shape behavior
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Advanced HTTP API Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for HTTP auth/concurrency APIs: `parallel_http`, `jwt_encode`, `jwt_decode`, `oauth2_auth_url`, `oauth2_get_token`
+  - Added argument-shape/error-shape contract tests for these advanced HTTP APIs
+  - Added behavior contract tests for empty `parallel_http(...)` shape, JWT encode/decode payload integrity, and OAuth2 authorization URL output structure
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Exhaustive Builtin Dispatch Drift Guard (P1)**
   - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
   - Added explicit known legacy-gap guardrail plus safety skips for side-effecting probes (`input`, `exit`, `sleep`, `execute`)

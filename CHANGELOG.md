@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Advanced HTTP API Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for HTTP auth/concurrency surfaces:
+    - `parallel_http`
+    - `jwt_encode` / `jwt_decode`
+    - `oauth2_auth_url` / `oauth2_get_token`
+  - Added release-hardening argument-shape and error-shape contract coverage for all advanced HTTP APIs above
+  - Added behavior contract coverage for:
+    - empty-input `parallel_http(...)` result shape
+    - `jwt_encode(...)` / `jwt_decode(...)` round-trip payload integrity
+    - `oauth2_auth_url(...)` deterministic output structure
+
 - **Release Hardening: Async Alias + SSG Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for async alias surfaces:
     - `Promise.all`
