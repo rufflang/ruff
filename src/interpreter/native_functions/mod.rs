@@ -206,6 +206,8 @@ mod tests {
             "spawn_task",
             "await_task",
             "cancel_task",
+            "sleep",
+            "execute",
             "contains",
             "index_of",
             "io_read_bytes",
@@ -424,7 +426,7 @@ mod tests {
     #[test]
     fn test_release_hardening_builtin_dispatch_coverage_for_declared_builtins() {
         let mut interpreter = Interpreter::new();
-        let skip_probe_names = ["input", "exit", "sleep", "execute"];
+        let skip_probe_names = ["input", "exit"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps: Vec<String> = vec![];
 
@@ -652,6 +654,94 @@ mod tests {
         let await_cancelled_result = await_native_promise(await_cancelled);
         assert!(
             matches!(await_cancelled_result, Err(message) if message.contains("already consumed"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_system_operation_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let sleep_missing_args = call_native_function(&mut interpreter, "sleep", &[]);
+        assert!(
+            matches!(sleep_missing_args, Value::Error(message) if message.contains("expects 1 argument"))
+        );
+
+        let sleep_wrong_type = call_native_function(
+            &mut interpreter,
+            "sleep",
+            &[Value::Str(Arc::new("1".to_string()))],
+        );
+        assert!(
+            matches!(sleep_wrong_type, Value::Error(message) if message.contains("requires a number argument"))
+        );
+
+        let sleep_negative = call_native_function(&mut interpreter, "sleep", &[Value::Int(-1)]);
+        assert!(
+            matches!(sleep_negative, Value::Error(message) if message.contains("non-negative milliseconds"))
+        );
+
+        let sleep_success = call_native_function(&mut interpreter, "sleep", &[Value::Int(0)]);
+        assert!(matches!(sleep_success, Value::Int(0)));
+
+        let execute_missing_args = call_native_function(&mut interpreter, "execute", &[]);
+        assert!(
+            matches!(execute_missing_args, Value::Error(message) if message.contains("expects 1 argument"))
+        );
+
+        let execute_wrong_type =
+            call_native_function(&mut interpreter, "execute", &[Value::Int(1)]);
+        assert!(
+            matches!(execute_wrong_type, Value::Error(message) if message.contains("requires a string command"))
+        );
+
+        let execute_extra_arg = call_native_function(
+            &mut interpreter,
+            "execute",
+            &[Value::Str(Arc::new("echo release-hardening-system".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(execute_extra_arg, Value::Error(message) if message.contains("expects 1 argument"))
+        );
+
+        let execute_success = call_native_function(
+            &mut interpreter,
+            "execute",
+            &[Value::Str(Arc::new("echo release-hardening-system".to_string()))],
+        );
+        assert!(
+            matches!(execute_success, Value::Str(output) if output.as_ref().contains("release-hardening-system"))
+        );
+
+        let input_wrong_type = call_native_function(&mut interpreter, "input", &[Value::Int(1)]);
+        assert!(
+            matches!(input_wrong_type, Value::Error(message) if message.contains("requires a string prompt"))
+        );
+
+        let input_extra_arg = call_native_function(
+            &mut interpreter,
+            "input",
+            &[
+                Value::Str(Arc::new("prompt".to_string())),
+                Value::Str(Arc::new("extra".to_string())),
+            ],
+        );
+        assert!(
+            matches!(input_extra_arg, Value::Error(message) if message.contains("expects 0-1 arguments"))
+        );
+
+        let exit_extra_arg =
+            call_native_function(&mut interpreter, "exit", &[Value::Int(1), Value::Int(2)]);
+        assert!(
+            matches!(exit_extra_arg, Value::Error(message) if message.contains("expects 0-1 arguments"))
+        );
+
+        let exit_wrong_type = call_native_function(
+            &mut interpreter,
+            "exit",
+            &[Value::Str(Arc::new("bad".to_string()))],
+        );
+        assert!(
+            matches!(exit_wrong_type, Value::Error(message) if message.contains("requires a numeric exit code"))
         );
     }
 
