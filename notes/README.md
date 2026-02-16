@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_09-34_release-hardening-async-batch-shared-task-pool-contracts.md** — ✅ COMPLETED: Added release-hardening contract coverage for async batch file wrappers (`async_read_files`, `async_write_files`) and shared/task-pool APIs (`shared_*`, `set_task_pool_size`, `get_task_pool_size`), synchronized roadmap/changelog/readme, and documented process-global shared-store key-isolation gotchas.
+
 - **2026-02-16_09-42_release-hardening-async-runtime-task-channel-contracts.md** — ✅ COMPLETED: Expanded v0.10.0 release-hardening dispatcher + contract coverage for async runtime/task-channel APIs (`channel`, async sleep/timeout/http/file wrappers, spawn/await/cancel task), synchronized roadmap/changelog/readme, and documented mutable-borrow test-shape + single-consumer task-handle gotchas.
 
 - **2026-02-16_08-05_release-hardening-filesystem-core-contract-follow-through.md** — ✅ COMPLETED: Implemented v0.10.0 P1 release-hardening filesystem core API contract follow-through (critical dispatcher coverage + full behavior/argument-shape tests), synchronized roadmap/changelog/readme, and captured shared-handler error-text + array-edit placement gotchas.

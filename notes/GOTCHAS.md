@@ -262,6 +262,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-14_13-09_shared-thread-safe-value-ops.md and 2026-02-14_17-08_spawn-parent-binding-snapshot-concurrency.md)
 
+### `shared_*` state is process-global; test keys must be unique
+- **Problem:** Shared-state tests can become flaky or order-dependent when reusing fixed key names.
+- **Rule:** Treat `shared_set/get/has/delete/add_int` keys as global resources and generate unique keys per test/session.
+- **Why:** Shared values are backed by a static `OnceLock<Mutex<HashMap<...>>>` in `src/interpreter/native_functions/concurrency.rs`, so state outlives individual `Interpreter` instances.
+- **Implication:** Use timestamp/nonce-suffixed keys in tests and clean up with `shared_delete` to avoid cross-test contamination.
+
+(Discovered during: 2026-02-16_09-34_release-hardening-async-batch-shared-task-pool-contracts.md)
+
 ### ErrorObject has specific field structure, not a generic HashMap
 - **Problem:** Creating ErrorObject with made-up fields like "details" causes runtime failures
 - **Rule:** ErrorObject has exactly 4 fields: `message` (String), `stack` (Array), `line` (Number), `cause` (Value/null)
