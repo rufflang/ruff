@@ -102,6 +102,7 @@ mod tests {
     fn test_release_hardening_builtin_dispatch_coverage_for_recent_apis() {
         let mut interpreter = Interpreter::new();
         let critical_builtin_names = [
+            "Set",
             "ssg_render_pages",
             "contains",
             "index_of",
@@ -191,7 +192,6 @@ mod tests {
         let skip_probe_names = ["input", "exit", "sleep", "execute"];
         let mut unknown_builtin_names = Vec::new();
         let expected_known_legacy_dispatch_gaps = vec![
-            "Set".to_string(),
             "load_image".to_string(),
             "zip_create".to_string(),
             "zip_add_file".to_string(),
@@ -365,9 +365,39 @@ mod tests {
             matches!(aes_missing, Value::Error(message) if message.contains("aes_encrypt requires"))
         );
 
-        let rsa_bad_size = call_native_function(&mut interpreter, "rsa_generate_keypair", &[Value::Int(1024)]);
+        let rsa_bad_size =
+            call_native_function(&mut interpreter, "rsa_generate_keypair", &[Value::Int(1024)]);
         assert!(
             matches!(rsa_bad_size, Value::Error(message) if message.contains("RSA key size must be 2048 or 4096 bits"))
+        );
+    }
+
+    #[test]
+    fn test_release_hardening_set_constructor_dispatch_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let set_empty = call_native_function(&mut interpreter, "Set", &[]);
+        assert!(matches!(set_empty, Value::Set(items) if items.is_empty()));
+
+        let set_from_array = call_native_function(
+            &mut interpreter,
+            "Set",
+            &[Value::Array(std::sync::Arc::new(vec![Value::Int(1), Value::Int(1), Value::Int(2)]))],
+        );
+        assert!(matches!(set_from_array, Value::Set(items) if items.len() == 2));
+
+        let set_invalid_type = call_native_function(&mut interpreter, "Set", &[Value::Int(42)]);
+        assert!(
+            matches!(set_invalid_type, Value::Error(message) if message.contains("Set constructor requires an array argument"))
+        );
+
+        let set_too_many = call_native_function(
+            &mut interpreter,
+            "Set",
+            &[Value::Array(std::sync::Arc::new(vec![])), Value::Int(1)],
+        );
+        assert!(
+            matches!(set_too_many, Value::Error(message) if message.contains("Set constructor takes at most 1 argument"))
         );
     }
 }
