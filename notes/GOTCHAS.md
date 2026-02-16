@@ -214,6 +214,14 @@ If you are new to the project, read this first.
 
 ## Runtime / Evaluator
 
+### `env_bool(...)` is permissive: non-truthy values become `false`, not parse errors
+- **Problem:** Tests may incorrectly expect `env_bool("KEY")` to return an error for values like `"definitely-not-bool"`.
+- **Rule:** `env_bool` returns `Ok(true)` only for truthy strings (`true`, `1`, `yes`, `on`, case-insensitive); all other present values resolve to `false`.
+- **Why:** `builtins::env_bool` uses `matches!(...)` and wraps that in `Ok(...)`; only missing env vars produce an error.
+- **Implication:** Contract tests should assert `Value::Bool(false)` for unrecognized present values, and `Value::ErrorObject` only for missing-variable path.
+
+(Discovered during: 2026-02-16_00-28_release-hardening-env-os-assert-follow-through.md)
+
 ### `format(...)` uses printf-style placeholders, not `{}` interpolation
 - **Problem:** Tests and examples written as `format("Hello {}, {}", ...)` fail to substitute values.
 - **Rule:** Ruff `format(...)` currently supports `%s`, `%d`, `%f` placeholders (and `%%` escape) via `builtins::format_string`.

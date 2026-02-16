@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_00-28_release-hardening-env-os-assert-follow-through.md** — ✅ COMPLETED: Added release-hardening dispatcher + runtime contracts for env/system, os/path, and assertion/testing builtins; synchronized roadmap/changelog/readme; captured permissive `env_bool` parsing and `Value::Str` guard-comparison gotchas.
+
 - **2026-02-15_23-40_release-hardening-contract-slices-continuation.md** — ✅ COMPLETED: Continued iterative v0.10 release-hardening coverage for string utility/transform, random-time-date, math, and collection/format builtins; added dispatcher + behavior/fallback contracts; documented Value-comparison, format-placeholder, and async-test triage gotchas.
 
 - **2026-02-15_22-56_release-hardening-follow-through-contract-slices.md** — ✅ COMPLETED: Iteratively expanded v0.10 release-hardening contract coverage (async aliases/SSG, advanced HTTP, core aliases, polymorphic `len`, introspection `type/is_*`, conversion+`bytes`), documented repeated patch/formatter gotchas, and synchronized roadmap/changelog/readme per slice.
