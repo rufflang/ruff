@@ -144,6 +144,11 @@ This roadmap intentionally tracks only upcoming items.
     - Added polymorphic contract coverage for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`
     - Added fallback contract coverage for unsupported/missing arguments (`len(null)` and `len()` return `0`)
 
+- **`type(...)` + `is_*` Introspection Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for `type`, `is_int`, `is_float`, `is_string`, `is_bool`, `is_array`, `is_dict`, `is_null`, and `is_function`
+    - Added contract coverage for `type(...)` result-shape behavior (`string`, `array`, `null`) and missing-argument error shape
+    - Added `is_*` bool-return contract coverage for matching/non-matching values plus missing-argument fallback behavior
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

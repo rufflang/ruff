@@ -105,6 +105,12 @@
   - Added fallback contract tests for unsupported/missing arguments (`len(null)` and `len()` return `0`)
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **`type(...)` + `is_*` Introspection Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for `type`, `is_int`, `is_float`, `is_string`, `is_bool`, `is_array`, `is_dict`, `is_null`, and `is_function`
+  - Added contract tests for `type(...)` result shape (`string`, `array`, `null`) and missing-argument error behavior
+  - Added `is_*` bool-return contract tests for matching/non-matching values and missing-argument fallback behavior
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Exhaustive Builtin Dispatch Drift Guard (P1)**
   - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
   - Added explicit known legacy-gap guardrail plus safety skips for side-effecting probes (`input`, `exit`, `sleep`, `execute`)

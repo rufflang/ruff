@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: `type(...)` + `is_*` Introspection Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for introspection builtins:
+    - `type`
+    - `is_int`, `is_float`, `is_string`, `is_bool`, `is_array`, `is_dict`, `is_null`, `is_function`
+  - Added release-hardening contract coverage for:
+    - `type(...)` result-shape behavior across common runtime values (`string`, `array`, `null`)
+    - `type()` missing-argument error-shape behavior
+    - `is_*` bool-return behavior for matching/non-matching values and missing-argument fallbacks
+
 - **Release Hardening: Polymorphic `len(...)` Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage to include `len`
   - Added release-hardening polymorphic contract coverage for `len(...)` across supported runtime shapes:
