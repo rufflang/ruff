@@ -1,3 +1,0 @@
-print("Start")
-d := {"a": 1}
-print("After dict")
