@@ -25,6 +25,12 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Image Loading Modular Dispatch Gap Closure (P1)**
+  - Added modular handler for declared image API: `load_image`
+  - Added release-hardening contract tests for argument-shape validation, missing-file error behavior, and successful image-load behavior
+  - Reduced exhaustive known-gap list by removing migrated `load_image`
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Compression/Archive Modular Dispatch Gap Closure (P1)**
   - Added modular handlers for declared archive APIs: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
   - Added release-hardening contract tests for argument-shape validation and zip/unzip round-trip behavior

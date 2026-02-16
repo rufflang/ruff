@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - end-to-end zip round-trip behavior (`zip_create` + `zip_add_file` + `zip_add_dir` + `zip_close` + `unzip`)
   - Reduced exhaustive dispatch known-gap list by removing migrated compression/archive APIs
 
+- **Release Hardening: Image Loading Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handler for declared image API:
+    - `load_image`
+  - Preserved legacy runtime behavior for image format detection from path extension and image loading errors
+  - Added release-hardening contract coverage for:
+    - dispatcher-level API coverage (`get_builtin_names` probe + recent-API coverage)
+    - argument-shape validation and missing-file error behavior
+    - successful image round-trip behavior (`load_image` returns `Image` with expected dimensions/format)
+  - Reduced exhaustive dispatch known-gap list by removing migrated `load_image`
+
 - **Release Hardening: Set Constructor Modular Dispatch Gap Closure (P1)**:
   - Added modular native dispatch support for declared `Set(...)` constructor
   - Preserved constructor contract behavior:

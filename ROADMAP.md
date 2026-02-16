@@ -40,6 +40,11 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+- **Image Loading Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared image API (`load_image`)
+    - Added release-hardening tests for argument-shape validation, missing-file error behavior, and successful image load contracts
+    - Reduced exhaustive dispatch known-gap list by removing migrated `load_image`
+
 - **Compression/Archive Modular Dispatch Gap Closure (✅ Complete, February 2026)**
     - Added modular dispatch coverage for declared compression/archive APIs (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)
     - Added release-hardening tests for zip argument-shape/error-shape contracts and end-to-end zip/unzip round-trip behavior
