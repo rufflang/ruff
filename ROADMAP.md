@@ -135,6 +135,10 @@ This roadmap intentionally tracks only upcoming items.
     - Added argument-shape/error-shape contract coverage for all advanced HTTP APIs above
     - Added behavior contract coverage for empty `parallel_http(...)` shape, JWT encode/decode payload integrity, and OAuth2 authorization URL output structure
 
+- **Core Alias Behavior Parity Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for core aliases (`upper`, `lower`, `replace`, `append`)
+    - Added behavior parity contract coverage for `to_upper(...)`/`upper(...)`, `to_lower(...)`/`lower(...)`, `replace_str(...)`/`replace(...)`, and `push(...)`/`append(...)`
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

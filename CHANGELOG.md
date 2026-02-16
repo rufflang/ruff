@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Core Alias Behavior Parity Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for core aliases:
+    - `upper` / `lower`
+    - `replace`
+    - `append`
+  - Added release-hardening behavior parity contract coverage for:
+    - `to_upper(...)` vs `upper(...)`
+    - `to_lower(...)` vs `lower(...)`
+    - `replace_str(...)` vs `replace(...)`
+    - `push(...)` vs `append(...)`
+
 - **Release Hardening: Advanced HTTP API Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for HTTP auth/concurrency surfaces:
     - `parallel_http`

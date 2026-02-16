@@ -94,6 +94,11 @@
   - Added behavior contract tests for empty `parallel_http(...)` shape, JWT encode/decode payload integrity, and OAuth2 authorization URL output structure
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Core Alias Behavior Parity Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for core aliases: `upper`, `lower`, `replace`, `append`
+  - Added behavior parity contract tests for `to_upper(...)` / `upper(...)`, `to_lower(...)` / `lower(...)`, `replace_str(...)` / `replace(...)`, and `push(...)` / `append(...)`
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Exhaustive Builtin Dispatch Drift Guard (P1)**
   - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
   - Added explicit known legacy-gap guardrail plus safety skips for side-effecting probes (`input`, `exit`, `sleep`, `execute`)
