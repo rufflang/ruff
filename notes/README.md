@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_08-05_release-hardening-filesystem-core-contract-follow-through.md** — ✅ COMPLETED: Implemented v0.10.0 P1 release-hardening filesystem core API contract follow-through (critical dispatcher coverage + full behavior/argument-shape tests), synchronized roadmap/changelog/readme, and captured shared-handler error-text + array-edit placement gotchas.
+
 - **2026-02-16_00-46_release-hardening-set-queue-stack-contracts.md** — ✅ COMPLETED: Expanded release-hardening dispatcher coverage for Set/Queue/Stack constructor+method APIs, added comprehensive behavior/argument-shape contracts, synchronized roadmap/changelog/readme, and documented cargo test single-filter command-shape gotcha.
 
 - **2026-02-16_00-28_release-hardening-env-os-assert-follow-through.md** — ✅ COMPLETED: Added release-hardening dispatcher + runtime contracts for env/system, os/path, and assertion/testing builtins; synchronized roadmap/changelog/readme; captured permissive `env_bool` parsing and `Value::Str` guard-comparison gotchas.

@@ -347,6 +347,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-26_02-44_iterators-generators-implementation.md)
 
+### `read_file(...)` bad-shape errors currently report `read_file_sync` in message text
+- **Problem:** Contract tests expecting `read_file` in bad-argument errors fail unexpectedly.
+- **Rule:** Current runtime contract is: `read_file(...)` and `read_file_sync(...)` share one handler arm and emit the same error text (`read_file_sync requires a string path argument`).
+- **Why:** In `src/interpreter/native_functions/filesystem.rs`, the `"read_file_sync" | "read_file"` match arm returns a fixed `read_file_sync`-named error string.
+- **Implication:** For release-hardening contract tests, assert the actual emitted text (or change implementation first) instead of assuming alias-specific naming.
+
+(Discovered during: 2026-02-16_08-05_release-hardening-filesystem-core-contract-follow-through.md)
+
 ---
 
 ## CLI & Arguments
