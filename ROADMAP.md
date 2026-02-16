@@ -139,6 +139,11 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for core aliases (`upper`, `lower`, `replace`, `append`)
     - Added behavior parity contract coverage for `to_upper(...)`/`upper(...)`, `to_lower(...)`/`lower(...)`, `replace_str(...)`/`replace(...)`, and `push(...)`/`append(...)`
 
+- **Polymorphic `len(...)` Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage to include `len`
+    - Added polymorphic contract coverage for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`
+    - Added fallback contract coverage for unsupported/missing arguments (`len(null)` and `len()` return `0`)
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

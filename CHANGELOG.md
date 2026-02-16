@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Polymorphic `len(...)` Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage to include `len`
+  - Added release-hardening polymorphic contract coverage for `len(...)` across supported runtime shapes:
+    - `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, `Stack`
+  - Added fallback contract checks for unsupported/missing arguments (`len(null)` and `len()` return `0`)
+
 - **Release Hardening: Core Alias Behavior Parity Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for core aliases:
     - `upper` / `lower`

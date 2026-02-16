@@ -99,6 +99,12 @@
   - Added behavior parity contract tests for `to_upper(...)` / `upper(...)`, `to_lower(...)` / `lower(...)`, `replace_str(...)` / `replace(...)`, and `push(...)` / `append(...)`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Polymorphic `len(...)` Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage to include `len`
+  - Added polymorphic contract tests for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`
+  - Added fallback contract tests for unsupported/missing arguments (`len(null)` and `len()` return `0`)
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Exhaustive Builtin Dispatch Drift Guard (P1)**
   - Added full declared-builtin dispatch probe coverage for names exposed by `get_builtin_names()`
   - Added explicit known legacy-gap guardrail plus safety skips for side-effecting probes (`input`, `exit`, `sleep`, `execute`)
