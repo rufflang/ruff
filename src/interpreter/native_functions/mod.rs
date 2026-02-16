@@ -126,6 +126,10 @@ mod tests {
         let critical_builtin_names = [
             "Set",
             "ssg_render_pages",
+            "upper",
+            "lower",
+            "replace",
+            "append",
             "Promise.all",
             "parallel_map",
             "par_map",
@@ -288,6 +292,71 @@ mod tests {
             ],
         );
         assert!(matches!(index_of_array, Value::Int(1)));
+    }
+
+    #[test]
+    fn test_release_hardening_core_alias_behavior_parity_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let to_upper = call_native_function(
+            &mut interpreter,
+            "to_upper",
+            &[Value::Str(Arc::new("Ruff Lang".to_string()))],
+        );
+        let upper = call_native_function(
+            &mut interpreter,
+            "upper",
+            &[Value::Str(Arc::new("Ruff Lang".to_string()))],
+        );
+        assert!(matches!(to_upper, Value::Str(s) if s.as_ref() == "RUFF LANG"));
+        assert!(matches!(upper, Value::Str(s) if s.as_ref() == "RUFF LANG"));
+
+        let to_lower = call_native_function(
+            &mut interpreter,
+            "to_lower",
+            &[Value::Str(Arc::new("Ruff Lang".to_string()))],
+        );
+        let lower = call_native_function(
+            &mut interpreter,
+            "lower",
+            &[Value::Str(Arc::new("Ruff Lang".to_string()))],
+        );
+        assert!(matches!(to_lower, Value::Str(s) if s.as_ref() == "ruff lang"));
+        assert!(matches!(lower, Value::Str(s) if s.as_ref() == "ruff lang"));
+
+        let replace_str = call_native_function(
+            &mut interpreter,
+            "replace_str",
+            &[
+                Value::Str(Arc::new("ruff-lang-2026".to_string())),
+                Value::Str(Arc::new("-".to_string())),
+                Value::Str(Arc::new("_".to_string())),
+            ],
+        );
+        let replace = call_native_function(
+            &mut interpreter,
+            "replace",
+            &[
+                Value::Str(Arc::new("ruff-lang-2026".to_string())),
+                Value::Str(Arc::new("-".to_string())),
+                Value::Str(Arc::new("_".to_string())),
+            ],
+        );
+        assert!(matches!(replace_str, Value::Str(s) if s.as_ref() == "ruff_lang_2026"));
+        assert!(matches!(replace, Value::Str(s) if s.as_ref() == "ruff_lang_2026"));
+
+        let push = call_native_function(
+            &mut interpreter,
+            "push",
+            &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])), Value::Int(3)],
+        );
+        let append = call_native_function(
+            &mut interpreter,
+            "append",
+            &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])), Value::Int(3)],
+        );
+        assert!(matches!(push, Value::Array(values) if values.len() == 3 && matches!(&values[0], Value::Int(1)) && matches!(&values[1], Value::Int(2)) && matches!(&values[2], Value::Int(3))));
+        assert!(matches!(append, Value::Array(values) if values.len() == 3 && matches!(&values[0], Value::Int(1)) && matches!(&values[1], Value::Int(2)) && matches!(&values[2], Value::Int(3))));
     }
 
     #[test]
