@@ -886,18 +886,36 @@ mod tests {
             matches!(type_missing, Value::Error(message) if message.contains("type() requires one argument"))
         );
 
+        let type_extra = call_native_function(&mut interpreter, "type", &[Value::Int(1), Value::Int(2)]);
+        assert!(
+            matches!(type_extra, Value::Error(message) if message.contains("type() requires one argument"))
+        );
+
         let is_int_true = call_native_function(&mut interpreter, "is_int", &[Value::Int(7)]);
         assert!(matches!(is_int_true, Value::Bool(true)));
         let is_int_false = call_native_function(&mut interpreter, "is_int", &[Value::Float(7.0)]);
         assert!(matches!(is_int_false, Value::Bool(false)));
         let is_int_missing = call_native_function(&mut interpreter, "is_int", &[]);
         assert!(matches!(is_int_missing, Value::Bool(false)));
+        let is_int_extra =
+            call_native_function(&mut interpreter, "is_int", &[Value::Int(7), Value::Int(8)]);
+        assert!(
+            matches!(is_int_extra, Value::Error(message) if message.contains("is_int() expects 1 argument"))
+        );
 
         let is_float_true =
             call_native_function(&mut interpreter, "is_float", &[Value::Float(7.5)]);
         assert!(matches!(is_float_true, Value::Bool(true)));
         let is_float_false = call_native_function(&mut interpreter, "is_float", &[Value::Int(7)]);
         assert!(matches!(is_float_false, Value::Bool(false)));
+        let is_float_extra = call_native_function(
+            &mut interpreter,
+            "is_float",
+            &[Value::Float(7.5), Value::Int(8)],
+        );
+        assert!(
+            matches!(is_float_extra, Value::Error(message) if message.contains("is_float() expects 1 argument"))
+        );
 
         let is_string_true = call_native_function(
             &mut interpreter,
@@ -908,6 +926,14 @@ mod tests {
         let is_string_false =
             call_native_function(&mut interpreter, "is_string", &[Value::Bool(true)]);
         assert!(matches!(is_string_false, Value::Bool(false)));
+        let is_string_extra = call_native_function(
+            &mut interpreter,
+            "is_string",
+            &[Value::Str(Arc::new("x".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(is_string_extra, Value::Error(message) if message.contains("is_string() expects 1 argument"))
+        );
 
         let is_bool_true = call_native_function(&mut interpreter, "is_bool", &[Value::Bool(true)]);
         assert!(matches!(is_bool_true, Value::Bool(true)));
@@ -917,12 +943,28 @@ mod tests {
             &[Value::Str(Arc::new("true".to_string()))],
         );
         assert!(matches!(is_bool_false, Value::Bool(false)));
+        let is_bool_extra = call_native_function(
+            &mut interpreter,
+            "is_bool",
+            &[Value::Bool(true), Value::Bool(false)],
+        );
+        assert!(
+            matches!(is_bool_extra, Value::Error(message) if message.contains("is_bool() expects 1 argument"))
+        );
 
         let is_array_true =
             call_native_function(&mut interpreter, "is_array", &[Value::Array(Arc::new(vec![]))]);
         assert!(matches!(is_array_true, Value::Bool(true)));
         let is_array_false = call_native_function(&mut interpreter, "is_array", &[Value::Null]);
         assert!(matches!(is_array_false, Value::Bool(false)));
+        let is_array_extra = call_native_function(
+            &mut interpreter,
+            "is_array",
+            &[Value::Array(Arc::new(vec![])), Value::Int(1)],
+        );
+        assert!(
+            matches!(is_array_extra, Value::Error(message) if message.contains("is_array() expects 1 argument"))
+        );
 
         let mut dict = crate::interpreter::DictMap::default();
         dict.insert("k".into(), Value::Int(1));
@@ -932,11 +974,24 @@ mod tests {
         let is_dict_false =
             call_native_function(&mut interpreter, "is_dict", &[Value::Array(Arc::new(vec![]))]);
         assert!(matches!(is_dict_false, Value::Bool(false)));
+        let is_dict_extra = call_native_function(
+            &mut interpreter,
+            "is_dict",
+            &[Value::Dict(Arc::new(crate::interpreter::DictMap::default())), Value::Int(1)],
+        );
+        assert!(
+            matches!(is_dict_extra, Value::Error(message) if message.contains("is_dict() expects 1 argument"))
+        );
 
         let is_null_true = call_native_function(&mut interpreter, "is_null", &[Value::Null]);
         assert!(matches!(is_null_true, Value::Bool(true)));
         let is_null_false = call_native_function(&mut interpreter, "is_null", &[Value::Int(0)]);
         assert!(matches!(is_null_false, Value::Bool(false)));
+        let is_null_extra =
+            call_native_function(&mut interpreter, "is_null", &[Value::Null, Value::Int(0)]);
+        assert!(
+            matches!(is_null_extra, Value::Error(message) if message.contains("is_null() expects 1 argument"))
+        );
 
         let is_function_true = call_native_function(
             &mut interpreter,
@@ -949,6 +1004,14 @@ mod tests {
         assert!(matches!(is_function_false, Value::Bool(false)));
         let is_function_missing = call_native_function(&mut interpreter, "is_function", &[]);
         assert!(matches!(is_function_missing, Value::Bool(false)));
+        let is_function_extra = call_native_function(
+            &mut interpreter,
+            "is_function",
+            &[Value::NativeFunction("len".to_string()), Value::Int(1)],
+        );
+        assert!(
+            matches!(is_function_extra, Value::Error(message) if message.contains("is_function() expects 1 argument"))
+        );
     }
 
     #[test]
@@ -971,6 +1034,15 @@ mod tests {
             matches!(parse_int_bad, Value::Error(message) if message.contains("Cannot parse 'abc' as integer"))
         );
 
+        let parse_int_extra = call_native_function(
+            &mut interpreter,
+            "parse_int",
+            &[Value::Str(Arc::new("42".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(parse_int_extra, Value::Error(message) if message.contains("parse_int requires a string argument"))
+        );
+
         let parse_float_ok = call_native_function(
             &mut interpreter,
             "parse_float",
@@ -985,6 +1057,15 @@ mod tests {
         );
         assert!(
             matches!(parse_float_bad, Value::Error(message) if message.contains("Cannot parse 'not-float' as float"))
+        );
+
+        let parse_float_extra = call_native_function(
+            &mut interpreter,
+            "parse_float",
+            &[Value::Str(Arc::new("3.25".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(parse_float_extra, Value::Error(message) if message.contains("parse_float requires a string argument"))
         );
 
         let to_int_ok = call_native_function(
@@ -1003,6 +1084,12 @@ mod tests {
             matches!(to_int_bad, Value::Error(message) if message.contains("Cannot convert 'bad' to int"))
         );
 
+        let to_int_extra =
+            call_native_function(&mut interpreter, "to_int", &[Value::Int(7), Value::Int(8)]);
+        assert!(
+            matches!(to_int_extra, Value::Error(message) if message.contains("to_int() requires one argument"))
+        );
+
         let to_float_ok = call_native_function(
             &mut interpreter,
             "to_float",
@@ -1019,8 +1106,23 @@ mod tests {
             matches!(to_float_bad, Value::Error(message) if message.contains("Cannot convert 'bad' to float"))
         );
 
+        let to_float_extra = call_native_function(
+            &mut interpreter,
+            "to_float",
+            &[Value::Float(2.5), Value::Int(1)],
+        );
+        assert!(
+            matches!(to_float_extra, Value::Error(message) if message.contains("to_float() requires one argument"))
+        );
+
         let to_string_ok = call_native_function(&mut interpreter, "to_string", &[Value::Int(99)]);
         assert!(matches!(to_string_ok, Value::Str(value) if value.as_ref() == "99"));
+
+        let to_string_extra =
+            call_native_function(&mut interpreter, "to_string", &[Value::Int(99), Value::Int(1)]);
+        assert!(
+            matches!(to_string_extra, Value::Error(message) if message.contains("to_string() requires one argument"))
+        );
 
         let to_bool_false = call_native_function(
             &mut interpreter,
@@ -1035,6 +1137,15 @@ mod tests {
             &[Value::Str(Arc::new("yes".to_string()))],
         );
         assert!(matches!(to_bool_true, Value::Bool(true)));
+
+        let to_bool_extra = call_native_function(
+            &mut interpreter,
+            "to_bool",
+            &[Value::Bool(true), Value::Int(1)],
+        );
+        assert!(
+            matches!(to_bool_extra, Value::Error(message) if message.contains("to_bool() requires one argument"))
+        );
 
         let bytes_ok = call_native_function(
             &mut interpreter,
@@ -1059,6 +1170,18 @@ mod tests {
         );
         assert!(
             matches!(bytes_bad_shape, Value::Error(message) if message.contains("requires an array of integers"))
+        );
+
+        let bytes_extra = call_native_function(
+            &mut interpreter,
+            "bytes",
+            &[
+                Value::Array(Arc::new(vec![Value::Int(65), Value::Int(66)])),
+                Value::Int(67),
+            ],
+        );
+        assert!(
+            matches!(bytes_extra, Value::Error(message) if message.contains("bytes() requires an array argument"))
         );
     }
 
