@@ -134,6 +134,13 @@ mod tests {
             "is_dict",
             "is_null",
             "is_function",
+            "parse_int",
+            "parse_float",
+            "to_int",
+            "to_float",
+            "to_string",
+            "to_bool",
+            "bytes",
             "Set",
             "ssg_render_pages",
             "upper",
@@ -450,6 +457,117 @@ mod tests {
         assert!(matches!(is_function_false, Value::Bool(false)));
         let is_function_missing = call_native_function(&mut interpreter, "is_function", &[]);
         assert!(matches!(is_function_missing, Value::Bool(false)));
+    }
+
+    #[test]
+    fn test_release_hardening_conversion_and_bytes_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let parse_int_ok = call_native_function(
+            &mut interpreter,
+            "parse_int",
+            &[Value::Str(Arc::new("42".to_string()))],
+        );
+        assert!(matches!(parse_int_ok, Value::Int(42)));
+
+        let parse_int_bad = call_native_function(
+            &mut interpreter,
+            "parse_int",
+            &[Value::Str(Arc::new("abc".to_string()))],
+        );
+        assert!(
+            matches!(parse_int_bad, Value::Error(message) if message.contains("Cannot parse 'abc' as integer"))
+        );
+
+        let parse_float_ok = call_native_function(
+            &mut interpreter,
+            "parse_float",
+            &[Value::Str(Arc::new("3.25".to_string()))],
+        );
+        assert!(matches!(parse_float_ok, Value::Float(value) if (value - 3.25).abs() < 1e-12));
+
+        let parse_float_bad = call_native_function(
+            &mut interpreter,
+            "parse_float",
+            &[Value::Str(Arc::new("not-float".to_string()))],
+        );
+        assert!(
+            matches!(parse_float_bad, Value::Error(message) if message.contains("Cannot parse 'not-float' as float"))
+        );
+
+        let to_int_ok = call_native_function(
+            &mut interpreter,
+            "to_int",
+            &[Value::Str(Arc::new("7".to_string()))],
+        );
+        assert!(matches!(to_int_ok, Value::Int(7)));
+
+        let to_int_bad = call_native_function(
+            &mut interpreter,
+            "to_int",
+            &[Value::Str(Arc::new("bad".to_string()))],
+        );
+        assert!(
+            matches!(to_int_bad, Value::Error(message) if message.contains("Cannot convert 'bad' to int"))
+        );
+
+        let to_float_ok = call_native_function(
+            &mut interpreter,
+            "to_float",
+            &[Value::Str(Arc::new("2.5".to_string()))],
+        );
+        assert!(matches!(to_float_ok, Value::Float(value) if (value - 2.5).abs() < 1e-12));
+
+        let to_float_bad = call_native_function(
+            &mut interpreter,
+            "to_float",
+            &[Value::Str(Arc::new("bad".to_string()))],
+        );
+        assert!(
+            matches!(to_float_bad, Value::Error(message) if message.contains("Cannot convert 'bad' to float"))
+        );
+
+        let to_string_ok = call_native_function(&mut interpreter, "to_string", &[Value::Int(99)]);
+        assert!(matches!(to_string_ok, Value::Str(value) if value.as_ref() == "99"));
+
+        let to_bool_false = call_native_function(
+            &mut interpreter,
+            "to_bool",
+            &[Value::Str(Arc::new("false".to_string()))],
+        );
+        assert!(matches!(to_bool_false, Value::Bool(false)));
+
+        let to_bool_true = call_native_function(
+            &mut interpreter,
+            "to_bool",
+            &[Value::Str(Arc::new("yes".to_string()))],
+        );
+        assert!(matches!(to_bool_true, Value::Bool(true)));
+
+        let bytes_ok = call_native_function(
+            &mut interpreter,
+            "bytes",
+            &[Value::Array(Arc::new(vec![Value::Int(65), Value::Int(66), Value::Int(67)]))],
+        );
+        assert!(matches!(bytes_ok, Value::Bytes(values) if values == vec![65, 66, 67]));
+
+        let bytes_bad_range = call_native_function(
+            &mut interpreter,
+            "bytes",
+            &[Value::Array(Arc::new(vec![Value::Int(256)]))],
+        );
+        assert!(
+            matches!(bytes_bad_range, Value::Error(message) if message.contains("requires integers in range 0-255"))
+        );
+
+        let bytes_bad_shape = call_native_function(
+            &mut interpreter,
+            "bytes",
+            &[Value::Array(Arc::new(vec![Value::Str(Arc::new("x".to_string()))]))],
+        );
+        assert!(
+            matches!(bytes_bad_shape, Value::Error(message) if message.contains("requires an array of integers"))
+        );
     }
 
     #[test]
