@@ -105,6 +105,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - dict lookup/update semantics (`has_key`, `get`, `get_default`, `merge`, `update`, `invert`) including fallback/error shapes
     - `format(...)` sprintf-style placeholder behavior (`%s`, `%d`) and template argument-shape errors
 
+- **Release Hardening: Set/Queue/Stack API Contract Follow-Through (P1)**:
+  - Expanded dispatcher-level critical API coverage for collection constructor/method APIs:
+    - `set_add`, `set_has`, `set_remove`, `set_union`, `set_intersect`, `set_difference`, `set_to_array`
+    - `Queue`, `queue_enqueue`, `queue_dequeue`, `queue_peek`, `queue_is_empty`, `queue_to_array`
+    - `Stack`, `stack_push`, `stack_pop`, `stack_peek`, `stack_is_empty`, `stack_to_array`
+  - Added release-hardening behavior and argument-shape contract coverage for set/queue/stack mutation, membership, conversion, and pop/dequeue result-shape behavior
+  - Added explicit `queue_size(...)` and `stack_size(...)` type-validation contract checks within the same coverage slice
+
 - **Release Hardening: Conversion + `bytes(...)` Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for conversion/validation builtins:
     - `parse_int`, `parse_float`

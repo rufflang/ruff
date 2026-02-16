@@ -140,6 +140,12 @@
   - Added deterministic dict-order tests, lookup/update behavior tests, range argument-shape tests, and `format(...)` placeholder/argument-shape tests
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Set/Queue/Stack API Contract Follow-Through (P1)**
+  - Expanded release-hardening critical dispatcher coverage for collection constructor/method APIs: `set_add`, `set_has`, `set_remove`, `set_union`, `set_intersect`, `set_difference`, `set_to_array`, `Queue`, `queue_enqueue`, `queue_dequeue`, `queue_peek`, `queue_is_empty`, `queue_to_array`, `Stack`, `stack_push`, `stack_pop`, `stack_peek`, `stack_is_empty`, `stack_to_array`
+  - Added behavior and argument-shape contract tests for mutation, membership, conversion, and dequeue/pop result-shape behavior
+  - Added explicit type-validation checks for `queue_size(...)` and `stack_size(...)`
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Polymorphic `len(...)` Contract Follow-Through (P1)**
   - Expanded release-hardening critical dispatcher coverage to include `len`
   - Added polymorphic contract tests for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`

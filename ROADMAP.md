@@ -172,6 +172,11 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded release-hardening critical dispatcher coverage for collection/format APIs (`range`, `keys`, `values`, `items`, `has_key`, `get`, `merge`, `invert`, `update`, `get_default`, `format`)
     - Added deterministic dict-order contracts, lookup/update behavior contracts, range argument-shape contracts, and `format(...)` placeholder/argument-shape contracts
 
+- **Set/Queue/Stack API Contract Follow-Through (✅ Complete, February 2026)**
+    - Expanded release-hardening critical dispatcher coverage for collection constructor/method APIs (`set_add`, `set_has`, `set_remove`, `set_union`, `set_intersect`, `set_difference`, `set_to_array`, `Queue`, `queue_enqueue`, `queue_dequeue`, `queue_peek`, `queue_is_empty`, `queue_to_array`, `Stack`, `stack_push`, `stack_pop`, `stack_peek`, `stack_is_empty`, `stack_to_array`)
+    - Added behavior and argument-shape contract coverage for mutation, membership, conversion, and dequeue/pop result-shape behavior
+    - Added explicit queue/stack size type-validation checks (`queue_size(...)`, `stack_size(...)`) in the same hardening slice
+
 - **Polymorphic `len(...)` Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage to include `len`
     - Added polymorphic contract coverage for `len(...)` on `String`, `Array`, `Dict`, `Bytes`, `Set`, `Queue`, and `Stack`
