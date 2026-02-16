@@ -147,6 +147,12 @@ mod tests {
             "lower",
             "replace",
             "append",
+            "starts_with",
+            "ends_with",
+            "repeat",
+            "char_at",
+            "is_empty",
+            "count_chars",
             "Promise.all",
             "parallel_map",
             "par_map",
@@ -637,6 +643,134 @@ mod tests {
         assert!(
             matches!(append, Value::Array(values) if values.len() == 3 && matches!(&values[0], Value::Int(1)) && matches!(&values[1], Value::Int(2)) && matches!(&values[2], Value::Int(3)))
         );
+    }
+
+    #[test]
+    fn test_release_hardening_string_utility_behavior_and_fallback_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let starts_with_true = call_native_function(
+            &mut interpreter,
+            "starts_with",
+            &[
+                Value::Str(Arc::new("ruff-lang".to_string())),
+                Value::Str(Arc::new("ruff".to_string())),
+            ],
+        );
+        assert!(matches!(starts_with_true, Value::Bool(true)));
+
+        let starts_with_false = call_native_function(
+            &mut interpreter,
+            "starts_with",
+            &[
+                Value::Str(Arc::new("ruff-lang".to_string())),
+                Value::Str(Arc::new("lang".to_string())),
+            ],
+        );
+        assert!(matches!(starts_with_false, Value::Bool(false)));
+
+        let starts_with_invalid = call_native_function(
+            &mut interpreter,
+            "starts_with",
+            &[Value::Str(Arc::new("ruff-lang".to_string())), Value::Int(1)],
+        );
+        assert!(matches!(starts_with_invalid, Value::Bool(false)));
+
+        let ends_with_true = call_native_function(
+            &mut interpreter,
+            "ends_with",
+            &[
+                Value::Str(Arc::new("ruff-lang".to_string())),
+                Value::Str(Arc::new("lang".to_string())),
+            ],
+        );
+        assert!(matches!(ends_with_true, Value::Bool(true)));
+
+        let ends_with_false = call_native_function(
+            &mut interpreter,
+            "ends_with",
+            &[
+                Value::Str(Arc::new("ruff-lang".to_string())),
+                Value::Str(Arc::new("ruff".to_string())),
+            ],
+        );
+        assert!(matches!(ends_with_false, Value::Bool(false)));
+
+        let ends_with_invalid = call_native_function(
+            &mut interpreter,
+            "ends_with",
+            &[Value::Str(Arc::new("ruff-lang".to_string())), Value::Int(1)],
+        );
+        assert!(matches!(ends_with_invalid, Value::Bool(false)));
+
+        let repeat_ok = call_native_function(
+            &mut interpreter,
+            "repeat",
+            &[Value::Str(Arc::new("ru".to_string())), Value::Int(3)],
+        );
+        assert!(matches!(repeat_ok, Value::Str(value) if value.as_ref() == "rururu"));
+
+        let repeat_missing = call_native_function(
+            &mut interpreter,
+            "repeat",
+            &[Value::Str(Arc::new("ru".to_string()))],
+        );
+        assert!(matches!(repeat_missing, Value::Str(value) if value.as_ref().is_empty()));
+
+        let char_at_ok = call_native_function(
+            &mut interpreter,
+            "char_at",
+            &[Value::Str(Arc::new("ruff".to_string())), Value::Int(2)],
+        );
+        assert!(matches!(char_at_ok, Value::Str(value) if value.as_ref() == "f"));
+
+        let char_at_oob = call_native_function(
+            &mut interpreter,
+            "char_at",
+            &[Value::Str(Arc::new("ruff".to_string())), Value::Int(99)],
+        );
+        assert!(matches!(char_at_oob, Value::Str(value) if value.as_ref().is_empty()));
+
+        let char_at_missing = call_native_function(
+            &mut interpreter,
+            "char_at",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(matches!(char_at_missing, Value::Str(value) if value.as_ref().is_empty()));
+
+        let is_empty_true = call_native_function(
+            &mut interpreter,
+            "is_empty",
+            &[Value::Str(Arc::new(String::new()))],
+        );
+        assert!(matches!(is_empty_true, Value::Bool(true)));
+
+        let is_empty_false = call_native_function(
+            &mut interpreter,
+            "is_empty",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(matches!(is_empty_false, Value::Bool(false)));
+
+        let is_empty_missing = call_native_function(&mut interpreter, "is_empty", &[]);
+        assert!(matches!(is_empty_missing, Value::Bool(true)));
+
+        let count_chars_ok = call_native_function(
+            &mut interpreter,
+            "count_chars",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(matches!(count_chars_ok, Value::Int(4)));
+
+        let count_chars_unicode = call_native_function(
+            &mut interpreter,
+            "count_chars",
+            &[Value::Str(Arc::new("🔥a".to_string()))],
+        );
+        assert!(matches!(count_chars_unicode, Value::Int(2)));
+
+        let count_chars_missing = call_native_function(&mut interpreter, "count_chars", &[]);
+        assert!(matches!(count_chars_missing, Value::Int(0)));
     }
 
     #[test]
