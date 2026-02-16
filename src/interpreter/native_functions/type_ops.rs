@@ -10,6 +10,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         // Type conversion functions
         "parse_int" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("parse_int requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(s)) = arg_values.first() {
                 match s.trim().parse::<i64>() {
                     Ok(n) => Value::Int(n),
@@ -21,6 +25,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "parse_float" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("parse_float requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(s)) = arg_values.first() {
                 match s.trim().parse::<f64>() {
                     Ok(n) => Value::Float(n),
@@ -32,6 +40,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_int" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_int() requires one argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 match val {
                     Value::Int(n) => Value::Int(*n),
@@ -57,6 +69,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_float" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_float() requires one argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 match val {
                     Value::Int(n) => Value::Float(*n as f64),
@@ -82,6 +98,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_string" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_string() requires one argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Str(Arc::new(Interpreter::stringify_value(val)))
             } else {
@@ -90,6 +110,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_bool" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_bool() requires one argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 match val {
                     Value::Bool(b) => Value::Bool(*b),
@@ -115,6 +139,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "bytes" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("bytes() requires an array argument".to_string()));
+            }
+
             if let Some(Value::Array(arr)) = arg_values.first() {
                 let mut byte_vec = Vec::new();
                 for val in arr.iter() {
@@ -143,6 +171,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         // Type introspection functions
         "type" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("type() requires one argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 let type_name = match val {
                     Value::Int(_) => "int",
@@ -198,6 +230,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_int" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_int() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(val, Value::Int(_)))
             } else {
@@ -206,6 +242,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_float" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_float() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(val, Value::Float(_)))
             } else {
@@ -214,6 +254,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_string" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_string() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(val, Value::Str(_)))
             } else {
@@ -222,6 +266,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_array" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_array() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(val, Value::Array(_)))
             } else {
@@ -230,6 +278,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_dict" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_dict() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(
                     val,
@@ -246,6 +298,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_bool" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_bool() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(val, Value::Bool(_)))
             } else {
@@ -254,6 +310,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_null" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_null() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(val, Value::Null))
             } else {
@@ -262,6 +322,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "is_function" => {
+            if arg_values.len() > 1 {
+                return Some(Value::Error("is_function() expects 1 argument".to_string()));
+            }
+
             if let Some(val) = arg_values.first() {
                 Value::Bool(matches!(val, Value::Function(_, _, _) | Value::NativeFunction(_)))
             } else {
@@ -530,5 +594,95 @@ mod tests {
         .expect("debug should return a result");
 
         assert!(matches!(debug_result, Value::Null));
+    }
+
+    #[test]
+    fn test_conversion_and_introspection_api_strict_arity_contracts() {
+        let parse_int_extra =
+            handle("parse_int", &[Value::Str(Arc::new("42".to_string())), Value::Int(1)])
+                .expect("parse_int should return a result");
+        assert!(matches!(parse_int_extra, Value::Error(message) if message.contains("parse_int requires a string argument")));
+
+        let parse_float_extra = handle(
+            "parse_float",
+            &[Value::Str(Arc::new("3.14".to_string())), Value::Int(1)],
+        )
+        .expect("parse_float should return a result");
+        assert!(matches!(parse_float_extra, Value::Error(message) if message.contains("parse_float requires a string argument")));
+
+        let to_int_extra = handle("to_int", &[Value::Int(7), Value::Int(8)])
+            .expect("to_int should return a result");
+        assert!(matches!(to_int_extra, Value::Error(message) if message.contains("to_int() requires one argument")));
+
+        let to_float_extra = handle("to_float", &[Value::Float(1.5), Value::Int(8)])
+            .expect("to_float should return a result");
+        assert!(matches!(to_float_extra, Value::Error(message) if message.contains("to_float() requires one argument")));
+
+        let to_string_extra =
+            handle("to_string", &[Value::Int(1), Value::Int(2)])
+                .expect("to_string should return a result");
+        assert!(matches!(to_string_extra, Value::Error(message) if message.contains("to_string() requires one argument")));
+
+        let to_bool_extra = handle("to_bool", &[Value::Bool(true), Value::Int(2)])
+            .expect("to_bool should return a result");
+        assert!(matches!(to_bool_extra, Value::Error(message) if message.contains("to_bool() requires one argument")));
+
+        let bytes_extra = handle(
+            "bytes",
+            &[
+                Value::Array(Arc::new(vec![Value::Int(65)])),
+                Value::Int(66),
+            ],
+        )
+        .expect("bytes should return a result");
+        assert!(matches!(bytes_extra, Value::Error(message) if message.contains("bytes() requires an array argument")));
+
+        let type_extra =
+            handle("type", &[Value::Int(1), Value::Int(2)]).expect("type should return a result");
+        assert!(matches!(type_extra, Value::Error(message) if message.contains("type() requires one argument")));
+
+        let is_int_extra = handle("is_int", &[Value::Int(1), Value::Int(2)])
+            .expect("is_int should return a result");
+        assert!(matches!(is_int_extra, Value::Error(message) if message.contains("is_int() expects 1 argument")));
+
+        let is_float_extra = handle("is_float", &[Value::Float(1.0), Value::Int(2)])
+            .expect("is_float should return a result");
+        assert!(matches!(is_float_extra, Value::Error(message) if message.contains("is_float() expects 1 argument")));
+
+        let is_string_extra = handle(
+            "is_string",
+            &[Value::Str(Arc::new("x".to_string())), Value::Int(2)],
+        )
+        .expect("is_string should return a result");
+        assert!(matches!(is_string_extra, Value::Error(message) if message.contains("is_string() expects 1 argument")));
+
+        let is_array_extra = handle(
+            "is_array",
+            &[Value::Array(Arc::new(vec![])), Value::Int(2)],
+        )
+        .expect("is_array should return a result");
+        assert!(matches!(is_array_extra, Value::Error(message) if message.contains("is_array() expects 1 argument")));
+
+        let is_dict_extra = handle(
+            "is_dict",
+            &[Value::Dict(Arc::new(crate::interpreter::DictMap::default())), Value::Int(2)],
+        )
+        .expect("is_dict should return a result");
+        assert!(matches!(is_dict_extra, Value::Error(message) if message.contains("is_dict() expects 1 argument")));
+
+        let is_bool_extra = handle("is_bool", &[Value::Bool(true), Value::Int(2)])
+            .expect("is_bool should return a result");
+        assert!(matches!(is_bool_extra, Value::Error(message) if message.contains("is_bool() expects 1 argument")));
+
+        let is_null_extra = handle("is_null", &[Value::Null, Value::Int(2)])
+            .expect("is_null should return a result");
+        assert!(matches!(is_null_extra, Value::Error(message) if message.contains("is_null() expects 1 argument")));
+
+        let is_function_extra = handle(
+            "is_function",
+            &[Value::NativeFunction("len".to_string()), Value::Int(2)],
+        )
+        .expect("is_function should return a result");
+        assert!(matches!(is_function_extra, Value::Error(message) if message.contains("is_function() expects 1 argument")));
     }
 }
