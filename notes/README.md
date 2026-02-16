@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-15_20-03_process-dispatch-hardening.md** — ✅ COMPLETED: Closed v0.10 release-hardening modular dispatch gap for process APIs (`spawn_process`, `pipe_commands`), added comprehensive native + dispatcher contract coverage, and documented commit-scoping/known-gap synchronization gotchas.
+
 - **2026-02-15_17-13_release-hardening-modular-dispatch-gap-closures.md** — ✅ COMPLETED: Closed iterative v0.10 release-hardening modular dispatch gaps for string polymorphic APIs (`contains`/`index_of`), advanced `io_*`, declared HTTP APIs, and declared `db_*` APIs; added module+dispatcher contract coverage and captured migration-ledger + SQLite-first DB testing gotchas.
 
 - **2026-02-15_16-17_release-hardening-dispatch-gap-slices.md** — ✅ COMPLETED: Implemented iterative v0.10 dispatch hardening slices (par_each contract expansion, exhaustive drift guard + safe probe policy, modular migration of system env/args APIs, data-format/encoding APIs, and regex APIs), added targeted regression coverage, and documented migration-ledger testing rules.
