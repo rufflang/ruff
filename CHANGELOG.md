@@ -158,6 +158,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `pipe_commands` argument-shape validation and single-command pipeline output behavior
   - Expanded dispatcher-level hardening coverage for process APIs and reduced exhaustive known-gap list by removing `spawn_process` and `pipe_commands`
 
+- **Release Hardening: Crypto Module Modular Dispatch Gap Closure (P1)**:
+  - Added modular native dispatch handlers for declared crypto and hashing APIs:
+    - `sha256`, `md5`, `md5_file`
+    - `hash_password`, `verify_password`
+    - `aes_encrypt`, `aes_decrypt`, `aes_encrypt_bytes`, `aes_decrypt_bytes`
+    - `rsa_generate_keypair`, `rsa_encrypt`, `rsa_decrypt`, `rsa_sign`, `rsa_verify`
+  - Preserved legacy crypto contract behavior for argument validation, hash formatting, bcrypt verify semantics, AES base64 payload conventions, and RSA key/signature error-object shape
+  - Added comprehensive native-function coverage for:
+    - deterministic hash vectors and file-hash behavior
+    - bcrypt hash/verify success + failure behavior
+    - AES string/bytes encrypt-decrypt round trips
+    - RSA keypair generation, encrypt/decrypt round trip, and sign/verify contract behavior
+    - argument-shape and key-size validation errors
+  - Expanded dispatcher-level hardening coverage for crypto APIs and reduced exhaustive known-gap list by removing migrated crypto entries
+
 - **Architecture Cleanup: Runtime Function Values No Longer Embed AST Bodies (P2)**:
   - Refactored function body storage to use opaque runtime body handles instead of embedding AST vectors inside runtime values
   - Added internal function-body store with reference-counted handle lifecycle management

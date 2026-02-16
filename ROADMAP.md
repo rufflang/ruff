@@ -119,6 +119,12 @@ This roadmap intentionally tracks only upcoming items.
     - Expanded dispatcher-level release-hardening contract coverage for migrated process APIs
     - Reduced exhaustive dispatch known-gap list by removing now-migrated process APIs
 
+- **Crypto Module Modular Dispatch Gap Closure (✅ Complete, February 2026)**
+    - Added modular dispatch coverage for declared crypto/hash APIs (`sha256`, `md5`, `md5_file`, `hash_password`, `verify_password`, `aes_encrypt/decrypt`, `aes_encrypt_bytes/decrypt_bytes`, `rsa_generate_keypair`, `rsa_encrypt/decrypt`, `rsa_sign`, `rsa_verify`)
+    - Added native-function regression tests for hash vectors, bcrypt verify behavior, AES string/bytes round trips, RSA keygen/encrypt/decrypt/sign/verify behavior, and argument-shape/key-size validation
+    - Expanded dispatcher-level release-hardening contract coverage for migrated crypto APIs
+    - Reduced exhaustive dispatch known-gap list by removing now-migrated crypto APIs
+
 ### Remaining Focus
 
 - Stabilize external-facing runtime APIs and aliases ahead of v1.0

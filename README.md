@@ -111,6 +111,12 @@
   - Expanded release-hardening dispatcher coverage for migrated process APIs and removed these entries from known dispatch gaps
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Crypto Module Modular Dispatch Gap Closure (P1)**
+  - Added modular handlers for declared crypto/hash APIs: `sha256`, `md5`, `md5_file`, `hash_password`, `verify_password`, `aes_encrypt`, `aes_decrypt`, `aes_encrypt_bytes`, `aes_decrypt_bytes`, `rsa_generate_keypair`, `rsa_encrypt`, `rsa_decrypt`, `rsa_sign`, `rsa_verify`
+  - Added contract tests for hash vectors, file hashing, bcrypt verify semantics, AES string/bytes round trips, RSA keygen/encrypt/decrypt/sign/verify behavior, and argument-shape validation
+  - Expanded release-hardening dispatcher coverage for migrated crypto APIs and removed these entries from known dispatch gaps
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Unknown Native Dispatch Contract (P1)**
   - Removed silent unknown-native fallback from modular native dispatcher and replaced it with explicit runtime errors
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback
