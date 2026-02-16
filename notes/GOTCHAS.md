@@ -485,6 +485,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-12_16-35-configurable-task-pool-sizing.md)
 
+### `matches!` on `Value::Error(message)` can partially move test values
+- **Problem:** Contract tests that both pattern-match error messages and print the full `Value` can fail to compile with move errors.
+- **Rule:** Use borrowed bindings in `matches!` for error variants when the full value is reused: `Value::Error(ref message)`.
+- **Why:** Binding `message` without `ref` moves the inner `String`, partially moving the parent `Value`.
+- **Implication:** For assertion blocks that include debug output (`{:?}`), borrowed pattern bindings avoid `E0382` (`borrow of partially moved value`).
+
+(Discovered during: 2026-02-16_17-28_release-hardening-array-higher-order-collection-contracts.md)
+
 ### `FuturesUnordered` requires one concrete future type
 - **Problem:** Replacing batched await logic with `FuturesUnordered` fails to compile with type mismatch errors (`E0308`) when pushing multiple inline `async` blocks.
 - **Rule:** Build all in-flight futures through one closure/function so every pushed future has the same concrete type.
