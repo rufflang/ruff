@@ -136,6 +136,11 @@ This roadmap intentionally tracks only upcoming items.
         - Added async alias argument-shape/error-shape parity contract coverage for `Promise.all(...)` / `promise_all(...)` / `await_all(...)` and `parallel_map(...)` / `par_map(...)` / `par_each(...)`
         - Added release-hardening contract coverage for `ssg_render_pages(...)` argument validation and successful result-shape behavior
 
+- **Async Batch + Shared State/Task-Pool Contract Follow-Through (✅ Complete, February 2026)**
+    - Added release-hardening contract coverage for async batch file wrappers (`async_read_files`, `async_write_files`) including argument-shape/error-shape validation and write/read lifecycle behavior
+    - Added release-hardening contract coverage for shared-state APIs (`shared_set`, `shared_get`, `shared_has`, `shared_delete`, `shared_add_int`) including key lifecycle and integer-mutation behavior
+    - Added release-hardening contract coverage for task-pool sizing APIs (`set_task_pool_size`, `get_task_pool_size`) including argument-shape/error-shape and return-shape validation
+
 - **Advanced HTTP API Contract Follow-Through (✅ Complete, February 2026)**
     - Expanded release-hardening critical dispatcher coverage for HTTP auth/concurrency APIs (`parallel_http`, `jwt_encode`, `jwt_decode`, `oauth2_auth_url`, `oauth2_get_token`)
     - Added argument-shape/error-shape contract coverage for all advanced HTTP APIs above

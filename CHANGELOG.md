@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Async Batch + Shared State/Task-Pool Contract Follow-Through (P1)**:
+  - Added release-hardening contract coverage for async batch file APIs:
+    - `async_read_files`
+    - `async_write_files`
+  - Added release-hardening contract coverage for shared-state and task-pool APIs:
+    - `shared_set`, `shared_get`, `shared_has`, `shared_delete`, `shared_add_int`
+    - `set_task_pool_size`, `get_task_pool_size`
+  - Added comprehensive argument-shape/error-shape checks plus success-path behavior validation for:
+    - async batch read/write lifecycle (`async_write_files` → `async_read_files`) with concurrency-limit contracts
+    - shared key lifecycle and integer mutation contracts (`shared_set/get/has/delete/add_int`)
+    - task-pool sizing argument validation and runtime return-shape contracts (`set_task_pool_size`, `get_task_pool_size`)
+
 - **Release Hardening: Async Runtime + Task/Channel Contract Follow-Through (P1)**:
   - Expanded dispatcher-level critical API coverage for async/concurrency builtins:
     - `channel`, `async_sleep`, `async_timeout`, `async_http_get`, `async_http_post`
