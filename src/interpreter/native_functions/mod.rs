@@ -124,6 +124,7 @@ mod tests {
     fn test_release_hardening_builtin_dispatch_coverage_for_recent_apis() {
         let mut interpreter = Interpreter::new();
         let critical_builtin_names = [
+            "len",
             "Set",
             "ssg_render_pages",
             "upper",
@@ -295,6 +296,63 @@ mod tests {
     }
 
     #[test]
+    fn test_release_hardening_len_polymorphic_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let string_len = call_native_function(
+            &mut interpreter,
+            "len",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(matches!(string_len, Value::Int(4)));
+
+        let array_len = call_native_function(
+            &mut interpreter,
+            "len",
+            &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)]))],
+        );
+        assert!(matches!(array_len, Value::Int(2)));
+
+        let mut dict = crate::interpreter::DictMap::default();
+        dict.insert("a".into(), Value::Int(1));
+        dict.insert("b".into(), Value::Int(2));
+        let dict_len =
+            call_native_function(&mut interpreter, "len", &[Value::Dict(Arc::new(dict))]);
+        assert!(matches!(dict_len, Value::Int(2)));
+
+        let bytes_len =
+            call_native_function(&mut interpreter, "len", &[Value::Bytes(vec![1, 2, 3])]);
+        assert!(matches!(bytes_len, Value::Int(3)));
+
+        let set_len = call_native_function(
+            &mut interpreter,
+            "len",
+            &[Value::Set(vec![Value::Int(1), Value::Int(2), Value::Int(3)])],
+        );
+        assert!(matches!(set_len, Value::Int(3)));
+
+        let queue_len = call_native_function(
+            &mut interpreter,
+            "len",
+            &[Value::Queue(std::collections::VecDeque::from(vec![Value::Int(1), Value::Int(2)]))],
+        );
+        assert!(matches!(queue_len, Value::Int(2)));
+
+        let stack_len = call_native_function(
+            &mut interpreter,
+            "len",
+            &[Value::Stack(vec![Value::Int(1), Value::Int(2), Value::Int(3), Value::Int(4)])],
+        );
+        assert!(matches!(stack_len, Value::Int(4)));
+
+        let fallback_len = call_native_function(&mut interpreter, "len", &[Value::Null]);
+        assert!(matches!(fallback_len, Value::Int(0)));
+
+        let missing_args_len = call_native_function(&mut interpreter, "len", &[]);
+        assert!(matches!(missing_args_len, Value::Int(0)));
+    }
+
+    #[test]
     fn test_release_hardening_core_alias_behavior_parity_contracts() {
         let mut interpreter = Interpreter::new();
 
@@ -355,8 +413,12 @@ mod tests {
             "append",
             &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])), Value::Int(3)],
         );
-        assert!(matches!(push, Value::Array(values) if values.len() == 3 && matches!(&values[0], Value::Int(1)) && matches!(&values[1], Value::Int(2)) && matches!(&values[2], Value::Int(3))));
-        assert!(matches!(append, Value::Array(values) if values.len() == 3 && matches!(&values[0], Value::Int(1)) && matches!(&values[1], Value::Int(2)) && matches!(&values[2], Value::Int(3))));
+        assert!(
+            matches!(push, Value::Array(values) if values.len() == 3 && matches!(&values[0], Value::Int(1)) && matches!(&values[1], Value::Int(2)) && matches!(&values[2], Value::Int(3)))
+        );
+        assert!(
+            matches!(append, Value::Array(values) if values.len() == 3 && matches!(&values[0], Value::Int(1)) && matches!(&values[1], Value::Int(2)) && matches!(&values[2], Value::Int(3)))
+        );
     }
 
     #[test]
