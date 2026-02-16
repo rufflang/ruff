@@ -151,6 +151,7 @@
   - Expanded release-hardening critical dispatcher coverage for env/system APIs (`env*`, `args`, `arg_parser`), OS/path APIs (`os_*`, `dirname`, `basename`, `path_*`), and testing/assertion APIs (`assert`, `debug`, `assert_equal`, `assert_true`, `assert_false`, `assert_contains`)
   - Added behavior and argument/error-shape contract tests for env typed parsing/default/required behavior, ArgParser shape, OS directory lifecycle, path helper semantics, and assertion success/failure behavior
   - Hardened strict arity contracts for env/system APIs (`env*`, `args`, `arg_parser`) so trailing arguments now return deterministic contract errors
+  - Hardened strict arity contracts for OS/path APIs (`os_*`, `dirname`, `basename`, `path_*`) so trailing arguments now return deterministic contract errors
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
 * **Random and Time API Contract Follow-Through (P1)**

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: OS/Path API Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
+    - OS APIs: `os_getcwd`, `os_chdir`, `os_rmdir`, `os_environ`
+    - Path APIs: `dirname`, `basename`, `path_exists`, `path_absolute`, `path_is_dir`, `path_is_file`, `path_extension`
+  - Added comprehensive release-hardening strict-arity coverage for all APIs above at dispatcher integration level, including explicit extra-argument rejection checks
+
 - **Release Hardening: System Random/Time + Env/Args Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
     - Random/time APIs: `random`, `random_int`, `random_choice`, `set_random_seed`, `clear_random_seed`, `now`, `current_timestamp`, `performance_now`, `time_us`, `time_ns`, `format_duration`, `elapsed`, `format_date`, `parse_date`
