@@ -126,6 +126,9 @@ mod tests {
         let critical_builtin_names = [
             "Set",
             "ssg_render_pages",
+            "Promise.all",
+            "parallel_map",
+            "par_map",
             "contains",
             "index_of",
             "io_read_bytes",
@@ -357,6 +360,132 @@ mod tests {
         assert!(
             matches!(pipe_missing, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
         );
+    }
+
+    #[test]
+    fn test_release_hardening_async_alias_dispatch_argument_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        for alias in ["Promise.all", "promise_all", "await_all"] {
+            let missing_args = call_native_function(&mut interpreter, alias, &[]);
+            assert!(
+                matches!(missing_args, Value::Error(ref message) if message.contains("Promise.all() expects 1 or 2 arguments")),
+                "Unexpected missing-args contract for {}: {:?}",
+                alias,
+                missing_args
+            );
+
+            let non_array = call_native_function(&mut interpreter, alias, &[Value::Int(1)]);
+            assert!(
+                matches!(non_array, Value::Error(ref message) if message.contains("Promise.all() requires an array of promises")),
+                "Unexpected non-array contract for {}: {:?}",
+                alias,
+                non_array
+            );
+
+            let invalid_limit = call_native_function(
+                &mut interpreter,
+                alias,
+                &[Value::Array(Arc::new(vec![])), Value::Int(0)],
+            );
+            assert!(
+                matches!(invalid_limit, Value::Error(ref message) if message.contains("Promise.all() concurrency_limit must be > 0")),
+                "Unexpected concurrency-limit contract for {}: {:?}",
+                alias,
+                invalid_limit
+            );
+        }
+
+        for alias in ["parallel_map", "par_map", "par_each"] {
+            let non_array = call_native_function(
+                &mut interpreter,
+                alias,
+                &[Value::Int(1), Value::NativeFunction("len".to_string())],
+            );
+            assert!(
+                matches!(non_array, Value::Error(ref message) if message.contains("parallel_map() first argument must be an array")),
+                "Unexpected non-array contract for {}: {:?}",
+                alias,
+                non_array
+            );
+
+            let non_callable = call_native_function(
+                &mut interpreter,
+                alias,
+                &[Value::Array(Arc::new(vec![Value::Int(1)])), Value::Int(1)],
+            );
+            assert!(
+                matches!(non_callable, Value::Error(ref message) if message.contains("parallel_map() second argument must be a callable function")),
+                "Unexpected callable-shape contract for {}: {:?}",
+                alias,
+                non_callable
+            );
+
+            let invalid_limit = call_native_function(
+                &mut interpreter,
+                alias,
+                &[
+                    Value::Array(Arc::new(vec![Value::Int(1)])),
+                    Value::NativeFunction("len".to_string()),
+                    Value::Int(0),
+                ],
+            );
+            assert!(
+                matches!(invalid_limit, Value::Error(ref message) if message.contains("parallel_map() concurrency_limit must be > 0")),
+                "Unexpected concurrency-limit contract for {}: {:?}",
+                alias,
+                invalid_limit
+            );
+        }
+    }
+
+    #[test]
+    fn test_release_hardening_ssg_render_pages_dispatch_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let missing_args = call_native_function(&mut interpreter, "ssg_render_pages", &[]);
+        assert!(
+            matches!(missing_args, Value::Error(message) if message.contains("ssg_render_pages() expects 1 argument"))
+        );
+
+        let non_array = call_native_function(
+            &mut interpreter,
+            "ssg_render_pages",
+            &[Value::Str(Arc::new("not-an-array".to_string()))],
+        );
+        assert!(
+            matches!(non_array, Value::Error(message) if message.contains("requires an array of source page strings"))
+        );
+
+        let non_string_element = call_native_function(
+            &mut interpreter,
+            "ssg_render_pages",
+            &[Value::Array(Arc::new(vec![Value::Int(1)]))],
+        );
+        assert!(
+            matches!(non_string_element, Value::Error(message) if message.contains("source page at index 0 must be a string"))
+        );
+
+        let success = call_native_function(
+            &mut interpreter,
+            "ssg_render_pages",
+            &[Value::Array(Arc::new(vec![
+                Value::Str(Arc::new("# Post A".to_string())),
+                Value::Str(Arc::new("# Post B".to_string())),
+            ]))],
+        );
+
+        match success {
+            Value::Dict(result) => {
+                assert!(
+                    matches!(result.get("pages"), Some(Value::Array(pages)) if pages.len() == 2)
+                );
+                assert!(
+                    matches!(result.get("checksum"), Some(Value::Int(checksum)) if *checksum > 0)
+                );
+            }
+            other => panic!("Expected Dict from ssg_render_pages, got {:?}", other),
+        }
     }
 
     #[test]
