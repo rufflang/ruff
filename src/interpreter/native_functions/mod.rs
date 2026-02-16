@@ -254,6 +254,20 @@ mod tests {
             "rsa_decrypt",
             "rsa_sign",
             "rsa_verify",
+            "random",
+            "random_int",
+            "random_choice",
+            "set_random_seed",
+            "clear_random_seed",
+            "now",
+            "current_timestamp",
+            "performance_now",
+            "time_us",
+            "time_ns",
+            "format_duration",
+            "elapsed",
+            "format_date",
+            "parse_date",
         ];
 
         for builtin_name in critical_builtin_names {
@@ -876,6 +890,172 @@ mod tests {
             &[Value::Array(Arc::new(vec![Value::Str(Arc::new("ruff".to_string()))]))],
         );
         assert!(matches!(join_missing, Value::Str(value) if value.as_ref().is_empty()));
+    }
+
+    #[test]
+    fn test_release_hardening_system_random_and_time_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let random_value = call_native_function(&mut interpreter, "random", &[]);
+        assert!(matches!(random_value, Value::Float(value) if (0.0..=1.0).contains(&value)));
+
+        let random_int_missing = call_native_function(&mut interpreter, "random_int", &[]);
+        assert!(matches!(random_int_missing, Value::Error(message) if message.contains("random_int requires two number arguments")));
+
+        let random_int_value = call_native_function(
+            &mut interpreter,
+            "random_int",
+            &[Value::Int(3), Value::Int(7)],
+        );
+        assert!(matches!(random_int_value, Value::Int(value) if (3..=7).contains(&value)));
+
+        let random_choice_missing = call_native_function(&mut interpreter, "random_choice", &[]);
+        assert!(matches!(random_choice_missing, Value::Error(message) if message.contains("random_choice requires an array argument")));
+
+        let random_choice_value = call_native_function(
+            &mut interpreter,
+            "random_choice",
+            &[Value::Array(Arc::new(vec![Value::Int(10), Value::Int(20), Value::Int(30)]))],
+        );
+        assert!(matches!(random_choice_value, Value::Int(10) | Value::Int(20) | Value::Int(30)));
+
+        let set_seed_missing = call_native_function(&mut interpreter, "set_random_seed", &[]);
+        assert!(matches!(set_seed_missing, Value::Error(message) if message.contains("set_random_seed requires a number argument")));
+
+        let clear_seed_result = call_native_function(&mut interpreter, "clear_random_seed", &[]);
+        assert!(matches!(clear_seed_result, Value::Null));
+
+        let seed_result = call_native_function(&mut interpreter, "set_random_seed", &[Value::Int(12345)]);
+        assert!(matches!(seed_result, Value::Null));
+
+        let seeded_random_a = call_native_function(&mut interpreter, "random", &[]);
+        let seeded_random_int_a = call_native_function(
+            &mut interpreter,
+            "random_int",
+            &[Value::Int(1), Value::Int(100)],
+        );
+        let seeded_choice_a = call_native_function(
+            &mut interpreter,
+            "random_choice",
+            &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)]))],
+        );
+
+        let reseed_result =
+            call_native_function(&mut interpreter, "set_random_seed", &[Value::Int(12345)]);
+        assert!(matches!(reseed_result, Value::Null));
+
+        let seeded_random_b = call_native_function(&mut interpreter, "random", &[]);
+        let seeded_random_int_b = call_native_function(
+            &mut interpreter,
+            "random_int",
+            &[Value::Int(1), Value::Int(100)],
+        );
+        let seeded_choice_b = call_native_function(
+            &mut interpreter,
+            "random_choice",
+            &[Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)]))],
+        );
+
+        match (seeded_random_a, seeded_random_b) {
+            (Value::Float(a), Value::Float(b)) => assert!((a - b).abs() < f64::EPSILON),
+            (left, right) => panic!("Expected seeded random floats, got {:?} and {:?}", left, right),
+        }
+        match (seeded_random_int_a, seeded_random_int_b) {
+            (Value::Int(a), Value::Int(b)) => assert_eq!(a, b),
+            (left, right) => {
+                panic!("Expected seeded random_int ints, got {:?} and {:?}", left, right)
+            }
+        }
+        match (seeded_choice_a, seeded_choice_b) {
+            (Value::Int(a), Value::Int(b)) => assert_eq!(a, b),
+            (left, right) => {
+                panic!("Expected seeded random_choice ints, got {:?} and {:?}", left, right)
+            }
+        }
+
+        let now_value = call_native_function(&mut interpreter, "now", &[]);
+        assert!(matches!(now_value, Value::Float(value) if value > 0.0));
+
+        let current_timestamp_value = call_native_function(&mut interpreter, "current_timestamp", &[]);
+        assert!(matches!(current_timestamp_value, Value::Int(value) if value > 0));
+
+        let performance_now_start = call_native_function(&mut interpreter, "performance_now", &[]);
+        let performance_now_end = call_native_function(&mut interpreter, "performance_now", &[]);
+        match (performance_now_start, performance_now_end) {
+            (Value::Float(start), Value::Float(end)) => assert!(end >= start),
+            (left, right) => panic!("Expected performance_now floats, got {:?} and {:?}", left, right),
+        }
+
+        let time_us_start = call_native_function(&mut interpreter, "time_us", &[]);
+        let time_us_end = call_native_function(&mut interpreter, "time_us", &[]);
+        match (time_us_start, time_us_end) {
+            (Value::Float(start), Value::Float(end)) => assert!(end >= start),
+            (left, right) => panic!("Expected time_us floats, got {:?} and {:?}", left, right),
+        }
+
+        let time_ns_start = call_native_function(&mut interpreter, "time_ns", &[]);
+        let time_ns_end = call_native_function(&mut interpreter, "time_ns", &[]);
+        match (time_ns_start, time_ns_end) {
+            (Value::Float(start), Value::Float(end)) => assert!(end >= start),
+            (left, right) => panic!("Expected time_ns floats, got {:?} and {:?}", left, right),
+        }
+
+        let format_duration_seconds =
+            call_native_function(&mut interpreter, "format_duration", &[Value::Float(1500.0)]);
+        assert!(matches!(format_duration_seconds, Value::Str(value) if value.as_ref() == "1.50s"));
+
+        let format_duration_ms =
+            call_native_function(&mut interpreter, "format_duration", &[Value::Float(2.5)]);
+        assert!(matches!(format_duration_ms, Value::Str(value) if value.as_ref() == "2.50ms"));
+
+        let format_duration_missing = call_native_function(&mut interpreter, "format_duration", &[]);
+        assert!(matches!(format_duration_missing, Value::Error(message) if message.contains("format_duration requires a number argument")));
+
+        let elapsed_ok = call_native_function(
+            &mut interpreter,
+            "elapsed",
+            &[Value::Float(10.0), Value::Float(15.5)],
+        );
+        assert!(matches!(elapsed_ok, Value::Float(value) if (value - 5.5).abs() < 1e-12));
+
+        let elapsed_missing = call_native_function(&mut interpreter, "elapsed", &[]);
+        assert!(matches!(elapsed_missing, Value::Error(message) if message.contains("elapsed requires two number arguments")));
+
+        let format_date_epoch = call_native_function(
+            &mut interpreter,
+            "format_date",
+            &[
+                Value::Float(0.0),
+                Value::Str(Arc::new("YYYY-MM-DD".to_string())),
+            ],
+        );
+        assert!(matches!(format_date_epoch, Value::Str(value) if value.as_ref() == "1970-01-01"));
+
+        let format_date_missing = call_native_function(&mut interpreter, "format_date", &[]);
+        assert!(matches!(format_date_missing, Value::Error(message) if message.contains("format_date requires timestamp")));
+
+        let parse_date_epoch = call_native_function(
+            &mut interpreter,
+            "parse_date",
+            &[
+                Value::Str(Arc::new("1970-01-01".to_string())),
+                Value::Str(Arc::new("YYYY-MM-DD".to_string())),
+            ],
+        );
+        assert!(matches!(parse_date_epoch, Value::Float(value) if value == 0.0));
+
+        let parse_date_invalid = call_native_function(
+            &mut interpreter,
+            "parse_date",
+            &[
+                Value::Str(Arc::new("not-a-date".to_string())),
+                Value::Str(Arc::new("YYYY-MM-DD".to_string())),
+            ],
+        );
+        assert!(matches!(parse_date_invalid, Value::Float(value) if value == 0.0));
+
+        let parse_date_missing = call_native_function(&mut interpreter, "parse_date", &[]);
+        assert!(matches!(parse_date_missing, Value::Error(message) if message.contains("parse_date requires date string and format string")));
     }
 
     #[test]
