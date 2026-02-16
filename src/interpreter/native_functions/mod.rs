@@ -2296,12 +2296,26 @@ mod tests {
         let os_getcwd_before = call_native_function(&mut interpreter, "os_getcwd", &[]);
         assert!(matches!(os_getcwd_before, Value::Str(_)));
 
+        let os_getcwd_extra = call_native_function(&mut interpreter, "os_getcwd", &[Value::Int(1)]);
+        assert!(
+            matches!(os_getcwd_extra, Value::Error(message) if message.contains("os_getcwd() expects 0 arguments"))
+        );
+
         let os_chdir_result = call_native_function(
             &mut interpreter,
             "os_chdir",
             &[Value::Str(Arc::new(temp_dir_string.clone()))],
         );
         assert!(matches!(os_chdir_result, Value::Bool(true)));
+
+        let os_chdir_extra = call_native_function(
+            &mut interpreter,
+            "os_chdir",
+            &[Value::Str(Arc::new(temp_dir_string.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(os_chdir_extra, Value::Error(message) if message.contains("os_chdir() expects 1 argument"))
+        );
 
         let os_getcwd_after = call_native_function(&mut interpreter, "os_getcwd", &[]);
         assert!(
@@ -2317,12 +2331,30 @@ mod tests {
         );
         assert!(matches!(dirname_result, Value::Str(value) if value.as_ref().ends_with("a/b")));
 
+        let dirname_extra = call_native_function(
+            &mut interpreter,
+            "dirname",
+            &[Value::Str(Arc::new("a/b/file.ruff".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(dirname_extra, Value::Error(message) if message.contains("dirname() expects 1 argument"))
+        );
+
         let basename_result = call_native_function(
             &mut interpreter,
             "basename",
             &[Value::Str(Arc::new("a/b/file.ruff".to_string()))],
         );
         assert!(matches!(basename_result, Value::Str(value) if value.as_ref() == "file.ruff"));
+
+        let basename_extra = call_native_function(
+            &mut interpreter,
+            "basename",
+            &[Value::Str(Arc::new("a/b/file.ruff".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(basename_extra, Value::Error(message) if message.contains("basename() expects 1 argument"))
+        );
 
         let path_exists_true = call_native_function(
             &mut interpreter,
@@ -2331,12 +2363,30 @@ mod tests {
         );
         assert!(matches!(path_exists_true, Value::Bool(true)));
 
+        let path_exists_extra = call_native_function(
+            &mut interpreter,
+            "path_exists",
+            &[Value::Str(Arc::new(temp_dir_string.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(path_exists_extra, Value::Error(message) if message.contains("path_exists() expects 1 argument"))
+        );
+
         let path_is_dir_true = call_native_function(
             &mut interpreter,
             "path_is_dir",
             &[Value::Str(Arc::new(temp_dir_string.clone()))],
         );
         assert!(matches!(path_is_dir_true, Value::Bool(true)));
+
+        let path_is_dir_extra = call_native_function(
+            &mut interpreter,
+            "path_is_dir",
+            &[Value::Str(Arc::new(temp_dir_string.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(path_is_dir_extra, Value::Error(message) if message.contains("path_is_dir() expects 1 argument"))
+        );
 
         let file_path = format!("{}/sample.ruff", temp_dir_string);
         std::fs::write(&file_path, "print(1)").expect("sample file should write");
@@ -2348,12 +2398,30 @@ mod tests {
         );
         assert!(matches!(path_is_file_true, Value::Bool(true)));
 
+        let path_is_file_extra = call_native_function(
+            &mut interpreter,
+            "path_is_file",
+            &[Value::Str(Arc::new(file_path.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(path_is_file_extra, Value::Error(message) if message.contains("path_is_file() expects 1 argument"))
+        );
+
         let path_extension_result = call_native_function(
             &mut interpreter,
             "path_extension",
             &[Value::Str(Arc::new(file_path.clone()))],
         );
         assert!(matches!(path_extension_result, Value::Str(ext) if ext.as_ref() == "ruff"));
+
+        let path_extension_extra = call_native_function(
+            &mut interpreter,
+            "path_extension",
+            &[Value::Str(Arc::new(file_path.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(path_extension_extra, Value::Error(message) if message.contains("path_extension() expects 1 argument"))
+        );
 
         let path_absolute_result = call_native_function(
             &mut interpreter,
@@ -2362,6 +2430,15 @@ mod tests {
         );
         assert!(
             matches!(path_absolute_result, Value::Str(path) if path.as_ref().ends_with("sample.ruff"))
+        );
+
+        let path_absolute_extra = call_native_function(
+            &mut interpreter,
+            "path_absolute",
+            &[Value::Str(Arc::new(file_path.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(path_absolute_extra, Value::Error(message) if message.contains("path_absolute() expects 1 argument"))
         );
 
         std::fs::remove_file(&file_path).expect("sample file should remove");
@@ -2374,6 +2451,21 @@ mod tests {
 
         let os_environ_result = call_native_function(&mut interpreter, "os_environ", &[]);
         assert!(matches!(os_environ_result, Value::Dict(map) if map.contains_key(env_key)));
+
+        let os_environ_extra =
+            call_native_function(&mut interpreter, "os_environ", &[Value::Int(1)]);
+        assert!(
+            matches!(os_environ_extra, Value::Error(message) if message.contains("os_environ() expects 0 arguments"))
+        );
+
+        let os_rmdir_extra = call_native_function(
+            &mut interpreter,
+            "os_rmdir",
+            &[Value::Str(Arc::new(temp_dir_string.clone())), Value::Int(1)],
+        );
+        assert!(
+            matches!(os_rmdir_extra, Value::Error(message) if message.contains("os_rmdir() expects 1 argument"))
+        );
 
         let os_chdir_bad_shape =
             call_native_function(&mut interpreter, "os_chdir", &[Value::Int(1)]);
