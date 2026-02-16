@@ -12,9 +12,25 @@ use std::sync::Arc;
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         // Random functions
-        "random" => Value::Float(builtins::random()),
+        "random" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "random() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            Value::Float(builtins::random())
+        }
 
         "random_int" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "random_int() expects 2 arguments (min, max), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(min_val), Some(max_val)) = (arg_values.first(), arg_values.get(1)) {
                 let min = match min_val {
                     Value::Int(n) => *n as f64,
@@ -41,6 +57,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "random_choice" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "random_choice() expects 1 argument (array), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Array(arr)) = arg_values.first() {
                 builtins::random_choice(arr)
             } else {
@@ -50,6 +73,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         // Random seed control (for deterministic testing)
         "set_random_seed" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "set_random_seed() expects 1 argument (seed), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Int(seed)) = arg_values.first() {
                 builtins::set_random_seed(*seed as u64);
                 Value::Null
@@ -62,22 +92,81 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "clear_random_seed" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "clear_random_seed() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
             builtins::clear_random_seed();
             Value::Null
         }
 
         // Date/Time functions
-        "now" => Value::Float(builtins::now()),
+        "now" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "now() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
 
-        "current_timestamp" => Value::Int(builtins::current_timestamp()),
+            Value::Float(builtins::now())
+        }
 
-        "performance_now" => Value::Float(builtins::performance_now()),
+        "current_timestamp" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "current_timestamp() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
 
-        "time_us" => Value::Float(builtins::time_us()),
+            Value::Int(builtins::current_timestamp())
+        }
 
-        "time_ns" => Value::Float(builtins::time_ns()),
+        "performance_now" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "performance_now() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            Value::Float(builtins::performance_now())
+        }
+
+        "time_us" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "time_us() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            Value::Float(builtins::time_us())
+        }
+
+        "time_ns" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "time_ns() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            Value::Float(builtins::time_ns())
+        }
 
         "format_duration" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "format_duration() expects 1 argument (milliseconds), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(ms_val) = arg_values.first() {
                 let ms = match ms_val {
                     Value::Int(n) => *n as f64,
@@ -97,6 +186,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "elapsed" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "elapsed() expects 2 arguments (start, end), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(start_val), Some(end_val)) = (arg_values.first(), arg_values.get(1)) {
                 let start = match start_val {
                     Value::Int(n) => *n as f64,
@@ -119,6 +215,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "format_date" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "format_date() expects 2 arguments (timestamp, format), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(ts_val), Some(Value::Str(format))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -140,6 +243,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "parse_date" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "parse_date() expects 2 arguments (date, format), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let (Some(Value::Str(date_str)), Some(Value::Str(format))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -151,6 +261,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         // System operation functions
         "env" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "env() expects 1 argument (variable name), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(var_name)) = arg_values.first() {
                 Value::Str(Arc::new(builtins::get_env(var_name.as_ref())))
             } else {
@@ -158,16 +275,33 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
-        "env_or" => match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(var_name)), Some(Value::Str(default_value))) => {
-                Value::Str(Arc::new(builtins::env_or(var_name.as_ref(), default_value.as_ref())))
+        "env_or" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "env_or() expects 2 arguments (variable name, default value), got {}",
+                    arg_values.len()
+                )));
             }
-            _ => Value::Error(
-                "env_or requires two string arguments (variable name, default value)".to_string(),
-            ),
-        },
+
+            match (arg_values.first(), arg_values.get(1)) {
+                (Some(Value::Str(var_name)), Some(Value::Str(default_value))) => Value::Str(
+                    Arc::new(builtins::env_or(var_name.as_ref(), default_value.as_ref())),
+                ),
+                _ => Value::Error(
+                    "env_or requires two string arguments (variable name, default value)"
+                        .to_string(),
+                ),
+            }
+        }
 
         "env_int" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "env_int() expects 1 argument (variable name), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(var_name)) = arg_values.first() {
                 match builtins::env_int(var_name.as_ref()) {
                     Ok(value) => Value::Int(value),
@@ -181,6 +315,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "env_float" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "env_float() expects 1 argument (variable name), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(var_name)) = arg_values.first() {
                 match builtins::env_float(var_name.as_ref()) {
                     Ok(value) => Value::Float(value),
@@ -194,6 +335,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "env_bool" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "env_bool() expects 1 argument (variable name), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(var_name)) = arg_values.first() {
                 match builtins::env_bool(var_name.as_ref()) {
                     Ok(value) => Value::Bool(value),
@@ -207,6 +355,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "env_required" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "env_required() expects 1 argument (variable name), got {}",
+                    arg_values.len()
+                )));
+            }
+
             if let Some(Value::Str(var_name)) = arg_values.first() {
                 match builtins::env_required(var_name.as_ref()) {
                     Ok(value) => Value::Str(Arc::new(value)),
@@ -219,17 +374,33 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
-        "env_set" => match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(var_name)), Some(Value::Str(value))) => {
-                builtins::env_set(var_name.as_ref(), value.as_ref());
-                Value::Null
+        "env_set" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "env_set() expects 2 arguments (variable name, value), got {}",
+                    arg_values.len()
+                )));
             }
-            _ => Value::Error(
-                "env_set requires two string arguments (variable name, value)".to_string(),
-            ),
-        },
+
+            match (arg_values.first(), arg_values.get(1)) {
+                (Some(Value::Str(var_name)), Some(Value::Str(value))) => {
+                    builtins::env_set(var_name.as_ref(), value.as_ref());
+                    Value::Null
+                }
+                _ => Value::Error(
+                    "env_set requires two string arguments (variable name, value)".to_string(),
+                ),
+            }
+        }
 
         "env_list" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "env_list() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
             let env_vars = builtins::env_list();
             let mut dict = DictMap::default();
             for (key, value) in env_vars {
@@ -239,6 +410,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "args" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "args() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
             let args = builtins::get_args();
             let values: Vec<Value> =
                 args.into_iter().map(|value| Value::Str(Arc::new(value))).collect();
@@ -246,6 +424,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "arg_parser" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "arg_parser() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
             let mut fields: HashMap<String, Value> = HashMap::new();
             fields.insert("_args".to_string(), Value::Array(Arc::new(Vec::new())));
             fields.insert("_app_name".to_string(), Value::Str(Arc::new(String::new())));
@@ -630,6 +815,70 @@ mod tests {
             }
             other => panic!("Expected Value::Struct from arg_parser(), got {:?}", other),
         }
+    }
+
+    #[test]
+    fn test_random_time_env_and_args_api_strict_arity_rejects_extra_arguments() {
+        let random_extra = handle("random", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            random_extra,
+            Value::Error(message) if message.contains("random() expects 0 arguments")
+        ));
+
+        let random_int_extra =
+            handle("random_int", &[Value::Int(1), Value::Int(2), Value::Int(3)]).unwrap();
+        assert!(matches!(
+            random_int_extra,
+            Value::Error(message) if message.contains("random_int() expects 2 arguments")
+        ));
+
+        let format_duration_extra =
+            handle("format_duration", &[Value::Int(10), Value::Int(1)]).unwrap();
+        assert!(matches!(
+            format_duration_extra,
+            Value::Error(message) if message.contains("format_duration() expects 1 argument")
+        ));
+
+        let parse_date_extra = handle(
+            "parse_date",
+            &[string_value("1970-01-01"), string_value("YYYY-MM-DD"), Value::Int(1)],
+        )
+        .unwrap();
+        assert!(matches!(
+            parse_date_extra,
+            Value::Error(message) if message.contains("parse_date() expects 2 arguments")
+        ));
+
+        let env_extra = handle("env", &[string_value("PATH"), Value::Int(1)]).unwrap();
+        assert!(matches!(
+            env_extra,
+            Value::Error(message) if message.contains("env() expects 1 argument")
+        ));
+
+        let env_set_extra =
+            handle("env_set", &[string_value("A"), string_value("B"), Value::Int(1)]).unwrap();
+        assert!(matches!(
+            env_set_extra,
+            Value::Error(message) if message.contains("env_set() expects 2 arguments")
+        ));
+
+        let env_list_extra = handle("env_list", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            env_list_extra,
+            Value::Error(message) if message.contains("env_list() expects 0 arguments")
+        ));
+
+        let args_extra = handle("args", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            args_extra,
+            Value::Error(message) if message.contains("args() expects 0 arguments")
+        ));
+
+        let arg_parser_extra = handle("arg_parser", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            arg_parser_extra,
+            Value::Error(message) if message.contains("arg_parser() expects 0 arguments")
+        ));
     }
 
     #[test]
