@@ -61,6 +61,15 @@
   - Preserved `debug(...)` variadic behavior with explicit regression coverage
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **IO Module Strict-Arity Contract Follow-Through (P1)**
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for advanced IO APIs:
+    - `io_read_bytes`, `io_write_bytes`, `io_append_bytes`
+    - `io_read_at`, `io_write_at`, `io_seek_read`
+    - `io_file_metadata`, `io_truncate`, `io_copy_range`
+  - Added comprehensive release-hardening strict-arity coverage at both native-module and dispatcher integration layers, including explicit extra-argument rejection checks for all APIs above
+  - Preserved existing argument-shape validation and success-path behavior while hardening extra-argument rejection
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Array + Higher-Order Collection API Contract Follow-Through (P1)**
   - Hardened strict arity contracts for core array and higher-order collection APIs so trailing arguments now return deterministic contract errors:
     - `push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`

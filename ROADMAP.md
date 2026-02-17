@@ -56,6 +56,10 @@ This roadmap intentionally tracks only upcoming items.
     - Added comprehensive release-hardening contract coverage for assertion/testing strict-arity behavior at both module and dispatcher integration layers
     - Preserved `debug(...)` variadic compatibility with explicit regression coverage
 
+    - Hardened strict arity contracts for advanced IO APIs so trailing arguments now return deterministic contract errors (`io_read_bytes`, `io_write_bytes`, `io_append_bytes`, `io_read_at`, `io_write_at`, `io_seek_read`, `io_file_metadata`, `io_truncate`, `io_copy_range`)
+    - Added comprehensive release-hardening strict-arity contract coverage for advanced IO APIs at both module and dispatcher integration layers
+    - Preserved existing argument-shape validation contracts and success-path behavior while hardening extra-argument rejection
+
     - Hardened strict arity contracts for core array and higher-order collection APIs so trailing arguments now return deterministic contract errors (`push`, `append`, `pop`, `insert`, `remove`, `remove_at`, `clear`, `slice`, `concat`, `map`, `filter`, `reduce`, `find`, `any`, `all`, `sort`, `reverse`, `unique`, `sum`, `chunk`, `flatten`, `zip`, `enumerate`, `take`, `skip`, `windows`)
     - Added comprehensive release-hardening coverage for the APIs above at both module and dispatcher integration layers, including strict-arity rejection and representative behavior contracts
 

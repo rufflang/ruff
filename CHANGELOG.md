@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: IO Module Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for advanced IO APIs:
+    - `io_read_bytes`, `io_write_bytes`, `io_append_bytes`
+    - `io_read_at`, `io_write_at`, `io_seek_read`
+    - `io_file_metadata`, `io_truncate`, `io_copy_range`
+  - Preserved existing argument-shape validation and success-path behavior while rejecting trailing arguments deterministically
+  - Added comprehensive release-hardening strict-arity coverage at both module and dispatcher integration layers, including explicit extra-argument rejection checks for all APIs above
+
 - **Release Hardening: Data-Format + Base64 API Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
     - Data-format APIs: `parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`
