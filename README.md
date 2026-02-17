@@ -34,6 +34,13 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Math API Strict-Arity Contract Follow-Through (P1)**
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for single-argument math APIs: `abs`, `sqrt`, `floor`, `ceil`, `round`, `sin`, `cos`, `tan`, `log`, `exp`
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for two-argument math APIs: `pow`, `min`, `max`
+  - Preserved missing/invalid argument compatibility fallback behavior (`Int(0)`) while hardening extra-argument rejection
+  - Added comprehensive release-hardening contract coverage at module and dispatcher integration layers for all APIs above
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Conversion + Introspection API Strict-Arity Contract Follow-Through (P1)**
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for conversion APIs: `parse_int`, `parse_float`, `to_int`, `to_float`, `to_string`, `to_bool`, `bytes`
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for introspection APIs: `type`, `is_int`, `is_float`, `is_string`, `is_bool`, `is_array`, `is_dict`, `is_null`, `is_function`
