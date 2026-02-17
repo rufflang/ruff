@@ -9,6 +9,10 @@ use std::sync::Arc;
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         "parse_json" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("parse_json requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(json_str)) = arg_values.first() {
                 match builtins::parse_json(json_str.as_ref()) {
                     Ok(value) => value,
@@ -20,6 +24,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_json" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_json requires a value argument".to_string()));
+            }
+
             if let Some(value) = arg_values.first() {
                 match builtins::to_json(value) {
                     Ok(json_str) => Value::Str(Arc::new(json_str)),
@@ -31,6 +39,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "parse_toml" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("parse_toml requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(toml_str)) = arg_values.first() {
                 match builtins::parse_toml(toml_str.as_ref()) {
                     Ok(value) => value,
@@ -42,6 +54,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_toml" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_toml requires a value argument".to_string()));
+            }
+
             if let Some(value) = arg_values.first() {
                 match builtins::to_toml(value) {
                     Ok(toml_str) => Value::Str(Arc::new(toml_str)),
@@ -53,6 +69,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "parse_yaml" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("parse_yaml requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(yaml_str)) = arg_values.first() {
                 match builtins::parse_yaml(yaml_str.as_ref()) {
                     Ok(value) => value,
@@ -64,6 +84,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_yaml" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_yaml requires a value argument".to_string()));
+            }
+
             if let Some(value) = arg_values.first() {
                 match builtins::to_yaml(value) {
                     Ok(yaml_str) => Value::Str(Arc::new(yaml_str)),
@@ -75,6 +99,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "parse_csv" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("parse_csv requires a string argument".to_string()));
+            }
+
             if let Some(Value::Str(csv_str)) = arg_values.first() {
                 match builtins::parse_csv(csv_str.as_ref()) {
                     Ok(value) => value,
@@ -86,6 +114,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "to_csv" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_csv requires an array argument".to_string()));
+            }
+
             if let Some(value) = arg_values.first() {
                 match builtins::to_csv(value) {
                     Ok(csv_str) => Value::Str(Arc::new(csv_str)),
@@ -96,15 +128,29 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
-        "encode_base64" => match arg_values.first() {
-            Some(Value::Bytes(bytes)) => Value::Str(Arc::new(builtins::encode_base64(bytes))),
-            Some(Value::Str(s)) => {
-                Value::Str(Arc::new(builtins::encode_base64(s.as_ref().as_bytes())))
+        "encode_base64" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "encode_base64 requires a bytes or string argument".to_string(),
+                ));
             }
-            _ => Value::Error("encode_base64 requires a bytes or string argument".to_string()),
-        },
+
+            match arg_values.first() {
+                Some(Value::Bytes(bytes)) => Value::Str(Arc::new(builtins::encode_base64(bytes))),
+                Some(Value::Str(s)) => {
+                    Value::Str(Arc::new(builtins::encode_base64(s.as_ref().as_bytes())))
+                }
+                _ => Value::Error("encode_base64 requires a bytes or string argument".to_string()),
+            }
+        }
 
         "decode_base64" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "decode_base64 requires a string argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(s)) = arg_values.first() {
                 match builtins::decode_base64(s.as_ref()) {
                     Ok(bytes) => Value::Bytes(bytes),
@@ -236,5 +282,48 @@ mod tests {
 
         let encode_base64_error = handle("encode_base64", &[Value::Int(1)]).unwrap();
         assert!(matches!(encode_base64_error, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument")));
+    }
+
+    #[test]
+    fn test_data_format_and_base64_strict_arity_rejects_extra_arguments() {
+        let parse_json_extra =
+            handle("parse_json", &[string_value("{}"), Value::Int(1)]).unwrap();
+        assert!(matches!(parse_json_extra, Value::Error(message) if message.contains("parse_json requires a string argument")));
+
+        let to_json_extra =
+            handle("to_json", &[Value::Bool(true), Value::Int(1)]).unwrap();
+        assert!(matches!(to_json_extra, Value::Error(message) if message.contains("to_json requires a value argument")));
+
+        let parse_toml_extra =
+            handle("parse_toml", &[string_value("title='x'"), Value::Int(1)]).unwrap();
+        assert!(matches!(parse_toml_extra, Value::Error(message) if message.contains("parse_toml requires a string argument")));
+
+        let to_toml_extra =
+            handle("to_toml", &[Value::Bool(true), Value::Int(1)]).unwrap();
+        assert!(matches!(to_toml_extra, Value::Error(message) if message.contains("to_toml requires a value argument")));
+
+        let parse_yaml_extra =
+            handle("parse_yaml", &[string_value("name: x"), Value::Int(1)]).unwrap();
+        assert!(matches!(parse_yaml_extra, Value::Error(message) if message.contains("parse_yaml requires a string argument")));
+
+        let to_yaml_extra =
+            handle("to_yaml", &[Value::Bool(true), Value::Int(1)]).unwrap();
+        assert!(matches!(to_yaml_extra, Value::Error(message) if message.contains("to_yaml requires a value argument")));
+
+        let parse_csv_extra =
+            handle("parse_csv", &[string_value("a,b\n1,2"), Value::Int(1)]).unwrap();
+        assert!(matches!(parse_csv_extra, Value::Error(message) if message.contains("parse_csv requires a string argument")));
+
+        let to_csv_extra =
+            handle("to_csv", &[Value::Array(Arc::new(vec![])), Value::Int(1)]).unwrap();
+        assert!(matches!(to_csv_extra, Value::Error(message) if message.contains("to_csv requires an array argument")));
+
+        let encode_base64_extra =
+            handle("encode_base64", &[string_value("ruff"), Value::Int(1)]).unwrap();
+        assert!(matches!(encode_base64_extra, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument")));
+
+        let decode_base64_extra =
+            handle("decode_base64", &[string_value("cnVmZg=="), Value::Int(1)]).unwrap();
+        assert!(matches!(decode_base64_extra, Value::Error(message) if message.contains("decode_base64 requires a string argument")));
     }
 }
