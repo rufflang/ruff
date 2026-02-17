@@ -1913,6 +1913,12 @@ mod tests {
         let abs_missing = call_native_function(&mut interpreter, "abs", &[]);
         assert!(matches!(abs_missing, Value::Int(0)));
 
+        let abs_extra =
+            call_native_function(&mut interpreter, "abs", &[Value::Int(-42), Value::Int(1)]);
+        assert!(
+            matches!(abs_extra, Value::Error(message) if message.contains("abs() expects 1 argument"))
+        );
+
         let abs_invalid_type = call_native_function(
             &mut interpreter,
             "abs",
@@ -1923,12 +1929,39 @@ mod tests {
         let pow_missing = call_native_function(&mut interpreter, "pow", &[Value::Int(2)]);
         assert!(matches!(pow_missing, Value::Int(0)));
 
+        let pow_extra = call_native_function(
+            &mut interpreter,
+            "pow",
+            &[Value::Int(2), Value::Int(8), Value::Int(1)],
+        );
+        assert!(
+            matches!(pow_extra, Value::Error(message) if message.contains("pow() expects 2 arguments"))
+        );
+
         let pow_invalid_type = call_native_function(
             &mut interpreter,
             "pow",
             &[Value::Int(2), Value::Str(Arc::new("bad".to_string()))],
         );
         assert!(matches!(pow_invalid_type, Value::Int(0)));
+
+        let min_extra = call_native_function(
+            &mut interpreter,
+            "min",
+            &[Value::Int(1), Value::Int(2), Value::Int(3)],
+        );
+        assert!(
+            matches!(min_extra, Value::Error(message) if message.contains("min() expects 2 arguments"))
+        );
+
+        let max_extra = call_native_function(
+            &mut interpreter,
+            "max",
+            &[Value::Int(1), Value::Int(2), Value::Int(3)],
+        );
+        assert!(
+            matches!(max_extra, Value::Error(message) if message.contains("max() expects 2 arguments"))
+        );
     }
 
     #[test]
