@@ -40,6 +40,10 @@ This roadmap intentionally tracks only upcoming items.
 
 ### Completed Milestones
 
+    - Hardened strict arity contracts for data-format and base64 APIs so trailing arguments now return deterministic contract errors (`parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`, `encode_base64`, `decode_base64`)
+    - Added comprehensive release-hardening contract coverage for data-format/base64 strict-arity behavior at both module and dispatcher integration layers
+    - Preserved existing argument-shape error contracts while hardening extra-argument rejection
+
     - Hardened strict arity contracts for math APIs so trailing arguments now return deterministic contract errors (`abs`, `sqrt`, `floor`, `ceil`, `round`, `sin`, `cos`, `tan`, `log`, `exp`, `pow`, `min`, `max`)
     - Added comprehensive release-hardening contract coverage for math strict-arity behavior at both module and dispatcher integration layers
     - Preserved missing/invalid argument compatibility fallback behavior (`Int(0)`) while hardening extra-argument rejection

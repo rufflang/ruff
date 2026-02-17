@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Release Hardening: Data-Format + Base64 API Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
+    - Data-format APIs: `parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`
+    - Base64 APIs: `encode_base64`, `decode_base64`
+  - Preserved existing argument-shape error contracts while adding explicit extra-argument rejection for all APIs above
+  - Added comprehensive release-hardening contract coverage at both module and dispatcher integration layers, including strict-arity extra-argument checks
+
 - **Release Hardening: Math API Strict-Arity Contract Follow-Through (P1)**:
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for:
     - Single-argument APIs: `abs`, `sqrt`, `floor`, `ceil`, `round`, `sin`, `cos`, `tan`, `log`, `exp`

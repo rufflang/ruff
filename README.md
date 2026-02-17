@@ -34,6 +34,13 @@
 
 ### v0.10.0 Release Hardening Progress ✅
 
+* **Data-Format + Base64 API Strict-Arity Contract Follow-Through (P1)**
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for data-format APIs: `parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`
+  - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for base64 APIs: `encode_base64`, `decode_base64`
+  - Preserved existing argument-shape error contracts while hardening extra-argument rejection
+  - Added comprehensive release-hardening contract coverage at module and dispatcher integration layers for all APIs above
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Math API Strict-Arity Contract Follow-Through (P1)**
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for single-argument math APIs: `abs`, `sqrt`, `floor`, `ceil`, `round`, `sin`, `cos`, `tan`, `log`, `exp`
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for two-argument math APIs: `pow`, `min`, `max`
