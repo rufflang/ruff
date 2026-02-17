@@ -32,7 +32,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_read_bytes" => {
-            if arg_values.len() < 2 {
+            if 2 != arg_values.len() {
                 Value::Error("io_read_bytes requires two arguments: path and count".to_string())
             } else if let (Some(Value::Str(path)), Some(count_value)) =
                 (arg_values.first(), arg_values.get(1))
@@ -71,7 +71,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_write_bytes" => {
-            if arg_values.len() < 2 {
+            if 2 != arg_values.len() {
                 Value::Error("io_write_bytes requires two arguments: path and bytes".to_string())
             } else if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
                 (arg_values.first(), arg_values.get(1))
@@ -92,7 +92,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_append_bytes" => {
-            if arg_values.len() < 2 {
+            if 2 != arg_values.len() {
                 Value::Error("io_append_bytes requires two arguments: path and bytes".to_string())
             } else if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
                 (arg_values.first(), arg_values.get(1))
@@ -118,7 +118,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_read_at" => {
-            if arg_values.len() < 3 {
+            if 3 != arg_values.len() {
                 Value::Error(
                     "io_read_at requires three arguments: path, offset, and count".to_string(),
                 )
@@ -179,7 +179,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_write_at" => {
-            if arg_values.len() < 3 {
+            if 3 != arg_values.len() {
                 Value::Error(
                     "io_write_at requires three arguments: path, bytes, and offset".to_string(),
                 )
@@ -228,7 +228,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_seek_read" => {
-            if arg_values.len() < 2 {
+            if 2 != arg_values.len() {
                 Value::Error("io_seek_read requires two arguments: path and offset".to_string())
             } else if let (Some(Value::Str(path)), Some(offset_value)) =
                 (arg_values.first(), arg_values.get(1))
@@ -275,7 +275,9 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_file_metadata" => {
-            if let Some(Value::Str(path)) = arg_values.first() {
+            if 1 != arg_values.len() {
+                Value::Error("io_file_metadata requires a string path argument".to_string())
+            } else if let Some(Value::Str(path)) = arg_values.first() {
                 match fs::metadata(path.as_ref()) {
                     Ok(metadata) => {
                         let mut map = DictMap::default();
@@ -326,7 +328,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_truncate" => {
-            if arg_values.len() < 2 {
+            if 2 != arg_values.len() {
                 Value::Error("io_truncate requires two arguments: path and size".to_string())
             } else if let (Some(Value::Str(path)), Some(size_value)) =
                 (arg_values.first(), arg_values.get(1))
@@ -361,7 +363,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         }
 
         "io_copy_range" => {
-            if arg_values.len() < 4 {
+            if 4 != arg_values.len() {
                 Value::Error(
                     "io_copy_range requires four arguments: source, dest, offset, and count"
                         .to_string(),
@@ -615,5 +617,108 @@ mod tests {
         assert!(
             matches!(read_at_error, Value::Error(message) if message.contains("offset must be non-negative"))
         );
+    }
+
+    #[test]
+    fn test_io_strict_arity_rejects_trailing_arguments() {
+        let mut interpreter = Interpreter::new();
+
+        let strict_arity_cases: Vec<(&str, Vec<Value>, &str)> = vec![
+            (
+                "io_read_bytes",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Int(1),
+                    Value::Int(99),
+                ],
+                "io_read_bytes requires two arguments: path and count",
+            ),
+            (
+                "io_write_bytes",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Bytes(vec![]),
+                    Value::Int(99),
+                ],
+                "io_write_bytes requires two arguments: path and bytes",
+            ),
+            (
+                "io_append_bytes",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Bytes(vec![]),
+                    Value::Int(99),
+                ],
+                "io_append_bytes requires two arguments: path and bytes",
+            ),
+            (
+                "io_read_at",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Int(0),
+                    Value::Int(1),
+                    Value::Int(99),
+                ],
+                "io_read_at requires three arguments: path, offset, and count",
+            ),
+            (
+                "io_write_at",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Bytes(vec![]),
+                    Value::Int(0),
+                    Value::Int(99),
+                ],
+                "io_write_at requires three arguments: path, bytes, and offset",
+            ),
+            (
+                "io_seek_read",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Int(0),
+                    Value::Int(99),
+                ],
+                "io_seek_read requires two arguments: path and offset",
+            ),
+            (
+                "io_file_metadata",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Int(99),
+                ],
+                "io_file_metadata requires a string path argument",
+            ),
+            (
+                "io_truncate",
+                vec![
+                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                    Value::Int(0),
+                    Value::Int(99),
+                ],
+                "io_truncate requires two arguments: path and size",
+            ),
+            (
+                "io_copy_range",
+                vec![
+                    Value::Str(Arc::new("/tmp/source.bin".to_string())),
+                    Value::Str(Arc::new("/tmp/dest.bin".to_string())),
+                    Value::Int(0),
+                    Value::Int(1),
+                    Value::Int(99),
+                ],
+                "io_copy_range requires four arguments: source, dest, offset, and count",
+            ),
+        ];
+
+        for (name, args, expected_message) in strict_arity_cases {
+            let result = handle(&mut interpreter, name, &args).expect("io function should be handled");
+            assert!(
+                matches!(result, Value::Error(ref message) if message.contains(expected_message)),
+                "Expected strict-arity rejection for {} with message containing '{}', got {:?}",
+                name,
+                expected_message,
+                result
+            );
+        }
     }
 }

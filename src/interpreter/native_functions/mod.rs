@@ -3367,14 +3367,134 @@ mod tests {
             matches!(read_bytes_missing, Value::Error(message) if message.contains("requires two arguments: path and count"))
         );
 
+        let read_bytes_extra = call_native_function(
+            &mut interpreter,
+            "io_read_bytes",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Int(1),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(read_bytes_extra, Value::Error(message) if message.contains("requires two arguments: path and count"))
+        );
+
+        let write_bytes_extra = call_native_function(
+            &mut interpreter,
+            "io_write_bytes",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Bytes(vec![]),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(write_bytes_extra, Value::Error(message) if message.contains("requires two arguments: path and bytes"))
+        );
+
+        let append_bytes_extra = call_native_function(
+            &mut interpreter,
+            "io_append_bytes",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Bytes(vec![]),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(append_bytes_extra, Value::Error(message) if message.contains("requires two arguments: path and bytes"))
+        );
+
         let read_at_missing = call_native_function(&mut interpreter, "io_read_at", &[]);
         assert!(
             matches!(read_at_missing, Value::Error(message) if message.contains("requires three arguments: path, offset, and count"))
         );
 
+        let read_at_extra = call_native_function(
+            &mut interpreter,
+            "io_read_at",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Int(0),
+                Value::Int(1),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(read_at_extra, Value::Error(message) if message.contains("requires three arguments: path, offset, and count"))
+        );
+
+        let write_at_extra = call_native_function(
+            &mut interpreter,
+            "io_write_at",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Bytes(vec![]),
+                Value::Int(0),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(write_at_extra, Value::Error(message) if message.contains("requires three arguments: path, bytes, and offset"))
+        );
+
+        let seek_read_extra = call_native_function(
+            &mut interpreter,
+            "io_seek_read",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Int(0),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(seek_read_extra, Value::Error(message) if message.contains("requires two arguments: path and offset"))
+        );
+
+        let metadata_extra = call_native_function(
+            &mut interpreter,
+            "io_file_metadata",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(metadata_extra, Value::Error(message) if message.contains("requires a string path argument"))
+        );
+
+        let truncate_extra = call_native_function(
+            &mut interpreter,
+            "io_truncate",
+            &[
+                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
+                Value::Int(0),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(truncate_extra, Value::Error(message) if message.contains("requires two arguments: path and size"))
+        );
+
         let copy_range_missing = call_native_function(&mut interpreter, "io_copy_range", &[]);
         assert!(
             matches!(copy_range_missing, Value::Error(message) if message.contains("requires four arguments: source, dest, offset, and count"))
+        );
+
+        let copy_range_extra = call_native_function(
+            &mut interpreter,
+            "io_copy_range",
+            &[
+                Value::Str(Arc::new("/tmp/source.bin".to_string())),
+                Value::Str(Arc::new("/tmp/dest.bin".to_string())),
+                Value::Int(0),
+                Value::Int(1),
+                Value::Int(2),
+            ],
+        );
+        assert!(
+            matches!(copy_range_extra, Value::Error(message) if message.contains("requires four arguments: source, dest, offset, and count"))
         );
     }
 
