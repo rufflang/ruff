@@ -417,9 +417,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         "assert_true" => {
             if arg_values.len() != 1 {
-                return Some(Value::Error(
-                    "assert_true requires exactly 1 argument".to_string(),
-                ));
+                return Some(Value::Error("assert_true requires exactly 1 argument".to_string()));
             }
 
             if let Some(Value::Bool(val)) = arg_values.first() {
@@ -435,9 +433,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         "assert_false" => {
             if arg_values.len() != 1 {
-                return Some(Value::Error(
-                    "assert_false requires exactly 1 argument".to_string(),
-                ));
+                return Some(Value::Error("assert_false requires exactly 1 argument".to_string()));
             }
 
             if let Some(Value::Bool(val)) = arg_values.first() {
@@ -551,23 +547,28 @@ mod tests {
             &[Value::Bool(true), Value::Str(Arc::new("ok".to_string())), Value::Int(1)],
         )
         .expect("assert should return a result");
-        assert!(matches!(assert_extra, Value::Error(message) if message.contains("expects at most 2 arguments")));
+        assert!(
+            matches!(assert_extra, Value::Error(message) if message.contains("expects at most 2 arguments"))
+        );
 
-        let assert_equal_extra = handle(
-            "assert_equal",
-            &[Value::Int(1), Value::Int(1), Value::Int(1)],
-        )
-        .expect("assert_equal should return a result");
-        assert!(matches!(assert_equal_extra, Value::Error(message) if message.contains("assert_equal requires 2 arguments")));
+        let assert_equal_extra =
+            handle("assert_equal", &[Value::Int(1), Value::Int(1), Value::Int(1)])
+                .expect("assert_equal should return a result");
+        assert!(
+            matches!(assert_equal_extra, Value::Error(message) if message.contains("assert_equal requires 2 arguments"))
+        );
 
         let assert_true_extra = handle("assert_true", &[Value::Bool(true), Value::Bool(true)])
             .expect("assert_true should return a result");
-        assert!(matches!(assert_true_extra, Value::Error(message) if message.contains("assert_true requires exactly 1 argument")));
+        assert!(
+            matches!(assert_true_extra, Value::Error(message) if message.contains("assert_true requires exactly 1 argument"))
+        );
 
-        let assert_false_extra =
-            handle("assert_false", &[Value::Bool(false), Value::Bool(false)])
-                .expect("assert_false should return a result");
-        assert!(matches!(assert_false_extra, Value::Error(message) if message.contains("assert_false requires exactly 1 argument")));
+        let assert_false_extra = handle("assert_false", &[Value::Bool(false), Value::Bool(false)])
+            .expect("assert_false should return a result");
+        assert!(
+            matches!(assert_false_extra, Value::Error(message) if message.contains("assert_false requires exactly 1 argument"))
+        );
 
         let assert_contains_extra = handle(
             "assert_contains",
@@ -578,7 +579,9 @@ mod tests {
             ],
         )
         .expect("assert_contains should return a result");
-        assert!(matches!(assert_contains_extra, Value::Error(message) if message.contains("assert_contains requires 2 arguments")));
+        assert!(
+            matches!(assert_contains_extra, Value::Error(message) if message.contains("assert_contains requires 2 arguments"))
+        );
     }
 
     #[test]
@@ -601,88 +604,105 @@ mod tests {
         let parse_int_extra =
             handle("parse_int", &[Value::Str(Arc::new("42".to_string())), Value::Int(1)])
                 .expect("parse_int should return a result");
-        assert!(matches!(parse_int_extra, Value::Error(message) if message.contains("parse_int requires a string argument")));
+        assert!(
+            matches!(parse_int_extra, Value::Error(message) if message.contains("parse_int requires a string argument"))
+        );
 
-        let parse_float_extra = handle(
-            "parse_float",
-            &[Value::Str(Arc::new("3.14".to_string())), Value::Int(1)],
-        )
-        .expect("parse_float should return a result");
-        assert!(matches!(parse_float_extra, Value::Error(message) if message.contains("parse_float requires a string argument")));
+        let parse_float_extra =
+            handle("parse_float", &[Value::Str(Arc::new("3.14".to_string())), Value::Int(1)])
+                .expect("parse_float should return a result");
+        assert!(
+            matches!(parse_float_extra, Value::Error(message) if message.contains("parse_float requires a string argument"))
+        );
 
         let to_int_extra = handle("to_int", &[Value::Int(7), Value::Int(8)])
             .expect("to_int should return a result");
-        assert!(matches!(to_int_extra, Value::Error(message) if message.contains("to_int() requires one argument")));
+        assert!(
+            matches!(to_int_extra, Value::Error(message) if message.contains("to_int() requires one argument"))
+        );
 
         let to_float_extra = handle("to_float", &[Value::Float(1.5), Value::Int(8)])
             .expect("to_float should return a result");
-        assert!(matches!(to_float_extra, Value::Error(message) if message.contains("to_float() requires one argument")));
+        assert!(
+            matches!(to_float_extra, Value::Error(message) if message.contains("to_float() requires one argument"))
+        );
 
-        let to_string_extra =
-            handle("to_string", &[Value::Int(1), Value::Int(2)])
-                .expect("to_string should return a result");
-        assert!(matches!(to_string_extra, Value::Error(message) if message.contains("to_string() requires one argument")));
+        let to_string_extra = handle("to_string", &[Value::Int(1), Value::Int(2)])
+            .expect("to_string should return a result");
+        assert!(
+            matches!(to_string_extra, Value::Error(message) if message.contains("to_string() requires one argument"))
+        );
 
         let to_bool_extra = handle("to_bool", &[Value::Bool(true), Value::Int(2)])
             .expect("to_bool should return a result");
-        assert!(matches!(to_bool_extra, Value::Error(message) if message.contains("to_bool() requires one argument")));
+        assert!(
+            matches!(to_bool_extra, Value::Error(message) if message.contains("to_bool() requires one argument"))
+        );
 
-        let bytes_extra = handle(
-            "bytes",
-            &[
-                Value::Array(Arc::new(vec![Value::Int(65)])),
-                Value::Int(66),
-            ],
-        )
-        .expect("bytes should return a result");
-        assert!(matches!(bytes_extra, Value::Error(message) if message.contains("bytes() requires an array argument")));
+        let bytes_extra =
+            handle("bytes", &[Value::Array(Arc::new(vec![Value::Int(65)])), Value::Int(66)])
+                .expect("bytes should return a result");
+        assert!(
+            matches!(bytes_extra, Value::Error(message) if message.contains("bytes() requires an array argument"))
+        );
 
         let type_extra =
             handle("type", &[Value::Int(1), Value::Int(2)]).expect("type should return a result");
-        assert!(matches!(type_extra, Value::Error(message) if message.contains("type() requires one argument")));
+        assert!(
+            matches!(type_extra, Value::Error(message) if message.contains("type() requires one argument"))
+        );
 
         let is_int_extra = handle("is_int", &[Value::Int(1), Value::Int(2)])
             .expect("is_int should return a result");
-        assert!(matches!(is_int_extra, Value::Error(message) if message.contains("is_int() expects 1 argument")));
+        assert!(
+            matches!(is_int_extra, Value::Error(message) if message.contains("is_int() expects 1 argument"))
+        );
 
         let is_float_extra = handle("is_float", &[Value::Float(1.0), Value::Int(2)])
             .expect("is_float should return a result");
-        assert!(matches!(is_float_extra, Value::Error(message) if message.contains("is_float() expects 1 argument")));
+        assert!(
+            matches!(is_float_extra, Value::Error(message) if message.contains("is_float() expects 1 argument"))
+        );
 
-        let is_string_extra = handle(
-            "is_string",
-            &[Value::Str(Arc::new("x".to_string())), Value::Int(2)],
-        )
-        .expect("is_string should return a result");
-        assert!(matches!(is_string_extra, Value::Error(message) if message.contains("is_string() expects 1 argument")));
+        let is_string_extra =
+            handle("is_string", &[Value::Str(Arc::new("x".to_string())), Value::Int(2)])
+                .expect("is_string should return a result");
+        assert!(
+            matches!(is_string_extra, Value::Error(message) if message.contains("is_string() expects 1 argument"))
+        );
 
-        let is_array_extra = handle(
-            "is_array",
-            &[Value::Array(Arc::new(vec![])), Value::Int(2)],
-        )
-        .expect("is_array should return a result");
-        assert!(matches!(is_array_extra, Value::Error(message) if message.contains("is_array() expects 1 argument")));
+        let is_array_extra = handle("is_array", &[Value::Array(Arc::new(vec![])), Value::Int(2)])
+            .expect("is_array should return a result");
+        assert!(
+            matches!(is_array_extra, Value::Error(message) if message.contains("is_array() expects 1 argument"))
+        );
 
         let is_dict_extra = handle(
             "is_dict",
             &[Value::Dict(Arc::new(crate::interpreter::DictMap::default())), Value::Int(2)],
         )
         .expect("is_dict should return a result");
-        assert!(matches!(is_dict_extra, Value::Error(message) if message.contains("is_dict() expects 1 argument")));
+        assert!(
+            matches!(is_dict_extra, Value::Error(message) if message.contains("is_dict() expects 1 argument"))
+        );
 
         let is_bool_extra = handle("is_bool", &[Value::Bool(true), Value::Int(2)])
             .expect("is_bool should return a result");
-        assert!(matches!(is_bool_extra, Value::Error(message) if message.contains("is_bool() expects 1 argument")));
+        assert!(
+            matches!(is_bool_extra, Value::Error(message) if message.contains("is_bool() expects 1 argument"))
+        );
 
         let is_null_extra = handle("is_null", &[Value::Null, Value::Int(2)])
             .expect("is_null should return a result");
-        assert!(matches!(is_null_extra, Value::Error(message) if message.contains("is_null() expects 1 argument")));
+        assert!(
+            matches!(is_null_extra, Value::Error(message) if message.contains("is_null() expects 1 argument"))
+        );
 
-        let is_function_extra = handle(
-            "is_function",
-            &[Value::NativeFunction("len".to_string()), Value::Int(2)],
-        )
-        .expect("is_function should return a result");
-        assert!(matches!(is_function_extra, Value::Error(message) if message.contains("is_function() expects 1 argument")));
+        let is_function_extra =
+            handle("is_function", &[Value::NativeFunction("len".to_string()), Value::Int(2)])
+                .expect("is_function should return a result");
+        assert!(
+            matches!(is_function_extra, Value::Error(message) if message.contains("is_function() expects 1 argument"))
+        );
     }
 }

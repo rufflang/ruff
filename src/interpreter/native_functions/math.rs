@@ -82,29 +82,41 @@ mod tests {
 
     #[test]
     fn test_math_api_strict_arity_rejects_extra_arguments() {
-        let abs_extra = handle("abs", &[Value::Int(-7), Value::Int(1)])
-            .expect("abs should return a result");
-        assert!(matches!(abs_extra, Value::Error(message) if message.contains("abs() expects 1 argument")));
+        let abs_extra =
+            handle("abs", &[Value::Int(-7), Value::Int(1)]).expect("abs should return a result");
+        assert!(
+            matches!(abs_extra, Value::Error(message) if message.contains("abs() expects 1 argument"))
+        );
 
-        let sqrt_extra = handle("sqrt", &[Value::Int(9), Value::Int(1)])
-            .expect("sqrt should return a result");
-        assert!(matches!(sqrt_extra, Value::Error(message) if message.contains("sqrt() expects 1 argument")));
+        let sqrt_extra =
+            handle("sqrt", &[Value::Int(9), Value::Int(1)]).expect("sqrt should return a result");
+        assert!(
+            matches!(sqrt_extra, Value::Error(message) if message.contains("sqrt() expects 1 argument"))
+        );
 
-        let exp_extra = handle("exp", &[Value::Int(1), Value::Int(2)])
-            .expect("exp should return a result");
-        assert!(matches!(exp_extra, Value::Error(message) if message.contains("exp() expects 1 argument")));
+        let exp_extra =
+            handle("exp", &[Value::Int(1), Value::Int(2)]).expect("exp should return a result");
+        assert!(
+            matches!(exp_extra, Value::Error(message) if message.contains("exp() expects 1 argument"))
+        );
 
         let pow_extra = handle("pow", &[Value::Int(2), Value::Int(8), Value::Int(1)])
             .expect("pow should return a result");
-        assert!(matches!(pow_extra, Value::Error(message) if message.contains("pow() expects 2 arguments")));
+        assert!(
+            matches!(pow_extra, Value::Error(message) if message.contains("pow() expects 2 arguments"))
+        );
 
         let min_extra = handle("min", &[Value::Int(1), Value::Int(2), Value::Int(3)])
             .expect("min should return a result");
-        assert!(matches!(min_extra, Value::Error(message) if message.contains("min() expects 2 arguments")));
+        assert!(
+            matches!(min_extra, Value::Error(message) if message.contains("min() expects 2 arguments"))
+        );
 
         let max_extra = handle("max", &[Value::Int(1), Value::Int(2), Value::Int(3)])
             .expect("max should return a result");
-        assert!(matches!(max_extra, Value::Error(message) if message.contains("max() expects 2 arguments")));
+        assert!(
+            matches!(max_extra, Value::Error(message) if message.contains("max() expects 2 arguments"))
+        );
     }
 
     #[test]
@@ -115,11 +127,8 @@ mod tests {
         let pow_missing = handle("pow", &[Value::Int(2)]).expect("pow should return a result");
         assert!(matches!(pow_missing, Value::Int(0)));
 
-        let pow_invalid = handle(
-            "pow",
-            &[Value::Int(2), Value::Str(Arc::new("bad".to_string()))],
-        )
-        .expect("pow should return a result");
+        let pow_invalid = handle("pow", &[Value::Int(2), Value::Str(Arc::new("bad".to_string()))])
+            .expect("pow should return a result");
         assert!(matches!(pow_invalid, Value::Int(0)));
     }
 }

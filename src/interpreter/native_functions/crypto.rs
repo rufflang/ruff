@@ -6,7 +6,9 @@ use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine;
 use md5::Md5;
-use rsa::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding};
+use rsa::pkcs8::{
+    DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey, LineEnding,
+};
 use rsa::{Oaep, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 
@@ -91,21 +93,20 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         "verify_password" => {
             if arg_values.len() != 2 {
                 return Some(Value::Error(
-                    "verify_password requires (string_password, string_hash) arguments"
-                        .to_string(),
+                    "verify_password requires (string_password, string_hash) arguments".to_string(),
                 ));
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(password)), Some(Value::Str(hash))) => {
-                match bcrypt::verify(password.as_ref(), hash.as_ref()) {
-                    Ok(is_valid) => Value::Bool(is_valid),
-                    Err(e) => error_object(format!("Failed to verify password: {}", e)),
+                (Some(Value::Str(password)), Some(Value::Str(hash))) => {
+                    match bcrypt::verify(password.as_ref(), hash.as_ref()) {
+                        Ok(is_valid) => Value::Bool(is_valid),
+                        Err(e) => error_object(format!("Failed to verify password: {}", e)),
+                    }
                 }
-            }
-            _ => Value::Error(
-                "verify_password requires (string_password, string_hash) arguments".to_string(),
-            ),
+                _ => Value::Error(
+                    "verify_password requires (string_password, string_hash) arguments".to_string(),
+                ),
             }
         }
 
@@ -117,29 +118,31 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(plaintext)), Some(Value::Str(key))) => {
-                let mut hasher = Sha256::new();
-                hasher.update(key.as_bytes());
-                let key_bytes = hasher.finalize();
+                (Some(Value::Str(plaintext)), Some(Value::Str(key))) => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(key.as_bytes());
+                    let key_bytes = hasher.finalize();
 
-                let nonce_bytes: [u8; 12] = rand::random();
-                let nonce = Nonce::from_slice(&nonce_bytes);
+                    let nonce_bytes: [u8; 12] = rand::random();
+                    let nonce = Nonce::from_slice(&nonce_bytes);
 
-                match Aes256Gcm::new_from_slice(&key_bytes) {
-                    Ok(cipher) => match cipher.encrypt(nonce, plaintext.as_bytes()) {
-                        Ok(ciphertext) => {
-                            let mut result = nonce_bytes.to_vec();
-                            result.extend_from_slice(&ciphertext);
-                            Value::Str(Arc::new(base64::engine::general_purpose::STANDARD.encode(result)))
-                        }
-                        Err(e) => error_object(format!("AES encryption failed: {}", e)),
-                    },
-                    Err(e) => error_object(format!("Failed to create AES cipher: {}", e)),
+                    match Aes256Gcm::new_from_slice(&key_bytes) {
+                        Ok(cipher) => match cipher.encrypt(nonce, plaintext.as_bytes()) {
+                            Ok(ciphertext) => {
+                                let mut result = nonce_bytes.to_vec();
+                                result.extend_from_slice(&ciphertext);
+                                Value::Str(Arc::new(
+                                    base64::engine::general_purpose::STANDARD.encode(result),
+                                ))
+                            }
+                            Err(e) => error_object(format!("AES encryption failed: {}", e)),
+                        },
+                        Err(e) => error_object(format!("Failed to create AES cipher: {}", e)),
+                    }
                 }
-            }
-            _ => {
-                Value::Error("aes_encrypt requires (plaintext_string, key_string) arguments".to_string())
-            }
+                _ => Value::Error(
+                    "aes_encrypt requires (plaintext_string, key_string) arguments".to_string(),
+                ),
             }
         }
 
@@ -151,39 +154,45 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
-                let mut hasher = Sha256::new();
-                hasher.update(key.as_bytes());
-                let key_bytes = hasher.finalize();
+                (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(key.as_bytes());
+                    let key_bytes = hasher.finalize();
 
-                match base64::engine::general_purpose::STANDARD.decode(ciphertext_b64.as_ref()) {
-                    Ok(data) => {
-                        if data.len() < 12 {
-                            return Some(Value::Error("Invalid ciphertext: too short".to_string()));
-                        }
+                    match base64::engine::general_purpose::STANDARD.decode(ciphertext_b64.as_ref())
+                    {
+                        Ok(data) => {
+                            if data.len() < 12 {
+                                return Some(Value::Error(
+                                    "Invalid ciphertext: too short".to_string(),
+                                ));
+                            }
 
-                        let nonce = Nonce::from_slice(&data[..12]);
-                        let ciphertext = &data[12..];
+                            let nonce = Nonce::from_slice(&data[..12]);
+                            let ciphertext = &data[12..];
 
-                        match Aes256Gcm::new_from_slice(&key_bytes) {
-                            Ok(cipher) => match cipher.decrypt(nonce, ciphertext) {
-                                Ok(plaintext) => match String::from_utf8(plaintext) {
-                                    Ok(s) => Value::Str(Arc::new(s)),
-                                    Err(e) => {
-                                        error_object(format!("Decrypted data is not valid UTF-8: {}", e))
-                                    }
+                            match Aes256Gcm::new_from_slice(&key_bytes) {
+                                Ok(cipher) => match cipher.decrypt(nonce, ciphertext) {
+                                    Ok(plaintext) => match String::from_utf8(plaintext) {
+                                        Ok(s) => Value::Str(Arc::new(s)),
+                                        Err(e) => error_object(format!(
+                                            "Decrypted data is not valid UTF-8: {}",
+                                            e
+                                        )),
+                                    },
+                                    Err(e) => error_object(format!("AES decryption failed: {}", e)),
                                 },
-                                Err(e) => error_object(format!("AES decryption failed: {}", e)),
-                            },
-                            Err(e) => error_object(format!("Failed to create AES cipher: {}", e)),
+                                Err(e) => {
+                                    error_object(format!("Failed to create AES cipher: {}", e))
+                                }
+                            }
                         }
+                        Err(e) => error_object(format!("Invalid base64 ciphertext: {}", e)),
                     }
-                    Err(e) => error_object(format!("Invalid base64 ciphertext: {}", e)),
                 }
-            }
-            _ => Value::Error(
-                "aes_decrypt requires (ciphertext_string, key_string) arguments".to_string(),
-            ),
+                _ => Value::Error(
+                    "aes_decrypt requires (ciphertext_string, key_string) arguments".to_string(),
+                ),
             }
         }
 
@@ -195,29 +204,31 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(data)), Some(Value::Str(key))) => {
-                let mut hasher = Sha256::new();
-                hasher.update(key.as_bytes());
-                let key_bytes = hasher.finalize();
+                (Some(Value::Str(data)), Some(Value::Str(key))) => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(key.as_bytes());
+                    let key_bytes = hasher.finalize();
 
-                let nonce_bytes: [u8; 12] = rand::random();
-                let nonce = Nonce::from_slice(&nonce_bytes);
+                    let nonce_bytes: [u8; 12] = rand::random();
+                    let nonce = Nonce::from_slice(&nonce_bytes);
 
-                match Aes256Gcm::new_from_slice(&key_bytes) {
-                    Ok(cipher) => match cipher.encrypt(nonce, data.as_bytes()) {
-                        Ok(ciphertext) => {
-                            let mut result = nonce_bytes.to_vec();
-                            result.extend_from_slice(&ciphertext);
-                            Value::Str(Arc::new(base64::engine::general_purpose::STANDARD.encode(result)))
-                        }
-                        Err(e) => error_object(format!("AES encryption failed: {}", e)),
-                    },
-                    Err(e) => error_object(format!("Failed to create AES cipher: {}", e)),
+                    match Aes256Gcm::new_from_slice(&key_bytes) {
+                        Ok(cipher) => match cipher.encrypt(nonce, data.as_bytes()) {
+                            Ok(ciphertext) => {
+                                let mut result = nonce_bytes.to_vec();
+                                result.extend_from_slice(&ciphertext);
+                                Value::Str(Arc::new(
+                                    base64::engine::general_purpose::STANDARD.encode(result),
+                                ))
+                            }
+                            Err(e) => error_object(format!("AES encryption failed: {}", e)),
+                        },
+                        Err(e) => error_object(format!("Failed to create AES cipher: {}", e)),
+                    }
                 }
-            }
-            _ => {
-                Value::Error("aes_encrypt_bytes requires (data_string, key_string) arguments".to_string())
-            }
+                _ => Value::Error(
+                    "aes_encrypt_bytes requires (data_string, key_string) arguments".to_string(),
+                ),
             }
         }
 
@@ -230,41 +241,46 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
-                let mut hasher = Sha256::new();
-                hasher.update(key.as_bytes());
-                let key_bytes = hasher.finalize();
+                (Some(Value::Str(ciphertext_b64)), Some(Value::Str(key))) => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(key.as_bytes());
+                    let key_bytes = hasher.finalize();
 
-                match base64::engine::general_purpose::STANDARD.decode(ciphertext_b64.as_ref()) {
-                    Ok(data) => {
-                        if data.len() < 12 {
-                            return Some(Value::Error("Invalid ciphertext: too short".to_string()));
-                        }
+                    match base64::engine::general_purpose::STANDARD.decode(ciphertext_b64.as_ref())
+                    {
+                        Ok(data) => {
+                            if data.len() < 12 {
+                                return Some(Value::Error(
+                                    "Invalid ciphertext: too short".to_string(),
+                                ));
+                            }
 
-                        let nonce = Nonce::from_slice(&data[..12]);
-                        let ciphertext = &data[12..];
+                            let nonce = Nonce::from_slice(&data[..12]);
+                            let ciphertext = &data[12..];
 
-                        match Aes256Gcm::new_from_slice(&key_bytes) {
-                            Ok(cipher) => match cipher.decrypt(nonce, ciphertext) {
-                                Ok(plaintext) => match String::from_utf8(plaintext.clone()) {
-                                    Ok(s) => Value::Str(Arc::new(s)),
-                                    Err(_) => Value::Str(Arc::new(
-                                        base64::engine::general_purpose::STANDARD
-                                            .encode(&plaintext),
-                                    )),
+                            match Aes256Gcm::new_from_slice(&key_bytes) {
+                                Ok(cipher) => match cipher.decrypt(nonce, ciphertext) {
+                                    Ok(plaintext) => match String::from_utf8(plaintext.clone()) {
+                                        Ok(s) => Value::Str(Arc::new(s)),
+                                        Err(_) => Value::Str(Arc::new(
+                                            base64::engine::general_purpose::STANDARD
+                                                .encode(&plaintext),
+                                        )),
+                                    },
+                                    Err(e) => error_object(format!("AES decryption failed: {}", e)),
                                 },
-                                Err(e) => error_object(format!("AES decryption failed: {}", e)),
-                            },
-                            Err(e) => error_object(format!("Failed to create AES cipher: {}", e)),
+                                Err(e) => {
+                                    error_object(format!("Failed to create AES cipher: {}", e))
+                                }
+                            }
                         }
+                        Err(e) => error_object(format!("Invalid base64 ciphertext: {}", e)),
                     }
-                    Err(e) => error_object(format!("Invalid base64 ciphertext: {}", e)),
                 }
-            }
-            _ => Value::Error(
-                "aes_decrypt_bytes requires (ciphertext_string, key_string) arguments"
-                    .to_string(),
-            ),
+                _ => Value::Error(
+                    "aes_decrypt_bytes requires (ciphertext_string, key_string) arguments"
+                        .to_string(),
+                ),
             }
         }
 
@@ -278,7 +294,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             if let Some(Value::Int(bits)) = arg_values.first() {
                 let bits_usize = *bits as usize;
                 if bits_usize != 2048 && bits_usize != 4096 {
-                    return Some(Value::Error("RSA key size must be 2048 or 4096 bits".to_string()));
+                    return Some(Value::Error(
+                        "RSA key size must be 2048 or 4096 bits".to_string(),
+                    ));
                 }
 
                 let mut rng = rand::thread_rng();
@@ -307,8 +325,10 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         };
 
                         let mut keypair = DictMap::default();
-                        keypair.insert(Arc::<str>::from("private"), Value::Str(Arc::new(private_pem)));
-                        keypair.insert(Arc::<str>::from("public"), Value::Str(Arc::new(public_pem)));
+                        keypair
+                            .insert(Arc::<str>::from("private"), Value::Str(Arc::new(private_pem)));
+                        keypair
+                            .insert(Arc::<str>::from("public"), Value::Str(Arc::new(public_pem)));
                         Value::Dict(Arc::new(keypair))
                     }
                     Err(e) => error_object(format!("Failed to generate RSA keypair: {}", e)),
@@ -321,31 +341,30 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         "rsa_encrypt" => {
             if arg_values.len() != 2 {
                 return Some(Value::Error(
-                    "rsa_encrypt requires (plaintext_string, public_key_pem) arguments"
-                        .to_string(),
+                    "rsa_encrypt requires (plaintext_string, public_key_pem) arguments".to_string(),
                 ));
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(plaintext)), Some(Value::Str(public_key_pem))) => {
-                match RsaPublicKey::from_public_key_pem(public_key_pem.as_ref()) {
-                    Ok(public_key) => {
-                        let mut rng = rand::thread_rng();
-                        let padding = Oaep::new::<Sha256>();
+                (Some(Value::Str(plaintext)), Some(Value::Str(public_key_pem))) => {
+                    match RsaPublicKey::from_public_key_pem(public_key_pem.as_ref()) {
+                        Ok(public_key) => {
+                            let mut rng = rand::thread_rng();
+                            let padding = Oaep::new::<Sha256>();
 
-                        match public_key.encrypt(&mut rng, padding, plaintext.as_bytes()) {
-                            Ok(ciphertext) => Value::Str(Arc::new(
-                                base64::engine::general_purpose::STANDARD.encode(ciphertext),
-                            )),
-                            Err(e) => error_object(format!("RSA encryption failed: {}", e)),
+                            match public_key.encrypt(&mut rng, padding, plaintext.as_bytes()) {
+                                Ok(ciphertext) => Value::Str(Arc::new(
+                                    base64::engine::general_purpose::STANDARD.encode(ciphertext),
+                                )),
+                                Err(e) => error_object(format!("RSA encryption failed: {}", e)),
+                            }
                         }
+                        Err(e) => error_object(format!("Invalid RSA public key: {}", e)),
                     }
-                    Err(e) => error_object(format!("Invalid RSA public key: {}", e)),
                 }
-            }
-            _ => Value::Error(
-                "rsa_encrypt requires (plaintext_string, public_key_pem) arguments".to_string(),
-            ),
+                _ => Value::Error(
+                    "rsa_encrypt requires (plaintext_string, public_key_pem) arguments".to_string(),
+                ),
             }
         }
 
@@ -358,33 +377,37 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(ciphertext_b64)), Some(Value::Str(private_key_pem))) => {
-                match RsaPrivateKey::from_pkcs8_pem(private_key_pem.as_ref()) {
-                    Ok(private_key) => {
-                        match base64::engine::general_purpose::STANDARD
-                            .decode(ciphertext_b64.as_ref())
-                        {
-                            Ok(ciphertext) => {
-                                let padding = Oaep::new::<Sha256>();
-                                match private_key.decrypt(padding, &ciphertext) {
-                                    Ok(plaintext) => match String::from_utf8(plaintext) {
-                                        Ok(s) => Value::Str(Arc::new(s)),
+                (Some(Value::Str(ciphertext_b64)), Some(Value::Str(private_key_pem))) => {
+                    match RsaPrivateKey::from_pkcs8_pem(private_key_pem.as_ref()) {
+                        Ok(private_key) => {
+                            match base64::engine::general_purpose::STANDARD
+                                .decode(ciphertext_b64.as_ref())
+                            {
+                                Ok(ciphertext) => {
+                                    let padding = Oaep::new::<Sha256>();
+                                    match private_key.decrypt(padding, &ciphertext) {
+                                        Ok(plaintext) => match String::from_utf8(plaintext) {
+                                            Ok(s) => Value::Str(Arc::new(s)),
+                                            Err(e) => error_object(format!(
+                                                "Decrypted data is not valid UTF-8: {}",
+                                                e
+                                            )),
+                                        },
                                         Err(e) => {
-                                            error_object(format!("Decrypted data is not valid UTF-8: {}", e))
+                                            error_object(format!("RSA decryption failed: {}", e))
                                         }
-                                    },
-                                    Err(e) => error_object(format!("RSA decryption failed: {}", e)),
+                                    }
                                 }
+                                Err(e) => error_object(format!("Invalid base64 ciphertext: {}", e)),
                             }
-                            Err(e) => error_object(format!("Invalid base64 ciphertext: {}", e)),
                         }
+                        Err(e) => error_object(format!("Invalid RSA private key: {}", e)),
                     }
-                    Err(e) => error_object(format!("Invalid RSA private key: {}", e)),
                 }
-            }
-            _ => Value::Error(
-                "rsa_decrypt requires (ciphertext_string, private_key_pem) arguments".to_string(),
-            ),
+                _ => Value::Error(
+                    "rsa_decrypt requires (ciphertext_string, private_key_pem) arguments"
+                        .to_string(),
+                ),
             }
         }
 
@@ -396,24 +419,25 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             match (arg_values.first(), arg_values.get(1)) {
-            (Some(Value::Str(message)), Some(Value::Str(private_key_pem))) => {
-                match RsaPrivateKey::from_pkcs8_pem(private_key_pem.as_ref()) {
-                    Ok(private_key) => {
-                        use rsa::pkcs1v15::SigningKey;
-                        use rsa::signature::{SignatureEncoding, Signer};
+                (Some(Value::Str(message)), Some(Value::Str(private_key_pem))) => {
+                    match RsaPrivateKey::from_pkcs8_pem(private_key_pem.as_ref()) {
+                        Ok(private_key) => {
+                            use rsa::pkcs1v15::SigningKey;
+                            use rsa::signature::{SignatureEncoding, Signer};
 
-                        let signing_key = SigningKey::<Sha256>::new(private_key);
-                        let signature = signing_key.sign(message.as_bytes());
-                        Value::Str(Arc::new(
-                            base64::engine::general_purpose::STANDARD.encode(signature.to_bytes()),
-                        ))
+                            let signing_key = SigningKey::<Sha256>::new(private_key);
+                            let signature = signing_key.sign(message.as_bytes());
+                            Value::Str(Arc::new(
+                                base64::engine::general_purpose::STANDARD
+                                    .encode(signature.to_bytes()),
+                            ))
+                        }
+                        Err(e) => error_object(format!("Invalid RSA private key: {}", e)),
                     }
-                    Err(e) => error_object(format!("Invalid RSA private key: {}", e)),
                 }
-            }
-            _ => Value::Error(
-                "rsa_sign requires (message_string, private_key_pem) arguments".to_string(),
-            ),
+                _ => Value::Error(
+                    "rsa_sign requires (message_string, private_key_pem) arguments".to_string(),
+                ),
             }
         }
 
@@ -426,8 +450,11 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             match (arg_values.first(), arg_values.get(1), arg_values.get(2)) {
-            (Some(Value::Str(message)), Some(Value::Str(signature_b64)), Some(Value::Str(public_key_pem))) => {
-                match RsaPublicKey::from_public_key_pem(public_key_pem.as_ref()) {
+                (
+                    Some(Value::Str(message)),
+                    Some(Value::Str(signature_b64)),
+                    Some(Value::Str(public_key_pem)),
+                ) => match RsaPublicKey::from_public_key_pem(public_key_pem.as_ref()) {
                     Ok(public_key) => match base64::engine::general_purpose::STANDARD
                         .decode(signature_b64.as_ref())
                     {
@@ -438,21 +465,23 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             let verifying_key = VerifyingKey::<Sha256>::new(public_key);
 
                             match Signature::try_from(signature_bytes.as_slice()) {
-                                Ok(signature) => match verifying_key.verify(message.as_bytes(), &signature) {
-                                    Ok(_) => Value::Bool(true),
-                                    Err(_) => Value::Bool(false),
-                                },
+                                Ok(signature) => {
+                                    match verifying_key.verify(message.as_bytes(), &signature) {
+                                        Ok(_) => Value::Bool(true),
+                                        Err(_) => Value::Bool(false),
+                                    }
+                                }
                                 Err(e) => error_object(format!("Invalid signature format: {}", e)),
                             }
                         }
                         Err(e) => error_object(format!("Invalid base64 signature: {}", e)),
                     },
                     Err(e) => error_object(format!("Invalid RSA public key: {}", e)),
-                }
-            }
-            _ => Value::Error(
-                "rsa_verify requires (message, signature, public_key_pem) arguments".to_string(),
-            ),
+                },
+                _ => Value::Error(
+                    "rsa_verify requires (message, signature, public_key_pem) arguments"
+                        .to_string(),
+                ),
             }
         }
 
@@ -489,7 +518,9 @@ mod tests {
         );
 
         let md5 = handle("md5", &[string_value("ruff")]).unwrap();
-        assert!(matches!(md5, Value::Str(value) if value.as_ref() == "a5e1a5d93ff242b745f5cf87aeb726d5"));
+        assert!(
+            matches!(md5, Value::Str(value) if value.as_ref() == "a5e1a5d93ff242b745f5cf87aeb726d5")
+        );
     }
 
     #[test]
@@ -519,8 +550,7 @@ mod tests {
         assert!(matches!(verify_ok, Value::Bool(true)));
 
         let verify_fail =
-            handle("verify_password", &[string_value("wrong"), Value::Str(hash_string)])
-                .unwrap();
+            handle("verify_password", &[string_value("wrong"), Value::Str(hash_string)]).unwrap();
         assert!(matches!(verify_fail, Value::Bool(false)));
     }
 
@@ -529,7 +559,8 @@ mod tests {
         let plaintext = "ruff-aes-roundtrip";
         let key = "key-material";
 
-        let encrypted = handle("aes_encrypt", &[string_value(plaintext), string_value(key)]).unwrap();
+        let encrypted =
+            handle("aes_encrypt", &[string_value(plaintext), string_value(key)]).unwrap();
         let ciphertext = match encrypted {
             Value::Str(value) => value,
             other => panic!("Expected ciphertext string, got {:?}", other),
@@ -611,11 +642,7 @@ mod tests {
 
         let tampered = handle(
             "rsa_verify",
-            &[
-                string_value("tampered"),
-                Value::Str(signature_b64),
-                Value::Str(public_pem),
-            ],
+            &[string_value("tampered"), Value::Str(signature_b64), Value::Str(public_pem)],
         )
         .unwrap();
         assert!(matches!(tampered, Value::Bool(false)));
@@ -672,11 +699,8 @@ mod tests {
             matches!(rsa_keypair_extra, Value::Error(message) if message.contains("rsa_generate_keypair requires"))
         );
 
-        let rsa_verify_missing = handle(
-            "rsa_verify",
-            &[string_value("msg"), string_value("sig")],
-        )
-        .unwrap();
+        let rsa_verify_missing =
+            handle("rsa_verify", &[string_value("msg"), string_value("sig")]).unwrap();
         assert!(
             matches!(rsa_verify_missing, Value::Error(message) if message.contains("rsa_verify requires"))
         );

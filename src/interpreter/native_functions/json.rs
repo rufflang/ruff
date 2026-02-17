@@ -146,9 +146,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
         "decode_base64" => {
             if arg_values.len() != 1 {
-                return Some(Value::Error(
-                    "decode_base64 requires a string argument".to_string(),
-                ));
+                return Some(Value::Error("decode_base64 requires a string argument".to_string()));
             }
 
             if let Some(Value::Str(s)) = arg_values.first() {
@@ -179,7 +177,8 @@ mod tests {
 
     #[test]
     fn test_parse_json_and_to_json_round_trip() {
-        let parse_result = handle("parse_json", &[string_value("{\"name\":\"ruff\",\"n\":2}")]).unwrap();
+        let parse_result =
+            handle("parse_json", &[string_value("{\"name\":\"ruff\",\"n\":2}")]).unwrap();
         match parse_result {
             Value::Dict(map) => {
                 assert!(map.contains_key("name"));
@@ -275,55 +274,77 @@ mod tests {
     #[test]
     fn test_data_format_argument_validation_errors() {
         let parse_json_error = handle("parse_json", &[Value::Int(1)]).unwrap();
-        assert!(matches!(parse_json_error, Value::Error(message) if message.contains("parse_json requires a string argument")));
+        assert!(
+            matches!(parse_json_error, Value::Error(message) if message.contains("parse_json requires a string argument"))
+        );
 
         let decode_base64_error = handle("decode_base64", &[Value::Int(1)]).unwrap();
-        assert!(matches!(decode_base64_error, Value::Error(message) if message.contains("decode_base64 requires a string argument")));
+        assert!(
+            matches!(decode_base64_error, Value::Error(message) if message.contains("decode_base64 requires a string argument"))
+        );
 
         let encode_base64_error = handle("encode_base64", &[Value::Int(1)]).unwrap();
-        assert!(matches!(encode_base64_error, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument")));
+        assert!(
+            matches!(encode_base64_error, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument"))
+        );
     }
 
     #[test]
     fn test_data_format_and_base64_strict_arity_rejects_extra_arguments() {
-        let parse_json_extra =
-            handle("parse_json", &[string_value("{}"), Value::Int(1)]).unwrap();
-        assert!(matches!(parse_json_extra, Value::Error(message) if message.contains("parse_json requires a string argument")));
+        let parse_json_extra = handle("parse_json", &[string_value("{}"), Value::Int(1)]).unwrap();
+        assert!(
+            matches!(parse_json_extra, Value::Error(message) if message.contains("parse_json requires a string argument"))
+        );
 
-        let to_json_extra =
-            handle("to_json", &[Value::Bool(true), Value::Int(1)]).unwrap();
-        assert!(matches!(to_json_extra, Value::Error(message) if message.contains("to_json requires a value argument")));
+        let to_json_extra = handle("to_json", &[Value::Bool(true), Value::Int(1)]).unwrap();
+        assert!(
+            matches!(to_json_extra, Value::Error(message) if message.contains("to_json requires a value argument"))
+        );
 
         let parse_toml_extra =
             handle("parse_toml", &[string_value("title='x'"), Value::Int(1)]).unwrap();
-        assert!(matches!(parse_toml_extra, Value::Error(message) if message.contains("parse_toml requires a string argument")));
+        assert!(
+            matches!(parse_toml_extra, Value::Error(message) if message.contains("parse_toml requires a string argument"))
+        );
 
-        let to_toml_extra =
-            handle("to_toml", &[Value::Bool(true), Value::Int(1)]).unwrap();
-        assert!(matches!(to_toml_extra, Value::Error(message) if message.contains("to_toml requires a value argument")));
+        let to_toml_extra = handle("to_toml", &[Value::Bool(true), Value::Int(1)]).unwrap();
+        assert!(
+            matches!(to_toml_extra, Value::Error(message) if message.contains("to_toml requires a value argument"))
+        );
 
         let parse_yaml_extra =
             handle("parse_yaml", &[string_value("name: x"), Value::Int(1)]).unwrap();
-        assert!(matches!(parse_yaml_extra, Value::Error(message) if message.contains("parse_yaml requires a string argument")));
+        assert!(
+            matches!(parse_yaml_extra, Value::Error(message) if message.contains("parse_yaml requires a string argument"))
+        );
 
-        let to_yaml_extra =
-            handle("to_yaml", &[Value::Bool(true), Value::Int(1)]).unwrap();
-        assert!(matches!(to_yaml_extra, Value::Error(message) if message.contains("to_yaml requires a value argument")));
+        let to_yaml_extra = handle("to_yaml", &[Value::Bool(true), Value::Int(1)]).unwrap();
+        assert!(
+            matches!(to_yaml_extra, Value::Error(message) if message.contains("to_yaml requires a value argument"))
+        );
 
         let parse_csv_extra =
             handle("parse_csv", &[string_value("a,b\n1,2"), Value::Int(1)]).unwrap();
-        assert!(matches!(parse_csv_extra, Value::Error(message) if message.contains("parse_csv requires a string argument")));
+        assert!(
+            matches!(parse_csv_extra, Value::Error(message) if message.contains("parse_csv requires a string argument"))
+        );
 
         let to_csv_extra =
             handle("to_csv", &[Value::Array(Arc::new(vec![])), Value::Int(1)]).unwrap();
-        assert!(matches!(to_csv_extra, Value::Error(message) if message.contains("to_csv requires an array argument")));
+        assert!(
+            matches!(to_csv_extra, Value::Error(message) if message.contains("to_csv requires an array argument"))
+        );
 
         let encode_base64_extra =
             handle("encode_base64", &[string_value("ruff"), Value::Int(1)]).unwrap();
-        assert!(matches!(encode_base64_extra, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument")));
+        assert!(
+            matches!(encode_base64_extra, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument"))
+        );
 
         let decode_base64_extra =
             handle("decode_base64", &[string_value("cnVmZg=="), Value::Int(1)]).unwrap();
-        assert!(matches!(decode_base64_extra, Value::Error(message) if message.contains("decode_base64 requires a string argument")));
+        assert!(
+            matches!(decode_base64_extra, Value::Error(message) if message.contains("decode_base64 requires a string argument"))
+        );
     }
 }
