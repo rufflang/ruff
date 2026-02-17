@@ -886,7 +886,8 @@ mod tests {
             matches!(type_missing, Value::Error(message) if message.contains("type() requires one argument"))
         );
 
-        let type_extra = call_native_function(&mut interpreter, "type", &[Value::Int(1), Value::Int(2)]);
+        let type_extra =
+            call_native_function(&mut interpreter, "type", &[Value::Int(1), Value::Int(2)]);
         assert!(
             matches!(type_extra, Value::Error(message) if message.contains("type() requires one argument"))
         );
@@ -908,11 +909,8 @@ mod tests {
         assert!(matches!(is_float_true, Value::Bool(true)));
         let is_float_false = call_native_function(&mut interpreter, "is_float", &[Value::Int(7)]);
         assert!(matches!(is_float_false, Value::Bool(false)));
-        let is_float_extra = call_native_function(
-            &mut interpreter,
-            "is_float",
-            &[Value::Float(7.5), Value::Int(8)],
-        );
+        let is_float_extra =
+            call_native_function(&mut interpreter, "is_float", &[Value::Float(7.5), Value::Int(8)]);
         assert!(
             matches!(is_float_extra, Value::Error(message) if message.contains("is_float() expects 1 argument"))
         );
@@ -1106,11 +1104,8 @@ mod tests {
             matches!(to_float_bad, Value::Error(message) if message.contains("Cannot convert 'bad' to float"))
         );
 
-        let to_float_extra = call_native_function(
-            &mut interpreter,
-            "to_float",
-            &[Value::Float(2.5), Value::Int(1)],
-        );
+        let to_float_extra =
+            call_native_function(&mut interpreter, "to_float", &[Value::Float(2.5), Value::Int(1)]);
         assert!(
             matches!(to_float_extra, Value::Error(message) if message.contains("to_float() requires one argument"))
         );
@@ -1138,11 +1133,8 @@ mod tests {
         );
         assert!(matches!(to_bool_true, Value::Bool(true)));
 
-        let to_bool_extra = call_native_function(
-            &mut interpreter,
-            "to_bool",
-            &[Value::Bool(true), Value::Int(1)],
-        );
+        let to_bool_extra =
+            call_native_function(&mut interpreter, "to_bool", &[Value::Bool(true), Value::Int(1)]);
         assert!(
             matches!(to_bool_extra, Value::Error(message) if message.contains("to_bool() requires one argument"))
         );
@@ -1175,10 +1167,7 @@ mod tests {
         let bytes_extra = call_native_function(
             &mut interpreter,
             "bytes",
-            &[
-                Value::Array(Arc::new(vec![Value::Int(65), Value::Int(66)])),
-                Value::Int(67),
-            ],
+            &[Value::Array(Arc::new(vec![Value::Int(65), Value::Int(66)])), Value::Int(67)],
         );
         assert!(
             matches!(bytes_extra, Value::Error(message) if message.contains("bytes() requires an array argument"))
@@ -2457,11 +2446,8 @@ mod tests {
             matches!(to_json_missing, Value::Error(message) if message.contains("to_json requires a value argument"))
         );
 
-        let to_json_extra = call_native_function(
-            &mut interpreter,
-            "to_json",
-            &[Value::Bool(true), Value::Int(1)],
-        );
+        let to_json_extra =
+            call_native_function(&mut interpreter, "to_json", &[Value::Bool(true), Value::Int(1)]);
         assert!(
             matches!(to_json_extra, Value::Error(message) if message.contains("to_json requires a value argument"))
         );
@@ -2475,11 +2461,8 @@ mod tests {
             matches!(parse_toml_extra, Value::Error(message) if message.contains("parse_toml requires a string argument"))
         );
 
-        let to_toml_extra = call_native_function(
-            &mut interpreter,
-            "to_toml",
-            &[Value::Bool(true), Value::Int(1)],
-        );
+        let to_toml_extra =
+            call_native_function(&mut interpreter, "to_toml", &[Value::Bool(true), Value::Int(1)]);
         assert!(
             matches!(to_toml_extra, Value::Error(message) if message.contains("to_toml requires a value argument"))
         );
@@ -2493,11 +2476,8 @@ mod tests {
             matches!(parse_yaml_extra, Value::Error(message) if message.contains("parse_yaml requires a string argument"))
         );
 
-        let to_yaml_extra = call_native_function(
-            &mut interpreter,
-            "to_yaml",
-            &[Value::Bool(true), Value::Int(1)],
-        );
+        let to_yaml_extra =
+            call_native_function(&mut interpreter, "to_yaml", &[Value::Bool(true), Value::Int(1)]);
         assert!(
             matches!(to_yaml_extra, Value::Error(message) if message.contains("to_yaml requires a value argument"))
         );
@@ -2628,11 +2608,7 @@ mod tests {
         let assert_extra = call_native_function(
             &mut interpreter,
             "assert",
-            &[
-                Value::Bool(true),
-                Value::Str(Arc::new("ok".to_string())),
-                Value::Int(1),
-            ],
+            &[Value::Bool(true), Value::Str(Arc::new("ok".to_string())), Value::Int(1)],
         );
         assert!(
             matches!(assert_extra, Value::Error(message) if message.contains("expects at most 2 arguments"))
@@ -4383,6 +4359,21 @@ mod tests {
         let load_image_missing_args = call_native_function(&mut interpreter, "load_image", &[]);
         assert!(
             matches!(load_image_missing_args, Value::Error(message) if message.contains("load_image requires a string path argument"))
+        );
+
+        let load_image_wrong_type =
+            call_native_function(&mut interpreter, "load_image", &[Value::Int(1)]);
+        assert!(
+            matches!(load_image_wrong_type, Value::Error(message) if message.contains("load_image requires a string path argument"))
+        );
+
+        let load_image_extra_arg = call_native_function(
+            &mut interpreter,
+            "load_image",
+            &[Value::Str(Arc::new("/tmp/ruff-image.png".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(load_image_extra_arg, Value::Error(message) if message.contains("load_image requires a string path argument"))
         );
 
         let missing_path = tmp_test_path("dispatch_missing_image.png");

@@ -284,6 +284,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "load_image" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "load_image requires a string path argument".to_string(),
+                ));
+            }
+
             if let Some(Value::Str(path)) = arg_values.first() {
                 match image::open(path.as_ref()) {
                     Ok(image_data) => {
