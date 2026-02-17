@@ -2443,9 +2443,81 @@ mod tests {
             matches!(parse_json_bad_shape, Value::Error(message) if message.contains("parse_json requires a string argument"))
         );
 
+        let parse_json_extra = call_native_function(
+            &mut interpreter,
+            "parse_json",
+            &[Value::Str(Arc::new("{}".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(parse_json_extra, Value::Error(message) if message.contains("parse_json requires a string argument"))
+        );
+
         let to_json_missing = call_native_function(&mut interpreter, "to_json", &[]);
         assert!(
             matches!(to_json_missing, Value::Error(message) if message.contains("to_json requires a value argument"))
+        );
+
+        let to_json_extra = call_native_function(
+            &mut interpreter,
+            "to_json",
+            &[Value::Bool(true), Value::Int(1)],
+        );
+        assert!(
+            matches!(to_json_extra, Value::Error(message) if message.contains("to_json requires a value argument"))
+        );
+
+        let parse_toml_extra = call_native_function(
+            &mut interpreter,
+            "parse_toml",
+            &[Value::Str(Arc::new("title = \"Ruff\"".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(parse_toml_extra, Value::Error(message) if message.contains("parse_toml requires a string argument"))
+        );
+
+        let to_toml_extra = call_native_function(
+            &mut interpreter,
+            "to_toml",
+            &[Value::Bool(true), Value::Int(1)],
+        );
+        assert!(
+            matches!(to_toml_extra, Value::Error(message) if message.contains("to_toml requires a value argument"))
+        );
+
+        let parse_yaml_extra = call_native_function(
+            &mut interpreter,
+            "parse_yaml",
+            &[Value::Str(Arc::new("name: Ruff".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(parse_yaml_extra, Value::Error(message) if message.contains("parse_yaml requires a string argument"))
+        );
+
+        let to_yaml_extra = call_native_function(
+            &mut interpreter,
+            "to_yaml",
+            &[Value::Bool(true), Value::Int(1)],
+        );
+        assert!(
+            matches!(to_yaml_extra, Value::Error(message) if message.contains("to_yaml requires a value argument"))
+        );
+
+        let parse_csv_extra = call_native_function(
+            &mut interpreter,
+            "parse_csv",
+            &[Value::Str(Arc::new("name,age\nRuff,2".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(parse_csv_extra, Value::Error(message) if message.contains("parse_csv requires a string argument"))
+        );
+
+        let to_csv_extra = call_native_function(
+            &mut interpreter,
+            "to_csv",
+            &[Value::Array(Arc::new(vec![])), Value::Int(1)],
+        );
+        assert!(
+            matches!(to_csv_extra, Value::Error(message) if message.contains("to_csv requires an array argument"))
         );
 
         let decode_base64_bad_shape =
@@ -2454,10 +2526,28 @@ mod tests {
             matches!(decode_base64_bad_shape, Value::Error(message) if message.contains("decode_base64 requires a string argument"))
         );
 
+        let decode_base64_extra = call_native_function(
+            &mut interpreter,
+            "decode_base64",
+            &[Value::Str(Arc::new("cnVmZg==".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(decode_base64_extra, Value::Error(message) if message.contains("decode_base64 requires a string argument"))
+        );
+
         let encode_base64_bad_shape =
             call_native_function(&mut interpreter, "encode_base64", &[Value::Int(1)]);
         assert!(
             matches!(encode_base64_bad_shape, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument"))
+        );
+
+        let encode_base64_extra = call_native_function(
+            &mut interpreter,
+            "encode_base64",
+            &[Value::Str(Arc::new("ruff".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(encode_base64_extra, Value::Error(message) if message.contains("encode_base64 requires a bytes or string argument"))
         );
 
         let regex_match_ok = call_native_function(
