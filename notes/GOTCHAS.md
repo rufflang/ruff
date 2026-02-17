@@ -214,6 +214,14 @@ If you are new to the project, read this first.
 
 ## Runtime / Evaluator
 
+### Strict-arity hardening must preserve existing fallback contracts
+- **Problem:** While hardening APIs to reject trailing arguments, it is easy to accidentally change legacy missing/invalid-argument behavior.
+- **Rule:** For release-hardening slices, reject extra arguments explicitly, but preserve established fallback behavior unless intentionally changing public contract.
+- **Why:** Many Ruff builtins intentionally return compatibility fallbacks (e.g., `Int(0)` / `Bool(false)` / empty values) for certain missing/invalid shapes.
+- **Implication:** Align changes to existing dispatcher contracts first; do not “over-harden” without synchronized tests/docs/changelog contract updates.
+
+(Discovered during: 2026-02-16_20-23_release-hardening-strict-arity-follow-through-slices.md)
+
 ### `env_bool(...)` is permissive: non-truthy values become `false`, not parse errors
 - **Problem:** Tests may incorrectly expect `env_bool("KEY")` to return an error for values like `"definitely-not-bool"`.
 - **Rule:** `env_bool` returns `Ok(true)` only for truthy strings (`true`, `1`, `yes`, `on`, case-insensitive); all other present values resolve to `false`.

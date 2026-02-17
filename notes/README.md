@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-02-16_20-23_release-hardening-strict-arity-follow-through-slices.md** — ✅ COMPLETED: Delivered iterative v0.10 P1 strict-arity hardening slices for assertion/testing, conversion+introspection, math, and data-format/base64 APIs with module+dispatcher coverage, synchronized roadmap/changelog/readme updates, and captured fallback-contract preservation + cargo single-filter test-command gotchas.
+
 - **2026-02-16_18-09_optional-static-typing-design-package.md** — ✅ COMPLETED: Delivered the v0.10 exploratory optional static typing design package (`docs/OPTIONAL_TYPING_DESIGN.md`) covering annotation surface, optional runtime type-check contract, typed-JIT boundaries, migration/non-goal decisions, and synchronized roadmap/changelog/readme status.
 
 - **2026-02-16_17-28_release-hardening-array-higher-order-collection-contracts.md** — ✅ COMPLETED: Hardened strict-arity contracts for core array and higher-order collection APIs, added comprehensive module+dispatcher contract coverage, synchronized roadmap/changelog/readme, and documented `matches!` partial-move plus fixture-brittleness gotchas.
