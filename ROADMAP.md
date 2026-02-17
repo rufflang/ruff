@@ -75,6 +75,8 @@ This roadmap intentionally tracks only upcoming items.
 
     - Added modular dispatch coverage for declared image API (`load_image`)
     - Added release-hardening tests for argument-shape validation, missing-file error behavior, and successful image load contracts
+    - Hardened strict arity contract for `load_image` so trailing arguments now return deterministic contract errors
+    - Added explicit strict-arity extra-argument rejection coverage for `load_image(...)` at dispatcher integration level
     - Reduced exhaustive dispatch known-gap list by removing migrated `load_image`
 
     - Added modular dispatch coverage for declared compression/archive APIs (`zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`)

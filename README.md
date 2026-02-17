@@ -105,6 +105,11 @@
   - Reduced exhaustive known-gap list by removing migrated `load_image`
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
+* **Image API Strict-Arity Contract Follow-Through (P1)**
+  - Hardened strict arity contract for `load_image(...)` so trailing arguments now return deterministic contract errors
+  - Added release-hardening contract tests for explicit extra-argument rejection while preserving missing-file and successful load behavior checks
+  - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
+
 * **Compression/Archive Modular Dispatch Gap Closure (P1)**
   - Added modular handlers for declared archive APIs: `zip_create`, `zip_add_file`, `zip_add_dir`, `zip_close`, `unzip`
   - Added release-hardening contract tests for argument-shape validation and zip/unzip round-trip behavior

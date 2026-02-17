@@ -90,6 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `udp_bind`, `udp_send_to`, `udp_receive_from`, `udp_close`
   - Added comprehensive release-hardening strict-arity contract coverage for all TCP/UDP APIs above, including explicit extra-argument rejection checks per entry point
 
+- **Release Hardening: Image API Strict-Arity Contract Follow-Through (P1)**:
+  - Hardened strict arity contract for declared image API so trailing arguments now return deterministic contract errors:
+    - `load_image`
+  - Added release-hardening contract coverage for `load_image(...)` argument-shape validation, explicit extra-argument rejection, missing-file error behavior, and successful image load behavior
+
 - **Release Hardening: Async Batch + Shared State/Task-Pool Contract Follow-Through (P1)**:
   - Added release-hardening contract coverage for async batch file APIs:
     - `async_read_files`
