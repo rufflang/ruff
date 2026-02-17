@@ -575,11 +575,8 @@ mod tests {
             matches!(post_error, Value::Error(message) if message.contains("http_post() expects 2 arguments"))
         );
 
-        let get_extra_error = handle(
-            "http_get",
-            &[str_value("https://example.com"), str_value("extra")],
-        )
-        .unwrap();
+        let get_extra_error =
+            handle("http_get", &[str_value("https://example.com"), str_value("extra")]).unwrap();
         assert!(
             matches!(get_extra_error, Value::Error(message) if message.contains("http_get() expects 1 argument"))
         );

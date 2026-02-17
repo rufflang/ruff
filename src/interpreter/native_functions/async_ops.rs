@@ -1859,11 +1859,7 @@ mod tests {
     #[test]
     fn test_par_each_rejects_non_array_input() {
         let mut interp = Interpreter::new();
-        let args = vec![
-            Value::Int(7),
-            Value::NativeFunction("len".to_string()),
-            Value::Int(2),
-        ];
+        let args = vec![Value::Int(7), Value::NativeFunction("len".to_string()), Value::Int(2)];
 
         let result = handle(&mut interp, "par_each", &args).unwrap();
         match result {
