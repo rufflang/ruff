@@ -295,7 +295,19 @@ This roadmap intentionally tracks only upcoming items.
 **Focus**: Deliver production-grade async throughput for large I/O-bound workloads (SSG priority)  
 **Timeline**: Q2-Q3 2026  
 **Priority**: P0 - CRITICAL for production performance perception  
-**Status**: Planned (execution focus shifted from v0.10.0)
+**Status**: In Progress
+
+### Completed Milestones
+
+- **Async VM Integration Completion (✅ Complete, February 2026)**
+  - Made cooperative suspend/resume the default execution model for async-heavy workloads
+  - Enabled `cooperative_suspend_enabled: true` in VM constructor to activate non-blocking await semantics by default
+  - Integrated cooperative scheduler loop into main execution path (`execute_until_suspend()` + `run_scheduler_until_complete()`)
+  - Replaced blocking `vm.execute()` with cooperative scheduler in VM execution entry points
+  - User-defined async functions now execute with true concurrency semantics
+  - Eliminated remaining blocking `block_on()` bottleneck in critical VM await paths
+  - Added comprehensive integration tests for cooperative default behavior (7 new tests, all passing)
+  - Result: Production-ready non-blocking async VM ready for SSG and I/O-bound workloads
 
 ### Scope (Forward Work Only)
 
@@ -304,17 +316,12 @@ v0.11.0 tracks only the remaining performance and architecture work.
 
 ### Remaining High-Priority Workstreams
 
-1. **Async VM Integration Completion**
-     - Make cooperative suspend/resume path the default execution model for async-heavy workflows.
-     - Remove remaining `block_on()` bottlenecks from VM await execution paths.
-     - Ensure user-defined async functions can execute with true concurrency semantics.
-
-2. **SSG Throughput Focus (Primary Benchmark Gate)**
+1. **SSG Throughput Focus (Primary Benchmark Gate)**
      - Continue reducing render/write overhead in `bench-ssg` execution path.
      - Add additional native bulk helpers where script-level hot loops dominate.
      - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
 
-3. **Benchmark Stability & Measurement Quality**
+2. **Benchmark Stability & Measurement Quality**
      - Add repeat-run/median reporting to reduce one-off benchmark noise.
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
      - Keep cross-language runs (`--compare-python`) for directional trend tracking.

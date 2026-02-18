@@ -530,6 +530,25 @@
   - **Status**: ✅ **Phase 5 100% Complete!**
   - All async operations use true tokio concurrency for maximum I/O performance
 
+### Completed in v0.11.0 (In Progress) 🚧
+
+* **Async VM Cooperative Integration (v0.11.0 P0 - ✅ COMPLETE)**
+  - **Made cooperative suspend/resume the default execution model** for all async-heavy workloads
+  - **Enabled non-blocking await semantics** by defaulting `cooperative_suspend_enabled: true` in VM constructor
+  - **Integrated cooperative scheduler loop** into main execution path using `execute_until_suspend()` + `run_scheduler_until_complete()`
+  - **Replaced blocking `vm.execute()`** with cooperative scheduler in main VM entry point for true async concurrency
+  - **User-defined async functions** now execute with true concurrency semantics instead of blocking on pending promises
+  - **Eliminated blocking `block_on()` bottleneck** in critical VM await paths for production-grade performance
+  - **Comprehensive integration tests** (7 new tests, 100% passing):
+    - Cooperative default enabled verification
+    - Single context suspension/resumption
+    - Scheduler drive-to-completion for pending awaits
+    - Multi-context fairness and fair scheduling
+    - Full backward compatibility validation for non-async code
+    - Mixed sync/async operation behavior
+  - **Performance Impact**: Enables true concurrent I/O execution for SSG and other I/O-bound workloads
+  - **Result**: Production-ready non-blocking async VM ready for concurrent workloads
+
 ### In Progress for v0.9.0 🚧
 
 * **Function-Level JIT (Phase 7 - 🔄 70% Complete)**
