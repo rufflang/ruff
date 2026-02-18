@@ -2,7 +2,7 @@
 
 **Ruff** is a purpose-built, correctness-first execution language designed for tooling, automation, and AI-assisted development.
 
-> **Status**: v0.9.0 (Released February 2026) ⚡ Previous: v0.8.0 (January 2026) - Async/Await & Modern Concurrency
+> **Status**: v0.10.0 (Released February 2026) ⚡ Previous: v0.9.0 (February 2026) - VM/JIT & Async Runtime Foundation
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -10,7 +10,7 @@
 
 ## Project Status
 
-### v0.10.0 Architecture Cleanup Progress ✅
+### v0.10.0 Architecture Cleanup Highlights ✅
 
 * **Leaky Function Body Drop Path Removed (P2)**
   - Runtime function body storage now uses iterative statement-tree drop traversal instead of leak-on-drop behavior
@@ -23,7 +23,7 @@
   - Function-body handle lifecycle is reference-counted with safe final-release cleanup
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
-### v0.10.0 Optional Static Typing Design Progress ✅
+### v0.10.0 Optional Static Typing Design Highlights ✅
 
 * **Optional Static Typing Design Package (Exploratory)**
   - Added a consolidated design document at `docs/OPTIONAL_TYPING_DESIGN.md`
@@ -32,7 +32,7 @@
   - Documented typed-JIT optimization boundaries, migration compatibility notes, open decisions, and explicit non-goals
   - See [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md) for status alignment
 
-### v0.10.0 Release Hardening Progress ✅
+### v0.10.0 Release Hardening Highlights ✅
 
 * **Data-Format + Base64 API Strict-Arity Contract Follow-Through (P1)**
   - Hardened strict arity contracts so trailing arguments now return deterministic contract errors for data-format APIs: `parse_json`, `to_json`, `parse_toml`, `to_toml`, `parse_yaml`, `to_yaml`, `parse_csv`, `to_csv`
@@ -324,7 +324,7 @@
   - Added dispatcher regression tests to ensure critical recently introduced APIs never regress into unknown-native fallback
   - See [CHANGELOG.md](CHANGELOG.md) for implementation and test details
 
-### Just Completed in v0.9.0 (Phase 1) ✅
+### Previously Completed in v0.9.0 (Phase 1) ✅
 
 * **Bytecode VM Integration** 🚀
   - VM is now the default execution mode for all Ruff programs
@@ -351,7 +351,7 @@
   - **Zero Regressions**: All 198 tests pass
   - See `tests/test_vm_optimizations.ruff` for examples
 
-### Completed in v0.9.0 (Latest) ✅
+### Previously Completed in v0.9.0 (Latest) ✅
 
 * **JIT Compilation (Phase 3 - ✅ 100% COMPLETE!) 🎉**
   - **Cranelift Integration**: Native code generation using Cranelift JIT backend ✅
@@ -530,7 +530,7 @@
   - **Status**: ✅ **Phase 5 100% Complete!**
   - All async operations use true tokio concurrency for maximum I/O performance
 
-### Completed in v0.11.0 (In Progress) 🚧
+### Completed for v0.11.0 (In Progress) ✅
 
 * **Async VM Cooperative Integration (v0.11.0 P0 - ✅ COMPLETE)**
   - **Made cooperative suspend/resume the default execution model** for all async-heavy workloads
@@ -549,7 +549,7 @@
   - **Performance Impact**: Enables true concurrent I/O execution for SSG and other I/O-bound workloads
   - **Result**: Production-ready non-blocking async VM ready for concurrent workloads
 
-### In Progress for v0.9.0 🚧
+### In Progress for v0.11.0 🚧
 
 * **Function-Level JIT (Phase 7 - 🔄 70% Complete)**
   - **Goal**: JIT compile entire user functions for optimal performance
@@ -573,7 +573,7 @@
     - Python: **33.25 ms**
   - Outcome: Ruff hash-map benchmark path is now significantly faster than Python
 
-### Completed in v0.9.0 (Earlier Phases) ✅
+### Previously Completed in v0.9.0 (Earlier Phases) ✅
 
 * **Interpreter Modularization (Phase 3 Complete) 🎯**
   - Successfully refactored 14,802-line monolithic interpreter into focused modules
@@ -894,7 +894,7 @@
   - All 208 tests passing
   - Clean, maintainable codebase
 
-### In Development (v0.8.0 Continued)
+### Historical Development Notes (v0.8.0 Era)
 
 * **Standard Library Expansion**
   - Core modules: os ✅, path ✅, io ✅, net ✅, crypto ✅
@@ -903,7 +903,7 @@
   - Compression and archiving ✅
   - Extended native function library for VM ✅
 
-* **Async/Await** (Future - v0.9.0+)
+* **Async/Await** (Delivered in v0.9.0)
   - Modern async/await syntax
   - Concurrent execution with Promise.all/race
   - Async iteration
@@ -1280,7 +1280,7 @@ ruff run examples/factorial.ruff
 ruff run examples/factorial.ruff --interpreter
 ```
 
-**Current Status** (v0.9.0 Phase 1 Complete):
+**Current Status** (v0.10.0 Release):
 - ✅ VM is now the default execution mode
 - ✅ Full feature parity with tree-walking interpreter
 - ✅ All 198 tests pass in both modes
@@ -1298,7 +1298,7 @@ ruff run examples/factorial.ruff --interpreter
 - Testing VM functionality
 - Comparing execution speeds
 
-Note: The VM is under active development. Some features may not work correctly. Fall back to the default tree-walking interpreter (without `--vm` flag) if you encounter issues.
+Note: The VM is the default execution mode in current releases. Use `--interpreter` as the compatibility fallback when you need tree-walking behavior.
 
 ---
 

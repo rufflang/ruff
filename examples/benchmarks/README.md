@@ -322,4 +322,4 @@ A: Use `ruff profile <file>` with optional `--flamegraph` output.
 
 ---
 
-*Last Updated: January 2026 (v0.9.0 Phase 6)*
+*Last Updated: February 2026 (v0.10.0 release)*

@@ -158,10 +158,10 @@ When running benchmarks for comparison:
 
 ## Version Info
 
-- Ruff: v0.9.0 (with JIT compiler and Phase 4 optimizations)
+- Ruff: v0.10.0 (release hardening + architecture cleanup)
 - Python: 3.x
 - Go: 1.x
 
 ---
 
-**Last Updated:** 2026-01-28
+**Last Updated:** 2026-02-18

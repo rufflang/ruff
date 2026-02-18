@@ -2,21 +2,21 @@
 
 This roadmap outlines **upcoming** planned features and improvements. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
 
-> **Current Version**: v0.9.0 (Released February 2026)  
-> **Next Planned Release**: v0.10.0  
-> **Status**: Roadmap tracks post-v0.9.0 work only (for completed items see CHANGELOG).
+> **Current Version**: v0.10.0 (Released February 2026)  
+> **Next Planned Release**: v0.11.0  
+> **Status**: Roadmap tracks post-v0.10.0 work only (for completed items see CHANGELOG).
 
 ---
 
 ## 🎯 What's Next (Priority Order)
 
-**IMMEDIATE (v0.10.0)**:
-1. **📦 Release Hardening (P1)** - stabilize APIs and prepare v1.0 trajectory
-2. **🧪 Optional Static Typing Design (Exploratory, ✅ Complete February 2026)** - see `docs/OPTIONAL_TYPING_DESIGN.md`
+**IMMEDIATE (v0.11.0)**:
+1. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus
+2. **Developer Experience Foundations (P1)** - LSP, formatter, linter planning/initial implementation
 
-**AFTER v0.10.0**:
-3. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus for v0.11.0
-4. **Developer Experience** - LSP, formatter, linter, package management
+**AFTER v0.11.0**:
+3. **📦 v0.12.0 Developer Experience Expansion** - LSP, formatter, linter, package management
+4. **v1.0 Readiness** - stabilization, docs completeness, ecosystem polish
 
 ---
 
@@ -29,14 +29,14 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 ---
 
-## v0.9.0 Release Status
+## v0.10.0 Release Status
 
-v0.9.0 work is complete and archived in [CHANGELOG.md](CHANGELOG.md).  
+v0.10.0 work is complete and archived in [CHANGELOG.md](CHANGELOG.md).  
 This roadmap intentionally tracks only upcoming items.
 
 ---
 
-## v0.10.0 - Release Hardening (P1)
+## v0.10.0 - Release Hardening (P1, Completed)
 
 ### Completed Milestones
 
@@ -343,8 +343,8 @@ v0.11.0 tracks only the remaining performance and architecture work.
 
 ## v0.10.0 - Optional Static Typing (Exploratory)
 
-**Status**: Research & Design Phase  
-**Timeline**: TBD (After v0.9.0)  
+**Status**: ✅ Design package completed in v0.10.0  
+**Timeline**: Completed (February 2026)  
 **Priority**: Exploratory
 
 **Key Question**: Should Ruff adopt optional static typing?
@@ -506,7 +506,7 @@ func square(n) {
 **Goal**: Production-ready language competitive with Python/Go
 
 **Requirements**:
-- All v0.9.0 performance targets met
+- All v0.10.0 release-hardening and stability targets met
 - All v0.11.0 tooling complete
 - Comprehensive documentation
 - Stable API (no breaking changes)
@@ -612,4 +612,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*Last Updated: February 16, 2026*
+*Last Updated: February 18, 2026*
