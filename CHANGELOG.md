@@ -7,24 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Async VM Cooperative Default Integration (v0.11.0 P0)**:
-  - Made cooperative suspend/resume the default execution model for all async-heavy workloads
-  - Enabled `cooperative_suspend_enabled: true` by default in VM constructor to activate non-blocking await semantics
-  - Integrated cooperative scheduler loop into main execution path via `execute_until_suspend()` + `run_scheduler_until_complete()` for true concurrency
-  - Replaced simple blocking `vm.execute(chunk)` call with cooperative scheduler in `src/main.rs` to drive multiple suspended contexts to completion
-  - User-defined async functions now execute with true concurrency semantics instead of blocking on pending promises
-  - Added comprehensive integration tests for cooperative default behavior:
-    - `test_cooperative_suspend_enabled_by_default` - Verify cooperative flag defaults to true
-    - `test_execute_until_suspend_with_single_awaiting_context` - Single context suspension/resumption
-    - `test_cooperative_scheduler_resumes_and_completes_pending_await` - Scheduler drive-to-completion
-    - `test_cooperative_multiple_concurrent_awaits` - Multi-context fairness and scheduling
-    - `test_non_async_code_completes_immediately_even_in_cooperative_mode` - Backward compat for sync code
-    - `test_mixed_async_and_sync_operations_in_cooperative_mode` - Sequential/concurrent interleaving
-    - `test_cooperative_default_preserves_backward_compat_with_non_async_code` - Comprehensive compat validation
-  - Result: Eliminated blocking `block_on()` bottleneck in critical VM await paths, enabling concurrent I/O-bound execution
-  - Performance impact: SSG rendering and other I/O-heavy workloads now execute with true async concurrency instead of serial blocking
+- No unreleased changes yet.
 
 ## [0.10.0] - 2026-02-18
 
