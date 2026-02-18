@@ -210,13 +210,25 @@ async fn main() {
 
                             vm.set_globals(env);
 
-                            (vm.execute(chunk), vm.get_call_stack())
+                            // Execute using cooperative suspend/resume for true concurrency
+                            // Initial execution
+                            let exec_result = match vm.execute_until_suspend(chunk.clone()) {
+                                Ok(vm::VmExecutionResult::Completed) => Ok(()),
+                                Ok(vm::VmExecutionResult::Suspended { .. }) => {
+                                    // Run scheduler until all contexts complete
+                                    // Use a reasonable round limit to avoid infinite loops
+                                    vm.run_scheduler_until_complete(1000)
+                                }
+                                Err(e) => Err(e),
+                            };
+
+                            (exec_result, vm.get_call_stack())
                         })
                         .await;
 
                         match result {
                             Ok((Ok(_result), _)) => {
-                                // Success - program executed
+                                // Success - program executed cooperatively to completion
                             }
                             Ok((Err(e), call_stack)) => {
                                 // Create a proper error with call stack
