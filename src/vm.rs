@@ -432,7 +432,7 @@ impl VM {
             execution_contexts: HashMap::new(),
             active_execution_context: None,
             next_execution_context_id: 1,
-            cooperative_suspend_enabled: false,
+            cooperative_suspend_enabled: true,
             skip_execute_reset_once: false,
         };
 
@@ -6917,6 +6917,210 @@ mod tests {
         match run_vm_code(code) {
             Ok(value) => panic!("Expected runtime error, got value: {:?}", value),
             Err(error) => assert!(error.contains("Type mismatch in binary operation")),
+        }
+    }
+
+    #[test]
+    fn test_cooperative_suspend_enabled_by_default() {
+        let mut vm = VM::new();
+        // Cooperative suspend should be enabled by default
+        assert!(vm.cooperative_suspend_enabled);
+    }
+
+    #[test]
+    fn test_execute_until_suspend_with_single_awaiting_context() {
+        let code = r#"
+            p := async_sleep(50)
+            await p
+            return 42
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        // Initial execution should suspend
+        let result = vm.execute_until_suspend(chunk).expect("execute_until_suspend should succeed");
+
+        match result {
+            VmExecutionResult::Suspended { context_id } => {
+                // Verify the context was created
+                assert!(vm.has_execution_context(context_id));
+            }
+            VmExecutionResult::Completed => {
+                panic!("Expected suspension, but execution completed immediately")
+            }
+        }
+    }
+
+    #[test]
+    fn test_cooperative_scheduler_resumes_and_completes_pending_await() {
+        let code = r#"
+            p := async_sleep(25)
+            await p
+            return 42
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        // Initial execution should suspend
+        let initial_result = vm.execute_until_suspend(chunk).expect("initial execution should work");
+        match initial_result {
+            VmExecutionResult::Suspended { .. } => {
+                // Suspended as expected - now use scheduler to complete it
+                let scheduler_result = vm.run_scheduler_until_complete(50).expect("scheduler should complete");
+                assert_eq!(scheduler_result, ()); // No error means success
+            }
+            VmExecutionResult::Completed => {
+                panic!("Expected suspension on initial execution")
+            }
+        }
+    }
+
+    #[test]
+    fn test_cooperative_multiple_concurrent_awaits() {
+        let code1 = r#"
+            p := async_sleep(10)
+            await p
+            return 1
+        "#;
+
+        let code2 = r#"
+            p := async_sleep(15)
+            await p
+            return 2
+        "#;
+
+        let chunk1 = compile_chunk(code1);
+        let chunk2 = compile_chunk(code2);
+
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        // Execute first context until suspension
+        let ctx1 = match vm.execute_until_suspend(chunk1.clone()).expect("first chunk") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("expected suspension"),
+        };
+
+        // Execute second context until suspension
+        let ctx2 = match vm.execute_until_suspend(chunk2.clone()).expect("second chunk") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("expected suspension"),
+        };
+
+        // Verify both contexts exist
+        assert!(vm.has_execution_context(ctx1));
+        assert!(vm.has_execution_context(ctx2));
+
+        // Scheduler should complete both
+        vm.run_scheduler_until_complete(100).expect("scheduler should complete both contexts");
+
+        // Both should be removed after completion
+        assert!(!vm.has_execution_context(ctx1));
+        assert!(!vm.has_execution_context(ctx2));
+    }
+
+    #[test]
+    fn test_non_async_code_completes_immediately_even_in_cooperative_mode() {
+        let code = r#"
+            x := 5
+            y := 10
+            return x + y
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+
+        // Cooperative mode is enabled by default
+        assert!(vm.cooperative_suspend_enabled);
+
+        // Non-async code should still complete immediately
+        let result = vm.execute_until_suspend(chunk).expect("execution should not error");
+        match result {
+            VmExecutionResult::Completed => {
+                // Expected - no suspension for non-async code
+            }
+            VmExecutionResult::Suspended { .. } => {
+                panic!("Non-async code should not suspend")
+            }
+        }
+    }
+
+    #[test]
+    fn test_mixed_async_and_sync_operations_in_cooperative_mode() {
+        let code = r#"
+            x := 10
+            p := async_sleep(10)
+            await p
+            y := x + 5
+            return y
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        // Should suspend on await
+        let result = vm.execute_until_suspend(chunk).expect("execution should work");
+        match result {
+            VmExecutionResult::Suspended { context_id } => {
+                // Resume with scheduler
+                vm.run_scheduler_until_complete(50).expect("scheduler should complete");
+                assert!(!vm.has_execution_context(context_id));
+            }
+            VmExecutionResult::Completed => panic!("expected suspension at await"),
+        }
+    }
+
+    #[test]
+    fn test_cooperative_default_preserves_backward_compat_with_non_async_code() {
+        // Even with cooperative mode enabled, non-async code should work fine
+        let codes = vec![
+            r#"return 42"#,
+            r#"x := 1 + 2; return x"#,
+            r#"arr := [1, 2, 3]; return arr[0]"#,
+            r#"func add(a, b) { return a + b }; return add(2, 3)"#,
+        ];
+
+        for code in codes {
+            let chunk = compile_chunk(code);
+            let mut vm = VM::new();
+            let result = vm.execute_until_suspend(chunk).expect("execution should not error");
+            match result {
+                VmExecutionResult::Completed => {
+                    // Expected for all non-async code
+                }
+                VmExecutionResult::Suspended { .. } => {
+                    panic!("Non-async code '{}' should not suspend", code)
+                }
+            }
         }
     }
 }
