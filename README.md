@@ -2,7 +2,7 @@
 
 **Ruff** is a purpose-built, correctness-first execution language designed for tooling, automation, and AI-assisted development.
 
-> **Status**: v0.10.0 (Released February 2026) ⚡ Previous: v0.9.0 (February 2026) - VM/JIT & Async Runtime Foundation
+> **Status**: v0.10.0 (Released February 2026) ⚡ Next: v0.11.0 (In Progress)
 
 **Quick Links**: [Installation](#installation) • [Getting Started](#getting-started) • [REPL](#interactive-repl-v050-) • [Examples](#writing-ruff-scripts) • [Features](#project-status) • [Changelog](CHANGELOG.md) • [Roadmap](ROADMAP.md)
 
@@ -30,7 +30,7 @@
   - Finalized proposed annotation surface for functions, variables, and collection types with parser/type-check impact notes
   - Defined optional runtime type-check mode contract and deterministic type-error shape targets
   - Documented typed-JIT optimization boundaries, migration compatibility notes, open decisions, and explicit non-goals
-  - See [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md) for status alignment
+  - See [CHANGELOG.md](CHANGELOG.md) for release details and [ROADMAP.md](ROADMAP.md) for upcoming plans
 
 ### v0.10.0 Release Hardening Highlights ✅
 
@@ -530,7 +530,7 @@
   - **Status**: ✅ **Phase 5 100% Complete!**
   - All async operations use true tokio concurrency for maximum I/O performance
 
-### Completed for v0.11.0 (In Progress) ✅
+### Completed Toward v0.11.0 ✅
 
 * **Async VM Cooperative Integration (v0.11.0 P0 - ✅ COMPLETE)**
   - **Made cooperative suspend/resume the default execution model** for all async-heavy workloads
@@ -584,7 +584,7 @@
   - Module architecture: math, strings, collections, type_ops, filesystem, system, http, concurrency, io
   - Stub modules ready for future expansion: json, crypto, database, network
   - Benefits: better code organization, easier maintenance, improved IDE support, parallel development
-  - See `ROADMAP.md` for complete Phase 3 details and future work
+  - See `CHANGELOG.md` for complete Phase 3 historical details
 
 ### Recently Completed in v0.8.0 ✅
 
