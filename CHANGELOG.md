@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Result: Eliminated blocking `block_on()` bottleneck in critical VM await paths, enabling concurrent I/O-bound execution
   - Performance impact: SSG rendering and other I/O-heavy workloads now execute with true async concurrency instead of serial blocking
 
+## [0.10.0] - 2026-02-18
+
+### Added
+
 - **Optional Static Typing Design Package (Exploratory, v0.10.0)**:
   - Added consolidated design document at `docs/OPTIONAL_TYPING_DESIGN.md` covering:
     - annotation surface proposal for function signatures, variable declarations, and generic collection forms
