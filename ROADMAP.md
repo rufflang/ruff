@@ -12,7 +12,13 @@ This roadmap outlines **upcoming** planned features and improvements. For comple
 
 **IMMEDIATE (v0.11.0)**:
 1. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus
-2. **Developer Experience Foundations (P1)** - LSP, formatter, linter planning/initial implementation
+2. **Developer Experience Foundations (P1)** - LSP, formatter, linter planning/initial implementation (non-blocking for v0.11 throughput gate)
+
+### v0.11 Scope Lock (March 2026)
+
+- **Gate first**: v0.11 ships on throughput progress (`bench-ssg` target trajectory) and correctness stability.
+- **JIT policy**: function-level JIT is a supporting/parallel workstream in v0.11 and only advances release priority when benchmark-proven to improve `bench-ssg` / `--profile-async` metrics without regressions.
+- **Execution rule**: if an optimization does not materially improve benchmark gates, defer it behind throughput-critical work.
 
 **AFTER v0.11.0**:
 3. **📦 v0.12.0 Developer Experience Expansion** - LSP, formatter, linter, package management
@@ -56,6 +62,8 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
 v0.11.0 tracks only the remaining performance and architecture work.
+
+**Scope lock**: Throughput gate first. Function-level JIT remains supporting/parallel unless benchmark-proven against v0.11 performance gates.
 
 ### Remaining High-Priority Workstreams
 

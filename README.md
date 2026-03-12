@@ -10,6 +10,12 @@
 
 ## Project Status
 
+### v0.11.0 Scope Lock (March 2026)
+
+- **Primary release gate**: SSG/async throughput on `bench-ssg` remains the top v0.11 objective.
+- **Release criteria**: move toward `<10s` (phase target) with no correctness regressions (`cargo test` stays green).
+- **Function-level JIT posture**: treated as a supporting/parallel track in v0.11 and promoted only when benchmark-proven on `bench-ssg` / `--profile-async` with stable correctness.
+
 ### v0.10.0 Architecture Cleanup Highlights ✅
 
 * **Leaky Function Body Drop Path Removed (P2)**
@@ -552,6 +558,7 @@
 ### In Progress for v0.11.0 🚧
 
 * **Function-Level JIT (Phase 7 - 🔄 70% Complete)**
+  - **v0.11 Scope Constraint**: JIT remains a supporting/parallel track and is only promoted when it demonstrates measurable `bench-ssg` throughput gains without correctness regressions.
   - **Goal**: JIT compile entire user functions for optimal performance
   - **Hot Function Detection**: Automatic compilation after 100+ calls ✅
   - **Recursive Function Support**: Self-referential calls compile correctly ✅

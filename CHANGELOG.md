@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- No unreleased changes yet.
+### Added
+
+- **v0.11 Scope-Lock Documentation (March 2026)**:
+  - Added explicit scope-lock language in `README.md` and `ROADMAP.md` to align v0.11 execution around throughput-first release gating.
+  - Added explicit benchmark-gated JIT posture: function-level JIT remains supporting/parallel unless it demonstrates measurable `bench-ssg` / `--profile-async` improvements with no correctness regressions.
+
+### Changed
+
+- **v0.11 Priority Clarification**:
+  - Clarified v0.11 sequencing so SSG/async throughput gate remains the primary release objective.
+  - Clarified Developer Experience Foundations work as non-blocking for the v0.11 throughput gate.
+
+### Fixed
+
+- **Documentation Scope Drift (v0.11)**:
+  - Reduced ambiguity between README in-progress narratives and roadmap release priorities by locking a single throughput-first scope statement.
+  - Initialized structured unreleased tracking (`Added`/`Changed`/`Fixed`) so v0.11 progress can be release-prepared incrementally.
 
 ## [0.10.0] - 2026-02-18
 
