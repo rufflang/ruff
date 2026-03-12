@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added explicit scope-lock language in `README.md` and `ROADMAP.md` to align v0.11 execution around throughput-first release gating.
   - Added explicit benchmark-gated JIT posture: function-level JIT remains supporting/parallel unless it demonstrates measurable `bench-ssg` / `--profile-async` improvements with no correctness regressions.
 
+- **SSG Benchmark Repeat-Run + Median Reporting (v0.11.0 P0)**:
+  - Added repeated-run execution support for `ruff bench-ssg` via `--runs <N>` to reduce one-off measurement noise.
+  - Added aggregate benchmark reporting with median, mean, min, max, and stddev for Ruff build time and throughput.
+  - Added aggregate Python comparison reporting (`--compare-python`) with median/dispersion metrics and median speedup reporting.
+  - Added median-based stage bottleneck reporting when `--profile-async` is enabled.
+  - Added comprehensive unit tests for SSG benchmark aggregation and statistical calculations.
+
 ### Changed
 
 - **v0.11 Priority Clarification**:

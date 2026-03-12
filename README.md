@@ -15,6 +15,7 @@
 - **Primary release gate**: SSG/async throughput on `bench-ssg` remains the top v0.11 objective.
 - **Release criteria**: move toward `<10s` (phase target) with no correctness regressions (`cargo test` stays green).
 - **Function-level JIT posture**: treated as a supporting/parallel track in v0.11 and promoted only when benchmark-proven on `bench-ssg` / `--profile-async` with stable correctness.
+- **Benchmark stability baseline**: `ruff bench-ssg --runs <N>` now reports median/mean/min/max/stddev to reduce one-off run noise.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 
@@ -471,6 +472,7 @@
   - **JIT Closure Path**: `parallel_map(...)` / `par_map(...)` routes bytecode closures through VM JIT execution when available ✅
   - **Cross-Language ProcessPool Benchmark**: `ruff bench-cross` compares Ruff `parallel_map(...)` performance with Python `ProcessPoolExecutor` using equivalent benchmark artifacts ✅
   - **Cross-Language Async SSG Benchmark**: `ruff bench-ssg` runs a reproducible 10K-file async static-site workload with optional Python comparison (`--compare-python`) ✅
+  - **Repeat-Run Median Reporting**: `ruff bench-ssg --runs <N>` reports median/mean/min/max/stddev for throughput and build-time metrics ✅
   - **Async Stage Bottleneck Profiling**: `ruff bench-ssg --profile-async` prints read vs render/write stage timings and bottleneck share ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
@@ -525,8 +527,12 @@
     # Cross-language async SSG benchmark (10K files)
     # Ruff-only run
     #   cargo run -- bench-ssg
+    # Ruff-only repeated runs with median/dispersion summary
+    #   cargo run -- bench-ssg --runs 5
     # Ruff vs Python baseline
     #   cargo run -- bench-ssg --compare-python
+    # Ruff vs Python repeated runs with aggregate speedup reporting
+    #   cargo run -- bench-ssg --runs 5 --compare-python
     # Include stage-level async bottleneck profiling output
     #   cargo run -- bench-ssg --compare-python --profile-async
     

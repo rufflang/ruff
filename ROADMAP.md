@@ -58,6 +58,13 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
   - Added comprehensive integration tests for cooperative default behavior (7 new tests, all passing)
   - Result: Production-ready non-blocking async VM ready for SSG and I/O-bound workloads
 
+- **Benchmark Stability: Repeat-Run + Median Reporting (✅ Complete, March 2026)**
+    - Added `ruff bench-ssg --runs <N>` support for repeated benchmark execution.
+    - Added aggregate benchmark reporting (median/mean/min/max/stddev) for Ruff build time and throughput.
+    - Added aggregate comparison reporting for Python baseline runs and median speedup output.
+    - Added median-based stage bottleneck reporting for `--profile-async` output.
+    - Added comprehensive unit coverage for statistical aggregation and consistency validation.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -73,7 +80,6 @@ v0.11.0 tracks only the remaining performance and architecture work.
      - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
 
 2. **Benchmark Stability & Measurement Quality**
-     - Add repeat-run/median reporting to reduce one-off benchmark noise.
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
      - Keep cross-language runs (`--compare-python`) for directional trend tracking.
 
@@ -323,4 +329,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*Last Updated: February 18, 2026*
+*Last Updated: March 11, 2026*
