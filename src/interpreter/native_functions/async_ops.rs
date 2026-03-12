@@ -880,6 +880,154 @@ pub fn handle(
             })
         }
 
+        "ssg_render_and_write_pages" => {
+            // ssg_render_and_write_pages(source_pages: Array<String>, output_dir: String, concurrency_limit?: Int)
+            //   -> Promise<Dict{ checksum: Int, files: Int }>
+            // Renders HTML pages and writes them to indexed output paths in one bounded-concurrency async pass.
+            if args.len() != 2 && args.len() != 3 {
+                return Some(Value::Error(format!(
+                    "ssg_render_and_write_pages() expects 2 or 3 arguments (source_pages, output_dir, optional concurrency_limit), got {}",
+                    args.len()
+                )));
+            }
+
+            let source_pages = match &args[0] {
+                Value::Array(arr) => arr.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "ssg_render_and_write_pages() first argument must be an array of string source pages"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let output_dir = match &args[1] {
+                Value::Str(dir) => dir.as_ref().clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "ssg_render_and_write_pages() second argument must be a string output_dir"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let concurrency_limit = if args.len() == 3 {
+                match &args[2] {
+                    Value::Int(n) if *n > 0 => *n as usize,
+                    Value::Int(n) => {
+                        return Some(Value::Error(format!(
+                            "ssg_render_and_write_pages() concurrency_limit must be > 0, got {}",
+                            n
+                        )));
+                    }
+                    _ => {
+                        return Some(Value::Error(
+                            "ssg_render_and_write_pages() optional concurrency_limit must be an integer"
+                                .to_string(),
+                        ));
+                    }
+                }
+            } else {
+                _interp.get_async_task_pool_size()
+            };
+
+            let mut render_inputs = Vec::with_capacity(source_pages.len());
+            let mut checksum: i64 = 0;
+
+            for (index, page) in source_pages.iter().enumerate() {
+                let source_body = match page {
+                    Value::Str(body) => body,
+                    _ => {
+                        return Some(Value::Error(format!(
+                            "ssg_render_and_write_pages() source page at index {} must be a string",
+                            index
+                        )));
+                    }
+                };
+
+                let index_str = index.to_string();
+                let mut html = String::with_capacity(source_body.len() + 64);
+                html.push_str("<html><body><h1>Post ");
+                html.push_str(index_str.as_str());
+                html.push_str("</h1><article>");
+                html.push_str(source_body.as_ref());
+                html.push_str("</article></body></html>");
+
+                checksum += html.len() as i64;
+
+                let mut output_path = String::with_capacity(output_dir.len() + 32);
+                output_path.push_str(output_dir.as_str());
+                output_path.push_str("/post_");
+                output_path.push_str(index_str.as_str());
+                output_path.push_str(".html");
+
+                render_inputs.push((index, output_path, html));
+            }
+
+            if render_inputs.is_empty() {
+                let mut result = DictMap::default();
+                result.insert("checksum".into(), Value::Int(0));
+                result.insert("files".into(), Value::Int(0));
+                return Some(resolved_promise(Ok(Value::Dict(Arc::new(result)))));
+            }
+
+            let file_count = render_inputs.len();
+            let effective_batch_size = concurrency_limit.min(file_count.max(1));
+            let checksum_value = checksum;
+
+            let (tx, rx) = tokio::sync::oneshot::channel();
+
+            AsyncRuntime::spawn_task(async move {
+                let mut pending = render_inputs.into_iter();
+                let mut in_flight = FuturesUnordered::new();
+
+                let make_write_future = |index: usize, path: String, html: String| async move {
+                    let write_result = tokio::fs::write(path.as_str(), html.as_str()).await;
+                    (index, path, write_result)
+                };
+
+                for _ in 0..effective_batch_size {
+                    match pending.next() {
+                        Some((index, path, html)) => {
+                            in_flight.push(make_write_future(index, path, html))
+                        }
+                        None => break,
+                    }
+                }
+
+                while let Some((index, path, write_result)) = in_flight.next().await {
+                    match write_result {
+                        Ok(_) => {}
+                        Err(e) => {
+                            let _ = tx.send(Err(format!(
+                                "Failed to write file '{}' (index {}): {}",
+                                path, index, e
+                            )));
+                            return Value::Null;
+                        }
+                    }
+
+                    if let Some((next_index, next_path, next_html)) = pending.next() {
+                        in_flight.push(make_write_future(next_index, next_path, next_html));
+                    }
+                }
+
+                let mut result = DictMap::default();
+                result.insert("checksum".into(), Value::Int(checksum_value));
+                result.insert("files".into(), Value::Int(file_count as i64));
+
+                let _ = tx.send(Ok(Value::Dict(Arc::new(result))));
+                Value::Null
+            });
+
+            Some(Value::Promise {
+                receiver: std::sync::Arc::new(std::sync::Mutex::new(rx)),
+                is_polled: std::sync::Arc::new(std::sync::Mutex::new(false)),
+                cached_result: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                task_handle: None,
+            })
+        }
+
         "spawn_task" => {
             // spawn_task(async_func: AsyncFunction) -> TaskHandle
             // Spawn a background task that runs independently
@@ -2055,6 +2203,123 @@ mod tests {
         match invalid_content {
             Value::Error(msg) => assert!(msg.contains("content at index 0 must be a string")),
             _ => panic!("Expected Value::Error for invalid content type"),
+        }
+    }
+
+    #[test]
+    fn test_ssg_render_and_write_pages_writes_html_and_returns_summary() {
+        let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value("# Post 0\n\nGenerated page 0"),
+                string_value("# Post 1\n\nGenerated page 1"),
+            ])),
+            string_value(&temp_dir),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Dict(dict) => {
+                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 2));
+                assert!(
+                    matches!(dict.get("checksum"), Some(Value::Int(checksum)) if *checksum > 0)
+                );
+            }
+            _ => panic!("Expected Dict result"),
+        }
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", temp_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", temp_dir)).unwrap();
+
+        assert_eq!(
+            html_a,
+            "<html><body><h1>Post 0</h1><article># Post 0\n\nGenerated page 0</article></body></html>"
+        );
+        assert_eq!(
+            html_b,
+            "<html><body><h1>Post 1</h1><article># Post 1\n\nGenerated page 1</article></body></html>"
+        );
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_ssg_render_and_write_pages_validates_argument_contracts() {
+        let mut interp = Interpreter::new();
+
+        let wrong_arity = handle(&mut interp, "ssg_render_and_write_pages", &[]).unwrap();
+        assert!(
+            matches!(wrong_arity, Value::Error(msg) if msg.contains("expects 2 or 3 arguments"))
+        );
+
+        let bad_first = handle(
+            &mut interp,
+            "ssg_render_and_write_pages",
+            &[Value::Int(1), string_value("tmp/out")],
+        )
+        .unwrap();
+        assert!(
+            matches!(bad_first, Value::Error(msg) if msg.contains("first argument must be an array"))
+        );
+
+        let bad_second = handle(
+            &mut interp,
+            "ssg_render_and_write_pages",
+            &[Value::Array(Arc::new(vec![])), Value::Int(1)],
+        )
+        .unwrap();
+        assert!(
+            matches!(bad_second, Value::Error(msg) if msg.contains("second argument must be a string output_dir"))
+        );
+
+        let bad_page_element = handle(
+            &mut interp,
+            "ssg_render_and_write_pages",
+            &[Value::Array(Arc::new(vec![Value::Int(1)])), string_value("tmp/out")],
+        )
+        .unwrap();
+        assert!(
+            matches!(bad_page_element, Value::Error(msg) if msg.contains("source page at index 0 must be a string"))
+        );
+
+        let bad_limit = handle(
+            &mut interp,
+            "ssg_render_and_write_pages",
+            &[
+                Value::Array(Arc::new(vec![string_value("# Post")])),
+                string_value("tmp/out"),
+                Value::Int(0),
+            ],
+        )
+        .unwrap();
+        assert!(
+            matches!(bad_limit, Value::Error(msg) if msg.contains("concurrency_limit must be > 0"))
+        );
+    }
+
+    #[test]
+    fn test_ssg_render_and_write_pages_propagates_write_failure() {
+        let missing_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_missing");
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![string_value("# Post 0")])),
+            string_value(&missing_dir),
+            Value::Int(1),
+        ];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result);
+
+        match resolved {
+            Ok(_) => panic!("Expected promise rejection for missing output dir"),
+            Err(msg) => assert!(msg.contains("Failed to write file")),
         }
     }
 

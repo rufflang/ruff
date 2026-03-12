@@ -167,6 +167,7 @@ mod tests {
             "Set",
             "ssg_render_pages",
             "ssg_build_output_paths",
+            "ssg_render_and_write_pages",
             "upper",
             "lower",
             "replace",
@@ -4503,6 +4504,83 @@ mod tests {
             }
             other => panic!("Expected Array from ssg_build_output_paths, got {:?}", other),
         }
+
+        let render_write_missing_args =
+            call_native_function(&mut interpreter, "ssg_render_and_write_pages", &[]);
+        assert!(
+            matches!(render_write_missing_args, Value::Error(message) if message.contains("expects 2 or 3 arguments"))
+        );
+
+        let render_write_bad_first_arg = call_native_function(
+            &mut interpreter,
+            "ssg_render_and_write_pages",
+            &[Value::Int(1), Value::Str(Arc::new("tmp/out".to_string()))],
+        );
+        assert!(
+            matches!(render_write_bad_first_arg, Value::Error(message) if message.contains("first argument must be an array"))
+        );
+
+        let render_write_bad_second_arg = call_native_function(
+            &mut interpreter,
+            "ssg_render_and_write_pages",
+            &[Value::Array(Arc::new(vec![])), Value::Int(1)],
+        );
+        assert!(
+            matches!(render_write_bad_second_arg, Value::Error(message) if message.contains("second argument must be a string output_dir"))
+        );
+
+        let render_write_bad_limit = call_native_function(
+            &mut interpreter,
+            "ssg_render_and_write_pages",
+            &[
+                Value::Array(Arc::new(vec![Value::Str(Arc::new("# Post 0".to_string()))])),
+                Value::Str(Arc::new("tmp/out".to_string())),
+                Value::Int(0),
+            ],
+        );
+        assert!(
+            matches!(render_write_bad_limit, Value::Error(message) if message.contains("concurrency_limit must be > 0"))
+        );
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ruff_ssg_render_write_dispatch_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                .as_millis()
+        ));
+        std::fs::create_dir_all(&temp_dir).expect("dispatch temp dir should be created");
+
+        let render_write_success = call_native_function(
+            &mut interpreter,
+            "ssg_render_and_write_pages",
+            &[
+                Value::Array(Arc::new(vec![
+                    Value::Str(Arc::new("# Post 0".to_string())),
+                    Value::Str(Arc::new("# Post 1".to_string())),
+                ])),
+                Value::Str(Arc::new(temp_dir.to_string_lossy().to_string())),
+                Value::Int(2),
+            ],
+        );
+
+        let resolved_render_write = await_native_promise(render_write_success);
+        match resolved_render_write {
+            Ok(Value::Dict(result)) => {
+                assert!(matches!(result.get("files"), Some(Value::Int(count)) if *count == 2));
+                assert!(
+                    matches!(result.get("checksum"), Some(Value::Int(checksum)) if *checksum > 0)
+                );
+            }
+            other => panic!(
+                "Expected Dict result from ssg_render_and_write_pages promise, got {:?}",
+                other
+            ),
+        }
+
+        let _ = std::fs::remove_file(temp_dir.join("post_0.html"));
+        let _ = std::fs::remove_file(temp_dir.join("post_1.html"));
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[test]

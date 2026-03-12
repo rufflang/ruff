@@ -32,13 +32,8 @@ start_ms := performance_now()
 source_pages := await async_read_files(source_paths, batch_size)
 read_stage_ms := performance_now() - start_ms
 
-output_paths := ssg_build_output_paths(output_dir, file_count)
-
-rendered := ssg_render_pages(source_pages)
-html_pages := rendered["pages"]
+rendered := await ssg_render_and_write_pages(source_pages, output_dir, batch_size)
 checksum := rendered["checksum"]
-
-await async_write_files(output_paths, html_pages, batch_size)
 render_write_stage_ms := (performance_now() - start_ms) - read_stage_ms
 
 elapsed_ms := performance_now() - start_ms
