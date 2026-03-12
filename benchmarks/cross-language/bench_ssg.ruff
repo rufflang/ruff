@@ -30,12 +30,10 @@ await async_write_files(source_paths, source_bodies, batch_size)
 # Benchmark render pipeline (async read + async write)
 start_ms := performance_now()
 
-source_pages := await async_read_files(source_paths, batch_size)
-read_stage_ms := performance_now() - start_ms
-
-rendered := await ssg_render_and_write_pages(source_pages, output_dir, batch_size)
+rendered := await ssg_read_render_and_write_pages(source_paths, output_dir, batch_size)
 checksum := rendered["checksum"]
-render_write_stage_ms := (performance_now() - start_ms) - read_stage_ms
+read_stage_ms := rendered["read_ms"]
+render_write_stage_ms := rendered["render_write_ms"]
 
 elapsed_ms := performance_now() - start_ms
 files_per_sec := (to_float(file_count) * 1000.0) / elapsed_ms

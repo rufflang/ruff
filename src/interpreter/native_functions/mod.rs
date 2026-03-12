@@ -168,6 +168,7 @@ mod tests {
             "ssg_render_pages",
             "ssg_build_output_paths",
             "ssg_render_and_write_pages",
+            "ssg_read_render_and_write_pages",
             "upper",
             "lower",
             "replace",
@@ -4581,6 +4582,102 @@ mod tests {
         let _ = std::fs::remove_file(temp_dir.join("post_0.html"));
         let _ = std::fs::remove_file(temp_dir.join("post_1.html"));
         let _ = std::fs::remove_dir_all(&temp_dir);
+
+        let read_render_missing_args =
+            call_native_function(&mut interpreter, "ssg_read_render_and_write_pages", &[]);
+        assert!(
+            matches!(read_render_missing_args, Value::Error(message) if message.contains("expects 2 or 3 arguments"))
+        );
+
+        let read_render_bad_first_arg = call_native_function(
+            &mut interpreter,
+            "ssg_read_render_and_write_pages",
+            &[Value::Int(1), Value::Str(Arc::new("tmp/out".to_string()))],
+        );
+        assert!(
+            matches!(read_render_bad_first_arg, Value::Error(message) if message.contains("first argument must be an array"))
+        );
+
+        let read_render_bad_second_arg = call_native_function(
+            &mut interpreter,
+            "ssg_read_render_and_write_pages",
+            &[Value::Array(Arc::new(vec![])), Value::Int(1)],
+        );
+        assert!(
+            matches!(read_render_bad_second_arg, Value::Error(message) if message.contains("second argument must be a string output_dir"))
+        );
+
+        let read_render_bad_limit = call_native_function(
+            &mut interpreter,
+            "ssg_read_render_and_write_pages",
+            &[
+                Value::Array(Arc::new(vec![Value::Str(Arc::new("tmp/in/post_0.md".to_string()))])),
+                Value::Str(Arc::new("tmp/out".to_string())),
+                Value::Int(0),
+            ],
+        );
+        assert!(
+            matches!(read_render_bad_limit, Value::Error(message) if message.contains("concurrency_limit must be > 0"))
+        );
+
+        let read_render_input_dir = std::env::temp_dir().join(format!(
+            "ruff_ssg_read_render_dispatch_input_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                .as_millis()
+        ));
+        let read_render_output_dir = std::env::temp_dir().join(format!(
+            "ruff_ssg_read_render_dispatch_output_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                .as_millis()
+        ));
+
+        std::fs::create_dir_all(&read_render_input_dir)
+            .expect("read/render dispatch input dir should be created");
+        std::fs::create_dir_all(&read_render_output_dir)
+            .expect("read/render dispatch output dir should be created");
+
+        let source_path = read_render_input_dir.join("post_0.md");
+        std::fs::write(&source_path, "# Post 0")
+            .expect("read/render dispatch source file should be written");
+
+        let read_render_success = call_native_function(
+            &mut interpreter,
+            "ssg_read_render_and_write_pages",
+            &[
+                Value::Array(Arc::new(vec![Value::Str(Arc::new(
+                    source_path.to_string_lossy().to_string(),
+                ))])),
+                Value::Str(Arc::new(read_render_output_dir.to_string_lossy().to_string())),
+                Value::Int(1),
+            ],
+        );
+
+        let resolved_read_render = await_native_promise(read_render_success);
+        match resolved_read_render {
+            Ok(Value::Dict(result)) => {
+                assert!(matches!(result.get("files"), Some(Value::Int(count)) if *count == 1));
+                assert!(
+                    matches!(result.get("checksum"), Some(Value::Int(checksum)) if *checksum > 0)
+                );
+                assert!(matches!(result.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(result.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
+            }
+            other => panic!(
+                "Expected Dict result from ssg_read_render_and_write_pages promise, got {:?}",
+                other
+            ),
+        }
+
+        let _ = std::fs::remove_file(source_path);
+        let _ = std::fs::remove_file(read_render_output_dir.join("post_0.html"));
+        let _ = std::fs::remove_dir_all(&read_render_input_dir);
+        let _ = std::fs::remove_dir_all(&read_render_output_dir);
     }
 
     #[test]
