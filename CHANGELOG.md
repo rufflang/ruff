@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added median-based stage bottleneck reporting when `--profile-async` is enabled.
   - Added comprehensive unit tests for SSG benchmark aggregation and statistical calculations.
 
+- **SSG Native Output-Path Bulk Helper (v0.11.0 P0)**:
+  - Added `ssg_build_output_paths(output_dir, file_count, extension?)` to generate indexed output path arrays natively.
+  - Updated `benchmarks/cross-language/bench_ssg.ruff` to use native path generation in the render/write benchmark path instead of a script-level loop.
+  - Added comprehensive native-function contract tests for success and argument-shape validation, including dispatcher-level release-hardening coverage.
+
 ### Changed
 
 - **v0.11 Priority Clarification**:

@@ -65,6 +65,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added median-based stage bottleneck reporting for `--profile-async` output.
     - Added comprehensive unit coverage for statistical aggregation and consistency validation.
 
+- **SSG Native Bulk Helper: Output Path Generation (✅ Complete, March 2026)**
+    - Added `ssg_build_output_paths(output_dir, file_count, extension?)` as a native helper for indexed SSG output path construction.
+    - Updated benchmark pipeline to use native path generation instead of script-level path loops in the timed render/write path.
+    - Added comprehensive native-function behavior and contract validation coverage.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -76,7 +81,6 @@ v0.11.0 tracks only the remaining performance and architecture work.
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
      - Continue reducing render/write overhead in `bench-ssg` execution path.
-     - Add additional native bulk helpers where script-level hot loops dominate.
      - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
 
 2. **Benchmark Stability & Measurement Quality**
@@ -329,4 +333,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*Last Updated: March 11, 2026*
+*Last Updated: March 12, 2026*
