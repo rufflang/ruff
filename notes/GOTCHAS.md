@@ -445,6 +445,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_08-36_native-ssg-render-builtin-optimization.md)
 
+### `bench-ssg --tmp-dir` override crosses a path→environment boundary
+- **Problem:** Non-UTF8 tmp-dir paths fail to propagate to benchmark subprocesses.
+- **Rule:** Validate tmp-dir path conversion before setting `RUFF_BENCH_SSG_TMP_DIR` and return a deterministic error for invalid UTF-8 paths.
+- **Why:** Ruff/Python benchmark scripts consume tmp-root override through an environment variable, which is string-based.
+- **Implication:** Keep path-boundary validation explicit for any future benchmark CLI options forwarded via environment.
+
+(Discovered during: 2026-03-12_03-10_bench-ssg-tmp-dir-override.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
