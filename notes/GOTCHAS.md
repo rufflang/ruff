@@ -278,6 +278,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-16_09-34_release-hardening-async-batch-shared-task-pool-contracts.md)
 
+### `ssg_render_and_write_pages(...)` does not create missing output directories
+- **Problem:** Calls reject with write errors when `output_dir` does not already exist.
+- **Rule:** Create `output_dir` before calling `ssg_render_and_write_pages(source_pages, output_dir, concurrency_limit?)`.
+- **Why:** The helper preserves existing async write contract semantics and forwards write failures instead of implicitly creating directories.
+- **Implication:** Benchmarks/scripts/tests should keep directory lifecycle explicit; do not assume automatic directory creation by write helpers.
+
+(Discovered during: 2026-03-12_00-27_ssg-render-write-fusion.md)
+
 ### ErrorObject has specific field structure, not a generic HashMap
 - **Problem:** Creating ErrorObject with made-up fields like "details" causes runtime failures
 - **Rule:** ErrorObject has exactly 4 fields: `message` (String), `stack` (Array), `line` (Number), `cause` (Value/null)

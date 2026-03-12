@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-12_00-27_ssg-render-write-fusion.md** — ✅ COMPLETED: Added fused async native SSG render+write helper (`ssg_render_and_write_pages`), migrated `bench-ssg` timed render/write stage to the helper, expanded success/error dispatcher contracts, and documented commit-scope + output-dir contract gotchas.
+
 - **2026-02-17_18-48_io-strict-arity-hardening.md** — ✅ COMPLETED: Hardened advanced `io_*` APIs to enforce strict arity (reject trailing args), added comprehensive module+dispatcher extra-argument rejection coverage, synchronized CHANGELOG/ROADMAP/README, and documented cargo single-filter command-shape plus compatibility-message preservation gotchas.
 
 - **2026-02-16_20-23_release-hardening-strict-arity-follow-through-slices.md** — ✅ COMPLETED: Delivered iterative v0.10 P1 strict-arity hardening slices for assertion/testing, conversion+introspection, math, and data-format/base64 APIs with module+dispatcher coverage, synchronized roadmap/changelog/readme updates, and captured fallback-contract preservation + cargo single-filter test-command gotchas.
