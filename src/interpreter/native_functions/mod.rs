@@ -166,6 +166,7 @@ mod tests {
             "bytes",
             "Set",
             "ssg_render_pages",
+            "ssg_build_output_paths",
             "upper",
             "lower",
             "replace",
@@ -3370,11 +3371,7 @@ mod tests {
         let read_bytes_extra = call_native_function(
             &mut interpreter,
             "io_read_bytes",
-            &[
-                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
-                Value::Int(1),
-                Value::Int(2),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())), Value::Int(1), Value::Int(2)],
         );
         assert!(
             matches!(read_bytes_extra, Value::Error(message) if message.contains("requires two arguments: path and count"))
@@ -3442,11 +3439,7 @@ mod tests {
         let seek_read_extra = call_native_function(
             &mut interpreter,
             "io_seek_read",
-            &[
-                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
-                Value::Int(0),
-                Value::Int(2),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())), Value::Int(0), Value::Int(2)],
         );
         assert!(
             matches!(seek_read_extra, Value::Error(message) if message.contains("requires two arguments: path and offset"))
@@ -3455,10 +3448,7 @@ mod tests {
         let metadata_extra = call_native_function(
             &mut interpreter,
             "io_file_metadata",
-            &[
-                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
-                Value::Int(2),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())), Value::Int(2)],
         );
         assert!(
             matches!(metadata_extra, Value::Error(message) if message.contains("requires a string path argument"))
@@ -3467,11 +3457,7 @@ mod tests {
         let truncate_extra = call_native_function(
             &mut interpreter,
             "io_truncate",
-            &[
-                Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
-                Value::Int(0),
-                Value::Int(2),
-            ],
+            &[Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())), Value::Int(0), Value::Int(2)],
         );
         assert!(
             matches!(truncate_extra, Value::Error(message) if message.contains("requires two arguments: path and size"))
@@ -4469,6 +4455,53 @@ mod tests {
                 );
             }
             other => panic!("Expected Dict from ssg_render_pages, got {:?}", other),
+        }
+
+        let paths_missing_args =
+            call_native_function(&mut interpreter, "ssg_build_output_paths", &[]);
+        assert!(
+            matches!(paths_missing_args, Value::Error(message) if message.contains("expects 2 or 3 arguments"))
+        );
+
+        let paths_bad_dir = call_native_function(
+            &mut interpreter,
+            "ssg_build_output_paths",
+            &[Value::Int(1), Value::Int(2)],
+        );
+        assert!(
+            matches!(paths_bad_dir, Value::Error(message) if message.contains("output_dir must be a string"))
+        );
+
+        let paths_bad_count = call_native_function(
+            &mut interpreter,
+            "ssg_build_output_paths",
+            &[Value::Str(Arc::new("tmp/out".to_string())), Value::Int(-1)],
+        );
+        assert!(
+            matches!(paths_bad_count, Value::Error(message) if message.contains("file_count must be >= 0"))
+        );
+
+        let paths_success = call_native_function(
+            &mut interpreter,
+            "ssg_build_output_paths",
+            &[
+                Value::Str(Arc::new("tmp/out".to_string())),
+                Value::Int(2),
+                Value::Str(Arc::new(".html".to_string())),
+            ],
+        );
+
+        match paths_success {
+            Value::Array(paths) => {
+                assert_eq!(paths.len(), 2);
+                assert!(
+                    matches!(&paths[0], Value::Str(path) if path.as_ref() == "tmp/out/post_0.html")
+                );
+                assert!(
+                    matches!(&paths[1], Value::Str(path) if path.as_ref() == "tmp/out/post_1.html")
+                );
+            }
+            other => panic!("Expected Array from ssg_build_output_paths, got {:?}", other),
         }
     }
 

@@ -339,6 +339,67 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             }
         }
 
+        "ssg_build_output_paths" => {
+            // ssg_build_output_paths(output_dir: String, file_count: Int, extension?: String)
+            //   -> Array<String>
+            let args_len = args.len();
+            if args_len != 2 && args_len != 3 {
+                Value::Error(format!(
+                    "ssg_build_output_paths() expects 2 or 3 arguments (output_dir, file_count, optional extension), got {}",
+                    args_len
+                ))
+            } else {
+                let output_dir = match args.first() {
+                    Some(Value::Str(dir)) => dir,
+                    _ => {
+                        return Some(Value::Error(
+                            "ssg_build_output_paths() output_dir must be a string".to_string(),
+                        ));
+                    }
+                };
+
+                let file_count = match args.get(1) {
+                    Some(Value::Int(n)) if *n >= 0 => *n as usize,
+                    Some(Value::Int(n)) => {
+                        return Some(Value::Error(format!(
+                            "ssg_build_output_paths() file_count must be >= 0, got {}",
+                            n
+                        )));
+                    }
+                    _ => {
+                        return Some(Value::Error(
+                            "ssg_build_output_paths() file_count must be an integer".to_string(),
+                        ));
+                    }
+                };
+
+                let extension = match args.get(2) {
+                    Some(Value::Str(ext)) => ext.as_ref().clone(),
+                    Some(_) => {
+                        return Some(Value::Error(
+                            "ssg_build_output_paths() optional extension must be a string"
+                                .to_string(),
+                        ));
+                    }
+                    None => ".html".to_string(),
+                };
+
+                let mut output_paths = Vec::with_capacity(file_count);
+                for index in 0..file_count {
+                    let index_str = index.to_string();
+                    let mut output_path =
+                        String::with_capacity(output_dir.len() + extension.len() + 24);
+                    output_path.push_str(output_dir.as_ref());
+                    output_path.push_str("/post_");
+                    output_path.push_str(index_str.as_str());
+                    output_path.push_str(extension.as_str());
+                    output_paths.push(Value::Str(Arc::new(output_path)));
+                }
+
+                Value::Array(Arc::new(output_paths))
+            }
+        }
+
         "pad_left" => {
             if let (Some(Value::Str(s)), Some(width_val), Some(Value::Str(pad_char))) =
                 (args.first(), args.get(1), args.get(2))
@@ -505,6 +566,82 @@ mod tests {
             }
             _ => panic!("Expected Value::Error for non-array input"),
         }
+    }
+
+    #[test]
+    fn test_ssg_build_output_paths_success_default_extension() {
+        let result =
+            handle("ssg_build_output_paths", &[str_value("tmp/out"), Value::Int(3)]).unwrap();
+
+        match result {
+            Value::Array(paths) => {
+                assert_eq!(paths.len(), 3);
+                assert!(
+                    matches!(&paths[0], Value::Str(path) if path.as_ref() == "tmp/out/post_0.html")
+                );
+                assert!(
+                    matches!(&paths[1], Value::Str(path) if path.as_ref() == "tmp/out/post_1.html")
+                );
+                assert!(
+                    matches!(&paths[2], Value::Str(path) if path.as_ref() == "tmp/out/post_2.html")
+                );
+            }
+            _ => panic!("Expected Array result from ssg_build_output_paths"),
+        }
+    }
+
+    #[test]
+    fn test_ssg_build_output_paths_success_custom_extension() {
+        let result = handle(
+            "ssg_build_output_paths",
+            &[str_value("tmp/out"), Value::Int(2), str_value(".txt")],
+        )
+        .unwrap();
+
+        match result {
+            Value::Array(paths) => {
+                assert_eq!(paths.len(), 2);
+                assert!(
+                    matches!(&paths[0], Value::Str(path) if path.as_ref() == "tmp/out/post_0.txt")
+                );
+                assert!(
+                    matches!(&paths[1], Value::Str(path) if path.as_ref() == "tmp/out/post_1.txt")
+                );
+            }
+            _ => panic!("Expected Array result from ssg_build_output_paths"),
+        }
+    }
+
+    #[test]
+    fn test_ssg_build_output_paths_validates_argument_contracts() {
+        let wrong_arity = handle("ssg_build_output_paths", &[str_value("tmp/out")]).unwrap();
+        assert!(
+            matches!(wrong_arity, Value::Error(message) if message.contains("expects 2 or 3 arguments"))
+        );
+
+        let bad_dir = handle("ssg_build_output_paths", &[Value::Int(1), Value::Int(2)]).unwrap();
+        assert!(
+            matches!(bad_dir, Value::Error(message) if message.contains("output_dir must be a string"))
+        );
+
+        let bad_count =
+            handle("ssg_build_output_paths", &[str_value("tmp/out"), Value::Int(-1)]).unwrap();
+        assert!(
+            matches!(bad_count, Value::Error(message) if message.contains("file_count must be >= 0"))
+        );
+
+        let bad_count_type =
+            handle("ssg_build_output_paths", &[str_value("tmp/out"), str_value("2")]).unwrap();
+        assert!(
+            matches!(bad_count_type, Value::Error(message) if message.contains("file_count must be an integer"))
+        );
+
+        let bad_extension =
+            handle("ssg_build_output_paths", &[str_value("tmp/out"), Value::Int(2), Value::Int(1)])
+                .unwrap();
+        assert!(
+            matches!(bad_extension, Value::Error(message) if message.contains("optional extension must be a string"))
+        );
     }
 
     #[test]

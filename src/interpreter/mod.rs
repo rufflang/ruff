@@ -362,6 +362,7 @@ impl Interpreter {
             "split",
             "join",
             "ssg_render_pages",
+            "ssg_build_output_paths",
             "starts_with",
             "ends_with",
             "pad_left",
@@ -719,6 +720,10 @@ impl Interpreter {
         self.env.define(
             "ssg_render_pages".to_string(),
             Value::NativeFunction("ssg_render_pages".to_string()),
+        );
+        self.env.define(
+            "ssg_build_output_paths".to_string(),
+            Value::NativeFunction("ssg_build_output_paths".to_string()),
         );
         self.env
             .define("starts_with".to_string(), Value::NativeFunction("starts_with".to_string()));

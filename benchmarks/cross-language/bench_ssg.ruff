@@ -32,13 +32,7 @@ start_ms := performance_now()
 source_pages := await async_read_files(source_paths, batch_size)
 read_stage_ms := performance_now() - start_ms
 
-output_paths := []
-i := 0
-while i < file_count {
-    output_path := output_dir + "/post_" + to_string(i) + ".html"
-    output_paths := push(output_paths, output_path)
-    i := i + 1
-}
+output_paths := ssg_build_output_paths(output_dir, file_count)
 
 rendered := ssg_render_pages(source_pages)
 html_pages := rendered["pages"]
