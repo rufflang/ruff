@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-12_04-05_bench-ssg-command-failure-contracts.md** — ✅ COMPLETED: Hardened `bench-ssg` command-level failure contracts with deterministic missing-script preflight errors plus comprehensive harness tests for missing metrics and checksum mismatch; synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-12_03-10_bench-ssg-tmp-dir-override.md** — ✅ COMPLETED: Added `bench-ssg --tmp-dir` artifact-root override, propagated shared tmp-root contract through Ruff/Python benchmark scripts via `RUFF_BENCH_SSG_TMP_DIR`, added tmp-dir override validation coverage, and synchronized CHANGELOG/ROADMAP/README updates.
 
 - **2026-03-12_00-27_ssg-render-write-fusion.md** — ✅ COMPLETED: Added fused async native SSG render+write helper (`ssg_render_and_write_pages`), migrated `bench-ssg` timed render/write stage to the helper, expanded success/error dispatcher contracts, and documented commit-scope + output-dir contract gotchas.

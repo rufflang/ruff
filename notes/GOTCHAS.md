@@ -453,6 +453,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-12_03-10_bench-ssg-tmp-dir-override.md)
 
+### `run_ssg_benchmark(...)` should enforce script existence even if CLI validates
+- **Problem:** Harness-level benchmark calls can become non-deterministic when script paths are missing and subprocess invocation fails later with environment-specific errors.
+- **Rule:** Keep explicit preflight script-path checks in `run_ssg_benchmark(...)` for Ruff and Python scripts.
+- **Why:** Lower-level harness APIs may be invoked outside CLI path-validation flow (tests, internal callers), so deterministic contract errors should be enforced at the harness boundary.
+- **Implication:** Treat CLI validation as user-facing convenience and harness preflight checks as contract-hardening.
+
+(Discovered during: 2026-03-12_04-05_bench-ssg-command-failure-contracts.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
