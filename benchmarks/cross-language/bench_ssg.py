@@ -2,13 +2,18 @@
 
 import shutil
 import time
+import os
 from pathlib import Path
 
 
 def run_ssg_benchmark() -> tuple[int, float, float, int, float, float]:
     file_count = 10_000
     workspace_root = Path(__file__).resolve().parents[2]
-    tmp_root = workspace_root / "tmp"
+    tmp_root_env = os.environ.get("RUFF_BENCH_SSG_TMP_DIR")
+    if tmp_root_env:
+        tmp_root = Path(tmp_root_env)
+    else:
+        tmp_root = workspace_root / "tmp"
     tmp_root.mkdir(parents=True, exist_ok=True)
     base_dir = tmp_root / f"ruff_ssg_bench_py_{time.time_ns()}"
     input_dir = base_dir / "input"

@@ -127,6 +127,10 @@ enum Commands {
         /// Python executable to use for comparison
         #[arg(long, default_value = "python3")]
         python: String,
+
+        /// Optional temp root for benchmark artifacts (overrides workspace tmp/)
+        #[arg(long)]
+        tmp_dir: Option<PathBuf>,
     },
 
     /// Profile a Ruff script (CPU, memory, JIT stats)
@@ -455,6 +459,7 @@ async fn main() {
             compare_python,
             python_script,
             python,
+            tmp_dir,
         } => {
             use benchmarks::ssg::SsgStageProfile;
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark};
@@ -500,6 +505,7 @@ async fn main() {
                     ruff_script.as_path(),
                     python_binary,
                     python_script_path,
+                    tmp_dir.as_deref(),
                 ) {
                     Ok(result) => run_results.push(result),
                     Err(e) => {

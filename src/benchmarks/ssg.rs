@@ -345,12 +345,19 @@ fn parse_checksum(output: &str, metric_key: &str) -> Result<i128, String> {
     Err(format!("Checksum '{}' not found in output", metric_key))
 }
 
-fn run_and_capture(program: &str, args: &[&str], working_dir: &Path) -> Result<String, String> {
-    let output = Command::new(program)
-        .args(args)
-        .current_dir(working_dir)
-        .output()
-        .map_err(|e| format!("Failed to run '{}': {}", program, e))?;
+fn run_and_capture_with_optional_tmp_dir(
+    program: &str,
+    args: &[&str],
+    working_dir: &Path,
+    tmp_dir_override: Option<&str>,
+) -> Result<String, String> {
+    let mut command = Command::new(program);
+    command.args(args).current_dir(working_dir);
+    if let Some(tmp_dir) = tmp_dir_override {
+        command.env("RUFF_BENCH_SSG_TMP_DIR", tmp_dir);
+    }
+
+    let output = command.output().map_err(|e| format!("Failed to run '{}': {}", program, e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -367,6 +374,18 @@ fn run_and_capture(program: &str, args: &[&str], working_dir: &Path) -> Result<S
     }
 
     Ok(combined)
+}
+
+fn resolve_tmp_dir_override(tmp_dir: Option<&Path>) -> Result<Option<String>, String> {
+    match tmp_dir {
+        Some(path) => {
+            let path_str = path.to_str().ok_or_else(|| {
+                format!("Invalid tmp dir path (must be valid UTF-8): {}", path.display())
+            })?;
+            Ok(Some(path_str.to_string()))
+        }
+        None => Ok(None),
+    }
 }
 
 fn determine_workspace_root(script_path: &Path) -> PathBuf {
@@ -397,6 +416,7 @@ pub fn run_ssg_benchmark(
     ruff_script: &Path,
     python_binary: Option<&str>,
     python_script: Option<&Path>,
+    tmp_dir: Option<&Path>,
 ) -> Result<SsgBenchmarkResult, String> {
     let ruff_binary_str = ruff_binary
         .to_str()
@@ -405,8 +425,15 @@ pub fn run_ssg_benchmark(
         .to_str()
         .ok_or_else(|| format!("Invalid Ruff script path: {}", ruff_script.display()))?;
     let working_dir = determine_workspace_root(ruff_script);
+    let tmp_dir_override = resolve_tmp_dir_override(tmp_dir)?;
+    let tmp_dir_override_str = tmp_dir_override.as_deref();
 
-    let ruff_output = run_and_capture(ruff_binary_str, &["run", ruff_script_str], &working_dir)?;
+    let ruff_output = run_and_capture_with_optional_tmp_dir(
+        ruff_binary_str,
+        &["run", ruff_script_str],
+        &working_dir,
+        tmp_dir_override_str,
+    )?;
 
     let files = parse_metric_usize(&ruff_output, "RUFF_SSG_FILES")?;
     let ruff_build_ms = parse_metric_value(&ruff_output, "RUFF_SSG_BUILD_MS")?;
@@ -439,7 +466,12 @@ pub fn run_ssg_benchmark(
             .to_str()
             .ok_or_else(|| format!("Invalid Python script path: {}", python_script.display()))?;
 
-        let python_output = run_and_capture(python_binary, &[python_script_str], &working_dir)?;
+        let python_output = run_and_capture_with_optional_tmp_dir(
+            python_binary,
+            &[python_script_str],
+            &working_dir,
+            tmp_dir_override_str,
+        )?;
         let python_files = parse_metric_usize(&python_output, "PYTHON_SSG_FILES")?;
         let python_build_ms = parse_metric_value(&python_output, "PYTHON_SSG_BUILD_MS")?;
         let python_files_per_sec = parse_metric_value(&python_output, "PYTHON_SSG_FILES_PER_SEC")?;
@@ -542,6 +574,29 @@ mod tests {
         let output = "RUFF_SSG_RENDER_WRITE_MS=fast";
         let err = parse_metric_value_optional(output, "RUFF_SSG_RENDER_WRITE_MS").unwrap_err();
         assert!(err.contains("invalid numeric value"));
+    }
+
+    #[test]
+    fn test_resolve_tmp_dir_override_none_returns_none() {
+        let resolved = resolve_tmp_dir_override(None).unwrap();
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn test_resolve_tmp_dir_override_some_returns_string_path() {
+        let resolved = resolve_tmp_dir_override(Some(Path::new("tmp/custom_root"))).unwrap();
+        assert_eq!(resolved, Some("tmp/custom_root".to_string()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_resolve_tmp_dir_override_rejects_non_utf8_path() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let invalid_path = PathBuf::from(OsString::from_vec(vec![0x66, 0x6f, 0x80, 0x6f]));
+        let err = resolve_tmp_dir_override(Some(invalid_path.as_path())).unwrap_err();
+        assert!(err.contains("must be valid UTF-8"));
     }
 
     #[test]

@@ -3,8 +3,9 @@
 
 file_count := 10000
 batch_size := 256
-create_dir("tmp")
-base_dir := "tmp/ruff_ssg_bench_" + to_string(performance_now())
+tmp_root := env_or("RUFF_BENCH_SSG_TMP_DIR", "tmp")
+create_dir(tmp_root)
+base_dir := tmp_root + "/ruff_ssg_bench_" + to_string(performance_now())
 input_dir := base_dir + "/input"
 output_dir := base_dir + "/output"
 
