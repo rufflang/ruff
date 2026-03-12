@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `benchmarks/cross-language/bench_ssg.ruff` to use native path generation in the render/write benchmark path instead of a script-level loop.
   - Added comprehensive native-function contract tests for success and argument-shape validation, including dispatcher-level release-hardening coverage.
 
+- **SSG Async Native Render+Write Bulk Helper (v0.11.0 P0)**:
+  - Added `ssg_render_and_write_pages(source_pages, output_dir, concurrency_limit?)` to render HTML and write files in one bounded-concurrency async native operation.
+  - Updated `benchmarks/cross-language/bench_ssg.ruff` render/write stage to use the new helper and remove separate script-level render/write orchestration.
+  - Added comprehensive success/error contract coverage for argument validation, output shape, and write-failure propagation, including dispatcher-level release-hardening checks.
+
 ### Changed
 
 - **v0.11 Priority Clarification**:

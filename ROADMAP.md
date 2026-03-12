@@ -70,6 +70,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Updated benchmark pipeline to use native path generation instead of script-level path loops in the timed render/write path.
     - Added comprehensive native-function behavior and contract validation coverage.
 
+- **SSG Native Bulk Helper: Async Render+Write Fusion (✅ Complete, March 2026)**
+    - Added `ssg_render_and_write_pages(source_pages, output_dir, concurrency_limit?)` to render and write SSG pages in one bounded-concurrency native async operation.
+    - Updated benchmark render/write stage to use the fused native helper instead of separate render + write orchestration.
+    - Added comprehensive success/error contract coverage and dispatcher-level hardening tests.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).

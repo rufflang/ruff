@@ -464,6 +464,7 @@
   - **Bulk Async File I/O**: `async_read_files(paths, concurrency_limit?)`, `async_write_files(paths, contents, concurrency_limit?)` ✅
   - **Native Bulk SSG Rendering**: `ssg_render_pages(source_pages)` for high-volume HTML wrapping + checksum aggregation ✅
   - **Native SSG Output Path Builder**: `ssg_build_output_paths(output_dir, file_count, extension?)` for indexed output path arrays ✅
+  - **Native Async SSG Render+Write Fusion**: `ssg_render_and_write_pages(source_pages, output_dir, concurrency_limit?)` for single-pass render/write throughput optimization ✅
   - **Task Management**: `spawn_task(func)`, `await_task(handle)`, `cancel_task(handle)` ✅
   - **Promise Coordination**: `promise_all(promises, concurrency_limit?)` / `await_all(promises, concurrency_limit?)` ✅
   - **Parallel Mapping**: `parallel_map(array, func, concurrency_limit?)` ✅
@@ -501,11 +502,8 @@
 
     # Bulk async file operations for high-volume pipelines
     let markdown_pages := await async_read_files(source_paths, 128)
-    rendered := ssg_render_pages(markdown_pages)
-    html_pages := rendered["pages"]
+    rendered := await ssg_render_and_write_pages(markdown_pages, "tmp/site", 128)
     checksum := rendered["checksum"]
-    output_paths := ssg_build_output_paths("tmp/site", len(html_pages), ".html")
-    await async_write_files(output_paths, html_pages, 128)
 
     # Short aliases for parallel workflows
     let lengths := await par_map(["a", "bb", "ccc"], len, 2)
