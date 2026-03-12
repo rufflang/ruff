@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-12_10-43_ssg-read-render-write-fusion-follow-through.md** — ✅ COMPLETED: Added fused async native SSG read+render+write helper (`ssg_read_render_and_write_pages`), migrated timed `bench-ssg` Ruff path to consume helper stage metrics, expanded contract coverage (checksum/file-count + read/write failures), and synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-12_05-20_ssg-render-write-pipeline-optimization.md** — ✅ COMPLETED: Optimized `ssg_render_and_write_pages(...)` by removing serial pre-render buffering and rendering inside bounded async write workers, added checksum+empty-input regression contracts, and synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-12_04-05_bench-ssg-command-failure-contracts.md** — ✅ COMPLETED: Hardened `bench-ssg` command-level failure contracts with deterministic missing-script preflight errors plus comprehensive harness tests for missing metrics and checksum mismatch; synchronized CHANGELOG/ROADMAP/README.
