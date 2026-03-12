@@ -418,6 +418,16 @@ pub fn run_ssg_benchmark(
     python_script: Option<&Path>,
     tmp_dir: Option<&Path>,
 ) -> Result<SsgBenchmarkResult, String> {
+    if !ruff_script.exists() {
+        return Err(format!("Ruff SSG benchmark script not found: {}", ruff_script.display()));
+    }
+
+    if let Some(script) = python_script {
+        if !script.exists() {
+            return Err(format!("Python SSG benchmark script not found: {}", script.display()));
+        }
+    }
+
     let ruff_binary_str = ruff_binary
         .to_str()
         .ok_or_else(|| format!("Invalid Ruff binary path: {}", ruff_binary.display()))?;
@@ -512,6 +522,79 @@ pub fn run_ssg_benchmark(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    use std::fs;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+    #[cfg(unix)]
+    use std::sync::atomic::{AtomicU64, Ordering};
+    #[cfg(unix)]
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(unix)]
+    static TEST_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    #[cfg(unix)]
+    fn unique_test_dir(prefix: &str) -> PathBuf {
+        let mut base = std::env::current_dir().expect("current_dir should resolve");
+        base.push("tmp");
+        base.push("bench_ssg_harness_tests");
+        fs::create_dir_all(&base).expect("bench-ssg test root should be created");
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after unix epoch")
+            .as_nanos();
+        let counter = TEST_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
+        base.push(format!("{}_{}_{}", prefix, timestamp, counter));
+        fs::create_dir_all(&base).expect("bench-ssg test dir should be created");
+        base
+    }
+
+    #[cfg(unix)]
+    fn write_stub_executable(path: &Path, script_body: &str) {
+        fs::write(path, script_body).expect("stub executable should be written");
+        let mut perms = fs::metadata(path).expect("stub metadata should resolve").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(path, perms).expect("stub executable should be chmod +x");
+    }
+
+    #[cfg(unix)]
+    fn create_basic_harness_fixture(
+        prefix: &str,
+        ruff_output_lines: &[&str],
+        python_output_lines: Option<&[&str]>,
+    ) -> (PathBuf, PathBuf, PathBuf, Option<PathBuf>) {
+        let test_dir = unique_test_dir(prefix);
+
+        let ruff_script_path = test_dir.join("stub_bench_ssg.ruff");
+        fs::write(&ruff_script_path, "# stub ruff benchmark script\n")
+            .expect("ruff script fixture should be written");
+
+        let ruff_binary_path = test_dir.join("ruff_stub.sh");
+        let ruff_stdout = ruff_output_lines.join("\n");
+        let ruff_stub_body = format!(
+            "#!/bin/sh\nif [ \"$1\" != \"run\" ]; then\n  echo \"unexpected args: $@\" >&2\n  exit 9\nfi\ncat <<'EOF'\n{}\nEOF\n",
+            ruff_stdout
+        );
+        write_stub_executable(&ruff_binary_path, &ruff_stub_body);
+
+        if let Some(python_lines) = python_output_lines {
+            let python_script_path = test_dir.join("stub_bench_ssg.py");
+            fs::write(&python_script_path, "# stub python benchmark script\n")
+                .expect("python script fixture should be written");
+
+            let python_binary_path = test_dir.join("python_stub.sh");
+            let python_stdout = python_lines.join("\n");
+            let python_stub_body = format!("#!/bin/sh\ncat <<'EOF'\n{}\nEOF\n", python_stdout);
+            write_stub_executable(&python_binary_path, &python_stub_body);
+
+            (ruff_binary_path, ruff_script_path, python_binary_path, Some(python_script_path))
+        } else {
+            (ruff_binary_path, ruff_script_path, PathBuf::new(), None)
+        }
+    }
 
     #[test]
     fn test_parse_metric_value_extracts_float() {
@@ -840,5 +923,119 @@ mod tests {
 
         let err = aggregate_ssg_results(&runs).unwrap_err();
         assert!(err.contains("inconsistent Python comparison presence"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_fails_when_required_ruff_metric_missing() {
+        let ruff_lines =
+            ["RUFF_SSG_FILES=10000", "RUFF_SSG_BUILD_MS=100.0", "RUFF_SSG_CHECKSUM=777"];
+        let (ruff_binary, ruff_script, _, _) =
+            create_basic_harness_fixture("missing_ruff_metric", &ruff_lines, None);
+
+        let err = run_ssg_benchmark(ruff_binary.as_path(), ruff_script.as_path(), None, None, None)
+            .unwrap_err();
+
+        assert!(err.contains("Metric 'RUFF_SSG_FILES_PER_SEC' not found in output"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_fails_when_required_python_metric_missing() {
+        let ruff_lines = [
+            "RUFF_SSG_FILES=10000",
+            "RUFF_SSG_BUILD_MS=100.0",
+            "RUFF_SSG_FILES_PER_SEC=1000.0",
+            "RUFF_SSG_CHECKSUM=777",
+        ];
+        let python_lines =
+            ["PYTHON_SSG_FILES=10000", "PYTHON_SSG_BUILD_MS=120.0", "PYTHON_SSG_CHECKSUM=777"];
+        let (ruff_binary, ruff_script, python_binary, python_script_opt) =
+            create_basic_harness_fixture("missing_python_metric", &ruff_lines, Some(&python_lines));
+        let python_script = python_script_opt.expect("python script fixture should exist");
+
+        let err = run_ssg_benchmark(
+            ruff_binary.as_path(),
+            ruff_script.as_path(),
+            Some(python_binary.to_str().expect("python stub path should be utf8")),
+            Some(python_script.as_path()),
+            None,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Metric 'PYTHON_SSG_FILES_PER_SEC' not found in output"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_fails_on_python_checksum_mismatch() {
+        let ruff_lines = [
+            "RUFF_SSG_FILES=10000",
+            "RUFF_SSG_BUILD_MS=100.0",
+            "RUFF_SSG_FILES_PER_SEC=1000.0",
+            "RUFF_SSG_CHECKSUM=777",
+        ];
+        let python_lines = [
+            "PYTHON_SSG_FILES=10000",
+            "PYTHON_SSG_BUILD_MS=120.0",
+            "PYTHON_SSG_FILES_PER_SEC=900.0",
+            "PYTHON_SSG_CHECKSUM=778",
+        ];
+        let (ruff_binary, ruff_script, python_binary, python_script_opt) =
+            create_basic_harness_fixture("checksum_mismatch", &ruff_lines, Some(&python_lines));
+        let python_script = python_script_opt.expect("python script fixture should exist");
+
+        let err = run_ssg_benchmark(
+            ruff_binary.as_path(),
+            ruff_script.as_path(),
+            Some(python_binary.to_str().expect("python stub path should be utf8")),
+            Some(python_script.as_path()),
+            None,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Checksum mismatch"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_rejects_missing_ruff_script_preflight() {
+        let missing_ruff_script =
+            PathBuf::from("tmp/bench_ssg_missing_ruff_script_does_not_exist.ruff");
+        let err = run_ssg_benchmark(
+            Path::new("/bin/echo"),
+            missing_ruff_script.as_path(),
+            None,
+            None,
+            None,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Ruff SSG benchmark script not found"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_rejects_missing_python_script_preflight() {
+        let mut fixture_root = std::env::current_dir().expect("current_dir should resolve");
+        fixture_root.push("tmp");
+        fixture_root.push("bench_ssg_missing_python_script_preflight");
+        fs::create_dir_all(&fixture_root).expect("fixture root should be created");
+
+        let ruff_script = fixture_root.join("existing_ruff_bench.ruff");
+        fs::write(&ruff_script, "# stub\n").expect("ruff script fixture should be written");
+
+        let missing_python_script = fixture_root.join("missing_python_bench.py");
+
+        let err = run_ssg_benchmark(
+            Path::new("/bin/echo"),
+            ruff_script.as_path(),
+            Some("python3"),
+            Some(missing_python_script.as_path()),
+            None,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Python SSG benchmark script not found"));
     }
 }
