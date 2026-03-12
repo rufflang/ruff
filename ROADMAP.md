@@ -80,6 +80,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved benchmark checksum/file-count equivalence contracts while reducing render/write orchestration overhead.
     - Added comprehensive regression coverage for checksum integrity and empty-input summary behavior.
 
+- **SSG Throughput Follow-Through: Read/Render/Write Pipeline Fusion (✅ Complete, March 2026)**
+    - Added `ssg_read_render_and_write_pages(source_paths, output_dir, concurrency_limit?)` to fuse read + render + write into one bounded-concurrency async native operation.
+    - Updated the timed `bench-ssg` Ruff path to call the fused helper and consume stage timings (`read_ms`, `render_write_ms`) from the native summary.
+    - Added comprehensive success/error contract coverage, including checksum/file-count equivalence and read/write failure propagation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.

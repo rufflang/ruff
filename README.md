@@ -17,6 +17,7 @@
 - **Function-level JIT posture**: treated as a supporting/parallel track in v0.11 and promoted only when benchmark-proven on `bench-ssg` / `--profile-async` with stable correctness.
 - **Benchmark stability baseline**: `ruff bench-ssg --runs <N>` now reports median/mean/min/max/stddev to reduce one-off run noise.
 - **Latest throughput follow-through**: `ssg_render_and_write_pages(...)` now renders inside bounded async write workers (no serial pre-render buffer) while preserving checksum/file-count contracts.
+- **Latest throughput fusion step**: `ssg_read_render_and_write_pages(...)` now fuses file reads with render/write in the timed SSG path while preserving checksum/file-count equivalence and stage-profile visibility.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 

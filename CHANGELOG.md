@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserved checksum and file-count equivalence contracts while reducing render/write orchestration overhead in the timed SSG benchmark path.
   - Added comprehensive regression coverage for checksum integrity and empty-input summary behavior.
 
+- **SSG Async Native Read+Render+Write Bulk Helper (v0.11.0 P0)**:
+  - Added `ssg_read_render_and_write_pages(source_paths, output_dir, concurrency_limit?)` to fuse SSG file reads with render+write in one bounded-concurrency async native operation.
+  - Updated `benchmarks/cross-language/bench_ssg.ruff` to use the fused helper in the timed path and consume stage metrics (`read_ms`, `render_write_ms`) from the helper summary.
+  - Added comprehensive contract coverage for success, checksum/file-count equivalence, argument validation, and read/write failure propagation, including dispatcher-level release-hardening checks.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
