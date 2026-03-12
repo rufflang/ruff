@@ -2270,6 +2270,70 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_render_and_write_pages_checksum_matches_rendered_outputs() {
+        let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_checksum");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value("# A"),
+                string_value("# B\n\nBody"),
+                string_value("# C\n\nLonger body content"),
+            ])),
+            string_value(&temp_dir),
+            Value::Int(5),
+        ];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 3));
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", temp_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", temp_dir)).unwrap();
+        let html_c = fs::read_to_string(format!("{}/post_2.html", temp_dir)).unwrap();
+        let expected_checksum = (html_a.len() + html_b.len() + html_c.len()) as i64;
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_ssg_render_and_write_pages_empty_input_returns_zero_summary() {
+        let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_empty");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![Value::Array(Arc::new(vec![])), string_value(&temp_dir)];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Dict(dict) => {
+                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 0));
+                assert!(
+                    matches!(dict.get("checksum"), Some(Value::Int(checksum)) if *checksum == 0)
+                );
+            }
+            _ => panic!("Expected Dict result"),
+        }
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
     fn test_ssg_render_and_write_pages_validates_argument_contracts() {
         let mut interp = Interpreter::new();
 
