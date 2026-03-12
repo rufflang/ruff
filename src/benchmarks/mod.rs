@@ -21,7 +21,7 @@ pub use cross_language::run_process_pool_comparison;
 pub use profiler::{print_profile_report, ProfileConfig, Profiler};
 pub use reporter::Reporter;
 pub use runner::BenchmarkRunner;
-pub use ssg::run_ssg_benchmark;
+pub use ssg::{aggregate_ssg_results, run_ssg_benchmark};
 pub use stats::Statistics;
 pub use timer::Timer;
 

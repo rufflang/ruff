@@ -108,6 +108,10 @@ enum Commands {
         #[arg(long, default_value = "benchmarks/cross-language/bench_ssg.ruff")]
         ruff_script: PathBuf,
 
+        /// Number of repeated benchmark runs for noise reduction (median reporting)
+        #[arg(long, default_value_t = 1)]
+        runs: usize,
+
         /// Print per-stage timing breakdown and bottleneck summary when available
         #[arg(long, default_value_t = false)]
         profile_async: bool,
@@ -446,12 +450,14 @@ async fn main() {
 
         Commands::BenchSsg {
             ruff_script,
+            runs,
             profile_async,
             compare_python,
             python_script,
             python,
         } => {
-            use benchmarks::run_ssg_benchmark;
+            use benchmarks::ssg::SsgStageProfile;
+            use benchmarks::{aggregate_ssg_results, run_ssg_benchmark};
 
             let ruff_binary = match std::env::current_exe() {
                 Ok(path) => path,
@@ -478,79 +484,138 @@ async fn main() {
 
             let python_binary = if compare_python { Some(python.as_str()) } else { None };
 
-            match run_ssg_benchmark(
-                ruff_binary.as_path(),
-                ruff_script.as_path(),
-                python_binary,
-                python_script_path,
-            ) {
-                Ok(result) => {
-                    println!("Ruff async SSG benchmark");
-                    println!("------------------------");
-                    println!("Files rendered: {}", result.files);
-                    println!("Ruff build time: {:.3} ms", result.ruff_build_ms);
-                    println!("Ruff throughput: {:.2} files/sec", result.ruff_files_per_sec);
-                    println!("Ruff checksum: {}", result.ruff_checksum);
+            if runs == 0 {
+                eprintln!("SSG benchmark runs must be >= 1");
+                std::process::exit(1);
+            }
 
-                    if profile_async {
-                        if let Some(ruff_profile) = result.ruff_stage_profile.as_ref() {
-                            println!("Ruff stage breakdown:");
-                            println!("  read stage: {:.3} ms", ruff_profile.read_ms);
-                            println!(
-                                "  render/write stage: {:.3} ms",
-                                ruff_profile.render_write_ms
-                            );
-                            if let Some((stage_name, stage_ms, stage_percent)) =
-                                ruff_profile.bottleneck_stage()
-                            {
-                                println!(
-                                    "  bottleneck: {} ({:.3} ms, {:.2}% of profiled time)",
-                                    stage_name, stage_ms, stage_percent
-                                );
-                            }
-                        } else {
-                            println!(
-                                "Ruff stage breakdown: unavailable (metrics not emitted by script)"
-                            );
-                        }
-                    }
+            let mut run_results = Vec::with_capacity(runs);
+            for run_index in 0..runs {
+                if runs > 1 {
+                    println!("Running SSG benchmark ({}/{})...", run_index + 1, runs);
+                }
 
-                    if let (Some(python_build_ms), Some(python_files_per_sec)) =
-                        (result.python_build_ms, result.python_files_per_sec)
-                    {
-                        println!("Python build time: {:.3} ms", python_build_ms);
-                        println!("Python throughput: {:.2} files/sec", python_files_per_sec);
-                        if let Some(speedup) = result.ruff_vs_python_speedup() {
-                            println!("Ruff speedup vs Python: {:.2}x", speedup);
-                        }
-
-                        if profile_async {
-                            if let Some(python_profile) = result.python_stage_profile.as_ref() {
-                                println!("Python stage breakdown:");
-                                println!("  read stage: {:.3} ms", python_profile.read_ms);
-                                println!(
-                                    "  render/write stage: {:.3} ms",
-                                    python_profile.render_write_ms
-                                );
-                                if let Some((stage_name, stage_ms, stage_percent)) =
-                                    python_profile.bottleneck_stage()
-                                {
-                                    println!(
-                                        "  bottleneck: {} ({:.3} ms, {:.2}% of profiled time)",
-                                        stage_name, stage_ms, stage_percent
-                                    );
-                                }
-                            } else {
-                                println!(
-                                    "Python stage breakdown: unavailable (metrics not emitted by script)"
-                                );
-                            }
-                        }
+                match run_ssg_benchmark(
+                    ruff_binary.as_path(),
+                    ruff_script.as_path(),
+                    python_binary,
+                    python_script_path,
+                ) {
+                    Ok(result) => run_results.push(result),
+                    Err(e) => {
+                        eprintln!("SSG benchmark failed: {}", e);
+                        std::process::exit(1);
                     }
                 }
+            }
+
+            let summary = match aggregate_ssg_results(&run_results) {
+                Ok(summary) => summary,
                 Err(e) => {
-                    eprintln!("SSG benchmark failed: {}", e);
+                    eprintln!("SSG benchmark aggregation failed: {}", e);
                     std::process::exit(1);
+                }
+            };
+
+            println!("Ruff async SSG benchmark");
+            println!("------------------------");
+            println!("Runs: {}", summary.ruff_build_ms.runs);
+            println!("Files rendered: {}", summary.files);
+            println!("Ruff checksum: {}", summary.ruff_checksum);
+            println!(
+                "Ruff build time (median): {:.3} ms [mean {:.3}, min {:.3}, max {:.3}, stddev {:.3}]",
+                summary.ruff_build_ms.median,
+                summary.ruff_build_ms.mean,
+                summary.ruff_build_ms.min,
+                summary.ruff_build_ms.max,
+                summary.ruff_build_ms.stddev
+            );
+            println!(
+                "Ruff throughput (median): {:.2} files/sec [mean {:.2}, min {:.2}, max {:.2}, stddev {:.2}]",
+                summary.ruff_files_per_sec.median,
+                summary.ruff_files_per_sec.mean,
+                summary.ruff_files_per_sec.min,
+                summary.ruff_files_per_sec.max,
+                summary.ruff_files_per_sec.stddev
+            );
+
+            if profile_async {
+                if let Some(ruff_profile) = summary.ruff_stage_profile.as_ref() {
+                    println!("Ruff stage breakdown (median):");
+                    println!("  read stage: {:.3} ms", ruff_profile.read_ms.median);
+                    println!("  render/write stage: {:.3} ms", ruff_profile.render_write_ms.median);
+                    let profile = SsgStageProfile {
+                        read_ms: ruff_profile.read_ms.median,
+                        render_write_ms: ruff_profile.render_write_ms.median,
+                    };
+                    if let Some((stage_name, stage_ms, stage_percent)) = profile.bottleneck_stage()
+                    {
+                        println!(
+                            "  bottleneck: {} ({:.3} ms, {:.2}% of profiled median)",
+                            stage_name, stage_ms, stage_percent
+                        );
+                    }
+                } else {
+                    println!("Ruff stage breakdown: unavailable (metrics not emitted by script)");
+                }
+            }
+
+            if let (Some(python_build_ms), Some(python_files_per_sec)) =
+                (summary.python_build_ms.as_ref(), summary.python_files_per_sec.as_ref())
+            {
+                println!(
+                    "Python build time (median): {:.3} ms [mean {:.3}, min {:.3}, max {:.3}, stddev {:.3}]",
+                    python_build_ms.median,
+                    python_build_ms.mean,
+                    python_build_ms.min,
+                    python_build_ms.max,
+                    python_build_ms.stddev
+                );
+                println!(
+                    "Python throughput (median): {:.2} files/sec [mean {:.2}, min {:.2}, max {:.2}, stddev {:.2}]",
+                    python_files_per_sec.median,
+                    python_files_per_sec.mean,
+                    python_files_per_sec.min,
+                    python_files_per_sec.max,
+                    python_files_per_sec.stddev
+                );
+
+                if let Some(speedup) = summary.ruff_vs_python_speedup.as_ref() {
+                    println!(
+                        "Ruff speedup vs Python (median): {:.2}x [mean {:.2}x, min {:.2}x, max {:.2}x, stddev {:.2}]",
+                        speedup.median,
+                        speedup.mean,
+                        speedup.min,
+                        speedup.max,
+                        speedup.stddev
+                    );
+                }
+
+                if profile_async {
+                    if let Some(python_profile) = summary.python_stage_profile.as_ref() {
+                        println!("Python stage breakdown (median):");
+                        println!("  read stage: {:.3} ms", python_profile.read_ms.median);
+                        println!(
+                            "  render/write stage: {:.3} ms",
+                            python_profile.render_write_ms.median
+                        );
+                        let profile = SsgStageProfile {
+                            read_ms: python_profile.read_ms.median,
+                            render_write_ms: python_profile.render_write_ms.median,
+                        };
+                        if let Some((stage_name, stage_ms, stage_percent)) =
+                            profile.bottleneck_stage()
+                        {
+                            println!(
+                                "  bottleneck: {} ({:.3} ms, {:.2}% of profiled median)",
+                                stage_name, stage_ms, stage_percent
+                            );
+                        }
+                    } else {
+                        println!(
+                            "Python stage breakdown: unavailable (metrics not emitted by script)"
+                        );
+                    }
                 }
             }
         }

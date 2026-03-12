@@ -2,6 +2,74 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Debug, Clone)]
+pub struct SsgRunStatistics {
+    pub runs: usize,
+    pub mean: f64,
+    pub median: f64,
+    pub min: f64,
+    pub max: f64,
+    pub stddev: f64,
+}
+
+impl SsgRunStatistics {
+    pub fn from_samples(samples: &[f64]) -> Option<Self> {
+        if samples.is_empty() {
+            return None;
+        }
+
+        let runs = samples.len();
+        let sum: f64 = samples.iter().sum();
+        let mean = sum / runs as f64;
+
+        let mut sorted = samples.to_vec();
+        sorted.sort_by(|a, b| a.total_cmp(b));
+
+        let median = if runs % 2 == 0 {
+            let right = runs / 2;
+            let left = right - 1;
+            (sorted[left] + sorted[right]) / 2.0
+        } else {
+            sorted[runs / 2]
+        };
+
+        let min = *sorted.first().unwrap_or(&0.0);
+        let max = *sorted.last().unwrap_or(&0.0);
+
+        let variance = samples
+            .iter()
+            .map(|value| {
+                let diff = *value - mean;
+                diff * diff
+            })
+            .sum::<f64>()
+            / runs as f64;
+
+        let stddev = variance.sqrt();
+
+        Some(SsgRunStatistics { runs, mean, median, min, max, stddev })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SsgStageProfileStatistics {
+    pub read_ms: SsgRunStatistics,
+    pub render_write_ms: SsgRunStatistics,
+}
+
+#[derive(Debug, Clone)]
+pub struct SsgBenchmarkAggregateResult {
+    pub files: usize,
+    pub ruff_checksum: i128,
+    pub ruff_build_ms: SsgRunStatistics,
+    pub ruff_files_per_sec: SsgRunStatistics,
+    pub ruff_stage_profile: Option<SsgStageProfileStatistics>,
+    pub python_build_ms: Option<SsgRunStatistics>,
+    pub python_files_per_sec: Option<SsgRunStatistics>,
+    pub python_stage_profile: Option<SsgStageProfileStatistics>,
+    pub ruff_vs_python_speedup: Option<SsgRunStatistics>,
+}
+
+#[derive(Debug, Clone)]
 pub struct SsgStageProfile {
     pub read_ms: f64,
     pub render_write_ms: f64,
@@ -48,6 +116,166 @@ impl SsgBenchmarkResult {
             }
         })
     }
+}
+
+pub fn aggregate_ssg_results(
+    run_results: &[SsgBenchmarkResult],
+) -> Result<SsgBenchmarkAggregateResult, String> {
+    if run_results.is_empty() {
+        return Err("Cannot aggregate SSG benchmark results: no runs provided".to_string());
+    }
+
+    let baseline = &run_results[0];
+    let files = baseline.files;
+    let checksum = baseline.ruff_checksum;
+
+    let mut ruff_build_samples = Vec::with_capacity(run_results.len());
+    let mut ruff_throughput_samples = Vec::with_capacity(run_results.len());
+    let mut ruff_read_samples = Vec::new();
+    let mut ruff_render_write_samples = Vec::new();
+
+    let mut python_build_samples = Vec::new();
+    let mut python_throughput_samples = Vec::new();
+    let mut python_read_samples = Vec::new();
+    let mut python_render_write_samples = Vec::new();
+    let mut speedup_samples = Vec::new();
+
+    let all_have_python = run_results
+        .iter()
+        .all(|result| result.python_build_ms.is_some() && result.python_files_per_sec.is_some());
+    let none_have_python = run_results
+        .iter()
+        .all(|result| result.python_build_ms.is_none() && result.python_files_per_sec.is_none());
+
+    if !all_have_python && !none_have_python {
+        return Err(
+            "Cannot aggregate SSG benchmark results: inconsistent Python comparison presence across runs"
+                .to_string(),
+        );
+    }
+
+    for result in run_results {
+        if result.files != files {
+            return Err(format!(
+                "Cannot aggregate SSG benchmark results: file count mismatch across runs (expected {}, got {})",
+                files, result.files
+            ));
+        }
+
+        if result.ruff_checksum != checksum {
+            return Err(format!(
+                "Cannot aggregate SSG benchmark results: Ruff checksum mismatch across runs (expected {}, got {})",
+                checksum, result.ruff_checksum
+            ));
+        }
+
+        ruff_build_samples.push(result.ruff_build_ms);
+        ruff_throughput_samples.push(result.ruff_files_per_sec);
+
+        if let Some(profile) = result.ruff_stage_profile.as_ref() {
+            ruff_read_samples.push(profile.read_ms);
+            ruff_render_write_samples.push(profile.render_write_ms);
+        }
+
+        if all_have_python {
+            let python_build_ms = result.python_build_ms.ok_or_else(|| {
+                "Cannot aggregate SSG benchmark results: missing Python build metric".to_string()
+            })?;
+            let python_files_per_sec = result.python_files_per_sec.ok_or_else(|| {
+                "Cannot aggregate SSG benchmark results: missing Python throughput metric"
+                    .to_string()
+            })?;
+
+            python_build_samples.push(python_build_ms);
+            python_throughput_samples.push(python_files_per_sec);
+
+            if let Some(profile) = result.python_stage_profile.as_ref() {
+                python_read_samples.push(profile.read_ms);
+                python_render_write_samples.push(profile.render_write_ms);
+            }
+
+            if let Some(speedup) = result.ruff_vs_python_speedup() {
+                speedup_samples.push(speedup);
+            } else {
+                return Err(
+                    "Cannot aggregate SSG benchmark results: missing speedup metric for Python comparison"
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    let ruff_stage_profile = if ruff_read_samples.len() == run_results.len()
+        && ruff_render_write_samples.len() == run_results.len()
+    {
+        Some(SsgStageProfileStatistics {
+            read_ms: SsgRunStatistics::from_samples(&ruff_read_samples)
+                .ok_or_else(|| "Cannot aggregate Ruff stage profile read metrics".to_string())?,
+            render_write_ms: SsgRunStatistics::from_samples(&ruff_render_write_samples)
+                .ok_or_else(|| {
+                    "Cannot aggregate Ruff stage profile render/write metrics".to_string()
+                })?,
+        })
+    } else {
+        None
+    };
+
+    let python_stage_profile = if all_have_python
+        && python_read_samples.len() == run_results.len()
+        && python_render_write_samples.len() == run_results.len()
+    {
+        Some(SsgStageProfileStatistics {
+            read_ms: SsgRunStatistics::from_samples(&python_read_samples)
+                .ok_or_else(|| "Cannot aggregate Python stage profile read metrics".to_string())?,
+            render_write_ms: SsgRunStatistics::from_samples(&python_render_write_samples)
+                .ok_or_else(|| {
+                    "Cannot aggregate Python stage profile render/write metrics".to_string()
+                })?,
+        })
+    } else {
+        None
+    };
+
+    let python_build_ms = if all_have_python {
+        Some(
+            SsgRunStatistics::from_samples(&python_build_samples)
+                .ok_or_else(|| "Cannot aggregate Python build metrics".to_string())?,
+        )
+    } else {
+        None
+    };
+
+    let python_files_per_sec = if all_have_python {
+        Some(
+            SsgRunStatistics::from_samples(&python_throughput_samples)
+                .ok_or_else(|| "Cannot aggregate Python throughput metrics".to_string())?,
+        )
+    } else {
+        None
+    };
+
+    let ruff_vs_python_speedup = if all_have_python {
+        Some(
+            SsgRunStatistics::from_samples(&speedup_samples)
+                .ok_or_else(|| "Cannot aggregate Ruff vs Python speedup metrics".to_string())?,
+        )
+    } else {
+        None
+    };
+
+    Ok(SsgBenchmarkAggregateResult {
+        files,
+        ruff_checksum: checksum,
+        ruff_build_ms: SsgRunStatistics::from_samples(&ruff_build_samples)
+            .ok_or_else(|| "Cannot aggregate Ruff build metrics".to_string())?,
+        ruff_files_per_sec: SsgRunStatistics::from_samples(&ruff_throughput_samples)
+            .ok_or_else(|| "Cannot aggregate Ruff throughput metrics".to_string())?,
+        ruff_stage_profile,
+        python_build_ms,
+        python_files_per_sec,
+        python_stage_profile,
+        ruff_vs_python_speedup,
+    })
 }
 
 fn parse_metric_value(output: &str, metric_key: &str) -> Result<f64, String> {
@@ -392,5 +620,170 @@ mod tests {
         };
 
         assert_eq!(result.ruff_vs_python_speedup().unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_run_statistics_from_samples_even_count() {
+        let stats = SsgRunStatistics::from_samples(&[10.0, 20.0, 30.0, 40.0]).unwrap();
+        assert_eq!(stats.runs, 4);
+        assert!((stats.mean - 25.0).abs() < 0.0001);
+        assert!((stats.median - 25.0).abs() < 0.0001);
+        assert!((stats.min - 10.0).abs() < 0.0001);
+        assert!((stats.max - 40.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_run_statistics_from_samples_odd_count() {
+        let stats = SsgRunStatistics::from_samples(&[8.0, 2.0, 5.0]).unwrap();
+        assert_eq!(stats.runs, 3);
+        assert!((stats.median - 5.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_run_statistics_empty_samples_returns_none() {
+        assert!(SsgRunStatistics::from_samples(&[]).is_none());
+    }
+
+    #[test]
+    fn test_aggregate_ssg_results_without_python() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 100,
+                ruff_build_ms: 10.0,
+                ruff_files_per_sec: 10.0,
+                ruff_checksum: 42,
+                ruff_stage_profile: Some(SsgStageProfile { read_ms: 4.0, render_write_ms: 6.0 }),
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 100,
+                ruff_build_ms: 20.0,
+                ruff_files_per_sec: 5.0,
+                ruff_checksum: 42,
+                ruff_stage_profile: Some(SsgStageProfile { read_ms: 7.0, render_write_ms: 13.0 }),
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 100,
+                ruff_build_ms: 30.0,
+                ruff_files_per_sec: 3.333333333,
+                ruff_checksum: 42,
+                ruff_stage_profile: Some(SsgStageProfile { read_ms: 10.0, render_write_ms: 20.0 }),
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+        ];
+
+        let summary = aggregate_ssg_results(&runs).unwrap();
+        assert_eq!(summary.files, 100);
+        assert_eq!(summary.ruff_checksum, 42);
+        assert!((summary.ruff_build_ms.median - 20.0).abs() < 0.0001);
+        assert!((summary.ruff_files_per_sec.median - 5.0).abs() < 0.0001);
+        assert!(summary.python_build_ms.is_none());
+        assert!(summary.python_files_per_sec.is_none());
+        assert!(summary.ruff_vs_python_speedup.is_none());
+        assert!(summary.ruff_stage_profile.is_some());
+    }
+
+    #[test]
+    fn test_aggregate_ssg_results_with_python() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 2,
+                ruff_build_ms: 10.0,
+                ruff_files_per_sec: 200.0,
+                ruff_checksum: 7,
+                ruff_stage_profile: None,
+                python_build_ms: Some(20.0),
+                python_files_per_sec: Some(100.0),
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 2,
+                ruff_build_ms: 20.0,
+                ruff_files_per_sec: 100.0,
+                ruff_checksum: 7,
+                ruff_stage_profile: None,
+                python_build_ms: Some(40.0),
+                python_files_per_sec: Some(50.0),
+                python_stage_profile: None,
+            },
+        ];
+
+        let summary = aggregate_ssg_results(&runs).unwrap();
+        assert!(summary.python_build_ms.is_some());
+        assert!(summary.python_files_per_sec.is_some());
+
+        let speedup = summary.ruff_vs_python_speedup.unwrap();
+        assert!((speedup.median - 2.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_aggregate_ssg_results_empty_fails() {
+        let err = aggregate_ssg_results(&[]).unwrap_err();
+        assert!(err.contains("no runs provided"));
+    }
+
+    #[test]
+    fn test_aggregate_ssg_results_inconsistent_files_fails() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 10,
+                ruff_build_ms: 10.0,
+                ruff_files_per_sec: 10.0,
+                ruff_checksum: 1,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 11,
+                ruff_build_ms: 12.0,
+                ruff_files_per_sec: 9.0,
+                ruff_checksum: 1,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+        ];
+
+        let err = aggregate_ssg_results(&runs).unwrap_err();
+        assert!(err.contains("file count mismatch"));
+    }
+
+    #[test]
+    fn test_aggregate_ssg_results_inconsistent_python_presence_fails() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 10,
+                ruff_build_ms: 10.0,
+                ruff_files_per_sec: 10.0,
+                ruff_checksum: 1,
+                ruff_stage_profile: None,
+                python_build_ms: Some(15.0),
+                python_files_per_sec: Some(8.0),
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 10,
+                ruff_build_ms: 12.0,
+                ruff_files_per_sec: 9.0,
+                ruff_checksum: 1,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+        ];
+
+        let err = aggregate_ssg_results(&runs).unwrap_err();
+        assert!(err.contains("inconsistent Python comparison presence"));
     }
 }
