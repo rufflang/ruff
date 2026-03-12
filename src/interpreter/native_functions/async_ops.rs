@@ -18,6 +18,34 @@ enum RayonMapInput {
     DictLen(usize),
 }
 
+fn ssg_build_output_path(output_dir: &str, index: usize) -> String {
+    let index_str = index.to_string();
+    let mut output_path = String::with_capacity(output_dir.len() + 32);
+    output_path.push_str(output_dir);
+    output_path.push_str("/post_");
+    output_path.push_str(index_str.as_str());
+    output_path.push_str(".html");
+    output_path
+}
+
+fn ssg_build_html(index: usize, source_body: &str) -> String {
+    let index_str = index.to_string();
+    let mut html = String::with_capacity(source_body.len() + 64);
+    html.push_str("<html><body><h1>Post ");
+    html.push_str(index_str.as_str());
+    html.push_str("</h1><article>");
+    html.push_str(source_body);
+    html.push_str("</article></body></html>");
+    html
+}
+
+fn ssg_html_render_overhead_len(index: usize) -> usize {
+    "<html><body><h1>Post ".len()
+        + index.to_string().len()
+        + "</h1><article>".len()
+        + "</article></body></html>".len()
+}
+
 fn resolved_promise(result: Result<Value, String>) -> Value {
     let (tx, rx) = tokio::sync::oneshot::channel();
     let _ = tx.send(result);
@@ -931,7 +959,7 @@ pub fn handle(
                 _interp.get_async_task_pool_size()
             };
 
-            let mut render_inputs = Vec::with_capacity(source_pages.len());
+            let mut source_bodies = Vec::with_capacity(source_pages.len());
             let mut checksum: i64 = 0;
 
             for (index, page) in source_pages.iter().enumerate() {
@@ -945,51 +973,43 @@ pub fn handle(
                     }
                 };
 
-                let index_str = index.to_string();
-                let mut html = String::with_capacity(source_body.len() + 64);
-                html.push_str("<html><body><h1>Post ");
-                html.push_str(index_str.as_str());
-                html.push_str("</h1><article>");
-                html.push_str(source_body.as_ref());
-                html.push_str("</article></body></html>");
-
-                checksum += html.len() as i64;
-
-                let mut output_path = String::with_capacity(output_dir.len() + 32);
-                output_path.push_str(output_dir.as_str());
-                output_path.push_str("/post_");
-                output_path.push_str(index_str.as_str());
-                output_path.push_str(".html");
-
-                render_inputs.push((index, output_path, html));
+                checksum += (source_body.len() + ssg_html_render_overhead_len(index)) as i64;
+                source_bodies.push(source_body.clone());
             }
 
-            if render_inputs.is_empty() {
+            if source_bodies.is_empty() {
                 let mut result = DictMap::default();
                 result.insert("checksum".into(), Value::Int(0));
                 result.insert("files".into(), Value::Int(0));
                 return Some(resolved_promise(Ok(Value::Dict(Arc::new(result)))));
             }
 
-            let file_count = render_inputs.len();
+            let file_count = source_bodies.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
             let checksum_value = checksum;
+            let output_dir_for_tasks = Arc::new(output_dir);
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
             AsyncRuntime::spawn_task(async move {
-                let mut pending = render_inputs.into_iter();
+                let mut pending = source_bodies.into_iter().enumerate();
                 let mut in_flight = FuturesUnordered::new();
 
-                let make_write_future = |index: usize, path: String, html: String| async move {
-                    let write_result = tokio::fs::write(path.as_str(), html.as_str()).await;
-                    (index, path, write_result)
+                let make_write_future = |index: usize, source_body: Arc<String>| {
+                    let output_dir = output_dir_for_tasks.clone();
+                    let path = ssg_build_output_path(output_dir.as_ref().as_str(), index);
+
+                    async move {
+                        let html = ssg_build_html(index, source_body.as_ref().as_str());
+                        let write_result = tokio::fs::write(path.as_str(), html.as_str()).await;
+                        (index, path, write_result)
+                    }
                 };
 
                 for _ in 0..effective_batch_size {
                     match pending.next() {
-                        Some((index, path, html)) => {
-                            in_flight.push(make_write_future(index, path, html))
+                        Some((index, source_body)) => {
+                            in_flight.push(make_write_future(index, source_body))
                         }
                         None => break,
                     }
@@ -1007,8 +1027,8 @@ pub fn handle(
                         }
                     }
 
-                    if let Some((next_index, next_path, next_html)) = pending.next() {
-                        in_flight.push(make_write_future(next_index, next_path, next_html));
+                    if let Some((next_index, next_source_body)) = pending.next() {
+                        in_flight.push(make_write_future(next_index, next_source_body));
                     }
                 }
 
