@@ -476,6 +476,7 @@
   - **Cross-Language Async SSG Benchmark**: `ruff bench-ssg` runs a reproducible 10K-file async static-site workload with optional Python comparison (`--compare-python`) ✅
   - **Repeat-Run Median Reporting**: `ruff bench-ssg --runs <N>` reports median/mean/min/max/stddev for throughput and build-time metrics ✅
   - **Async Stage Bottleneck Profiling**: `ruff bench-ssg --profile-async` prints read vs render/write stage timings and bottleneck share ✅
+  - **Configurable Benchmark Artifact Root**: `ruff bench-ssg --tmp-dir <PATH>` routes benchmark temp artifacts to an explicit directory for CI/workspace control ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Mixed-Result Promise Overhead Optimization**: `parallel_map(...)` avoids synthetic promise wrapping for immediate mapper results and only awaits real async receivers ✅
@@ -535,6 +536,8 @@
     #   cargo run -- bench-ssg --runs 5 --compare-python
     # Include stage-level async bottleneck profiling output
     #   cargo run -- bench-ssg --compare-python --profile-async
+    # Override benchmark artifact root directory
+    #   cargo run -- bench-ssg --tmp-dir tmp/bench_runs
     
     # Async HTTP with timeout
     let response := await async_timeout(async_http_get(url), 5000)

@@ -75,6 +75,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Updated benchmark render/write stage to use the fused native helper instead of separate render + write orchestration.
     - Added comprehensive success/error contract coverage and dispatcher-level hardening tests.
 
+- **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
+    - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
+    - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
+    - Added unit coverage for tmp-dir override contract handling in SSG benchmark harness code.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).

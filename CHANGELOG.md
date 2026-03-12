@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `benchmarks/cross-language/bench_ssg.ruff` render/write stage to use the new helper and remove separate script-level render/write orchestration.
   - Added comprehensive success/error contract coverage for argument validation, output shape, and write-failure propagation, including dispatcher-level release-hardening checks.
 
+- **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
+  - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
+  - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
+  - Added benchmark harness validation coverage for tmp-dir override path handling, including non-UTF8 path rejection.
+
 ### Changed
 
 - **v0.11 Priority Clarification**:
