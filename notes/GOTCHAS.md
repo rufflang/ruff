@@ -461,6 +461,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-12_04-05_bench-ssg-command-failure-contracts.md)
 
+### `ssg_render_and_write_pages(...)` throughput changes must preserve benchmark equivalence contracts
+- **Problem:** Render/write pipeline optimizations can silently change benchmark validity if output HTML shape/length drifts from expected behavior.
+- **Rule:** Keep `ssg_render_and_write_pages(...)` checksum/file-count behavior contract-stable during throughput work.
+- **Why:** `bench-ssg` compares Ruff/Python output equivalence using checksum and file-count checks in the harness; drift here invalidates performance comparisons.
+- **Workflow:** 1) preserve output naming/content contract, 2) run `cargo test ssg_render_and_write_pages -- --nocapture`, 3) run `cargo test ssg -- --nocapture`.
+- **Implication:** Treat checksum/file-count equivalence as a release-gate contract, not a benchmark-only convenience.
+
+(Discovered during: 2026-03-12_05-20_ssg-render-write-pipeline-optimization.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
