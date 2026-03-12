@@ -75,6 +75,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Updated benchmark render/write stage to use the fused native helper instead of separate render + write orchestration.
     - Added comprehensive success/error contract coverage and dispatcher-level hardening tests.
 
+- **SSG Throughput Follow-Through: Render/Write Pipeline Optimization (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` to eliminate serial pre-render buffering and render HTML inside bounded async write workers.
+    - Preserved benchmark checksum/file-count equivalence contracts while reducing render/write orchestration overhead.
+    - Added comprehensive regression coverage for checksum integrity and empty-input summary behavior.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
