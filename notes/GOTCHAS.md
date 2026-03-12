@@ -470,6 +470,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-12_05-20_ssg-render-write-pipeline-optimization.md)
 
+### `bench-ssg` stage metric keys are a compatibility contract across helper refactors
+- **Problem:** Refactoring timed-path orchestration (for example, into `ssg_read_render_and_write_pages(...)`) can silently break stage-profile parsing if emitted metric keys drift.
+- **Rule:** Preserve externally consumed benchmark keys (`RUFF_SSG_READ_MS`, `RUFF_SSG_RENDER_WRITE_MS`) even when internal helper summary fields or execution layout change.
+- **Why:** Harness parsers and comparative reporting rely on stable key names/semantics; key drift causes false missing-metric failures and invalid trend comparisons.
+- **Workflow:** 1) keep helper summary→benchmark key mapping explicit, 2) run `cargo test ssg -- --nocapture`, 3) verify required-metric harness tests still pass.
+- **Implication:** Treat benchmark metric key stability as part of public benchmark contract, not an internal implementation detail.
+
+(Discovered during: 2026-03-12_10-43_ssg-read-render-write-fusion-follow-through.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
