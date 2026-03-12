@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
   - Added benchmark harness validation coverage for tmp-dir override path handling, including non-UTF8 path rejection.
 
+- **SSG Benchmark Command-Level Failure Contracts (v0.11.0 P0)**:
+  - Added preflight script-path checks in benchmark harness execution so missing Ruff/Python benchmark scripts fail deterministically before subprocess execution.
+  - Added command-level harness contract tests for required-metric parsing failures (missing `*_FILES_PER_SEC` outputs).
+  - Added command-level harness contract tests for Ruff/Python checksum mismatch rejection.
+
 ### Changed
 
 - **v0.11 Priority Clarification**:

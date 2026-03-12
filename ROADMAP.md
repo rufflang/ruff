@@ -80,6 +80,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
     - Added unit coverage for tmp-dir override contract handling in SSG benchmark harness code.
 
+- **Benchmark Stability: Command-Level Failure Validation (✅ Complete, March 2026)**
+    - Added deterministic preflight missing-script checks in SSG benchmark harness execution path.
+    - Added command-level benchmark harness tests for missing required metric outputs.
+    - Added command-level benchmark harness tests for Ruff/Python checksum mismatch rejection.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).

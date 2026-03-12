@@ -477,6 +477,7 @@
   - **Repeat-Run Median Reporting**: `ruff bench-ssg --runs <N>` reports median/mean/min/max/stddev for throughput and build-time metrics ✅
   - **Async Stage Bottleneck Profiling**: `ruff bench-ssg --profile-async` prints read vs render/write stage timings and bottleneck share ✅
   - **Configurable Benchmark Artifact Root**: `ruff bench-ssg --tmp-dir <PATH>` routes benchmark temp artifacts to an explicit directory for CI/workspace control ✅
+  - **Command-Level Benchmark Validation**: `bench-ssg` now fails fast for missing benchmark scripts and includes harness-level failure contracts for missing required metrics/checksum mismatch ✅
   - **Pool Sizing Controls**: `set_task_pool_size(size)`, `get_task_pool_size()` ✅
   - **Large-Array Promise Aggregation**: optimized `promise_all` / `await_all` to avoid per-promise await-task spawning overhead ✅
   - **Mixed-Result Promise Overhead Optimization**: `parallel_map(...)` avoids synthetic promise wrapping for immediate mapper results and only awaits real async receivers ✅
