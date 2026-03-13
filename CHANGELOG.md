@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `benchmarks/cross-language/bench_ssg.ruff` to use the fused helper in the timed path and consume stage metrics (`read_ms`, `render_write_ms`) from the helper summary.
   - Added comprehensive contract coverage for success, checksum/file-count equivalence, argument validation, and read/write failure propagation, including dispatcher-level release-hardening checks.
 
+- **SSG Async Read-to-Write Streaming Pipeline Optimization (v0.11.0 P0)**:
+  - Optimized `ssg_read_render_and_write_pages(...)` to stream completed reads directly into bounded render/write workers instead of buffering all source bodies before write scheduling.
+  - Preserved benchmark output compatibility (`RUFF_SSG_READ_MS`, `RUFF_SSG_RENDER_WRITE_MS`) and checksum/file-count equivalence contracts.
+  - Added expanded regression coverage for empty-input summaries and single-worker (`concurrency_limit=1`) output contract preservation.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.

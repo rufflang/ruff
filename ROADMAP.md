@@ -85,6 +85,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Updated the timed `bench-ssg` Ruff path to call the fused helper and consume stage timings (`read_ms`, `render_write_ms`) from the native summary.
     - Added comprehensive success/error contract coverage, including checksum/file-count equivalence and read/write failure propagation.
 
+- **SSG Throughput Follow-Through: Read-to-Write Streaming Pipeline (✅ Complete, March 2026)**
+    - Optimized `ssg_read_render_and_write_pages(...)` to stream completed async reads directly into bounded render/write workers.
+    - Removed full read-stage source-body buffering in the fused helper path while preserving checksum/file-count equivalence contracts.
+    - Added regression coverage for empty-input summary contracts and single-worker output-contract preservation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -105,7 +110,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-     - Continue reducing render/write overhead in `bench-ssg` execution path.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after read-to-write streaming fusion.
      - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
 
 2. **Benchmark Stability & Measurement Quality**
