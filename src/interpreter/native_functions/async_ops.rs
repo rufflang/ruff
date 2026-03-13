@@ -2691,6 +2691,82 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_read_render_and_write_pages_empty_input_returns_zero_summary() {
+        let output_dir = unique_temp_dir("ruff_ssg_read_render_empty_output");
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![Value::Array(Arc::new(vec![])), string_value(&output_dir)];
+
+        let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Dict(dict) => {
+                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 0));
+                assert!(matches!(dict.get("checksum"), Some(Value::Int(checksum)) if *checksum == 0));
+                assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms == 0.0));
+                assert!(matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms == 0.0));
+            }
+            _ => panic!("Expected Dict result"),
+        }
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_read_render_and_write_pages_single_worker_preserves_output_contracts() {
+        let input_dir = unique_temp_dir("ruff_ssg_read_render_single_worker_input");
+        let output_dir = unique_temp_dir("ruff_ssg_read_render_single_worker_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_a = format!("{}/post_0.md", input_dir);
+        let source_b = format!("{}/post_1.md", input_dir);
+        let source_c = format!("{}/post_2.md", input_dir);
+        fs::write(&source_a, "# One").unwrap();
+        fs::write(&source_b, "# Two\n\nBody").unwrap();
+        fs::write(&source_c, "# Three\n\nBody\n\nTail").unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value(&source_a),
+                string_value(&source_b),
+                string_value(&source_c),
+            ])),
+            string_value(&output_dir),
+            Value::Int(1),
+        ];
+
+        let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 3));
+                assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", output_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", output_dir)).unwrap();
+        let html_c = fs::read_to_string(format!("{}/post_2.html", output_dir)).unwrap();
+        let expected_checksum = (html_a.len() + html_b.len() + html_c.len()) as i64;
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
     fn test_ssg_read_render_and_write_pages_validates_argument_contracts() {
         let mut interp = Interpreter::new();
 
