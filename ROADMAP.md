@@ -90,6 +90,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Removed full read-stage source-body buffering in the fused helper path while preserving checksum/file-count equivalence contracts.
     - Added regression coverage for empty-input summary contracts and single-worker output-contract preservation.
 
+- **SSG Throughput Follow-Through: Fused Write-Backpressure Hardening (✅ Complete, March 2026)**
+    - Hardened `ssg_read_render_and_write_pages(...)` to enforce bounded write in-flight concurrency with explicit pending-write backpressure during streaming read/render/write execution.
+    - Preserved stage-metric contracts (`read_ms`, `render_write_ms`) and checksum/file-count equivalence while removing unbounded write-task growth risk under read-heavy batches.
+    - Added high-volume regression coverage for large-batch single-worker and low-concurrency output-contract preservation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
