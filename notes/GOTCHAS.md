@@ -479,6 +479,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-12_10-43_ssg-read-render-write-fusion-follow-through.md)
 
+### Fused read→write streaming helpers must be implemented as two-lane state machines
+- **Problem:** Interleaving read and write futures in a fused helper can hang or mis-report stage timings when one lane drains first.
+- **Rule:** In `ssg_read_render_and_write_pages(...)`, loop until both lanes drain (`remaining_reads > 0 || !write_in_flight.is_empty()`) and guard `tokio::select!` branches by lane availability.
+- **Why:** Read completion and write completion progress independently; unguarded or single-lane assumptions can deadlock, starve writes, or skew `read_ms` / `render_write_ms` timing semantics.
+- **Workflow:** 1) schedule bounded reads first, 2) push writes on successful reads, 3) finalize `read_ms` exactly when reads are exhausted, 4) continue draining writes to completion.
+- **Implication:** Treat fused helper control flow as a concurrency state machine and lock behavior with both multi-worker and `concurrency_limit=1` contract tests.
+
+(Discovered during: 2026-03-13_16-37_ssg-read-write-streaming-follow-through.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
