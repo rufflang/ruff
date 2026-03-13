@@ -8,6 +8,7 @@ use crate::vm::VM;
 use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -1132,6 +1133,7 @@ pub fn handle(
                 let mut pending_reads = source_paths.into_iter().enumerate();
                 let mut read_in_flight = FuturesUnordered::new();
                 let mut write_in_flight = FuturesUnordered::new();
+                let mut pending_writes: VecDeque<(usize, String)> = VecDeque::new();
                 let mut remaining_reads = file_count;
                 let mut checksum: i64 = 0;
                 let mut read_stage_ms: f64 = 0.0;
@@ -1161,7 +1163,7 @@ pub fn handle(
                     }
                 }
 
-                while remaining_reads > 0 || !write_in_flight.is_empty() {
+                while remaining_reads > 0 || !pending_writes.is_empty() || !write_in_flight.is_empty() {
                     tokio::select! {
                         Some((index, path, read_result)) = read_in_flight.next(), if remaining_reads > 0 => {
                             remaining_reads -= 1;
@@ -1171,7 +1173,7 @@ pub fn handle(
                                     if render_write_stage_start.is_none() {
                                         render_write_stage_start = Some(Instant::now());
                                     }
-                                    write_in_flight.push(make_write_future(index, content));
+                                    pending_writes.push_back((index, content));
                                 }
                                 Err(e) => {
                                     let _ = tx.send(Err(format!(
@@ -1189,6 +1191,15 @@ pub fn handle(
                             if 0 == remaining_reads {
                                 read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
                             }
+
+                            while write_in_flight.len() < effective_batch_size {
+                                match pending_writes.pop_front() {
+                                    Some((write_index, write_source_body)) => {
+                                        write_in_flight.push(make_write_future(write_index, write_source_body));
+                                    }
+                                    None => break,
+                                }
+                            }
                         }
                         Some((index, path, html_len, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
                             match write_result {
@@ -1201,6 +1212,15 @@ pub fn handle(
                                         path, index, e
                                     )));
                                     return Value::Null;
+                                }
+                            }
+
+                            while write_in_flight.len() < effective_batch_size {
+                                match pending_writes.pop_front() {
+                                    Some((write_index, write_source_body)) => {
+                                        write_in_flight.push(make_write_future(write_index, write_source_body));
+                                    }
+                                    None => break,
                                 }
                             }
                         }
