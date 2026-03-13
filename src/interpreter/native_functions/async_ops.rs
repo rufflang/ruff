@@ -1129,62 +1129,18 @@ pub fn handle(
 
             AsyncRuntime::spawn_task(async move {
                 let read_stage_start = Instant::now();
-
-                let mut read_results = vec![None; file_count];
                 let mut pending_reads = source_paths.into_iter().enumerate();
                 let mut read_in_flight = FuturesUnordered::new();
+                let mut write_in_flight = FuturesUnordered::new();
+                let mut remaining_reads = file_count;
+                let mut checksum: i64 = 0;
+                let mut read_stage_ms: f64 = 0.0;
+                let mut render_write_stage_start: Option<Instant> = None;
 
                 let make_read_future = |index: usize, path: String| async move {
                     let read_result = tokio::fs::read_to_string(path.as_str()).await;
                     (index, path, read_result)
                 };
-
-                for _ in 0..effective_batch_size {
-                    match pending_reads.next() {
-                        Some((index, path)) => read_in_flight.push(make_read_future(index, path)),
-                        None => break,
-                    }
-                }
-
-                while let Some((index, path, read_result)) = read_in_flight.next().await {
-                    match read_result {
-                        Ok(content) => {
-                            read_results[index] = Some(content);
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Err(format!(
-                                "Failed to read file '{}' (index {}): {}",
-                                path, index, e
-                            )));
-                            return Value::Null;
-                        }
-                    }
-
-                    if let Some((next_index, next_path)) = pending_reads.next() {
-                        read_in_flight.push(make_read_future(next_index, next_path));
-                    }
-                }
-
-                let read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
-
-                let mut source_bodies = Vec::with_capacity(file_count);
-                for (index, maybe_body) in read_results.into_iter().enumerate() {
-                    match maybe_body {
-                        Some(body) => source_bodies.push(body),
-                        None => {
-                            let _ = tx.send(Err(format!(
-                                "Missing source content after read stage at index {}",
-                                index
-                            )));
-                            return Value::Null;
-                        }
-                    }
-                }
-
-                let render_write_stage_start = Instant::now();
-
-                let mut pending_writes = source_bodies.into_iter().enumerate();
-                let mut write_in_flight = FuturesUnordered::new();
 
                 let make_write_future = |index: usize, source_body: String| {
                     let output_dir = output_dir_for_tasks.clone();
@@ -1199,37 +1155,62 @@ pub fn handle(
                 };
 
                 for _ in 0..effective_batch_size {
-                    match pending_writes.next() {
-                        Some((index, source_body)) => {
-                            write_in_flight.push(make_write_future(index, source_body))
-                        }
+                    match pending_reads.next() {
+                        Some((index, path)) => read_in_flight.push(make_read_future(index, path)),
                         None => break,
                     }
                 }
 
-                let mut checksum: i64 = 0;
-                while let Some((index, path, html_len, write_result)) = write_in_flight.next().await
-                {
-                    match write_result {
-                        Ok(_) => {
-                            checksum += html_len as i64;
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Err(format!(
-                                "Failed to write file '{}' (index {}): {}",
-                                path, index, e
-                            )));
-                            return Value::Null;
-                        }
-                    }
+                while remaining_reads > 0 || !write_in_flight.is_empty() {
+                    tokio::select! {
+                        Some((index, path, read_result)) = read_in_flight.next(), if remaining_reads > 0 => {
+                            remaining_reads -= 1;
 
-                    if let Some((next_index, next_source_body)) = pending_writes.next() {
-                        write_in_flight.push(make_write_future(next_index, next_source_body));
+                            match read_result {
+                                Ok(content) => {
+                                    if render_write_stage_start.is_none() {
+                                        render_write_stage_start = Some(Instant::now());
+                                    }
+                                    write_in_flight.push(make_write_future(index, content));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Err(format!(
+                                        "Failed to read file '{}' (index {}): {}",
+                                        path, index, e
+                                    )));
+                                    return Value::Null;
+                                }
+                            }
+
+                            if let Some((next_index, next_path)) = pending_reads.next() {
+                                read_in_flight.push(make_read_future(next_index, next_path));
+                            }
+
+                            if 0 == remaining_reads {
+                                read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
+                            }
+                        }
+                        Some((index, path, html_len, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
+                            match write_result {
+                                Ok(_) => {
+                                    checksum += html_len as i64;
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Err(format!(
+                                        "Failed to write file '{}' (index {}): {}",
+                                        path, index, e
+                                    )));
+                                    return Value::Null;
+                                }
+                            }
+                        }
                     }
                 }
 
-                let render_write_stage_ms =
-                    render_write_stage_start.elapsed().as_secs_f64() * 1000.0;
+                let render_write_stage_ms = match render_write_stage_start {
+                    Some(start) => start.elapsed().as_secs_f64() * 1000.0,
+                    None => 0.0,
+                };
 
                 let mut result = DictMap::default();
                 result.insert("checksum".into(), Value::Int(checksum));
