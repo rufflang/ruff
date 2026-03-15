@@ -37,6 +37,13 @@ fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<
     paths
 }
 
+fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
+    let bounded_file_count = file_count.max(1);
+    let bounded_concurrency = concurrency_limit.max(1);
+    let expanded_window = bounded_concurrency.saturating_mul(2);
+    expanded_window.min(bounded_file_count)
+}
+
 fn ssg_build_html(index: usize, source_body: &str) -> String {
     let index_str = index.to_string();
     let mut html = String::with_capacity(source_body.len() + 64);
@@ -1135,6 +1142,7 @@ pub fn handle(
 
             let file_count = source_paths.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
+            let read_ahead_limit = ssg_read_ahead_limit(effective_batch_size, file_count);
             let output_paths_for_tasks =
                 Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
 
@@ -1168,7 +1176,7 @@ pub fn handle(
                     }
                 };
 
-                for _ in 0..effective_batch_size {
+                for _ in 0..read_ahead_limit {
                     match pending_reads.next() {
                         Some((index, path)) => read_in_flight.push(make_read_future(index, path)),
                         None => break,
@@ -1204,8 +1212,13 @@ pub fn handle(
                                 }
                             }
 
-                            if let Some((next_index, next_path)) = pending_reads.next() {
-                                read_in_flight.push(make_read_future(next_index, next_path));
+                            while read_in_flight.len() < read_ahead_limit {
+                                match pending_reads.next() {
+                                    Some((next_index, next_path)) => {
+                                        read_in_flight.push(make_read_future(next_index, next_path));
+                                    }
+                                    None => break,
+                                }
                             }
 
                             if 0 == remaining_reads {
@@ -2544,6 +2557,26 @@ mod tests {
 
         let empty_paths = ssg_build_output_paths_for_batch("tmp/output", 0);
         assert!(empty_paths.is_empty());
+    }
+
+    #[test]
+    fn test_ssg_read_ahead_limit_expands_up_to_double_concurrency() {
+        assert_eq!(ssg_read_ahead_limit(1, 100), 2);
+        assert_eq!(ssg_read_ahead_limit(2, 100), 4);
+        assert_eq!(ssg_read_ahead_limit(8, 100), 16);
+    }
+
+    #[test]
+    fn test_ssg_read_ahead_limit_is_capped_by_file_count() {
+        assert_eq!(ssg_read_ahead_limit(4, 1), 1);
+        assert_eq!(ssg_read_ahead_limit(4, 3), 3);
+        assert_eq!(ssg_read_ahead_limit(4, 8), 8);
+    }
+
+    #[test]
+    fn test_ssg_read_ahead_limit_handles_zero_inputs_defensively() {
+        assert_eq!(ssg_read_ahead_limit(0, 0), 1);
+        assert_eq!(ssg_read_ahead_limit(0, 5), 2);
     }
 
     #[test]
