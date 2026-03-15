@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+pub const SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT: f64 = 5.0;
+
 #[derive(Debug, Clone)]
 pub struct SsgRunStatistics {
     pub runs: usize,
@@ -47,6 +49,23 @@ impl SsgRunStatistics {
         let stddev = variance.sqrt();
 
         Some(SsgRunStatistics { runs, mean, median, min, max, stddev })
+    }
+
+    pub fn coefficient_of_variation_percent(&self) -> Option<f64> {
+        let mean_abs = self.mean.abs();
+        if mean_abs <= f64::EPSILON {
+            return None;
+        }
+
+        Some((self.stddev / mean_abs) * 100.0)
+    }
+
+    pub fn is_high_variability(&self, threshold_percent: f64) -> bool {
+        if self.runs < 3 {
+            return false;
+        }
+
+        self.coefficient_of_variation_percent().is_some_and(|cv| cv >= threshold_percent.max(0.0))
     }
 }
 
@@ -276,6 +295,75 @@ pub fn aggregate_ssg_results(
         python_stage_profile,
         ruff_vs_python_speedup,
     })
+}
+
+fn collect_variability_warning(
+    warnings: &mut Vec<String>,
+    label: &str,
+    stats: &SsgRunStatistics,
+    threshold_percent: f64,
+) {
+    if stats.is_high_variability(threshold_percent) {
+        if let Some(cv) = stats.coefficient_of_variation_percent() {
+            warnings.push(format!(
+                "{} variability is high (CV {:.2}% >= {:.2}%; median {:.3}, mean {:.3}, stddev {:.3}, runs {})",
+                label,
+                cv,
+                threshold_percent,
+                stats.median,
+                stats.mean,
+                stats.stddev,
+                stats.runs
+            ));
+        }
+    }
+}
+
+pub fn collect_ssg_variability_warnings(summary: &SsgBenchmarkAggregateResult) -> Vec<String> {
+    let threshold = SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT;
+    let mut warnings = Vec::new();
+
+    collect_variability_warning(
+        &mut warnings,
+        "Ruff build time",
+        &summary.ruff_build_ms,
+        threshold,
+    );
+    collect_variability_warning(
+        &mut warnings,
+        "Ruff throughput",
+        &summary.ruff_files_per_sec,
+        threshold,
+    );
+
+    if let Some(profile) = summary.ruff_stage_profile.as_ref() {
+        collect_variability_warning(&mut warnings, "Ruff read stage", &profile.read_ms, threshold);
+        collect_variability_warning(
+            &mut warnings,
+            "Ruff render/write stage",
+            &profile.render_write_ms,
+            threshold,
+        );
+    }
+
+    if let Some(python_build_ms) = summary.python_build_ms.as_ref() {
+        collect_variability_warning(&mut warnings, "Python build time", python_build_ms, threshold);
+    }
+
+    if let Some(python_files_per_sec) = summary.python_files_per_sec.as_ref() {
+        collect_variability_warning(
+            &mut warnings,
+            "Python throughput",
+            python_files_per_sec,
+            threshold,
+        );
+    }
+
+    if let Some(speedup) = summary.ruff_vs_python_speedup.as_ref() {
+        collect_variability_warning(&mut warnings, "Ruff vs Python speedup", speedup, threshold);
+    }
+
+    warnings
 }
 
 fn parse_metric_value(output: &str, metric_key: &str) -> Result<f64, String> {
@@ -533,34 +621,20 @@ pub fn run_ssg_benchmark_series(
     }
 
     for warmup_index in 0..warmup_runs {
-        if let Err(err) = run_ssg_benchmark(
-            ruff_binary,
-            ruff_script,
-            python_binary,
-            python_script,
-            tmp_dir,
-        ) {
+        if let Err(err) =
+            run_ssg_benchmark(ruff_binary, ruff_script, python_binary, python_script, tmp_dir)
+        {
             return Err(format!("Warmup run {}/{} failed: {}", warmup_index + 1, warmup_runs, err));
         }
     }
 
     let mut measured_results = Vec::with_capacity(measured_runs);
     for run_index in 0..measured_runs {
-        let result = run_ssg_benchmark(
-            ruff_binary,
-            ruff_script,
-            python_binary,
-            python_script,
-            tmp_dir,
-        )
-        .map_err(|err| {
-            format!(
-                "Measured run {}/{} failed: {}",
-                run_index + 1,
-                measured_runs,
-                err
-            )
-        })?;
+        let result =
+            run_ssg_benchmark(ruff_binary, ruff_script, python_binary, python_script, tmp_dir)
+                .map_err(|err| {
+                    format!("Measured run {}/{} failed: {}", run_index + 1, measured_runs, err)
+                })?;
         measured_results.push(result);
     }
 
@@ -831,6 +905,111 @@ mod tests {
     }
 
     #[test]
+    fn test_run_statistics_coefficient_of_variation_percent() {
+        let stats = SsgRunStatistics::from_samples(&[100.0, 110.0, 90.0]).unwrap();
+        let cv = stats.coefficient_of_variation_percent().unwrap();
+        assert!((cv - 8.1649).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_run_statistics_coefficient_of_variation_zero_mean_returns_none() {
+        let stats = SsgRunStatistics::from_samples(&[0.0, 0.0, 0.0]).unwrap();
+        assert!(stats.coefficient_of_variation_percent().is_none());
+    }
+
+    #[test]
+    fn test_run_statistics_high_variability_requires_three_runs() {
+        let stats = SsgRunStatistics {
+            runs: 2,
+            mean: 10.0,
+            median: 10.0,
+            min: 5.0,
+            max: 15.0,
+            stddev: 5.0,
+        };
+
+        assert!(!stats.is_high_variability(SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT));
+    }
+
+    #[test]
+    fn test_collect_ssg_variability_warnings_flags_high_variability_metrics() {
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: SsgRunStatistics {
+                runs: 3,
+                mean: 100.0,
+                median: 100.0,
+                min: 50.0,
+                max: 150.0,
+                stddev: 30.0,
+            },
+            ruff_files_per_sec: SsgRunStatistics {
+                runs: 3,
+                mean: 1000.0,
+                median: 1000.0,
+                min: 998.0,
+                max: 1002.0,
+                stddev: 1.0,
+            },
+            ruff_stage_profile: Some(SsgStageProfileStatistics {
+                read_ms: SsgRunStatistics {
+                    runs: 3,
+                    mean: 25.0,
+                    median: 25.0,
+                    min: 10.0,
+                    max: 40.0,
+                    stddev: 9.0,
+                },
+                render_write_ms: SsgRunStatistics {
+                    runs: 3,
+                    mean: 75.0,
+                    median: 75.0,
+                    min: 74.0,
+                    max: 76.0,
+                    stddev: 0.5,
+                },
+            }),
+            python_build_ms: None,
+            python_files_per_sec: None,
+            python_stage_profile: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let warnings = collect_ssg_variability_warnings(&summary);
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings.iter().any(|warning| warning.contains("Ruff build time")));
+        assert!(warnings.iter().any(|warning| warning.contains("Ruff read stage")));
+    }
+
+    #[test]
+    fn test_collect_ssg_variability_warnings_skips_low_variability_metrics() {
+        let stable_stats = SsgRunStatistics {
+            runs: 4,
+            mean: 120.0,
+            median: 120.0,
+            min: 118.0,
+            max: 122.0,
+            stddev: 1.0,
+        };
+
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: stable_stats.clone(),
+            ruff_files_per_sec: stable_stats.clone(),
+            ruff_stage_profile: None,
+            python_build_ms: Some(stable_stats.clone()),
+            python_files_per_sec: Some(stable_stats.clone()),
+            python_stage_profile: None,
+            ruff_vs_python_speedup: Some(stable_stats),
+        };
+
+        let warnings = collect_ssg_variability_warnings(&summary);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
     fn test_aggregate_ssg_results_without_python() {
         let runs = vec![
             SsgBenchmarkResult {
@@ -998,9 +1177,7 @@ mod tests {
             .expect("ruff script fixture should be written");
 
         let counter_path = test_dir.join("run_counter.txt");
-        let counter_path_str = counter_path
-            .to_str()
-            .expect("counter path should be valid utf-8");
+        let counter_path_str = counter_path.to_str().expect("counter path should be valid utf-8");
 
         let ruff_binary_path = test_dir.join("ruff_counter_stub.sh");
         let ruff_stub_body = format!(
@@ -1070,9 +1247,7 @@ mod tests {
             .expect("ruff script fixture should be written");
 
         let counter_path = test_dir.join("run_counter.txt");
-        let counter_path_str = counter_path
-            .to_str()
-            .expect("counter path should be valid utf-8");
+        let counter_path_str = counter_path.to_str().expect("counter path should be valid utf-8");
         let ruff_binary_path = test_dir.join("ruff_counter_fail_stub.sh");
         let ruff_stub_body = format!(
             "#!/bin/sh\nif [ \"$1\" != \"run\" ]; then\n  echo \"unexpected args: $@\" >&2\n  exit 9\nfi\ncount=0\nif [ -f \"{counter}\" ]; then\n  count=$(cat \"{counter}\")\nfi\ncount=$((count + 1))\nprintf \"%s\" \"$count\" > \"{counter}\"\nprintf \"\\n\"\nif [ \"$count\" -eq 2 ]; then\n  echo \"RUFF_SSG_FILES=10000\"\n  echo \"RUFF_SSG_BUILD_MS=100.0\"\n  echo \"RUFF_SSG_CHECKSUM=777\"\n  exit 0\nfi\necho \"RUFF_SSG_FILES=10000\"\necho \"RUFF_SSG_BUILD_MS=100.0\"\necho \"RUFF_SSG_FILES_PER_SEC=1000.0\"\necho \"RUFF_SSG_CHECKSUM=777\"\n",

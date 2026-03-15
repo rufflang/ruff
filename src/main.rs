@@ -466,7 +466,7 @@ async fn main() {
             python,
             tmp_dir,
         } => {
-            use benchmarks::ssg::SsgStageProfile;
+            use benchmarks::ssg::{collect_ssg_variability_warnings, SsgStageProfile};
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
             let ruff_binary = match std::env::current_exe() {
@@ -506,22 +506,21 @@ async fn main() {
                 println!("Running SSG benchmark measured runs ({})...", runs);
             }
 
-            let run_results =
-                match run_ssg_benchmark_series(
-                    ruff_binary.as_path(),
-                    ruff_script.as_path(),
-                    python_binary,
-                    python_script_path,
-                    tmp_dir.as_deref(),
-                    warmup_runs,
-                    runs,
-                ) {
-                    Ok(results) => results,
-                    Err(e) => {
-                        eprintln!("SSG benchmark failed: {}", e);
-                        std::process::exit(1);
-                    }
-                };
+            let run_results = match run_ssg_benchmark_series(
+                ruff_binary.as_path(),
+                ruff_script.as_path(),
+                python_binary,
+                python_script_path,
+                tmp_dir.as_deref(),
+                warmup_runs,
+                runs,
+            ) {
+                Ok(results) => results,
+                Err(e) => {
+                    eprintln!("SSG benchmark failed: {}", e);
+                    std::process::exit(1);
+                }
+            };
 
             let summary = match aggregate_ssg_results(&run_results) {
                 Ok(summary) => summary,
@@ -631,6 +630,14 @@ async fn main() {
                             "Python stage breakdown: unavailable (metrics not emitted by script)"
                         );
                     }
+                }
+            }
+
+            let variability_warnings = collect_ssg_variability_warnings(&summary);
+            if !variability_warnings.is_empty() {
+                println!("Measurement quality warnings:");
+                for warning in variability_warnings {
+                    println!("  - {}", warning);
                 }
             }
         }
