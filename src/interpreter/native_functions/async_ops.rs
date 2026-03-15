@@ -13,6 +13,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
 
+const SSG_HTML_PREFIX_START: &str = "<html><body><h1>Post ";
+const SSG_HTML_PREFIX_END: &str = "</h1><article>";
+const SSG_HTML_SUFFIX: &str = "</article></body></html>";
+
 #[derive(Clone)]
 enum RayonMapInput {
     Str(String),
@@ -38,6 +42,21 @@ fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<
     paths
 }
 
+fn ssg_build_render_prefixes_for_batch(file_count: usize) -> Vec<String> {
+    let mut prefixes = Vec::with_capacity(file_count);
+    for index in 0..file_count {
+        let index_text = index.to_string();
+        let mut prefix = String::with_capacity(
+            SSG_HTML_PREFIX_START.len() + index_text.len() + SSG_HTML_PREFIX_END.len(),
+        );
+        prefix.push_str(SSG_HTML_PREFIX_START);
+        prefix.push_str(index_text.as_str());
+        prefix.push_str(SSG_HTML_PREFIX_END);
+        prefixes.push(prefix);
+    }
+    prefixes
+}
+
 fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
     let bounded_file_count = file_count.max(1);
     let bounded_concurrency = concurrency_limit.max(1);
@@ -47,26 +66,22 @@ fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
 
 async fn ssg_write_rendered_html_page(
     output_path: &str,
-    index: usize,
+    html_prefix: &str,
     source_body: &str,
 ) -> std::io::Result<usize> {
     let mut output_file = tokio::fs::File::create(output_path).await?;
-    let index_text = index.to_string();
-
-    output_file.write_all(b"<html><body><h1>Post ").await?;
-    output_file.write_all(index_text.as_bytes()).await?;
-    output_file.write_all(b"</h1><article>").await?;
+    output_file.write_all(html_prefix.as_bytes()).await?;
     output_file.write_all(source_body.as_bytes()).await?;
-    output_file.write_all(b"</article></body></html>").await?;
+    output_file.write_all(SSG_HTML_SUFFIX.as_bytes()).await?;
 
-    Ok(ssg_html_render_overhead_len(index) + source_body.len())
+    Ok(html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len())
 }
 
 fn ssg_html_render_overhead_len(index: usize) -> usize {
-    "<html><body><h1>Post ".len()
+    SSG_HTML_PREFIX_START.len()
         + index.to_string().len()
-        + "</h1><article>".len()
-        + "</article></body></html>".len()
+        + SSG_HTML_PREFIX_END.len()
+        + SSG_HTML_SUFFIX.len()
 }
 
 fn resolved_promise(result: Result<Value, String>) -> Value {
@@ -1012,6 +1027,8 @@ pub fn handle(
             let checksum_value = checksum;
             let output_paths_for_tasks =
                 Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
+            let render_prefixes_for_tasks =
+                Arc::new(ssg_build_render_prefixes_for_batch(file_count));
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -1021,11 +1038,12 @@ pub fn handle(
 
                 let make_write_future = |index: usize, source_body: Arc<String>| {
                     let output_paths = output_paths_for_tasks.clone();
+                    let render_prefixes = render_prefixes_for_tasks.clone();
 
                     async move {
                         let write_result = ssg_write_rendered_html_page(
                             output_paths[index].as_str(),
-                            index,
+                            render_prefixes[index].as_str(),
                             source_body.as_ref().as_str(),
                         )
                         .await;
@@ -1155,6 +1173,8 @@ pub fn handle(
             let read_ahead_limit = ssg_read_ahead_limit(effective_batch_size, file_count);
             let output_paths_for_tasks =
                 Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
+            let render_prefixes_for_tasks =
+                Arc::new(ssg_build_render_prefixes_for_batch(file_count));
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -1176,15 +1196,18 @@ pub fn handle(
 
                 let make_write_future = |index: usize, source_body: String| {
                     let output_paths = output_paths_for_tasks.clone();
+                    let render_prefixes = render_prefixes_for_tasks.clone();
 
                     async move {
                         let write_result = ssg_write_rendered_html_page(
                             output_paths[index].as_str(),
-                            index,
+                            render_prefixes[index].as_str(),
                             source_body.as_str(),
                         )
                         .await;
-                        let html_len = ssg_html_render_overhead_len(index) + source_body.len();
+                        let html_len = render_prefixes[index].len()
+                            + source_body.len()
+                            + SSG_HTML_SUFFIX.len();
                         (index, html_len, write_result)
                     }
                 };
@@ -2573,14 +2596,27 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_build_render_prefixes_for_batch_generates_stable_prefixes() {
+        let prefixes = ssg_build_render_prefixes_for_batch(3);
+        assert_eq!(prefixes.len(), 3);
+        assert_eq!(prefixes[0], "<html><body><h1>Post 0</h1><article>");
+        assert_eq!(prefixes[1], "<html><body><h1>Post 1</h1><article>");
+        assert_eq!(prefixes[2], "<html><body><h1>Post 2</h1><article>");
+
+        let empty_prefixes = ssg_build_render_prefixes_for_batch(0);
+        assert!(empty_prefixes.is_empty());
+    }
+
+    #[test]
     fn test_ssg_write_rendered_html_page_streams_exact_content_and_length() {
         let output_dir = unique_temp_dir("ruff_ssg_streamed_html_output");
         fs::create_dir_all(&output_dir).unwrap();
         let output_path = format!("{}/post_42.html", output_dir);
         let source_body = "# Post 42\n\nLarge body section";
+        let html_prefix = "<html><body><h1>Post 42</h1><article>";
 
         let html_len = AsyncRuntime::block_on(async {
-            ssg_write_rendered_html_page(output_path.as_str(), 42, source_body)
+            ssg_write_rendered_html_page(output_path.as_str(), html_prefix, source_body)
                 .await
                 .unwrap()
         });
@@ -2601,7 +2637,12 @@ mod tests {
         let output_path = format!("{}/post_0.html", missing_dir);
 
         let result = AsyncRuntime::block_on(async {
-            ssg_write_rendered_html_page(output_path.as_str(), 0, "# Missing").await
+            ssg_write_rendered_html_page(
+                output_path.as_str(),
+                "<html><body><h1>Post 0</h1><article>",
+                "# Missing",
+            )
+            .await
         });
 
         assert!(result.is_err());
