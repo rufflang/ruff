@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-15_17-53_bench-ssg-warmup-series-contracts.md** — ✅ COMPLETED: Added `bench-ssg --warmup-runs` support via shared warmup+measured series orchestration, added comprehensive warmup/measured failure-surfacing contracts, and synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-15_16-38_ssg-precomputed-prefix-and-test-stability.md** — ✅ COMPLETED: Precomputed per-index HTML prefixes for fused streamed SSG write workers, added large-index heading regression coverage, and stabilized a full-suite-only direct writer contract test timing edge.
 
 - **2026-03-15_15-41_bench-ssg-local-resource-contention-interpretation.md** — ✅ COMPLETED: Re-ran SSG comparison with stable reduced-script runs, captured before/after medians, and documented local resource contention as a benchmark-interpretation caveat.

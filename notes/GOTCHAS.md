@@ -455,6 +455,14 @@ If you are new to the project, read this first.
 (Discovered during: 2026-02-15_08-36_native-ssg-render-builtin-optimization.md)
 (Updated during: 2026-03-15_15-41_bench-ssg-local-resource-contention-interpretation.md)
 
+### `bench-ssg` warmup runs are pre-measurement only and must not enter summary statistics
+- **Problem:** Treating warmup runs as measured samples skews medians/means and can hide real trend changes.
+- **Rule:** `bench-ssg --warmup-runs <N>` runs first and is excluded from aggregate summaries; measured run count must remain `>= 1`.
+- **Why:** Warmup exists to stabilize initial cache/runtime effects, not to represent steady-state timing samples.
+- **Implication:** Keep warmup/measured sequencing in benchmark harness orchestration (`run_ssg_benchmark_series(...)`) with phase-specific failure messages (`Warmup run ... failed`, `Measured run ... failed`).
+
+(Discovered during: 2026-03-15_17-53_bench-ssg-warmup-series-contracts.md)
+
 ### `bench-ssg --tmp-dir` override crosses a path→environment boundary
 - **Problem:** Non-UTF8 tmp-dir paths fail to propagate to benchmark subprocesses.
 - **Rule:** Validate tmp-dir path conversion before setting `RUFF_BENCH_SSG_TMP_DIR` and return a deterministic error for invalid UTF-8 paths.
