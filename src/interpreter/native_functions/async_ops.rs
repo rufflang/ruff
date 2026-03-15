@@ -29,6 +29,14 @@ fn ssg_build_output_path(output_dir: &str, index: usize) -> String {
     output_path
 }
 
+fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<String> {
+    let mut paths = Vec::with_capacity(file_count);
+    for index in 0..file_count {
+        paths.push(ssg_build_output_path(output_dir, index));
+    }
+    paths
+}
+
 fn ssg_build_html(index: usize, source_body: &str) -> String {
     let index_str = index.to_string();
     let mut html = String::with_capacity(source_body.len() + 64);
@@ -988,7 +996,8 @@ pub fn handle(
             let file_count = source_bodies.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
             let checksum_value = checksum;
-            let output_dir_for_tasks = Arc::new(output_dir);
+            let output_paths_for_tasks =
+                Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -997,8 +1006,8 @@ pub fn handle(
                 let mut in_flight = FuturesUnordered::new();
 
                 let make_write_future = |index: usize, source_body: Arc<String>| {
-                    let output_dir = output_dir_for_tasks.clone();
-                    let path = ssg_build_output_path(output_dir.as_ref().as_str(), index);
+                    let output_paths = output_paths_for_tasks.clone();
+                    let path = output_paths[index].clone();
 
                     async move {
                         let html = ssg_build_html(index, source_body.as_ref().as_str());
@@ -1124,7 +1133,8 @@ pub fn handle(
 
             let file_count = source_paths.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
-            let output_dir_for_tasks = Arc::new(output_dir);
+            let output_paths_for_tasks =
+                Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -1145,8 +1155,8 @@ pub fn handle(
                 };
 
                 let make_write_future = |index: usize, source_body: String| {
-                    let output_dir = output_dir_for_tasks.clone();
-                    let path = ssg_build_output_path(output_dir.as_ref().as_str(), index);
+                    let output_paths = output_paths_for_tasks.clone();
+                    let path = output_paths[index].clone();
 
                     async move {
                         let html = ssg_build_html(index, source_body.as_str());
@@ -1163,7 +1173,10 @@ pub fn handle(
                     }
                 }
 
-                while remaining_reads > 0 || !pending_writes.is_empty() || !write_in_flight.is_empty() {
+                while remaining_reads > 0
+                    || !pending_writes.is_empty()
+                    || !write_in_flight.is_empty()
+                {
                     tokio::select! {
                         Some((index, path, read_result)) = read_in_flight.next(), if remaining_reads > 0 => {
                             remaining_reads -= 1;
@@ -2512,6 +2525,63 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_build_output_paths_for_batch_generates_stable_indexed_paths() {
+        let paths = ssg_build_output_paths_for_batch("tmp/output", 4);
+        assert_eq!(paths.len(), 4);
+        assert_eq!(paths[0], "tmp/output/post_0.html");
+        assert_eq!(paths[1], "tmp/output/post_1.html");
+        assert_eq!(paths[2], "tmp/output/post_2.html");
+        assert_eq!(paths[3], "tmp/output/post_3.html");
+
+        let empty_paths = ssg_build_output_paths_for_batch("tmp/output", 0);
+        assert!(empty_paths.is_empty());
+    }
+
+    #[test]
+    fn test_ssg_render_and_write_pages_large_batch_low_concurrency_preserves_outputs() {
+        let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_large_low_concurrency");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_count = 96usize;
+        let mut source_pages = Vec::with_capacity(file_count);
+        for index in 0..file_count {
+            source_pages.push(string_value(
+                format!("# Entry {}\n\n{}", index, "body ".repeat((index % 5) + 1)).as_str(),
+            ));
+        }
+
+        let mut interp = Interpreter::new();
+        let args =
+            vec![Value::Array(Arc::new(source_pages)), string_value(&temp_dir), Value::Int(2)];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let mut expected_checksum = 0i64;
+        for index in 0..file_count {
+            let html = fs::read_to_string(format!("{}/post_{}.html", temp_dir, index)).unwrap();
+            expected_checksum += html.len() as i64;
+        }
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
     fn test_ssg_render_and_write_pages_empty_input_returns_zero_summary() {
         let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_empty");
         fs::create_dir_all(&temp_dir).unwrap();
@@ -2724,9 +2794,13 @@ mod tests {
         match resolved {
             Value::Dict(dict) => {
                 assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 0));
-                assert!(matches!(dict.get("checksum"), Some(Value::Int(checksum)) if *checksum == 0));
+                assert!(
+                    matches!(dict.get("checksum"), Some(Value::Int(checksum)) if *checksum == 0)
+                );
                 assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms == 0.0));
-                assert!(matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms == 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms == 0.0)
+                );
             }
             _ => panic!("Expected Dict result"),
         }
@@ -2766,7 +2840,9 @@ mod tests {
             Value::Dict(dict) => {
                 assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 3));
                 assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
-                assert!(matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
                 match dict.get("checksum") {
                     Some(Value::Int(value)) => *value,
                     _ => panic!("Expected checksum int"),
@@ -2803,20 +2879,21 @@ mod tests {
         }
 
         let mut interp = Interpreter::new();
-        let args = vec![
-            Value::Array(Arc::new(source_paths)),
-            string_value(&output_dir),
-            Value::Int(1),
-        ];
+        let args =
+            vec![Value::Array(Arc::new(source_paths)), string_value(&output_dir), Value::Int(1)];
 
         let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
         let resolved = await_promise(result).unwrap();
 
         let checksum = match resolved {
             Value::Dict(dict) => {
-                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64));
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
                 assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
-                assert!(matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
                 match dict.get("checksum") {
                     Some(Value::Int(value)) => *value,
                     _ => panic!("Expected checksum int"),
@@ -2827,8 +2904,7 @@ mod tests {
 
         let mut expected_checksum = 0i64;
         for index in 0..file_count {
-            let html =
-                fs::read_to_string(format!("{}/post_{}.html", output_dir, index)).unwrap();
+            let html = fs::read_to_string(format!("{}/post_{}.html", output_dir, index)).unwrap();
             expected_checksum += html.len() as i64;
         }
 
@@ -2855,20 +2931,21 @@ mod tests {
         }
 
         let mut interp = Interpreter::new();
-        let args = vec![
-            Value::Array(Arc::new(source_paths)),
-            string_value(&output_dir),
-            Value::Int(2),
-        ];
+        let args =
+            vec![Value::Array(Arc::new(source_paths)), string_value(&output_dir), Value::Int(2)];
 
         let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
         let resolved = await_promise(result).unwrap();
 
         let checksum = match resolved {
             Value::Dict(dict) => {
-                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64));
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
                 assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
-                assert!(matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
                 match dict.get("checksum") {
                     Some(Value::Int(value)) => *value,
                     _ => panic!("Expected checksum int"),
@@ -2879,8 +2956,7 @@ mod tests {
 
         let mut expected_checksum = 0i64;
         for index in 0..file_count {
-            let html =
-                fs::read_to_string(format!("{}/post_{}.html", output_dir, index)).unwrap();
+            let html = fs::read_to_string(format!("{}/post_{}.html", output_dir, index)).unwrap();
             expected_checksum += html.len() as i64;
         }
 
