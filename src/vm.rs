@@ -6978,11 +6978,13 @@ mod tests {
         }
 
         // Initial execution should suspend
-        let initial_result = vm.execute_until_suspend(chunk).expect("initial execution should work");
+        let initial_result =
+            vm.execute_until_suspend(chunk).expect("initial execution should work");
         match initial_result {
             VmExecutionResult::Suspended { .. } => {
                 // Suspended as expected - now use scheduler to complete it
-                let scheduler_result = vm.run_scheduler_until_complete(50).expect("scheduler should complete");
+                let scheduler_result =
+                    vm.run_scheduler_until_complete(50).expect("scheduler should complete");
                 assert_eq!(scheduler_result, ()); // No error means success
             }
             VmExecutionResult::Completed => {

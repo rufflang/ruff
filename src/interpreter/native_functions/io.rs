@@ -682,10 +682,7 @@ mod tests {
             ),
             (
                 "io_file_metadata",
-                vec![
-                    Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())),
-                    Value::Int(99),
-                ],
+                vec![Value::Str(Arc::new("/tmp/ruff_io.bin".to_string())), Value::Int(99)],
                 "io_file_metadata requires a string path argument",
             ),
             (
@@ -711,7 +708,8 @@ mod tests {
         ];
 
         for (name, args, expected_message) in strict_arity_cases {
-            let result = handle(&mut interpreter, name, &args).expect("io function should be handled");
+            let result =
+                handle(&mut interpreter, name, &args).expect("io function should be handled");
             assert!(
                 matches!(result, Value::Error(ref message) if message.contains(expected_message)),
                 "Expected strict-arity rejection for {} with message containing '{}', got {:?}",
