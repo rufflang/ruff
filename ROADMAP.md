@@ -100,6 +100,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Removed per-write output-path string construction overhead while preserving checksum/file-count and stage-metric contracts in the timed benchmark path.
     - Added regression coverage for batch output-path generation and high-volume low-concurrency render/write output-contract preservation.
 
+- **SSG Throughput Follow-Through: Direct Read-to-Write Dispatch + Path-Clone Elimination (✅ Complete, March 2026)**
+    - Optimized `ssg_read_render_and_write_pages(...)` to dispatch completed reads directly into available bounded write slots before queueing, reducing intermediate write-buffer churn under high-concurrency runs.
+    - Optimized fused and render/write-only write futures to reuse precomputed output paths without per-task path cloning while preserving checksum/file-count and stage-metric contracts.
+    - Added regression coverage for high-concurrency output/checksum contract preservation in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)`.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -120,7 +125,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after output-path precompute follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct read-to-write dispatch and path-clone elimination follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 

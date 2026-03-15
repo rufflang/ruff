@@ -55,6 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed per-write output-path string construction overhead in the timed SSG path while preserving checksum/file-count and stage-metric contracts.
   - Added comprehensive regression coverage for stable batch path generation and high-volume low-concurrency render/write output-contract preservation.
 
+- **SSG Async Fused Pipeline Direct Read-to-Write Dispatch Follow-Through (v0.11.0 P0)**:
+  - Optimized `ssg_read_render_and_write_pages(...)` to dispatch completed reads directly into available bounded write slots before queueing, reducing intermediate write-buffer churn.
+  - Optimized fused and render/write-only async write futures to reuse precomputed output paths without per-task path cloning while preserving checksum/file-count and stage-metric contracts.
+  - Added comprehensive high-concurrency regression coverage for `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` output/checksum contract preservation.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
