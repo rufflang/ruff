@@ -2042,8 +2042,9 @@ mod tests {
     use crate::interpreter::Interpreter;
     use std::collections::HashMap;
     use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     fn string_value(s: &str) -> Value {
         Value::Str(Arc::new(s.to_string()))
@@ -2069,9 +2070,12 @@ mod tests {
     }
 
     fn unique_temp_dir(prefix: &str) -> String {
+        static UNIQUE_COUNTER: AtomicU64 = AtomicU64::new(0);
         let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let counter = UNIQUE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let process_id = std::process::id();
         let mut path = std::env::temp_dir();
-        path.push(format!("{}_{}", prefix, nanos));
+        path.push(format!("{}_{}_{}_{}", prefix, process_id, nanos, counter));
         path.to_string_lossy().to_string()
     }
 
@@ -2621,7 +2625,15 @@ mod tests {
                 .unwrap()
         });
 
-        let html = fs::read_to_string(output_path.as_str()).unwrap();
+        let mut html = String::new();
+        for _attempt in 0..20 {
+            html = fs::read_to_string(output_path.as_str()).unwrap();
+            if html.len() == html_len {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+
         let expected_html =
             "<html><body><h1>Post 42</h1><article># Post 42\n\nLarge body section</article></body></html>";
 
