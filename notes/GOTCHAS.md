@@ -441,9 +441,11 @@ If you are new to the project, read this first.
 - **Problem:** Single-run `bench-ssg --compare-python` numbers can swing significantly between runs, obscuring whether a Ruff-side optimization helped.
 - **Rule:** For Ruff runtime optimization decisions, compare `ruff bench-ssg --profile-async` before/after in the same environment and use multiple runs when possible.
 - **Why:** Cross-language runs include additional contention/variability (filesystem cache state and two sequential workloads), while Ruff-only stage profiling isolates Ruff-side changes.
+- **Rule (local load caveat):** When the host machine is under active user load, treat benchmark deltas as directional only; reserve pass/fail or regression conclusions for idle-machine reruns.
 - **Implication:** Treat one-off compare-python numbers as trend indicators, not hard pass/fail gates for micro-optimizations.
 
 (Discovered during: 2026-02-15_08-36_native-ssg-render-builtin-optimization.md)
+(Updated during: 2026-03-15_15-41_bench-ssg-local-resource-contention-interpretation.md)
 
 ### `bench-ssg --tmp-dir` override crosses a path→environment boundary
 - **Problem:** Non-UTF8 tmp-dir paths fail to propagate to benchmark subprocesses.
