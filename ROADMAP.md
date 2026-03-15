@@ -155,6 +155,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added command-level benchmark harness tests for missing required metric outputs.
     - Added command-level benchmark harness tests for Ruff/Python checksum mismatch rejection.
 
+- **Benchmark Stability: Variability Warning Signals (✅ Complete, March 2026)**
+    - Added coefficient-of-variation (CV) analysis for measured-run aggregate statistics in SSG benchmark reporting.
+    - Added `bench-ssg` measurement-quality warning output when high-variance run distributions are detected (threshold: `5%`).
+    - Added comprehensive regression coverage for warning emission and suppression contracts across high/low-variance and low-run-count scenarios.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
