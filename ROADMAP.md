@@ -125,6 +125,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added write-completion-path read refill so fused scheduling can restore read overlap earlier as write backlog drains, reducing queued source-body churn while preserving bounded write concurrency.
     - Added focused policy regression coverage for backlog-driven read-target behavior while preserving checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`).
 
+- **SSG Throughput Follow-Through: Precomputed Rendered-Length Scheduling (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute rendered HTML lengths at scheduling time and reuse them during write completion accounting.
+    - Removed per-write rendered-length recomputation in async write futures while preserving checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`).
+    - Added focused rendered-length helper regression coverage to lock checksum accounting inputs for empty-body and representative prefix/body scenarios.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.

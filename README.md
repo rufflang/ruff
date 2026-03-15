@@ -26,6 +26,7 @@
 - **Latest throughput streamed-write step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now stream rendered HTML segments directly to async file writes rather than allocating full per-page HTML strings in write futures, reducing write-path allocation pressure while preserving checksum/file-count and stage-metric contracts.
 - **Latest throughput precomputed-prefix step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now precompute per-index HTML prefixes once per batch and reuse them across streamed write workers, removing per-write index-format overhead while preserving checksum/file-count and stage-metric contracts.
 - **Latest throughput adaptive-refill step**: `ssg_read_render_and_write_pages(...)` now adaptively targets read in-flight refill based on current write backlog budget and refills reads on write completion as backlog drains, reducing queued source-body churn while preserving checksum/file-count and stage-metric contracts.
+- **Latest throughput rendered-length step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now precompute rendered HTML lengths at scheduling time and reuse them during write completion accounting, removing per-write length recomputation while preserving checksum/file-count and stage-metric contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 

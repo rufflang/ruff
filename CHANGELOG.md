@@ -80,6 +80,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added write-completion-path read refill so fused scheduling can restore read overlap earlier as backlog drains, reducing queued source-body churn while preserving bounded write concurrency.
   - Preserved checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`) and added focused policy regression coverage for backlog-driven read-target behavior.
 
+- **SSG Throughput Follow-Through: Precomputed Rendered-Length Scheduling (v0.11.0 P0)**:
+  - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute rendered HTML lengths at scheduling time and reuse those values during write completion accounting.
+  - Removed per-write rendered-length recomputation in async write futures while preserving checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`).
+  - Added focused regression coverage for rendered-length helper contracts to lock empty-body and typical-prefix behavior.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
