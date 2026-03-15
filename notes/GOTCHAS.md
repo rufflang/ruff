@@ -419,6 +419,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_23-40_release-hardening-contract-slices-continuation.md)
 
+### Direct async file-writer tests may need bounded readiness polling under full-suite load
+- **Problem:** A direct writer test can intermittently read truncated content immediately after `await`ing the writer helper in full-suite runs, while isolated reruns pass.
+- **Rule:** For direct async file-writer contract tests, keep strict content assertions but gate them with short bounded polling for expected final length first.
+- **Why:** Full-suite load can expose timing-sensitive read-after-write visibility windows in tests, even when runtime behavior is correct.
+- **Implication:** Prefer resilient contract tests over one-shot immediate reads for low-level writer helpers; keep end-to-end SSG checksum/file-count tests as the primary behavior gate.
+
+(Discovered during: 2026-03-15_16-38_ssg-precomputed-prefix-and-test-stability.md)
+
 ### `bench-cross` defaults are CWD-relative
 - **Problem:** Running `cargo run --release -- bench-cross` from `benchmarks/cross-language` fails with script-not-found errors.
 - **Rule:** `bench-cross` default paths (`benchmarks/cross-language/bench_parallel_map.ruff`, `benchmarks/cross-language/bench_process_pool.py`) are resolved relative to the current working directory.

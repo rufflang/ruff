@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-15_16-38_ssg-precomputed-prefix-and-test-stability.md** — ✅ COMPLETED: Precomputed per-index HTML prefixes for fused streamed SSG write workers, added large-index heading regression coverage, and stabilized a full-suite-only direct writer contract test timing edge.
+
 - **2026-03-15_15-41_bench-ssg-local-resource-contention-interpretation.md** — ✅ COMPLETED: Re-ran SSG comparison with stable reduced-script runs, captured before/after medians, and documented local resource contention as a benchmark-interpretation caveat.
 
 - **2026-03-15_14-32_ssg-output-path-precompute-follow-through.md** — ✅ COMPLETED: Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute/reuse indexed output paths per batch, added output-path + high-volume low-concurrency regression contracts, and synchronized CHANGELOG/ROADMAP/README.
