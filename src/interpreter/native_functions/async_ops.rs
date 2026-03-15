@@ -2760,6 +2760,43 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_render_and_write_pages_preserves_large_index_heading_contract() {
+        let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_large_index_heading");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_count = 1005usize;
+        let mut source_pages = Vec::with_capacity(file_count);
+        for index in 0..file_count {
+            source_pages.push(string_value(format!("# Entry {}", index).as_str()));
+        }
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(source_pages)),
+            string_value(&temp_dir),
+            Value::Int(8),
+        ];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Dict(dict) => {
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
+                assert!(matches!(dict.get("checksum"), Some(Value::Int(sum)) if *sum > 0));
+            }
+            _ => panic!("Expected Dict result"),
+        }
+
+        let html = fs::read_to_string(format!("{}/post_1004.html", temp_dir)).unwrap();
+        assert!(html.contains("<h1>Post 1004</h1>"));
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
     fn test_ssg_render_and_write_pages_empty_input_returns_zero_summary() {
         let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_empty");
         fs::create_dir_all(&temp_dir).unwrap();
