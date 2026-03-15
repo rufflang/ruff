@@ -22,6 +22,7 @@
 - **Latest throughput backpressure step**: `ssg_read_render_and_write_pages(...)` now enforces bounded write in-flight concurrency with pending-write backpressure during fused streaming execution, preventing unbounded write-task growth while preserving checksum/file-count and stage-metric contracts.
 - **Latest throughput path-precompute step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now precompute indexed output paths once per batch and reuse them across async write workers, reducing per-write path construction overhead while preserving benchmark output contracts.
 - **Latest throughput direct-dispatch step**: `ssg_read_render_and_write_pages(...)` now dispatches completed reads directly into available bounded write slots before queueing, and both fused/render-write helpers now reuse precomputed output paths without per-task path cloning, reducing residual write-path overhead while preserving checksum/file-count and stage-metric contracts.
+- **Latest throughput read-ahead step**: `ssg_read_render_and_write_pages(...)` now uses a bounded read-ahead scheduling window (`2x` write concurrency, capped by file count) to improve read/write overlap while preserving checksum/file-count and stage-metric contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 
