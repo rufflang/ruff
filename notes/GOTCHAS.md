@@ -463,6 +463,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-15_17-53_bench-ssg-warmup-series-contracts.md)
 
+### `bench-ssg` trend reporting is series-only and requires all-or-none Python comparison data
+- **Problem:** Users can misread missing trend output as a bug or accidentally mix compare/non-compare runs in a measured series.
+- **Rule:** First→last trend reporting requires at least 2 measured runs; Python trend/speedup fields require Python metrics to be present in all runs or none.
+- **Why:** Directional drift is undefined for one-point samples, and mixed Python metric presence creates ambiguous trend semantics.
+- **Implication:** Use `--runs >= 2` for trend signals and keep `--compare-python` contract consistent across measured runs.
+
+(Discovered during: 2026-03-15_18-37_bench-ssg-measurement-quality-signals.md)
+
 ### `bench-ssg --tmp-dir` override crosses a path→environment boundary
 - **Problem:** Non-UTF8 tmp-dir paths fail to propagate to benchmark subprocesses.
 - **Rule:** Validate tmp-dir path conversion before setting `RUFF_BENCH_SSG_TMP_DIR` and return a deterministic error for invalid UTF-8 paths.
