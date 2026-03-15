@@ -160,6 +160,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added `bench-ssg` measurement-quality warning output when high-variance run distributions are detected (threshold: `5%`).
     - Added comprehensive regression coverage for warning emission and suppression contracts across high/low-variance and low-run-count scenarios.
 
+- **Benchmark Stability: Measured-Run Trend Tracking (✅ Complete, March 2026)**
+    - Added first-to-last measured-run trend analysis and reporting for Ruff build-time and throughput metrics in `bench-ssg` summaries.
+    - Added optional Python build-time/throughput and Ruff-vs-Python speedup trend reporting when cross-language comparison data is available.
+    - Added comprehensive regression coverage for trend contracts, including single-run suppression, Python-comparison consistency validation, and zero-baseline percent-delta handling.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).

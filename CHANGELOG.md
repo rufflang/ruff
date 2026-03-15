@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `bench-ssg` output warnings when variability crosses a high-variance threshold (`5%`) across measured runs (Ruff metrics, optional stage profiles, and optional Python/speedup metrics).
   - Added comprehensive benchmark-module regression coverage for CV calculation edge cases and warning emission/suppression contracts.
 
+- **SSG Benchmark Stability: Measured-Run Trend Tracking (v0.11.0 P0)**:
+  - Added first-to-last measured-run trend analysis for Ruff build-time and throughput metrics in `bench-ssg` summary output.
+  - Added optional cross-language trend reporting for Python build-time/throughput and Ruff-vs-Python speedup when `--compare-python` data is present.
+  - Added benchmark-module regression coverage for trend analysis contracts, including single-run suppression, Python-presence consistency validation, and zero-baseline percent-delta handling.
+
 - **SSG Native Output-Path Bulk Helper (v0.11.0 P0)**:
   - Added `ssg_build_output_paths(output_dir, file_count, extension?)` to generate indexed output path arrays natively.
   - Updated `benchmarks/cross-language/bench_ssg.ruff` to use native path generation in the render/write benchmark path instead of a script-level loop.

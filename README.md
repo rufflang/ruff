@@ -18,6 +18,7 @@
 - **Benchmark stability baseline**: `ruff bench-ssg --runs <N>` now reports median/mean/min/max/stddev to reduce one-off run noise.
 - **Benchmark warmup support**: `ruff bench-ssg --warmup-runs <N>` now performs pre-measurement warmup runs excluded from aggregate summary stats for cleaner measured-trend comparisons.
 - **Benchmark variability warnings**: `ruff bench-ssg` now emits measurement-quality warnings when measured-run variability is high (CV ≥ `5%`), helping identify unstable local benchmark conditions before interpreting medians.
+- **Benchmark trend tracking**: `ruff bench-ssg` now reports first-to-last measured-run trend deltas for Ruff build-time/throughput and, when enabled, Python build-time/throughput plus Ruff-vs-Python speedup for clearer directional run-series interpretation.
 - **Latest throughput follow-through**: `ssg_render_and_write_pages(...)` now renders inside bounded async write workers (no serial pre-render buffer) while preserving checksum/file-count contracts.
 - **Latest throughput fusion step**: `ssg_read_render_and_write_pages(...)` now fuses file reads with render/write in the timed SSG path while preserving checksum/file-count equivalence and stage-profile visibility.
 - **Latest throughput streaming step**: `ssg_read_render_and_write_pages(...)` now streams completed reads directly into bounded render/write workers (no full read-stage source-body buffer) while preserving checksum/file-count and stage-metric contracts.
