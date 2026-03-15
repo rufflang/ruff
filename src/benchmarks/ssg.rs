@@ -519,6 +519,54 @@ pub fn run_ssg_benchmark(
     Ok(result)
 }
 
+pub fn run_ssg_benchmark_series(
+    ruff_binary: &Path,
+    ruff_script: &Path,
+    python_binary: Option<&str>,
+    python_script: Option<&Path>,
+    tmp_dir: Option<&Path>,
+    warmup_runs: usize,
+    measured_runs: usize,
+) -> Result<Vec<SsgBenchmarkResult>, String> {
+    if measured_runs == 0 {
+        return Err("SSG benchmark runs must be >= 1".to_string());
+    }
+
+    for warmup_index in 0..warmup_runs {
+        if let Err(err) = run_ssg_benchmark(
+            ruff_binary,
+            ruff_script,
+            python_binary,
+            python_script,
+            tmp_dir,
+        ) {
+            return Err(format!("Warmup run {}/{} failed: {}", warmup_index + 1, warmup_runs, err));
+        }
+    }
+
+    let mut measured_results = Vec::with_capacity(measured_runs);
+    for run_index in 0..measured_runs {
+        let result = run_ssg_benchmark(
+            ruff_binary,
+            ruff_script,
+            python_binary,
+            python_script,
+            tmp_dir,
+        )
+        .map_err(|err| {
+            format!(
+                "Measured run {}/{} failed: {}",
+                run_index + 1,
+                measured_runs,
+                err
+            )
+        })?;
+        measured_results.push(result);
+    }
+
+    Ok(measured_results)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -923,6 +971,127 @@ mod tests {
 
         let err = aggregate_ssg_results(&runs).unwrap_err();
         assert!(err.contains("inconsistent Python comparison presence"));
+    }
+
+    #[test]
+    fn test_run_ssg_benchmark_series_rejects_zero_measured_runs() {
+        let err = run_ssg_benchmark_series(
+            Path::new("/bin/echo"),
+            Path::new("benchmarks/cross-language/bench_ssg.ruff"),
+            None,
+            None,
+            None,
+            0,
+            0,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("SSG benchmark runs must be >= 1"));
+    }
+
+    #[cfg(unix)]
+    fn create_counting_harness_fixture(prefix: &str) -> (PathBuf, PathBuf, PathBuf) {
+        let test_dir = unique_test_dir(prefix);
+
+        let ruff_script_path = test_dir.join("stub_bench_ssg.ruff");
+        fs::write(&ruff_script_path, "# stub ruff benchmark script\n")
+            .expect("ruff script fixture should be written");
+
+        let counter_path = test_dir.join("run_counter.txt");
+        let counter_path_str = counter_path
+            .to_str()
+            .expect("counter path should be valid utf-8");
+
+        let ruff_binary_path = test_dir.join("ruff_counter_stub.sh");
+        let ruff_stub_body = format!(
+            "#!/bin/sh\nif [ \"$1\" != \"run\" ]; then\n  echo \"unexpected args: $@\" >&2\n  exit 9\nfi\ncount=0\nif [ -f \"{counter}\" ]; then\n  count=$(cat \"{counter}\")\nfi\ncount=$((count + 1))\nprintf \"%s\" \"$count\" > \"{counter}\"\nprintf \"\\n\"\necho \"RUFF_SSG_FILES=1\"\necho \"RUFF_SSG_BUILD_MS=$count\"\necho \"RUFF_SSG_FILES_PER_SEC=1000.0\"\necho \"RUFF_SSG_CHECKSUM=777\"\n",
+            counter = counter_path_str
+        );
+        write_stub_executable(&ruff_binary_path, &ruff_stub_body);
+
+        (ruff_binary_path, ruff_script_path, counter_path)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_series_warmups_are_excluded_from_measured_results() {
+        let (ruff_binary, ruff_script, counter_path) =
+            create_counting_harness_fixture("series_warmup_exclusion");
+
+        let results = run_ssg_benchmark_series(
+            ruff_binary.as_path(),
+            ruff_script.as_path(),
+            None,
+            None,
+            None,
+            2,
+            3,
+        )
+        .unwrap();
+
+        assert_eq!(results.len(), 3);
+        assert!((results[0].ruff_build_ms - 3.0).abs() < 0.0001);
+        assert!((results[1].ruff_build_ms - 4.0).abs() < 0.0001);
+        assert!((results[2].ruff_build_ms - 5.0).abs() < 0.0001);
+
+        let counter_contents =
+            fs::read_to_string(counter_path.as_path()).expect("counter file should be readable");
+        assert_eq!(counter_contents.trim(), "5");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_series_reports_warmup_failures() {
+        let ruff_lines =
+            ["RUFF_SSG_FILES=10000", "RUFF_SSG_BUILD_MS=100.0", "RUFF_SSG_CHECKSUM=777"];
+        let (ruff_binary, ruff_script, _, _) =
+            create_basic_harness_fixture("series_warmup_failure", &ruff_lines, None);
+
+        let err = run_ssg_benchmark_series(
+            ruff_binary.as_path(),
+            ruff_script.as_path(),
+            None,
+            None,
+            None,
+            1,
+            2,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Warmup run 1/1 failed"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_series_reports_measured_failures() {
+        let test_dir = unique_test_dir("series_measured_failure");
+        let ruff_script_path = test_dir.join("stub_bench_ssg.ruff");
+        fs::write(&ruff_script_path, "# stub ruff benchmark script\n")
+            .expect("ruff script fixture should be written");
+
+        let counter_path = test_dir.join("run_counter.txt");
+        let counter_path_str = counter_path
+            .to_str()
+            .expect("counter path should be valid utf-8");
+        let ruff_binary_path = test_dir.join("ruff_counter_fail_stub.sh");
+        let ruff_stub_body = format!(
+            "#!/bin/sh\nif [ \"$1\" != \"run\" ]; then\n  echo \"unexpected args: $@\" >&2\n  exit 9\nfi\ncount=0\nif [ -f \"{counter}\" ]; then\n  count=$(cat \"{counter}\")\nfi\ncount=$((count + 1))\nprintf \"%s\" \"$count\" > \"{counter}\"\nprintf \"\\n\"\nif [ \"$count\" -eq 2 ]; then\n  echo \"RUFF_SSG_FILES=10000\"\n  echo \"RUFF_SSG_BUILD_MS=100.0\"\n  echo \"RUFF_SSG_CHECKSUM=777\"\n  exit 0\nfi\necho \"RUFF_SSG_FILES=10000\"\necho \"RUFF_SSG_BUILD_MS=100.0\"\necho \"RUFF_SSG_FILES_PER_SEC=1000.0\"\necho \"RUFF_SSG_CHECKSUM=777\"\n",
+            counter = counter_path_str
+        );
+        write_stub_executable(&ruff_binary_path, &ruff_stub_body);
+
+        let err = run_ssg_benchmark_series(
+            ruff_binary_path.as_path(),
+            ruff_script_path.as_path(),
+            None,
+            None,
+            None,
+            1,
+            2,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("Measured run 1/2 failed"));
     }
 
     #[cfg(unix)]

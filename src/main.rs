@@ -108,6 +108,10 @@ enum Commands {
         #[arg(long, default_value = "benchmarks/cross-language/bench_ssg.ruff")]
         ruff_script: PathBuf,
 
+        /// Number of warmup runs excluded from measured summary
+        #[arg(long, default_value_t = 0)]
+        warmup_runs: usize,
+
         /// Number of repeated benchmark runs for noise reduction (median reporting)
         #[arg(long, default_value_t = 1)]
         runs: usize,
@@ -454,6 +458,7 @@ async fn main() {
 
         Commands::BenchSsg {
             ruff_script,
+            warmup_runs,
             runs,
             profile_async,
             compare_python,
@@ -462,7 +467,7 @@ async fn main() {
             tmp_dir,
         } => {
             use benchmarks::ssg::SsgStageProfile;
-            use benchmarks::{aggregate_ssg_results, run_ssg_benchmark};
+            use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
             let ruff_binary = match std::env::current_exe() {
                 Ok(path) => path,
@@ -494,26 +499,29 @@ async fn main() {
                 std::process::exit(1);
             }
 
-            let mut run_results = Vec::with_capacity(runs);
-            for run_index in 0..runs {
-                if runs > 1 {
-                    println!("Running SSG benchmark ({}/{})...", run_index + 1, runs);
-                }
+            if warmup_runs > 0 {
+                println!("Running SSG benchmark warmups ({})...", warmup_runs);
+            }
+            if runs > 1 {
+                println!("Running SSG benchmark measured runs ({})...", runs);
+            }
 
-                match run_ssg_benchmark(
+            let run_results =
+                match run_ssg_benchmark_series(
                     ruff_binary.as_path(),
                     ruff_script.as_path(),
                     python_binary,
                     python_script_path,
                     tmp_dir.as_deref(),
+                    warmup_runs,
+                    runs,
                 ) {
-                    Ok(result) => run_results.push(result),
+                    Ok(results) => results,
                     Err(e) => {
                         eprintln!("SSG benchmark failed: {}", e);
                         std::process::exit(1);
                     }
-                }
-            }
+                };
 
             let summary = match aggregate_ssg_results(&run_results) {
                 Ok(summary) => summary,
@@ -525,6 +533,7 @@ async fn main() {
 
             println!("Ruff async SSG benchmark");
             println!("------------------------");
+            println!("Warmup runs: {}", warmup_runs);
             println!("Runs: {}", summary.ruff_build_ms.runs);
             println!("Files rendered: {}", summary.files);
             println!("Ruff checksum: {}", summary.ruff_checksum);
