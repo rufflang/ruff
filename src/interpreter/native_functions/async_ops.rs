@@ -11,6 +11,7 @@ use rayon::ThreadPoolBuilder;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Clone)]
 enum RayonMapInput {
@@ -44,15 +45,21 @@ fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
     expanded_window.min(bounded_file_count)
 }
 
-fn ssg_build_html(index: usize, source_body: &str) -> String {
-    let index_str = index.to_string();
-    let mut html = String::with_capacity(source_body.len() + 64);
-    html.push_str("<html><body><h1>Post ");
-    html.push_str(index_str.as_str());
-    html.push_str("</h1><article>");
-    html.push_str(source_body);
-    html.push_str("</article></body></html>");
-    html
+async fn ssg_write_rendered_html_page(
+    output_path: &str,
+    index: usize,
+    source_body: &str,
+) -> std::io::Result<usize> {
+    let mut output_file = tokio::fs::File::create(output_path).await?;
+    let index_text = index.to_string();
+
+    output_file.write_all(b"<html><body><h1>Post ").await?;
+    output_file.write_all(index_text.as_bytes()).await?;
+    output_file.write_all(b"</h1><article>").await?;
+    output_file.write_all(source_body.as_bytes()).await?;
+    output_file.write_all(b"</article></body></html>").await?;
+
+    Ok(ssg_html_render_overhead_len(index) + source_body.len())
 }
 
 fn ssg_html_render_overhead_len(index: usize) -> usize {
@@ -1016,9 +1023,12 @@ pub fn handle(
                     let output_paths = output_paths_for_tasks.clone();
 
                     async move {
-                        let html = ssg_build_html(index, source_body.as_ref().as_str());
-                        let write_result =
-                            tokio::fs::write(output_paths[index].as_str(), html.as_str()).await;
+                        let write_result = ssg_write_rendered_html_page(
+                            output_paths[index].as_str(),
+                            index,
+                            source_body.as_ref().as_str(),
+                        )
+                        .await;
                         (index, write_result)
                     }
                 };
@@ -1168,10 +1178,13 @@ pub fn handle(
                     let output_paths = output_paths_for_tasks.clone();
 
                     async move {
-                        let html = ssg_build_html(index, source_body.as_str());
-                        let html_len = html.len();
-                        let write_result =
-                            tokio::fs::write(output_paths[index].as_str(), html.as_str()).await;
+                        let write_result = ssg_write_rendered_html_page(
+                            output_paths[index].as_str(),
+                            index,
+                            source_body.as_str(),
+                        )
+                        .await;
+                        let html_len = ssg_html_render_overhead_len(index) + source_body.len();
                         (index, html_len, write_result)
                     }
                 };
