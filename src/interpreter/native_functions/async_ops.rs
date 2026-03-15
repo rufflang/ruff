@@ -1007,12 +1007,12 @@ pub fn handle(
 
                 let make_write_future = |index: usize, source_body: Arc<String>| {
                     let output_paths = output_paths_for_tasks.clone();
-                    let path = output_paths[index].clone();
 
                     async move {
                         let html = ssg_build_html(index, source_body.as_ref().as_str());
-                        let write_result = tokio::fs::write(path.as_str(), html.as_str()).await;
-                        (index, path, write_result)
+                        let write_result =
+                            tokio::fs::write(output_paths[index].as_str(), html.as_str()).await;
+                        (index, write_result)
                     }
                 };
 
@@ -1025,13 +1025,15 @@ pub fn handle(
                     }
                 }
 
-                while let Some((index, path, write_result)) = in_flight.next().await {
+                while let Some((index, write_result)) = in_flight.next().await {
                     match write_result {
                         Ok(_) => {}
                         Err(e) => {
                             let _ = tx.send(Err(format!(
                                 "Failed to write file '{}' (index {}): {}",
-                                path, index, e
+                                output_paths_for_tasks[index].as_str(),
+                                index,
+                                e
                             )));
                             return Value::Null;
                         }
@@ -1156,13 +1158,13 @@ pub fn handle(
 
                 let make_write_future = |index: usize, source_body: String| {
                     let output_paths = output_paths_for_tasks.clone();
-                    let path = output_paths[index].clone();
 
                     async move {
                         let html = ssg_build_html(index, source_body.as_str());
                         let html_len = html.len();
-                        let write_result = tokio::fs::write(path.as_str(), html.as_str()).await;
-                        (index, path, html_len, write_result)
+                        let write_result =
+                            tokio::fs::write(output_paths[index].as_str(), html.as_str()).await;
+                        (index, html_len, write_result)
                     }
                 };
 
@@ -1186,7 +1188,12 @@ pub fn handle(
                                     if render_write_stage_start.is_none() {
                                         render_write_stage_start = Some(Instant::now());
                                     }
-                                    pending_writes.push_back((index, content));
+
+                                    if write_in_flight.len() < effective_batch_size {
+                                        write_in_flight.push(make_write_future(index, content));
+                                    } else {
+                                        pending_writes.push_back((index, content));
+                                    }
                                 }
                                 Err(e) => {
                                     let _ = tx.send(Err(format!(
@@ -1214,7 +1221,7 @@ pub fn handle(
                                 }
                             }
                         }
-                        Some((index, path, html_len, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
+                        Some((index, html_len, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
                             match write_result {
                                 Ok(_) => {
                                     checksum += html_len as i64;
@@ -1222,7 +1229,9 @@ pub fn handle(
                                 Err(e) => {
                                     let _ = tx.send(Err(format!(
                                         "Failed to write file '{}' (index {}): {}",
-                                        path, index, e
+                                        output_paths_for_tasks[index].as_str(),
+                                        index,
+                                        e
                                     )));
                                     return Value::Null;
                                 }
@@ -2582,6 +2591,53 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_render_and_write_pages_high_concurrency_preserves_outputs() {
+        let temp_dir =
+            unique_temp_dir("ruff_ssg_render_and_write_pages_high_concurrency_preserves_outputs");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_count = 48usize;
+        let mut source_pages = Vec::with_capacity(file_count);
+        for index in 0..file_count {
+            let body = format!("# High {}\n\n{}", index, "payload ".repeat((index % 5) + 1));
+            source_pages.push(string_value(body.as_str()));
+        }
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(source_pages)),
+            string_value(&temp_dir),
+            Value::Int((file_count + 10) as i64),
+        ];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let mut expected_checksum = 0i64;
+        for index in 0..file_count {
+            let html = fs::read_to_string(format!("{}/post_{}.html", temp_dir, index)).unwrap();
+            expected_checksum += html.len() as i64;
+        }
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
     fn test_ssg_render_and_write_pages_empty_input_returns_zero_summary() {
         let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_empty");
         fs::create_dir_all(&temp_dir).unwrap();
@@ -2933,6 +2989,61 @@ mod tests {
         let mut interp = Interpreter::new();
         let args =
             vec![Value::Array(Arc::new(source_paths)), string_value(&output_dir), Value::Int(2)];
+
+        let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
+                assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let mut expected_checksum = 0i64;
+        for index in 0..file_count {
+            let html = fs::read_to_string(format!("{}/post_{}.html", output_dir, index)).unwrap();
+            expected_checksum += html.len() as i64;
+        }
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_read_render_and_write_pages_high_concurrency_preserves_outputs() {
+        let input_dir = unique_temp_dir("ruff_ssg_read_render_high_concurrency_input");
+        let output_dir = unique_temp_dir("ruff_ssg_read_render_high_concurrency_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let file_count = 72usize;
+        let mut source_paths = Vec::with_capacity(file_count);
+        for index in 0..file_count {
+            let source_path = format!("{}/post_{}.md", input_dir, index);
+            let body = format!("# Post {}\n\n{}", index, "content ".repeat((index % 6) + 1));
+            fs::write(&source_path, body).unwrap();
+            source_paths.push(string_value(source_path.as_str()));
+        }
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(source_paths)),
+            string_value(&output_dir),
+            Value::Int((file_count + 12) as i64),
+        ];
 
         let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
         let resolved = await_promise(result).unwrap();
