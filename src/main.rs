@@ -466,7 +466,10 @@ async fn main() {
             python,
             tmp_dir,
         } => {
-            use benchmarks::ssg::{collect_ssg_variability_warnings, SsgStageProfile};
+            use benchmarks::ssg::{
+                analyze_ssg_benchmark_trends, collect_ssg_variability_warnings, SsgStageProfile,
+                SsgTrendMetric,
+            };
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
             let ruff_binary = match std::env::current_exe() {
@@ -630,6 +633,73 @@ async fn main() {
                             "Python stage breakdown: unavailable (metrics not emitted by script)"
                         );
                     }
+                }
+            }
+
+            let trend_report = match analyze_ssg_benchmark_trends(&run_results) {
+                Ok(value) => value,
+                Err(e) => {
+                    eprintln!("SSG benchmark trend analysis failed: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if let Some(trends) = trend_report {
+                let format_delta = |metric: &SsgTrendMetric, unit_suffix: &str| {
+                    let absolute = if metric.absolute_delta >= 0.0 {
+                        format!("+{:.3}{}", metric.absolute_delta, unit_suffix)
+                    } else {
+                        format!("{:.3}{}", metric.absolute_delta, unit_suffix)
+                    };
+
+                    match metric.percent_delta {
+                        Some(percent) if percent >= 0.0 => {
+                            format!("{} (+{:.2}%)", absolute, percent)
+                        }
+                        Some(percent) => format!("{} ({:.2}%)", absolute, percent),
+                        None => format!("{} (n/a %)", absolute),
+                    }
+                };
+
+                println!("Measured trend (first→last across {} runs):", trends.measured_runs);
+                println!(
+                    "  Ruff build time: {:.3} ms → {:.3} ms [{}]",
+                    trends.ruff_build_ms.first,
+                    trends.ruff_build_ms.last,
+                    format_delta(&trends.ruff_build_ms, " ms")
+                );
+                println!(
+                    "  Ruff throughput: {:.2} files/sec → {:.2} files/sec [{}]",
+                    trends.ruff_files_per_sec.first,
+                    trends.ruff_files_per_sec.last,
+                    format_delta(&trends.ruff_files_per_sec, " files/sec")
+                );
+
+                if let Some(metric) = trends.python_build_ms.as_ref() {
+                    println!(
+                        "  Python build time: {:.3} ms → {:.3} ms [{}]",
+                        metric.first,
+                        metric.last,
+                        format_delta(metric, " ms")
+                    );
+                }
+
+                if let Some(metric) = trends.python_files_per_sec.as_ref() {
+                    println!(
+                        "  Python throughput: {:.2} files/sec → {:.2} files/sec [{}]",
+                        metric.first,
+                        metric.last,
+                        format_delta(metric, " files/sec")
+                    );
+                }
+
+                if let Some(metric) = trends.ruff_vs_python_speedup.as_ref() {
+                    println!(
+                        "  Ruff/Python speedup: {:.2}x → {:.2}x [{}]",
+                        metric.first,
+                        metric.last,
+                        format_delta(metric, "x")
+                    );
                 }
             }
 

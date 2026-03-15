@@ -125,6 +125,37 @@ pub struct SsgBenchmarkResult {
     pub python_stage_profile: Option<SsgStageProfile>,
 }
 
+#[derive(Debug, Clone)]
+pub struct SsgTrendMetric {
+    pub first: f64,
+    pub last: f64,
+    pub absolute_delta: f64,
+    pub percent_delta: Option<f64>,
+}
+
+impl SsgTrendMetric {
+    fn from_first_last(first: f64, last: f64) -> Self {
+        let absolute_delta = last - first;
+        let percent_delta = if first.abs() <= f64::EPSILON {
+            None
+        } else {
+            Some((absolute_delta / first.abs()) * 100.0)
+        };
+
+        SsgTrendMetric { first, last, absolute_delta, percent_delta }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SsgBenchmarkTrendReport {
+    pub measured_runs: usize,
+    pub ruff_build_ms: SsgTrendMetric,
+    pub ruff_files_per_sec: SsgTrendMetric,
+    pub python_build_ms: Option<SsgTrendMetric>,
+    pub python_files_per_sec: Option<SsgTrendMetric>,
+    pub ruff_vs_python_speedup: Option<SsgTrendMetric>,
+}
+
 impl SsgBenchmarkResult {
     pub fn ruff_vs_python_speedup(&self) -> Option<f64> {
         self.python_build_ms.map(|python_ms| {
@@ -135,6 +166,86 @@ impl SsgBenchmarkResult {
             }
         })
     }
+}
+
+pub fn analyze_ssg_benchmark_trends(
+    run_results: &[SsgBenchmarkResult],
+) -> Result<Option<SsgBenchmarkTrendReport>, String> {
+    if run_results.len() < 2 {
+        return Ok(None);
+    }
+
+    let first = run_results
+        .first()
+        .ok_or_else(|| "Cannot analyze trends: no benchmark runs provided".to_string())?;
+    let last = run_results
+        .last()
+        .ok_or_else(|| "Cannot analyze trends: no benchmark runs provided".to_string())?;
+
+    let all_have_python = run_results
+        .iter()
+        .all(|result| result.python_build_ms.is_some() && result.python_files_per_sec.is_some());
+    let none_have_python = run_results
+        .iter()
+        .all(|result| result.python_build_ms.is_none() && result.python_files_per_sec.is_none());
+
+    if !all_have_python && !none_have_python {
+        return Err(
+            "Cannot analyze SSG benchmark trends: inconsistent Python comparison presence across runs"
+                .to_string(),
+        );
+    }
+
+    let python_build_ms = if all_have_python {
+        Some(SsgTrendMetric::from_first_last(
+            first.python_build_ms.ok_or_else(|| {
+                "Cannot analyze trends: first run missing Python build metric".to_string()
+            })?,
+            last.python_build_ms.ok_or_else(|| {
+                "Cannot analyze trends: last run missing Python build metric".to_string()
+            })?,
+        ))
+    } else {
+        None
+    };
+
+    let python_files_per_sec = if all_have_python {
+        Some(SsgTrendMetric::from_first_last(
+            first.python_files_per_sec.ok_or_else(|| {
+                "Cannot analyze trends: first run missing Python throughput metric".to_string()
+            })?,
+            last.python_files_per_sec.ok_or_else(|| {
+                "Cannot analyze trends: last run missing Python throughput metric".to_string()
+            })?,
+        ))
+    } else {
+        None
+    };
+
+    let ruff_vs_python_speedup = if all_have_python {
+        Some(SsgTrendMetric::from_first_last(
+            first.ruff_vs_python_speedup().ok_or_else(|| {
+                "Cannot analyze trends: first run missing Ruff/Python speedup metric".to_string()
+            })?,
+            last.ruff_vs_python_speedup().ok_or_else(|| {
+                "Cannot analyze trends: last run missing Ruff/Python speedup metric".to_string()
+            })?,
+        ))
+    } else {
+        None
+    };
+
+    Ok(Some(SsgBenchmarkTrendReport {
+        measured_runs: run_results.len(),
+        ruff_build_ms: SsgTrendMetric::from_first_last(first.ruff_build_ms, last.ruff_build_ms),
+        ruff_files_per_sec: SsgTrendMetric::from_first_last(
+            first.ruff_files_per_sec,
+            last.ruff_files_per_sec,
+        ),
+        python_build_ms,
+        python_files_per_sec,
+        ruff_vs_python_speedup,
+    }))
 }
 
 pub fn aggregate_ssg_results(
@@ -1007,6 +1118,156 @@ mod tests {
 
         let warnings = collect_ssg_variability_warnings(&summary);
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_analyze_ssg_benchmark_trends_returns_none_for_single_run() {
+        let runs = vec![SsgBenchmarkResult {
+            files: 1,
+            ruff_build_ms: 10.0,
+            ruff_files_per_sec: 100.0,
+            ruff_checksum: 9,
+            ruff_stage_profile: None,
+            python_build_ms: None,
+            python_files_per_sec: None,
+            python_stage_profile: None,
+        }];
+
+        let trends = analyze_ssg_benchmark_trends(&runs).unwrap();
+        assert!(trends.is_none());
+    }
+
+    #[test]
+    fn test_analyze_ssg_benchmark_trends_without_python() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 2,
+                ruff_build_ms: 12.0,
+                ruff_files_per_sec: 200.0,
+                ruff_checksum: 77,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 2,
+                ruff_build_ms: 9.0,
+                ruff_files_per_sec: 250.0,
+                ruff_checksum: 77,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+        ];
+
+        let trends = analyze_ssg_benchmark_trends(&runs).unwrap().unwrap();
+        assert_eq!(trends.measured_runs, 2);
+        assert!((trends.ruff_build_ms.first - 12.0).abs() < 0.0001);
+        assert!((trends.ruff_build_ms.last - 9.0).abs() < 0.0001);
+        assert!((trends.ruff_build_ms.absolute_delta + 3.0).abs() < 0.0001);
+        assert!(matches!(trends.ruff_build_ms.percent_delta, Some(p) if (p + 25.0).abs() < 0.0001));
+
+        assert!((trends.ruff_files_per_sec.absolute_delta - 50.0).abs() < 0.0001);
+        assert!(trends.python_build_ms.is_none());
+        assert!(trends.python_files_per_sec.is_none());
+        assert!(trends.ruff_vs_python_speedup.is_none());
+    }
+
+    #[test]
+    fn test_analyze_ssg_benchmark_trends_with_python_and_speedup() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 2,
+                ruff_build_ms: 10.0,
+                ruff_files_per_sec: 220.0,
+                ruff_checksum: 7,
+                ruff_stage_profile: None,
+                python_build_ms: Some(20.0),
+                python_files_per_sec: Some(110.0),
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 2,
+                ruff_build_ms: 8.0,
+                ruff_files_per_sec: 275.0,
+                ruff_checksum: 7,
+                ruff_stage_profile: None,
+                python_build_ms: Some(24.0),
+                python_files_per_sec: Some(91.0),
+                python_stage_profile: None,
+            },
+        ];
+
+        let trends = analyze_ssg_benchmark_trends(&runs).unwrap().unwrap();
+        assert!(trends.python_build_ms.is_some());
+        assert!(trends.python_files_per_sec.is_some());
+        assert!(trends.ruff_vs_python_speedup.is_some());
+
+        let speedup = trends.ruff_vs_python_speedup.unwrap();
+        assert!((speedup.first - 2.0).abs() < 0.0001);
+        assert!((speedup.last - 3.0).abs() < 0.0001);
+        assert!((speedup.absolute_delta - 1.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_analyze_ssg_benchmark_trends_rejects_inconsistent_python_presence() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 1,
+                ruff_build_ms: 10.0,
+                ruff_files_per_sec: 100.0,
+                ruff_checksum: 1,
+                ruff_stage_profile: None,
+                python_build_ms: Some(20.0),
+                python_files_per_sec: Some(50.0),
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 1,
+                ruff_build_ms: 9.0,
+                ruff_files_per_sec: 111.0,
+                ruff_checksum: 1,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+        ];
+
+        let err = analyze_ssg_benchmark_trends(&runs).unwrap_err();
+        assert!(err.contains("inconsistent Python comparison presence"));
+    }
+
+    #[test]
+    fn test_analyze_ssg_benchmark_trends_handles_zero_first_value_percent_delta() {
+        let runs = vec![
+            SsgBenchmarkResult {
+                files: 1,
+                ruff_build_ms: 0.0,
+                ruff_files_per_sec: 0.0,
+                ruff_checksum: 2,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+            SsgBenchmarkResult {
+                files: 1,
+                ruff_build_ms: 5.0,
+                ruff_files_per_sec: 50.0,
+                ruff_checksum: 2,
+                ruff_stage_profile: None,
+                python_build_ms: None,
+                python_files_per_sec: None,
+                python_stage_profile: None,
+            },
+        ];
+
+        let trends = analyze_ssg_benchmark_trends(&runs).unwrap().unwrap();
+        assert!(trends.ruff_build_ms.percent_delta.is_none());
+        assert!(trends.ruff_files_per_sec.percent_delta.is_none());
     }
 
     #[test]
