@@ -65,6 +65,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserved checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`) while reducing read-lane starvation risk in the fused benchmark path.
   - Added comprehensive helper and integration regression coverage, including extreme-concurrency input contracts, for the read-ahead scheduling policy.
 
+- **SSG Async Fused Pipeline Streamed HTML Write Follow-Through (v0.11.0 P0)**:
+  - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to stream rendered HTML segments directly to async files instead of allocating full per-page HTML strings during writes.
+  - Preserved checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`) while reducing render/write allocation pressure in the timed SSG path.
+  - Added direct contract coverage for streamed HTML writer success/failure behavior and output-length correctness.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.

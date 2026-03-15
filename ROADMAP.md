@@ -110,6 +110,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`) in the timed benchmark path while reducing read-lane starvation risk.
     - Added comprehensive helper + integration regression coverage, including extreme-concurrency contract validation.
 
+- **SSG Throughput Follow-Through: Streamed HTML Writes in Fused Pipelines (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to stream rendered HTML segments directly to async file writes instead of allocating full per-page HTML strings during write futures.
+    - Preserved checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`) while reducing render/write allocation pressure in timed benchmark execution.
+    - Added direct streamed-writer contract coverage for exact-output and write-failure behavior.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -130,7 +135,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, and read-ahead overlap follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, and streamed-write follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 
