@@ -9,6 +9,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 use std::collections::VecDeque;
+use std::io::{Error, ErrorKind, IoSlice};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
@@ -99,9 +100,23 @@ async fn ssg_write_rendered_html_page(
     source_body: &str,
 ) -> std::io::Result<usize> {
     let mut output_file = tokio::fs::File::create(output_path).await?;
-    output_file.write_all(html_prefix.as_bytes()).await?;
-    output_file.write_all(source_body.as_bytes()).await?;
-    output_file.write_all(SSG_HTML_SUFFIX.as_bytes()).await?;
+
+    let mut segments = [
+        IoSlice::new(html_prefix.as_bytes()),
+        IoSlice::new(source_body.as_bytes()),
+        IoSlice::new(SSG_HTML_SUFFIX.as_bytes()),
+    ];
+    let mut remaining_segments = &mut segments[..];
+
+    while !remaining_segments.is_empty() {
+        let written = output_file.write_vectored(remaining_segments).await?;
+        if written == 0 {
+            return Err(Error::new(ErrorKind::WriteZero, "Failed to write rendered HTML segments"));
+        }
+        IoSlice::advance_slices(&mut remaining_segments, written);
+    }
+
+    output_file.flush().await?;
 
     Ok(html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len())
 }
@@ -2734,6 +2749,52 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_write_rendered_html_page_handles_empty_source_body() {
+        let output_dir = unique_temp_dir("ruff_ssg_streamed_html_empty_body");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_0.html", output_dir);
+        let html_prefix = "<html><body><h1>Post 0</h1><article>";
+
+        let html_len = AsyncRuntime::block_on(async {
+            ssg_write_rendered_html_page(output_path.as_str(), html_prefix, "").await.unwrap()
+        });
+
+        let html = fs::read_to_string(output_path.as_str()).unwrap();
+        let expected_html = "<html><body><h1>Post 0</h1><article></article></body></html>";
+
+        assert_eq!(html, expected_html);
+        assert_eq!(html_len, expected_html.len());
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_write_rendered_html_page_handles_large_source_body_without_truncation() {
+        let output_dir = unique_temp_dir("ruff_ssg_streamed_html_large_body");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_9.html", output_dir);
+        let source_body = "segment-".repeat(16_384);
+        let html_prefix = "<html><body><h1>Post 9</h1><article>";
+
+        let html_len = AsyncRuntime::block_on(async {
+            ssg_write_rendered_html_page(output_path.as_str(), html_prefix, source_body.as_str())
+                .await
+                .unwrap()
+        });
+
+        let html = fs::read_to_string(output_path.as_str()).unwrap();
+        let expected_len = html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len();
+
+        assert_eq!(html_len, expected_len);
+        assert_eq!(html.len(), expected_len);
+        assert!(html.starts_with(html_prefix));
+        assert!(html.ends_with(SSG_HTML_SUFFIX));
+        assert!(html.contains(source_body.as_str()));
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
     fn test_ssg_write_rendered_html_page_propagates_create_failure() {
         let missing_dir = unique_temp_dir("ruff_ssg_streamed_html_missing");
         let output_path = format!("{}/post_0.html", missing_dir);
@@ -2931,11 +2992,8 @@ mod tests {
         }
 
         let mut interp = Interpreter::new();
-        let args = vec![
-            Value::Array(Arc::new(source_pages)),
-            string_value(&temp_dir),
-            Value::Int(8),
-        ];
+        let args =
+            vec![Value::Array(Arc::new(source_pages)), string_value(&temp_dir), Value::Int(8)];
 
         let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
         let resolved = await_promise(result).unwrap();
