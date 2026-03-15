@@ -120,6 +120,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Removed per-write index formatting overhead while preserving checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`).
     - Added direct prefix-helper + large-index heading regression coverage to lock rendered output naming/content contracts.
 
+- **SSG Throughput Follow-Through: Adaptive Read-Refill Backpressure in Fused Pipeline (✅ Complete, March 2026)**
+    - Optimized `ssg_read_render_and_write_pages(...)` with adaptive read-refill targeting that scales read in-flight scheduling based on current bounded write backlog budget.
+    - Added write-completion-path read refill so fused scheduling can restore read overlap earlier as write backlog drains, reducing queued source-body churn while preserving bounded write concurrency.
+    - Added focused policy regression coverage for backlog-driven read-target behavior while preserving checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`).
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.

@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed per-write index formatting overhead from streamed write futures while preserving checksum/file-count and stage-metric contracts.
   - Added direct prefix-helper contract coverage and regression validation for large-index heading correctness in rendered outputs.
 
+- **SSG Async Fused Pipeline Adaptive Read-Refill Backpressure Follow-Through (v0.11.0 P0)**:
+  - Optimized `ssg_read_render_and_write_pages(...)` with adaptive read-refill targeting that scales read in-flight window by current write backlog budget.
+  - Added write-completion-path read refill so fused scheduling can restore read overlap earlier as backlog drains, reducing queued source-body churn while preserving bounded write concurrency.
+  - Preserved checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`) and added focused policy regression coverage for backlog-driven read-target behavior.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
