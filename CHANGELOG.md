@@ -95,6 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Kept adaptive read-refill targeting in place after write-priority refill to preserve overlap while reducing pending-write backlog growth.
   - Added focused policy regression coverage for write-priority decision contracts (backlog-present, no-backlog, saturated-lane, and defensive zero-limit behavior).
 
+- **SSG Throughput Follow-Through: Vectored Streamed HTML Writes (v0.11.0 P0)**:
+  - Optimized `ssg_write_rendered_html_page(...)` to use a vectored async write loop over pre-segmented HTML parts (`prefix`, `body`, `suffix`) with explicit flush completion.
+  - Reduced per-page write-call overhead in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` without changing checksum/file-count or stage-metric contracts.
+  - Added streamed-writer regression coverage for empty-body and large-body contract preservation to lock exact output-content and output-length behavior.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.

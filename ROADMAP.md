@@ -140,6 +140,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved adaptive read-refill targeting after write-priority refill to keep read/write overlap while reducing pending-write backlog growth under bursty read completions.
     - Added focused policy regression coverage for write-priority decision contracts across backlog/no-backlog/saturated-lane scenarios.
 
+- **SSG Throughput Follow-Through: Vectored Streamed HTML Writes (✅ Complete, March 2026)**
+    - Optimized `ssg_write_rendered_html_page(...)` to emit pre-segmented HTML via a vectored async write loop with explicit flush completion.
+    - Reduced per-page write-call overhead in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while preserving checksum/file-count and stage-metric contracts.
+    - Added streamed-writer regression coverage for empty-body and large-body output/length contract preservation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
