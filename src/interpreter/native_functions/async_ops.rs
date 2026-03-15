@@ -64,6 +64,22 @@ fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
     expanded_window.min(bounded_file_count)
 }
 
+fn ssg_target_read_in_flight(
+    read_ahead_limit: usize,
+    write_concurrency_limit: usize,
+    pending_writes_len: usize,
+    write_in_flight_len: usize,
+) -> usize {
+    let bounded_read_ahead = read_ahead_limit.max(1);
+    let bounded_write_concurrency = write_concurrency_limit.max(1);
+    let write_backlog_budget = bounded_write_concurrency.saturating_mul(2);
+    let current_write_backlog = pending_writes_len.saturating_add(write_in_flight_len);
+    let available_backlog_budget = write_backlog_budget.saturating_sub(current_write_backlog);
+    let bounded_available_budget = available_backlog_budget.max(1);
+
+    bounded_read_ahead.min(bounded_available_budget)
+}
+
 async fn ssg_write_rendered_html_page(
     output_path: &str,
     html_prefix: &str,
@@ -1212,7 +1228,14 @@ pub fn handle(
                     }
                 };
 
-                for _ in 0..read_ahead_limit {
+                let initial_read_target = ssg_target_read_in_flight(
+                    read_ahead_limit,
+                    effective_batch_size,
+                    pending_writes.len(),
+                    write_in_flight.len(),
+                );
+
+                for _ in 0..initial_read_target {
                     match pending_reads.next() {
                         Some((index, path)) => read_in_flight.push(make_read_future(index, path)),
                         None => break,
@@ -1248,7 +1271,14 @@ pub fn handle(
                                 }
                             }
 
-                            while read_in_flight.len() < read_ahead_limit {
+                            let read_refill_target = ssg_target_read_in_flight(
+                                read_ahead_limit,
+                                effective_batch_size,
+                                pending_writes.len(),
+                                write_in_flight.len(),
+                            );
+
+                            while read_in_flight.len() < read_refill_target {
                                 match pending_reads.next() {
                                     Some((next_index, next_path)) => {
                                         read_in_flight.push(make_read_future(next_index, next_path));
@@ -1290,6 +1320,22 @@ pub fn handle(
                                 match pending_writes.pop_front() {
                                     Some((write_index, write_source_body)) => {
                                         write_in_flight.push(make_write_future(write_index, write_source_body));
+                                    }
+                                    None => break,
+                                }
+                            }
+
+                            let read_refill_target = ssg_target_read_in_flight(
+                                read_ahead_limit,
+                                effective_batch_size,
+                                pending_writes.len(),
+                                write_in_flight.len(),
+                            );
+
+                            while read_in_flight.len() < read_refill_target {
+                                match pending_reads.next() {
+                                    Some((next_index, next_path)) => {
+                                        read_in_flight.push(make_read_future(next_index, next_path));
                                     }
                                     None => break,
                                 }
