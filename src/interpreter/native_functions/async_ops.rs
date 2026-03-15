@@ -84,6 +84,15 @@ fn ssg_target_read_in_flight(
     bounded_read_ahead.min(bounded_available_budget)
 }
 
+fn ssg_should_refill_writes_first(
+    pending_writes_len: usize,
+    write_in_flight_len: usize,
+    write_concurrency_limit: usize,
+) -> bool {
+    let bounded_write_concurrency = write_concurrency_limit.max(1);
+    pending_writes_len > 0 && write_in_flight_len < bounded_write_concurrency
+}
+
 async fn ssg_write_rendered_html_page(
     output_path: &str,
     html_prefix: &str,
@@ -1275,6 +1284,31 @@ pub fn handle(
                                 }
                             }
 
+                            if 0 == remaining_reads {
+                                read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
+                            }
+
+                            let refill_writes_first = ssg_should_refill_writes_first(
+                                pending_writes.len(),
+                                write_in_flight.len(),
+                                effective_batch_size,
+                            );
+
+                            if refill_writes_first {
+                                while write_in_flight.len() < effective_batch_size {
+                                    match pending_writes.pop_front() {
+                                        Some((write_index, write_source_body, write_html_len)) => {
+                                            write_in_flight.push(make_write_future(
+                                                write_index,
+                                                write_source_body,
+                                                write_html_len,
+                                            ));
+                                        }
+                                        None => break,
+                                    }
+                                }
+                            }
+
                             let read_refill_target = ssg_target_read_in_flight(
                                 read_ahead_limit,
                                 effective_batch_size,
@@ -1291,20 +1325,18 @@ pub fn handle(
                                 }
                             }
 
-                            if 0 == remaining_reads {
-                                read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
-                            }
-
-                            while write_in_flight.len() < effective_batch_size {
-                                match pending_writes.pop_front() {
-                                    Some((write_index, write_source_body, write_html_len)) => {
-                                        write_in_flight.push(make_write_future(
-                                            write_index,
-                                            write_source_body,
-                                            write_html_len,
-                                        ));
+                            if !refill_writes_first {
+                                while write_in_flight.len() < effective_batch_size {
+                                    match pending_writes.pop_front() {
+                                        Some((write_index, write_source_body, write_html_len)) => {
+                                            write_in_flight.push(make_write_future(
+                                                write_index,
+                                                write_source_body,
+                                                write_html_len,
+                                            ));
+                                        }
+                                        None => break,
                                     }
-                                    None => break,
                                 }
                             }
                         }
