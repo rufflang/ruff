@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added median-based stage bottleneck reporting when `--profile-async` is enabled.
   - Added comprehensive unit tests for SSG benchmark aggregation and statistical calculations.
 
+- **SSG Benchmark Warmup-Run Measurement Quality Support (v0.11.0 P0)**:
+  - Added `ruff bench-ssg --warmup-runs <N>` to execute pre-measurement warmup runs that are excluded from aggregate summary statistics.
+  - Added benchmark harness series orchestration (`run_ssg_benchmark_series(...)`) so warmup and measured run phases share the same correctness/validation contracts.
+  - Added comprehensive benchmark harness tests covering warmup exclusion behavior, zero-measured-run rejection, and explicit warmup/measured failure surfacing.
+
 - **SSG Native Output-Path Bulk Helper (v0.11.0 P0)**:
   - Added `ssg_build_output_paths(output_dir, file_count, extension?)` to generate indexed output path arrays natively.
   - Updated `benchmarks/cross-language/bench_ssg.ruff` to use native path generation in the render/write benchmark path instead of a script-level loop.

@@ -65,6 +65,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added median-based stage bottleneck reporting for `--profile-async` output.
     - Added comprehensive unit coverage for statistical aggregation and consistency validation.
 
+- **Benchmark Stability: Warmup-Run Support for Measurement Quality (✅ Complete, March 2026)**
+    - Added `ruff bench-ssg --warmup-runs <N>` so pre-measurement warmup runs can be executed and excluded from measured summary statistics.
+    - Added shared benchmark harness series orchestration for warmup + measured phases (`run_ssg_benchmark_series(...)`) with consistent validation/error contracts.
+    - Added comprehensive harness coverage for warmup exclusion behavior plus warmup/measured failure surfacing.
+
 - **SSG Native Bulk Helper: Output Path Generation (✅ Complete, March 2026)**
     - Added `ssg_build_output_paths(output_dir, file_count, extension?)` as a native helper for indexed SSG output path construction.
     - Updated benchmark pipeline to use native path generation instead of script-level path loops in the timed render/write path.
