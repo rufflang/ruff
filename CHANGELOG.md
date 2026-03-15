@@ -50,6 +50,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserved stage-metric contracts (`read_ms`, `render_write_ms`) and checksum/file-count output compatibility while preventing unbounded write-task growth under read-heavy workloads.
   - Added high-volume regression coverage for large-batch single-worker and low-concurrency runs to lock correctness under backpressure-heavy execution.
 
+- **SSG Async Output-Path Precompute Throughput Follow-Through (v0.11.0 P0)**:
+  - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute indexed output paths once per batch and reuse them across bounded async write workers.
+  - Removed per-write output-path string construction overhead in the timed SSG path while preserving checksum/file-count and stage-metric contracts.
+  - Added comprehensive regression coverage for stable batch path generation and high-volume low-concurrency render/write output-contract preservation.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.

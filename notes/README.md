@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-15_14-32_ssg-output-path-precompute-follow-through.md** — ✅ COMPLETED: Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute/reuse indexed output paths per batch, added output-path + high-volume low-concurrency regression contracts, and synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-13_16-37_ssg-read-write-streaming-follow-through.md** — ✅ COMPLETED: Streamed fused SSG read completions directly into bounded render/write workers (`ssg_read_render_and_write_pages`) to remove full read-stage buffering, added empty-input + single-worker regression contracts, and synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-12_10-43_ssg-read-render-write-fusion-follow-through.md** — ✅ COMPLETED: Added fused async native SSG read+render+write helper (`ssg_read_render_and_write_pages`), migrated timed `bench-ssg` Ruff path to consume helper stage metrics, expanded contract coverage (checksum/file-count + read/write failures), and synchronized CHANGELOG/ROADMAP/README.

@@ -488,6 +488,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-13_16-37_ssg-read-write-streaming-follow-through.md)
 
+### SSG throughput path optimizations must keep indexed output naming centralized
+- **Problem:** Duplicating output-path construction logic across SSG helpers risks subtle naming drift that breaks checksum/file-count benchmark equivalence.
+- **Rule:** Keep indexed output path generation (`post_<index>.html`) centralized and reuse the same helper across `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)`.
+- **Why:** Throughput refactors often touch write scheduling in multiple helpers; duplicated path logic increases contract drift risk.
+- **Workflow:** 1) centralize path generation once per batch, 2) reuse in write futures, 3) run high-volume low-concurrency output-contract tests.
+- **Implication:** Treat output naming parity as a benchmark contract, not an implementation detail.
+
+(Discovered during: 2026-03-15_14-32_ssg-output-path-precompute-follow-through.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.

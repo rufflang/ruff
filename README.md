@@ -20,6 +20,7 @@
 - **Latest throughput fusion step**: `ssg_read_render_and_write_pages(...)` now fuses file reads with render/write in the timed SSG path while preserving checksum/file-count equivalence and stage-profile visibility.
 - **Latest throughput streaming step**: `ssg_read_render_and_write_pages(...)` now streams completed reads directly into bounded render/write workers (no full read-stage source-body buffer) while preserving checksum/file-count and stage-metric contracts.
 - **Latest throughput backpressure step**: `ssg_read_render_and_write_pages(...)` now enforces bounded write in-flight concurrency with pending-write backpressure during fused streaming execution, preventing unbounded write-task growth while preserving checksum/file-count and stage-metric contracts.
+- **Latest throughput path-precompute step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now precompute indexed output paths once per batch and reuse them across async write workers, reducing per-write path construction overhead while preserving benchmark output contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 

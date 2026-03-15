@@ -95,6 +95,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved stage-metric contracts (`read_ms`, `render_write_ms`) and checksum/file-count equivalence while removing unbounded write-task growth risk under read-heavy batches.
     - Added high-volume regression coverage for large-batch single-worker and low-concurrency output-contract preservation.
 
+- **SSG Throughput Follow-Through: Output-Path Precompute in Fused Write Pipelines (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute indexed output paths once per batch and reuse them across async write workers.
+    - Removed per-write output-path string construction overhead while preserving checksum/file-count and stage-metric contracts in the timed benchmark path.
+    - Added regression coverage for batch output-path generation and high-volume low-concurrency render/write output-contract preservation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -115,8 +120,9 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after read-to-write streaming fusion.
-     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after output-path precompute follow-through.
+    - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
+    - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
@@ -368,4 +374,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*Last Updated: March 12, 2026*
+*Last Updated: March 15, 2026*
