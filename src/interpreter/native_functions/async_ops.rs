@@ -2805,6 +2805,30 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_should_refill_writes_first_with_pending_backlog_and_available_slot() {
+        assert!(ssg_should_refill_writes_first(1, 0, 2));
+        assert!(ssg_should_refill_writes_first(3, 1, 2));
+    }
+
+    #[test]
+    fn test_ssg_should_refill_writes_first_false_without_backlog() {
+        assert!(!ssg_should_refill_writes_first(0, 0, 2));
+        assert!(!ssg_should_refill_writes_first(0, 1, 2));
+    }
+
+    #[test]
+    fn test_ssg_should_refill_writes_first_false_when_write_lane_is_saturated() {
+        assert!(!ssg_should_refill_writes_first(1, 2, 2));
+        assert!(!ssg_should_refill_writes_first(4, 3, 2));
+    }
+
+    #[test]
+    fn test_ssg_should_refill_writes_first_handles_zero_limit_defensively() {
+        assert!(ssg_should_refill_writes_first(1, 0, 0));
+        assert!(!ssg_should_refill_writes_first(1, 1, 0));
+    }
+
+    #[test]
     fn test_ssg_render_and_write_pages_large_batch_low_concurrency_preserves_outputs() {
         let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_large_low_concurrency");
         fs::create_dir_all(&temp_dir).unwrap();
