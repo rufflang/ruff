@@ -2727,6 +2727,25 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_target_read_in_flight_allows_full_window_with_empty_write_backlog() {
+        assert_eq!(ssg_target_read_in_flight(8, 4, 0, 0), 8);
+        assert_eq!(ssg_target_read_in_flight(2, 2, 0, 0), 2);
+    }
+
+    #[test]
+    fn test_ssg_target_read_in_flight_scales_down_as_write_backlog_grows() {
+        assert_eq!(ssg_target_read_in_flight(8, 4, 1, 1), 6);
+        assert_eq!(ssg_target_read_in_flight(8, 4, 4, 1), 3);
+        assert_eq!(ssg_target_read_in_flight(8, 4, 5, 2), 1);
+    }
+
+    #[test]
+    fn test_ssg_target_read_in_flight_handles_zero_limits_defensively() {
+        assert_eq!(ssg_target_read_in_flight(0, 0, 0, 0), 1);
+        assert_eq!(ssg_target_read_in_flight(0, 3, 6, 6), 1);
+    }
+
+    #[test]
     fn test_ssg_render_and_write_pages_large_batch_low_concurrency_preserves_outputs() {
         let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_large_low_concurrency");
         fs::create_dir_all(&temp_dir).unwrap();
