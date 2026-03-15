@@ -3111,6 +3111,61 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_read_render_and_write_pages_extreme_concurrency_limit_preserves_outputs() {
+        let input_dir = unique_temp_dir("ruff_ssg_read_render_extreme_concurrency_input");
+        let output_dir = unique_temp_dir("ruff_ssg_read_render_extreme_concurrency_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let file_count = 12usize;
+        let mut source_paths = Vec::with_capacity(file_count);
+        for index in 0..file_count {
+            let source_path = format!("{}/post_{}.md", input_dir, index);
+            let body = format!("# Extreme {}\n\n{}", index, "payload ".repeat((index % 4) + 1));
+            fs::write(&source_path, body).unwrap();
+            source_paths.push(string_value(source_path.as_str()));
+        }
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(source_paths)),
+            string_value(&output_dir),
+            Value::Int(10_000),
+        ];
+
+        let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
+                assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let mut expected_checksum = 0i64;
+        for index in 0..file_count {
+            let html = fs::read_to_string(format!("{}/post_{}.html", output_dir, index)).unwrap();
+            expected_checksum += html.len() as i64;
+        }
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
     fn test_ssg_read_render_and_write_pages_validates_argument_contracts() {
         let mut interp = Interpreter::new();
 
