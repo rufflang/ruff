@@ -2573,6 +2573,41 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_write_rendered_html_page_streams_exact_content_and_length() {
+        let output_dir = unique_temp_dir("ruff_ssg_streamed_html_output");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_42.html", output_dir);
+        let source_body = "# Post 42\n\nLarge body section";
+
+        let html_len = AsyncRuntime::block_on(async {
+            ssg_write_rendered_html_page(output_path.as_str(), 42, source_body)
+                .await
+                .unwrap()
+        });
+
+        let html = fs::read_to_string(output_path.as_str()).unwrap();
+        let expected_html =
+            "<html><body><h1>Post 42</h1><article># Post 42\n\nLarge body section</article></body></html>";
+
+        assert_eq!(html, expected_html);
+        assert_eq!(html_len, expected_html.len());
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_write_rendered_html_page_propagates_create_failure() {
+        let missing_dir = unique_temp_dir("ruff_ssg_streamed_html_missing");
+        let output_path = format!("{}/post_0.html", missing_dir);
+
+        let result = AsyncRuntime::block_on(async {
+            ssg_write_rendered_html_page(output_path.as_str(), 0, "# Missing").await
+        });
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_ssg_read_ahead_limit_expands_up_to_double_concurrency() {
         assert_eq!(ssg_read_ahead_limit(1, 100), 2);
         assert_eq!(ssg_read_ahead_limit(2, 100), 4);
