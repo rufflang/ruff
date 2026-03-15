@@ -115,6 +115,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`) while reducing render/write allocation pressure in timed benchmark execution.
     - Added direct streamed-writer contract coverage for exact-output and write-failure behavior.
 
+- **SSG Throughput Follow-Through: Precomputed HTML Prefixes in Streamed Write Workers (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute per-index HTML prefixes once per batch and reuse them across streamed async write futures.
+    - Removed per-write index formatting overhead while preserving checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`).
+    - Added direct prefix-helper + large-index heading regression coverage to lock rendered output naming/content contracts.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -135,7 +140,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, and streamed-write follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, and precomputed-prefix follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 
