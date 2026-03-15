@@ -64,6 +64,10 @@ fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
     expanded_window.min(bounded_file_count)
 }
 
+fn ssg_rendered_html_len_from_prefix_len(html_prefix_len: usize, source_body_len: usize) -> usize {
+    html_prefix_len + source_body_len + SSG_HTML_SUFFIX.len()
+}
+
 fn ssg_target_read_in_flight(
     read_ahead_limit: usize,
     write_concurrency_limit: usize,
@@ -91,13 +95,6 @@ async fn ssg_write_rendered_html_page(
     output_file.write_all(SSG_HTML_SUFFIX.as_bytes()).await?;
 
     Ok(html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len())
-}
-
-fn ssg_html_render_overhead_len(index: usize) -> usize {
-    SSG_HTML_PREFIX_START.len()
-        + index.to_string().len()
-        + SSG_HTML_PREFIX_END.len()
-        + SSG_HTML_SUFFIX.len()
 }
 
 fn resolved_promise(result: Result<Value, String>) -> Value {
@@ -1014,7 +1011,6 @@ pub fn handle(
             };
 
             let mut source_bodies = Vec::with_capacity(source_pages.len());
-            let mut checksum: i64 = 0;
 
             for (index, page) in source_pages.iter().enumerate() {
                 let source_body = match page {
@@ -1027,7 +1023,6 @@ pub fn handle(
                     }
                 };
 
-                checksum += (source_body.len() + ssg_html_render_overhead_len(index)) as i64;
                 source_bodies.push(source_body.clone());
             }
 
@@ -1040,11 +1035,18 @@ pub fn handle(
 
             let file_count = source_bodies.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
+            let render_prefixes_for_tasks =
+                Arc::new(ssg_build_render_prefixes_for_batch(file_count));
+            let mut checksum: i64 = 0;
+            for (index, source_body) in source_bodies.iter().enumerate() {
+                checksum += ssg_rendered_html_len_from_prefix_len(
+                    render_prefixes_for_tasks[index].len(),
+                    source_body.len(),
+                ) as i64;
+            }
             let checksum_value = checksum;
             let output_paths_for_tasks =
                 Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
-            let render_prefixes_for_tasks =
-                Arc::new(ssg_build_render_prefixes_for_batch(file_count));
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -1199,7 +1201,7 @@ pub fn handle(
                 let mut pending_reads = source_paths.into_iter().enumerate();
                 let mut read_in_flight = FuturesUnordered::new();
                 let mut write_in_flight = FuturesUnordered::new();
-                let mut pending_writes: VecDeque<(usize, String)> = VecDeque::new();
+                let mut pending_writes: VecDeque<(usize, String, usize)> = VecDeque::new();
                 let mut remaining_reads = file_count;
                 let mut checksum: i64 = 0;
                 let mut read_stage_ms: f64 = 0.0;
@@ -1210,7 +1212,7 @@ pub fn handle(
                     (index, path, read_result)
                 };
 
-                let make_write_future = |index: usize, source_body: String| {
+                let make_write_future = |index: usize, source_body: String, html_len: usize| {
                     let output_paths = output_paths_for_tasks.clone();
                     let render_prefixes = render_prefixes_for_tasks.clone();
 
@@ -1221,9 +1223,6 @@ pub fn handle(
                             source_body.as_str(),
                         )
                         .await;
-                        let html_len = render_prefixes[index].len()
-                            + source_body.len()
-                            + SSG_HTML_SUFFIX.len();
                         (index, html_len, write_result)
                     }
                 };
@@ -1256,10 +1255,15 @@ pub fn handle(
                                         render_write_stage_start = Some(Instant::now());
                                     }
 
+                                    let html_len = ssg_rendered_html_len_from_prefix_len(
+                                        render_prefixes_for_tasks[index].len(),
+                                        content.len(),
+                                    );
+
                                     if write_in_flight.len() < effective_batch_size {
-                                        write_in_flight.push(make_write_future(index, content));
+                                        write_in_flight.push(make_write_future(index, content, html_len));
                                     } else {
-                                        pending_writes.push_back((index, content));
+                                        pending_writes.push_back((index, content, html_len));
                                     }
                                 }
                                 Err(e) => {
@@ -1293,8 +1297,12 @@ pub fn handle(
 
                             while write_in_flight.len() < effective_batch_size {
                                 match pending_writes.pop_front() {
-                                    Some((write_index, write_source_body)) => {
-                                        write_in_flight.push(make_write_future(write_index, write_source_body));
+                                    Some((write_index, write_source_body, write_html_len)) => {
+                                        write_in_flight.push(make_write_future(
+                                            write_index,
+                                            write_source_body,
+                                            write_html_len,
+                                        ));
                                     }
                                     None => break,
                                 }
@@ -1318,8 +1326,12 @@ pub fn handle(
 
                             while write_in_flight.len() < effective_batch_size {
                                 match pending_writes.pop_front() {
-                                    Some((write_index, write_source_body)) => {
-                                        write_in_flight.push(make_write_future(write_index, write_source_body));
+                                    Some((write_index, write_source_body, write_html_len)) => {
+                                        write_in_flight.push(make_write_future(
+                                            write_index,
+                                            write_source_body,
+                                            write_html_len,
+                                        ));
                                     }
                                     None => break,
                                 }
@@ -2724,6 +2736,21 @@ mod tests {
     fn test_ssg_read_ahead_limit_handles_zero_inputs_defensively() {
         assert_eq!(ssg_read_ahead_limit(0, 0), 1);
         assert_eq!(ssg_read_ahead_limit(0, 5), 2);
+    }
+
+    #[test]
+    fn test_ssg_rendered_html_len_from_prefix_len_handles_empty_body() {
+        let prefix = "<html><body><h1>Post 0</h1><article>";
+        let html_len = ssg_rendered_html_len_from_prefix_len(prefix.len(), 0);
+        assert_eq!(html_len, prefix.len() + SSG_HTML_SUFFIX.len());
+    }
+
+    #[test]
+    fn test_ssg_rendered_html_len_from_prefix_len_matches_expected_total() {
+        let prefix = "<html><body><h1>Post 42</h1><article>";
+        let body = "# Post 42\n\nPayload";
+        let html_len = ssg_rendered_html_len_from_prefix_len(prefix.len(), body.len());
+        assert_eq!(html_len, prefix.len() + body.len() + SSG_HTML_SUFFIX.len());
     }
 
     #[test]
