@@ -65,10 +65,6 @@ fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
     expanded_window.min(bounded_file_count)
 }
 
-fn ssg_rendered_html_len_from_prefix_len(html_prefix_len: usize, source_body_len: usize) -> usize {
-    html_prefix_len + source_body_len + SSG_HTML_SUFFIX.len()
-}
-
 fn ssg_target_read_in_flight(
     read_ahead_limit: usize,
     write_concurrency_limit: usize,
@@ -100,6 +96,7 @@ async fn ssg_write_rendered_html_page(
     source_body: &str,
 ) -> std::io::Result<usize> {
     let mut output_file = tokio::fs::File::create(output_path).await?;
+    let mut total_written: usize = 0;
 
     let mut segments = [
         IoSlice::new(html_prefix.as_bytes()),
@@ -113,15 +110,13 @@ async fn ssg_write_rendered_html_page(
         if written == 0 {
             return Err(Error::new(ErrorKind::WriteZero, "Failed to write rendered HTML segments"));
         }
+        total_written += written;
         IoSlice::advance_slices(&mut remaining_segments, written);
     }
 
     output_file.flush().await?;
 
-    Ok(ssg_rendered_html_len_from_prefix_len(
-        html_prefix.len(),
-        source_body.len(),
-    ))
+    Ok(total_written)
 }
 
 fn resolved_promise(result: Result<Value, String>) -> Value {
@@ -2860,18 +2855,51 @@ mod tests {
     }
 
     #[test]
-    fn test_ssg_rendered_html_len_from_prefix_len_handles_empty_body() {
-        let prefix = "<html><body><h1>Post 0</h1><article>";
-        let html_len = ssg_rendered_html_len_from_prefix_len(prefix.len(), 0);
-        assert_eq!(html_len, prefix.len() + SSG_HTML_SUFFIX.len());
+    fn test_ssg_write_rendered_html_page_returns_total_written_bytes() {
+        let output_dir = unique_temp_dir("ruff_ssg_streamed_html_written_bytes_ascii");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_11.html", output_dir);
+        let source_body = "# Post\n\nPlain text payload";
+        let html_prefix = "<html><body><h1>Post 11</h1><article>";
+
+        let written_bytes = AsyncRuntime::block_on(async {
+            ssg_write_rendered_html_page(output_path.as_str(), html_prefix, source_body)
+                .await
+                .unwrap()
+        });
+
+        let rendered_html = fs::read_to_string(output_path.as_str()).unwrap();
+        assert_eq!(written_bytes, rendered_html.len());
+        assert_eq!(
+            written_bytes,
+            html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len()
+        );
+
+        let _ = fs::remove_dir_all(&output_dir);
     }
 
     #[test]
-    fn test_ssg_rendered_html_len_from_prefix_len_matches_expected_total() {
-        let prefix = "<html><body><h1>Post 42</h1><article>";
-        let body = "# Post 42\n\nPayload";
-        let html_len = ssg_rendered_html_len_from_prefix_len(prefix.len(), body.len());
-        assert_eq!(html_len, prefix.len() + body.len() + SSG_HTML_SUFFIX.len());
+    fn test_ssg_write_rendered_html_page_returns_utf8_written_bytes() {
+        let output_dir = unique_temp_dir("ruff_ssg_streamed_html_written_bytes_utf8");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_12.html", output_dir);
+        let source_body = "# Café 🚀\n\nnaïve façade";
+        let html_prefix = "<html><body><h1>Post 12</h1><article>";
+
+        let written_bytes = AsyncRuntime::block_on(async {
+            ssg_write_rendered_html_page(output_path.as_str(), html_prefix, source_body)
+                .await
+                .unwrap()
+        });
+
+        let rendered_bytes = fs::read(output_path.as_str()).unwrap();
+        assert_eq!(written_bytes, rendered_bytes.len());
+        assert_eq!(
+            written_bytes,
+            html_prefix.as_bytes().len() + source_body.as_bytes().len() + SSG_HTML_SUFFIX.as_bytes().len()
+        );
+
+        let _ = fs::remove_dir_all(&output_dir);
     }
 
     #[test]
