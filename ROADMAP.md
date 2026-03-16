@@ -170,6 +170,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added optional Python build-time/throughput and Ruff-vs-Python speedup trend reporting when cross-language comparison data is available.
     - Added comprehensive regression coverage for trend contracts, including single-run suppression, Python-comparison consistency validation, and zero-baseline percent-delta handling.
 
+- **Benchmark Stability: Trend Drift Warning Signals (✅ Complete, March 2026)**
+    - Added trend-drift warning analysis for first-to-last measured-run percent deltas in `bench-ssg` trend reports.
+    - Added warning output when drift magnitude crosses threshold (`10%`) for Ruff metrics and optional Python/speedup metrics.
+    - Added comprehensive regression coverage for warning emission/suppression and measured-run-count gating behavior.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -187,6 +192,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
      - Keep cross-language runs (`--compare-python`) for directional trend tracking.
+    - Continue refining warning thresholds/presentation for measurement-quality interpretation without changing benchmark metric contracts.
 
 ### Success Criteria
 
