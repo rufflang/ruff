@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added warning output when trend drift magnitude crosses threshold (`10%`) for Ruff metrics and optional Python/speedup metrics.
   - Added comprehensive benchmark-module regression coverage for trend-warning emission, suppression, and low-run-count gating behavior.
 
+- **SSG Benchmark Stability: Mean/Median Drift Warning Signals (v0.11.0 P0)**:
+  - Added mean-vs-median drift analysis for measured-run aggregate statistics in `bench-ssg` measurement-quality reporting.
+  - Added warning output when drift magnitude crosses threshold (`7.5%`) for Ruff metrics and optional Python/speedup metrics.
+  - Added comprehensive benchmark-module regression coverage for drift calculation, warning emission/suppression behavior, and low-run-count gating.
+
 - **SSG Native Output-Path Bulk Helper (v0.11.0 P0)**:
   - Added `ssg_build_output_paths(output_dir, file_count, extension?)` to generate indexed output path arrays natively.
   - Updated `benchmarks/cross-language/bench_ssg.ruff` to use native path generation in the render/write benchmark path instead of a script-level loop.

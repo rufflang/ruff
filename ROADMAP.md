@@ -180,6 +180,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added warning output when drift magnitude crosses threshold (`10%`) for Ruff metrics and optional Python/speedup metrics.
     - Added comprehensive regression coverage for warning emission/suppression and measured-run-count gating behavior.
 
+- **Benchmark Stability: Mean/Median Drift Warning Signals (✅ Complete, March 2026)**
+    - Added mean-vs-median drift warning analysis for measured-run aggregate statistics in `bench-ssg` measurement-quality reporting.
+    - Added warning output when drift magnitude crosses threshold (`7.5%`) for Ruff metrics and optional Python/speedup metrics.
+    - Added comprehensive regression coverage for drift calculation, warning emission/suppression behavior, and measured-run-count gating.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
