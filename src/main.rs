@@ -467,8 +467,8 @@ async fn main() {
             tmp_dir,
         } => {
             use benchmarks::ssg::{
-                analyze_ssg_benchmark_trends, collect_ssg_variability_warnings, SsgStageProfile,
-                SsgTrendMetric,
+                analyze_ssg_benchmark_trends, collect_ssg_trend_warnings,
+                collect_ssg_variability_warnings, SsgStageProfile, SsgTrendMetric,
             };
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
@@ -700,6 +700,14 @@ async fn main() {
                         metric.last,
                         format_delta(metric, "x")
                     );
+                }
+
+                let trend_warnings = collect_ssg_trend_warnings(&trends);
+                if !trend_warnings.is_empty() {
+                    println!("Trend stability warnings:");
+                    for warning in trend_warnings {
+                        println!("  - {}", warning);
+                    }
                 }
             }
 

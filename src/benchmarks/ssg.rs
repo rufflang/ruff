@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT: f64 = 5.0;
+pub const SSG_TREND_WARNING_THRESHOLD_PERCENT: f64 = 10.0;
 
 #[derive(Debug, Clone)]
 pub struct SsgRunStatistics {
@@ -472,6 +473,49 @@ pub fn collect_ssg_variability_warnings(summary: &SsgBenchmarkAggregateResult) -
 
     if let Some(speedup) = summary.ruff_vs_python_speedup.as_ref() {
         collect_variability_warning(&mut warnings, "Ruff vs Python speedup", speedup, threshold);
+    }
+
+    warnings
+}
+
+fn collect_trend_warning(
+    warnings: &mut Vec<String>,
+    label: &str,
+    metric: &SsgTrendMetric,
+    threshold_percent: f64,
+) {
+    if let Some(percent_delta) = metric.percent_delta {
+        let threshold = threshold_percent.max(0.0);
+        if percent_delta.abs() >= threshold {
+            warnings.push(format!(
+                "{} trend drift is high ({:+.2}% >= {:.2}%; first {:.3}, last {:.3}, delta {:+.3})",
+                label, percent_delta, threshold, metric.first, metric.last, metric.absolute_delta
+            ));
+        }
+    }
+}
+
+pub fn collect_ssg_trend_warnings(trends: &SsgBenchmarkTrendReport) -> Vec<String> {
+    if trends.measured_runs < 3 {
+        return Vec::new();
+    }
+
+    let threshold = SSG_TREND_WARNING_THRESHOLD_PERCENT;
+    let mut warnings = Vec::new();
+
+    collect_trend_warning(&mut warnings, "Ruff build time", &trends.ruff_build_ms, threshold);
+    collect_trend_warning(&mut warnings, "Ruff throughput", &trends.ruff_files_per_sec, threshold);
+
+    if let Some(metric) = trends.python_build_ms.as_ref() {
+        collect_trend_warning(&mut warnings, "Python build time", metric, threshold);
+    }
+
+    if let Some(metric) = trends.python_files_per_sec.as_ref() {
+        collect_trend_warning(&mut warnings, "Python throughput", metric, threshold);
+    }
+
+    if let Some(metric) = trends.ruff_vs_python_speedup.as_ref() {
+        collect_trend_warning(&mut warnings, "Ruff vs Python speedup", metric, threshold);
     }
 
     warnings
@@ -1268,6 +1312,95 @@ mod tests {
         let trends = analyze_ssg_benchmark_trends(&runs).unwrap().unwrap();
         assert!(trends.ruff_build_ms.percent_delta.is_none());
         assert!(trends.ruff_files_per_sec.percent_delta.is_none());
+    }
+
+    #[test]
+    fn test_collect_ssg_trend_warnings_flags_large_percent_deltas() {
+        let trends = SsgBenchmarkTrendReport {
+            measured_runs: 4,
+            ruff_build_ms: SsgTrendMetric {
+                first: 100.0,
+                last: 130.0,
+                absolute_delta: 30.0,
+                percent_delta: Some(30.0),
+            },
+            ruff_files_per_sec: SsgTrendMetric {
+                first: 500.0,
+                last: 430.0,
+                absolute_delta: -70.0,
+                percent_delta: Some(-14.0),
+            },
+            python_build_ms: Some(SsgTrendMetric {
+                first: 180.0,
+                last: 171.0,
+                absolute_delta: -9.0,
+                percent_delta: Some(-5.0),
+            }),
+            python_files_per_sec: None,
+            ruff_vs_python_speedup: Some(SsgTrendMetric {
+                first: 1.8,
+                last: 2.3,
+                absolute_delta: 0.5,
+                percent_delta: Some(27.777777777),
+            }),
+        };
+
+        let warnings = collect_ssg_trend_warnings(&trends);
+        assert_eq!(warnings.len(), 3);
+        assert!(warnings.iter().any(|warning| warning.contains("Ruff build time")));
+        assert!(warnings.iter().any(|warning| warning.contains("Ruff throughput")));
+        assert!(warnings.iter().any(|warning| warning.contains("Ruff vs Python speedup")));
+        assert!(!warnings.iter().any(|warning| warning.contains("Python build time")));
+    }
+
+    #[test]
+    fn test_collect_ssg_trend_warnings_requires_three_measured_runs() {
+        let trends = SsgBenchmarkTrendReport {
+            measured_runs: 2,
+            ruff_build_ms: SsgTrendMetric {
+                first: 100.0,
+                last: 150.0,
+                absolute_delta: 50.0,
+                percent_delta: Some(50.0),
+            },
+            ruff_files_per_sec: SsgTrendMetric {
+                first: 500.0,
+                last: 250.0,
+                absolute_delta: -250.0,
+                percent_delta: Some(-50.0),
+            },
+            python_build_ms: None,
+            python_files_per_sec: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let warnings = collect_ssg_trend_warnings(&trends);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_collect_ssg_trend_warnings_skips_small_or_percentless_deltas() {
+        let trends = SsgBenchmarkTrendReport {
+            measured_runs: 5,
+            ruff_build_ms: SsgTrendMetric {
+                first: 100.0,
+                last: 107.0,
+                absolute_delta: 7.0,
+                percent_delta: Some(7.0),
+            },
+            ruff_files_per_sec: SsgTrendMetric {
+                first: 0.0,
+                last: 25.0,
+                absolute_delta: 25.0,
+                percent_delta: None,
+            },
+            python_build_ms: None,
+            python_files_per_sec: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let warnings = collect_ssg_trend_warnings(&trends);
+        assert!(warnings.is_empty());
     }
 
     #[test]
