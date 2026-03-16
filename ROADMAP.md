@@ -150,6 +150,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Optimized `ssg_read_render_and_write_pages(...)` to remove precomputed rendered-length queueing during read completions and account checksum from actual write-result byte counts.
     - Added focused Unicode checksum regression coverage to preserve byte-accurate checksum/file-count contracts under multibyte content.
 
+- **SSG Throughput Follow-Through: Direct Vectored Write-Byte Accounting (✅ Complete, March 2026)**
+    - Optimized `ssg_write_rendered_html_page(...)` to return accumulated byte totals directly from vectored async write results instead of post-write rendered-length recomputation.
+    - Preserved checksum/file-count and stage-metric contracts in `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while tightening byte-accounting to observed write totals.
+    - Added focused streamed-writer regression coverage for ASCII and UTF-8 byte-count return contract preservation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.

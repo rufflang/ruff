@@ -120,6 +120,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optimized `ssg_read_render_and_write_pages(...)` to remove read-stage precomputed rendered-length queueing and accumulate checksum from actual write results, reducing read-completion scheduling overhead.
   - Added Unicode-focused regression coverage for both helper paths to lock byte-accurate checksum/file-count contracts under multibyte content.
 
+- **SSG Throughput Follow-Through: Direct Vectored Write-Byte Accounting (v0.11.0 P0)**:
+  - Optimized `ssg_write_rendered_html_page(...)` to return byte totals accumulated directly from the vectored async write loop, removing post-write rendered-length recomputation.
+  - Preserved checksum/file-count and stage-metric contracts in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while tightening write-result accounting to observed write bytes.
+  - Added focused streamed-writer regression coverage for ASCII and UTF-8 content to lock direct byte-count return contracts.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
