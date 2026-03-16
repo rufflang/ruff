@@ -32,6 +32,7 @@
 - **Latest throughput rendered-length step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now precompute rendered HTML lengths at scheduling time and reuse them during write completion accounting, removing per-write length recomputation while preserving checksum/file-count and stage-metric contracts.
 - **Latest throughput write-priority step**: `ssg_read_render_and_write_pages(...)` now prioritizes draining queued writes first on read-completion refills when write slots are available, then reapplies adaptive read refill, reducing pending-write backlog growth while preserving checksum/file-count and stage-metric contracts.
 - **Latest throughput vectored-write step**: `ssg_write_rendered_html_page(...)` now writes HTML `prefix`/`body`/`suffix` segments through a vectored async write loop with explicit flush completion, reducing per-page write-call overhead in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while preserving checksum/file-count and stage-metric contracts.
+- **Latest throughput checksum-accounting step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now account checksum totals from actual async write-result byte counts instead of pre-write length scheduling, reducing scheduling overhead while preserving byte-accurate checksum/file-count contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 

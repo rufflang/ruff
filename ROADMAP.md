@@ -145,6 +145,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Reduced per-page write-call overhead in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while preserving checksum/file-count and stage-metric contracts.
     - Added streamed-writer regression coverage for empty-body and large-body output/length contract preservation.
 
+- **SSG Throughput Follow-Through: Write-Result Checksum Accounting (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` to remove pre-write checksum precomputation and account checksum from actual async write-result byte counts.
+    - Optimized `ssg_read_render_and_write_pages(...)` to remove precomputed rendered-length queueing during read completions and account checksum from actual write-result byte counts.
+    - Added focused Unicode checksum regression coverage to preserve byte-accurate checksum/file-count contracts under multibyte content.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -175,7 +180,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, and precomputed-prefix follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, precomputed-prefix, and write-result checksum-accounting follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 
