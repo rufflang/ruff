@@ -468,7 +468,8 @@ async fn main() {
         } => {
             use benchmarks::ssg::{
                 analyze_ssg_benchmark_trends, collect_ssg_trend_warnings,
-                collect_ssg_variability_warnings, SsgStageProfile, SsgTrendMetric,
+                collect_ssg_mean_median_drift_warnings, collect_ssg_variability_warnings,
+                SsgStageProfile, SsgTrendMetric,
             };
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
@@ -712,9 +713,13 @@ async fn main() {
             }
 
             let variability_warnings = collect_ssg_variability_warnings(&summary);
-            if !variability_warnings.is_empty() {
+            let mean_median_drift_warnings = collect_ssg_mean_median_drift_warnings(&summary);
+            if !variability_warnings.is_empty() || !mean_median_drift_warnings.is_empty() {
                 println!("Measurement quality warnings:");
                 for warning in variability_warnings {
+                    println!("  - {}", warning);
+                }
+                for warning in mean_median_drift_warnings {
                     println!("  - {}", warning);
                 }
             }

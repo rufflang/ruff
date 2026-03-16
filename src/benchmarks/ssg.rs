@@ -3,6 +3,7 @@ use std::process::Command;
 
 pub const SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT: f64 = 5.0;
 pub const SSG_TREND_WARNING_THRESHOLD_PERCENT: f64 = 10.0;
+pub const SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT: f64 = 7.5;
 
 #[derive(Debug, Clone)]
 pub struct SsgRunStatistics {
@@ -67,6 +68,24 @@ impl SsgRunStatistics {
         }
 
         self.coefficient_of_variation_percent().is_some_and(|cv| cv >= threshold_percent.max(0.0))
+    }
+
+    pub fn mean_median_drift_percent(&self) -> Option<f64> {
+        let median_abs = self.median.abs();
+        if median_abs <= f64::EPSILON {
+            return None;
+        }
+
+        Some(((self.mean - self.median).abs() / median_abs) * 100.0)
+    }
+
+    pub fn is_high_mean_median_drift(&self, threshold_percent: f64) -> bool {
+        if self.runs < 3 {
+            return false;
+        }
+
+        self.mean_median_drift_percent()
+            .is_some_and(|drift| drift >= threshold_percent.max(0.0))
     }
 }
 
@@ -473,6 +492,89 @@ pub fn collect_ssg_variability_warnings(summary: &SsgBenchmarkAggregateResult) -
 
     if let Some(speedup) = summary.ruff_vs_python_speedup.as_ref() {
         collect_variability_warning(&mut warnings, "Ruff vs Python speedup", speedup, threshold);
+    }
+
+    warnings
+}
+
+fn collect_mean_median_drift_warning(
+    warnings: &mut Vec<String>,
+    label: &str,
+    stats: &SsgRunStatistics,
+    threshold_percent: f64,
+) {
+    if stats.is_high_mean_median_drift(threshold_percent) {
+        if let Some(drift_percent) = stats.mean_median_drift_percent() {
+            warnings.push(format!(
+                "{} mean/median drift is high ({:.2}% >= {:.2}%; median {:.3}, mean {:.3}, runs {})",
+                label,
+                drift_percent,
+                threshold_percent,
+                stats.median,
+                stats.mean,
+                stats.runs
+            ));
+        }
+    }
+}
+
+pub fn collect_ssg_mean_median_drift_warnings(summary: &SsgBenchmarkAggregateResult) -> Vec<String> {
+    let threshold = SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT;
+    let mut warnings = Vec::new();
+
+    collect_mean_median_drift_warning(
+        &mut warnings,
+        "Ruff build time",
+        &summary.ruff_build_ms,
+        threshold,
+    );
+    collect_mean_median_drift_warning(
+        &mut warnings,
+        "Ruff throughput",
+        &summary.ruff_files_per_sec,
+        threshold,
+    );
+
+    if let Some(profile) = summary.ruff_stage_profile.as_ref() {
+        collect_mean_median_drift_warning(
+            &mut warnings,
+            "Ruff read stage",
+            &profile.read_ms,
+            threshold,
+        );
+        collect_mean_median_drift_warning(
+            &mut warnings,
+            "Ruff render/write stage",
+            &profile.render_write_ms,
+            threshold,
+        );
+    }
+
+    if let Some(python_build_ms) = summary.python_build_ms.as_ref() {
+        collect_mean_median_drift_warning(
+            &mut warnings,
+            "Python build time",
+            python_build_ms,
+            threshold,
+        );
+    }
+
+    if let Some(python_files_per_sec) = summary.python_files_per_sec.as_ref() {
+        collect_mean_median_drift_warning(
+            &mut warnings,
+            "Python throughput",
+            python_files_per_sec,
+            threshold,
+        );
+    }
+
+    if let Some(speedup) = summary.ruff_vs_python_speedup.as_ref() {
+        collect_mean_median_drift_warning(
+            &mut warnings,
+            "Ruff vs Python speedup",
+            speedup,
+            threshold,
+        );
     }
 
     warnings
@@ -1073,6 +1175,19 @@ mod tests {
     }
 
     #[test]
+    fn test_run_statistics_mean_median_drift_percent() {
+        let stats = SsgRunStatistics::from_samples(&[100.0, 100.0, 200.0]).unwrap();
+        let drift = stats.mean_median_drift_percent().unwrap();
+        assert!((drift - 33.3333).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_run_statistics_mean_median_drift_percent_zero_median_returns_none() {
+        let stats = SsgRunStatistics::from_samples(&[0.0, 0.0, 0.0]).unwrap();
+        assert!(stats.mean_median_drift_percent().is_none());
+    }
+
+    #[test]
     fn test_run_statistics_high_variability_requires_three_runs() {
         let stats = SsgRunStatistics {
             runs: 2,
@@ -1084,6 +1199,20 @@ mod tests {
         };
 
         assert!(!stats.is_high_variability(SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT));
+    }
+
+    #[test]
+    fn test_run_statistics_high_mean_median_drift_requires_three_runs() {
+        let stats = SsgRunStatistics {
+            runs: 2,
+            mean: 120.0,
+            median: 100.0,
+            min: 100.0,
+            max: 140.0,
+            stddev: 20.0,
+        };
+
+        assert!(!stats.is_high_mean_median_drift(SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT));
     }
 
     #[test]
@@ -1161,6 +1290,70 @@ mod tests {
         };
 
         let warnings = collect_ssg_variability_warnings(&summary);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_collect_ssg_mean_median_drift_warnings_flags_high_drift_metrics() {
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: SsgRunStatistics {
+                runs: 4,
+                mean: 130.0,
+                median: 100.0,
+                min: 90.0,
+                max: 230.0,
+                stddev: 55.0,
+            },
+            ruff_files_per_sec: SsgRunStatistics {
+                runs: 4,
+                mean: 1000.0,
+                median: 998.0,
+                min: 996.0,
+                max: 1004.0,
+                stddev: 3.0,
+            },
+            ruff_stage_profile: None,
+            python_build_ms: None,
+            python_files_per_sec: None,
+            python_stage_profile: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let warnings = collect_ssg_mean_median_drift_warnings(&summary);
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings.iter().any(|warning| warning.contains("Ruff build time")));
+        assert!(warnings.iter().all(|warning| warning.contains("mean/median drift is high")));
+    }
+
+    #[test]
+    fn test_collect_ssg_mean_median_drift_warnings_skips_stable_metrics() {
+        let stable_stats = SsgRunStatistics {
+            runs: 5,
+            mean: 120.5,
+            median: 120.0,
+            min: 118.0,
+            max: 123.0,
+            stddev: 1.5,
+        };
+
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: stable_stats.clone(),
+            ruff_files_per_sec: stable_stats.clone(),
+            ruff_stage_profile: Some(SsgStageProfileStatistics {
+                read_ms: stable_stats.clone(),
+                render_write_ms: stable_stats.clone(),
+            }),
+            python_build_ms: Some(stable_stats.clone()),
+            python_files_per_sec: Some(stable_stats.clone()),
+            python_stage_profile: None,
+            ruff_vs_python_speedup: Some(stable_stats),
+        };
+
+        let warnings = collect_ssg_mean_median_drift_warnings(&summary);
         assert!(warnings.is_empty());
     }
 
