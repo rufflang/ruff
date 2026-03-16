@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-16_16-21_bench-ssg-trend-drift-warnings.md** — ✅ COMPLETED: Added `bench-ssg` trend-drift warning signals (`10%` threshold, `>=3` measured-run gate), wired CLI warning presentation, added comprehensive benchmark warning contract tests, and synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-15_18-37_bench-ssg-measurement-quality-signals.md** — ✅ COMPLETED: Added `bench-ssg` measurement-quality signals with CV-based variability warnings plus first-to-last measured-run trend reporting, expanded benchmark contract coverage, and synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-15_17-53_bench-ssg-warmup-series-contracts.md** — ✅ COMPLETED: Added `bench-ssg --warmup-runs` support via shared warmup+measured series orchestration, added comprehensive warmup/measured failure-surfacing contracts, and synchronized CHANGELOG/ROADMAP/README.
