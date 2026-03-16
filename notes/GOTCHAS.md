@@ -493,11 +493,13 @@ If you are new to the project, read this first.
 ### `ssg_render_and_write_pages(...)` throughput changes must preserve benchmark equivalence contracts
 - **Problem:** Render/write pipeline optimizations can silently change benchmark validity if output HTML shape/length drifts from expected behavior.
 - **Rule:** Keep `ssg_render_and_write_pages(...)` checksum/file-count behavior contract-stable during throughput work.
+- **Rule:** Keep checksum accounting tied to write-completion byte counts (writer return values), not pre-write scheduled length assumptions.
 - **Why:** `bench-ssg` compares Ruff/Python output equivalence using checksum and file-count checks in the harness; drift here invalidates performance comparisons.
 - **Workflow:** 1) preserve output naming/content contract, 2) run `cargo test ssg_render_and_write_pages -- --nocapture`, 3) run `cargo test ssg -- --nocapture`.
 - **Implication:** Treat checksum/file-count equivalence as a release-gate contract, not a benchmark-only convenience.
 
 (Discovered during: 2026-03-12_05-20_ssg-render-write-pipeline-optimization.md)
+(Updated during: 2026-03-16_16-23_ssg-checksum-write-result-accounting.md)
 
 ### `bench-ssg` stage metric keys are a compatibility contract across helper refactors
 - **Problem:** Refactoring timed-path orchestration (for example, into `ssg_read_render_and_write_pages(...)`) can silently break stage-profile parsing if emitted metric keys drift.

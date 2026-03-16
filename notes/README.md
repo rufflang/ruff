@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-16_16-23_ssg-checksum-write-result-accounting.md** — ✅ COMPLETED: Moved SSG checksum accounting to write-result byte counts in `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)`, added Unicode checksum regression coverage, and synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-16_16-21_bench-ssg-trend-drift-warnings.md** — ✅ COMPLETED: Added `bench-ssg` trend-drift warning signals (`10%` threshold, `>=3` measured-run gate), wired CLI warning presentation, added comprehensive benchmark warning contract tests, and synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-15_18-37_bench-ssg-measurement-quality-signals.md** — ✅ COMPLETED: Added `bench-ssg` measurement-quality signals with CV-based variability warnings plus first-to-last measured-run trend reporting, expanded benchmark contract coverage, and synchronized CHANGELOG/ROADMAP/README.
