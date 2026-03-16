@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-16_16-58_ssg-vectored-write-byte-accounting.md** — ✅ COMPLETED: Tightened `ssg_write_rendered_html_page(...)` to return observed vectored write-byte totals directly, added focused ASCII/UTF-8 writer byte-accounting regression coverage, and synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-16_16-23_ssg-checksum-write-result-accounting.md** — ✅ COMPLETED: Moved SSG checksum accounting to write-result byte counts in `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)`, added Unicode checksum regression coverage, and synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-16_16-21_bench-ssg-trend-drift-warnings.md** — ✅ COMPLETED: Added `bench-ssg` trend-drift warning signals (`10%` threshold, `>=3` measured-run gate), wired CLI warning presentation, added comprehensive benchmark warning contract tests, and synchronized CHANGELOG/ROADMAP/README.
