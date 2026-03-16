@@ -118,7 +118,10 @@ async fn ssg_write_rendered_html_page(
 
     output_file.flush().await?;
 
-    Ok(html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len())
+    Ok(ssg_rendered_html_len_from_prefix_len(
+        html_prefix.len(),
+        source_body.len(),
+    ))
 }
 
 fn resolved_promise(result: Result<Value, String>) -> Value {
@@ -1061,14 +1064,6 @@ pub fn handle(
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
             let render_prefixes_for_tasks =
                 Arc::new(ssg_build_render_prefixes_for_batch(file_count));
-            let mut checksum: i64 = 0;
-            for (index, source_body) in source_bodies.iter().enumerate() {
-                checksum += ssg_rendered_html_len_from_prefix_len(
-                    render_prefixes_for_tasks[index].len(),
-                    source_body.len(),
-                ) as i64;
-            }
-            let checksum_value = checksum;
             let output_paths_for_tasks =
                 Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
 
@@ -1077,6 +1072,7 @@ pub fn handle(
             AsyncRuntime::spawn_task(async move {
                 let mut pending = source_bodies.into_iter().enumerate();
                 let mut in_flight = FuturesUnordered::new();
+                let mut checksum: i64 = 0;
 
                 let make_write_future = |index: usize, source_body: Arc<String>| {
                     let output_paths = output_paths_for_tasks.clone();
@@ -1104,7 +1100,9 @@ pub fn handle(
 
                 while let Some((index, write_result)) = in_flight.next().await {
                     match write_result {
-                        Ok(_) => {}
+                        Ok(written_len) => {
+                            checksum += written_len as i64;
+                        }
                         Err(e) => {
                             let _ = tx.send(Err(format!(
                                 "Failed to write file '{}' (index {}): {}",
@@ -1122,7 +1120,7 @@ pub fn handle(
                 }
 
                 let mut result = DictMap::default();
-                result.insert("checksum".into(), Value::Int(checksum_value));
+                result.insert("checksum".into(), Value::Int(checksum));
                 result.insert("files".into(), Value::Int(file_count as i64));
 
                 let _ = tx.send(Ok(Value::Dict(Arc::new(result))));
@@ -1225,7 +1223,7 @@ pub fn handle(
                 let mut pending_reads = source_paths.into_iter().enumerate();
                 let mut read_in_flight = FuturesUnordered::new();
                 let mut write_in_flight = FuturesUnordered::new();
-                let mut pending_writes: VecDeque<(usize, String, usize)> = VecDeque::new();
+                let mut pending_writes: VecDeque<(usize, String)> = VecDeque::new();
                 let mut remaining_reads = file_count;
                 let mut checksum: i64 = 0;
                 let mut read_stage_ms: f64 = 0.0;
@@ -1236,7 +1234,7 @@ pub fn handle(
                     (index, path, read_result)
                 };
 
-                let make_write_future = |index: usize, source_body: String, html_len: usize| {
+                let make_write_future = |index: usize, source_body: String| {
                     let output_paths = output_paths_for_tasks.clone();
                     let render_prefixes = render_prefixes_for_tasks.clone();
 
@@ -1247,7 +1245,7 @@ pub fn handle(
                             source_body.as_str(),
                         )
                         .await;
-                        (index, html_len, write_result)
+                        (index, write_result)
                     }
                 };
 
@@ -1279,15 +1277,10 @@ pub fn handle(
                                         render_write_stage_start = Some(Instant::now());
                                     }
 
-                                    let html_len = ssg_rendered_html_len_from_prefix_len(
-                                        render_prefixes_for_tasks[index].len(),
-                                        content.len(),
-                                    );
-
                                     if write_in_flight.len() < effective_batch_size {
-                                        write_in_flight.push(make_write_future(index, content, html_len));
+                                        write_in_flight.push(make_write_future(index, content));
                                     } else {
-                                        pending_writes.push_back((index, content, html_len));
+                                        pending_writes.push_back((index, content));
                                     }
                                 }
                                 Err(e) => {
@@ -1312,11 +1305,10 @@ pub fn handle(
                             if refill_writes_first {
                                 while write_in_flight.len() < effective_batch_size {
                                     match pending_writes.pop_front() {
-                                        Some((write_index, write_source_body, write_html_len)) => {
+                                        Some((write_index, write_source_body)) => {
                                             write_in_flight.push(make_write_future(
                                                 write_index,
                                                 write_source_body,
-                                                write_html_len,
                                             ));
                                         }
                                         None => break,
@@ -1343,11 +1335,10 @@ pub fn handle(
                             if !refill_writes_first {
                                 while write_in_flight.len() < effective_batch_size {
                                     match pending_writes.pop_front() {
-                                        Some((write_index, write_source_body, write_html_len)) => {
+                                        Some((write_index, write_source_body)) => {
                                             write_in_flight.push(make_write_future(
                                                 write_index,
                                                 write_source_body,
-                                                write_html_len,
                                             ));
                                         }
                                         None => break,
@@ -1355,10 +1346,10 @@ pub fn handle(
                                 }
                             }
                         }
-                        Some((index, html_len, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
+                        Some((index, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
                             match write_result {
-                                Ok(_) => {
-                                    checksum += html_len as i64;
+                                Ok(written_len) => {
+                                    checksum += written_len as i64;
                                 }
                                 Err(e) => {
                                     let _ = tx.send(Err(format!(
@@ -1373,11 +1364,10 @@ pub fn handle(
 
                             while write_in_flight.len() < effective_batch_size {
                                 match pending_writes.pop_front() {
-                                    Some((write_index, write_source_body, write_html_len)) => {
+                                    Some((write_index, write_source_body)) => {
                                         write_in_flight.push(make_write_future(
                                             write_index,
                                             write_source_body,
-                                            write_html_len,
                                         ));
                                     }
                                     None => break,
@@ -2692,6 +2682,44 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_render_and_write_pages_unicode_checksum_matches_written_outputs() {
+        let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_unicode_checksum");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![
+                string_value("# Café ☕\\n\\nnaïve façade"),
+                string_value("# Emoji 🚀\\n\\nUnicode ✅✨"),
+            ])),
+            string_value(&temp_dir),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 2));
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", temp_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", temp_dir)).unwrap();
+        let expected_checksum = (html_a.len() + html_b.len()) as i64;
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
     fn test_ssg_build_output_paths_for_batch_generates_stable_indexed_paths() {
         let paths = ssg_build_output_paths_for_batch("tmp/output", 4);
         assert_eq!(paths.len(), 4);
@@ -3206,6 +3234,53 @@ mod tests {
         let html_b = fs::read_to_string(format!("{}/post_1.html", output_dir)).unwrap();
         let html_c = fs::read_to_string(format!("{}/post_2.html", output_dir)).unwrap();
         let expected_checksum = (html_a.len() + html_b.len() + html_c.len()) as i64;
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_read_render_and_write_pages_unicode_checksum_matches_written_outputs() {
+        let input_dir = unique_temp_dir("ruff_ssg_read_render_unicode_checksum_input");
+        let output_dir = unique_temp_dir("ruff_ssg_read_render_unicode_checksum_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_a = format!("{}/post_0.md", input_dir);
+        let source_b = format!("{}/post_1.md", input_dir);
+        fs::write(&source_a, "# Café ☕\\n\\nnaïve façade").unwrap();
+        fs::write(&source_b, "# Emoji 🚀\\n\\nUnicode ✅✨").unwrap();
+
+        let mut interp = Interpreter::new();
+        let args = vec![
+            Value::Array(Arc::new(vec![string_value(&source_a), string_value(&source_b)])),
+            string_value(&output_dir),
+            Value::Int(2),
+        ];
+
+        let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(matches!(dict.get("files"), Some(Value::Int(count)) if *count == 2));
+                assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", output_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", output_dir)).unwrap();
+        let expected_checksum = (html_a.len() + html_b.len()) as i64;
 
         assert_eq!(checksum, expected_checksum);
 
