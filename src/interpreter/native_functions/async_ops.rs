@@ -25,6 +25,7 @@ enum RayonMapInput {
     DictLen(usize),
 }
 
+#[cfg(test)]
 fn ssg_build_output_path(output_dir: &str, index: usize) -> String {
     let index_str = index.to_string();
     let mut output_path = String::with_capacity(output_dir.len() + 32);
@@ -35,6 +36,7 @@ fn ssg_build_output_path(output_dir: &str, index: usize) -> String {
     output_path
 }
 
+#[cfg(test)]
 fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<String> {
     let mut paths = Vec::with_capacity(file_count);
     for index in 0..file_count {
@@ -43,6 +45,7 @@ fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<
     paths
 }
 
+#[cfg(test)]
 fn ssg_build_render_prefixes_for_batch(file_count: usize) -> Vec<String> {
     let mut prefixes = Vec::with_capacity(file_count);
     for index in 0..file_count {
@@ -56,6 +59,37 @@ fn ssg_build_render_prefixes_for_batch(file_count: usize) -> Vec<String> {
         prefixes.push(prefix);
     }
     prefixes
+}
+
+fn ssg_build_output_paths_and_prefixes_for_batch(
+    output_dir: &str,
+    file_count: usize,
+) -> (Vec<String>, Vec<String>) {
+    let mut paths = Vec::with_capacity(file_count);
+    let mut prefixes = Vec::with_capacity(file_count);
+
+    for index in 0..file_count {
+        let index_text = index.to_string();
+
+        let mut output_path = String::with_capacity(
+            output_dir.len() + "/post_".len() + index_text.len() + ".html".len(),
+        );
+        output_path.push_str(output_dir);
+        output_path.push_str("/post_");
+        output_path.push_str(index_text.as_str());
+        output_path.push_str(".html");
+        paths.push(output_path);
+
+        let mut prefix = String::with_capacity(
+            SSG_HTML_PREFIX_START.len() + index_text.len() + SSG_HTML_PREFIX_END.len(),
+        );
+        prefix.push_str(SSG_HTML_PREFIX_START);
+        prefix.push_str(index_text.as_str());
+        prefix.push_str(SSG_HTML_PREFIX_END);
+        prefixes.push(prefix);
+    }
+
+    (paths, prefixes)
 }
 
 fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
@@ -1057,10 +1091,10 @@ pub fn handle(
 
             let file_count = source_bodies.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
-            let render_prefixes_for_tasks =
-                Arc::new(ssg_build_render_prefixes_for_batch(file_count));
-            let output_paths_for_tasks =
-                Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
+            let (output_paths_for_batch, render_prefixes_for_batch) =
+                ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+            let output_paths_for_tasks = Arc::new(output_paths_for_batch);
+            let render_prefixes_for_tasks = Arc::new(render_prefixes_for_batch);
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -1239,10 +1273,10 @@ pub fn handle(
             let file_count = source_paths.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
             let read_ahead_limit = ssg_read_ahead_limit(effective_batch_size, file_count);
-            let output_paths_for_tasks =
-                Arc::new(ssg_build_output_paths_for_batch(output_dir.as_str(), file_count));
-            let render_prefixes_for_tasks =
-                Arc::new(ssg_build_render_prefixes_for_batch(file_count));
+            let (output_paths_for_batch, render_prefixes_for_batch) =
+                ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+            let output_paths_for_tasks = Arc::new(output_paths_for_batch);
+            let render_prefixes_for_tasks = Arc::new(render_prefixes_for_batch);
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -2831,6 +2865,30 @@ mod tests {
 
         let empty_prefixes = ssg_build_render_prefixes_for_batch(0);
         assert!(empty_prefixes.is_empty());
+    }
+
+    #[test]
+    fn test_ssg_build_output_paths_and_prefixes_for_batch_generates_parallel_outputs() {
+        let (paths, prefixes) = ssg_build_output_paths_and_prefixes_for_batch("tmp/output", 3);
+
+        assert_eq!(paths.len(), 3);
+        assert_eq!(prefixes.len(), 3);
+
+        assert_eq!(paths[0], "tmp/output/post_0.html");
+        assert_eq!(paths[1], "tmp/output/post_1.html");
+        assert_eq!(paths[2], "tmp/output/post_2.html");
+
+        assert_eq!(prefixes[0], "<html><body><h1>Post 0</h1><article>");
+        assert_eq!(prefixes[1], "<html><body><h1>Post 1</h1><article>");
+        assert_eq!(prefixes[2], "<html><body><h1>Post 2</h1><article>");
+    }
+
+    #[test]
+    fn test_ssg_build_output_paths_and_prefixes_for_batch_handles_empty_input() {
+        let (paths, prefixes) = ssg_build_output_paths_and_prefixes_for_batch("tmp/output", 0);
+
+        assert!(paths.is_empty());
+        assert!(prefixes.is_empty());
     }
 
     #[test]
