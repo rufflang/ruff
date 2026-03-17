@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-17_12-17_ssg-combined-precompute-pass.md** — ✅ COMPLETED: Fused SSG output-path + HTML-prefix batch precompute into one helper pass, migrated both SSG write pipelines to it, added helper regressions, and captured warning-hygiene gotcha for test-only legacy helpers.
+
 - **2026-03-16_17-08_bench-ssg-mean-median-drift-warnings.md** — ✅ COMPLETED: Added `bench-ssg` mean/median drift warning signals (`7.5%` threshold, `>=3` measured-run gate), wired CLI measurement-quality warning output, added comprehensive benchmark drift-warning contracts, and synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-16_16-58_ssg-vectored-write-byte-accounting.md** — ✅ COMPLETED: Tightened `ssg_write_rendered_html_page(...)` to return observed vectored write-byte totals directly, added focused ASCII/UTF-8 writer byte-accounting regression coverage, and synchronized CHANGELOG/ROADMAP/README.

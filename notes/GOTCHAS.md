@@ -528,6 +528,15 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-15_14-32_ssg-output-path-precompute-follow-through.md)
 
+### Throughput helper fusion can orphan legacy helpers and reintroduce warnings
+- **Problem:** Fusing path/prefix precompute into one helper can leave older helpers referenced only in tests, causing `dead_code` warnings in non-test builds.
+- **Rule:** After helper fusion refactors, either remove legacy helpers fully or scope them with `#[cfg(test)]` if tests still depend on them.
+- **Why:** Ruff's strict warning posture treats helper-orphan warnings as real regressions even when runtime behavior is correct.
+- **Workflow:** 1) run `cargo build`, 2) inspect warnings for orphaned helpers, 3) scope/remove old helpers, 4) re-run focused SSG contract tests.
+- **Implication:** Optimization refactors must include warning-hygiene follow-through, not just behavior correctness checks.
+
+(Discovered during: 2026-03-17_12-17_ssg-combined-precompute-pass.md)
+
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
 - **Rule:** For broad formatting/reflow changes, split commits by subsystem ownership and intent.
