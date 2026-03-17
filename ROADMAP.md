@@ -155,6 +155,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved checksum/file-count and stage-metric contracts in `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while tightening byte-accounting to observed write totals.
     - Added focused streamed-writer regression coverage for ASCII and UTF-8 byte-count return contract preservation.
 
+- **SSG Throughput Follow-Through: Single-Worker Fast Path for Write Pipelines (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` with a dedicated `concurrency_limit=1` lane to bypass multi-future scheduling overhead while preserving checksum/file-count output contracts.
+    - Optimized `ssg_read_render_and_write_pages(...)` with a dedicated single-worker read→write lane to reduce queue/select overhead while preserving checksum/file-count and stage-metric keys (`read_ms`, `render_write_ms`).
+    - Added focused regression coverage for single-worker `ssg_render_and_write_pages(...)` output/checksum contract preservation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -195,7 +200,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, precomputed-prefix, and write-result checksum-accounting follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, precomputed-prefix, write-result checksum-accounting, and single-worker fast-path follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 
