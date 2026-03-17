@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-17_12-19_ssg-single-worker-fast-path.md** — ✅ COMPLETED: Added dedicated single-worker (`concurrency_limit=1`) SSG write-pipeline lanes with preserved checksum/file-count/stage-metric contracts and synchronized CHANGELOG/ROADMAP/README updates.
+
 - **2026-03-17_12-17_ssg-combined-precompute-pass.md** — ✅ COMPLETED: Fused SSG output-path + HTML-prefix batch precompute into one helper pass, migrated both SSG write pipelines to it, added helper regressions, and captured warning-hygiene gotcha for test-only legacy helpers.
 
 - **2026-03-16_17-08_bench-ssg-mean-median-drift-warnings.md** — ✅ COMPLETED: Added `bench-ssg` mean/median drift warning signals (`7.5%` threshold, `>=3` measured-run gate), wired CLI measurement-quality warning output, added comprehensive benchmark drift-warning contracts, and synchronized CHANGELOG/ROADMAP/README.

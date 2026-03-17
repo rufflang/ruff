@@ -504,11 +504,13 @@ If you are new to the project, read this first.
 ### `bench-ssg` stage metric keys are a compatibility contract across helper refactors
 - **Problem:** Refactoring timed-path orchestration (for example, into `ssg_read_render_and_write_pages(...)`) can silently break stage-profile parsing if emitted metric keys drift.
 - **Rule:** Preserve externally consumed benchmark keys (`RUFF_SSG_READ_MS`, `RUFF_SSG_RENDER_WRITE_MS`) even when internal helper summary fields or execution layout change.
+- **Rule:** Preserve stage timing semantics across lane-specific optimizations; single-worker fast paths must still report meaningful non-empty `render_write_ms` values.
 - **Why:** Harness parsers and comparative reporting rely on stable key names/semantics; key drift causes false missing-metric failures and invalid trend comparisons.
 - **Workflow:** 1) keep helper summary→benchmark key mapping explicit, 2) run `cargo test ssg -- --nocapture`, 3) verify required-metric harness tests still pass.
 - **Implication:** Treat benchmark metric key stability as part of public benchmark contract, not an internal implementation detail.
 
 (Discovered during: 2026-03-12_10-43_ssg-read-render-write-fusion-follow-through.md)
+(Updated during: 2026-03-17_12-19_ssg-single-worker-fast-path.md)
 
 ### Fused read→write streaming helpers must be implemented as two-lane state machines
 - **Problem:** Interleaving read and write futures in a fused helper can hang or mis-report stage timings when one lane drains first.
