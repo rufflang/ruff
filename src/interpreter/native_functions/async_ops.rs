@@ -1065,6 +1065,39 @@ pub fn handle(
             let (tx, rx) = tokio::sync::oneshot::channel();
 
             AsyncRuntime::spawn_task(async move {
+                if effective_batch_size == 1 {
+                    let mut checksum: i64 = 0;
+
+                    for (index, source_body) in source_bodies.into_iter().enumerate() {
+                        let write_result = ssg_write_rendered_html_page(
+                            output_paths_for_tasks[index].as_str(),
+                            render_prefixes_for_tasks[index].as_str(),
+                            source_body.as_ref().as_str(),
+                        )
+                        .await;
+
+                        match write_result {
+                            Ok(written_len) => checksum += written_len as i64,
+                            Err(e) => {
+                                let _ = tx.send(Err(format!(
+                                    "Failed to write file '{}' (index {}): {}",
+                                    output_paths_for_tasks[index].as_str(),
+                                    index,
+                                    e
+                                )));
+                                return Value::Null;
+                            }
+                        }
+                    }
+
+                    let mut result = DictMap::default();
+                    result.insert("checksum".into(), Value::Int(checksum));
+                    result.insert("files".into(), Value::Int(file_count as i64));
+
+                    let _ = tx.send(Ok(Value::Dict(Arc::new(result))));
+                    return Value::Null;
+                }
+
                 let mut pending = source_bodies.into_iter().enumerate();
                 let mut in_flight = FuturesUnordered::new();
                 let mut checksum: i64 = 0;
@@ -1215,6 +1248,67 @@ pub fn handle(
 
             AsyncRuntime::spawn_task(async move {
                 let read_stage_start = Instant::now();
+                if effective_batch_size == 1 {
+                    let mut checksum: i64 = 0;
+                    let mut render_write_stage_start: Option<Instant> = None;
+
+                    for (index, source_path) in source_paths.into_iter().enumerate() {
+                        let source_body =
+                            match tokio::fs::read_to_string(source_path.as_str()).await {
+                                Ok(content) => content,
+                                Err(e) => {
+                                    let _ = tx.send(Err(format!(
+                                        "Failed to read file '{}' (index {}): {}",
+                                        source_path, index, e
+                                    )));
+                                    return Value::Null;
+                                }
+                            };
+
+                        if render_write_stage_start.is_none() {
+                            render_write_stage_start = Some(Instant::now());
+                        }
+
+                        let write_result = ssg_write_rendered_html_page(
+                            output_paths_for_tasks[index].as_str(),
+                            render_prefixes_for_tasks[index].as_str(),
+                            source_body.as_str(),
+                        )
+                        .await;
+
+                        match write_result {
+                            Ok(written_len) => checksum += written_len as i64,
+                            Err(e) => {
+                                let _ = tx.send(Err(format!(
+                                    "Failed to write file '{}' (index {}): {}",
+                                    output_paths_for_tasks[index].as_str(),
+                                    index,
+                                    e
+                                )));
+                                return Value::Null;
+                            }
+                        }
+                    }
+
+                    let mut result = DictMap::default();
+                    result.insert("checksum".into(), Value::Int(checksum));
+                    result.insert("files".into(), Value::Int(file_count as i64));
+                    result.insert(
+                        "read_ms".into(),
+                        Value::Float(read_stage_start.elapsed().as_secs_f64() * 1000.0),
+                    );
+                    result.insert(
+                        "render_write_ms".into(),
+                        Value::Float(match render_write_stage_start {
+                            Some(stage_start) => stage_start.elapsed().as_secs_f64() * 1000.0,
+                            None => 0.0,
+                        }),
+                    );
+
+                    let _ = tx.send(Ok(Value::Dict(Arc::new(result))));
+                    return Value::Null;
+                }
+
                 let mut pending_reads = source_paths.into_iter().enumerate();
                 let mut read_in_flight = FuturesUnordered::new();
                 let mut write_in_flight = FuturesUnordered::new();
@@ -2870,10 +2964,7 @@ mod tests {
 
         let rendered_html = fs::read_to_string(output_path.as_str()).unwrap();
         assert_eq!(written_bytes, rendered_html.len());
-        assert_eq!(
-            written_bytes,
-            html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len()
-        );
+        assert_eq!(written_bytes, html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len());
 
         let _ = fs::remove_dir_all(&output_dir);
     }
@@ -2896,7 +2987,9 @@ mod tests {
         assert_eq!(written_bytes, rendered_bytes.len());
         assert_eq!(
             written_bytes,
-            html_prefix.as_bytes().len() + source_body.as_bytes().len() + SSG_HTML_SUFFIX.as_bytes().len()
+            html_prefix.as_bytes().len()
+                + source_body.as_bytes().len()
+                + SSG_HTML_SUFFIX.as_bytes().len()
         );
 
         let _ = fs::remove_dir_all(&output_dir);
@@ -3008,6 +3101,49 @@ mod tests {
             string_value(&temp_dir),
             Value::Int((file_count + 10) as i64),
         ];
+
+        let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        let checksum = match resolved {
+            Value::Dict(dict) => {
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
+                match dict.get("checksum") {
+                    Some(Value::Int(value)) => *value,
+                    _ => panic!("Expected checksum int"),
+                }
+            }
+            _ => panic!("Expected Dict result"),
+        };
+
+        let mut expected_checksum = 0i64;
+        for index in 0..file_count {
+            let html = fs::read_to_string(format!("{}/post_{}.html", temp_dir, index)).unwrap();
+            expected_checksum += html.len() as i64;
+        }
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_ssg_render_and_write_pages_single_worker_preserves_output_contracts() {
+        let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_single_worker_output");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let file_count = 40usize;
+        let mut source_pages = Vec::with_capacity(file_count);
+        for index in 0..file_count {
+            let body = format!("# Single {}\n\n{}", index, "content ".repeat((index % 6) + 1));
+            source_pages.push(string_value(body.as_str()));
+        }
+
+        let mut interp = Interpreter::new();
+        let args =
+            vec![Value::Array(Arc::new(source_pages)), string_value(&temp_dir), Value::Int(1)];
 
         let result = handle(&mut interp, "ssg_render_and_write_pages", &args).unwrap();
         let resolved = await_promise(result).unwrap();
