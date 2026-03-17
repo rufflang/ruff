@@ -515,11 +515,13 @@ If you are new to the project, read this first.
 ### Fused read→write streaming helpers must be implemented as two-lane state machines
 - **Problem:** Interleaving read and write futures in a fused helper can hang or mis-report stage timings when one lane drains first.
 - **Rule:** In `ssg_read_render_and_write_pages(...)`, loop until both lanes drain (`remaining_reads > 0 || !write_in_flight.is_empty()`) and guard `tokio::select!` branches by lane availability.
+- **Rule:** For `concurrency_limit=1` overlap lanes, gate read prefetch on pending-write occupancy (no pending write + no read in-flight + remaining reads > 0) to prevent write-slot starvation and queue-shape drift.
 - **Why:** Read completion and write completion progress independently; unguarded or single-lane assumptions can deadlock, starve writes, or skew `read_ms` / `render_write_ms` timing semantics.
 - **Workflow:** 1) schedule bounded reads first, 2) push writes on successful reads, 3) finalize `read_ms` exactly when reads are exhausted, 4) continue draining writes to completion.
 - **Implication:** Treat fused helper control flow as a concurrency state machine and lock behavior with both multi-worker and `concurrency_limit=1` contract tests.
 
 (Discovered during: 2026-03-13_16-37_ssg-read-write-streaming-follow-through.md)
+(Updated during: 2026-03-17_12-35_ssg-single-worker-overlap-prefetch-lane.md)
 
 ### SSG throughput path optimizations must keep indexed output naming centralized
 - **Problem:** Duplicating output-path construction logic across SSG helpers risks subtle naming drift that breaks checksum/file-count benchmark equivalence.
