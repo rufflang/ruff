@@ -160,6 +160,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Optimized `ssg_read_render_and_write_pages(...)` with a dedicated single-worker read→write lane to reduce queue/select overhead while preserving checksum/file-count and stage-metric keys (`read_ms`, `render_write_ms`).
     - Added focused regression coverage for single-worker `ssg_render_and_write_pages(...)` output/checksum contract preservation.
 
+- **SSG Throughput Follow-Through: Combined Output-Path and Prefix Precompute Pass (✅ Complete, March 2026)**
+    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute output paths and HTML prefixes in one shared batch pass.
+    - Removed duplicate per-index string conversion work across separate precompute loops while preserving checksum/file-count and stage-metric contracts.
+    - Added focused regression coverage for combined path/prefix generation behavior, including empty-input contracts.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -200,7 +205,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, precomputed-prefix, write-result checksum-accounting, and single-worker fast-path follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, and single-worker fast-path follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 

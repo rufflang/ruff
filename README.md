@@ -37,6 +37,7 @@
 - **Latest throughput checksum-accounting step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now account checksum totals from actual async write-result byte counts instead of pre-write length scheduling, reducing scheduling overhead while preserving byte-accurate checksum/file-count contracts.
 - **Latest throughput direct-byte-accounting step**: `ssg_write_rendered_html_page(...)` now returns byte totals accumulated directly from vectored async write results (rather than post-write rendered-length recomputation), preserving checksum/file-count and stage-metric contracts while reducing residual write-path accounting overhead.
 - **Latest throughput single-worker fast-path step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now use dedicated `concurrency_limit=1` execution lanes that bypass multi-future queue/select orchestration overhead while preserving checksum/file-count and stage-metric key contracts.
+- **Latest throughput combined-precompute step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now precompute output paths and HTML prefixes in one shared batch pass, reducing duplicate per-index formatting work while preserving checksum/file-count and stage-metric contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 

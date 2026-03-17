@@ -135,6 +135,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Optimized `ssg_read_render_and_write_pages(...)` with a dedicated single-worker read→write lane that bypasses `select`/multi-queue coordination overhead while preserving checksum/file-count and stage-metric keys (`read_ms`, `render_write_ms`).
   - Added focused single-worker regression coverage for `ssg_render_and_write_pages(...)` output and checksum contract preservation.
 
+- **SSG Throughput Follow-Through: Combined Output-Path and Prefix Precompute Pass (v0.11.0 P0)**:
+  - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute output paths and HTML prefixes in one shared batch pass.
+  - Removed duplicate per-index string conversion work across separate path and prefix loops while preserving checksum/file-count and stage-metric contracts.
+  - Added focused helper regression coverage for combined path/prefix generation, including empty-input behavior.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
