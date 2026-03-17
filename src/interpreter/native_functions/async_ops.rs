@@ -8,7 +8,6 @@ use crate::vm::VM;
 use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
-use std::collections::VecDeque;
 use std::io::{Error, ErrorKind, IoSlice};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -92,6 +91,7 @@ fn ssg_build_output_paths_and_prefixes_for_batch(
     (paths, prefixes)
 }
 
+#[cfg(test)]
 fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
     let bounded_file_count = file_count.max(1);
     let bounded_concurrency = concurrency_limit.max(1);
@@ -99,6 +99,7 @@ fn ssg_read_ahead_limit(concurrency_limit: usize, file_count: usize) -> usize {
     expanded_window.min(bounded_file_count)
 }
 
+#[cfg(test)]
 fn ssg_target_read_in_flight(
     read_ahead_limit: usize,
     write_concurrency_limit: usize,
@@ -115,6 +116,7 @@ fn ssg_target_read_in_flight(
     bounded_read_ahead.min(bounded_available_budget)
 }
 
+#[cfg(test)]
 fn ssg_should_refill_writes_first(
     pending_writes_len: usize,
     write_in_flight_len: usize,
@@ -124,6 +126,7 @@ fn ssg_should_refill_writes_first(
     pending_writes_len > 0 && write_in_flight_len < bounded_write_concurrency
 }
 
+#[cfg(test)]
 fn ssg_should_prefetch_single_worker_read(
     remaining_reads: usize,
     read_in_flight_len: usize,
@@ -159,6 +162,97 @@ async fn ssg_write_rendered_html_page(
     output_file.flush().await?;
 
     Ok(total_written)
+}
+
+/// Runs a Rayon-parallel two-phase SSG pipeline: parallel reads (Phase 1) then
+/// parallel HTML render + file write (Phase 2), using a single bounded thread pool.
+///
+/// Replaces the Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages`
+/// to eliminate per-file `spawn_blocking` task overhead and use Rayon work-stealing
+/// for efficient bounded-concurrency I/O scheduling across both stages.
+///
+/// # Returns
+/// `Ok((checksum, read_ms, render_write_ms))` on success.
+/// `Err(message)` on the first read or write failure, with the same error-message
+/// format as the previous Tokio pipeline ("Failed to read file '...' (index ...): ..."
+/// / "Failed to write file '...' (index ...): ...").
+fn ssg_run_rayon_read_render_write(
+    source_paths: Vec<String>,
+    output_paths: Vec<String>,
+    render_prefixes: Vec<String>,
+    concurrency_limit: usize,
+) -> Result<(i64, f64, f64), String> {
+    let pool = ThreadPoolBuilder::new()
+        .num_threads(concurrency_limit.max(1))
+        .build()
+        .map_err(|e| {
+            format!(
+                "ssg_read_render_and_write_pages() failed to initialize thread pool: {}",
+                e
+            )
+        })?;
+
+    // Phase 1: Parallel reads via Rayon work-stealing.
+    // Rayon's par_iter + collect preserves input order in the result Vec.
+    let read_start = Instant::now();
+    let read_results: Vec<Result<String, String>> = pool.install(|| {
+        source_paths
+            .par_iter()
+            .enumerate()
+            .map(|(index, path)| {
+                std::fs::read_to_string(path).map_err(|e| {
+                    format!("Failed to read file '{}' (index {}): {}", path, index, e)
+                })
+            })
+            .collect()
+    });
+    let read_ms = read_start.elapsed().as_secs_f64() * 1000.0;
+
+    let file_count = source_paths.len();
+    let mut contents = Vec::with_capacity(file_count);
+    for result in read_results {
+        match result {
+            Ok(content) => contents.push(content),
+            Err(e) => return Err(e),
+        }
+    }
+
+    // Phase 2: Parallel HTML render + file write via the same Rayon pool.
+    // Each Rayon task builds the full HTML string and writes it with a single
+    // std::fs::write call, eliminating per-file vectored-write loop overhead.
+    let render_write_start = Instant::now();
+    let write_results: Vec<Result<usize, String>> = pool.install(|| {
+        contents
+            .par_iter()
+            .enumerate()
+            .map(|(index, content)| {
+                let html_prefix = &render_prefixes[index];
+                let total_len = html_prefix.len() + content.len() + SSG_HTML_SUFFIX.len();
+                let mut html = String::with_capacity(total_len);
+                html.push_str(html_prefix.as_str());
+                html.push_str(content.as_str());
+                html.push_str(SSG_HTML_SUFFIX);
+                std::fs::write(&output_paths[index], html.as_bytes()).map_err(|e| {
+                    format!(
+                        "Failed to write file '{}' (index {}): {}",
+                        output_paths[index], index, e
+                    )
+                })?;
+                Ok(total_len)
+            })
+            .collect()
+    });
+    let render_write_ms = render_write_start.elapsed().as_secs_f64() * 1000.0;
+
+    let mut checksum: i64 = 0;
+    for result in write_results {
+        match result {
+            Ok(len) => checksum += len as i64,
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok((checksum, read_ms, render_write_ms))
 }
 
 fn resolved_promise(result: Result<Value, String>) -> Value {
@@ -1280,326 +1374,41 @@ pub fn handle(
 
             let file_count = source_paths.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
-            let read_ahead_limit = ssg_read_ahead_limit(effective_batch_size, file_count);
-            let (output_paths_for_batch, render_prefixes_for_batch) =
+            let (output_paths_vec, render_prefixes_vec) =
                 ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
-            let output_paths_for_tasks = Arc::new(output_paths_for_batch);
-            let render_prefixes_for_tasks = Arc::new(render_prefixes_for_batch);
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
+            // Dispatch the two-phase Rayon pipeline via spawn_blocking so the
+            // Tokio runtime thread is not blocked during synchronous I/O.
             AsyncRuntime::spawn_task(async move {
-                let read_stage_start = Instant::now();
-                if effective_batch_size == 1 {
-                    let mut checksum: i64 = 0;
-                    let mut read_stage_ms: f64 = 0.0;
-                    let mut render_write_stage_start: Option<Instant> = None;
+                let blocking_result = tokio::task::spawn_blocking(move || {
+                    ssg_run_rayon_read_render_write(
+                        source_paths,
+                        output_paths_vec,
+                        render_prefixes_vec,
+                        effective_batch_size,
+                    )
+                })
+                .await;
 
-                    let mut pending_reads = source_paths.into_iter().enumerate();
-                    let mut read_in_flight = FuturesUnordered::new();
-                    let mut write_in_flight = FuturesUnordered::new();
-                    let mut pending_write: Option<(usize, String)> = None;
-                    let mut remaining_reads = file_count;
-
-                    let make_read_future = |index: usize, path: String| async move {
-                        let read_result = tokio::fs::read_to_string(path.as_str()).await;
-                        (index, path, read_result)
-                    };
-
-                    let make_write_future = |index: usize, source_body: String| {
-                        let output_paths = output_paths_for_tasks.clone();
-                        let render_prefixes = render_prefixes_for_tasks.clone();
-
-                        async move {
-                            let write_result = ssg_write_rendered_html_page(
-                                output_paths[index].as_str(),
-                                render_prefixes[index].as_str(),
-                                source_body.as_str(),
-                            )
-                            .await;
-                            (index, write_result)
-                        }
-                    };
-
-                    if let Some((index, path)) = pending_reads.next() {
-                        read_in_flight.push(make_read_future(index, path));
+                let send_result = match blocking_result {
+                    Ok(Ok((checksum, read_ms, render_write_ms))) => {
+                        let mut result = DictMap::default();
+                        result.insert("checksum".into(), Value::Int(checksum));
+                        result.insert("files".into(), Value::Int(file_count as i64));
+                        result.insert("read_ms".into(), Value::Float(read_ms));
+                        result.insert("render_write_ms".into(), Value::Float(render_write_ms));
+                        Ok(Value::Dict(Arc::new(result)))
                     }
-
-                    while remaining_reads > 0
-                        || pending_write.is_some()
-                        || !write_in_flight.is_empty()
-                    {
-                        tokio::select! {
-                            Some((index, path, read_result)) = read_in_flight.next(), if remaining_reads > 0 => {
-                                remaining_reads -= 1;
-
-                                match read_result {
-                                    Ok(content) => {
-                                        if render_write_stage_start.is_none() {
-                                            render_write_stage_start = Some(Instant::now());
-                                        }
-
-                                        if write_in_flight.is_empty() {
-                                            write_in_flight.push(make_write_future(index, content));
-                                        } else {
-                                            pending_write = Some((index, content));
-                                        }
-                                    }
-                                    Err(e) => {
-                                        let _ = tx.send(Err(format!(
-                                            "Failed to read file '{}' (index {}): {}",
-                                            path, index, e
-                                        )));
-                                        return Value::Null;
-                                    }
-                                }
-
-                                if remaining_reads == 0 {
-                                    read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
-                                }
-
-                                if ssg_should_prefetch_single_worker_read(
-                                    remaining_reads,
-                                    read_in_flight.len(),
-                                    pending_write.is_some(),
-                                ) {
-                                    if let Some((next_index, next_path)) = pending_reads.next() {
-                                        read_in_flight.push(make_read_future(next_index, next_path));
-                                    }
-                                }
-                            }
-                            Some((index, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
-                                match write_result {
-                                    Ok(written_len) => checksum += written_len as i64,
-                                    Err(e) => {
-                                        let _ = tx.send(Err(format!(
-                                            "Failed to write file '{}' (index {}): {}",
-                                            output_paths_for_tasks[index].as_str(),
-                                            index,
-                                            e
-                                        )));
-                                        return Value::Null;
-                                    }
-                                }
-
-                                if let Some((next_write_index, next_write_body)) = pending_write.take() {
-                                    write_in_flight.push(make_write_future(next_write_index, next_write_body));
-                                }
-
-                                if ssg_should_prefetch_single_worker_read(
-                                    remaining_reads,
-                                    read_in_flight.len(),
-                                    pending_write.is_some(),
-                                ) {
-                                    if let Some((next_index, next_path)) = pending_reads.next() {
-                                        read_in_flight.push(make_read_future(next_index, next_path));
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    let mut result = DictMap::default();
-                    result.insert("checksum".into(), Value::Int(checksum));
-                    result.insert("files".into(), Value::Int(file_count as i64));
-                    result.insert("read_ms".into(), Value::Float(read_stage_ms));
-                    result.insert(
-                        "render_write_ms".into(),
-                        Value::Float(match render_write_stage_start {
-                            Some(stage_start) => stage_start.elapsed().as_secs_f64() * 1000.0,
-                            None => 0.0,
-                        }),
-                    );
-
-                    let _ = tx.send(Ok(Value::Dict(Arc::new(result))));
-                    return Value::Null;
-                }
-
-                let mut pending_reads = source_paths.into_iter().enumerate();
-                let mut read_in_flight = FuturesUnordered::new();
-                let mut write_in_flight = FuturesUnordered::new();
-                let mut pending_writes: VecDeque<(usize, String)> = VecDeque::new();
-                let mut remaining_reads = file_count;
-                let mut checksum: i64 = 0;
-                let mut read_stage_ms: f64 = 0.0;
-                let mut render_write_stage_start: Option<Instant> = None;
-
-                let make_read_future = |index: usize, path: String| async move {
-                    let read_result = tokio::fs::read_to_string(path.as_str()).await;
-                    (index, path, read_result)
+                    Ok(Err(e)) => Err(e),
+                    Err(join_error) => Err(format!(
+                        "ssg_read_render_and_write_pages() blocking task failed: {}",
+                        join_error
+                    )),
                 };
 
-                let make_write_future = |index: usize, source_body: String| {
-                    let output_paths = output_paths_for_tasks.clone();
-                    let render_prefixes = render_prefixes_for_tasks.clone();
-
-                    async move {
-                        let write_result = ssg_write_rendered_html_page(
-                            output_paths[index].as_str(),
-                            render_prefixes[index].as_str(),
-                            source_body.as_str(),
-                        )
-                        .await;
-                        (index, write_result)
-                    }
-                };
-
-                let initial_read_target = ssg_target_read_in_flight(
-                    read_ahead_limit,
-                    effective_batch_size,
-                    pending_writes.len(),
-                    write_in_flight.len(),
-                );
-
-                for _ in 0..initial_read_target {
-                    match pending_reads.next() {
-                        Some((index, path)) => read_in_flight.push(make_read_future(index, path)),
-                        None => break,
-                    }
-                }
-
-                while remaining_reads > 0
-                    || !pending_writes.is_empty()
-                    || !write_in_flight.is_empty()
-                {
-                    tokio::select! {
-                        Some((index, path, read_result)) = read_in_flight.next(), if remaining_reads > 0 => {
-                            remaining_reads -= 1;
-
-                            match read_result {
-                                Ok(content) => {
-                                    if render_write_stage_start.is_none() {
-                                        render_write_stage_start = Some(Instant::now());
-                                    }
-
-                                    if write_in_flight.len() < effective_batch_size {
-                                        write_in_flight.push(make_write_future(index, content));
-                                    } else {
-                                        pending_writes.push_back((index, content));
-                                    }
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Err(format!(
-                                        "Failed to read file '{}' (index {}): {}",
-                                        path, index, e
-                                    )));
-                                    return Value::Null;
-                                }
-                            }
-
-                            if 0 == remaining_reads {
-                                read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
-                            }
-
-                            let refill_writes_first = ssg_should_refill_writes_first(
-                                pending_writes.len(),
-                                write_in_flight.len(),
-                                effective_batch_size,
-                            );
-
-                            if refill_writes_first {
-                                while write_in_flight.len() < effective_batch_size {
-                                    match pending_writes.pop_front() {
-                                        Some((write_index, write_source_body)) => {
-                                            write_in_flight.push(make_write_future(
-                                                write_index,
-                                                write_source_body,
-                                            ));
-                                        }
-                                        None => break,
-                                    }
-                                }
-                            }
-
-                            let read_refill_target = ssg_target_read_in_flight(
-                                read_ahead_limit,
-                                effective_batch_size,
-                                pending_writes.len(),
-                                write_in_flight.len(),
-                            );
-
-                            while read_in_flight.len() < read_refill_target {
-                                match pending_reads.next() {
-                                    Some((next_index, next_path)) => {
-                                        read_in_flight.push(make_read_future(next_index, next_path));
-                                    }
-                                    None => break,
-                                }
-                            }
-
-                            if !refill_writes_first {
-                                while write_in_flight.len() < effective_batch_size {
-                                    match pending_writes.pop_front() {
-                                        Some((write_index, write_source_body)) => {
-                                            write_in_flight.push(make_write_future(
-                                                write_index,
-                                                write_source_body,
-                                            ));
-                                        }
-                                        None => break,
-                                    }
-                                }
-                            }
-                        }
-                        Some((index, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
-                            match write_result {
-                                Ok(written_len) => {
-                                    checksum += written_len as i64;
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Err(format!(
-                                        "Failed to write file '{}' (index {}): {}",
-                                        output_paths_for_tasks[index].as_str(),
-                                        index,
-                                        e
-                                    )));
-                                    return Value::Null;
-                                }
-                            }
-
-                            while write_in_flight.len() < effective_batch_size {
-                                match pending_writes.pop_front() {
-                                    Some((write_index, write_source_body)) => {
-                                        write_in_flight.push(make_write_future(
-                                            write_index,
-                                            write_source_body,
-                                        ));
-                                    }
-                                    None => break,
-                                }
-                            }
-
-                            let read_refill_target = ssg_target_read_in_flight(
-                                read_ahead_limit,
-                                effective_batch_size,
-                                pending_writes.len(),
-                                write_in_flight.len(),
-                            );
-
-                            while read_in_flight.len() < read_refill_target {
-                                match pending_reads.next() {
-                                    Some((next_index, next_path)) => {
-                                        read_in_flight.push(make_read_future(next_index, next_path));
-                                    }
-                                    None => break,
-                                }
-                            }
-                        }
-                    }
-                }
-
-                let render_write_stage_ms = match render_write_stage_start {
-                    Some(start) => start.elapsed().as_secs_f64() * 1000.0,
-                    None => 0.0,
-                };
-
-                let mut result = DictMap::default();
-                result.insert("checksum".into(), Value::Int(checksum));
-                result.insert("files".into(), Value::Int(file_count as i64));
-                result.insert("read_ms".into(), Value::Float(read_stage_ms));
-                result.insert("render_write_ms".into(), Value::Float(render_write_stage_ms));
-
-                let _ = tx.send(Ok(Value::Dict(Arc::new(result))));
+                let _ = tx.send(send_result);
                 Value::Null
             });
 
