@@ -45,6 +45,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added warning output when drift magnitude crosses threshold (`7.5%`) for Ruff metrics and optional Python/speedup metrics.
   - Added comprehensive benchmark-module regression coverage for drift calculation, warning emission/suppression behavior, and low-run-count gating.
 
+- **SSG Throughput Follow-Through: Rayon Parallel Read+Render+Write Pipeline (v0.11.0 P0)**:
+  - Replaced Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages(...)` with a `spawn_blocking` + Rayon `par_iter` two-phase implementation.
+  - Phase 1 (reads): Rayon work-stealing parallel reads across all source files using a single bounded `ThreadPool`.
+  - Phase 2 (render+writes): Rayon parallel HTML render and `std::fs::write` per file using the same pool, eliminating per-file `File::create`+vectored-loop+`flush` overhead.
+  - Eliminated per-file Tokio `spawn_blocking` task spawning overhead (previously one blocking task per file).
+  - Each Rayon worker builds a pre-allocated HTML string and writes it in one `std::fs::write` call.
+  - Preserved `checksum`/`files`/`read_ms`/`render_write_ms` stage-metric key contracts with accurate per-phase timing.
+  - Moved obsolete Tokio pipeline scheduling helpers (`ssg_read_ahead_limit`, `ssg_target_read_in_flight`, `ssg_should_refill_writes_first`, `ssg_should_prefetch_single_worker_read`) to `#[cfg(test)]` scope to eliminate dead-code warnings.
+  - Added 5 targeted regression tests for the `ssg_run_rayon_read_render_write` blocking helper: exact-output format, byte-accurate checksum, read-failure propagation, write-failure propagation, and multi-byte Unicode checksum correctness.
+  - All 342 lib + 238 integration tests passing.
+
 - **SSG Native Output-Path Bulk Helper (v0.11.0 P0)**:
   - Added `ssg_build_output_paths(output_dir, file_count, extension?)` to generate indexed output path arrays natively.
   - Updated `benchmarks/cross-language/bench_ssg.ruff` to use native path generation in the render/write benchmark path instead of a script-level loop.
