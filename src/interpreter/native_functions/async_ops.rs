@@ -182,14 +182,9 @@ fn ssg_run_rayon_read_render_write(
     render_prefixes: Vec<String>,
     concurrency_limit: usize,
 ) -> Result<(i64, f64, f64), String> {
-    let pool = ThreadPoolBuilder::new()
-        .num_threads(concurrency_limit.max(1))
-        .build()
-        .map_err(|e| {
-            format!(
-                "ssg_read_render_and_write_pages() failed to initialize thread pool: {}",
-                e
-            )
+    let pool =
+        ThreadPoolBuilder::new().num_threads(concurrency_limit.max(1)).build().map_err(|e| {
+            format!("ssg_read_render_and_write_pages() failed to initialize thread pool: {}", e)
         })?;
 
     // Phase 1: Parallel reads via Rayon work-stealing.
@@ -200,9 +195,8 @@ fn ssg_run_rayon_read_render_write(
             .par_iter()
             .enumerate()
             .map(|(index, path)| {
-                std::fs::read_to_string(path).map_err(|e| {
-                    format!("Failed to read file '{}' (index {}): {}", path, index, e)
-                })
+                std::fs::read_to_string(path)
+                    .map_err(|e| format!("Failed to read file '{}' (index {}): {}", path, index, e))
             })
             .collect()
     });
@@ -3850,6 +3844,170 @@ mod tests {
         }
 
         let _ = fs::remove_dir_all(&input_dir);
+    }
+
+    // --- ssg_run_rayon_read_render_write helper tests ---
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_reads_and_writes_correctly() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_a = format!("{}/post_0.md", input_dir);
+        let source_b = format!("{}/post_1.md", input_dir);
+        fs::write(&source_a, "# Post 0\n\nBody A").unwrap();
+        fs::write(&source_b, "# Post 1\n\nBody B").unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 2);
+
+        let result = ssg_run_rayon_read_render_write(
+            vec![source_a.clone(), source_b.clone()],
+            output_paths,
+            render_prefixes,
+            2,
+        )
+        .unwrap();
+
+        let (checksum, read_ms, render_write_ms) = result;
+        assert!(checksum > 0, "checksum must be positive");
+        assert!(read_ms >= 0.0, "read_ms must be non-negative");
+        assert!(render_write_ms >= 0.0, "render_write_ms must be non-negative");
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", output_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", output_dir)).unwrap();
+
+        assert_eq!(
+            html_a,
+            "<html><body><h1>Post 0</h1><article># Post 0\n\nBody A</article></body></html>"
+        );
+        assert_eq!(
+            html_b,
+            "<html><body><h1>Post 1</h1><article># Post 1\n\nBody B</article></body></html>"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_checksum_matches_written_bytes() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_checksum_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_checksum_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_paths: Vec<String> = (0..3)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                fs::write(&p, format!("# Post {}\n\nGenerated page {}", i, i)).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 3);
+
+        let (checksum, _read_ms, _render_write_ms) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 3)
+                .unwrap();
+
+        let expected_checksum: i64 = (0..3_usize)
+            .map(|i| {
+                let path = format!("{}/post_{}.html", output_dir, i);
+                fs::read_to_string(&path).unwrap().len() as i64
+            })
+            .sum();
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_propagates_read_failure() {
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_read_fail_output");
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
+
+        let result = ssg_run_rayon_read_render_write(
+            vec!["/nonexistent/path/post_0.md".to_string()],
+            output_paths,
+            render_prefixes,
+            1,
+        );
+
+        assert!(result.is_err(), "Expected error for missing source file");
+        let msg = result.unwrap_err();
+        assert!(msg.contains("Failed to read file"), "Expected 'Failed to read file' in: {}", msg);
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_propagates_write_failure() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_write_fail_input");
+        fs::create_dir_all(&input_dir).unwrap();
+
+        let source = format!("{}/post_0.md", input_dir);
+        fs::write(&source, "# Post 0").unwrap();
+
+        let missing_output_dir = unique_temp_dir("ruff_rayon_rrw_write_fail_output");
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(missing_output_dir.as_str(), 1);
+
+        // Do NOT create missing_output_dir so writes will fail.
+        let result =
+            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1);
+
+        assert!(result.is_err(), "Expected error for missing output directory");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Failed to write file"),
+            "Expected 'Failed to write file' in: {}",
+            msg
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_unicode_checksum_matches_written_bytes() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_unicode_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_unicode_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_a = format!("{}/post_0.md", input_dir);
+        let source_b = format!("{}/post_1.md", input_dir);
+        // UTF-8 multibyte content
+        fs::write(&source_a, "# Café ☕").unwrap();
+        fs::write(&source_b, "# Emoji 🚀✅").unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 2);
+
+        let (checksum, _read_ms, _render_write_ms) = ssg_run_rayon_read_render_write(
+            vec![source_a, source_b],
+            output_paths,
+            render_prefixes,
+            2,
+        )
+        .unwrap();
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", output_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", output_dir)).unwrap();
+        let expected_checksum = (html_a.len() + html_b.len()) as i64;
+
+        assert_eq!(checksum, expected_checksum, "Unicode checksum must match written byte count");
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
     }
 
     #[test]
