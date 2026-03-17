@@ -124,6 +124,14 @@ fn ssg_should_refill_writes_first(
     pending_writes_len > 0 && write_in_flight_len < bounded_write_concurrency
 }
 
+fn ssg_should_prefetch_single_worker_read(
+    remaining_reads: usize,
+    read_in_flight_len: usize,
+    has_pending_write: bool,
+) -> bool {
+    remaining_reads > 0 && read_in_flight_len == 0 && !has_pending_write
+}
+
 async fn ssg_write_rendered_html_page(
     output_path: &str,
     html_prefix: &str,
@@ -1284,42 +1292,109 @@ pub fn handle(
                 let read_stage_start = Instant::now();
                 if effective_batch_size == 1 {
                     let mut checksum: i64 = 0;
+                    let mut read_stage_ms: f64 = 0.0;
                     let mut render_write_stage_start: Option<Instant> = None;
 
-                    for (index, source_path) in source_paths.into_iter().enumerate() {
-                        let source_body =
-                            match tokio::fs::read_to_string(source_path.as_str()).await {
-                                Ok(content) => content,
-                                Err(e) => {
-                                    let _ = tx.send(Err(format!(
-                                        "Failed to read file '{}' (index {}): {}",
-                                        source_path, index, e
-                                    )));
-                                    return Value::Null;
-                                }
-                            };
+                    let mut pending_reads = source_paths.into_iter().enumerate();
+                    let mut read_in_flight = FuturesUnordered::new();
+                    let mut write_in_flight = FuturesUnordered::new();
+                    let mut pending_write: Option<(usize, String)> = None;
+                    let mut remaining_reads = file_count;
 
-                        if render_write_stage_start.is_none() {
-                            render_write_stage_start = Some(Instant::now());
+                    let make_read_future = |index: usize, path: String| async move {
+                        let read_result = tokio::fs::read_to_string(path.as_str()).await;
+                        (index, path, read_result)
+                    };
+
+                    let make_write_future = |index: usize, source_body: String| {
+                        let output_paths = output_paths_for_tasks.clone();
+                        let render_prefixes = render_prefixes_for_tasks.clone();
+
+                        async move {
+                            let write_result = ssg_write_rendered_html_page(
+                                output_paths[index].as_str(),
+                                render_prefixes[index].as_str(),
+                                source_body.as_str(),
+                            )
+                            .await;
+                            (index, write_result)
                         }
+                    };
 
-                        let write_result = ssg_write_rendered_html_page(
-                            output_paths_for_tasks[index].as_str(),
-                            render_prefixes_for_tasks[index].as_str(),
-                            source_body.as_str(),
-                        )
-                        .await;
+                    if let Some((index, path)) = pending_reads.next() {
+                        read_in_flight.push(make_read_future(index, path));
+                    }
 
-                        match write_result {
-                            Ok(written_len) => checksum += written_len as i64,
-                            Err(e) => {
-                                let _ = tx.send(Err(format!(
-                                    "Failed to write file '{}' (index {}): {}",
-                                    output_paths_for_tasks[index].as_str(),
-                                    index,
-                                    e
-                                )));
-                                return Value::Null;
+                    while remaining_reads > 0
+                        || pending_write.is_some()
+                        || !write_in_flight.is_empty()
+                    {
+                        tokio::select! {
+                            Some((index, path, read_result)) = read_in_flight.next(), if remaining_reads > 0 => {
+                                remaining_reads -= 1;
+
+                                match read_result {
+                                    Ok(content) => {
+                                        if render_write_stage_start.is_none() {
+                                            render_write_stage_start = Some(Instant::now());
+                                        }
+
+                                        if write_in_flight.is_empty() {
+                                            write_in_flight.push(make_write_future(index, content));
+                                        } else {
+                                            pending_write = Some((index, content));
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Err(format!(
+                                            "Failed to read file '{}' (index {}): {}",
+                                            path, index, e
+                                        )));
+                                        return Value::Null;
+                                    }
+                                }
+
+                                if remaining_reads == 0 {
+                                    read_stage_ms = read_stage_start.elapsed().as_secs_f64() * 1000.0;
+                                }
+
+                                if ssg_should_prefetch_single_worker_read(
+                                    remaining_reads,
+                                    read_in_flight.len(),
+                                    pending_write.is_some(),
+                                ) {
+                                    if let Some((next_index, next_path)) = pending_reads.next() {
+                                        read_in_flight.push(make_read_future(next_index, next_path));
+                                    }
+                                }
+                            }
+                            Some((index, write_result)) = write_in_flight.next(), if !write_in_flight.is_empty() => {
+                                match write_result {
+                                    Ok(written_len) => checksum += written_len as i64,
+                                    Err(e) => {
+                                        let _ = tx.send(Err(format!(
+                                            "Failed to write file '{}' (index {}): {}",
+                                            output_paths_for_tasks[index].as_str(),
+                                            index,
+                                            e
+                                        )));
+                                        return Value::Null;
+                                    }
+                                }
+
+                                if let Some((next_write_index, next_write_body)) = pending_write.take() {
+                                    write_in_flight.push(make_write_future(next_write_index, next_write_body));
+                                }
+
+                                if ssg_should_prefetch_single_worker_read(
+                                    remaining_reads,
+                                    read_in_flight.len(),
+                                    pending_write.is_some(),
+                                ) {
+                                    if let Some((next_index, next_path)) = pending_reads.next() {
+                                        read_in_flight.push(make_read_future(next_index, next_path));
+                                    }
+                                }
                             }
                         }
                     }
@@ -1327,10 +1402,7 @@ pub fn handle(
                     let mut result = DictMap::default();
                     result.insert("checksum".into(), Value::Int(checksum));
                     result.insert("files".into(), Value::Int(file_count as i64));
-                    result.insert(
-                        "read_ms".into(),
-                        Value::Float(read_stage_start.elapsed().as_secs_f64() * 1000.0),
-                    );
+                    result.insert("read_ms".into(), Value::Float(read_stage_ms));
                     result.insert(
                         "render_write_ms".into(),
                         Value::Float(match render_write_stage_start {
@@ -3097,6 +3169,14 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_should_prefetch_single_worker_read_requires_remaining_without_pending_write() {
+        assert!(ssg_should_prefetch_single_worker_read(3, 0, false));
+        assert!(!ssg_should_prefetch_single_worker_read(0, 0, false));
+        assert!(!ssg_should_prefetch_single_worker_read(2, 1, false));
+        assert!(!ssg_should_prefetch_single_worker_read(2, 0, true));
+    }
+
+    #[test]
     fn test_ssg_render_and_write_pages_large_batch_low_concurrency_preserves_outputs() {
         let temp_dir = unique_temp_dir("ruff_ssg_render_and_write_pages_large_low_concurrency");
         fs::create_dir_all(&temp_dir).unwrap();
@@ -3639,6 +3719,57 @@ mod tests {
         }
 
         assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_read_render_and_write_pages_single_worker_prefetch_preserves_index_mapping() {
+        let input_dir = unique_temp_dir("ruff_ssg_read_render_single_worker_prefetch_input");
+        let output_dir = unique_temp_dir("ruff_ssg_read_render_single_worker_prefetch_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let file_count = 24usize;
+        let mut source_paths = Vec::with_capacity(file_count);
+
+        for index in 0..file_count {
+            let source_path = format!("{}/post_{}.md", input_dir, index);
+            let marker = format!("MARKER_{}_{}", index, (index * 13) + 7);
+            let source_body =
+                format!("# Entry {}\n\n{}\n\n{}", index, marker, "body ".repeat((index % 5) + 1));
+            fs::write(&source_path, source_body).unwrap();
+            source_paths.push(string_value(source_path.as_str()));
+        }
+
+        let mut interp = Interpreter::new();
+        let args =
+            vec![Value::Array(Arc::new(source_paths)), string_value(&output_dir), Value::Int(1)];
+
+        let result = handle(&mut interp, "ssg_read_render_and_write_pages", &args).unwrap();
+        let resolved = await_promise(result).unwrap();
+
+        match resolved {
+            Value::Dict(dict) => {
+                assert!(
+                    matches!(dict.get("files"), Some(Value::Int(count)) if *count == file_count as i64)
+                );
+                assert!(matches!(dict.get("checksum"), Some(Value::Int(sum)) if *sum > 0));
+                assert!(matches!(dict.get("read_ms"), Some(Value::Float(ms)) if *ms >= 0.0));
+                assert!(
+                    matches!(dict.get("render_write_ms"), Some(Value::Float(ms)) if *ms >= 0.0)
+                );
+            }
+            _ => panic!("Expected Dict result"),
+        }
+
+        for index in 0..file_count {
+            let marker = format!("MARKER_{}_{}", index, (index * 13) + 7);
+            let html = fs::read_to_string(format!("{}/post_{}.html", output_dir, index)).unwrap();
+            assert!(html.contains(format!("<h1>Post {}</h1>", index).as_str()));
+            assert!(html.contains(marker.as_str()));
+        }
 
         let _ = fs::remove_dir_all(&input_dir);
         let _ = fs::remove_dir_all(&output_dir);
