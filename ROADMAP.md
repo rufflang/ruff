@@ -165,6 +165,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Removed duplicate per-index string conversion work across separate precompute loops while preserving checksum/file-count and stage-metric contracts.
     - Added focused regression coverage for combined path/prefix generation behavior, including empty-input contracts.
 
+- **SSG Throughput Follow-Through: Single-Worker Read/Write Overlap Prefetch Lane (✅ Complete, March 2026)**
+    - Optimized `ssg_read_render_and_write_pages(...)` `concurrency_limit=1` execution to overlap bounded read and write progression with one read in-flight, one write in-flight, and one pending-write slot.
+    - Preserved checksum/file-count and stage-metric key contracts (`read_ms`, `render_write_ms`) while reducing sequential read/write idle gaps in the fused single-worker lane.
+    - Added focused policy regression coverage for single-worker prefetch gating and integration coverage for per-index output mapping preservation.
+
 - **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
     - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
@@ -205,7 +210,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, and single-worker fast-path follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, and single-worker read/write-overlap follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile additional overlap opportunities between read completion handling and bounded write dispatch without changing stage-metric key contracts.
 

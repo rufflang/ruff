@@ -140,6 +140,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed duplicate per-index string conversion work across separate path and prefix loops while preserving checksum/file-count and stage-metric contracts.
   - Added focused helper regression coverage for combined path/prefix generation, including empty-input behavior.
 
+- **SSG Throughput Follow-Through: Single-Worker Read/Write Overlap Prefetch Lane (v0.11.0 P0)**:
+  - Optimized the `ssg_read_render_and_write_pages(...)` `concurrency_limit=1` path to overlap bounded read and write work using a single in-flight read lane plus a single in-flight write lane with one pending-write slot.
+  - Preserved checksum/file-count output compatibility and stage-metric keys (`read_ms`, `render_write_ms`) while reducing sequential idle gaps in the fused single-worker path.
+  - Added focused policy coverage for single-worker prefetch gating and integration regression coverage that locks index-to-output mapping correctness under the overlap lane.
+
 - **SSG Benchmark Artifact Root Override (v0.11.0 P0)**:
   - Added `ruff bench-ssg --tmp-dir <PATH>` so benchmark artifacts can be written to an explicit root directory (useful for constrained CI/workspace setups).
   - Updated Ruff and Python SSG benchmark scripts to honor `RUFF_BENCH_SSG_TMP_DIR` so both sides run against the same artifact-root contract.
