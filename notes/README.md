@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-17_18-53_ssg-rayon-parallel-pipeline.md** — ✅ COMPLETED: Replaced Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages(...)` with `spawn_blocking` + Rayon `par_iter` two-phase pipeline (Phase 1: parallel reads, Phase 2: parallel HTML render + `std::fs::write`). Removed unused `VecDeque` import, moved 4 test-only scheduling helpers to `#[cfg(test)]`, added 5 regression tests, and synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-17_12-35_ssg-single-worker-overlap-prefetch-lane.md** — ✅ COMPLETED: Optimized fused SSG single-worker (`concurrency_limit=1`) path to overlap bounded read/write progression with explicit prefetch gating, added focused policy + index-mapping regressions, and synchronized CHANGELOG/ROADMAP/README updates.
 
 - **2026-03-17_12-19_ssg-single-worker-fast-path.md** — ✅ COMPLETED: Added dedicated single-worker (`concurrency_limit=1`) SSG write-pipeline lanes with preserved checksum/file-count/stage-metric contracts and synchronized CHANGELOG/ROADMAP/README updates.
