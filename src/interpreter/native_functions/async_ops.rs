@@ -8,7 +8,7 @@ use crate::vm::VM;
 use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
-use std::io::{Error, ErrorKind, IoSlice};
+use std::io::{BufWriter, Error, ErrorKind, IoSlice, Write};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
@@ -172,6 +172,13 @@ async fn ssg_write_rendered_html_page(
 /// ALL reads to complete first. Reduces peak memory (only one file's content live per
 /// worker at a time) and improves read/write overlap across workers.
 ///
+/// HTML rendering uses a `BufWriter` to stream prefix, source body, and suffix bytes
+/// directly to the output file in three `write_all` calls — eliminating the per-file
+/// intermediate `String` allocation that previously buffered the full rendered HTML
+/// before writing to disk. The `BufWriter` internal buffer absorbs the scattered writes
+/// and flushes in a single I/O call, matching the previous single-call `fs::write`
+/// contract without allocating a per-file heap string.
+///
 /// `read_ms` and `render_write_ms` are reported as cumulative CPU-time sums across
 /// all Rayon workers (sum of per-task durations), preserving the stage-metric contract
 /// while reflecting single-pass execution rather than wall-clock phase boundaries.
@@ -181,6 +188,7 @@ async fn ssg_write_rendered_html_page(
 /// `Err(message)` on the first read or write failure, with the same error-message
 /// format as the previous Tokio pipeline ("Failed to read file '...' (index ...): ..."
 /// / "Failed to write file '...' (index ...): ...").
+
 /// Returns the number of logical CPUs available for parallel work, falling back to 1.
 ///
 /// Used to cap the Rayon thread-pool size so we never over-subscribe the pool beyond
@@ -210,6 +218,12 @@ fn ssg_run_rayon_read_render_write(
     // No barrier between read and render+write stages — write I/O starts as soon
     // as each individual file is read, without waiting for all reads to complete.
     // Rayon's par_iter + collect preserves input order in the result Vec.
+    //
+    // Render path uses BufWriter<File> to stream prefix + source body + suffix bytes
+    // directly to disk in three write_all calls, eliminating the per-file intermediate
+    // String allocation that previously assembled the full HTML before writing.
+    // BufWriter buffers the three small segments internally and flushes in one I/O
+    // call, matching the previous single-call fs::write throughput contract.
     let task_results: Vec<Result<(usize, u64, u64), String>> = pool.install(|| {
         source_paths
             .par_iter()
@@ -224,11 +238,36 @@ fn ssg_run_rayon_read_render_write(
                 let rw_start = Instant::now();
                 let html_prefix = &render_prefixes[index];
                 let total_len = html_prefix.len() + content.len() + SSG_HTML_SUFFIX.len();
-                let mut html = String::with_capacity(total_len);
-                html.push_str(html_prefix.as_str());
-                html.push_str(content.as_str());
-                html.push_str(SSG_HTML_SUFFIX);
-                std::fs::write(&output_paths[index], html.as_bytes()).map_err(|e| {
+
+                // Open the output file and wrap it in a BufWriter sized to the full
+                // rendered HTML length so the three write_all calls below are
+                // absorbed into one kernel write without a second allocation.
+                let out_file = std::fs::File::create(&output_paths[index]).map_err(|e| {
+                    format!(
+                        "Failed to write file '{}' (index {}): {}",
+                        output_paths[index], index, e
+                    )
+                })?;
+                let mut writer = BufWriter::with_capacity(total_len, out_file);
+                writer.write_all(html_prefix.as_bytes()).map_err(|e| {
+                    format!(
+                        "Failed to write file '{}' (index {}): {}",
+                        output_paths[index], index, e
+                    )
+                })?;
+                writer.write_all(content.as_bytes()).map_err(|e| {
+                    format!(
+                        "Failed to write file '{}' (index {}): {}",
+                        output_paths[index], index, e
+                    )
+                })?;
+                writer.write_all(SSG_HTML_SUFFIX.as_bytes()).map_err(|e| {
+                    format!(
+                        "Failed to write file '{}' (index {}): {}",
+                        output_paths[index], index, e
+                    )
+                })?;
+                writer.flush().map_err(|e| {
                     format!(
                         "Failed to write file '{}' (index {}): {}",
                         output_paths[index], index, e
@@ -4530,5 +4569,183 @@ mod tests {
             Value::Error(msg) => assert!(msg.contains("expects 0 arguments")),
             _ => panic!("Expected Value::Error for get_task_pool_size arguments"),
         }
+    }
+
+    // --- BufWriter write-through elimination tests ---
+    // Verify that the BufWriter-based render path produces byte-for-byte identical
+    // output and correct checksums now that the intermediate String allocation has
+    // been removed from ssg_run_rayon_read_render_write.
+
+    #[test]
+    fn test_ssg_bufwriter_output_matches_expected_html_structure() {
+        // BufWriter path must produce the same HTML structure that fs::write
+        // previously produced: prefix + source body + suffix bytes verbatim.
+        let input_dir = unique_temp_dir("ruff_bw_structure_input");
+        let output_dir = unique_temp_dir("ruff_bw_structure_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_body = "Hello, world!";
+        let source_path = format!("{}/post_0.md", input_dir);
+        fs::write(&source_path, source_body).unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
+
+        ssg_run_rayon_read_render_write(
+            vec![source_path],
+            output_paths.clone(),
+            render_prefixes.clone(),
+            1,
+        )
+        .unwrap();
+
+        let written = fs::read_to_string(&output_paths[0]).unwrap();
+        let expected = format!(
+            "{}{}{}{}{}",
+            SSG_HTML_PREFIX_START, "0", SSG_HTML_PREFIX_END, source_body, SSG_HTML_SUFFIX
+        );
+        assert_eq!(
+            written, expected,
+            "BufWriter path must produce prefix + body + suffix verbatim"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_bufwriter_checksum_matches_prefix_plus_body_plus_suffix_length() {
+        // Checksum = sum of rendered HTML byte lengths. With the BufWriter path,
+        // checksum must still equal len(prefix) + len(body) + len(suffix) per file.
+        let input_dir = unique_temp_dir("ruff_bw_checksum_input");
+        let output_dir = unique_temp_dir("ruff_bw_checksum_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let bodies = vec!["# Post 0\n\nbody zero", "# Post 1\n\nbody one and more"];
+        let source_paths: Vec<String> = bodies
+            .iter()
+            .enumerate()
+            .map(|(i, body)| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                fs::write(&p, body).unwrap();
+                p
+            })
+            .collect();
+
+        let file_count = bodies.len();
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        let (checksum, _, _) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 2)
+                .unwrap();
+
+        // Expected checksum is the sum of all written HTML byte lengths.
+        let expected_checksum: i64 = bodies
+            .iter()
+            .enumerate()
+            .map(|(i, body)| {
+                let index_str = i.to_string();
+                let prefix_len = SSG_HTML_PREFIX_START.len()
+                    + index_str.len()
+                    + SSG_HTML_PREFIX_END.len();
+                (prefix_len + body.len() + SSG_HTML_SUFFIX.len()) as i64
+            })
+            .sum();
+
+        assert_eq!(
+            checksum, expected_checksum,
+            "BufWriter path checksum must equal sum of rendered HTML byte lengths"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_bufwriter_write_failure_propagates_error() {
+        // BufWriter write errors must propagate as Err with the same message format
+        // as the previous fs::write path: "Failed to write file '...' (index N): ...".
+        let input_dir = unique_temp_dir("ruff_bw_wfail_input");
+        fs::create_dir_all(&input_dir).unwrap();
+
+        let source_path = format!("{}/post_0.md", input_dir);
+        fs::write(&source_path, "body").unwrap();
+
+        // Use a non-existent output directory to force a write failure.
+        let bad_output = format!("{}/nonexistent_subdir/post_0.html", input_dir);
+        let render_prefixes = vec![format!(
+            "{}{}{}",
+            SSG_HTML_PREFIX_START, "0", SSG_HTML_PREFIX_END
+        )];
+
+        let result = ssg_run_rayon_read_render_write(
+            vec![source_path],
+            vec![bad_output.clone()],
+            render_prefixes,
+            1,
+        );
+
+        assert!(result.is_err(), "BufWriter write failure must return Err");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Failed to write file"),
+            "Error message must contain 'Failed to write file', got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("(index 0)"),
+            "Error message must contain '(index 0)', got: {}",
+            msg
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+    }
+
+    #[test]
+    fn test_ssg_bufwriter_unicode_content_checksum_is_byte_accurate() {
+        // Checksum must count UTF-8 bytes, not Unicode scalar values.  A 3-byte
+        // CJK character must contribute 3 to the checksum, not 1.
+        let input_dir = unique_temp_dir("ruff_bw_unicode_input");
+        let output_dir = unique_temp_dir("ruff_bw_unicode_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        // "日本語" = 9 UTF-8 bytes (3 chars × 3 bytes each)
+        let source_body = "日本語";
+        let source_path = format!("{}/post_0.md", input_dir);
+        fs::write(&source_path, source_body.as_bytes()).unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
+
+        let (checksum, _, _) =
+            ssg_run_rayon_read_render_write(
+                vec![source_path],
+                output_paths.clone(),
+                render_prefixes,
+                1,
+            )
+            .unwrap();
+
+        let prefix_len =
+            SSG_HTML_PREFIX_START.len() + "0".len() + SSG_HTML_PREFIX_END.len();
+        let expected = (prefix_len + source_body.len() + SSG_HTML_SUFFIX.len()) as i64;
+
+        assert_eq!(
+            checksum, expected,
+            "BufWriter checksum must be byte-accurate for multibyte Unicode content"
+        );
+
+        let written = fs::read_to_string(&output_paths[0]).unwrap();
+        assert!(
+            written.contains(source_body),
+            "BufWriter path must preserve multibyte Unicode content verbatim"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
     }
 }
