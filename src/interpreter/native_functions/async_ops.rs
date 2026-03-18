@@ -181,16 +181,30 @@ async fn ssg_write_rendered_html_page(
 /// `Err(message)` on the first read or write failure, with the same error-message
 /// format as the previous Tokio pipeline ("Failed to read file '...' (index ...): ..."
 /// / "Failed to write file '...' (index ...): ...").
+/// Returns the number of logical CPUs available for parallel work, falling back to 1.
+///
+/// Used to cap the Rayon thread-pool size so we never over-subscribe the pool beyond
+/// the machine's physical parallelism budget (e.g. when `concurrency_limit` is set to a
+/// high value like the async task pool default of 256).
+#[inline]
+fn ssg_rayon_cpu_cap() -> usize {
+    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
+}
+
 fn ssg_run_rayon_read_render_write(
     source_paths: Vec<String>,
     output_paths: Vec<String>,
     render_prefixes: Vec<String>,
     concurrency_limit: usize,
 ) -> Result<(i64, f64, f64), String> {
-    let pool =
-        ThreadPoolBuilder::new().num_threads(concurrency_limit.max(1)).build().map_err(|e| {
-            format!("ssg_read_render_and_write_pages() failed to initialize thread pool: {}", e)
-        })?;
+    // Cap the Rayon thread count to the machine's logical CPU count so a high
+    // `concurrency_limit` (e.g. 256 from the default async task pool) does not
+    // cause thread over-subscription and context-switch thrash on typical hardware.
+    let cpu_cap = ssg_rayon_cpu_cap();
+    let rayon_threads = concurrency_limit.min(cpu_cap).max(1);
+    let pool = ThreadPoolBuilder::new().num_threads(rayon_threads).build().map_err(|e| {
+        format!("ssg_read_render_and_write_pages() failed to initialize thread pool: {}", e)
+    })?;
 
     // Single-pass: each Rayon task reads, renders, and writes its own file.
     // No barrier between read and render+write stages — write I/O starts as soon
