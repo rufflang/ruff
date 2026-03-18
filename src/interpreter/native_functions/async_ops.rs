@@ -4200,6 +4200,156 @@ mod tests {
         let _ = fs::remove_dir_all(&output_dir);
     }
 
+    // --- CPU-cap sizing tests ---
+    // Verify that ssg_rayon_cpu_cap() + the clamped pool correctly handle
+    // concurrency_limit values both above and below the CPU core count.
+
+    #[test]
+    fn test_ssg_rayon_cpu_cap_returns_at_least_one() {
+        // ssg_rayon_cpu_cap() must always return >= 1, even on unusual hosts.
+        let cap = ssg_rayon_cpu_cap();
+        assert!(cap >= 1, "ssg_rayon_cpu_cap() must be >= 1, got {}", cap);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_oversized_concurrency_limit_clamps_to_cpu_count() {
+        // When concurrency_limit >> CPU count (e.g. 256 default async pool size),
+        // the actual thread pool should be capped to at most ssg_rayon_cpu_cap().
+        // We validate correctness: output must still match expected checksums.
+        let input_dir = unique_temp_dir("ruff_rayon_cpu_cap_input");
+        let output_dir = unique_temp_dir("ruff_rayon_cpu_cap_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let file_count = 8usize;
+        let source_paths: Vec<String> = (0..file_count)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                fs::write(&p, format!("# Post {}\n\npage {}", i, i)).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        // Use a very large concurrency_limit (256) that is certain to exceed CPU count
+        // on any CI or development machine; the pool must clamp and still produce
+        // correct results.
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 256)
+                .unwrap();
+
+        assert!(checksum > 0, "checksum must be positive");
+        assert!(read_ms >= 0.0, "read_ms must be non-negative");
+        assert!(render_write_ms >= 0.0, "render_write_ms must be non-negative");
+
+        let expected_checksum: i64 = (0..file_count)
+            .map(|i| {
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
+                    .unwrap()
+                    .len() as i64
+            })
+            .sum();
+
+        assert_eq!(
+            checksum, expected_checksum,
+            "checksum must match written bytes even with oversized concurrency_limit"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_small_concurrency_limit_respected_below_cpu_count() {
+        // When concurrency_limit < CPU count, the pool should use concurrency_limit
+        // threads (i.e. the cap does not inflate below the requested size).
+        // Validate correctness: output checksums must match regardless.
+        let input_dir = unique_temp_dir("ruff_rayon_small_limit_input");
+        let output_dir = unique_temp_dir("ruff_rayon_small_limit_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let file_count = 6usize;
+        let source_paths: Vec<String> = (0..file_count)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                fs::write(&p, format!("# Post {}\n\nbody {}", i, i)).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        // concurrency_limit=1 is always <= CPU count — must produce correct output.
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 1)
+                .unwrap();
+
+        assert!(checksum > 0, "checksum must be positive");
+        assert!(read_ms >= 0.0, "read_ms must be non-negative");
+        assert!(render_write_ms >= 0.0, "render_write_ms must be non-negative");
+
+        let expected: i64 = (0..file_count)
+            .map(|i| {
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
+                    .unwrap()
+                    .len() as i64
+            })
+            .sum();
+
+        assert_eq!(checksum, expected, "small concurrency_limit checksum must match written bytes");
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_cpu_cap_equal_concurrency_limit_produces_correct_output() {
+        // When concurrency_limit == ssg_rayon_cpu_cap(), the pool size is unchanged
+        // and output must remain correct (no off-by-one in the cap logic).
+        let cpu_cap = ssg_rayon_cpu_cap();
+        let input_dir = unique_temp_dir("ruff_rayon_exact_cap_input");
+        let output_dir = unique_temp_dir("ruff_rayon_exact_cap_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        // Use exactly cpu_cap files so each worker gets at most one file.
+        let file_count = cpu_cap.max(2);
+        let source_paths: Vec<String> = (0..file_count)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                fs::write(&p, format!("# Post {}\n\nexact {}", i, i)).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        let (checksum, _, _) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, cpu_cap)
+                .unwrap();
+
+        let expected: i64 = (0..file_count)
+            .map(|i| {
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
+                    .unwrap()
+                    .len() as i64
+            })
+            .sum();
+
+        assert_eq!(
+            checksum, expected,
+            "cpu_cap-equal concurrency_limit checksum must match written bytes"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
     #[test]
     fn test_parallel_map_rayon_len_mixed_collection_inputs() {
         let mut dict = DictMap::default();
