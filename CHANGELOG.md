@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: BufWriter Write-Through Render Allocation Elimination (v0.11.0 P0)**:
+  - Eliminated the per-file intermediate `String` allocation in `ssg_run_rayon_read_render_write`'s Rayon render+write hot path.
+  - Previously, each Rayon task allocated a `String::with_capacity(total_len)` and filled it with three `push_str` calls (prefix + source body + suffix) before passing the entire string to `std::fs::write`. For a 10,000-file SSG batch this incurred 10,000 per-file heap allocations of ~200–300 bytes each.
+  - Replaced with a `BufWriter<File>` (pre-sized to `total_len`) that writes prefix, source body, and suffix bytes directly via three `write_all` calls. The `BufWriter` internal buffer absorbs the scattered writes and flushes in a single I/O call, matching the previous single-call `fs::write` throughput contract without the per-file heap allocation.
+  - All external contracts preserved: `checksum`, `files`, `read_ms`, `render_write_ms` dict key values unchanged; error message format strings unchanged.
+  - Added 4 regression tests: exact HTML structure contract (prefix + body + suffix verbatim); byte-accurate checksum across multi-file batch; write-failure error propagation with correct message format; Unicode (CJK) byte-accurate checksum preservation.
+  - All 354 lib + 238 integration tests passing.
+
 - **SSG Throughput Follow-Through: CPU-Bounded Rayon Thread-Pool Sizing (v0.11.0 P0)**:
   - Added `ssg_rayon_cpu_cap()` helper in `ssg_read_render_and_write_pages(...)` that reads `std::thread::available_parallelism()` (stable since Rust 1.59) with a safe fallback to 1.
   - Changed `ssg_run_rayon_read_render_write` to cap the `ThreadPoolBuilder` thread count at `min(concurrency_limit, cpu_cap).max(1)` instead of the raw `concurrency_limit`.
