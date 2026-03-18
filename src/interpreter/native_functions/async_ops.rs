@@ -4007,6 +4007,185 @@ mod tests {
         let _ = fs::remove_dir_all(&output_dir);
     }
 
+    // --- Single-pass pipeline regression tests ---
+    // These tests specifically verify the behavioral contracts of the single-pass
+    // Rayon optimization: per-file read+render+write without a phase barrier.
+
+    #[test]
+    fn test_ssg_run_rayon_single_pass_timing_fields_are_non_negative() {
+        // Timing fields must be non-negative for any batch size including single file.
+        let input_dir = unique_temp_dir("ruff_rayon_sp_timing_input");
+        let output_dir = unique_temp_dir("ruff_rayon_sp_timing_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source = format!("{}/post_0.md", input_dir);
+        fs::write(&source, "# Timing Test\n\nSingle file payload").unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
+
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1)
+                .unwrap();
+
+        assert!(checksum > 0, "checksum must be positive for non-empty content");
+        assert!(read_ms >= 0.0, "read_ms must be non-negative (cumulative nanoseconds)");
+        assert!(render_write_ms >= 0.0, "render_write_ms must be non-negative");
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_single_pass_cumulative_timing_grows_with_file_count() {
+        // With the single-pass pipeline, read_ms + render_write_ms are cumulative
+        // sums of per-task timings: processing N files should yield a total greater
+        // than or equal to processing 1 file (timing can only grow with more work).
+        let input_dir = unique_temp_dir("ruff_rayon_sp_cumulative_timing_input");
+        let output_dir_1 = unique_temp_dir("ruff_rayon_sp_cumulative_timing_output_1");
+        let output_dir_n = unique_temp_dir("ruff_rayon_sp_cumulative_timing_output_n");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir_1).unwrap();
+        fs::create_dir_all(&output_dir_n).unwrap();
+
+        let file_count = 16usize;
+        let mut source_paths: Vec<String> = Vec::with_capacity(file_count);
+        for index in 0..file_count {
+            let p = format!("{}/post_{}.md", input_dir, index);
+            fs::write(&p, format!("# Post {}\n\n{}", index, "body ".repeat(8))).unwrap();
+            source_paths.push(p);
+        }
+
+        // Single-file run
+        let (out_1, pfx_1) = ssg_build_output_paths_and_prefixes_for_batch(output_dir_1.as_str(), 1);
+        let (_, read_ms_1, rw_ms_1) = ssg_run_rayon_read_render_write(
+            vec![source_paths[0].clone()],
+            out_1,
+            pfx_1,
+            1,
+        )
+        .unwrap();
+
+        // Multi-file run
+        let (out_n, pfx_n) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir_n.as_str(), file_count);
+        let (_, read_ms_n, rw_ms_n) =
+            ssg_run_rayon_read_render_write(source_paths, out_n, pfx_n, 4).unwrap();
+
+        // Cumulative totals for N files must be >= totals for 1 file.
+        assert!(
+            read_ms_n >= read_ms_1,
+            "cumulative read_ms for {} files ({}) must be >= 1 file ({})",
+            file_count,
+            read_ms_n,
+            read_ms_1
+        );
+        assert!(
+            rw_ms_n >= rw_ms_1,
+            "cumulative render_write_ms for {} files ({}) must be >= 1 file ({})",
+            file_count,
+            rw_ms_n,
+            rw_ms_1
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir_1);
+        let _ = fs::remove_dir_all(&output_dir_n);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_single_pass_large_batch_preserves_checksum() {
+        // Validate single-pass correctness with a larger batch (32 files) where
+        // Rayon work-stealing interleaves reads and writes across multiple workers.
+        let input_dir = unique_temp_dir("ruff_rayon_sp_large_batch_input");
+        let output_dir = unique_temp_dir("ruff_rayon_sp_large_batch_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let file_count = 32usize;
+        let source_paths: Vec<String> = (0..file_count)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                let body = format!("# Post {}\n\n{}", i, "content ".repeat((i % 8) + 1));
+                fs::write(&p, &body).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8)
+                .unwrap();
+
+        assert!(read_ms >= 0.0);
+        assert!(render_write_ms >= 0.0);
+
+        let expected_checksum: i64 = (0..file_count)
+            .map(|i| {
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
+                    .unwrap()
+                    .len() as i64
+            })
+            .sum();
+
+        assert_eq!(checksum, expected_checksum, "Large single-pass batch checksum mismatch");
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_single_pass_single_worker_preserves_index_mapping() {
+        // Single-worker mode must still correctly route each file to its indexed output
+        // path and render prefix (no cross-contamination from task interleaving).
+        let input_dir = unique_temp_dir("ruff_rayon_sp_single_worker_index_input");
+        let output_dir = unique_temp_dir("ruff_rayon_sp_single_worker_index_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let file_count = 8usize;
+        let source_paths: Vec<String> = (0..file_count)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                let marker = format!("UNIQUE_MARKER_{}_X{}", i, i * 17 + 3);
+                fs::write(&p, format!("# Entry {}\n\n{}", i, marker)).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        let (checksum, _, _) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 1)
+                .unwrap();
+
+        assert!(checksum > 0);
+
+        for i in 0..file_count {
+            let html =
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap();
+            let marker = format!("UNIQUE_MARKER_{}_X{}", i, i * 17 + 3);
+            assert!(
+                html.contains(&marker),
+                "post_{}.html missing marker '{}'",
+                i,
+                marker
+            );
+            assert!(
+                html.contains(&format!("<h1>Post {}</h1>", i)),
+                "post_{}.html has wrong heading",
+                i
+            );
+        }
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
     #[test]
     fn test_parallel_map_rayon_len_mixed_collection_inputs() {
         let mut dict = DictMap::default();
