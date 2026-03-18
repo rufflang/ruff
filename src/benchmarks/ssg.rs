@@ -84,8 +84,7 @@ impl SsgRunStatistics {
             return false;
         }
 
-        self.mean_median_drift_percent()
-            .is_some_and(|drift| drift >= threshold_percent.max(0.0))
+        self.mean_median_drift_percent().is_some_and(|drift| drift >= threshold_percent.max(0.0))
     }
 }
 
@@ -518,7 +517,9 @@ fn collect_mean_median_drift_warning(
     }
 }
 
-pub fn collect_ssg_mean_median_drift_warnings(summary: &SsgBenchmarkAggregateResult) -> Vec<String> {
+pub fn collect_ssg_mean_median_drift_warnings(
+    summary: &SsgBenchmarkAggregateResult,
+) -> Vec<String> {
     let threshold = SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT;
     let mut warnings = Vec::new();
 

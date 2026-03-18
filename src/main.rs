@@ -467,9 +467,9 @@ async fn main() {
             tmp_dir,
         } => {
             use benchmarks::ssg::{
-                analyze_ssg_benchmark_trends, collect_ssg_trend_warnings,
-                collect_ssg_mean_median_drift_warnings, collect_ssg_variability_warnings,
-                SsgStageProfile, SsgTrendMetric,
+                analyze_ssg_benchmark_trends, collect_ssg_mean_median_drift_warnings,
+                collect_ssg_trend_warnings, collect_ssg_variability_warnings, SsgStageProfile,
+                SsgTrendMetric,
             };
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
