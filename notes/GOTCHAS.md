@@ -533,13 +533,31 @@ If you are new to the project, read this first.
 (Discovered during: 2026-03-15_14-32_ssg-output-path-precompute-follow-through.md)
 
 ### Throughput helper fusion can orphan legacy helpers and reintroduce warnings
-- **Problem:** Fusing path/prefix precompute into one helper can leave older helpers referenced only in tests, causing `dead_code` warnings in non-test builds.
-- **Rule:** After helper fusion refactors, either remove legacy helpers fully or scope them with `#[cfg(test)]` if tests still depend on them.
+- **Problem:** Fusing path/prefix precompute into one helper, OR replacing a large pipeline outright, can leave scheduling helpers and buffer types referenced only in tests, causing `dead_code` and `unused import` warnings in non-test builds.
+- **Rule:** After any helper fusion or pipeline replacement refactor, either remove legacy helpers/imports fully or scope them with `#[cfg(test)]` if tests still depend on them. Do NOT use `#[allow(dead_code)]`.
 - **Why:** Ruff's strict warning posture treats helper-orphan warnings as real regressions even when runtime behavior is correct.
-- **Workflow:** 1) run `cargo build`, 2) inspect warnings for orphaned helpers, 3) scope/remove old helpers, 4) re-run focused SSG contract tests.
+- **Workflow:** 1) run `cargo build`, 2) inspect warnings for orphaned helpers AND unused imports, 3) scope/remove each one, 4) re-run focused SSG contract tests.
+- **Common triggers:** Scheduling helper functions (`ssg_read_ahead_limit`, `ssg_target_read_in_flight`, etc.) and buffer imports (`use std::collections::VecDeque`) become dead after their driving loop is deleted.
 - **Implication:** Optimization refactors must include warning-hygiene follow-through, not just behavior correctness checks.
 
 (Discovered during: 2026-03-17_12-17_ssg-combined-precompute-pass.md)
+(Extended during: 2026-03-17_18-53_ssg-rayon-parallel-pipeline.md)
+
+### Rayon `par_iter().collect()` preserves input index order
+- **Problem:** It is easy to assume Rayon work-stealing might reorder results, making index-based post-processing (e.g., `output_paths[i]`, `render_prefixes[i]`) unsafe.
+- **Rule:** Rayon's `par_iter().enumerate().map(...).collect::<Vec<_>>()` preserves the original input index ordering in the output `Vec`. The output at position `i` corresponds to input `i`.
+- **Why:** Rayon guarantees stable collect ordering even though tasks may execute out of order internally.
+- **Implication:** Safe to use index-matched parallel collections for path/prefix lookups in SSG pipelines. Document this assumption in the helper's doc comment and in tests.
+
+(Discovered during: 2026-03-17_18-53_ssg-rayon-parallel-pipeline.md)
+
+### Rayon two-phase `pool.install()` is a full barrier, not a streaming pipeline
+- **Problem:** Replacing a Tokio `FuturesUnordered` pipeline with two sequential `pool.install()` calls looks like a parallel pipeline but is actually a two-phase barrier: all reads must complete before any render/write begins.
+- **Rule:** Each `pool.install(|| ...)` call blocks the calling thread until all parallel workers complete. Calling `install()` twice in sequence creates a synchronization barrier between phases — there is no read/write overlap.
+- **Why:** `install()` submits work and waits for the thread pool to drain. There is no async interleaving between the two `install()` calls.
+- **Implication:** If overlapping reads and writes is important for throughput, a single `par_iter()` that processes read + render + write per file would eliminate the barrier. Profile before assuming the barrier is a bottleneck.
+
+(Discovered during: 2026-03-17_18-53_ssg-rayon-parallel-pipeline.md)
 
 ### Large format-only diffs must be committed by subsystem
 - **Problem:** A single formatting sweep across many areas (`jit`, interpreter runtime, benchmarks, tests, examples) creates noisy history and hard code review.
@@ -1679,4 +1697,4 @@ If you are new to the project, read this first.
 
 ---
 
-*Last updated: 2026-01-28 (Phase 7 Step 6 - Recursive JIT Functions)*
+*Last updated: 2026-03-17 (Rayon parallel SSG pipeline — par_iter ordering guarantee and two-phase barrier)*
