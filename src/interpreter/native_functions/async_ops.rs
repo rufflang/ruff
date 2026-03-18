@@ -164,12 +164,17 @@ async fn ssg_write_rendered_html_page(
     Ok(total_written)
 }
 
-/// Runs a Rayon-parallel two-phase SSG pipeline: parallel reads (Phase 1) then
-/// parallel HTML render + file write (Phase 2), using a single bounded thread pool.
+/// Runs a Rayon-parallel single-pass SSG pipeline: each Rayon task reads, renders,
+/// and writes its own file independently, using a single bounded thread pool.
 ///
-/// Replaces the Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages`
-/// to eliminate per-file `spawn_blocking` task overhead and use Rayon work-stealing
-/// for efficient bounded-concurrency I/O scheduling across both stages.
+/// Eliminates the two-phase read-barrier from the previous implementation, allowing
+/// write I/O to begin as soon as each individual file is read rather than waiting for
+/// ALL reads to complete first. Reduces peak memory (only one file's content live per
+/// worker at a time) and improves read/write overlap across workers.
+///
+/// `read_ms` and `render_write_ms` are reported as cumulative CPU-time sums across
+/// all Rayon workers (sum of per-task durations), preserving the stage-metric contract
+/// while reflecting single-pass execution rather than wall-clock phase boundaries.
 ///
 /// # Returns
 /// `Ok((checksum, read_ms, render_write_ms))` on success.
@@ -187,39 +192,22 @@ fn ssg_run_rayon_read_render_write(
             format!("ssg_read_render_and_write_pages() failed to initialize thread pool: {}", e)
         })?;
 
-    // Phase 1: Parallel reads via Rayon work-stealing.
+    // Single-pass: each Rayon task reads, renders, and writes its own file.
+    // No barrier between read and render+write stages — write I/O starts as soon
+    // as each individual file is read, without waiting for all reads to complete.
     // Rayon's par_iter + collect preserves input order in the result Vec.
-    let read_start = Instant::now();
-    let read_results: Vec<Result<String, String>> = pool.install(|| {
+    let task_results: Vec<Result<(usize, u64, u64), String>> = pool.install(|| {
         source_paths
             .par_iter()
             .enumerate()
             .map(|(index, path)| {
-                std::fs::read_to_string(path)
-                    .map_err(|e| format!("Failed to read file '{}' (index {}): {}", path, index, e))
-            })
-            .collect()
-    });
-    let read_ms = read_start.elapsed().as_secs_f64() * 1000.0;
+                let read_start = Instant::now();
+                let content = std::fs::read_to_string(path).map_err(|e| {
+                    format!("Failed to read file '{}' (index {}): {}", path, index, e)
+                })?;
+                let read_ns = read_start.elapsed().as_nanos() as u64;
 
-    let file_count = source_paths.len();
-    let mut contents = Vec::with_capacity(file_count);
-    for result in read_results {
-        match result {
-            Ok(content) => contents.push(content),
-            Err(e) => return Err(e),
-        }
-    }
-
-    // Phase 2: Parallel HTML render + file write via the same Rayon pool.
-    // Each Rayon task builds the full HTML string and writes it with a single
-    // std::fs::write call, eliminating per-file vectored-write loop overhead.
-    let render_write_start = Instant::now();
-    let write_results: Vec<Result<usize, String>> = pool.install(|| {
-        contents
-            .par_iter()
-            .enumerate()
-            .map(|(index, content)| {
+                let rw_start = Instant::now();
                 let html_prefix = &render_prefixes[index];
                 let total_len = html_prefix.len() + content.len() + SSG_HTML_SUFFIX.len();
                 let mut html = String::with_capacity(total_len);
@@ -232,20 +220,29 @@ fn ssg_run_rayon_read_render_write(
                         output_paths[index], index, e
                     )
                 })?;
-                Ok(total_len)
+                let rw_ns = rw_start.elapsed().as_nanos() as u64;
+
+                Ok((total_len, read_ns, rw_ns))
             })
             .collect()
     });
-    let render_write_ms = render_write_start.elapsed().as_secs_f64() * 1000.0;
 
     let mut checksum: i64 = 0;
-    for result in write_results {
+    let mut total_read_ns: u64 = 0;
+    let mut total_rw_ns: u64 = 0;
+    for result in task_results {
         match result {
-            Ok(len) => checksum += len as i64,
+            Ok((len, read_ns, rw_ns)) => {
+                checksum += len as i64;
+                total_read_ns += read_ns;
+                total_rw_ns += rw_ns;
+            }
             Err(e) => return Err(e),
         }
     }
 
+    let read_ms = total_read_ns as f64 / 1_000_000.0;
+    let render_write_ms = total_rw_ns as f64 / 1_000_000.0;
     Ok((checksum, read_ms, render_write_ms))
 }
 
