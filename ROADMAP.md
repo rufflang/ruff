@@ -209,6 +209,14 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added 5 targeted regression tests for the blocking helper: output-format, checksum, read/write failure propagation, Unicode byte-count.
     - All correctness regressions (`cargo test`) remain green.
 
+- **SSG Throughput: Single-Pass Rayon Pipeline (✅ Complete, March 2026)**
+    - Replaced the two-phase Rayon pipeline (Phase 1 reads barrier → Phase 2 render+writes) with a single-pass per-file read+render+write task inside one `pool.install()`.
+    - Each Rayon worker reads, renders HTML, and writes its own file independently — write I/O begins per-file as soon as that file is read, without waiting for all reads to complete.
+    - Eliminates the Phase 1→Phase 2 barrier, reducing peak memory from O(N) to O(K) file contents in RAM (where K = Rayon pool size).
+    - `read_ms`/`render_write_ms` preserved as non-negative values; now report cumulative per-task CPU-time sums rather than wall-clock phase boundaries.
+    - Added 4 regression tests: per-file timing non-negativity, cumulative timing monotonicity, large-batch (32-file) checksum, single-worker index mapping.
+    - All correctness regressions (`cargo test`) remain green.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -219,9 +227,10 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, and Rayon parallel read+render+write pipeline.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, and single-pass Rayon pipeline.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
-    - Profile benchmarking of Rayon pipeline against current `bench-ssg` results to measure impact and identify next throughput opportunities.
+    - Profile `bench-ssg` results to measure wall-clock impact of single-pass pipeline vs two-phase and identify next throughput opportunities.
+    - Consider profiling whether `ThreadPoolBuilder::new().num_threads(concurrency_limit)` sizing is optimal vs matching the global Rayon pool (CPU logical core count).
 
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.

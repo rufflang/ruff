@@ -40,6 +40,7 @@
 - **Latest throughput combined-precompute step**: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` now precompute output paths and HTML prefixes in one shared batch pass, reducing duplicate per-index formatting work while preserving checksum/file-count and stage-metric contracts.
 - **Latest throughput single-worker overlap-prefetch step**: `ssg_read_render_and_write_pages(...)` now overlaps bounded single-worker read/write progression with one read in-flight plus one write in-flight (and one pending write slot), reducing sequential idle gaps while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput Rayon-pipeline step**: `ssg_read_render_and_write_pages(...)` now uses a `spawn_blocking` + Rayon `par_iter` two-phase pipeline (Phase 1: parallel reads, Phase 2: parallel HTML render + `std::fs::write`) instead of the Tokio `FuturesUnordered` pipeline, eliminating per-file Tokio task-spawn overhead while preserving checksum/file-count and stage-metric key contracts.
+- **Latest throughput single-pass Rayon step**: `ssg_read_render_and_write_pages(...)` now executes a single-pass per-file read+render+write in each Rayon task, eliminating the Phase 1→Phase 2 read barrier, reducing peak in-memory content from O(N) to O(K) file slots, and enabling per-file read/write overlap while preserving checksum/file-count and stage-metric key contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 

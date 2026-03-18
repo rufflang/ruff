@@ -45,6 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added warning output when drift magnitude crosses threshold (`7.5%`) for Ruff metrics and optional Python/speedup metrics.
   - Added comprehensive benchmark-module regression coverage for drift calculation, warning emission/suppression behavior, and low-run-count gating.
 
+- **SSG Throughput Follow-Through: Single-Pass Rayon Pipeline (v0.11.0 P0)**:
+  - Replaced the two-phase Rayon pipeline (Phase 1: all reads → barrier → Phase 2: all render+writes) in `ssg_run_rayon_read_render_write` with a single-pass per-file read+render+write Rayon task.
+  - Each Rayon worker now reads, renders HTML, and writes its own file independently without waiting for all reads to complete first.
+  - Eliminates the full Phase 1→Phase 2 read barrier: write I/O begins per-file as soon as that file is read, improving read/write overlap across workers.
+  - Reduces peak memory from O(N) file contents simultaneously in RAM to at most O(K) where K is the Rayon pool size (one file content per active worker).
+  - `read_ms` and `render_write_ms` are now cumulative CPU-time sums of per-task durations rather than wall-clock phase timings, preserving the `>= 0.0` stage-metric contract while reflecting single-pass semantics.
+  - No change to external contracts: `checksum`/`files`/`read_ms`/`render_write_ms` dict keys preserved, error message formats unchanged.
+  - Added 4 regression tests covering: per-file timing non-negativity, cumulative timing monotonicity with file count, large-batch (32-file) checksum correctness, and single-worker index mapping.
+  - All 346 lib + 238 integration tests passing.
+
 - **SSG Throughput Follow-Through: Rayon Parallel Read+Render+Write Pipeline (v0.11.0 P0)**:
   - Replaced Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages(...)` with a `spawn_blocking` + Rayon `par_iter` two-phase implementation.
   - Phase 1 (reads): Rayon work-stealing parallel reads across all source files using a single bounded `ThreadPool`.
