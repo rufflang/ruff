@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: CPU-Bounded Rayon Thread-Pool Sizing (v0.11.0 P0)**:
+  - Added `ssg_rayon_cpu_cap()` helper in `ssg_read_render_and_write_pages(...)` that reads `std::thread::available_parallelism()` (stable since Rust 1.59) with a safe fallback to 1.
+  - Changed `ssg_run_rayon_read_render_write` to cap the `ThreadPoolBuilder` thread count at `min(concurrency_limit, cpu_cap).max(1)` instead of the raw `concurrency_limit`.
+  - Eliminates Rayon thread over-subscription when `concurrency_limit` is set to a high value (e.g. 256 from the default async task pool): on an 8-core machine the pool is now bounded to 8 workers instead of 256, reducing context-switch overhead and thread-lifecycle cost.
+  - `concurrency_limit` values at or below the CPU count are fully preserved — callers passing small explicit limits see no behavioural change.
+  - No new crate dependencies; uses `std::thread::available_parallelism()` from the standard library.
+  - All existing contracts preserved: `checksum`, `files`, `read_ms`, `render_write_ms` key values and error-propagation format strings unchanged.
+  - Added 4 regression tests: `ssg_rayon_cpu_cap()` always >= 1; oversized limit (256) still produces correct checksums; small limit (1) still produces correct checksums; exact-CPU-count limit exercises the boundary branch.
+  - All 350 lib + 238 integration tests passing.
+
 - **v0.11 Scope-Lock Documentation (March 2026)**:
   - Added explicit scope-lock language in `README.md` and `ROADMAP.md` to align v0.11 execution around throughput-first release gating.
   - Added explicit benchmark-gated JIT posture: function-level JIT remains supporting/parallel unless it demonstrates measurable `bench-ssg` / `--profile-async` improvements with no correctness regressions.

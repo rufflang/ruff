@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-18_ssg-rayon-cpu-bounded-pool.md** — ✅ COMPLETED: Added `ssg_rayon_cpu_cap()` helper and capped `ThreadPoolBuilder` thread count at `min(concurrency_limit, available_parallelism).max(1)` in `ssg_run_rayon_read_render_write`. Prevents thread over-subscription when `concurrency_limit` (e.g. 256 default) far exceeds CPU count. Added 4 regression tests covering floor guarantee, oversized-limit correctness, small-limit correctness, and exact-CPU boundary. Synchronized CHANGELOG/ROADMAP/README.
+
 - **2026-03-17_23-18_ssg-single-pass-rayon-pipeline.md** — ✅ COMPLETED: Replaced two-phase Rayon pipeline (Phase 1 reads barrier → Phase 2 render+writes) with a single-pass per-file read+render+write Rayon pipeline in `ssg_run_rayon_read_render_write`. Eliminates Phase 1→Phase 2 barrier, reduces peak memory (at most K files in RAM at once vs N), and enables read/write overlap. `read_ms`/`render_write_ms` now report cumulative per-task CPU sums rather than wall-clock phase durations. Added 4 regression tests for single-pass behavioral contracts. Synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-17_18-53_ssg-rayon-parallel-pipeline.md** — ✅ COMPLETED: Replaced Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages(...)` with `spawn_blocking` + Rayon `par_iter` two-phase pipeline (Phase 1: parallel reads, Phase 2: parallel HTML render + `std::fs::write`). Removed unused `VecDeque` import, moved 4 test-only scheduling helpers to `#[cfg(test)]`, added 5 regression tests, and synchronized CHANGELOG/ROADMAP/README.

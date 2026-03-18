@@ -217,6 +217,12 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added 4 regression tests: per-file timing non-negativity, cumulative timing monotonicity, large-batch (32-file) checksum, single-worker index mapping.
     - All correctness regressions (`cargo test`) remain green.
 
+- **SSG Throughput Follow-Through: CPU-Bounded Rayon Thread-Pool Sizing (✅ Complete, March 2026)**
+    - Added `ssg_rayon_cpu_cap()` helper that reads `std::thread::available_parallelism()` with a safe fallback to 1.
+    - Capped `ThreadPoolBuilder` thread count in `ssg_run_rayon_read_render_write` at `min(concurrency_limit, cpu_cap).max(1)` to prevent Rayon thread over-subscription when `concurrency_limit` >> CPU count (e.g. default batch_size=256 on an 8-core machine).
+    - `concurrency_limit` values at or below the CPU count are preserved unchanged; no new crate dependency.
+    - Added 4 regression tests: `ssg_rayon_cpu_cap()` >= 1 floor, oversized-limit checksum correctness, small-limit checksum correctness, exact-CPU-count boundary branch.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -227,10 +233,9 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, and single-pass Rayon pipeline.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, and CPU-bounded Rayon pool sizing.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile `bench-ssg` results to measure wall-clock impact of single-pass pipeline vs two-phase and identify next throughput opportunities.
-    - Consider profiling whether `ThreadPoolBuilder::new().num_threads(concurrency_limit)` sizing is optimal vs matching the global Rayon pool (CPU logical core count).
 
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
