@@ -1,7 +1,8 @@
 # Ruff Field Notes — SSG Rayon CPU-Bounded Thread-Pool Sizing
 
 **Date:** 2026-03-18
-**Branch/Commits:** main / bc8a0ef (impl), 6478e48 (tests)
+**Session:** local
+**Branch/Commit:** main / bc8a0ef (impl), 6478e48 (tests), 470ec9f (docs)
 **Scope:** Capped the Rayon `ThreadPoolBuilder` thread count in
 `ssg_run_rayon_read_render_write` at `min(concurrency_limit, available_parallelism).max(1)`
 to prevent thread over-subscription when `concurrency_limit` >> CPU count.
@@ -11,9 +12,9 @@ to prevent thread over-subscription when `concurrency_limit` >> CPU count.
 ## What I Changed
 
 - **`src/interpreter/native_functions/async_ops.rs`** — new helper:
-  - Added `ssg_rayon_cpu_cap() -> usize` (before `ssg_run_rayon_read_render_write`)
+  - Added `ssg_rayon_cpu_cap() -> usize` (directly before `ssg_run_rayon_read_render_write`)
   - Calls `std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)`
-  - Requires no new crate dependency — stable std since Rust 1.59
+  - No new crate dependency — `available_parallelism` is stable std since Rust 1.59
 
 - **`src/interpreter/native_functions/async_ops.rs`** — `ssg_run_rayon_read_render_write`:
   - Replaced `ThreadPoolBuilder::new().num_threads(concurrency_limit.max(1))`
@@ -29,62 +30,87 @@ to prevent thread over-subscription when `concurrency_limit` >> CPU count.
 
 ---
 
-## Why This Matters
-
-The `bench_ssg.ruff` benchmark uses `batch_size = 256` (the default
-`DEFAULT_ASYNC_TASK_POOL_SIZE`). Before this change, `ssg_run_rayon_read_render_write`
-would call `ThreadPoolBuilder::new().num_threads(256)` on a machine with, say, 10
-logical cores. Rayon would then create 256 worker threads for work-stealing execution
-— all of which execute synchronous I/O and compute tasks. On an 10-core machine, 256
-threads means:
-
-- 246 threads sit idle waiting for work-stealing slots
-- OS context-switches between 256 threads add latency to each I/O call
-- Thread creation and teardown overhead for 246 extra threads (Rayon recreates the
-  pool on each call to `ssg_run_rayon_read_render_write` via `spawn_blocking`)
-
-After the cap, on a 10-core machine with `batch_size=256`, the pool will have 10
-threads — exactly matching the available parallelism.
-
----
-
 ## Gotchas (Read This Next Time)
 
-- **Gotcha:** `std::thread::available_parallelism()` returns `NonZeroUsize`, not
-  plain `usize`. You need `.map(|n| n.get())` to extract the inner value, then
-  `.unwrap_or(1)` for the fallback.
-  - **Symptom:** If you write `available_parallelism().unwrap_or(1)`, the compiler
-    will reject it because `NonZeroUsize` does not implement `From<usize>`.
-  - **Fix:** Use `.map(|n| n.get()).unwrap_or(1)` — exactly as coded.
+- **Gotcha:** `std::thread::available_parallelism()` returns `NonZeroUsize`, not `usize`.
+  - **Symptom:** `available_parallelism().unwrap_or(1)` fails to compile — `NonZeroUsize`
+    does not implement `From<usize>`, so the fallback type doesn't match.
+  - **Root cause:** The standard library wraps the result in `NonZeroUsize` to guarantee
+    the value is always at least 1. That means you can't unwrap directly to `usize`.
+  - **Fix:** Use `.map(|n| n.get()).unwrap_or(1)` — exactly as coded in `ssg_rayon_cpu_cap()`.
+  - **Prevention:** Any time you call `available_parallelism()`, always chain `.map(|n| n.get())` before unwrapping.
 
-- **Gotcha:** `ThreadPoolBuilder` builds a new pool on every call to
-  `ssg_run_rayon_read_render_write`. This is intentional — the function is called from
-  `tokio::task::spawn_blocking`, which runs it in a blocking thread pool. The Rayon
-  pool is scoped to the SSG batch operation only.
-  - **Implication:** The CPU cap is re-evaluated on every call via `ssg_rayon_cpu_cap()`.
-    This is a tiny `available_parallelism()` syscall — negligible overhead at SSG scale.
+- **Gotcha:** A new `ThreadPoolBuilder` pool is created on every call to `ssg_run_rayon_read_render_write`. This is intentional and safe.
+  - **Symptom:** Might look like a pool is being recreated wastefully on each SSG batch.
+  - **Root cause:** The function is called inside `tokio::task::spawn_blocking`, so it
+    runs in a Tokio blocking thread. There is no persistent per-process Rayon pool for
+    SSG — each call scopes its own pool to the batch.
+  - **Fix:** None — this is the intended design.
+  - **Prevention:** Do not try to cache or share the Rayon pool across `spawn_blocking`
+    calls without careful analysis of Tokio + Rayon interaction. The per-call pool
+    is simpler and correct. The CPU cap re-evaluation via `ssg_rayon_cpu_cap()` is a
+    negligible `available_parallelism()` syscall at SSG scale.
 
-- **Gotcha:** The `parallel_map` path (`try_parallel_map_with_rayon_native_mapper`)
-  at `src/interpreter/native_functions/async_ops.rs` line ~371 also calls
-  `ThreadPoolBuilder::new().num_threads(concurrency_limit.max(1))` without the CPU
-  cap. It was intentionally left out of scope for this session — it is a separate
-  feature with different caller semantics. Do NOT apply the SSG-specific cap to
-  `parallel_map` without careful analysis of that function's concurrency-limit contract.
+- **Gotcha:** `parallel_map`'s `ThreadPoolBuilder` call (line ~371 in `async_ops.rs`) does NOT have the CPU cap.
+  - **Symptom:** It still uses `concurrency_limit.max(1)` without clamping to CPU count.
+  - **Root cause:** Intentionally left out of scope — `parallel_map` is a user-facing
+    operation with explicit concurrency semantics, whereas the SSG pool was always an
+    implementation detail. Applying the same cap to `parallel_map` could break user
+    expectations for explicit over-subscription use cases.
+  - **Fix:** None in this session — this needs a separate ROADMAP analysis.
+  - **Prevention:** Do NOT apply `ssg_rayon_cpu_cap()` to `parallel_map` without a
+    clear ROADMAP item and contract analysis for that function's explicit-limit semantics.
 
-- **Gotcha:** `concurrency_limit` values below CPU count must pass through unchanged.
-  The formula `concurrency_limit.min(cpu_cap).max(1)` achieves this:
-  - `concurrency_limit=1` on a 10-core machine → `1.min(10).max(1)` = 1 ✅
-  - `concurrency_limit=4` on a 10-core machine → `4.min(10).max(1)` = 4 ✅
-  - `concurrency_limit=256` on a 10-core machine → `256.min(10).max(1)` = 10 ✅
-  - `concurrency_limit=0` (guarded upstream, but) → `0.min(10).max(1)` = 1 ✅
+- **Gotcha:** `concurrency_limit` values at or below CPU count must pass through unchanged. The formula achieves this without any extra branching.
+  - **Symptom:** If you change the formula to `cpu_cap.min(concurrency_limit)` vs
+    `concurrency_limit.min(cpu_cap)`, they are equivalent — but the second form makes
+    it clear that `concurrency_limit` is the primary value being constrained.
+  - **Root cause:** `min` is commutative, so order doesn't matter for correctness, but
+    intent is clearer with `concurrency_limit.min(cpu_cap)`.
+  - **Prevention:** Verify expected values mentally: `1.min(10).max(1)` = 1, `4.min(10).max(1)` = 4,
+    `256.min(10).max(1)` = 10, `0.min(10).max(1)` = 1 (guarded upstream, but safe).
 
 ---
 
-## Open Follow-Ups
+## Things I Learned
 
-- `[ ]` Run `cargo bench --bench bench-ssg` to measure wall-clock impact of CPU cap
-  vs uncapped pool on local hardware (bench_ssg uses batch_size=256).
-- `[ ]` Consider whether `parallel_map`'s `ThreadPoolBuilder` sizing warrants a
-  similar cap — it's a different use case (user-controlled, not SSG-specific) and
-  probably needs a separate ROADMAP item.
-- `[ ]` Continue v0.11.0 P0 residual-overhead slices per ROADMAP.md.
+- `bench_ssg.ruff` uses `batch_size = 256` which equals `DEFAULT_ASYNC_TASK_POOL_SIZE`.
+  This is the default concurrency limit passed all the way down to `ssg_run_rayon_read_render_write`.
+  On a machine with 10 cores, this previously created 256 Rayon worker threads, all competing
+  for 10 CPU slots. The cap now limits the pool to `min(256, cpu_count)` = `cpu_count`.
+
+- Rayon's work-stealing model gives no throughput benefit from having more threads than
+  CPUs when each task is synchronous I/O + compute. Extra threads only add OS scheduling
+  overhead and thread creation/teardown cost on each `spawn_blocking` invocation.
+
+- `std::thread::available_parallelism()` is the idiomatic Rust way to query logical
+  CPU count without a crate dependency. It reads the affinity mask (not raw CPU count),
+  so it correctly respects container CPU limits and taskset/numactl restrictions.
+
+- The `ssg_rayon_cpu_cap()` helper is placed directly before `ssg_run_rayon_read_render_write`
+  in the source file so future readers see the purpose immediately next to the usage site.
+  Keep them adjacent — don't move `ssg_rayon_cpu_cap()` far from its sole call site.
+
+---
+
+## Follow-ups / TODO (For Future Agents)
+
+- [ ] Run `cargo bench --bench bench-ssg` to measure wall-clock impact of CPU cap vs
+  uncapped pool on local hardware (`bench_ssg.ruff` uses `batch_size=256`).
+- [ ] Evaluate whether `parallel_map`'s `ThreadPoolBuilder` sizing warrants a similar
+  CPU cap — requires separate ROADMAP item with explicit concurrency-limit contract analysis.
+- [ ] Continue v0.11.0 P0 residual-overhead slices per ROADMAP.md.
+
+---
+
+## Links / References
+
+- Files touched:
+  - `src/interpreter/native_functions/async_ops.rs`
+  - `CHANGELOG.md`
+  - `ROADMAP.md`
+  - `README.md`
+  - `notes/README.md`
+- Related docs:
+  - `ROADMAP.md` — "SSG Throughput Focus" remaining workstreams
+  - `notes/2026-03-17_23-18_ssg-single-pass-rayon-pipeline.md` — previous session (single-pass pipeline)
