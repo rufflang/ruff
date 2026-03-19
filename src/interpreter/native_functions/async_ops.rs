@@ -8,14 +8,18 @@ use crate::vm::VM;
 use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
+use std::collections::HashMap;
 use std::io::{BufWriter, Error, ErrorKind, IoSlice, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
 
 const SSG_HTML_PREFIX_START: &str = "<html><body><h1>Post ";
 const SSG_HTML_PREFIX_END: &str = "</h1><article>";
 const SSG_HTML_SUFFIX: &str = "</article></body></html>";
+
+static SSG_RAYON_POOL_CACHE: OnceLock<Mutex<HashMap<usize, Arc<rayon::ThreadPool>>>> =
+    OnceLock::new();
 
 #[derive(Clone)]
 enum RayonMapInput {
@@ -199,6 +203,38 @@ fn ssg_rayon_cpu_cap() -> usize {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
 }
 
+fn ssg_rayon_pool_cache() -> &'static Mutex<HashMap<usize, Arc<rayon::ThreadPool>>> {
+    SSG_RAYON_POOL_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn ssg_get_or_create_rayon_pool(rayon_threads: usize) -> Result<Arc<rayon::ThreadPool>, String> {
+    {
+        let cache = ssg_rayon_pool_cache().lock().map_err(|e| {
+            format!("ssg_read_render_and_write_pages() thread-pool cache lock failed: {}", e)
+        })?;
+
+        if let Some(existing_pool) = cache.get(&rayon_threads) {
+            return Ok(existing_pool.clone());
+        }
+    }
+
+    let new_pool =
+        Arc::new(ThreadPoolBuilder::new().num_threads(rayon_threads).build().map_err(|e| {
+            format!("ssg_read_render_and_write_pages() failed to initialize thread pool: {}", e)
+        })?);
+
+    let mut cache = ssg_rayon_pool_cache().lock().map_err(|e| {
+        format!("ssg_read_render_and_write_pages() thread-pool cache lock failed: {}", e)
+    })?;
+
+    if let Some(existing_pool) = cache.get(&rayon_threads) {
+        return Ok(existing_pool.clone());
+    }
+
+    cache.insert(rayon_threads, new_pool.clone());
+    Ok(new_pool)
+}
+
 fn ssg_run_rayon_read_render_write(
     source_paths: Vec<String>,
     output_paths: Vec<String>,
@@ -210,9 +246,7 @@ fn ssg_run_rayon_read_render_write(
     // cause thread over-subscription and context-switch thrash on typical hardware.
     let cpu_cap = ssg_rayon_cpu_cap();
     let rayon_threads = concurrency_limit.min(cpu_cap).max(1);
-    let pool = ThreadPoolBuilder::new().num_threads(rayon_threads).build().map_err(|e| {
-        format!("ssg_read_render_and_write_pages() failed to initialize thread pool: {}", e)
-    })?;
+    let pool = ssg_get_or_create_rayon_pool(rayon_threads)?;
 
     // Single-pass: each Rayon task reads, renders, and writes its own file.
     // No barrier between read and render+write stages — write I/O starts as soon
@@ -4111,14 +4145,11 @@ mod tests {
         }
 
         // Single-file run
-        let (out_1, pfx_1) = ssg_build_output_paths_and_prefixes_for_batch(output_dir_1.as_str(), 1);
-        let (_, read_ms_1, rw_ms_1) = ssg_run_rayon_read_render_write(
-            vec![source_paths[0].clone()],
-            out_1,
-            pfx_1,
-            1,
-        )
-        .unwrap();
+        let (out_1, pfx_1) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir_1.as_str(), 1);
+        let (_, read_ms_1, rw_ms_1) =
+            ssg_run_rayon_read_render_write(vec![source_paths[0].clone()], out_1, pfx_1, 1)
+                .unwrap();
 
         // Multi-file run
         let (out_n, pfx_n) =
@@ -4178,9 +4209,7 @@ mod tests {
 
         let expected_checksum: i64 = (0..file_count)
             .map(|i| {
-                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
-                    .unwrap()
-                    .len() as i64
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap().len() as i64
             })
             .sum();
 
@@ -4219,15 +4248,9 @@ mod tests {
         assert!(checksum > 0);
 
         for i in 0..file_count {
-            let html =
-                fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap();
+            let html = fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap();
             let marker = format!("UNIQUE_MARKER_{}_X{}", i, i * 17 + 3);
-            assert!(
-                html.contains(&marker),
-                "post_{}.html missing marker '{}'",
-                i,
-                marker
-            );
+            assert!(html.contains(&marker), "post_{}.html missing marker '{}'", i, marker);
             assert!(
                 html.contains(&format!("<h1>Post {}</h1>", i)),
                 "post_{}.html has wrong heading",
@@ -4248,6 +4271,81 @@ mod tests {
         // ssg_rayon_cpu_cap() must always return >= 1, even on unusual hosts.
         let cap = ssg_rayon_cpu_cap();
         assert!(cap >= 1, "ssg_rayon_cpu_cap() must be >= 1, got {}", cap);
+    }
+
+    #[test]
+    fn test_ssg_get_or_create_rayon_pool_reuses_existing_pool_for_same_size() {
+        let pool_a = ssg_get_or_create_rayon_pool(1).unwrap();
+        let pool_b = ssg_get_or_create_rayon_pool(1).unwrap();
+
+        assert!(
+            Arc::ptr_eq(&pool_a, &pool_b),
+            "expected the same cached Rayon pool Arc for identical thread count"
+        );
+    }
+
+    #[test]
+    fn test_ssg_get_or_create_rayon_pool_distinguishes_thread_counts() {
+        let pool_one = ssg_get_or_create_rayon_pool(1).unwrap();
+        let pool_two = ssg_get_or_create_rayon_pool(2).unwrap();
+
+        assert!(
+            !Arc::ptr_eq(&pool_one, &pool_two),
+            "expected different cached Rayon pools for different thread counts"
+        );
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_cached_pool_repeated_calls_preserve_checksum_contract() {
+        let input_dir = unique_temp_dir("ruff_rayon_cached_pool_repeat_input");
+        let output_dir_a = unique_temp_dir("ruff_rayon_cached_pool_repeat_output_a");
+        let output_dir_b = unique_temp_dir("ruff_rayon_cached_pool_repeat_output_b");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir_a).unwrap();
+        fs::create_dir_all(&output_dir_b).unwrap();
+
+        let file_count = 10usize;
+        let source_paths: Vec<String> = (0..file_count)
+            .map(|index| {
+                let path = format!("{}/post_{}.md", input_dir, index);
+                fs::write(&path, format!("# Post {}\n\n{}", index, "body ".repeat(4))).unwrap();
+                path
+            })
+            .collect();
+
+        let (out_a, pfx_a) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir_a.as_str(), file_count);
+        let (checksum_a, read_ms_a, render_write_ms_a) =
+            ssg_run_rayon_read_render_write(source_paths.clone(), out_a, pfx_a, 4).unwrap();
+
+        let (out_b, pfx_b) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir_b.as_str(), file_count);
+        let (checksum_b, read_ms_b, render_write_ms_b) =
+            ssg_run_rayon_read_render_write(source_paths, out_b, pfx_b, 4).unwrap();
+
+        assert!(read_ms_a >= 0.0 && render_write_ms_a >= 0.0);
+        assert!(read_ms_b >= 0.0 && render_write_ms_b >= 0.0);
+        assert_eq!(checksum_a, checksum_b, "repeated cached-pool runs must preserve checksum");
+
+        let expected_checksum_a: i64 = (0..file_count)
+            .map(|index| {
+                fs::read_to_string(format!("{}/post_{}.html", output_dir_a, index)).unwrap().len()
+                    as i64
+            })
+            .sum();
+        let expected_checksum_b: i64 = (0..file_count)
+            .map(|index| {
+                fs::read_to_string(format!("{}/post_{}.html", output_dir_b, index)).unwrap().len()
+                    as i64
+            })
+            .sum();
+
+        assert_eq!(checksum_a, expected_checksum_a);
+        assert_eq!(checksum_b, expected_checksum_b);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir_a);
+        let _ = fs::remove_dir_all(&output_dir_b);
     }
 
     #[test]
@@ -4285,9 +4383,7 @@ mod tests {
 
         let expected_checksum: i64 = (0..file_count)
             .map(|i| {
-                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
-                    .unwrap()
-                    .len() as i64
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap().len() as i64
             })
             .sum();
 
@@ -4333,9 +4429,7 @@ mod tests {
 
         let expected: i64 = (0..file_count)
             .map(|i| {
-                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
-                    .unwrap()
-                    .len() as i64
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap().len() as i64
             })
             .sum();
 
@@ -4374,9 +4468,7 @@ mod tests {
 
         let expected: i64 = (0..file_count)
             .map(|i| {
-                fs::read_to_string(format!("{}/post_{}.html", output_dir, i))
-                    .unwrap()
-                    .len() as i64
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap().len() as i64
             })
             .sum();
 
@@ -4648,9 +4740,8 @@ mod tests {
             .enumerate()
             .map(|(i, body)| {
                 let index_str = i.to_string();
-                let prefix_len = SSG_HTML_PREFIX_START.len()
-                    + index_str.len()
-                    + SSG_HTML_PREFIX_END.len();
+                let prefix_len =
+                    SSG_HTML_PREFIX_START.len() + index_str.len() + SSG_HTML_PREFIX_END.len();
                 (prefix_len + body.len() + SSG_HTML_SUFFIX.len()) as i64
             })
             .sum();
@@ -4676,10 +4767,8 @@ mod tests {
 
         // Use a non-existent output directory to force a write failure.
         let bad_output = format!("{}/nonexistent_subdir/post_0.html", input_dir);
-        let render_prefixes = vec![format!(
-            "{}{}{}",
-            SSG_HTML_PREFIX_START, "0", SSG_HTML_PREFIX_END
-        )];
+        let render_prefixes =
+            vec![format!("{}{}{}", SSG_HTML_PREFIX_START, "0", SSG_HTML_PREFIX_END)];
 
         let result = ssg_run_rayon_read_render_write(
             vec![source_path],
@@ -4695,11 +4784,7 @@ mod tests {
             "Error message must contain 'Failed to write file', got: {}",
             msg
         );
-        assert!(
-            msg.contains("(index 0)"),
-            "Error message must contain '(index 0)', got: {}",
-            msg
-        );
+        assert!(msg.contains("(index 0)"), "Error message must contain '(index 0)', got: {}", msg);
 
         let _ = fs::remove_dir_all(&input_dir);
     }
@@ -4721,17 +4806,15 @@ mod tests {
         let (output_paths, render_prefixes) =
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
 
-        let (checksum, _, _) =
-            ssg_run_rayon_read_render_write(
-                vec![source_path],
-                output_paths.clone(),
-                render_prefixes,
-                1,
-            )
-            .unwrap();
+        let (checksum, _, _) = ssg_run_rayon_read_render_write(
+            vec![source_path],
+            output_paths.clone(),
+            render_prefixes,
+            1,
+        )
+        .unwrap();
 
-        let prefix_len =
-            SSG_HTML_PREFIX_START.len() + "0".len() + SSG_HTML_PREFIX_END.len();
+        let prefix_len = SSG_HTML_PREFIX_START.len() + "0".len() + SSG_HTML_PREFIX_END.len();
         let expected = (prefix_len + source_body.len() + SSG_HTML_SUFFIX.len()) as i64;
 
         assert_eq!(
