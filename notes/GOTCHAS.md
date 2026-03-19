@@ -419,6 +419,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_23-40_release-hardening-contract-slices-continuation.md)
 
+### SSG throughput regressions should not assert timing monotonicity across run sizes
+- **Problem:** Full-suite runs can fail timing-based assertions like `read_ms(N files) >= read_ms(1 file)` even when output correctness is fully intact.
+- **Rule:** In `ssg_run_rayon_read_render_write(...)` contract tests, treat `read_ms` / `render_write_ms` as non-negative informational metrics; use deterministic checksum/file-count/output assertions for growth/correctness guarantees.
+- **Why:** Timing values are sensitive to OS scheduler and filesystem cache effects; they are not deterministic monotonic proof-of-work signals across test runs.
+- **Implication:** Keep SSG timing assertions resilient (non-negative) and make deterministic contracts (`checksum`, output content/index mapping) the primary regression gate.
+
+(Discovered during: 2026-03-19_07-47_ssg-rayon-pool-cache-and-timing-test-stability.md)
+
 ### Direct async file-writer tests may need bounded readiness polling under full-suite load
 - **Problem:** A direct writer test can intermittently read truncated content immediately after `await`ing the writer helper in full-suite runs, while isolated reruns pass.
 - **Rule:** For direct async file-writer contract tests, keep strict content assertions but gate them with short bounded polling for expected final length first.

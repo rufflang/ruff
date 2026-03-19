@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-19_07-47_ssg-rayon-pool-cache-and-timing-test-stability.md** — ✅ COMPLETED: Added cached CPU-bounded Rayon pool reuse for `ssg_run_rayon_read_render_write(...)`, added pool-cache regression coverage, synchronized CHANGELOG/ROADMAP/README, and stabilized a flaky full-suite cumulative-timing assertion by switching to deterministic checksum-growth + non-negative timing contracts.
+
 - **2026-03-18_ssg-bufwriter-render-alloc-elimination.md** — ✅ COMPLETED: Eliminated per-file intermediate `String` allocation in `ssg_run_rayon_read_render_write` Rayon render+write hot path by replacing `String::with_capacity` + 3× `push_str` + `std::fs::write` with pre-sized `BufWriter<File>` + 3× `write_all` + `flush`. Removes 10,000 per-file ~200–300 byte heap allocations from the hot path in a 10K-file SSG benchmark run. Added 4 regression tests covering exact HTML structure, byte-accurate checksum, write-failure propagation, and Unicode byte-accuracy. Synchronized CHANGELOG/ROADMAP/README.
 
 - **2026-03-18_ssg-rayon-cpu-bounded-pool.md** — ✅ COMPLETED: Added `ssg_rayon_cpu_cap()` helper and capped `ThreadPoolBuilder` thread count at `min(concurrency_limit, available_parallelism).max(1)` in `ssg_run_rayon_read_render_write`. Prevents thread over-subscription when `concurrency_limit` (e.g. 256 default) far exceeds CPU count. Added 4 regression tests covering floor guarantee, oversized-limit correctness, small-limit correctness, and exact-CPU boundary. Synchronized CHANGELOG/ROADMAP/README.
