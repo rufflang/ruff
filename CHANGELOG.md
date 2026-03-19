@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: Cached CPU-Bounded Rayon Pool Reuse (v0.11.0 P0)**:
+  - Added a reusable Rayon thread-pool cache for `ssg_read_render_and_write_pages(...)` keyed by effective pool size (`min(concurrency_limit, available_parallelism).max(1)`).
+  - Replaced per-call `ThreadPoolBuilder` initialization in `ssg_run_rayon_read_render_write(...)` with `ssg_get_or_create_rayon_pool(...)`, eliminating repeated thread-pool construction overhead on repeated benchmark invocations.
+  - Preserved all external output and contract behavior: `checksum`/`files`/`read_ms`/`render_write_ms` result keys and existing read/write error message formats remain unchanged.
+  - Added regression coverage for pool-cache behavior and repeated-call correctness:
+    - same-size pool requests reuse the same cached `Arc<ThreadPool>`
+    - different thread counts receive distinct cached pools
+    - repeated SSG pipeline runs preserve checksum and stage-metric contract behavior
+  - Verified with targeted regression runs:
+    - `cargo test test_ssg_get_or_create_rayon_pool`
+    - `cargo test test_ssg_run_rayon_cached_pool_repeated_calls_preserve_checksum_contract`
+    - `cargo test test_ssg_run_rayon_oversized_concurrency_limit_clamps_to_cpu_count`
+
 - **SSG Throughput Follow-Through: BufWriter Write-Through Render Allocation Elimination (v0.11.0 P0)**:
   - Eliminated the per-file intermediate `String` allocation in `ssg_run_rayon_read_render_write`'s Rayon render+write hot path.
   - Previously, each Rayon task allocated a `String::with_capacity(total_len)` and filled it with three `push_str` calls (prefix + source body + suffix) before passing the entire string to `std::fs::write`. For a 10,000-file SSG batch this incurred 10,000 per-file heap allocations of ~200–300 bytes each.
