@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: Sync Vectored Write-Through Hot Path (v0.11.0 P0)**:
+  - Added `ssg_write_rendered_html_page_sync(...)` and migrated `ssg_run_rayon_read_render_write(...)` to use synchronous vectored writes over immutable `prefix`/`body`/`suffix` segments.
+  - Replaced per-file `BufWriter<File>` allocation in the Rayon render/write loop with direct `std::fs::File::write_vectored(...)` + flush progression, eliminating per-file buffered writer allocation in the hot path.
+  - Updated write-byte accounting to use observed `written_bytes` from the sync writer helper while preserving `checksum`/`files`/`read_ms`/`render_write_ms` result-key contracts.
+  - Preserved existing read/write error propagation shape and message formatting in `ssg_run_rayon_read_render_write(...)`.
+  - Added comprehensive sync-vectored regression coverage:
+    - exact output + byte-length contract
+    - empty-body output contract
+    - large-body no-truncation contract
+    - create-failure propagation contract
+    - UTF-8 byte-count accounting contract
+  - Expanded/renamed Rayon SSG write-path regression coverage to sync-vectored terminology and preserved checksum/write-failure/Unicode behavior assertions.
+
 - **SSG Throughput Follow-Through: Cached CPU-Bounded Rayon Pool Reuse (v0.11.0 P0)**:
   - Added a reusable Rayon thread-pool cache for `ssg_read_render_and_write_pages(...)` keyed by effective pool size (`min(concurrency_limit, available_parallelism).max(1)`).
   - Replaced per-call `ThreadPoolBuilder` initialization in `ssg_run_rayon_read_render_write(...)` with `ssg_get_or_create_rayon_pool(...)`, eliminating repeated thread-pool construction overhead on repeated benchmark invocations.

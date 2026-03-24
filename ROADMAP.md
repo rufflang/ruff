@@ -237,6 +237,12 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved `checksum`/`files`/`read_ms`/`render_write_ms` contracts and existing read/write failure message formats.
     - Added regression coverage for same-size pool reuse, distinct-pool behavior by thread count, and repeated-call checksum/stage-metric contract preservation.
 
+- **SSG Throughput Follow-Through: Sync Vectored Write-Through Hot Path (✅ Complete, March 2026)**
+    - Added `ssg_write_rendered_html_page_sync(...)` and migrated `ssg_run_rayon_read_render_write(...)` to synchronous vectored writes over HTML `prefix`/`body`/`suffix` segments.
+    - Replaced per-file `BufWriter<File>` allocation in the Rayon render/write hot path with direct `File::write_vectored(...)` + flush progression.
+    - Preserved checksum/file-count/stage-metric and read/write error message contracts while switching checksum accounting to observed written-byte totals.
+    - Added comprehensive helper-level and pipeline-level regression coverage for exact output, byte-accurate checksum, failure propagation, large-body integrity, and UTF-8 byte accounting.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -247,9 +253,9 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, CPU-bounded Rayon pool sizing, BufWriter write-through allocation elimination, and cached CPU-bounded Rayon pool reuse.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, CPU-bounded Rayon pool sizing, BufWriter write-through allocation elimination, cached CPU-bounded Rayon pool reuse, and sync-vectored write-through hot-path follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
-    - Profile `bench-ssg` results to measure wall-clock impact after cached Rayon pool reuse and identify next throughput opportunities.
+    - Profile `bench-ssg` results to measure wall-clock impact after sync-vectored write-through follow-through and identify next throughput opportunities.
 
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.

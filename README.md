@@ -44,6 +44,7 @@
 - **Latest throughput CPU-bounded pool step**: `ssg_read_render_and_write_pages(...)` now caps the Rayon `ThreadPoolBuilder` thread count at `min(concurrency_limit, available_parallelism).max(1)` so high `concurrency_limit` values (e.g. 256 default) no longer over-subscribe the Rayon pool on typical hardware, reducing thread context-switch overhead while preserving correctness contracts.
 - **Latest throughput BufWriter write-through step**: `ssg_read_render_and_write_pages(...)` Rayon render+write hot path now uses `BufWriter<File>` (pre-sized to rendered HTML length) with three `write_all` calls instead of allocating an intermediate `String::with_capacity` per file, eliminating one heap allocation per rendered page (~200–300 bytes) across the full 10,000-file SSG batch while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput cached-pool reuse step**: `ssg_read_render_and_write_pages(...)` now reuses cached CPU-bounded Rayon thread pools by effective thread count instead of rebuilding the pool each call, reducing repeated thread-pool initialization overhead in repeated `bench-ssg` runs while preserving checksum/file-count and stage-metric key contracts.
+- **Latest throughput sync-vectored-write step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now writes rendered HTML segments via direct synchronous `write_vectored(...)` progression (`prefix`/`body`/`suffix`) through `ssg_write_rendered_html_page_sync(...)`, replacing per-file `BufWriter<File>` allocation while preserving checksum/file-count and stage-metric key contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 
@@ -576,13 +577,13 @@
 
 ### Completed Toward v0.11.0 ✅
 
-* **SSG Throughput Follow-Through: BufWriter Write-Through Render Allocation Elimination (v0.11.0 P0 - ✅ COMPLETE)**
-  - **Eliminated per-file intermediate `String` allocation** in `ssg_run_rayon_read_render_write` Rayon render+write hot path
-  - **Previous path**: `String::with_capacity(total_len)` + 3× `push_str` + `std::fs::write` — allocates and fills full HTML string before any I/O
-  - **New path**: `BufWriter<File>` pre-sized to `total_len` + 3× `write_all` + `flush` — writes prefix, source body, and suffix bytes directly, leveraging `BufWriter` to batch them into a single kernel I/O call
-  - **Allocation impact**: eliminates 10,000 per-file ~200–300 byte heap allocations from the hot path in a full 10,000-file SSG benchmark run
-  - **Contracts unchanged**: `checksum`/`files`/`read_ms`/`render_write_ms` dict key values and error message format strings preserved
-  - **All 354 lib + 238 integration tests passing**
+* **SSG Throughput Follow-Through: Sync Vectored Write-Through Hot Path (v0.11.0 P0 - ✅ COMPLETE)**
+  - **Added `ssg_write_rendered_html_page_sync(...)`** and migrated `ssg_run_rayon_read_render_write` to direct synchronous vectored writes over `prefix`/`body`/`suffix` segments
+  - **Previous path**: per-file `BufWriter<File>` allocation with 3× `write_all` + `flush`
+  - **New path**: direct `File::write_vectored(...)` progression + `flush` with no per-file buffered-writer allocation in the Rayon hot path
+  - **Accounting contract**: checksum now reflects observed `written_bytes` from the sync writer helper while preserving `checksum`/`files`/`read_ms`/`render_write_ms` result keys
+  - **Contracts unchanged**: read/write failure message formatting and output-content behavior preserved
+  - **Coverage**: helper-level exact-output, empty-body, large-body, failure propagation, UTF-8 byte-accounting tests + pipeline-level checksum/error/unicode regressions
 
 * **Async VM Cooperative Integration (v0.11.0 P0 - ✅ COMPLETE)**
   - **Made cooperative suspend/resume the default execution model** for all async-heavy workloads
