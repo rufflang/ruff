@@ -9,7 +9,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 use std::collections::HashMap;
-use std::io::{BufWriter, Error, ErrorKind, IoSlice, Write};
+use std::io::{Error, ErrorKind, IoSlice, Write};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
@@ -168,6 +168,35 @@ async fn ssg_write_rendered_html_page(
     Ok(total_written)
 }
 
+fn ssg_write_rendered_html_page_sync(
+    output_path: &str,
+    html_prefix: &str,
+    source_body: &str,
+) -> std::io::Result<usize> {
+    let mut output_file = std::fs::File::create(output_path)?;
+    let mut total_written: usize = 0;
+
+    let mut segments = [
+        IoSlice::new(html_prefix.as_bytes()),
+        IoSlice::new(source_body.as_bytes()),
+        IoSlice::new(SSG_HTML_SUFFIX.as_bytes()),
+    ];
+    let mut remaining_segments = &mut segments[..];
+
+    while !remaining_segments.is_empty() {
+        let written = output_file.write_vectored(remaining_segments)?;
+        if written == 0 {
+            return Err(Error::new(ErrorKind::WriteZero, "Failed to write rendered HTML segments"));
+        }
+        total_written += written;
+        IoSlice::advance_slices(&mut remaining_segments, written);
+    }
+
+    output_file.flush()?;
+
+    Ok(total_written)
+}
+
 /// Runs a Rayon-parallel single-pass SSG pipeline: each Rayon task reads, renders,
 /// and writes its own file independently, using a single bounded thread pool.
 ///
@@ -176,12 +205,10 @@ async fn ssg_write_rendered_html_page(
 /// ALL reads to complete first. Reduces peak memory (only one file's content live per
 /// worker at a time) and improves read/write overlap across workers.
 ///
-/// HTML rendering uses a `BufWriter` to stream prefix, source body, and suffix bytes
-/// directly to the output file in three `write_all` calls — eliminating the per-file
-/// intermediate `String` allocation that previously buffered the full rendered HTML
-/// before writing to disk. The `BufWriter` internal buffer absorbs the scattered writes
-/// and flushes in a single I/O call, matching the previous single-call `fs::write`
-/// contract without allocating a per-file heap string.
+/// HTML rendering uses synchronous vectored writes over three immutable segments
+/// (prefix, source body, suffix), eliminating per-file intermediate rendered buffers
+/// and per-file `BufWriter` allocations in the Rayon hot path while preserving exact
+/// rendered byte output and write-failure propagation contracts.
 ///
 /// `read_ms` and `render_write_ms` are reported as cumulative CPU-time sums across
 /// all Rayon workers (sum of per-task durations), preserving the stage-metric contract
@@ -253,11 +280,9 @@ fn ssg_run_rayon_read_render_write(
     // as each individual file is read, without waiting for all reads to complete.
     // Rayon's par_iter + collect preserves input order in the result Vec.
     //
-    // Render path uses BufWriter<File> to stream prefix + source body + suffix bytes
-    // directly to disk in three write_all calls, eliminating the per-file intermediate
-    // String allocation that previously assembled the full HTML before writing.
-    // BufWriter buffers the three small segments internally and flushes in one I/O
-    // call, matching the previous single-call fs::write throughput contract.
+    // Render path uses synchronous vectored writes (prefix + source body + suffix)
+    // so each task writes immutable slices directly without allocating an additional
+    // per-file output buffer in the Rayon hot path.
     let task_results: Vec<Result<(usize, u64, u64), String>> = pool.install(|| {
         source_paths
             .par_iter()
@@ -271,37 +296,12 @@ fn ssg_run_rayon_read_render_write(
 
                 let rw_start = Instant::now();
                 let html_prefix = &render_prefixes[index];
-                let total_len = html_prefix.len() + content.len() + SSG_HTML_SUFFIX.len();
-
-                // Open the output file and wrap it in a BufWriter sized to the full
-                // rendered HTML length so the three write_all calls below are
-                // absorbed into one kernel write without a second allocation.
-                let out_file = std::fs::File::create(&output_paths[index]).map_err(|e| {
-                    format!(
-                        "Failed to write file '{}' (index {}): {}",
-                        output_paths[index], index, e
-                    )
-                })?;
-                let mut writer = BufWriter::with_capacity(total_len, out_file);
-                writer.write_all(html_prefix.as_bytes()).map_err(|e| {
-                    format!(
-                        "Failed to write file '{}' (index {}): {}",
-                        output_paths[index], index, e
-                    )
-                })?;
-                writer.write_all(content.as_bytes()).map_err(|e| {
-                    format!(
-                        "Failed to write file '{}' (index {}): {}",
-                        output_paths[index], index, e
-                    )
-                })?;
-                writer.write_all(SSG_HTML_SUFFIX.as_bytes()).map_err(|e| {
-                    format!(
-                        "Failed to write file '{}' (index {}): {}",
-                        output_paths[index], index, e
-                    )
-                })?;
-                writer.flush().map_err(|e| {
+                let written_bytes = ssg_write_rendered_html_page_sync(
+                    &output_paths[index],
+                    html_prefix,
+                    &content,
+                )
+                .map_err(|e| {
                     format!(
                         "Failed to write file '{}' (index {}): {}",
                         output_paths[index], index, e
@@ -309,7 +309,7 @@ fn ssg_run_rayon_read_render_write(
                 })?;
                 let rw_ns = rw_start.elapsed().as_nanos() as u64;
 
-                Ok((total_len, read_ns, rw_ns))
+                Ok((written_bytes, read_ns, rw_ns))
             })
             .collect()
     });
