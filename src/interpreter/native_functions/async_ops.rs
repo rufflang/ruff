@@ -3013,6 +3013,112 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_write_rendered_html_page_sync_streams_exact_content_and_length() {
+        let output_dir = unique_temp_dir("ruff_ssg_sync_vectored_output");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_42.html", output_dir);
+        let source_body = "# Post 42\n\nLarge body section";
+        let html_prefix = "<html><body><h1>Post 42</h1><article>";
+
+        let written_bytes =
+            ssg_write_rendered_html_page_sync(output_path.as_str(), html_prefix, source_body)
+                .unwrap();
+
+        let html = fs::read_to_string(output_path.as_str()).unwrap();
+        let expected_html =
+            "<html><body><h1>Post 42</h1><article># Post 42\n\nLarge body section</article></body></html>";
+
+        assert_eq!(html, expected_html);
+        assert_eq!(written_bytes, expected_html.len());
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_write_rendered_html_page_sync_handles_empty_source_body() {
+        let output_dir = unique_temp_dir("ruff_ssg_sync_vectored_empty_body");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_0.html", output_dir);
+        let html_prefix = "<html><body><h1>Post 0</h1><article>";
+
+        let written_bytes =
+            ssg_write_rendered_html_page_sync(output_path.as_str(), html_prefix, "").unwrap();
+
+        let html = fs::read_to_string(output_path.as_str()).unwrap();
+        let expected_html = "<html><body><h1>Post 0</h1><article></article></body></html>";
+
+        assert_eq!(html, expected_html);
+        assert_eq!(written_bytes, expected_html.len());
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_write_rendered_html_page_sync_handles_large_source_body_without_truncation() {
+        let output_dir = unique_temp_dir("ruff_ssg_sync_vectored_large_body");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_9.html", output_dir);
+        let source_body = "segment-".repeat(16_384);
+        let html_prefix = "<html><body><h1>Post 9</h1><article>";
+
+        let written_bytes = ssg_write_rendered_html_page_sync(
+            output_path.as_str(),
+            html_prefix,
+            source_body.as_str(),
+        )
+        .unwrap();
+
+        let html = fs::read_to_string(output_path.as_str()).unwrap();
+        let expected_len = html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.len();
+
+        assert_eq!(written_bytes, expected_len);
+        assert_eq!(html.len(), expected_len);
+        assert!(html.starts_with(html_prefix));
+        assert!(html.ends_with(SSG_HTML_SUFFIX));
+        assert!(html.contains(source_body.as_str()));
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_write_rendered_html_page_sync_propagates_create_failure() {
+        let missing_dir = unique_temp_dir("ruff_ssg_sync_vectored_missing");
+        let output_path = format!("{}/post_0.html", missing_dir);
+
+        let result = ssg_write_rendered_html_page_sync(
+            output_path.as_str(),
+            "<html><body><h1>Post 0</h1><article>",
+            "# Missing",
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ssg_write_rendered_html_page_sync_returns_utf8_written_bytes() {
+        let output_dir = unique_temp_dir("ruff_ssg_sync_vectored_written_bytes_utf8");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_12.html", output_dir);
+        let source_body = "# Cafe 🚀\n\nnaive facade";
+        let html_prefix = "<html><body><h1>Post 12</h1><article>";
+
+        let written_bytes =
+            ssg_write_rendered_html_page_sync(output_path.as_str(), html_prefix, source_body)
+                .unwrap();
+
+        let rendered_bytes = fs::read(output_path.as_str()).unwrap();
+        assert_eq!(written_bytes, rendered_bytes.len());
+        assert_eq!(
+            written_bytes,
+            html_prefix.as_bytes().len()
+                + source_body.as_bytes().len()
+                + SSG_HTML_SUFFIX.as_bytes().len()
+        );
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
     fn test_ssg_target_read_in_flight_allows_full_window_with_empty_write_backlog() {
         assert_eq!(ssg_target_read_in_flight(8, 4, 0, 0), 8);
         assert_eq!(ssg_target_read_in_flight(2, 2, 0, 0), 2);
@@ -4660,14 +4766,13 @@ mod tests {
         }
     }
 
-    // --- BufWriter write-through elimination tests ---
-    // Verify that the BufWriter-based render path produces byte-for-byte identical
-    // output and correct checksums now that the intermediate String allocation has
-    // been removed from ssg_run_rayon_read_render_write.
+    // --- sync-vectored-write Rayon path tests ---
+    // Verify that the sync-vectored render path produces byte-for-byte identical
+    // output and correct checksums in ssg_run_rayon_read_render_write.
 
     #[test]
-    fn test_ssg_bufwriter_output_matches_expected_html_structure() {
-        // BufWriter path must produce the same HTML structure that fs::write
+    fn test_ssg_sync_vectored_output_matches_expected_html_structure() {
+        // Sync-vectored path must produce the same HTML structure that fs::write
         // previously produced: prefix + source body + suffix bytes verbatim.
         let input_dir = unique_temp_dir("ruff_bw_structure_input");
         let output_dir = unique_temp_dir("ruff_bw_structure_output");
@@ -4696,7 +4801,7 @@ mod tests {
         );
         assert_eq!(
             written, expected,
-            "BufWriter path must produce prefix + body + suffix verbatim"
+            "Sync-vectored path must produce prefix + body + suffix verbatim"
         );
 
         let _ = fs::remove_dir_all(&input_dir);
@@ -4704,8 +4809,8 @@ mod tests {
     }
 
     #[test]
-    fn test_ssg_bufwriter_checksum_matches_prefix_plus_body_plus_suffix_length() {
-        // Checksum = sum of rendered HTML byte lengths. With the BufWriter path,
+    fn test_ssg_sync_vectored_checksum_matches_prefix_plus_body_plus_suffix_length() {
+        // Checksum = sum of rendered HTML byte lengths. With the sync-vectored path,
         // checksum must still equal len(prefix) + len(body) + len(suffix) per file.
         let input_dir = unique_temp_dir("ruff_bw_checksum_input");
         let output_dir = unique_temp_dir("ruff_bw_checksum_output");
@@ -4745,7 +4850,7 @@ mod tests {
 
         assert_eq!(
             checksum, expected_checksum,
-            "BufWriter path checksum must equal sum of rendered HTML byte lengths"
+            "Sync-vectored path checksum must equal sum of rendered HTML byte lengths"
         );
 
         let _ = fs::remove_dir_all(&input_dir);
@@ -4753,8 +4858,8 @@ mod tests {
     }
 
     #[test]
-    fn test_ssg_bufwriter_write_failure_propagates_error() {
-        // BufWriter write errors must propagate as Err with the same message format
+    fn test_ssg_sync_vectored_write_failure_propagates_error() {
+        // Sync-vectored write errors must propagate as Err with the same message format
         // as the previous fs::write path: "Failed to write file '...' (index N): ...".
         let input_dir = unique_temp_dir("ruff_bw_wfail_input");
         fs::create_dir_all(&input_dir).unwrap();
@@ -4774,7 +4879,7 @@ mod tests {
             1,
         );
 
-        assert!(result.is_err(), "BufWriter write failure must return Err");
+        assert!(result.is_err(), "Sync-vectored write failure must return Err");
         let msg = result.unwrap_err();
         assert!(
             msg.contains("Failed to write file"),
@@ -4787,7 +4892,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ssg_bufwriter_unicode_content_checksum_is_byte_accurate() {
+    fn test_ssg_sync_vectored_unicode_content_checksum_is_byte_accurate() {
         // Checksum must count UTF-8 bytes, not Unicode scalar values.  A 3-byte
         // CJK character must contribute 3 to the checksum, not 1.
         let input_dir = unique_temp_dir("ruff_bw_unicode_input");
@@ -4816,13 +4921,13 @@ mod tests {
 
         assert_eq!(
             checksum, expected,
-            "BufWriter checksum must be byte-accurate for multibyte Unicode content"
+            "Sync-vectored checksum must be byte-accurate for multibyte Unicode content"
         );
 
         let written = fs::read_to_string(&output_paths[0]).unwrap();
         assert!(
             written.contains(source_body),
-            "BufWriter path must preserve multibyte Unicode content verbatim"
+            "Sync-vectored path must preserve multibyte Unicode content verbatim"
         );
 
         let _ = fs::remove_dir_all(&input_dir);
