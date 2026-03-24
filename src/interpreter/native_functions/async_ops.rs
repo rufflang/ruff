@@ -296,17 +296,14 @@ fn ssg_run_rayon_read_render_write(
 
                 let rw_start = Instant::now();
                 let html_prefix = &render_prefixes[index];
-                let written_bytes = ssg_write_rendered_html_page_sync(
-                    &output_paths[index],
-                    html_prefix,
-                    &content,
-                )
-                .map_err(|e| {
-                    format!(
-                        "Failed to write file '{}' (index {}): {}",
-                        output_paths[index], index, e
-                    )
-                })?;
+                let written_bytes =
+                    ssg_write_rendered_html_page_sync(&output_paths[index], html_prefix, &content)
+                        .map_err(|e| {
+                            format!(
+                                "Failed to write file '{}' (index {}): {}",
+                                output_paths[index], index, e
+                            )
+                        })?;
                 let rw_ns = rw_start.elapsed().as_nanos() as u64;
 
                 Ok((written_bytes, read_ns, rw_ns))
