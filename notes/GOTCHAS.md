@@ -286,6 +286,14 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-12_00-27_ssg-render-write-fusion.md)
 
+### Rayon `try_fold` / `try_reduce` closures may require explicit `Result` typing
+- **Problem:** Refactoring `ssg_run_rayon_read_render_write(...)` to in-iterator reduction can fail with Rust `E0282` / `E0283` type-inference errors around `Ok((...))` closures.
+- **Rule:** In Rayon `try_fold` / `try_reduce` closures for this helper, use explicit `Ok::<(i64, u64, u64), String>((...))` return typing.
+- **Why:** The compiler may not infer closure `Result<T, E>` error types when multiple `From<_>` candidates are in scope.
+- **Implication:** Apply explicit `Ok::<..., String>(...)` annotations early when introducing `try_*` reducers in hot paths to avoid compile-debug loops.
+
+(Discovered during: 2026-03-25_06-50_ssg-rayon-in-iterator-aggregation-reduction.md)
+
 ### ErrorObject has specific field structure, not a generic HashMap
 - **Problem:** Creating ErrorObject with made-up fields like "details" causes runtime failures
 - **Rule:** ErrorObject has exactly 4 fields: `message` (String), `stack` (Array), `line` (Number), `cause` (Value/null)

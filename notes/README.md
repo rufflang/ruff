@@ -31,6 +31,8 @@ These notes capture:
 
 ## Session Notes (Chronological)
 
+- **2026-03-25_06-50_ssg-rayon-in-iterator-aggregation-reduction.md** — ✅ COMPLETED: Replaced per-file result-vector buffering in `ssg_run_rayon_read_render_write(...)` with in-iterator Rayon `try_fold`/`try_reduce` aggregation, added partitioned large-batch checksum/failure-surfacing regressions, and documented Rust closure `Result` type-inference gotcha (`E0282`/`E0283`) plus cargo single-test-filter command-shape gotcha.
+
 - **2026-03-19_07-47_ssg-rayon-pool-cache-and-timing-test-stability.md** — ✅ COMPLETED: Added cached CPU-bounded Rayon pool reuse for `ssg_run_rayon_read_render_write(...)`, added pool-cache regression coverage, synchronized CHANGELOG/ROADMAP/README, and stabilized a flaky full-suite cumulative-timing assertion by switching to deterministic checksum-growth + non-negative timing contracts.
 
 - **2026-03-18_ssg-bufwriter-render-alloc-elimination.md** — ✅ COMPLETED: Eliminated per-file intermediate `String` allocation in `ssg_run_rayon_read_render_write` Rayon render+write hot path by replacing `String::with_capacity` + 3× `push_str` + `std::fs::write` with pre-sized `BufWriter<File>` + 3× `write_all` + `flush`. Removes 10,000 per-file ~200–300 byte heap allocations from the hot path in a 10K-file SSG benchmark run. Added 4 regression tests covering exact HTML structure, byte-accurate checksum, write-failure propagation, and Unicode byte-accuracy. Synchronized CHANGELOG/ROADMAP/README.
