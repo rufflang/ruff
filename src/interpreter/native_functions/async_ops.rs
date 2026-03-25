@@ -168,17 +168,30 @@ async fn ssg_write_rendered_html_page(
     Ok(total_written)
 }
 
+#[cfg(test)]
 fn ssg_write_rendered_html_page_sync(
     output_path: &str,
     html_prefix: &str,
     source_body: &str,
 ) -> std::io::Result<usize> {
+    ssg_write_rendered_html_page_sync_bytes(
+        output_path,
+        html_prefix.as_bytes(),
+        source_body.as_bytes(),
+    )
+}
+
+fn ssg_write_rendered_html_page_sync_bytes(
+    output_path: &str,
+    html_prefix: &[u8],
+    source_body: &[u8],
+) -> std::io::Result<usize> {
     let mut output_file = std::fs::File::create(output_path)?;
     let mut total_written: usize = 0;
 
     let mut segments = [
-        IoSlice::new(html_prefix.as_bytes()),
-        IoSlice::new(source_body.as_bytes()),
+        IoSlice::new(html_prefix),
+        IoSlice::new(source_body),
         IoSlice::new(SSG_HTML_SUFFIX.as_bytes()),
     ];
     let mut remaining_segments = &mut segments[..];
@@ -289,21 +302,23 @@ fn ssg_run_rayon_read_render_write(
             .enumerate()
             .map(|(index, path)| {
                 let read_start = Instant::now();
-                let content = std::fs::read_to_string(path).map_err(|e| {
+                let content = std::fs::read(path).map_err(|e| {
                     format!("Failed to read file '{}' (index {}): {}", path, index, e)
                 })?;
                 let read_ns = read_start.elapsed().as_nanos() as u64;
 
                 let rw_start = Instant::now();
-                let html_prefix = &render_prefixes[index];
-                let written_bytes =
-                    ssg_write_rendered_html_page_sync(&output_paths[index], html_prefix, &content)
-                        .map_err(|e| {
-                            format!(
-                                "Failed to write file '{}' (index {}): {}",
-                                output_paths[index], index, e
-                            )
-                        })?;
+                let written_bytes = ssg_write_rendered_html_page_sync_bytes(
+                    &output_paths[index],
+                    render_prefixes[index].as_bytes(),
+                    content.as_slice(),
+                )
+                .map_err(|e| {
+                    format!(
+                        "Failed to write file '{}' (index {}): {}",
+                        output_paths[index], index, e
+                    )
+                })?;
                 let rw_ns = rw_start.elapsed().as_nanos() as u64;
 
                 Ok((written_bytes, read_ns, rw_ns))
@@ -3116,6 +3131,33 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_write_rendered_html_page_sync_bytes_supports_non_utf8_source_body() {
+        let output_dir = unique_temp_dir("ruff_ssg_sync_vectored_non_utf8_bytes");
+        fs::create_dir_all(&output_dir).unwrap();
+        let output_path = format!("{}/post_14.html", output_dir);
+        let html_prefix = b"<html><body><h1>Post 14</h1><article>";
+        let source_body: [u8; 6] = [0x66, 0x6f, 0x80, 0x81, 0x82, 0x6f];
+
+        let written_bytes = ssg_write_rendered_html_page_sync_bytes(
+            output_path.as_str(),
+            html_prefix,
+            &source_body,
+        )
+        .unwrap();
+
+        let rendered_bytes = fs::read(output_path.as_str()).unwrap();
+        let expected_len = html_prefix.len() + source_body.len() + SSG_HTML_SUFFIX.as_bytes().len();
+
+        assert_eq!(written_bytes, expected_len);
+        assert_eq!(rendered_bytes.len(), expected_len);
+        assert!(rendered_bytes.starts_with(html_prefix));
+        assert!(rendered_bytes.ends_with(SSG_HTML_SUFFIX.as_bytes()));
+        assert!(rendered_bytes.windows(source_body.len()).any(|window| window == source_body));
+
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
     fn test_ssg_target_read_in_flight_allows_full_window_with_empty_write_backlog() {
         assert_eq!(ssg_target_read_in_flight(8, 4, 0, 0), 8);
         assert_eq!(ssg_target_read_in_flight(2, 2, 0, 0), 2);
@@ -4192,6 +4234,36 @@ mod tests {
         let expected_checksum = (html_a.len() + html_b.len()) as i64;
 
         assert_eq!(checksum, expected_checksum, "Unicode checksum must match written byte count");
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_allows_non_utf8_source_bytes() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_non_utf8_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_non_utf8_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source = format!("{}/post_0.md", input_dir);
+        let source_bytes: [u8; 8] = [0x23, 0x20, 0x66, 0x80, 0x81, 0x82, 0x0a, 0x0a];
+        fs::write(&source, source_bytes).unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
+
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1)
+                .unwrap();
+
+        let rendered_bytes = fs::read(format!("{}/post_0.html", output_dir)).unwrap();
+        assert_eq!(checksum, rendered_bytes.len() as i64);
+        assert!(read_ms >= 0.0);
+        assert!(render_write_ms >= 0.0);
+        assert!(rendered_bytes.starts_with(b"<html><body><h1>Post 0</h1><article>"));
+        assert!(rendered_bytes.ends_with(SSG_HTML_SUFFIX.as_bytes()));
+        assert!(rendered_bytes.windows(source_bytes.len()).any(|window| window == source_bytes));
 
         let _ = fs::remove_dir_all(&input_dir);
         let _ = fs::remove_dir_all(&output_dir);

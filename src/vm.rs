@@ -6922,7 +6922,7 @@ mod tests {
 
     #[test]
     fn test_cooperative_suspend_enabled_by_default() {
-        let mut vm = VM::new();
+        let vm = VM::new();
         // Cooperative suspend should be enabled by default
         assert!(vm.cooperative_suspend_enabled);
     }
