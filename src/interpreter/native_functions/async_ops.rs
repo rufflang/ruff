@@ -4438,6 +4438,80 @@ mod tests {
         let _ = fs::remove_dir_all(&output_dir);
     }
 
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_partitioned_large_batch_checksum_matches_written_bytes()
+    {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_partitioned_checksum_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_partitioned_checksum_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        // Use a count that is large enough to force multiple Rayon chunk reductions.
+        let file_count = 257usize;
+        let source_paths: Vec<String> = (0..file_count)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                let body = format!("# Post {}\n\n{}", i, "chunk ".repeat((i % 7) + 1));
+                fs::write(&p, body).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8)
+                .unwrap();
+
+        assert!(read_ms >= 0.0);
+        assert!(render_write_ms >= 0.0);
+
+        let expected_checksum: i64 = (0..file_count)
+            .map(|i| {
+                fs::read_to_string(format!("{}/post_{}.html", output_dir, i)).unwrap().len() as i64
+            })
+            .sum();
+
+        assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_reports_error_when_any_partition_read_fails() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_partitioned_error_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_partitioned_error_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let mut source_paths: Vec<String> = Vec::new();
+        for i in 0..64usize {
+            let p = format!("{}/post_{}.md", input_dir, i);
+            fs::write(&p, format!("# Post {}\n\nbody", i)).unwrap();
+            source_paths.push(p);
+        }
+
+        // Insert a single missing path among otherwise valid files.
+        source_paths.push(format!("{}/missing_64.md", input_dir));
+
+        let file_count = source_paths.len();
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+
+        let result =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8);
+        assert!(result.is_err());
+
+        let msg = result.unwrap_err();
+        assert!(msg.contains("Failed to read file"));
+        assert!(msg.contains("index 64"));
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
     // --- CPU-cap sizing tests ---
     // Verify that ssg_rayon_cpu_cap() + the clamped pool correctly handle
     // concurrency_limit values both above and below the CPU core count.
