@@ -485,8 +485,8 @@ async fn main() {
                 analyze_ssg_benchmark_trends,
                 collect_ssg_mean_median_drift_warnings_with_threshold,
                 collect_ssg_trend_warnings_with_threshold,
-                collect_ssg_variability_warnings_with_threshold, SsgStageProfile,
-                SsgTrendMetric, SsgWarningThresholds,
+                collect_ssg_variability_warnings_with_threshold, SsgStageProfile, SsgTrendMetric,
+                SsgWarningThresholds,
             };
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
@@ -755,11 +755,10 @@ async fn main() {
                 &summary,
                 warning_thresholds.variability_percent,
             );
-            let mean_median_drift_warnings =
-                collect_ssg_mean_median_drift_warnings_with_threshold(
-                    &summary,
-                    warning_thresholds.mean_median_drift_percent,
-                );
+            let mean_median_drift_warnings = collect_ssg_mean_median_drift_warnings_with_threshold(
+                &summary,
+                warning_thresholds.mean_median_drift_percent,
+            );
             if !variability_warnings.is_empty() || !mean_median_drift_warnings.is_empty() {
                 println!("Measurement quality warnings:");
                 for warning in variability_warnings {

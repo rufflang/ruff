@@ -1469,11 +1469,9 @@ mod tests {
         let lowered_threshold_warnings =
             collect_ssg_mean_median_drift_warnings_with_threshold(&summary, 5.0);
         assert_eq!(lowered_threshold_warnings.len(), 1);
-        assert!(
-            lowered_threshold_warnings
-                .iter()
-                .any(|warning| warning.contains("Ruff build time"))
-        );
+        assert!(lowered_threshold_warnings
+            .iter()
+            .any(|warning| warning.contains("Ruff build time")));
     }
 
     #[test]
@@ -1745,16 +1743,12 @@ mod tests {
 
         let lowered_threshold_warnings = collect_ssg_trend_warnings_with_threshold(&trends, 5.0);
         assert_eq!(lowered_threshold_warnings.len(), 2);
-        assert!(
-            lowered_threshold_warnings
-                .iter()
-                .any(|warning| warning.contains("Ruff build time"))
-        );
-        assert!(
-            lowered_threshold_warnings
-                .iter()
-                .any(|warning| warning.contains("Ruff throughput"))
-        );
+        assert!(lowered_threshold_warnings
+            .iter()
+            .any(|warning| warning.contains("Ruff build time")));
+        assert!(lowered_threshold_warnings
+            .iter()
+            .any(|warning| warning.contains("Ruff throughput")));
     }
 
     #[test]
