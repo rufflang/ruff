@@ -1393,6 +1393,60 @@ mod tests {
     }
 
     #[test]
+    fn test_format_ssg_measurement_warning_header_includes_threshold_values() {
+        let header = format_ssg_measurement_warning_header(SsgWarningThresholds {
+            variability_percent: 6.5,
+            trend_percent: 12.0,
+            mean_median_drift_percent: 9.25,
+        });
+
+        assert!(header.contains("CV >= 6.50%"));
+        assert!(header.contains("mean/median drift >= 9.25%"));
+    }
+
+    #[test]
+    fn test_format_ssg_trend_warning_header_includes_threshold_value() {
+        let header = format_ssg_trend_warning_header(SsgWarningThresholds {
+            variability_percent: 6.5,
+            trend_percent: 12.0,
+            mean_median_drift_percent: 9.25,
+        });
+
+        assert!(header.contains("drift >= 12.00%"));
+    }
+
+    #[test]
+    fn test_collect_ssg_warning_operator_hints_contains_all_override_flags() {
+        let hints = collect_ssg_warning_operator_hints(SsgWarningThresholds {
+            variability_percent: 6.5,
+            trend_percent: 12.0,
+            mean_median_drift_percent: 9.25,
+        });
+
+        assert_eq!(hints.len(), 4);
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.contains("--variability-warning-threshold"))
+        );
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.contains("--trend-warning-threshold"))
+        );
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.contains("--mean-median-drift-warning-threshold"))
+        );
+        assert!(
+            hints
+                .iter()
+                .any(|hint| hint.contains("Current thresholds: CV 6.50%, trend 12.00%, mean/median 9.25%"))
+        );
+    }
+
+    #[test]
     fn test_collect_ssg_mean_median_drift_warnings_flags_high_drift_metrics() {
         let summary = SsgBenchmarkAggregateResult {
             files: 100,
