@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: In-Iterator Rayon Aggregation Reduction (v0.11.0 P0)**:
+  - Optimized `ssg_run_rayon_read_render_write(...)` to aggregate `checksum`, `read_ms`, and `render_write_ms` via Rayon `try_fold` + `try_reduce` directly on the parallel iterator.
+  - Removed per-file intermediate result-vector buffering in the Rayon hot path, reducing temporary allocation pressure for large SSG batches.
+  - Preserved existing output contracts and error shape (`checksum`/`files`/`read_ms`/`render_write_ms` plus read/write failure message format).
+  - Added focused regression coverage for:
+    - partitioned large-batch checksum equivalence across many files
+    - mixed-batch failure surfacing when any partitioned read task fails
+
 - **SSG Throughput Follow-Through: Byte-Path Rayon Read/Write Hot Path (v0.11.0 P0)**:
   - Optimized `ssg_run_rayon_read_render_write(...)` to read source files as raw bytes (`std::fs::read`) instead of UTF-8 strings (`read_to_string`) in the Rayon single-pass hot path.
   - Added byte-slice sync writer helper `ssg_write_rendered_html_page_sync_bytes(...)` and migrated the Rayon write lane to use it, avoiding UTF-8 decode overhead before sync vectored write progression.
