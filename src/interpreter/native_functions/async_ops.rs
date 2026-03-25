@@ -291,54 +291,58 @@ fn ssg_run_rayon_read_render_write(
     // Single-pass: each Rayon task reads, renders, and writes its own file.
     // No barrier between read and render+write stages — write I/O starts as soon
     // as each individual file is read, without waiting for all reads to complete.
-    // Rayon's par_iter + collect preserves input order in the result Vec.
     //
     // Render path uses synchronous vectored writes (prefix + source body + suffix)
     // so each task writes immutable slices directly without allocating an additional
     // per-file output buffer in the Rayon hot path.
-    let task_results: Vec<Result<(usize, u64, u64), String>> = pool.install(|| {
+    //
+    // Aggregation uses try_fold/try_reduce directly on the parallel iterator to
+    // avoid collecting one intermediate result entry per file.
+    let (checksum, total_read_ns, total_rw_ns) = pool.install(|| {
         source_paths
             .par_iter()
             .enumerate()
-            .map(|(index, path)| {
-                let read_start = Instant::now();
-                let content = std::fs::read(path).map_err(|e| {
-                    format!("Failed to read file '{}' (index {}): {}", path, index, e)
-                })?;
-                let read_ns = read_start.elapsed().as_nanos() as u64;
+            .try_fold(
+                || (0i64, 0u64, 0u64),
+                |(checksum_acc, read_ns_acc, rw_ns_acc), (index, path)| {
+                    let read_start = Instant::now();
+                    let content = std::fs::read(path).map_err(|e| {
+                        format!("Failed to read file '{}' (index {}): {}", path, index, e)
+                    })?;
+                    let read_ns = read_start.elapsed().as_nanos() as u64;
 
-                let rw_start = Instant::now();
-                let written_bytes = ssg_write_rendered_html_page_sync_bytes(
-                    &output_paths[index],
-                    render_prefixes[index].as_bytes(),
-                    content.as_slice(),
-                )
-                .map_err(|e| {
-                    format!(
-                        "Failed to write file '{}' (index {}): {}",
-                        output_paths[index], index, e
+                    let rw_start = Instant::now();
+                    let written_bytes = ssg_write_rendered_html_page_sync_bytes(
+                        &output_paths[index],
+                        render_prefixes[index].as_bytes(),
+                        content.as_slice(),
                     )
-                })?;
-                let rw_ns = rw_start.elapsed().as_nanos() as u64;
+                    .map_err(|e| {
+                        format!(
+                            "Failed to write file '{}' (index {}): {}",
+                            output_paths[index], index, e
+                        )
+                    })?;
+                    let rw_ns = rw_start.elapsed().as_nanos() as u64;
 
-                Ok((written_bytes, read_ns, rw_ns))
-            })
-            .collect()
-    });
-
-    let mut checksum: i64 = 0;
-    let mut total_read_ns: u64 = 0;
-    let mut total_rw_ns: u64 = 0;
-    for result in task_results {
-        match result {
-            Ok((len, read_ns, rw_ns)) => {
-                checksum += len as i64;
-                total_read_ns += read_ns;
-                total_rw_ns += rw_ns;
-            }
-            Err(e) => return Err(e),
-        }
-    }
+                    Ok::<(i64, u64, u64), String>((
+                        checksum_acc + written_bytes as i64,
+                        read_ns_acc + read_ns,
+                        rw_ns_acc + rw_ns,
+                    ))
+                },
+            )
+            .try_reduce(
+                || (0i64, 0u64, 0u64),
+                |left, right| {
+                    Ok::<(i64, u64, u64), String>((
+                        left.0 + right.0,
+                        left.1 + right.1,
+                        left.2 + right.2,
+                    ))
+                },
+            )
+    })?;
 
     let read_ms = total_read_ns as f64 / 1_000_000.0;
     let render_write_ms = total_rw_ns as f64 / 1_000_000.0;
