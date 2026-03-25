@@ -31,18 +31,14 @@ pub fn format_ssg_measurement_warning_header(thresholds: SsgWarningThresholds) -
 }
 
 pub fn format_ssg_trend_warning_header(thresholds: SsgWarningThresholds) -> String {
-    format!(
-        "Trend stability warnings (drift >= {:.2}%):",
-        thresholds.trend_percent.max(0.0)
-    )
+    format!("Trend stability warnings (drift >= {:.2}%):", thresholds.trend_percent.max(0.0))
 }
 
 pub fn collect_ssg_warning_operator_hints(thresholds: SsgWarningThresholds) -> Vec<String> {
     vec![
         "Tune CV sensitivity with --variability-warning-threshold <PERCENT>".to_string(),
         "Tune trend sensitivity with --trend-warning-threshold <PERCENT>".to_string(),
-        "Tune skew sensitivity with --mean-median-drift-warning-threshold <PERCENT>"
-            .to_string(),
+        "Tune skew sensitivity with --mean-median-drift-warning-threshold <PERCENT>".to_string(),
         format!(
             "Current thresholds: CV {:.2}%, trend {:.2}%, mean/median {:.2}%",
             thresholds.variability_percent.max(0.0),
@@ -1424,26 +1420,13 @@ mod tests {
         });
 
         assert_eq!(hints.len(), 4);
-        assert!(
-            hints
-                .iter()
-                .any(|hint| hint.contains("--variability-warning-threshold"))
-        );
-        assert!(
-            hints
-                .iter()
-                .any(|hint| hint.contains("--trend-warning-threshold"))
-        );
-        assert!(
-            hints
-                .iter()
-                .any(|hint| hint.contains("--mean-median-drift-warning-threshold"))
-        );
-        assert!(
-            hints
-                .iter()
-                .any(|hint| hint.contains("Current thresholds: CV 6.50%, trend 12.00%, mean/median 9.25%"))
-        );
+        assert!(hints.iter().any(|hint| hint.contains("--variability-warning-threshold")));
+        assert!(hints.iter().any(|hint| hint.contains("--trend-warning-threshold")));
+        assert!(hints.iter().any(|hint| hint.contains("--mean-median-drift-warning-threshold")));
+        assert!(hints
+            .iter()
+            .any(|hint| hint
+                .contains("Current thresholds: CV 6.50%, trend 12.00%, mean/median 9.25%")));
     }
 
     #[test]

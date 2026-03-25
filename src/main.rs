@@ -765,10 +765,7 @@ async fn main() {
                 warning_thresholds.mean_median_drift_percent,
             );
             if !variability_warnings.is_empty() || !mean_median_drift_warnings.is_empty() {
-                println!(
-                    "{}",
-                    format_ssg_measurement_warning_header(warning_thresholds)
-                );
+                println!("{}", format_ssg_measurement_warning_header(warning_thresholds));
                 for warning in variability_warnings {
                     println!("  - {}", warning);
                 }
