@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: Byte-Path Rayon Read/Write Hot Path (v0.11.0 P0)**:
+  - Optimized `ssg_run_rayon_read_render_write(...)` to read source files as raw bytes (`std::fs::read`) instead of UTF-8 strings (`read_to_string`) in the Rayon single-pass hot path.
+  - Added byte-slice sync writer helper `ssg_write_rendered_html_page_sync_bytes(...)` and migrated the Rayon write lane to use it, avoiding UTF-8 decode overhead before sync vectored write progression.
+  - Preserved checksum/file-count/stage-metric and read/write error message contracts while expanding supported source-input shape to include non-UTF-8 file bytes.
+  - Added focused regression coverage for non-UTF-8 behavior:
+    - sync byte-slice writer output/byte-accounting contract
+    - Rayon pipeline checksum and output-shape preservation with non-UTF-8 source bytes
+
 - **SSG Benchmark Stability: Warning Presentation and Operator Guidance (v0.11.0 P0)**:
   - Added explicit warning headers that include active threshold values for:
     - trend drift warnings
