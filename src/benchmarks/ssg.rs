@@ -1325,6 +1325,44 @@ mod tests {
     }
 
     #[test]
+    fn test_collect_ssg_variability_warnings_custom_threshold_can_suppress_warning() {
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: SsgRunStatistics {
+                runs: 4,
+                mean: 100.0,
+                median: 100.0,
+                min: 50.0,
+                max: 150.0,
+                stddev: 30.0,
+            },
+            ruff_files_per_sec: SsgRunStatistics {
+                runs: 4,
+                mean: 1000.0,
+                median: 1000.0,
+                min: 999.0,
+                max: 1001.0,
+                stddev: 0.6,
+            },
+            ruff_stage_profile: None,
+            python_build_ms: None,
+            python_files_per_sec: None,
+            python_stage_profile: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let default_warnings = collect_ssg_variability_warnings_with_threshold(
+            &summary,
+            SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT,
+        );
+        assert!(!default_warnings.is_empty());
+
+        let suppressed_warnings = collect_ssg_variability_warnings_with_threshold(&summary, 35.0);
+        assert!(suppressed_warnings.is_empty());
+    }
+
+    #[test]
     fn test_collect_ssg_mean_median_drift_warnings_flags_high_drift_metrics() {
         let summary = SsgBenchmarkAggregateResult {
             files: 100,
@@ -1392,6 +1430,50 @@ mod tests {
             SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT,
         );
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_collect_ssg_mean_median_drift_warnings_custom_threshold_can_trigger_warning() {
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: SsgRunStatistics {
+                runs: 4,
+                mean: 106.0,
+                median: 100.0,
+                min: 95.0,
+                max: 120.0,
+                stddev: 8.0,
+            },
+            ruff_files_per_sec: SsgRunStatistics {
+                runs: 4,
+                mean: 1000.0,
+                median: 1000.0,
+                min: 990.0,
+                max: 1010.0,
+                stddev: 5.0,
+            },
+            ruff_stage_profile: None,
+            python_build_ms: None,
+            python_files_per_sec: None,
+            python_stage_profile: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let default_warnings = collect_ssg_mean_median_drift_warnings_with_threshold(
+            &summary,
+            SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT,
+        );
+        assert!(default_warnings.is_empty());
+
+        let lowered_threshold_warnings =
+            collect_ssg_mean_median_drift_warnings_with_threshold(&summary, 5.0);
+        assert_eq!(lowered_threshold_warnings.len(), 1);
+        assert!(
+            lowered_threshold_warnings
+                .iter()
+                .any(|warning| warning.contains("Ruff build time"))
+        );
     }
 
     #[test]
@@ -1634,6 +1716,45 @@ mod tests {
         let warnings =
             collect_ssg_trend_warnings_with_threshold(&trends, SSG_TREND_WARNING_THRESHOLD_PERCENT);
         assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_collect_ssg_trend_warnings_custom_threshold_can_trigger_warning() {
+        let trends = SsgBenchmarkTrendReport {
+            measured_runs: 5,
+            ruff_build_ms: SsgTrendMetric {
+                first: 100.0,
+                last: 107.0,
+                absolute_delta: 7.0,
+                percent_delta: Some(7.0),
+            },
+            ruff_files_per_sec: SsgTrendMetric {
+                first: 500.0,
+                last: 530.0,
+                absolute_delta: 30.0,
+                percent_delta: Some(6.0),
+            },
+            python_build_ms: None,
+            python_files_per_sec: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let default_warnings =
+            collect_ssg_trend_warnings_with_threshold(&trends, SSG_TREND_WARNING_THRESHOLD_PERCENT);
+        assert!(default_warnings.is_empty());
+
+        let lowered_threshold_warnings = collect_ssg_trend_warnings_with_threshold(&trends, 5.0);
+        assert_eq!(lowered_threshold_warnings.len(), 2);
+        assert!(
+            lowered_threshold_warnings
+                .iter()
+                .any(|warning| warning.contains("Ruff build time"))
+        );
+        assert!(
+            lowered_threshold_warnings
+                .iter()
+                .any(|warning| warning.contains("Ruff throughput"))
+        );
     }
 
     #[test]
