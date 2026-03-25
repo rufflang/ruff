@@ -485,7 +485,9 @@ async fn main() {
                 analyze_ssg_benchmark_trends,
                 collect_ssg_mean_median_drift_warnings_with_threshold,
                 collect_ssg_trend_warnings_with_threshold,
-                collect_ssg_variability_warnings_with_threshold, SsgStageProfile, SsgTrendMetric,
+                collect_ssg_variability_warnings_with_threshold,
+                collect_ssg_warning_operator_hints, format_ssg_measurement_warning_header,
+                format_ssg_trend_warning_header, SsgStageProfile, SsgTrendMetric,
                 SsgWarningThresholds,
             };
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
@@ -744,9 +746,12 @@ async fn main() {
                     warning_thresholds.trend_percent,
                 );
                 if !trend_warnings.is_empty() {
-                    println!("Trend stability warnings:");
+                    println!("{}", format_ssg_trend_warning_header(warning_thresholds));
                     for warning in trend_warnings {
                         println!("  - {}", warning);
+                    }
+                    for hint in collect_ssg_warning_operator_hints(warning_thresholds) {
+                        println!("  - hint: {}", hint);
                     }
                 }
             }
@@ -760,12 +765,18 @@ async fn main() {
                 warning_thresholds.mean_median_drift_percent,
             );
             if !variability_warnings.is_empty() || !mean_median_drift_warnings.is_empty() {
-                println!("Measurement quality warnings:");
+                println!(
+                    "{}",
+                    format_ssg_measurement_warning_header(warning_thresholds)
+                );
                 for warning in variability_warnings {
                     println!("  - {}", warning);
                 }
                 for warning in mean_median_drift_warnings {
                     println!("  - {}", warning);
+                }
+                for hint in collect_ssg_warning_operator_hints(warning_thresholds) {
+                    println!("  - hint: {}", hint);
                 }
             }
         }

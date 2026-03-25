@@ -22,6 +22,36 @@ impl Default for SsgWarningThresholds {
     }
 }
 
+pub fn format_ssg_measurement_warning_header(thresholds: SsgWarningThresholds) -> String {
+    format!(
+        "Measurement quality warnings (CV >= {:.2}%, mean/median drift >= {:.2}%):",
+        thresholds.variability_percent.max(0.0),
+        thresholds.mean_median_drift_percent.max(0.0)
+    )
+}
+
+pub fn format_ssg_trend_warning_header(thresholds: SsgWarningThresholds) -> String {
+    format!(
+        "Trend stability warnings (drift >= {:.2}%):",
+        thresholds.trend_percent.max(0.0)
+    )
+}
+
+pub fn collect_ssg_warning_operator_hints(thresholds: SsgWarningThresholds) -> Vec<String> {
+    vec![
+        "Tune CV sensitivity with --variability-warning-threshold <PERCENT>".to_string(),
+        "Tune trend sensitivity with --trend-warning-threshold <PERCENT>".to_string(),
+        "Tune skew sensitivity with --mean-median-drift-warning-threshold <PERCENT>"
+            .to_string(),
+        format!(
+            "Current thresholds: CV {:.2}%, trend {:.2}%, mean/median {:.2}%",
+            thresholds.variability_percent.max(0.0),
+            thresholds.trend_percent.max(0.0),
+            thresholds.mean_median_drift_percent.max(0.0)
+        ),
+    ]
+}
+
 #[derive(Debug, Clone)]
 pub struct SsgRunStatistics {
     pub runs: usize,
