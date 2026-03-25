@@ -5,6 +5,23 @@ pub const SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT: f64 = 5.0;
 pub const SSG_TREND_WARNING_THRESHOLD_PERCENT: f64 = 10.0;
 pub const SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT: f64 = 7.5;
 
+#[derive(Debug, Clone, Copy)]
+pub struct SsgWarningThresholds {
+    pub variability_percent: f64,
+    pub trend_percent: f64,
+    pub mean_median_drift_percent: f64,
+}
+
+impl Default for SsgWarningThresholds {
+    fn default() -> Self {
+        Self {
+            variability_percent: SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT,
+            trend_percent: SSG_TREND_WARNING_THRESHOLD_PERCENT,
+            mean_median_drift_percent: SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SsgRunStatistics {
     pub runs: usize,
@@ -449,8 +466,11 @@ fn collect_variability_warning(
     }
 }
 
-pub fn collect_ssg_variability_warnings(summary: &SsgBenchmarkAggregateResult) -> Vec<String> {
-    let threshold = SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT;
+pub fn collect_ssg_variability_warnings_with_threshold(
+    summary: &SsgBenchmarkAggregateResult,
+    threshold_percent: f64,
+) -> Vec<String> {
+    let threshold = threshold_percent.max(0.0);
     let mut warnings = Vec::new();
 
     collect_variability_warning(
@@ -517,10 +537,11 @@ fn collect_mean_median_drift_warning(
     }
 }
 
-pub fn collect_ssg_mean_median_drift_warnings(
+pub fn collect_ssg_mean_median_drift_warnings_with_threshold(
     summary: &SsgBenchmarkAggregateResult,
+    threshold_percent: f64,
 ) -> Vec<String> {
-    let threshold = SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT;
+    let threshold = threshold_percent.max(0.0);
     let mut warnings = Vec::new();
 
     collect_mean_median_drift_warning(
@@ -598,12 +619,15 @@ fn collect_trend_warning(
     }
 }
 
-pub fn collect_ssg_trend_warnings(trends: &SsgBenchmarkTrendReport) -> Vec<String> {
+pub fn collect_ssg_trend_warnings_with_threshold(
+    trends: &SsgBenchmarkTrendReport,
+    threshold_percent: f64,
+) -> Vec<String> {
     if trends.measured_runs < 3 {
         return Vec::new();
     }
 
-    let threshold = SSG_TREND_WARNING_THRESHOLD_PERCENT;
+    let threshold = threshold_percent.max(0.0);
     let mut warnings = Vec::new();
 
     collect_trend_warning(&mut warnings, "Ruff build time", &trends.ruff_build_ms, threshold);
@@ -1261,7 +1285,10 @@ mod tests {
             ruff_vs_python_speedup: None,
         };
 
-        let warnings = collect_ssg_variability_warnings(&summary);
+        let warnings = collect_ssg_variability_warnings_with_threshold(
+            &summary,
+            SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT,
+        );
         assert_eq!(warnings.len(), 2);
         assert!(warnings.iter().any(|warning| warning.contains("Ruff build time")));
         assert!(warnings.iter().any(|warning| warning.contains("Ruff read stage")));
@@ -1290,7 +1317,10 @@ mod tests {
             ruff_vs_python_speedup: Some(stable_stats),
         };
 
-        let warnings = collect_ssg_variability_warnings(&summary);
+        let warnings = collect_ssg_variability_warnings_with_threshold(
+            &summary,
+            SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT,
+        );
         assert!(warnings.is_empty());
     }
 
@@ -1322,7 +1352,10 @@ mod tests {
             ruff_vs_python_speedup: None,
         };
 
-        let warnings = collect_ssg_mean_median_drift_warnings(&summary);
+        let warnings = collect_ssg_mean_median_drift_warnings_with_threshold(
+            &summary,
+            SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT,
+        );
         assert_eq!(warnings.len(), 1);
         assert!(warnings.iter().any(|warning| warning.contains("Ruff build time")));
         assert!(warnings.iter().all(|warning| warning.contains("mean/median drift is high")));
@@ -1354,7 +1387,10 @@ mod tests {
             ruff_vs_python_speedup: Some(stable_stats),
         };
 
-        let warnings = collect_ssg_mean_median_drift_warnings(&summary);
+        let warnings = collect_ssg_mean_median_drift_warnings_with_threshold(
+            &summary,
+            SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT,
+        );
         assert!(warnings.is_empty());
     }
 
@@ -1539,7 +1575,8 @@ mod tests {
             }),
         };
 
-        let warnings = collect_ssg_trend_warnings(&trends);
+        let warnings =
+            collect_ssg_trend_warnings_with_threshold(&trends, SSG_TREND_WARNING_THRESHOLD_PERCENT);
         assert_eq!(warnings.len(), 3);
         assert!(warnings.iter().any(|warning| warning.contains("Ruff build time")));
         assert!(warnings.iter().any(|warning| warning.contains("Ruff throughput")));
@@ -1568,7 +1605,8 @@ mod tests {
             ruff_vs_python_speedup: None,
         };
 
-        let warnings = collect_ssg_trend_warnings(&trends);
+        let warnings =
+            collect_ssg_trend_warnings_with_threshold(&trends, SSG_TREND_WARNING_THRESHOLD_PERCENT);
         assert!(warnings.is_empty());
     }
 
@@ -1593,7 +1631,8 @@ mod tests {
             ruff_vs_python_speedup: None,
         };
 
-        let warnings = collect_ssg_trend_warnings(&trends);
+        let warnings =
+            collect_ssg_trend_warnings_with_threshold(&trends, SSG_TREND_WARNING_THRESHOLD_PERCENT);
         assert!(warnings.is_empty());
     }
 

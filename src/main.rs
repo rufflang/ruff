@@ -135,6 +135,18 @@ enum Commands {
         /// Optional temp root for benchmark artifacts (overrides workspace tmp/)
         #[arg(long)]
         tmp_dir: Option<PathBuf>,
+
+        /// CV threshold (%) for measurement variability warnings
+        #[arg(long, default_value_t = benchmarks::ssg::SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT)]
+        variability_warning_threshold: f64,
+
+        /// Percent threshold for first-to-last trend drift warnings
+        #[arg(long, default_value_t = benchmarks::ssg::SSG_TREND_WARNING_THRESHOLD_PERCENT)]
+        trend_warning_threshold: f64,
+
+        /// Percent threshold for mean-vs-median drift warnings
+        #[arg(long, default_value_t = benchmarks::ssg::SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT)]
+        mean_median_drift_warning_threshold: f64,
     },
 
     /// Profile a Ruff script (CPU, memory, JIT stats)
@@ -465,11 +477,16 @@ async fn main() {
             python_script,
             python,
             tmp_dir,
+            variability_warning_threshold,
+            trend_warning_threshold,
+            mean_median_drift_warning_threshold,
         } => {
             use benchmarks::ssg::{
-                analyze_ssg_benchmark_trends, collect_ssg_mean_median_drift_warnings,
-                collect_ssg_trend_warnings, collect_ssg_variability_warnings, SsgStageProfile,
-                SsgTrendMetric,
+                analyze_ssg_benchmark_trends,
+                collect_ssg_mean_median_drift_warnings_with_threshold,
+                collect_ssg_trend_warnings_with_threshold,
+                collect_ssg_variability_warnings_with_threshold, SsgStageProfile,
+                SsgTrendMetric, SsgWarningThresholds,
             };
             use benchmarks::{aggregate_ssg_results, run_ssg_benchmark_series};
 
@@ -502,6 +519,25 @@ async fn main() {
                 eprintln!("SSG benchmark runs must be >= 1");
                 std::process::exit(1);
             }
+
+            if variability_warning_threshold < 0.0
+                || trend_warning_threshold < 0.0
+                || mean_median_drift_warning_threshold < 0.0
+            {
+                eprintln!(
+                    "SSG warning thresholds must be >= 0.0 (got variability={}, trend={}, mean-median={})",
+                    variability_warning_threshold,
+                    trend_warning_threshold,
+                    mean_median_drift_warning_threshold
+                );
+                std::process::exit(1);
+            }
+
+            let warning_thresholds = SsgWarningThresholds {
+                variability_percent: variability_warning_threshold,
+                trend_percent: trend_warning_threshold,
+                mean_median_drift_percent: mean_median_drift_warning_threshold,
+            };
 
             if warmup_runs > 0 {
                 println!("Running SSG benchmark warmups ({})...", warmup_runs);
@@ -703,7 +739,10 @@ async fn main() {
                     );
                 }
 
-                let trend_warnings = collect_ssg_trend_warnings(&trends);
+                let trend_warnings = collect_ssg_trend_warnings_with_threshold(
+                    &trends,
+                    warning_thresholds.trend_percent,
+                );
                 if !trend_warnings.is_empty() {
                     println!("Trend stability warnings:");
                     for warning in trend_warnings {
@@ -712,8 +751,15 @@ async fn main() {
                 }
             }
 
-            let variability_warnings = collect_ssg_variability_warnings(&summary);
-            let mean_median_drift_warnings = collect_ssg_mean_median_drift_warnings(&summary);
+            let variability_warnings = collect_ssg_variability_warnings_with_threshold(
+                &summary,
+                warning_thresholds.variability_percent,
+            );
+            let mean_median_drift_warnings =
+                collect_ssg_mean_median_drift_warnings_with_threshold(
+                    &summary,
+                    warning_thresholds.mean_median_drift_percent,
+                );
             if !variability_warnings.is_empty() || !mean_median_drift_warnings.is_empty() {
                 println!("Measurement quality warnings:");
                 for warning in variability_warnings {
