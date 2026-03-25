@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Benchmark Stability: Warning Presentation and Operator Guidance (v0.11.0 P0)**:
+  - Added explicit warning headers that include active threshold values for:
+    - trend drift warnings
+    - measurement-quality warnings (CV and mean/median drift)
+  - Added operator guidance hints in `bench-ssg` warning output that point to threshold-tuning flags:
+    - `--variability-warning-threshold <PERCENT>`
+    - `--trend-warning-threshold <PERCENT>`
+    - `--mean-median-drift-warning-threshold <PERCENT>`
+  - Added warning-presentation helper APIs in `src/benchmarks/ssg.rs`:
+    - `format_ssg_trend_warning_header(...)`
+    - `format_ssg_measurement_warning_header(...)`
+    - `collect_ssg_warning_operator_hints(...)`
+  - Added focused regression coverage for warning header formatting and operator-hint contents.
+
 - **SSG Benchmark Stability: Configurable Warning Threshold Overrides (v0.11.0 P0)**:
   - Added `bench-ssg` CLI threshold override flags for measurement-quality and trend warnings:
     - `--variability-warning-threshold <PERCENT>`

@@ -208,6 +208,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
         - Added threshold-aware warning collector APIs in benchmark aggregation logic and wired `bench-ssg` output to use caller-supplied thresholds.
         - Preserved default warning behavior when flags are omitted and added focused threshold-override regression coverage.
 
+- **Benchmark Stability: Warning Presentation and Operator Guidance (✅ Complete, March 2026)**
+    - Added warning headers that surface active threshold values directly in `bench-ssg` output for both trend and measurement-quality warning sections.
+    - Added operator guidance hints in warning sections that point to threshold-tuning flags for faster iteration during noisy local runs.
+    - Added focused regression coverage for warning header formatting and guidance hint output contracts.
+
 - **SSG Throughput: Rayon Parallel Read+Render+Write Pipeline (✅ Complete, March 2026)**
     - Replaced Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages(...)` with `spawn_blocking` + Rayon `par_iter` two-phase execution.
     - Phase 1 (reads): bounded Rayon `ThreadPool` work-stealing parallel file reads across all source files.
@@ -268,7 +273,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
      - Keep cross-language runs (`--compare-python`) for directional trend tracking.
-    - Continue refining warning presentation and operator guidance for measurement-quality interpretation without changing benchmark metric contracts.
+    - Continue refining benchmark interpretation ergonomics without changing benchmark metric contracts.
 
 ### Success Criteria
 
