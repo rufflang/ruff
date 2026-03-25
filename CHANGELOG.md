@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Benchmark Stability: Configurable Warning Threshold Overrides (v0.11.0 P0)**:
+  - Added `bench-ssg` CLI threshold override flags for measurement-quality and trend warnings:
+    - `--variability-warning-threshold <PERCENT>`
+    - `--trend-warning-threshold <PERCENT>`
+    - `--mean-median-drift-warning-threshold <PERCENT>`
+  - Added threshold-aware warning collector APIs in `src/benchmarks/ssg.rs`:
+    - `collect_ssg_variability_warnings_with_threshold(...)`
+    - `collect_ssg_trend_warnings_with_threshold(...)`
+    - `collect_ssg_mean_median_drift_warnings_with_threshold(...)`
+  - Preserved existing default warning behavior when no threshold flags are provided.
+  - Added regression coverage for threshold override behavior:
+    - higher variability threshold suppresses warnings
+    - lower trend threshold emits warnings for smaller drifts
+    - lower mean/median drift threshold emits warnings for moderate drift
+
 - **SSG Throughput Follow-Through: Sync Vectored Write-Through Hot Path (v0.11.0 P0)**:
   - Added `ssg_write_rendered_html_page_sync(...)` and migrated `ssg_run_rayon_read_render_write(...)` to use synchronous vectored writes over immutable `prefix`/`body`/`suffix` segments.
   - Replaced per-file `BufWriter<File>` allocation in the Rayon render/write loop with direct `std::fs::File::write_vectored(...)` + flush progression, eliminating per-file buffered writer allocation in the hot path.

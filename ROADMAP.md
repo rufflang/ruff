@@ -200,6 +200,14 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added warning output when drift magnitude crosses threshold (`7.5%`) for Ruff metrics and optional Python/speedup metrics.
     - Added comprehensive regression coverage for drift calculation, warning emission/suppression behavior, and measured-run-count gating.
 
+- **Benchmark Stability: Configurable Warning Threshold Overrides (✅ Complete, March 2026)**
+        - Added `bench-ssg` CLI threshold override flags:
+            - `--variability-warning-threshold <PERCENT>`
+            - `--trend-warning-threshold <PERCENT>`
+            - `--mean-median-drift-warning-threshold <PERCENT>`
+        - Added threshold-aware warning collector APIs in benchmark aggregation logic and wired `bench-ssg` output to use caller-supplied thresholds.
+        - Preserved default warning behavior when flags are omitted and added focused threshold-override regression coverage.
+
 - **SSG Throughput: Rayon Parallel Read+Render+Write Pipeline (✅ Complete, March 2026)**
     - Replaced Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages(...)` with `spawn_blocking` + Rayon `par_iter` two-phase execution.
     - Phase 1 (reads): bounded Rayon `ThreadPool` work-stealing parallel file reads across all source files.
@@ -260,7 +268,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
      - Keep cross-language runs (`--compare-python`) for directional trend tracking.
-    - Continue refining warning thresholds/presentation for measurement-quality interpretation without changing benchmark metric contracts.
+    - Continue refining warning presentation and operator guidance for measurement-quality interpretation without changing benchmark metric contracts.
 
 ### Success Criteria
 
