@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - percentile monotonicity against median/min/max bounds
     - aggregate summary percentile propagation for Ruff and speedup metrics
 
+- **SSG Throughput Follow-Through: Zipped Tuple Rayon Hot Path + Shape Guard (v0.11.0 P0)**:
+  - Optimized `ssg_run_rayon_read_render_write(...)` to iterate over zipped owned `(source_path, output_path, render_prefix)` tuples in the Rayon single-pass lane.
+  - Removed repeated per-item indexed lookups (`output_paths[index]`, `render_prefixes[index]`) from the hot path while preserving checksum/stage-metric/error-message contracts.
+  - Added an explicit internal batch-shape guard that rejects mismatched source/output/prefix vector lengths with a deterministic runtime error.
+  - Added targeted regression coverage for shape-mismatch rejection behavior.
+
 - **SSG Throughput Follow-Through: In-Iterator Rayon Aggregation Reduction (v0.11.0 P0)**:
   - Optimized `ssg_run_rayon_read_render_write(...)` to aggregate `checksum`, `read_ms`, and `render_write_ms` via Rayon `try_fold` + `try_reduce` directly on the parallel iterator.
   - Removed per-file intermediate result-vector buffering in the Rayon hot path, reducing temporary allocation pressure for large SSG batches.

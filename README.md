@@ -50,6 +50,7 @@
 - **Latest throughput sync-vectored-write step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now writes rendered HTML segments via direct synchronous `write_vectored(...)` progression (`prefix`/`body`/`suffix`) through `ssg_write_rendered_html_page_sync(...)`, replacing per-file `BufWriter<File>` allocation while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput byte-path read/write step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now reads source files as raw bytes and writes them through `ssg_write_rendered_html_page_sync_bytes(...)`, eliminating UTF-8 decode overhead before sync vectored write progression while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput in-iterator aggregation step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now aggregates checksum and timing metrics via in-iterator parallel reduction (`try_fold` + `try_reduce`) instead of per-file result-vector buffering, reducing temporary aggregation allocation pressure while preserving checksum/file-count and stage-metric key contracts.
+- **Latest throughput zipped-tuple lane step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now iterates over owned zipped `(source_path, output_path, render_prefix)` tuples instead of repeated indexed vector lookups, and now includes deterministic internal source/output/prefix shape validation while preserving checksum/file-count and stage-metric key contracts.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 

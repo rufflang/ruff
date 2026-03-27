@@ -273,6 +273,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved checksum/file-count/stage-metric keys and read/write error message contracts.
     - Added focused regression coverage for partitioned large-batch checksum equivalence and mixed-batch failure surfacing.
 
+- **SSG Throughput Follow-Through: Zipped Tuple Rayon Lane + Shape Guard (✅ Complete, March 2026)**
+    - Optimized `ssg_run_rayon_read_render_write(...)` to iterate over owned zipped `(source_path, output_path, render_prefix)` tuples in the Rayon single-pass hot path.
+    - Removed repeated per-item indexed vector lookups for output paths and render prefixes while preserving checksum/file-count/stage-metric and read/write error-message contracts.
+    - Added deterministic internal shape validation for mismatched source/output/prefix batch lengths with focused regression coverage.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
