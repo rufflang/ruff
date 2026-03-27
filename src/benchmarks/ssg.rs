@@ -1225,6 +1225,8 @@ mod tests {
         assert_eq!(stats.runs, 4);
         assert!((stats.mean - 25.0).abs() < 0.0001);
         assert!((stats.median - 25.0).abs() < 0.0001);
+        assert!((stats.p90 - 37.0).abs() < 0.0001);
+        assert!((stats.p95 - 38.5).abs() < 0.0001);
         assert!((stats.min - 10.0).abs() < 0.0001);
         assert!((stats.max - 40.0).abs() < 0.0001);
     }
@@ -1234,6 +1236,26 @@ mod tests {
         let stats = SsgRunStatistics::from_samples(&[8.0, 2.0, 5.0]).unwrap();
         assert_eq!(stats.runs, 3);
         assert!((stats.median - 5.0).abs() < 0.0001);
+        assert!((stats.p90 - 7.4).abs() < 0.0001);
+        assert!((stats.p95 - 7.7).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_run_statistics_percentiles_single_sample_equal_sample() {
+        let stats = SsgRunStatistics::from_samples(&[123.0]).unwrap();
+        assert_eq!(stats.runs, 1);
+        assert!((stats.p90 - 123.0).abs() < 0.0001);
+        assert!((stats.p95 - 123.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_run_statistics_percentiles_are_monotonic_with_distribution_bounds() {
+        let stats = SsgRunStatistics::from_samples(&[5.0, 5.0, 5.0, 10.0, 30.0, 100.0]).unwrap();
+
+        assert!(stats.min <= stats.median);
+        assert!(stats.median <= stats.p90);
+        assert!(stats.p90 <= stats.p95);
+        assert!(stats.p95 <= stats.max);
     }
 
     #[test]
@@ -1914,7 +1936,11 @@ mod tests {
         assert_eq!(summary.files, 100);
         assert_eq!(summary.ruff_checksum, 42);
         assert!((summary.ruff_build_ms.median - 20.0).abs() < 0.0001);
+        assert!((summary.ruff_build_ms.p90 - 28.0).abs() < 0.0001);
+        assert!((summary.ruff_build_ms.p95 - 29.0).abs() < 0.0001);
         assert!((summary.ruff_files_per_sec.median - 5.0).abs() < 0.0001);
+        assert!((summary.ruff_files_per_sec.p90 - 9.0).abs() < 0.0001);
+        assert!((summary.ruff_files_per_sec.p95 - 9.5).abs() < 0.0001);
         assert!(summary.python_build_ms.is_none());
         assert!(summary.python_files_per_sec.is_none());
         assert!(summary.ruff_vs_python_speedup.is_none());
@@ -1949,9 +1975,13 @@ mod tests {
         let summary = aggregate_ssg_results(&runs).unwrap();
         assert!(summary.python_build_ms.is_some());
         assert!(summary.python_files_per_sec.is_some());
+        assert!((summary.ruff_build_ms.p90 - 19.0).abs() < 0.0001);
+        assert!((summary.ruff_build_ms.p95 - 19.5).abs() < 0.0001);
 
         let speedup = summary.ruff_vs_python_speedup.unwrap();
         assert!((speedup.median - 2.0).abs() < 0.0001);
+        assert!((speedup.p90 - 2.0).abs() < 0.0001);
+        assert!((speedup.p95 - 2.0).abs() < 0.0001);
     }
 
     #[test]
