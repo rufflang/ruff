@@ -28,7 +28,6 @@ enum RayonMapInput {
     DictLen(usize),
 }
 
-#[cfg(test)]
 fn ssg_build_output_path(output_dir: &str, index: usize) -> String {
     let index_str = index.to_string();
     let mut output_path = String::with_capacity(output_dir.len() + 32);
@@ -37,31 +36,6 @@ fn ssg_build_output_path(output_dir: &str, index: usize) -> String {
     output_path.push_str(index_str.as_str());
     output_path.push_str(".html");
     output_path
-}
-
-#[cfg(test)]
-fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<String> {
-    let mut paths = Vec::with_capacity(file_count);
-    for index in 0..file_count {
-        paths.push(ssg_build_output_path(output_dir, index));
-    }
-    paths
-}
-
-#[cfg(test)]
-fn ssg_build_render_prefixes_for_batch(file_count: usize) -> Vec<String> {
-    let mut prefixes = Vec::with_capacity(file_count);
-    for index in 0..file_count {
-        let index_text = index.to_string();
-        let mut prefix = String::with_capacity(
-            SSG_HTML_PREFIX_START.len() + index_text.len() + SSG_HTML_PREFIX_END.len(),
-        );
-        prefix.push_str(SSG_HTML_PREFIX_START);
-        prefix.push_str(index_text.as_str());
-        prefix.push_str(SSG_HTML_PREFIX_END);
-        prefixes.push(prefix);
-    }
-    prefixes
 }
 
 fn ssg_build_output_paths_and_prefixes_for_batch(
@@ -73,15 +47,7 @@ fn ssg_build_output_paths_and_prefixes_for_batch(
 
     for index in 0..file_count {
         let index_text = index.to_string();
-
-        let mut output_path = String::with_capacity(
-            output_dir.len() + "/post_".len() + index_text.len() + ".html".len(),
-        );
-        output_path.push_str(output_dir);
-        output_path.push_str("/post_");
-        output_path.push_str(index_text.as_str());
-        output_path.push_str(".html");
-        paths.push(output_path);
+        paths.push(ssg_build_output_path(output_dir, index));
 
         let mut prefix = String::with_capacity(
             SSG_HTML_PREFIX_START.len() + index_text.len() + SSG_HTML_PREFIX_END.len(),
@@ -93,6 +59,27 @@ fn ssg_build_output_paths_and_prefixes_for_batch(
     }
 
     (paths, prefixes)
+}
+
+#[cfg(test)]
+fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<String> {
+    ssg_build_output_paths_and_prefixes_for_batch(output_dir, file_count).0
+}
+
+#[cfg(test)]
+fn ssg_build_render_prefixes_for_batch(file_count: usize) -> Vec<String> {
+    (0..file_count)
+        .map(|index| {
+            let index_text = index.to_string();
+            let mut prefix = String::with_capacity(
+                SSG_HTML_PREFIX_START.len() + index_text.len() + SSG_HTML_PREFIX_END.len(),
+            );
+            prefix.push_str(SSG_HTML_PREFIX_START);
+            prefix.push_str(index_text.as_str());
+            prefix.push_str(SSG_HTML_PREFIX_END);
+            prefix
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -281,6 +268,15 @@ fn ssg_run_rayon_read_render_write(
     render_prefixes: Vec<String>,
     concurrency_limit: usize,
 ) -> Result<(i64, f64, f64), String> {
+    if source_paths.len() != output_paths.len() || source_paths.len() != render_prefixes.len() {
+        return Err(format!(
+            "ssg_read_render_and_write_pages() internal SSG batch shape mismatch (sources={}, outputs={}, prefixes={})",
+            source_paths.len(),
+            output_paths.len(),
+            render_prefixes.len()
+        ));
+    }
+
     // Cap the Rayon thread count to the machine's logical CPU count so a high
     // `concurrency_limit` (e.g. 256 from the default async task pool) does not
     // cause thread over-subscription and context-switch thrash on typical hardware.
@@ -296,32 +292,35 @@ fn ssg_run_rayon_read_render_write(
     // so each task writes immutable slices directly without allocating an additional
     // per-file output buffer in the Rayon hot path.
     //
+    // We iterate over owned zipped vectors so each task receives pre-matched
+    // (source, output, prefix) data without repeated indexed lookups.
+    //
     // Aggregation uses try_fold/try_reduce directly on the parallel iterator to
     // avoid collecting one intermediate result entry per file.
     let (checksum, total_read_ns, total_rw_ns) = pool.install(|| {
         source_paths
-            .par_iter()
+            .into_par_iter()
+            .zip(output_paths.into_par_iter())
+            .zip(render_prefixes.into_par_iter())
             .enumerate()
             .try_fold(
                 || (0i64, 0u64, 0u64),
-                |(checksum_acc, read_ns_acc, rw_ns_acc), (index, path)| {
+                |(checksum_acc, read_ns_acc, rw_ns_acc),
+                 (index, ((source_path, output_path), render_prefix))| {
                     let read_start = Instant::now();
-                    let content = std::fs::read(path).map_err(|e| {
-                        format!("Failed to read file '{}' (index {}): {}", path, index, e)
+                    let content = std::fs::read(&source_path).map_err(|e| {
+                        format!("Failed to read file '{}' (index {}): {}", source_path, index, e)
                     })?;
                     let read_ns = read_start.elapsed().as_nanos() as u64;
 
                     let rw_start = Instant::now();
                     let written_bytes = ssg_write_rendered_html_page_sync_bytes(
-                        &output_paths[index],
-                        render_prefixes[index].as_bytes(),
+                        &output_path,
+                        render_prefix.as_bytes(),
                         content.as_slice(),
                     )
                     .map_err(|e| {
-                        format!(
-                            "Failed to write file '{}' (index {}): {}",
-                            output_paths[index], index, e
-                        )
+                        format!("Failed to write file '{}' (index {}): {}", output_path, index, e)
                     })?;
                     let rw_ns = rw_start.elapsed().as_nanos() as u64;
 
@@ -4207,6 +4206,29 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(&input_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_rejects_shape_mismatch() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_shape_mismatch_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_shape_mismatch_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source = format!("{}/post_0.md", input_dir);
+        fs::write(&source, "# Post 0").unwrap();
+
+        let output_path = format!("{}/post_0.html", output_dir);
+
+        let result =
+            ssg_run_rayon_read_render_write(vec![source], vec![output_path], Vec::new(), 1);
+
+        assert!(result.is_err(), "Expected shape mismatch to return an error");
+        let msg = result.unwrap_err();
+        assert!(msg.contains("internal SSG batch shape mismatch"), "Unexpected error: {}", msg);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
     }
 
     #[test]
