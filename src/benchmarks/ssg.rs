@@ -53,12 +53,38 @@ pub struct SsgRunStatistics {
     pub runs: usize,
     pub mean: f64,
     pub median: f64,
+    pub p90: f64,
+    pub p95: f64,
     pub min: f64,
     pub max: f64,
     pub stddev: f64,
 }
 
 impl SsgRunStatistics {
+    fn percentile(sorted_samples: &[f64], percentile: f64) -> f64 {
+        if sorted_samples.is_empty() {
+            return 0.0;
+        }
+
+        if sorted_samples.len() == 1 {
+            return sorted_samples[0];
+        }
+
+        let clamped_percentile = percentile.clamp(0.0, 100.0);
+        let rank = (clamped_percentile / 100.0) * (sorted_samples.len() - 1) as f64;
+        let lower_index = rank.floor() as usize;
+        let upper_index = rank.ceil() as usize;
+
+        if lower_index == upper_index {
+            return sorted_samples[lower_index];
+        }
+
+        let interpolation_weight = rank - lower_index as f64;
+        let lower_value = sorted_samples[lower_index];
+        let upper_value = sorted_samples[upper_index];
+        lower_value + ((upper_value - lower_value) * interpolation_weight)
+    }
+
     pub fn from_samples(samples: &[f64]) -> Option<Self> {
         if samples.is_empty() {
             return None;
@@ -79,6 +105,9 @@ impl SsgRunStatistics {
             sorted[runs / 2]
         };
 
+        let p90 = Self::percentile(&sorted, 90.0);
+        let p95 = Self::percentile(&sorted, 95.0);
+
         let min = *sorted.first().unwrap_or(&0.0);
         let max = *sorted.last().unwrap_or(&0.0);
 
@@ -93,7 +122,7 @@ impl SsgRunStatistics {
 
         let stddev = variance.sqrt();
 
-        Some(SsgRunStatistics { runs, mean, median, min, max, stddev })
+        Some(SsgRunStatistics { runs, mean, median, p90, p95, min, max, stddev })
     }
 
     pub fn coefficient_of_variation_percent(&self) -> Option<f64> {
@@ -1244,6 +1273,8 @@ mod tests {
             runs: 2,
             mean: 10.0,
             median: 10.0,
+            p90: 10.0,
+            p95: 10.0,
             min: 5.0,
             max: 15.0,
             stddev: 5.0,
@@ -1258,6 +1289,8 @@ mod tests {
             runs: 2,
             mean: 120.0,
             median: 100.0,
+            p90: 130.0,
+            p95: 135.0,
             min: 100.0,
             max: 140.0,
             stddev: 20.0,
@@ -1275,6 +1308,8 @@ mod tests {
                 runs: 3,
                 mean: 100.0,
                 median: 100.0,
+                p90: 140.0,
+                p95: 145.0,
                 min: 50.0,
                 max: 150.0,
                 stddev: 30.0,
@@ -1283,6 +1318,8 @@ mod tests {
                 runs: 3,
                 mean: 1000.0,
                 median: 1000.0,
+                p90: 1001.0,
+                p95: 1001.5,
                 min: 998.0,
                 max: 1002.0,
                 stddev: 1.0,
@@ -1292,6 +1329,8 @@ mod tests {
                     runs: 3,
                     mean: 25.0,
                     median: 25.0,
+                    p90: 37.0,
+                    p95: 38.5,
                     min: 10.0,
                     max: 40.0,
                     stddev: 9.0,
@@ -1300,6 +1339,8 @@ mod tests {
                     runs: 3,
                     mean: 75.0,
                     median: 75.0,
+                    p90: 75.8,
+                    p95: 75.9,
                     min: 74.0,
                     max: 76.0,
                     stddev: 0.5,
@@ -1326,6 +1367,8 @@ mod tests {
             runs: 4,
             mean: 120.0,
             median: 120.0,
+            p90: 121.5,
+            p95: 121.75,
             min: 118.0,
             max: 122.0,
             stddev: 1.0,
@@ -1359,6 +1402,8 @@ mod tests {
                 runs: 4,
                 mean: 100.0,
                 median: 100.0,
+                p90: 140.0,
+                p95: 145.0,
                 min: 50.0,
                 max: 150.0,
                 stddev: 30.0,
@@ -1367,6 +1412,8 @@ mod tests {
                 runs: 4,
                 mean: 1000.0,
                 median: 1000.0,
+                p90: 1000.7,
+                p95: 1000.85,
                 min: 999.0,
                 max: 1001.0,
                 stddev: 0.6,
@@ -1438,6 +1485,8 @@ mod tests {
                 runs: 4,
                 mean: 130.0,
                 median: 100.0,
+                p90: 200.0,
+                p95: 215.0,
                 min: 90.0,
                 max: 230.0,
                 stddev: 55.0,
@@ -1446,6 +1495,8 @@ mod tests {
                 runs: 4,
                 mean: 1000.0,
                 median: 998.0,
+                p90: 1002.5,
+                p95: 1003.25,
                 min: 996.0,
                 max: 1004.0,
                 stddev: 3.0,
@@ -1472,6 +1523,8 @@ mod tests {
             runs: 5,
             mean: 120.5,
             median: 120.0,
+            p90: 122.0,
+            p95: 122.5,
             min: 118.0,
             max: 123.0,
             stddev: 1.5,
@@ -1508,6 +1561,8 @@ mod tests {
                 runs: 4,
                 mean: 106.0,
                 median: 100.0,
+                p90: 114.0,
+                p95: 117.0,
                 min: 95.0,
                 max: 120.0,
                 stddev: 8.0,
@@ -1516,6 +1571,8 @@ mod tests {
                 runs: 4,
                 mean: 1000.0,
                 median: 1000.0,
+                p90: 1008.0,
+                p95: 1009.0,
                 min: 990.0,
                 max: 1010.0,
                 stddev: 5.0,

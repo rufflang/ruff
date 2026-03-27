@@ -579,17 +579,21 @@ async fn main() {
             println!("Files rendered: {}", summary.files);
             println!("Ruff checksum: {}", summary.ruff_checksum);
             println!(
-                "Ruff build time (median): {:.3} ms [mean {:.3}, min {:.3}, max {:.3}, stddev {:.3}]",
+                "Ruff build time (median): {:.3} ms [mean {:.3}, p90 {:.3}, p95 {:.3}, min {:.3}, max {:.3}, stddev {:.3}]",
                 summary.ruff_build_ms.median,
                 summary.ruff_build_ms.mean,
+                summary.ruff_build_ms.p90,
+                summary.ruff_build_ms.p95,
                 summary.ruff_build_ms.min,
                 summary.ruff_build_ms.max,
                 summary.ruff_build_ms.stddev
             );
             println!(
-                "Ruff throughput (median): {:.2} files/sec [mean {:.2}, min {:.2}, max {:.2}, stddev {:.2}]",
+                "Ruff throughput (median): {:.2} files/sec [mean {:.2}, p90 {:.2}, p95 {:.2}, min {:.2}, max {:.2}, stddev {:.2}]",
                 summary.ruff_files_per_sec.median,
                 summary.ruff_files_per_sec.mean,
+                summary.ruff_files_per_sec.p90,
+                summary.ruff_files_per_sec.p95,
                 summary.ruff_files_per_sec.min,
                 summary.ruff_files_per_sec.max,
                 summary.ruff_files_per_sec.stddev
@@ -620,17 +624,21 @@ async fn main() {
                 (summary.python_build_ms.as_ref(), summary.python_files_per_sec.as_ref())
             {
                 println!(
-                    "Python build time (median): {:.3} ms [mean {:.3}, min {:.3}, max {:.3}, stddev {:.3}]",
+                    "Python build time (median): {:.3} ms [mean {:.3}, p90 {:.3}, p95 {:.3}, min {:.3}, max {:.3}, stddev {:.3}]",
                     python_build_ms.median,
                     python_build_ms.mean,
+                    python_build_ms.p90,
+                    python_build_ms.p95,
                     python_build_ms.min,
                     python_build_ms.max,
                     python_build_ms.stddev
                 );
                 println!(
-                    "Python throughput (median): {:.2} files/sec [mean {:.2}, min {:.2}, max {:.2}, stddev {:.2}]",
+                    "Python throughput (median): {:.2} files/sec [mean {:.2}, p90 {:.2}, p95 {:.2}, min {:.2}, max {:.2}, stddev {:.2}]",
                     python_files_per_sec.median,
                     python_files_per_sec.mean,
+                    python_files_per_sec.p90,
+                    python_files_per_sec.p95,
                     python_files_per_sec.min,
                     python_files_per_sec.max,
                     python_files_per_sec.stddev
@@ -638,9 +646,11 @@ async fn main() {
 
                 if let Some(speedup) = summary.ruff_vs_python_speedup.as_ref() {
                     println!(
-                        "Ruff speedup vs Python (median): {:.2}x [mean {:.2}x, min {:.2}x, max {:.2}x, stddev {:.2}]",
+                        "Ruff speedup vs Python (median): {:.2}x [mean {:.2}x, p90 {:.2}x, p95 {:.2}x, min {:.2}x, max {:.2}x, stddev {:.2}]",
                         speedup.median,
                         speedup.mean,
+                        speedup.p90,
+                        speedup.p95,
                         speedup.min,
                         speedup.max,
                         speedup.stddev
