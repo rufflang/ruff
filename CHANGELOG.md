@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Benchmark Stability: Percentile Reporting for Repeat-Run Interpretation (v0.11.0 P0)**:
+  - Added percentile aggregation to `SsgRunStatistics` in `src/benchmarks/ssg.rs` with deterministic linear-interpolated `p90` and `p95` values from measured runs.
+  - Updated `bench-ssg` summary output in `src/main.rs` to include `p90`/`p95` for Ruff build time and throughput metrics.
+  - Updated Python comparison output to include matching `p90`/`p95` values for Python build/throughput and Ruff-vs-Python speedup.
+  - Added comprehensive regression coverage for percentile behavior:
+    - even/odd run-count percentile calculation
+    - single-sample percentile stability
+    - percentile monotonicity against median/min/max bounds
+    - aggregate summary percentile propagation for Ruff and speedup metrics
+
 - **SSG Throughput Follow-Through: In-Iterator Rayon Aggregation Reduction (v0.11.0 P0)**:
   - Optimized `ssg_run_rayon_read_render_write(...)` to aggregate `checksum`, `read_ms`, and `render_write_ms` via Rayon `try_fold` + `try_reduce` directly on the parallel iterator.
   - Removed per-file intermediate result-vector buffering in the Rayon hot path, reducing temporary allocation pressure for large SSG batches.

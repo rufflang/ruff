@@ -16,6 +16,7 @@
 - **Release criteria**: move toward `<10s` (phase target) with no correctness regressions (`cargo test` stays green).
 - **Function-level JIT posture**: treated as a supporting/parallel track in v0.11 and promoted only when benchmark-proven on `bench-ssg` / `--profile-async` with stable correctness.
 - **Benchmark stability baseline**: `ruff bench-ssg --runs <N>` now reports median/mean/min/max/stddev to reduce one-off run noise.
+- **Benchmark percentile tails**: `ruff bench-ssg --runs <N>` now also reports `p90`/`p95` tails for Ruff/Python build-time and throughput metrics to make noisy-run interpretation faster.
 - **Benchmark warmup support**: `ruff bench-ssg --warmup-runs <N>` now performs pre-measurement warmup runs excluded from aggregate summary stats for cleaner measured-trend comparisons.
 - **Benchmark variability warnings**: `ruff bench-ssg` now emits measurement-quality warnings when measured-run variability is high (CV ≥ `5%`), helping identify unstable local benchmark conditions before interpreting medians.
 - **Benchmark trend tracking**: `ruff bench-ssg` now reports first-to-last measured-run trend deltas for Ruff build-time/throughput and, when enabled, Python build-time/throughput plus Ruff-vs-Python speedup for clearer directional run-series interpretation.
@@ -507,7 +508,7 @@
   - **JIT Closure Path**: `parallel_map(...)` / `par_map(...)` routes bytecode closures through VM JIT execution when available ✅
   - **Cross-Language ProcessPool Benchmark**: `ruff bench-cross` compares Ruff `parallel_map(...)` performance with Python `ProcessPoolExecutor` using equivalent benchmark artifacts ✅
   - **Cross-Language Async SSG Benchmark**: `ruff bench-ssg` runs a reproducible 10K-file async static-site workload with optional Python comparison (`--compare-python`) ✅
-  - **Repeat-Run Median Reporting**: `ruff bench-ssg --runs <N>` reports median/mean/min/max/stddev for throughput and build-time metrics ✅
+  - **Repeat-Run Aggregate Reporting**: `ruff bench-ssg --runs <N>` reports median/mean/p90/p95/min/max/stddev for throughput and build-time metrics ✅
   - **Async Stage Bottleneck Profiling**: `ruff bench-ssg --profile-async` prints read vs render/write stage timings and bottleneck share ✅
   - **Configurable Benchmark Artifact Root**: `ruff bench-ssg --tmp-dir <PATH>` routes benchmark temp artifacts to an explicit directory for CI/workspace control ✅
   - **Command-Level Benchmark Validation**: `bench-ssg` now fails fast for missing benchmark scripts and includes harness-level failure contracts for missing required metrics/checksum mismatch ✅
@@ -562,7 +563,7 @@
     # Cross-language async SSG benchmark (10K files)
     # Ruff-only run
     #   cargo run -- bench-ssg
-    # Ruff-only repeated runs with median/dispersion summary
+    # Ruff-only repeated runs with median/percentile/dispersion summary
     #   cargo run -- bench-ssg --runs 5
     # Ruff vs Python baseline
     #   cargo run -- bench-ssg --compare-python

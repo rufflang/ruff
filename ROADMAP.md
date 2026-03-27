@@ -65,6 +65,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added median-based stage bottleneck reporting for `--profile-async` output.
     - Added comprehensive unit coverage for statistical aggregation and consistency validation.
 
+- **Benchmark Stability: Percentile Reporting for Repeat-Run Interpretation (✅ Complete, March 2026)**
+    - Added deterministic `p90` and `p95` percentile aggregation for measured `bench-ssg` run series.
+    - Extended Ruff and Python aggregate summary output to include percentile tails alongside median/mean/min/max/stddev.
+    - Added focused regression coverage for percentile calculation contracts (even/odd run counts, single-sample behavior, monotonic percentile bounds, and aggregate propagation).
+
 - **Benchmark Stability: Warmup-Run Support for Measurement Quality (✅ Complete, March 2026)**
     - Added `ruff bench-ssg --warmup-runs <N>` so pre-measurement warmup runs can be executed and excluded from measured summary statistics.
     - Added shared benchmark harness series orchestration for warmup + measured phases (`run_ssg_benchmark_series(...)`) with consistent validation/error contracts.
