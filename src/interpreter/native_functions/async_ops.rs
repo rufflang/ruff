@@ -4155,6 +4155,33 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_read_source_file_bytes_reuses_buffer_across_large_then_small_reads() {
+        let input_dir = unique_temp_dir("ruff_ssg_reused_read_buffer_large_small");
+        fs::create_dir_all(&input_dir).unwrap();
+
+        let large_path = format!("{}/large.md", input_dir);
+        let small_path = format!("{}/small.md", input_dir);
+        let large_payload = "L".repeat(8192);
+        let small_payload = "tiny";
+        fs::write(&large_path, large_payload.as_bytes()).unwrap();
+        fs::write(&small_path, small_payload.as_bytes()).unwrap();
+
+        let mut read_buffer: Vec<u8> = Vec::new();
+        ssg_read_source_file_bytes(large_path.as_str(), &mut read_buffer).unwrap();
+        let large_capacity = read_buffer.capacity();
+        assert_eq!(read_buffer.as_slice(), large_payload.as_bytes());
+
+        ssg_read_source_file_bytes(small_path.as_str(), &mut read_buffer).unwrap();
+        assert_eq!(read_buffer.as_slice(), small_payload.as_bytes());
+        assert!(
+            read_buffer.capacity() >= large_capacity,
+            "buffer capacity should be retained across reused reads"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+    }
+
+    #[test]
     fn test_ssg_run_rayon_read_render_write_checksum_matches_written_bytes() {
         let input_dir = unique_temp_dir("ruff_rayon_rrw_checksum_input");
         let output_dir = unique_temp_dir("ruff_rayon_rrw_checksum_output");
@@ -4359,6 +4386,50 @@ mod tests {
         assert!(rendered_bytes.starts_with(b"<html><body><h1>Post 0</h1><article>"));
         assert!(rendered_bytes.ends_with(SSG_HTML_SUFFIX.as_bytes()));
         assert!(rendered_bytes.windows(source_bytes.len()).any(|window| window == source_bytes));
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_mixed_source_sizes_preserve_page_isolation() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_mixed_sizes_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_mixed_sizes_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let large_marker = "LARGE-PAYLOAD-MARKER";
+        let tiny_marker = "tiny-marker";
+        let source_large = format!("{}/post_0.md", input_dir);
+        let source_tiny = format!("{}/post_1.md", input_dir);
+        let source_medium = format!("{}/post_2.md", input_dir);
+        let large_body = format!("{}\n{}", large_marker, "x".repeat(16000));
+        let medium_body = "medium-body-123".repeat(16);
+        fs::write(&source_large, large_body.as_bytes()).unwrap();
+        fs::write(&source_tiny, tiny_marker.as_bytes()).unwrap();
+        fs::write(&source_medium, medium_body.as_bytes()).unwrap();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 3);
+
+        let (_checksum, read_ms, render_write_ms) = ssg_run_rayon_read_render_write(
+            vec![source_large, source_tiny, source_medium],
+            output_paths,
+            render_prefixes,
+            3,
+            true,
+        )
+        .unwrap();
+
+        assert!(read_ms >= 0.0);
+        assert!(render_write_ms >= 0.0);
+
+        let tiny_output = fs::read_to_string(format!("{}/post_1.html", output_dir)).unwrap();
+        assert!(tiny_output.contains(tiny_marker));
+        assert!(
+            !tiny_output.contains(large_marker),
+            "tiny output must not leak content from larger reused buffers"
+        );
 
         let _ = fs::remove_dir_all(&input_dir);
         let _ = fs::remove_dir_all(&output_dir);
