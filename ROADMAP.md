@@ -295,6 +295,12 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added `RUFF_SCHEDULER_TIMEOUT_MS` override support (default `120000`) for tuning heavy async workload completion budgets.
     - Added comprehensive VM regression coverage for timeout completion success, zero-timeout validation, and timeout-exhaustion error contracts.
 
+- **SSG Throughput Follow-Through: Opt-In Stage Profiling + Non-Profile Fast Path (✅ Complete, April 2026)**
+    - Wired `bench-ssg --profile-async` intent through benchmark subprocess execution via `RUFF_BENCH_SSG_PROFILE_ASYNC` for both Ruff and Python harness scripts.
+    - Updated cross-language SSG benchmark scripts to emit stage metrics only when profiling is explicitly enabled.
+    - Optimized `ssg_run_rayon_read_render_write(...)` to skip per-file stage timer bookkeeping when profiling is disabled, preserving checksum/file-count contracts while reducing non-profile measurement overhead.
+    - Added focused harness and native-pipeline regression coverage for profile-toggle propagation and no-stage-timer behavior.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -560,4 +566,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
-*Last Updated: March 15, 2026*
+*Last Updated: April 28, 2026*

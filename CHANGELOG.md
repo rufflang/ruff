@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: Opt-In Stage Profiling for `bench-ssg` (v0.11.0 P0)**:
+  - Wired `ruff bench-ssg --profile-async` into benchmark subprocess execution through `RUFF_BENCH_SSG_PROFILE_ASYNC` so stage profiling intent is propagated to both Ruff and Python SSG harness scripts.
+  - Updated `benchmarks/cross-language/bench_ssg.ruff` and `benchmarks/cross-language/bench_ssg.py` to emit stage metrics (`*_READ_MS`, `*_RENDER_WRITE_MS`) only when profiling is enabled, preserving default throughput runs as measurement-focused.
+  - Optimized `ssg_run_rayon_read_render_write(...)` with a no-stage-timer fast path for non-profile runs, skipping per-file stage `Instant` timing overhead while preserving checksum/file-count output contracts.
+  - Added comprehensive regression coverage for profile-toggle propagation and non-profile stage-timer bypass behavior in benchmark harness and native pipeline tests.
+
 - **SSG Throughput Gate Enforcement for Release-Trajectory Tracking (v0.11.0 P0)**:
   - Added optional `ruff bench-ssg --throughput-gate-ms <MILLISECONDS>` support to enforce Ruff median build-time targets directly in benchmark runs.
   - Added deterministic gate evaluation helpers in `src/benchmarks/ssg.rs`:
