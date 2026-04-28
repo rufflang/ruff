@@ -13,3 +13,4 @@ High-signal session notes:
 - `2026-02-16_20-23_release-hardening-strict-arity-follow-through-slices.md` — Strict-arity + fallback contract preservation.
 - `2026-03-12_10-43_ssg-read-render-write-fusion-follow-through.md` — SSG helper contract preservation during perf refactors.
 - `2026-03-19_07-47_ssg-rayon-pool-cache-and-timing-test-stability.md` — Benchmark timing-test stability rules.
+- `2026-04-27_22-31_bench-ssg-range-spread-warnings.md` — Range-spread warning contracts and threshold-wiring gotchas.

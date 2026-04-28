@@ -22,7 +22,9 @@
 - **Benchmark trend tracking**: `ruff bench-ssg` now reports first-to-last measured-run trend deltas for Ruff build-time/throughput and, when enabled, Python build-time/throughput plus Ruff-vs-Python speedup for clearer directional run-series interpretation.
 - **Benchmark trend stability warnings**: `ruff bench-ssg` now emits trend-drift warnings when first-to-last measured-run percent deltas exceed `10%`, helping flag directional instability in measured series interpretation.
 - **Benchmark distribution-skew warnings**: `ruff bench-ssg` now emits measurement-quality warnings when measured-run mean/median drift exceeds `7.5%`, helping flag skewed run distributions that can make median-only interpretation misleading.
+- **Benchmark range-spread warnings**: `ruff bench-ssg` now emits measurement-quality warnings when min/max run spread relative to median is high (default threshold: `42.0%`), helping highlight unstable tail behavior in measured runs.
 - **Benchmark warning-threshold overrides**: `ruff bench-ssg` now supports per-run threshold flags for variability, trend, and mean/median drift warning sensitivity tuning.
+- **Benchmark spread-threshold override**: `ruff bench-ssg` now supports `--range-spread-warning-threshold <PERCENT>` for tuning range-spread warning sensitivity during local or CI benchmark runs.
 - **Benchmark warning guidance presentation**: warning sections now include active threshold values and operator hints that point directly to threshold-tuning flags for quick follow-up runs.
 - **Latest throughput follow-through**: `ssg_render_and_write_pages(...)` now renders inside bounded async write workers (no serial pre-render buffer) while preserving checksum/file-count contracts.
 - **Latest throughput fusion step**: `ssg_read_render_and_write_pages(...)` now fuses file reads with render/write in the timed SSG path while preserving checksum/file-count equivalence and stage-profile visibility.

@@ -190,6 +190,11 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added `bench-ssg` measurement-quality warning output when high-variance run distributions are detected (threshold: `5%`).
     - Added comprehensive regression coverage for warning emission and suppression contracts across high/low-variance and low-run-count scenarios.
 
+- **Benchmark Stability: Range-Spread Warning Signals (✅ Complete, April 2026)**
+    - Added `bench-ssg` measurement-quality warnings for high min/max-to-median run spread to better surface tail instability in measured run series.
+    - Added `bench-ssg --range-spread-warning-threshold <PERCENT>` override support (default: `42.0`) for tuning spread-warning sensitivity.
+    - Added focused regression coverage for range-spread metric calculation, threshold override behavior, warning formatting, and operator guidance output.
+
 - **Benchmark Stability: Measured-Run Trend Tracking (✅ Complete, March 2026)**
     - Added first-to-last measured-run trend analysis and reporting for Ruff build-time and throughput metrics in `bench-ssg` summaries.
     - Added optional Python build-time/throughput and Ruff-vs-Python speedup trend reporting when cross-language comparison data is available.

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Benchmark Stability: Range-Spread Warning Signals for Run-Quality Interpretation (v0.11.0 P0)**:
+  - Added range-spread warning analysis to `bench-ssg` measurement-quality reporting so extreme min/max-to-median run spread is surfaced alongside CV and mean/median drift signals.
+  - Added `--range-spread-warning-threshold <PERCENT>` to tune range-spread warning sensitivity per run (default: `42.0`).
+  - Extended warning header and operator guidance output to include active range-spread threshold visibility and threshold-tuning hints.
+  - Added `SsgRunStatistics` range-spread helper APIs and warning collectors:
+    - `range_spread_percent(...)`
+    - `is_high_range_spread(...)`
+    - `collect_ssg_range_spread_warnings_with_threshold(...)`
+  - Added comprehensive regression coverage for range-spread computation, warning threshold behavior, warning-header output, and operator-hint flag visibility.
+
 - **Async Scheduler Timeout Budget for Long-Running Cooperative Workloads (v0.11.0 P0)**:
   - Added `VM::run_scheduler_until_complete_with_timeout(Duration)` in `src/vm.rs` so cooperative execution can complete pending async contexts within a wall-clock timeout budget instead of a fixed scheduler-round budget.
   - Updated the CLI VM execution path in `src/main.rs` to use timeout-based scheduler completion after suspension, replacing the previous fixed 1000-round limit.
