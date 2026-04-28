@@ -96,12 +96,21 @@ fn ssg_get_or_build_output_file_suffixes(file_count: usize) -> Arc<Vec<Arc<str>>
     new_suffixes
 }
 
+fn ssg_get_cached_output_suffixes_and_prefixes(
+    file_count: usize,
+) -> (Arc<Vec<Arc<str>>>, Arc<Vec<Arc<str>>>) {
+    (
+        ssg_get_or_build_output_file_suffixes(file_count),
+        ssg_get_or_build_render_prefixes(file_count),
+    )
+}
+
 fn ssg_build_output_paths_and_prefixes_for_batch(
     output_dir: &str,
     file_count: usize,
 ) -> (Vec<String>, Arc<Vec<Arc<str>>>) {
-    let output_file_suffixes = ssg_get_or_build_output_file_suffixes(file_count);
-    let render_prefixes = ssg_get_or_build_render_prefixes(file_count);
+    let (output_file_suffixes, render_prefixes) =
+        ssg_get_cached_output_suffixes_and_prefixes(file_count);
     let mut paths = Vec::with_capacity(file_count);
 
     for suffix in output_file_suffixes.iter() {
@@ -322,6 +331,7 @@ fn ssg_stage_profile_enabled_from_env() -> bool {
     }
 }
 
+#[cfg(test)]
 fn ssg_run_rayon_read_render_write(
     source_paths: Vec<String>,
     output_paths: Vec<String>,
@@ -389,6 +399,101 @@ fn ssg_run_rayon_read_render_write(
                     Ok::<(i64, u64, u64), String>((written_bytes as i64, read_ns, rw_ns))
                 },
             )
+            .try_fold(
+                || (0i64, 0u64, 0u64),
+                |(checksum_acc, read_ns_acc, rw_ns_acc), item| {
+                    let (checksum, read_ns, rw_ns) = item?;
+                    Ok::<(i64, u64, u64), String>((
+                        checksum_acc + checksum,
+                        read_ns_acc + read_ns,
+                        rw_ns_acc + rw_ns,
+                    ))
+                },
+            )
+            .try_reduce(
+                || (0i64, 0u64, 0u64),
+                |left, right| {
+                    Ok::<(i64, u64, u64), String>((
+                        left.0 + right.0,
+                        left.1 + right.1,
+                        left.2 + right.2,
+                    ))
+                },
+            )
+    })?;
+
+    let read_ms = total_read_ns as f64 / 1_000_000.0;
+    let render_write_ms = total_rw_ns as f64 / 1_000_000.0;
+    Ok((checksum, read_ms, render_write_ms))
+}
+
+fn ssg_run_rayon_read_render_write_with_reused_output_path_buffer(
+    source_paths: Vec<String>,
+    output_dir: String,
+    output_file_suffixes: Arc<Vec<Arc<str>>>,
+    render_prefixes: Arc<Vec<Arc<str>>>,
+    concurrency_limit: usize,
+    collect_stage_metrics: bool,
+) -> Result<(i64, f64, f64), String> {
+    if source_paths.len() != output_file_suffixes.len()
+        || source_paths.len() != render_prefixes.len()
+    {
+        return Err(format!(
+            "ssg_read_render_and_write_pages() internal SSG batch shape mismatch (sources={}, output_suffixes={}, prefixes={})",
+            source_paths.len(),
+            output_file_suffixes.len(),
+            render_prefixes.len()
+        ));
+    }
+
+    let cpu_cap = ssg_rayon_cpu_cap();
+    let rayon_threads = concurrency_limit.min(cpu_cap).max(1);
+    let pool = ssg_get_or_create_rayon_pool(rayon_threads)?;
+    let output_dir = Arc::new(output_dir);
+
+    let suffix_max_len = output_file_suffixes.iter().map(|suffix| suffix.len()).max().unwrap_or(0);
+    let output_path_capacity = output_dir.len().saturating_add(1).saturating_add(suffix_max_len);
+
+    let (checksum, total_read_ns, total_rw_ns) = pool.install(|| {
+        source_paths
+            .into_par_iter()
+            .zip(output_file_suffixes.par_iter())
+            .zip(render_prefixes.par_iter())
+            .enumerate()
+            .map_init(move || (Vec::<u8>::new(), String::with_capacity(output_path_capacity)), {
+                let output_dir = output_dir.clone();
+                move |(read_buffer, output_path_buffer): &mut (Vec<u8>, String),
+                      (index, ((source_path, output_suffix), render_prefix))| {
+                    output_path_buffer.clear();
+                    output_path_buffer.push_str(output_dir.as_str());
+                    output_path_buffer.push('/');
+                    output_path_buffer.push_str(output_suffix.as_ref());
+
+                    let read_start = collect_stage_metrics.then(Instant::now);
+                    ssg_read_source_file_bytes(source_path.as_str(), read_buffer).map_err(|e| {
+                        format!("Failed to read file '{}' (index {}): {}", source_path, index, e)
+                    })?;
+                    let read_ns =
+                        read_start.map(|start| start.elapsed().as_nanos() as u64).unwrap_or(0);
+
+                    let rw_start = collect_stage_metrics.then(Instant::now);
+                    let written_bytes = ssg_write_rendered_html_page_sync_bytes(
+                        output_path_buffer.as_str(),
+                        render_prefix.as_ref().as_bytes(),
+                        read_buffer.as_slice(),
+                    )
+                    .map_err(|e| {
+                        format!(
+                            "Failed to write file '{}' (index {}): {}",
+                            output_path_buffer, index, e
+                        )
+                    })?;
+                    let rw_ns =
+                        rw_start.map(|start| start.elapsed().as_nanos() as u64).unwrap_or(0);
+
+                    Ok::<(i64, u64, u64), String>((written_bytes as i64, read_ns, rw_ns))
+                }
+            })
             .try_fold(
                 || (0i64, 0u64, 0u64),
                 |(checksum_acc, read_ns_acc, rw_ns_acc), item| {
@@ -1536,8 +1641,8 @@ pub fn handle(
 
             let file_count = source_paths.len();
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
-            let (output_paths_vec, render_prefixes_vec) =
-                ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+            let (output_suffixes_vec, render_prefixes_vec) =
+                ssg_get_cached_output_suffixes_and_prefixes(file_count);
             let collect_stage_metrics = ssg_stage_profile_enabled_from_env();
 
             let (tx, rx) = tokio::sync::oneshot::channel();
@@ -1546,9 +1651,10 @@ pub fn handle(
             // Tokio runtime thread is not blocked during synchronous I/O.
             AsyncRuntime::spawn_task(async move {
                 let blocking_result = tokio::task::spawn_blocking(move || {
-                    ssg_run_rayon_read_render_write(
+                    ssg_run_rayon_read_render_write_with_reused_output_path_buffer(
                         source_paths,
-                        output_paths_vec,
+                        output_dir,
+                        output_suffixes_vec,
                         render_prefixes_vec,
                         effective_batch_size,
                         collect_stage_metrics,
