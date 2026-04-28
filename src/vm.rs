@@ -850,6 +850,47 @@ impl VM {
         ))
     }
 
+    /// Run the cooperative scheduler until all contexts complete or a timeout is reached.
+    ///
+    /// Returns an error when pending contexts remain after the timeout budget elapses.
+    pub fn run_scheduler_until_complete_with_timeout(
+        &mut self,
+        timeout: std::time::Duration,
+    ) -> Result<(), String> {
+        if timeout.is_zero() {
+            return Err("Scheduler timeout must be greater than 0ms".to_string());
+        }
+
+        let start = std::time::Instant::now();
+        let mut rounds: usize = 0;
+
+        loop {
+            if 0 == self.pending_execution_context_count() {
+                return Ok(());
+            }
+
+            if start.elapsed() >= timeout {
+                return Err(format!(
+                    "Scheduler timed out after {}ms ({} rounds, {} pending)",
+                    timeout.as_millis(),
+                    rounds,
+                    self.pending_execution_context_count()
+                ));
+            }
+
+            let round_result = self.run_scheduler_round()?;
+            rounds += 1;
+
+            if 0 == round_result.pending_contexts {
+                return Ok(());
+            }
+
+            if 0 == round_result.completed_contexts {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
+    }
+
     /// Execute a bytecode chunk
     pub fn execute(&mut self, chunk: BytecodeChunk) -> Result<Value, String> {
         let _hashmap_profile_guard = HashMapProfileGuard::new();

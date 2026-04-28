@@ -172,6 +172,18 @@ enum Commands {
     },
 }
 
+const DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS: u64 = 120_000;
+
+fn cooperative_scheduler_timeout() -> std::time::Duration {
+    match std::env::var("RUFF_SCHEDULER_TIMEOUT_MS") {
+        Ok(raw_timeout_ms) => match raw_timeout_ms.parse::<u64>() {
+            Ok(timeout_ms) if timeout_ms > 0 => std::time::Duration::from_millis(timeout_ms),
+            _ => std::time::Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS),
+        },
+        Err(_) => std::time::Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -239,9 +251,12 @@ async fn main() {
                             let exec_result = match vm.execute_until_suspend(chunk.clone()) {
                                 Ok(vm::VmExecutionResult::Completed) => Ok(()),
                                 Ok(vm::VmExecutionResult::Suspended { .. }) => {
-                                    // Run scheduler until all contexts complete
-                                    // Use a reasonable round limit to avoid infinite loops
-                                    vm.run_scheduler_until_complete(1000)
+                                    // Run scheduler until all contexts complete.
+                                    // Use a timeout budget so long-running async workloads
+                                    // can complete without relying on a fixed round count.
+                                    vm.run_scheduler_until_complete_with_timeout(
+                                        cooperative_scheduler_timeout(),
+                                    )
                                 }
                                 Err(e) => Err(e),
                             };
