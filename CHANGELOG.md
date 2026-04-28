@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: Per-Worker Read-Buffer Reuse in Rayon Hot Path (v0.11.0 P0)**:
+  - Optimized `ssg_run_rayon_read_render_write(...)` to reuse per-worker source-read buffers (`rayon::map_init`) instead of allocating a new `Vec<u8>` per file via `std::fs::read(...)`.
+  - Added `ssg_read_source_file_bytes(...)` and migrated the Rayon read lane to clear-and-refill reusable buffers before sync vectored write progression.
+  - Preserved benchmark-facing contracts (`checksum`/`files`/`read_ms`/`render_write_ms`) and existing read/write failure message shapes.
+  - Added focused regression coverage for:
+    - large→small reused-buffer read truncation correctness
+    - mixed-source-size page-isolation (no content bleed between outputs)
+
 - **SSG Throughput Follow-Through: Opt-In Stage Profiling for `bench-ssg` (v0.11.0 P0)**:
   - Wired `ruff bench-ssg --profile-async` into benchmark subprocess execution through `RUFF_BENCH_SSG_PROFILE_ASYNC` so stage profiling intent is propagated to both Ruff and Python SSG harness scripts.
   - Updated `benchmarks/cross-language/bench_ssg.ruff` and `benchmarks/cross-language/bench_ssg.py` to emit stage metrics (`*_READ_MS`, `*_RENDER_WRITE_MS`) only when profiling is enabled, preserving default throughput runs as measurement-focused.
