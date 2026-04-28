@@ -4,12 +4,14 @@ use std::process::Command;
 pub const SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT: f64 = 5.0;
 pub const SSG_TREND_WARNING_THRESHOLD_PERCENT: f64 = 10.0;
 pub const SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT: f64 = 7.5;
+pub const SSG_RANGE_SPREAD_WARNING_THRESHOLD_PERCENT: f64 = 42.0;
 
 #[derive(Debug, Clone, Copy)]
 pub struct SsgWarningThresholds {
     pub variability_percent: f64,
     pub trend_percent: f64,
     pub mean_median_drift_percent: f64,
+    pub range_spread_percent: f64,
 }
 
 impl Default for SsgWarningThresholds {
@@ -18,15 +20,17 @@ impl Default for SsgWarningThresholds {
             variability_percent: SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT,
             trend_percent: SSG_TREND_WARNING_THRESHOLD_PERCENT,
             mean_median_drift_percent: SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT,
+            range_spread_percent: SSG_RANGE_SPREAD_WARNING_THRESHOLD_PERCENT,
         }
     }
 }
 
 pub fn format_ssg_measurement_warning_header(thresholds: SsgWarningThresholds) -> String {
     format!(
-        "Measurement quality warnings (CV >= {:.2}%, mean/median drift >= {:.2}%):",
+        "Measurement quality warnings (CV >= {:.2}%, mean/median drift >= {:.2}%, range spread >= {:.2}%):",
         thresholds.variability_percent.max(0.0),
-        thresholds.mean_median_drift_percent.max(0.0)
+        thresholds.mean_median_drift_percent.max(0.0),
+        thresholds.range_spread_percent.max(0.0)
     )
 }
 
@@ -39,11 +43,13 @@ pub fn collect_ssg_warning_operator_hints(thresholds: SsgWarningThresholds) -> V
         "Tune CV sensitivity with --variability-warning-threshold <PERCENT>".to_string(),
         "Tune trend sensitivity with --trend-warning-threshold <PERCENT>".to_string(),
         "Tune skew sensitivity with --mean-median-drift-warning-threshold <PERCENT>".to_string(),
+        "Tune range-spread sensitivity with --range-spread-warning-threshold <PERCENT>".to_string(),
         format!(
-            "Current thresholds: CV {:.2}%, trend {:.2}%, mean/median {:.2}%",
+            "Current thresholds: CV {:.2}%, trend {:.2}%, mean/median {:.2}%, range spread {:.2}%",
             thresholds.variability_percent.max(0.0),
             thresholds.trend_percent.max(0.0),
-            thresholds.mean_median_drift_percent.max(0.0)
+            thresholds.mean_median_drift_percent.max(0.0),
+            thresholds.range_spread_percent.max(0.0)
         ),
     ]
 }
@@ -157,6 +163,28 @@ impl SsgRunStatistics {
         }
 
         self.mean_median_drift_percent().is_some_and(|drift| drift >= threshold_percent.max(0.0))
+    }
+
+    pub fn range_spread_percent(&self) -> Option<(f64, f64)> {
+        let median_abs = self.median.abs();
+        if median_abs <= f64::EPSILON {
+            return None;
+        }
+
+        let lower_percent = ((self.median - self.min).abs() / median_abs) * 100.0;
+        let upper_percent = ((self.max - self.median).abs() / median_abs) * 100.0;
+        Some((lower_percent, upper_percent))
+    }
+
+    pub fn is_high_range_spread(&self, threshold_percent: f64) -> bool {
+        if self.runs < 3 {
+            return false;
+        }
+
+        self.range_spread_percent().is_some_and(|(lower, upper)| {
+            let threshold = threshold_percent.max(0.0);
+            lower >= threshold || upper >= threshold
+        })
     }
 }
 
@@ -652,6 +680,84 @@ pub fn collect_ssg_mean_median_drift_warnings_with_threshold(
             speedup,
             threshold,
         );
+    }
+
+    warnings
+}
+
+fn collect_range_spread_warning(
+    warnings: &mut Vec<String>,
+    label: &str,
+    stats: &SsgRunStatistics,
+    threshold_percent: f64,
+) {
+    if stats.is_high_range_spread(threshold_percent) {
+        if let Some((lower_percent, upper_percent)) = stats.range_spread_percent() {
+            warnings.push(format!(
+                "{} range spread is high (lower {:.2}%, upper {:.2}% >= {:.2}%; min {:.3}, median {:.3}, max {:.3}, runs {})",
+                label,
+                lower_percent,
+                upper_percent,
+                threshold_percent,
+                stats.min,
+                stats.median,
+                stats.max,
+                stats.runs
+            ));
+        }
+    }
+}
+
+pub fn collect_ssg_range_spread_warnings_with_threshold(
+    summary: &SsgBenchmarkAggregateResult,
+    threshold_percent: f64,
+) -> Vec<String> {
+    let threshold = threshold_percent.max(0.0);
+    let mut warnings = Vec::new();
+
+    collect_range_spread_warning(
+        &mut warnings,
+        "Ruff build time",
+        &summary.ruff_build_ms,
+        threshold,
+    );
+    collect_range_spread_warning(
+        &mut warnings,
+        "Ruff throughput",
+        &summary.ruff_files_per_sec,
+        threshold,
+    );
+
+    if let Some(profile) = summary.ruff_stage_profile.as_ref() {
+        collect_range_spread_warning(&mut warnings, "Ruff read stage", &profile.read_ms, threshold);
+        collect_range_spread_warning(
+            &mut warnings,
+            "Ruff render/write stage",
+            &profile.render_write_ms,
+            threshold,
+        );
+    }
+
+    if let Some(python_build_ms) = summary.python_build_ms.as_ref() {
+        collect_range_spread_warning(
+            &mut warnings,
+            "Python build time",
+            python_build_ms,
+            threshold,
+        );
+    }
+
+    if let Some(python_files_per_sec) = summary.python_files_per_sec.as_ref() {
+        collect_range_spread_warning(
+            &mut warnings,
+            "Python throughput",
+            python_files_per_sec,
+            threshold,
+        );
+    }
+
+    if let Some(speedup) = summary.ruff_vs_python_speedup.as_ref() {
+        collect_range_spread_warning(&mut warnings, "Ruff vs Python speedup", speedup, threshold);
     }
 
     warnings
@@ -1290,6 +1396,20 @@ mod tests {
     }
 
     #[test]
+    fn test_run_statistics_range_spread_percent() {
+        let stats = SsgRunStatistics::from_samples(&[80.0, 100.0, 140.0]).unwrap();
+        let (lower, upper) = stats.range_spread_percent().unwrap();
+        assert!((lower - 20.0).abs() < 0.0001);
+        assert!((upper - 40.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_run_statistics_range_spread_percent_zero_median_returns_none() {
+        let stats = SsgRunStatistics::from_samples(&[0.0, 0.0, 0.0]).unwrap();
+        assert!(stats.range_spread_percent().is_none());
+    }
+
+    #[test]
     fn test_run_statistics_high_variability_requires_three_runs() {
         let stats = SsgRunStatistics {
             runs: 2,
@@ -1463,10 +1583,12 @@ mod tests {
             variability_percent: 6.5,
             trend_percent: 12.0,
             mean_median_drift_percent: 9.25,
+            range_spread_percent: 42.0,
         });
 
         assert!(header.contains("CV >= 6.50%"));
         assert!(header.contains("mean/median drift >= 9.25%"));
+        assert!(header.contains("range spread >= 42.00%"));
     }
 
     #[test]
@@ -1475,6 +1597,7 @@ mod tests {
             variability_percent: 6.5,
             trend_percent: 12.0,
             mean_median_drift_percent: 9.25,
+            range_spread_percent: 42.0,
         });
 
         assert!(header.contains("drift >= 12.00%"));
@@ -1486,16 +1609,17 @@ mod tests {
             variability_percent: 6.5,
             trend_percent: 12.0,
             mean_median_drift_percent: 9.25,
+            range_spread_percent: 42.0,
         });
 
-        assert_eq!(hints.len(), 4);
+        assert_eq!(hints.len(), 5);
         assert!(hints.iter().any(|hint| hint.contains("--variability-warning-threshold")));
         assert!(hints.iter().any(|hint| hint.contains("--trend-warning-threshold")));
         assert!(hints.iter().any(|hint| hint.contains("--mean-median-drift-warning-threshold")));
-        assert!(hints
-            .iter()
-            .any(|hint| hint
-                .contains("Current thresholds: CV 6.50%, trend 12.00%, mean/median 9.25%")));
+        assert!(hints.iter().any(|hint| hint.contains("--range-spread-warning-threshold")));
+        assert!(hints.iter().any(|hint| hint.contains(
+            "Current thresholds: CV 6.50%, trend 12.00%, mean/median 9.25%, range spread 42.00%"
+        )));
     }
 
     #[test]
@@ -1614,6 +1738,93 @@ mod tests {
 
         let lowered_threshold_warnings =
             collect_ssg_mean_median_drift_warnings_with_threshold(&summary, 5.0);
+        assert_eq!(lowered_threshold_warnings.len(), 1);
+        assert!(lowered_threshold_warnings
+            .iter()
+            .any(|warning| warning.contains("Ruff build time")));
+    }
+
+    #[test]
+    fn test_collect_ssg_range_spread_warnings_flags_high_spread_metrics() {
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: SsgRunStatistics {
+                runs: 4,
+                mean: 160.0,
+                median: 100.0,
+                p90: 220.0,
+                p95: 250.0,
+                min: 60.0,
+                max: 300.0,
+                stddev: 90.0,
+            },
+            ruff_files_per_sec: SsgRunStatistics {
+                runs: 4,
+                mean: 1000.0,
+                median: 1000.0,
+                p90: 1002.0,
+                p95: 1003.0,
+                min: 998.0,
+                max: 1004.0,
+                stddev: 2.0,
+            },
+            ruff_stage_profile: None,
+            python_build_ms: None,
+            python_files_per_sec: None,
+            python_stage_profile: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let warnings = collect_ssg_range_spread_warnings_with_threshold(
+            &summary,
+            SSG_RANGE_SPREAD_WARNING_THRESHOLD_PERCENT,
+        );
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings.iter().any(|warning| warning.contains("Ruff build time")));
+        assert!(warnings.iter().all(|warning| warning.contains("range spread is high")));
+    }
+
+    #[test]
+    fn test_collect_ssg_range_spread_warnings_respects_threshold_override() {
+        let summary = SsgBenchmarkAggregateResult {
+            files: 100,
+            ruff_checksum: 42,
+            ruff_build_ms: SsgRunStatistics {
+                runs: 4,
+                mean: 125.0,
+                median: 100.0,
+                p90: 140.0,
+                p95: 145.0,
+                min: 80.0,
+                max: 130.0,
+                stddev: 20.0,
+            },
+            ruff_files_per_sec: SsgRunStatistics {
+                runs: 4,
+                mean: 1000.0,
+                median: 1000.0,
+                p90: 1001.0,
+                p95: 1001.5,
+                min: 999.0,
+                max: 1002.0,
+                stddev: 1.0,
+            },
+            ruff_stage_profile: None,
+            python_build_ms: None,
+            python_files_per_sec: None,
+            python_stage_profile: None,
+            ruff_vs_python_speedup: None,
+        };
+
+        let default_warnings = collect_ssg_range_spread_warnings_with_threshold(
+            &summary,
+            SSG_RANGE_SPREAD_WARNING_THRESHOLD_PERCENT,
+        );
+        assert!(default_warnings.is_empty());
+
+        let lowered_threshold_warnings =
+            collect_ssg_range_spread_warnings_with_threshold(&summary, 25.0);
         assert_eq!(lowered_threshold_warnings.len(), 1);
         assert!(lowered_threshold_warnings
             .iter()

@@ -147,6 +147,10 @@ enum Commands {
         /// Percent threshold for mean-vs-median drift warnings
         #[arg(long, default_value_t = benchmarks::ssg::SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT)]
         mean_median_drift_warning_threshold: f64,
+
+        /// Percent threshold for min/max range-spread warnings relative to median
+        #[arg(long, default_value_t = benchmarks::ssg::SSG_RANGE_SPREAD_WARNING_THRESHOLD_PERCENT)]
+        range_spread_warning_threshold: f64,
     },
 
     /// Profile a Ruff script (CPU, memory, JIT stats)
@@ -495,10 +499,12 @@ async fn main() {
             variability_warning_threshold,
             trend_warning_threshold,
             mean_median_drift_warning_threshold,
+            range_spread_warning_threshold,
         } => {
             use benchmarks::ssg::{
                 analyze_ssg_benchmark_trends,
                 collect_ssg_mean_median_drift_warnings_with_threshold,
+                collect_ssg_range_spread_warnings_with_threshold,
                 collect_ssg_trend_warnings_with_threshold,
                 collect_ssg_variability_warnings_with_threshold,
                 collect_ssg_warning_operator_hints, format_ssg_measurement_warning_header,
@@ -540,12 +546,14 @@ async fn main() {
             if variability_warning_threshold < 0.0
                 || trend_warning_threshold < 0.0
                 || mean_median_drift_warning_threshold < 0.0
+                || range_spread_warning_threshold < 0.0
             {
                 eprintln!(
-                    "SSG warning thresholds must be >= 0.0 (got variability={}, trend={}, mean-median={})",
+                    "SSG warning thresholds must be >= 0.0 (got variability={}, trend={}, mean-median={}, range-spread={})",
                     variability_warning_threshold,
                     trend_warning_threshold,
-                    mean_median_drift_warning_threshold
+                    mean_median_drift_warning_threshold,
+                    range_spread_warning_threshold
                 );
                 std::process::exit(1);
             }
@@ -554,6 +562,7 @@ async fn main() {
                 variability_percent: variability_warning_threshold,
                 trend_percent: trend_warning_threshold,
                 mean_median_drift_percent: mean_median_drift_warning_threshold,
+                range_spread_percent: range_spread_warning_threshold,
             };
 
             if warmup_runs > 0 {
@@ -789,12 +798,22 @@ async fn main() {
                 &summary,
                 warning_thresholds.mean_median_drift_percent,
             );
-            if !variability_warnings.is_empty() || !mean_median_drift_warnings.is_empty() {
+            let range_spread_warnings = collect_ssg_range_spread_warnings_with_threshold(
+                &summary,
+                warning_thresholds.range_spread_percent,
+            );
+            if !variability_warnings.is_empty()
+                || !mean_median_drift_warnings.is_empty()
+                || !range_spread_warnings.is_empty()
+            {
                 println!("{}", format_ssg_measurement_warning_header(warning_thresholds));
                 for warning in variability_warnings {
                     println!("  - {}", warning);
                 }
                 for warning in mean_median_drift_warnings {
+                    println!("  - {}", warning);
+                }
+                for warning in range_spread_warnings {
                     println!("  - {}", warning);
                 }
                 for hint in collect_ssg_warning_operator_hints(warning_thresholds) {
