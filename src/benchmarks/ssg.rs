@@ -1678,6 +1678,67 @@ mod tests {
     }
 
     #[test]
+    fn test_evaluate_ssg_throughput_gate_passes_when_median_within_threshold() {
+        let gate = evaluate_ssg_throughput_gate(9_500.0, 10_000.0).unwrap();
+
+        assert!(gate.passed);
+        assert_eq!(gate.threshold_ms, 10_000.0);
+        assert_eq!(gate.observed_median_ms, 9_500.0);
+        assert!((gate.margin_ms - 500.0).abs() < 0.0001);
+        assert!((gate.margin_percent - 5.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_evaluate_ssg_throughput_gate_fails_when_median_exceeds_threshold() {
+        let gate = evaluate_ssg_throughput_gate(10_250.0, 10_000.0).unwrap();
+
+        assert!(!gate.passed);
+        assert!((gate.margin_ms + 250.0).abs() < 0.0001);
+        assert!((gate.margin_percent + 2.5).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_evaluate_ssg_throughput_gate_rejects_invalid_threshold() {
+        let err = evaluate_ssg_throughput_gate(8_000.0, 0.0).unwrap_err();
+        assert!(err.contains("threshold must be finite and > 0.0 ms"));
+    }
+
+    #[test]
+    fn test_evaluate_ssg_throughput_gate_rejects_invalid_observed_median() {
+        let err = evaluate_ssg_throughput_gate(-1.0, 10_000.0).unwrap_err();
+        assert!(err.contains("observed median must be finite and >= 0.0 ms"));
+    }
+
+    #[test]
+    fn test_format_ssg_throughput_gate_summary_reports_status_and_margin() {
+        let passing = SsgThroughputGateStatus {
+            threshold_ms: 10_000.0,
+            observed_median_ms: 9_250.0,
+            margin_ms: 750.0,
+            margin_percent: 7.5,
+            passed: true,
+        };
+        let failing = SsgThroughputGateStatus {
+            threshold_ms: 10_000.0,
+            observed_median_ms: 10_250.0,
+            margin_ms: -250.0,
+            margin_percent: -2.5,
+            passed: false,
+        };
+
+        let pass_summary = format_ssg_throughput_gate_summary(passing);
+        let fail_summary = format_ssg_throughput_gate_summary(failing);
+
+        assert!(pass_summary.contains("Throughput gate [PASS]"));
+        assert!(pass_summary.contains("<= target 10000.000 ms"));
+        assert!(pass_summary.contains("margin +750.000 ms, +7.50%"));
+
+        assert!(fail_summary.contains("Throughput gate [FAIL]"));
+        assert!(fail_summary.contains("> target 10000.000 ms"));
+        assert!(fail_summary.contains("margin -250.000 ms, -2.50%"));
+    }
+
+    #[test]
     fn test_collect_ssg_mean_median_drift_warnings_flags_high_drift_metrics() {
         let summary = SsgBenchmarkAggregateResult {
             files: 100,
