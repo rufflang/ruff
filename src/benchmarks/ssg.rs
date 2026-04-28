@@ -38,6 +38,61 @@ pub fn format_ssg_trend_warning_header(thresholds: SsgWarningThresholds) -> Stri
     format!("Trend stability warnings (drift >= {:.2}%):", thresholds.trend_percent.max(0.0))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SsgThroughputGateStatus {
+    pub threshold_ms: f64,
+    pub observed_median_ms: f64,
+    pub margin_ms: f64,
+    pub margin_percent: f64,
+    pub passed: bool,
+}
+
+pub fn evaluate_ssg_throughput_gate(
+    observed_median_ms: f64,
+    threshold_ms: f64,
+) -> Result<SsgThroughputGateStatus, String> {
+    if !observed_median_ms.is_finite() || observed_median_ms < 0.0 {
+        return Err(format!(
+            "SSG throughput gate observed median must be finite and >= 0.0 ms, got {}",
+            observed_median_ms
+        ));
+    }
+
+    if !threshold_ms.is_finite() || threshold_ms <= 0.0 {
+        return Err(format!(
+            "SSG throughput gate threshold must be finite and > 0.0 ms, got {}",
+            threshold_ms
+        ));
+    }
+
+    let margin_ms = threshold_ms - observed_median_ms;
+    let margin_percent = (margin_ms / threshold_ms) * 100.0;
+    let passed = observed_median_ms <= threshold_ms;
+
+    Ok(SsgThroughputGateStatus {
+        threshold_ms,
+        observed_median_ms,
+        margin_ms,
+        margin_percent,
+        passed,
+    })
+}
+
+pub fn format_ssg_throughput_gate_summary(gate: SsgThroughputGateStatus) -> String {
+    let status_label = if gate.passed { "PASS" } else { "FAIL" };
+    let comparator = if gate.passed { "<=" } else { ">" };
+
+    format!(
+        "Throughput gate [{}]: Ruff median build {:.3} ms {} target {:.3} ms (margin {:+.3} ms, {:+.2}%)",
+        status_label,
+        gate.observed_median_ms,
+        comparator,
+        gate.threshold_ms,
+        gate.margin_ms,
+        gate.margin_percent
+    )
+}
+
 pub fn collect_ssg_warning_operator_hints(thresholds: SsgWarningThresholds) -> Vec<String> {
     vec![
         "Tune CV sensitivity with --variability-warning-threshold <PERCENT>".to_string(),

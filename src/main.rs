@@ -116,6 +116,10 @@ enum Commands {
         #[arg(long, default_value_t = 1)]
         runs: usize,
 
+        /// Optional Ruff median build-time gate in milliseconds (fails command on miss)
+        #[arg(long)]
+        throughput_gate_ms: Option<f64>,
+
         /// Print per-stage timing breakdown and bottleneck summary when available
         #[arg(long, default_value_t = false)]
         profile_async: bool,
@@ -491,6 +495,7 @@ async fn main() {
             ruff_script,
             warmup_runs,
             runs,
+            throughput_gate_ms,
             profile_async,
             compare_python,
             python_script,
@@ -507,7 +512,8 @@ async fn main() {
                 collect_ssg_range_spread_warnings_with_threshold,
                 collect_ssg_trend_warnings_with_threshold,
                 collect_ssg_variability_warnings_with_threshold,
-                collect_ssg_warning_operator_hints, format_ssg_measurement_warning_header,
+                collect_ssg_warning_operator_hints, evaluate_ssg_throughput_gate,
+                format_ssg_measurement_warning_header, format_ssg_throughput_gate_summary,
                 format_ssg_trend_warning_header, SsgStageProfile, SsgTrendMetric,
                 SsgWarningThresholds,
             };
@@ -622,6 +628,23 @@ async fn main() {
                 summary.ruff_files_per_sec.max,
                 summary.ruff_files_per_sec.stddev
             );
+
+            let throughput_gate = if let Some(gate_threshold_ms) = throughput_gate_ms {
+                let gate = match evaluate_ssg_throughput_gate(
+                    summary.ruff_build_ms.median,
+                    gate_threshold_ms,
+                ) {
+                    Ok(gate) => gate,
+                    Err(e) => {
+                        eprintln!("SSG throughput gate validation failed: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                println!("{}", format_ssg_throughput_gate_summary(gate));
+                Some(gate)
+            } else {
+                None
+            };
 
             if profile_async {
                 if let Some(ruff_profile) = summary.ruff_stage_profile.as_ref() {
@@ -818,6 +841,17 @@ async fn main() {
                 }
                 for hint in collect_ssg_warning_operator_hints(warning_thresholds) {
                     println!("  - hint: {}", hint);
+                }
+            }
+
+            if let Some(gate) = throughput_gate {
+                if !gate.passed {
+                    eprintln!(
+                        "SSG throughput gate failed: Ruff median build time {:.3} ms exceeded target {:.3} ms",
+                        gate.observed_median_ms,
+                        gate.threshold_ms
+                    );
+                    std::process::exit(1);
                 }
             }
         }
