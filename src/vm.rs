@@ -6679,10 +6679,68 @@ mod tests {
     }
 
     #[test]
+    fn test_run_scheduler_until_complete_with_timeout_with_pending_async_contexts() {
+        let code_one = r#"
+            p := async_sleep(8)
+            await p
+            return 1
+        "#;
+
+        let code_two = r#"
+            p := async_sleep(12)
+            await p
+            return 2
+        "#;
+
+        let chunk_one = compile_chunk(code_one);
+        let chunk_two = compile_chunk(code_two);
+
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        let context_one = match vm.execute_until_suspend(chunk_one).expect("chunk one run") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("chunk one should suspend"),
+        };
+
+        let context_two = match vm.execute_until_suspend(chunk_two).expect("chunk two run") {
+            VmExecutionResult::Suspended { context_id } => context_id,
+            VmExecutionResult::Completed => panic!("chunk two should suspend"),
+        };
+
+        assert!(vm.has_execution_context(context_one));
+        assert!(vm.has_execution_context(context_two));
+        assert_eq!(vm.pending_execution_context_count(), 2);
+
+        vm.run_scheduler_until_complete_with_timeout(Duration::from_millis(300))
+            .expect("scheduler should complete both contexts");
+
+        assert_eq!(vm.pending_execution_context_count(), 0);
+        assert!(!vm.has_execution_context(context_one));
+        assert!(!vm.has_execution_context(context_two));
+        assert_eq!(vm.active_execution_context_id(), None);
+    }
+
+    #[test]
     fn test_run_scheduler_until_complete_rejects_zero_rounds() {
         let mut vm = VM::new();
         let err = vm.run_scheduler_until_complete(0).expect_err("zero rounds should fail");
         assert!(err.contains("max_rounds"));
+    }
+
+    #[test]
+    fn test_run_scheduler_until_complete_with_timeout_rejects_zero_timeout() {
+        let mut vm = VM::new();
+        let err = vm
+            .run_scheduler_until_complete_with_timeout(Duration::from_millis(0))
+            .expect_err("zero timeout should fail");
+        assert!(err.contains("timeout"));
     }
 
     #[test]
@@ -6740,6 +6798,36 @@ mod tests {
         let err =
             vm.run_scheduler_until_complete(1).expect_err("single round should be insufficient");
         assert!(err.contains("did not complete"));
+        assert!(err.contains("pending"));
+    }
+
+    #[test]
+    fn test_run_scheduler_until_complete_with_timeout_errors_when_budget_exhausted() {
+        let code = r#"
+            p := async_sleep(80)
+            await p
+            return 3
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "async_sleep".to_string(),
+                Value::NativeFunction("async_sleep".to_string()),
+            );
+        }
+
+        match vm.execute_until_suspend(chunk).expect("initial run") {
+            VmExecutionResult::Suspended { .. } => {}
+            VmExecutionResult::Completed => panic!("expected suspension"),
+        }
+
+        let err = vm
+            .run_scheduler_until_complete_with_timeout(Duration::from_millis(1))
+            .expect_err("tiny timeout budget should be insufficient");
+        assert!(err.contains("timed out"));
         assert!(err.contains("pending"));
     }
 
