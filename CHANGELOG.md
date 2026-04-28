@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Gate Enforcement for Release-Trajectory Tracking (v0.11.0 P0)**:
+  - Added optional `ruff bench-ssg --throughput-gate-ms <MILLISECONDS>` support to enforce Ruff median build-time targets directly in benchmark runs.
+  - Added deterministic gate evaluation helpers in `src/benchmarks/ssg.rs`:
+    - `evaluate_ssg_throughput_gate(...)`
+    - `format_ssg_throughput_gate_summary(...)`
+  - `bench-ssg` now prints explicit gate status (`PASS`/`FAIL`) with signed margin in milliseconds and percentage.
+  - `bench-ssg` now exits non-zero when the throughput gate is provided and the Ruff median build time exceeds the configured threshold.
+  - Added comprehensive regression coverage for gate-pass/gate-fail behavior, invalid threshold/median validation, and gate-summary output formatting.
+
 - **SSG Benchmark Stability: Range-Spread Warning Signals for Run-Quality Interpretation (v0.11.0 P0)**:
   - Added range-spread warning analysis to `bench-ssg` measurement-quality reporting so extreme min/max-to-median run spread is surfaced alongside CV and mean/median drift signals.
   - Added `--range-spread-warning-threshold <PERCENT>` to tune range-spread warning sensitivity per run (default: `42.0`).

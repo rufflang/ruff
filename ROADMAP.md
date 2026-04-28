@@ -195,6 +195,12 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Added `bench-ssg --range-spread-warning-threshold <PERCENT>` override support (default: `42.0`) for tuning spread-warning sensitivity.
     - Added focused regression coverage for range-spread metric calculation, threshold override behavior, warning formatting, and operator guidance output.
 
+- **Throughput Gate Enforcement: Median Target Validation in `bench-ssg` (✅ Complete, April 2026)**
+    - Added optional `bench-ssg --throughput-gate-ms <MILLISECONDS>` support for enforcing Ruff median build-time targets directly in benchmark runs.
+    - Added explicit gate summary output (`PASS`/`FAIL`) with signed margin reporting in milliseconds and percent.
+    - Added non-zero exit behavior when the configured throughput gate is missed.
+    - Added comprehensive regression coverage for gate evaluation and output contracts.
+
 - **Benchmark Stability: Measured-Run Trend Tracking (✅ Complete, March 2026)**
     - Added first-to-last measured-run trend analysis and reporting for Ruff build-time and throughput metrics in `bench-ssg` summaries.
     - Added optional Python build-time/throughput and Ruff-vs-Python speedup trend reporting when cross-language comparison data is available.

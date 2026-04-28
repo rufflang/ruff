@@ -26,6 +26,7 @@
 - **Benchmark warning-threshold overrides**: `ruff bench-ssg` now supports per-run threshold flags for variability, trend, and mean/median drift warning sensitivity tuning.
 - **Benchmark spread-threshold override**: `ruff bench-ssg` now supports `--range-spread-warning-threshold <PERCENT>` for tuning range-spread warning sensitivity during local or CI benchmark runs.
 - **Benchmark warning guidance presentation**: warning sections now include active threshold values and operator hints that point directly to threshold-tuning flags for quick follow-up runs.
+- **Benchmark throughput gate enforcement**: `ruff bench-ssg` now supports `--throughput-gate-ms <MILLISECONDS>` to enforce a Ruff median build-time target, print explicit PASS/FAIL gate status with signed margin, and fail the command when the gate is missed.
 - **Latest throughput follow-through**: `ssg_render_and_write_pages(...)` now renders inside bounded async write workers (no serial pre-render buffer) while preserving checksum/file-count contracts.
 - **Latest throughput fusion step**: `ssg_read_render_and_write_pages(...)` now fuses file reads with render/write in the timed SSG path while preserving checksum/file-count equivalence and stage-profile visibility.
 - **Latest throughput streaming step**: `ssg_read_render_and_write_pages(...)` now streams completed reads directly into bounded render/write workers (no full read-stage source-body buffer) while preserving checksum/file-count and stage-metric contracts.
