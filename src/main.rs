@@ -586,6 +586,7 @@ async fn main() {
                 tmp_dir.as_deref(),
                 warmup_runs,
                 runs,
+                profile_async,
             ) {
                 Ok(results) => results,
                 Err(e) => {

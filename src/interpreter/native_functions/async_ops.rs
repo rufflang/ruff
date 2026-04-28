@@ -17,6 +17,7 @@ use tokio::io::AsyncWriteExt;
 const SSG_HTML_PREFIX_START: &str = "<html><body><h1>Post ";
 const SSG_HTML_PREFIX_END: &str = "</h1><article>";
 const SSG_HTML_SUFFIX: &str = "</article></body></html>";
+const SSG_PROFILE_ASYNC_ENV: &str = "RUFF_BENCH_SSG_PROFILE_ASYNC";
 
 static SSG_RAYON_POOL_CACHE: OnceLock<Mutex<HashMap<usize, Arc<rayon::ThreadPool>>>> =
     OnceLock::new();
@@ -262,11 +263,22 @@ fn ssg_get_or_create_rayon_pool(rayon_threads: usize) -> Result<Arc<rayon::Threa
     Ok(new_pool)
 }
 
+fn ssg_stage_profile_enabled_from_env() -> bool {
+    match std::env::var(SSG_PROFILE_ASYNC_ENV) {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            !matches!(normalized.as_str(), "0" | "false" | "off" | "no")
+        }
+        Err(_) => true,
+    }
+}
+
 fn ssg_run_rayon_read_render_write(
     source_paths: Vec<String>,
     output_paths: Vec<String>,
     render_prefixes: Vec<String>,
     concurrency_limit: usize,
+    collect_stage_metrics: bool,
 ) -> Result<(i64, f64, f64), String> {
     if source_paths.len() != output_paths.len() || source_paths.len() != render_prefixes.len() {
         return Err(format!(
@@ -307,13 +319,14 @@ fn ssg_run_rayon_read_render_write(
                 || (0i64, 0u64, 0u64),
                 |(checksum_acc, read_ns_acc, rw_ns_acc),
                  (index, ((source_path, output_path), render_prefix))| {
-                    let read_start = Instant::now();
+                    let read_start = collect_stage_metrics.then(Instant::now);
                     let content = std::fs::read(&source_path).map_err(|e| {
                         format!("Failed to read file '{}' (index {}): {}", source_path, index, e)
                     })?;
-                    let read_ns = read_start.elapsed().as_nanos() as u64;
+                    let read_ns =
+                        read_start.map(|start| start.elapsed().as_nanos() as u64).unwrap_or(0);
 
-                    let rw_start = Instant::now();
+                    let rw_start = collect_stage_metrics.then(Instant::now);
                     let written_bytes = ssg_write_rendered_html_page_sync_bytes(
                         &output_path,
                         render_prefix.as_bytes(),
@@ -322,7 +335,8 @@ fn ssg_run_rayon_read_render_write(
                     .map_err(|e| {
                         format!("Failed to write file '{}' (index {}): {}", output_path, index, e)
                     })?;
-                    let rw_ns = rw_start.elapsed().as_nanos() as u64;
+                    let rw_ns =
+                        rw_start.map(|start| start.elapsed().as_nanos() as u64).unwrap_or(0);
 
                     Ok::<(i64, u64, u64), String>((
                         checksum_acc + written_bytes as i64,
@@ -1469,6 +1483,7 @@ pub fn handle(
             let effective_batch_size = concurrency_limit.min(file_count.max(1));
             let (output_paths_vec, render_prefixes_vec) =
                 ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
+            let collect_stage_metrics = ssg_stage_profile_enabled_from_env();
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -1481,6 +1496,7 @@ pub fn handle(
                         output_paths_vec,
                         render_prefixes_vec,
                         effective_batch_size,
+                        collect_stage_metrics,
                     )
                 })
                 .await;
@@ -4100,6 +4116,7 @@ mod tests {
             output_paths,
             render_prefixes,
             2,
+            true,
         )
         .unwrap();
 
@@ -4143,7 +4160,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 3);
 
         let (checksum, _read_ms, _render_write_ms) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 3)
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 3, true)
                 .unwrap();
 
         let expected_checksum: i64 = (0..3_usize)
@@ -4154,6 +4171,43 @@ mod tests {
             .sum();
 
         assert_eq!(checksum, expected_checksum);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_can_skip_stage_timers() {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_skip_stage_timers_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_skip_stage_timers_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_paths: Vec<String> = (0..4)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                fs::write(&p, format!("# Post {}\n\nGenerated page {}", i, i)).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_paths, render_prefixes) =
+            ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), source_paths.len());
+
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 4, false)
+                .unwrap();
+
+        let expected_checksum: i64 = (0..4_usize)
+            .map(|i| {
+                let path = format!("{}/post_{}.html", output_dir, i);
+                fs::read(path).unwrap().len() as i64
+            })
+            .sum();
+
+        assert_eq!(checksum, expected_checksum);
+        assert_eq!(read_ms, 0.0);
+        assert_eq!(render_write_ms, 0.0);
 
         let _ = fs::remove_dir_all(&input_dir);
         let _ = fs::remove_dir_all(&output_dir);
@@ -4172,6 +4226,7 @@ mod tests {
             output_paths,
             render_prefixes,
             1,
+            true,
         );
 
         assert!(result.is_err(), "Expected error for missing source file");
@@ -4195,7 +4250,7 @@ mod tests {
 
         // Do NOT create missing_output_dir so writes will fail.
         let result =
-            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1);
+            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1, true);
 
         assert!(result.is_err(), "Expected error for missing output directory");
         let msg = result.unwrap_err();
@@ -4221,7 +4276,7 @@ mod tests {
         let output_path = format!("{}/post_0.html", output_dir);
 
         let result =
-            ssg_run_rayon_read_render_write(vec![source], vec![output_path], Vec::new(), 1);
+            ssg_run_rayon_read_render_write(vec![source], vec![output_path], Vec::new(), 1, true);
 
         assert!(result.is_err(), "Expected shape mismatch to return an error");
         let msg = result.unwrap_err();
@@ -4252,6 +4307,7 @@ mod tests {
             output_paths,
             render_prefixes,
             2,
+            true,
         )
         .unwrap();
 
@@ -4280,7 +4336,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
 
         let (checksum, read_ms, render_write_ms) =
-            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1)
+            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1, true)
                 .unwrap();
 
         let rendered_bytes = fs::read(format!("{}/post_0.html", output_dir)).unwrap();
@@ -4314,7 +4370,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), 1);
 
         let (checksum, read_ms, render_write_ms) =
-            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1)
+            ssg_run_rayon_read_render_write(vec![source], output_paths, render_prefixes, 1, true)
                 .unwrap();
 
         assert!(checksum > 0, "checksum must be positive for non-empty content");
@@ -4350,14 +4406,14 @@ mod tests {
         let (out_1, pfx_1) =
             ssg_build_output_paths_and_prefixes_for_batch(output_dir_1.as_str(), 1);
         let (checksum_1, read_ms_1, rw_ms_1) =
-            ssg_run_rayon_read_render_write(vec![source_paths[0].clone()], out_1, pfx_1, 1)
+            ssg_run_rayon_read_render_write(vec![source_paths[0].clone()], out_1, pfx_1, 1, true)
                 .unwrap();
 
         // Multi-file run
         let (out_n, pfx_n) =
             ssg_build_output_paths_and_prefixes_for_batch(output_dir_n.as_str(), file_count);
         let (checksum_n, read_ms_n, rw_ms_n) =
-            ssg_run_rayon_read_render_write(source_paths, out_n, pfx_n, 4).unwrap();
+            ssg_run_rayon_read_render_write(source_paths, out_n, pfx_n, 4, true).unwrap();
 
         assert!(read_ms_1 >= 0.0, "single-file read_ms must be non-negative");
         assert!(rw_ms_1 >= 0.0, "single-file render_write_ms must be non-negative");
@@ -4399,7 +4455,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
 
         let (checksum, read_ms, render_write_ms) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8)
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8, true)
                 .unwrap();
 
         assert!(read_ms >= 0.0);
@@ -4440,7 +4496,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
 
         let (checksum, _, _) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 1)
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 1, true)
                 .unwrap();
 
         assert!(checksum > 0);
@@ -4483,7 +4539,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
 
         let (checksum, read_ms, render_write_ms) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8)
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8, true)
                 .unwrap();
 
         assert!(read_ms >= 0.0);
@@ -4523,7 +4579,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
 
         let result =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8);
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 8, true);
         assert!(result.is_err());
 
         let msg = result.unwrap_err();
@@ -4588,12 +4644,12 @@ mod tests {
         let (out_a, pfx_a) =
             ssg_build_output_paths_and_prefixes_for_batch(output_dir_a.as_str(), file_count);
         let (checksum_a, read_ms_a, render_write_ms_a) =
-            ssg_run_rayon_read_render_write(source_paths.clone(), out_a, pfx_a, 4).unwrap();
+            ssg_run_rayon_read_render_write(source_paths.clone(), out_a, pfx_a, 4, true).unwrap();
 
         let (out_b, pfx_b) =
             ssg_build_output_paths_and_prefixes_for_batch(output_dir_b.as_str(), file_count);
         let (checksum_b, read_ms_b, render_write_ms_b) =
-            ssg_run_rayon_read_render_write(source_paths, out_b, pfx_b, 4).unwrap();
+            ssg_run_rayon_read_render_write(source_paths, out_b, pfx_b, 4, true).unwrap();
 
         assert!(read_ms_a >= 0.0 && render_write_ms_a >= 0.0);
         assert!(read_ms_b >= 0.0 && render_write_ms_b >= 0.0);
@@ -4646,7 +4702,7 @@ mod tests {
         // on any CI or development machine; the pool must clamp and still produce
         // correct results.
         let (checksum, read_ms, render_write_ms) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 256)
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 256, true)
                 .unwrap();
 
         assert!(checksum > 0, "checksum must be positive");
@@ -4692,7 +4748,7 @@ mod tests {
 
         // concurrency_limit=1 is always <= CPU count — must produce correct output.
         let (checksum, read_ms, render_write_ms) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 1)
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 1, true)
                 .unwrap();
 
         assert!(checksum > 0, "checksum must be positive");
@@ -4734,9 +4790,14 @@ mod tests {
         let (output_paths, render_prefixes) =
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
 
-        let (checksum, _, _) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, cpu_cap)
-                .unwrap();
+        let (checksum, _, _) = ssg_run_rayon_read_render_write(
+            source_paths,
+            output_paths,
+            render_prefixes,
+            cpu_cap,
+            true,
+        )
+        .unwrap();
 
         let expected: i64 = (0..file_count)
             .map(|i| {
@@ -4960,6 +5021,7 @@ mod tests {
             output_paths.clone(),
             render_prefixes.clone(),
             1,
+            true,
         )
         .unwrap();
 
@@ -5002,7 +5064,7 @@ mod tests {
             ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
 
         let (checksum, _, _) =
-            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 2)
+            ssg_run_rayon_read_render_write(source_paths, output_paths, render_prefixes, 2, true)
                 .unwrap();
 
         // Expected checksum is the sum of all written HTML byte lengths.
@@ -5046,6 +5108,7 @@ mod tests {
             vec![bad_output.clone()],
             render_prefixes,
             1,
+            true,
         );
 
         assert!(result.is_err(), "Sync-vectored write failure must return Err");
@@ -5082,6 +5145,7 @@ mod tests {
             output_paths.clone(),
             render_prefixes,
             1,
+            true,
         )
         .unwrap();
 

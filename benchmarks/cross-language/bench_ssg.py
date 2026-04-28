@@ -4,9 +4,10 @@ import shutil
 import time
 import os
 from pathlib import Path
+from typing import Optional
 
 
-def run_ssg_benchmark() -> tuple[int, float, float, int, float, float]:
+def run_ssg_benchmark(profile_async: bool) -> tuple[int, float, float, int, Optional[float], Optional[float]]:
     file_count = 10_000
     workspace_root = Path(__file__).resolve().parents[2]
     tmp_root_env = os.environ.get("RUFF_BENCH_SSG_TMP_DIR")
@@ -31,12 +32,16 @@ def run_ssg_benchmark() -> tuple[int, float, float, int, float, float]:
 
         start = time.perf_counter()
 
+        read_stage_start = time.perf_counter() if profile_async else 0.0
         pages = []
         for index in range(file_count):
             source_path = input_dir / f"post_{index}.md"
             pages.append(source_path.read_text(encoding="utf-8"))
-        read_stage_ms = (time.perf_counter() - start) * 1000.0
+        read_stage_ms = (
+            (time.perf_counter() - read_stage_start) * 1000.0 if profile_async else None
+        )
 
+        render_write_stage_start = time.perf_counter() if profile_async else 0.0
         checksum = 0
         for index, page in enumerate(pages):
             html = (
@@ -46,8 +51,11 @@ def run_ssg_benchmark() -> tuple[int, float, float, int, float, float]:
             checksum += len(html)
             output_path = output_dir / f"post_{index}.html"
             output_path.write_text(html, encoding="utf-8")
-
-        render_write_stage_ms = ((time.perf_counter() - start) * 1000.0) - read_stage_ms
+        render_write_stage_ms = (
+            (time.perf_counter() - render_write_stage_start) * 1000.0
+            if profile_async
+            else None
+        )
 
         elapsed_ms = (time.perf_counter() - start) * 1000.0
         files_per_sec = (file_count * 1000.0) / elapsed_ms if elapsed_ms > 0 else 0.0
@@ -65,6 +73,7 @@ def run_ssg_benchmark() -> tuple[int, float, float, int, float, float]:
 
 
 def main() -> None:
+    profile_async = os.environ.get("RUFF_BENCH_SSG_PROFILE_ASYNC", "0") == "1"
     (
         files,
         elapsed_ms,
@@ -72,14 +81,15 @@ def main() -> None:
         checksum,
         read_stage_ms,
         render_write_stage_ms,
-    ) = run_ssg_benchmark()
+    ) = run_ssg_benchmark(profile_async)
 
     print(f"PYTHON_SSG_FILES={files}")
     print(f"PYTHON_SSG_BUILD_MS={elapsed_ms:.6f}")
     print(f"PYTHON_SSG_FILES_PER_SEC={files_per_sec:.6f}")
     print(f"PYTHON_SSG_CHECKSUM={checksum}")
-    print(f"PYTHON_SSG_READ_MS={read_stage_ms:.6f}")
-    print(f"PYTHON_SSG_RENDER_WRITE_MS={render_write_stage_ms:.6f}")
+    if profile_async and read_stage_ms is not None and render_write_stage_ms is not None:
+        print(f"PYTHON_SSG_READ_MS={read_stage_ms:.6f}")
+        print(f"PYTHON_SSG_RENDER_WRITE_MS={render_write_stage_ms:.6f}")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ pub const SSG_VARIABILITY_WARNING_THRESHOLD_PERCENT: f64 = 5.0;
 pub const SSG_TREND_WARNING_THRESHOLD_PERCENT: f64 = 10.0;
 pub const SSG_MEAN_MEDIAN_DRIFT_WARNING_THRESHOLD_PERCENT: f64 = 7.5;
 pub const SSG_RANGE_SPREAD_WARNING_THRESHOLD_PERCENT: f64 = 42.0;
+const SSG_PROFILE_ASYNC_ENV: &str = "RUFF_BENCH_SSG_PROFILE_ASYNC";
 
 #[derive(Debug, Clone, Copy)]
 pub struct SsgWarningThresholds {
@@ -936,12 +937,14 @@ fn run_and_capture_with_optional_tmp_dir(
     args: &[&str],
     working_dir: &Path,
     tmp_dir_override: Option<&str>,
+    profile_async: bool,
 ) -> Result<String, String> {
     let mut command = Command::new(program);
     command.args(args).current_dir(working_dir);
     if let Some(tmp_dir) = tmp_dir_override {
         command.env("RUFF_BENCH_SSG_TMP_DIR", tmp_dir);
     }
+    command.env(SSG_PROFILE_ASYNC_ENV, if profile_async { "1" } else { "0" });
 
     let output = command.output().map_err(|e| format!("Failed to run '{}': {}", program, e))?;
 
@@ -1003,6 +1006,7 @@ pub fn run_ssg_benchmark(
     python_binary: Option<&str>,
     python_script: Option<&Path>,
     tmp_dir: Option<&Path>,
+    profile_async: bool,
 ) -> Result<SsgBenchmarkResult, String> {
     if !ruff_script.exists() {
         return Err(format!("Ruff SSG benchmark script not found: {}", ruff_script.display()));
@@ -1029,6 +1033,7 @@ pub fn run_ssg_benchmark(
         &["run", ruff_script_str],
         &working_dir,
         tmp_dir_override_str,
+        profile_async,
     )?;
 
     let files = parse_metric_usize(&ruff_output, "RUFF_SSG_FILES")?;
@@ -1067,6 +1072,7 @@ pub fn run_ssg_benchmark(
             &[python_script_str],
             &working_dir,
             tmp_dir_override_str,
+            profile_async,
         )?;
         let python_files = parse_metric_usize(&python_output, "PYTHON_SSG_FILES")?;
         let python_build_ms = parse_metric_value(&python_output, "PYTHON_SSG_BUILD_MS")?;
@@ -1113,26 +1119,38 @@ pub fn run_ssg_benchmark_series(
     tmp_dir: Option<&Path>,
     warmup_runs: usize,
     measured_runs: usize,
+    profile_async: bool,
 ) -> Result<Vec<SsgBenchmarkResult>, String> {
     if measured_runs == 0 {
         return Err("SSG benchmark runs must be >= 1".to_string());
     }
 
     for warmup_index in 0..warmup_runs {
-        if let Err(err) =
-            run_ssg_benchmark(ruff_binary, ruff_script, python_binary, python_script, tmp_dir)
-        {
+        if let Err(err) = run_ssg_benchmark(
+            ruff_binary,
+            ruff_script,
+            python_binary,
+            python_script,
+            tmp_dir,
+            profile_async,
+        ) {
             return Err(format!("Warmup run {}/{} failed: {}", warmup_index + 1, warmup_runs, err));
         }
     }
 
     let mut measured_results = Vec::with_capacity(measured_runs);
     for run_index in 0..measured_runs {
-        let result =
-            run_ssg_benchmark(ruff_binary, ruff_script, python_binary, python_script, tmp_dir)
-                .map_err(|err| {
-                    format!("Measured run {}/{} failed: {}", run_index + 1, measured_runs, err)
-                })?;
+        let result = run_ssg_benchmark(
+            ruff_binary,
+            ruff_script,
+            python_binary,
+            python_script,
+            tmp_dir,
+            profile_async,
+        )
+        .map_err(|err| {
+            format!("Measured run {}/{} failed: {}", run_index + 1, measured_runs, err)
+        })?;
         measured_results.push(result);
     }
 
@@ -1214,6 +1232,29 @@ mod tests {
         } else {
             (ruff_binary_path, ruff_script_path, PathBuf::new(), None)
         }
+    }
+
+    #[cfg(unix)]
+    fn create_profile_toggle_harness_fixture(prefix: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+        let test_dir = unique_test_dir(prefix);
+
+        let ruff_script_path = test_dir.join("stub_bench_ssg.ruff");
+        fs::write(&ruff_script_path, "# stub ruff benchmark script\n")
+            .expect("ruff script fixture should be written");
+
+        let python_script_path = test_dir.join("stub_bench_ssg.py");
+        fs::write(&python_script_path, "# stub python benchmark script\n")
+            .expect("python script fixture should be written");
+
+        let ruff_binary_path = test_dir.join("ruff_profile_stub.sh");
+        let ruff_stub_body = "#!/bin/sh\nif [ \"$1\" != \"run\" ]; then\n  echo \"unexpected args: $@\" >&2\n  exit 9\nfi\necho \"RUFF_SSG_FILES=10000\"\necho \"RUFF_SSG_BUILD_MS=100.0\"\necho \"RUFF_SSG_FILES_PER_SEC=1000.0\"\necho \"RUFF_SSG_CHECKSUM=777\"\nif [ \"${RUFF_BENCH_SSG_PROFILE_ASYNC}\" = \"1\" ]; then\n  echo \"RUFF_SSG_READ_MS=10.5\"\n  echo \"RUFF_SSG_RENDER_WRITE_MS=40.5\"\nfi\n";
+        write_stub_executable(&ruff_binary_path, ruff_stub_body);
+
+        let python_binary_path = test_dir.join("python_profile_stub.sh");
+        let python_stub_body = "#!/bin/sh\necho \"PYTHON_SSG_FILES=10000\"\necho \"PYTHON_SSG_BUILD_MS=120.0\"\necho \"PYTHON_SSG_FILES_PER_SEC=900.0\"\necho \"PYTHON_SSG_CHECKSUM=777\"\nif [ \"${RUFF_BENCH_SSG_PROFILE_ASYNC}\" = \"1\" ]; then\n  echo \"PYTHON_SSG_READ_MS=12.0\"\n  echo \"PYTHON_SSG_RENDER_WRITE_MS=52.0\"\nfi\n";
+        write_stub_executable(&python_binary_path, python_stub_body);
+
+        (ruff_binary_path, ruff_script_path, python_binary_path, python_script_path)
     }
 
     #[test]
@@ -2385,6 +2426,7 @@ mod tests {
             None,
             0,
             0,
+            false,
         )
         .unwrap_err();
 
@@ -2426,6 +2468,7 @@ mod tests {
             None,
             2,
             3,
+            false,
         )
         .unwrap();
 
@@ -2455,6 +2498,7 @@ mod tests {
             None,
             1,
             2,
+            false,
         )
         .unwrap_err();
 
@@ -2486,6 +2530,7 @@ mod tests {
             None,
             1,
             2,
+            false,
         )
         .unwrap_err();
 
@@ -2500,10 +2545,56 @@ mod tests {
         let (ruff_binary, ruff_script, _, _) =
             create_basic_harness_fixture("missing_ruff_metric", &ruff_lines, None);
 
-        let err = run_ssg_benchmark(ruff_binary.as_path(), ruff_script.as_path(), None, None, None)
-            .unwrap_err();
+        let err = run_ssg_benchmark(
+            ruff_binary.as_path(),
+            ruff_script.as_path(),
+            None,
+            None,
+            None,
+            false,
+        )
+        .unwrap_err();
 
         assert!(err.contains("Metric 'RUFF_SSG_FILES_PER_SEC' not found in output"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_run_ssg_benchmark_profile_toggle_controls_stage_profile_capture() {
+        let (ruff_binary, ruff_script, python_binary, python_script) =
+            create_profile_toggle_harness_fixture("profile_toggle_capture");
+
+        let baseline = run_ssg_benchmark(
+            ruff_binary.as_path(),
+            ruff_script.as_path(),
+            Some(python_binary.to_str().expect("python stub path should be utf8")),
+            Some(python_script.as_path()),
+            None,
+            false,
+        )
+        .expect("baseline benchmark should succeed");
+
+        assert!(baseline.ruff_stage_profile.is_none());
+        assert!(baseline.python_stage_profile.is_none());
+
+        let profiled = run_ssg_benchmark(
+            ruff_binary.as_path(),
+            ruff_script.as_path(),
+            Some(python_binary.to_str().expect("python stub path should be utf8")),
+            Some(python_script.as_path()),
+            None,
+            true,
+        )
+        .expect("profiled benchmark should succeed");
+
+        let ruff_profile = profiled.ruff_stage_profile.expect("ruff profile should be present");
+        assert!((ruff_profile.read_ms - 10.5).abs() < 0.0001);
+        assert!((ruff_profile.render_write_ms - 40.5).abs() < 0.0001);
+
+        let python_profile =
+            profiled.python_stage_profile.expect("python profile should be present");
+        assert!((python_profile.read_ms - 12.0).abs() < 0.0001);
+        assert!((python_profile.render_write_ms - 52.0).abs() < 0.0001);
     }
 
     #[cfg(unix)]
@@ -2527,6 +2618,7 @@ mod tests {
             Some(python_binary.to_str().expect("python stub path should be utf8")),
             Some(python_script.as_path()),
             None,
+            false,
         )
         .unwrap_err();
 
@@ -2558,6 +2650,7 @@ mod tests {
             Some(python_binary.to_str().expect("python stub path should be utf8")),
             Some(python_script.as_path()),
             None,
+            false,
         )
         .unwrap_err();
 
@@ -2575,6 +2668,7 @@ mod tests {
             None,
             None,
             None,
+            false,
         )
         .unwrap_err();
 
@@ -2600,6 +2694,7 @@ mod tests {
             Some("python3"),
             Some(missing_python_script.as_path()),
             None,
+            false,
         )
         .unwrap_err();
 
