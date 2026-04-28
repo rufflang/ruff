@@ -9,7 +9,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 use std::collections::HashMap;
-use std::io::{Error, ErrorKind, IoSlice, Write};
+use std::io::{Error, ErrorKind, IoSlice, Read, Write};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
@@ -198,6 +198,13 @@ fn ssg_write_rendered_html_page_sync_bytes(
     Ok(total_written)
 }
 
+fn ssg_read_source_file_bytes(source_path: &str, read_buffer: &mut Vec<u8>) -> std::io::Result<()> {
+    read_buffer.clear();
+    let mut source_file = std::fs::File::open(source_path)?;
+    source_file.read_to_end(read_buffer)?;
+    Ok(())
+}
+
 /// Runs a Rayon-parallel single-pass SSG pipeline: each Rayon task reads, renders,
 /// and writes its own file independently, using a single bounded thread pool.
 ///
@@ -315,12 +322,11 @@ fn ssg_run_rayon_read_render_write(
             .zip(output_paths.into_par_iter())
             .zip(render_prefixes.into_par_iter())
             .enumerate()
-            .try_fold(
-                || (0i64, 0u64, 0u64),
-                |(checksum_acc, read_ns_acc, rw_ns_acc),
-                 (index, ((source_path, output_path), render_prefix))| {
+            .map_init(
+                || Vec::<u8>::new(),
+                |read_buffer, (index, ((source_path, output_path), render_prefix))| {
                     let read_start = collect_stage_metrics.then(Instant::now);
-                    let content = std::fs::read(&source_path).map_err(|e| {
+                    ssg_read_source_file_bytes(source_path.as_str(), read_buffer).map_err(|e| {
                         format!("Failed to read file '{}' (index {}): {}", source_path, index, e)
                     })?;
                     let read_ns =
@@ -330,7 +336,7 @@ fn ssg_run_rayon_read_render_write(
                     let written_bytes = ssg_write_rendered_html_page_sync_bytes(
                         &output_path,
                         render_prefix.as_bytes(),
-                        content.as_slice(),
+                        read_buffer.as_slice(),
                     )
                     .map_err(|e| {
                         format!("Failed to write file '{}' (index {}): {}", output_path, index, e)
@@ -338,8 +344,15 @@ fn ssg_run_rayon_read_render_write(
                     let rw_ns =
                         rw_start.map(|start| start.elapsed().as_nanos() as u64).unwrap_or(0);
 
+                    Ok::<(i64, u64, u64), String>((written_bytes as i64, read_ns, rw_ns))
+                },
+            )
+            .try_fold(
+                || (0i64, 0u64, 0u64),
+                |(checksum_acc, read_ns_acc, rw_ns_acc), item| {
+                    let (checksum, read_ns, rw_ns) = item?;
                     Ok::<(i64, u64, u64), String>((
-                        checksum_acc + written_bytes as i64,
+                        checksum_acc + checksum,
                         read_ns_acc + read_ns,
                         rw_ns_acc + rw_ns,
                     ))
