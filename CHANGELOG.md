@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Async Scheduler Timeout Budget for Long-Running Cooperative Workloads (v0.11.0 P0)**:
+  - Added `VM::run_scheduler_until_complete_with_timeout(Duration)` in `src/vm.rs` so cooperative execution can complete pending async contexts within a wall-clock timeout budget instead of a fixed scheduler-round budget.
+  - Updated the CLI VM execution path in `src/main.rs` to use timeout-based scheduler completion after suspension, replacing the previous fixed 1000-round limit.
+  - Added `RUFF_SCHEDULER_TIMEOUT_MS` support (default: `120000`) so scheduler timeout budget can be tuned for heavy async workloads without code changes.
+  - Added comprehensive VM regression coverage for timeout scheduler contracts:
+    - successful completion with pending async contexts
+    - zero-timeout argument validation
+    - deterministic timeout exhaustion behavior with pending contexts
+
 - **SSG Benchmark Stability: Percentile Reporting for Repeat-Run Interpretation (v0.11.0 P0)**:
   - Added percentile aggregation to `SsgRunStatistics` in `src/benchmarks/ssg.rs` with deterministic linear-interpolated `p90` and `p95` values from measured runs.
   - Updated `bench-ssg` summary output in `src/main.rs` to include `p90`/`p95` for Ruff build time and throughput metrics.

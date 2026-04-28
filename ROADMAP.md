@@ -278,6 +278,12 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Removed repeated per-item indexed vector lookups for output paths and render prefixes while preserving checksum/file-count/stage-metric and read/write error-message contracts.
     - Added deterministic internal shape validation for mismatched source/output/prefix batch lengths with focused regression coverage.
 
+- **Async Runtime Reliability: Timeout-Based Cooperative Scheduler Budget (✅ Complete, April 2026)**
+    - Added `VM::run_scheduler_until_complete_with_timeout(Duration)` so cooperative scheduler completion can use a wall-clock timeout budget instead of a fixed scheduler-round ceiling.
+    - Updated CLI VM execution path to use timeout-based scheduler completion after suspension, replacing the fixed 1000-round scheduler budget.
+    - Added `RUFF_SCHEDULER_TIMEOUT_MS` override support (default `120000`) for tuning heavy async workload completion budgets.
+    - Added comprehensive VM regression coverage for timeout completion success, zero-timeout validation, and timeout-exhaustion error contracts.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -288,9 +294,9 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, CPU-bounded Rayon pool sizing, BufWriter write-through allocation elimination, cached CPU-bounded Rayon pool reuse, sync-vectored write-through hot-path follow-through, byte-path read/write hot-path follow-through, and in-iterator Rayon aggregation reduction follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, CPU-bounded Rayon pool sizing, BufWriter write-through allocation elimination, cached CPU-bounded Rayon pool reuse, sync-vectored write-through hot-path follow-through, byte-path read/write hot-path follow-through, in-iterator Rayon aggregation reduction follow-through, and cooperative scheduler timeout-budget follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
-    - Profile `bench-ssg` results to measure wall-clock impact after in-iterator Rayon aggregation reduction follow-through and identify next throughput opportunities.
+    - Profile `bench-ssg` results to measure wall-clock impact after the scheduler timeout-budget follow-through and identify next throughput opportunities.
 
 2. **Benchmark Stability & Measurement Quality**
      - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.

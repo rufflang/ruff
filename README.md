@@ -51,6 +51,7 @@
 - **Latest throughput byte-path read/write step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now reads source files as raw bytes and writes them through `ssg_write_rendered_html_page_sync_bytes(...)`, eliminating UTF-8 decode overhead before sync vectored write progression while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput in-iterator aggregation step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now aggregates checksum and timing metrics via in-iterator parallel reduction (`try_fold` + `try_reduce`) instead of per-file result-vector buffering, reducing temporary aggregation allocation pressure while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput zipped-tuple lane step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now iterates over owned zipped `(source_path, output_path, render_prefix)` tuples instead of repeated indexed vector lookups, and now includes deterministic internal source/output/prefix shape validation while preserving checksum/file-count and stage-metric key contracts.
+- **Latest cooperative scheduler reliability step**: `ruff run` now uses timeout-budget cooperative scheduler completion (`run_scheduler_until_complete_with_timeout`) instead of a fixed 1000-round limit after suspension; default timeout is 120s and can be tuned with `RUFF_SCHEDULER_TIMEOUT_MS` for heavy async workloads like `bench-ssg`.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
 
