@@ -21,6 +21,10 @@ const SSG_PROFILE_ASYNC_ENV: &str = "RUFF_BENCH_SSG_PROFILE_ASYNC";
 
 static SSG_RAYON_POOL_CACHE: OnceLock<Mutex<HashMap<usize, Arc<rayon::ThreadPool>>>> =
     OnceLock::new();
+static SSG_RENDER_PREFIX_CACHE: OnceLock<Mutex<HashMap<usize, Arc<Vec<Arc<str>>>>>> =
+    OnceLock::new();
+static SSG_OUTPUT_FILE_SUFFIX_CACHE: OnceLock<Mutex<HashMap<usize, Arc<Vec<Arc<str>>>>>> =
+    OnceLock::new();
 
 #[derive(Clone)]
 enum RayonMapInput {
@@ -29,37 +33,86 @@ enum RayonMapInput {
     DictLen(usize),
 }
 
-fn ssg_build_output_path(output_dir: &str, index: usize) -> String {
-    let index_str = index.to_string();
-    let mut output_path = String::with_capacity(output_dir.len() + 32);
-    output_path.push_str(output_dir);
-    output_path.push_str("/post_");
-    output_path.push_str(index_str.as_str());
-    output_path.push_str(".html");
-    output_path
+fn ssg_render_prefix_cache() -> &'static Mutex<HashMap<usize, Arc<Vec<Arc<str>>>>> {
+    SSG_RENDER_PREFIX_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn ssg_build_output_paths_and_prefixes_for_batch(
-    output_dir: &str,
-    file_count: usize,
-) -> (Vec<String>, Vec<String>) {
-    let mut paths = Vec::with_capacity(file_count);
-    let mut prefixes = Vec::with_capacity(file_count);
+fn ssg_output_file_suffix_cache() -> &'static Mutex<HashMap<usize, Arc<Vec<Arc<str>>>>> {
+    SSG_OUTPUT_FILE_SUFFIX_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
 
+fn ssg_get_or_build_render_prefixes(file_count: usize) -> Arc<Vec<Arc<str>>> {
+    {
+        let cache =
+            ssg_render_prefix_cache().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(prefixes) = cache.get(&file_count) {
+            return prefixes.clone();
+        }
+    }
+
+    let mut prefixes = Vec::with_capacity(file_count);
     for index in 0..file_count {
         let index_text = index.to_string();
-        paths.push(ssg_build_output_path(output_dir, index));
-
         let mut prefix = String::with_capacity(
             SSG_HTML_PREFIX_START.len() + index_text.len() + SSG_HTML_PREFIX_END.len(),
         );
         prefix.push_str(SSG_HTML_PREFIX_START);
         prefix.push_str(index_text.as_str());
         prefix.push_str(SSG_HTML_PREFIX_END);
-        prefixes.push(prefix);
+        prefixes.push(Arc::<str>::from(prefix));
+    }
+    let new_prefixes = Arc::new(prefixes);
+
+    let mut cache =
+        ssg_render_prefix_cache().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(existing) = cache.get(&file_count) {
+        return existing.clone();
+    }
+    cache.insert(file_count, new_prefixes.clone());
+    new_prefixes
+}
+
+fn ssg_get_or_build_output_file_suffixes(file_count: usize) -> Arc<Vec<Arc<str>>> {
+    {
+        let cache =
+            ssg_output_file_suffix_cache().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(suffixes) = cache.get(&file_count) {
+            return suffixes.clone();
+        }
     }
 
-    (paths, prefixes)
+    let mut suffixes = Vec::with_capacity(file_count);
+    for index in 0..file_count {
+        suffixes.push(Arc::<str>::from(format!("post_{}.html", index)));
+    }
+    let new_suffixes = Arc::new(suffixes);
+
+    let mut cache =
+        ssg_output_file_suffix_cache().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(existing) = cache.get(&file_count) {
+        return existing.clone();
+    }
+    cache.insert(file_count, new_suffixes.clone());
+    new_suffixes
+}
+
+fn ssg_build_output_paths_and_prefixes_for_batch(
+    output_dir: &str,
+    file_count: usize,
+) -> (Vec<String>, Arc<Vec<Arc<str>>>) {
+    let output_file_suffixes = ssg_get_or_build_output_file_suffixes(file_count);
+    let render_prefixes = ssg_get_or_build_render_prefixes(file_count);
+    let mut paths = Vec::with_capacity(file_count);
+
+    for suffix in output_file_suffixes.iter() {
+        let mut output_path = String::with_capacity(output_dir.len() + suffix.len() + 1);
+        output_path.push_str(output_dir);
+        output_path.push('/');
+        output_path.push_str(suffix);
+        paths.push(output_path);
+    }
+
+    (paths, render_prefixes)
 }
 
 #[cfg(test)]
@@ -69,18 +122,7 @@ fn ssg_build_output_paths_for_batch(output_dir: &str, file_count: usize) -> Vec<
 
 #[cfg(test)]
 fn ssg_build_render_prefixes_for_batch(file_count: usize) -> Vec<String> {
-    (0..file_count)
-        .map(|index| {
-            let index_text = index.to_string();
-            let mut prefix = String::with_capacity(
-                SSG_HTML_PREFIX_START.len() + index_text.len() + SSG_HTML_PREFIX_END.len(),
-            );
-            prefix.push_str(SSG_HTML_PREFIX_START);
-            prefix.push_str(index_text.as_str());
-            prefix.push_str(SSG_HTML_PREFIX_END);
-            prefix
-        })
-        .collect()
+    ssg_get_or_build_render_prefixes(file_count).iter().map(|p| p.to_string()).collect()
 }
 
 #[cfg(test)]
@@ -283,7 +325,7 @@ fn ssg_stage_profile_enabled_from_env() -> bool {
 fn ssg_run_rayon_read_render_write(
     source_paths: Vec<String>,
     output_paths: Vec<String>,
-    render_prefixes: Vec<String>,
+    render_prefixes: Arc<Vec<Arc<str>>>,
     concurrency_limit: usize,
     collect_stage_metrics: bool,
 ) -> Result<(i64, f64, f64), String> {
@@ -320,7 +362,7 @@ fn ssg_run_rayon_read_render_write(
         source_paths
             .into_par_iter()
             .zip(output_paths.into_par_iter())
-            .zip(render_prefixes.into_par_iter())
+            .zip(render_prefixes.par_iter())
             .enumerate()
             .map_init(
                 || Vec::<u8>::new(),
@@ -335,7 +377,7 @@ fn ssg_run_rayon_read_render_write(
                     let rw_start = collect_stage_metrics.then(Instant::now);
                     let written_bytes = ssg_write_rendered_html_page_sync_bytes(
                         &output_path,
-                        render_prefix.as_bytes(),
+                        render_prefix.as_ref().as_bytes(),
                         read_buffer.as_slice(),
                     )
                     .map_err(|e| {
@@ -1316,7 +1358,7 @@ pub fn handle(
             let (output_paths_for_batch, render_prefixes_for_batch) =
                 ssg_build_output_paths_and_prefixes_for_batch(output_dir.as_str(), file_count);
             let output_paths_for_tasks = Arc::new(output_paths_for_batch);
-            let render_prefixes_for_tasks = Arc::new(render_prefixes_for_batch);
+            let render_prefixes_for_tasks = render_prefixes_for_batch;
 
             let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -1327,7 +1369,7 @@ pub fn handle(
                     for (index, source_body) in source_bodies.into_iter().enumerate() {
                         let write_result = ssg_write_rendered_html_page(
                             output_paths_for_tasks[index].as_str(),
-                            render_prefixes_for_tasks[index].as_str(),
+                            render_prefixes_for_tasks[index].as_ref(),
                             source_body.as_ref().as_str(),
                         )
                         .await;
@@ -1365,7 +1407,7 @@ pub fn handle(
                     async move {
                         let write_result = ssg_write_rendered_html_page(
                             output_paths[index].as_str(),
-                            render_prefixes[index].as_str(),
+                            render_prefixes[index].as_ref(),
                             source_body.as_ref().as_str(),
                         )
                         .await;
@@ -2881,9 +2923,9 @@ mod tests {
         assert_eq!(paths[1], "tmp/output/post_1.html");
         assert_eq!(paths[2], "tmp/output/post_2.html");
 
-        assert_eq!(prefixes[0], "<html><body><h1>Post 0</h1><article>");
-        assert_eq!(prefixes[1], "<html><body><h1>Post 1</h1><article>");
-        assert_eq!(prefixes[2], "<html><body><h1>Post 2</h1><article>");
+        assert_eq!(prefixes[0].as_ref(), "<html><body><h1>Post 0</h1><article>");
+        assert_eq!(prefixes[1].as_ref(), "<html><body><h1>Post 1</h1><article>");
+        assert_eq!(prefixes[2].as_ref(), "<html><body><h1>Post 2</h1><article>");
     }
 
     #[test]
@@ -2892,6 +2934,38 @@ mod tests {
 
         assert!(paths.is_empty());
         assert!(prefixes.is_empty());
+    }
+
+    #[test]
+    fn test_ssg_build_output_paths_and_prefixes_for_batch_reuses_cached_prefixes_for_same_count() {
+        let (_paths_a, prefixes_a) =
+            ssg_build_output_paths_and_prefixes_for_batch("tmp/output-a", 4);
+        let (_paths_b, prefixes_b) =
+            ssg_build_output_paths_and_prefixes_for_batch("tmp/output-b", 4);
+
+        assert!(
+            Arc::ptr_eq(&prefixes_a, &prefixes_b),
+            "expected cached render prefixes to be reused for identical file_count"
+        );
+    }
+
+    #[test]
+    fn test_ssg_get_or_build_output_file_suffixes_reuses_cached_arc_for_same_count() {
+        let suffixes_a = ssg_get_or_build_output_file_suffixes(3);
+        let suffixes_b = ssg_get_or_build_output_file_suffixes(3);
+        let suffixes_c = ssg_get_or_build_output_file_suffixes(2);
+
+        assert!(
+            Arc::ptr_eq(&suffixes_a, &suffixes_b),
+            "expected cached output suffixes to be reused for identical file_count"
+        );
+        assert!(
+            !Arc::ptr_eq(&suffixes_a, &suffixes_c),
+            "expected different output suffix cache entries for different file counts"
+        );
+        assert_eq!(suffixes_a[0].as_ref(), "post_0.html");
+        assert_eq!(suffixes_a[1].as_ref(), "post_1.html");
+        assert_eq!(suffixes_a[2].as_ref(), "post_2.html");
     }
 
     #[test]
@@ -4315,8 +4389,13 @@ mod tests {
 
         let output_path = format!("{}/post_0.html", output_dir);
 
-        let result =
-            ssg_run_rayon_read_render_write(vec![source], vec![output_path], Vec::new(), 1, true);
+        let result = ssg_run_rayon_read_render_write(
+            vec![source],
+            vec![output_path],
+            Arc::new(Vec::new()),
+            1,
+            true,
+        );
 
         assert!(result.is_err(), "Expected shape mismatch to return an error");
         let msg = result.unwrap_err();
@@ -5184,8 +5263,10 @@ mod tests {
 
         // Use a non-existent output directory to force a write failure.
         let bad_output = format!("{}/nonexistent_subdir/post_0.html", input_dir);
-        let render_prefixes =
-            vec![format!("{}{}{}", SSG_HTML_PREFIX_START, "0", SSG_HTML_PREFIX_END)];
+        let render_prefixes = Arc::new(vec![Arc::<str>::from(format!(
+            "{}{}{}",
+            SSG_HTML_PREFIX_START, "0", SSG_HTML_PREFIX_END
+        ))]);
 
         let result = ssg_run_rayon_read_render_write(
             vec![source_path],
