@@ -4512,6 +4512,158 @@ mod tests {
     }
 
     #[test]
+    fn test_ssg_run_rayon_read_render_write_with_reused_output_path_buffer_reads_and_writes_correctly(
+    ) {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_reused_path_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_reused_path_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_a = format!("{}/post_0.md", input_dir);
+        let source_b = format!("{}/post_1.md", input_dir);
+        fs::write(&source_a, "# Post 0\n\nBody A").unwrap();
+        fs::write(&source_b, "# Post 1\n\nBody B").unwrap();
+
+        let (output_suffixes, render_prefixes) = ssg_get_cached_output_suffixes_and_prefixes(2);
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write_with_reused_output_path_buffer(
+                vec![source_a, source_b],
+                output_dir.clone(),
+                output_suffixes,
+                render_prefixes,
+                2,
+                true,
+            )
+            .unwrap();
+
+        assert!(checksum > 0, "checksum must be positive");
+        assert!(read_ms >= 0.0, "read_ms must be non-negative");
+        assert!(render_write_ms >= 0.0, "render_write_ms must be non-negative");
+
+        let html_a = fs::read_to_string(format!("{}/post_0.html", output_dir)).unwrap();
+        let html_b = fs::read_to_string(format!("{}/post_1.html", output_dir)).unwrap();
+        assert_eq!(
+            html_a,
+            "<html><body><h1>Post 0</h1><article># Post 0\n\nBody A</article></body></html>"
+        );
+        assert_eq!(
+            html_b,
+            "<html><body><h1>Post 1</h1><article># Post 1\n\nBody B</article></body></html>"
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_with_reused_output_path_buffer_preserves_checksum_and_stage_toggle(
+    ) {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_reused_path_checksum_input");
+        let output_dir = unique_temp_dir("ruff_rayon_rrw_reused_path_checksum_output");
+        fs::create_dir_all(&input_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let source_paths: Vec<String> = (0..4)
+            .map(|i| {
+                let p = format!("{}/post_{}.md", input_dir, i);
+                fs::write(&p, format!("# Post {}\n\nGenerated page {}", i, i)).unwrap();
+                p
+            })
+            .collect();
+
+        let (output_suffixes, render_prefixes) =
+            ssg_get_cached_output_suffixes_and_prefixes(source_paths.len());
+
+        let (checksum, read_ms, render_write_ms) =
+            ssg_run_rayon_read_render_write_with_reused_output_path_buffer(
+                source_paths,
+                output_dir.clone(),
+                output_suffixes,
+                render_prefixes,
+                4,
+                false,
+            )
+            .unwrap();
+
+        let expected_checksum: i64 = (0..4usize)
+            .map(|i| fs::read(format!("{}/post_{}.html", output_dir, i)).unwrap().len() as i64)
+            .sum();
+
+        assert_eq!(checksum, expected_checksum);
+        assert_eq!(read_ms, 0.0);
+        assert_eq!(render_write_ms, 0.0);
+
+        let _ = fs::remove_dir_all(&input_dir);
+        let _ = fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_with_reused_output_path_buffer_rejects_shape_mismatch()
+    {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_reused_shape_mismatch_input");
+        fs::create_dir_all(&input_dir).unwrap();
+
+        let source = format!("{}/post_0.md", input_dir);
+        fs::write(&source, "# Post 0").unwrap();
+
+        let output_suffixes = Arc::new(Vec::<Arc<str>>::new());
+        let render_prefixes = Arc::new(Vec::<Arc<str>>::new());
+
+        let result = ssg_run_rayon_read_render_write_with_reused_output_path_buffer(
+            vec![source],
+            "/tmp".to_string(),
+            output_suffixes,
+            render_prefixes,
+            1,
+            true,
+        );
+
+        assert!(result.is_err(), "Expected shape mismatch to return an error");
+        let msg = result.unwrap_err();
+        assert!(msg.contains("internal SSG batch shape mismatch"), "Unexpected error: {}", msg);
+        assert!(msg.contains("output_suffixes=0"), "Unexpected error: {}", msg);
+
+        let _ = fs::remove_dir_all(&input_dir);
+    }
+
+    #[test]
+    fn test_ssg_run_rayon_read_render_write_with_reused_output_path_buffer_propagates_write_failure(
+    ) {
+        let input_dir = unique_temp_dir("ruff_rayon_rrw_reused_write_fail_input");
+        fs::create_dir_all(&input_dir).unwrap();
+
+        let source = format!("{}/post_0.md", input_dir);
+        fs::write(&source, "# Post 0").unwrap();
+
+        let missing_output_dir = unique_temp_dir("ruff_rayon_rrw_reused_write_fail_output");
+        let (output_suffixes, render_prefixes) = ssg_get_cached_output_suffixes_and_prefixes(1);
+
+        let result = ssg_run_rayon_read_render_write_with_reused_output_path_buffer(
+            vec![source],
+            missing_output_dir.clone(),
+            output_suffixes,
+            render_prefixes,
+            1,
+            true,
+        );
+
+        assert!(result.is_err(), "Expected error for missing output directory");
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("Failed to write file"),
+            "Expected 'Failed to write file' in: {}",
+            msg
+        );
+        assert!(
+            msg.contains(format!("{}/post_0.html", missing_output_dir).as_str()),
+            "Expected output file path in error: {}",
+            msg
+        );
+
+        let _ = fs::remove_dir_all(&input_dir);
+    }
+
+    #[test]
     fn test_ssg_run_rayon_read_render_write_unicode_checksum_matches_written_bytes() {
         let input_dir = unique_temp_dir("ruff_rayon_rrw_unicode_input");
         let output_dir = unique_temp_dir("ruff_rayon_rrw_unicode_output");
