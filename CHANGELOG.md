@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: Cached Batch Metadata Reuse in SSG Native Paths (v0.11.0 P0)**:
+  - Added cached render-prefix reuse keyed by `file_count` in `src/interpreter/native_functions/async_ops.rs` so repeated `bench-ssg` runs no longer rebuild identical per-index HTML prefixes.
+  - Added cached output-file suffix reuse keyed by `file_count` and switched output-path construction to reuse cached per-index `post_<N>.html` suffixes while preserving output path format and index ordering.
+  - Updated SSG native hot paths to consume cached prefix metadata in:
+    - `ssg_render_and_write_pages(...)`
+    - `ssg_run_rayon_read_render_write(...)` (Rayon read/render/write lane)
+  - Preserved benchmark-facing contracts (`checksum`/`files`/`read_ms`/`render_write_ms`) and existing read/write failure message shapes.
+  - Added focused regression coverage for:
+    - cached render-prefix Arc reuse for identical `file_count`
+    - cached output-file suffix Arc reuse and cross-count separation
+    - existing checksum/output contract stability across SSG pipeline tests
+
 - **SSG Throughput Follow-Through: Per-Worker Read-Buffer Reuse in Rayon Hot Path (v0.11.0 P0)**:
   - Optimized `ssg_run_rayon_read_render_write(...)` to reuse per-worker source-read buffers (`rayon::map_init`) instead of allocating a new `Vec<u8>` per file via `std::fs::read(...)`.
   - Added `ssg_read_source_file_bytes(...)` and migrated the Rayon read lane to clear-and-refill reusable buffers before sync vectored write progression.

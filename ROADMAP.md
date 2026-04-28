@@ -307,6 +307,12 @@ Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
     - Preserved checksum/file-count/stage-metric and read/write error-message contracts while reducing residual per-file read allocation overhead.
     - Added focused regression coverage for large→small reused-buffer truncation correctness and mixed-source-size output isolation behavior.
 
+- **SSG Throughput Follow-Through: Cached Batch Metadata Reuse in Native SSG Paths (✅ Complete, April 2026)**
+    - Added cached render-prefix metadata keyed by `file_count` so repeated SSG benchmark runs reuse prebuilt per-index HTML prefixes.
+    - Added cached output-file suffix metadata keyed by `file_count` and updated output-path construction to reuse per-index `post_<N>.html` suffixes.
+    - Updated `ssg_render_and_write_pages(...)` and `ssg_run_rayon_read_render_write(...)` to consume cached metadata while preserving output ordering and checksum/file-count/stage-metric contracts.
+    - Added focused regression coverage for cached-prefix reuse, cached-suffix reuse, and cross-count cache separation behavior.
+
 ### Scope (Forward Work Only)
 
 Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
@@ -317,7 +323,7 @@ v0.11.0 tracks only the remaining performance and architecture work.
 ### Remaining High-Priority Workstreams
 
 1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, CPU-bounded Rayon pool sizing, BufWriter write-through allocation elimination, cached CPU-bounded Rayon pool reuse, sync-vectored write-through hot-path follow-through, byte-path read/write hot-path follow-through, in-iterator Rayon aggregation reduction follow-through, per-worker read-buffer reuse follow-through, and cooperative scheduler timeout-budget follow-through.
+    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, CPU-bounded Rayon pool sizing, BufWriter write-through allocation elimination, cached CPU-bounded Rayon pool reuse, sync-vectored write-through hot-path follow-through, byte-path read/write hot-path follow-through, in-iterator Rayon aggregation reduction follow-through, per-worker read-buffer reuse follow-through, cached batch-metadata reuse follow-through, and cooperative scheduler timeout-budget follow-through.
     - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
     - Profile `bench-ssg` results to measure wall-clock impact after the scheduler timeout-budget follow-through and identify next throughput opportunities.
 

@@ -56,6 +56,7 @@
 - **Latest throughput in-iterator aggregation step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now aggregates checksum and timing metrics via in-iterator parallel reduction (`try_fold` + `try_reduce`) instead of per-file result-vector buffering, reducing temporary aggregation allocation pressure while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput zipped-tuple lane step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now iterates over owned zipped `(source_path, output_path, render_prefix)` tuples instead of repeated indexed vector lookups, and now includes deterministic internal source/output/prefix shape validation while preserving checksum/file-count and stage-metric key contracts.
 - **Latest throughput per-worker read-buffer step**: `ssg_read_render_and_write_pages(...)` Rayon hot path now reuses per-worker source-read buffers (`rayon::map_init`) instead of allocating a fresh `Vec<u8>` per file read, reducing residual read-lane allocation overhead while preserving checksum/file-count and stage-metric key contracts.
+- **Latest throughput cached batch-metadata step**: SSG native paths now reuse cached per-index render prefixes and output-file suffix metadata keyed by `file_count`, reducing repeated per-run batch-metadata construction overhead in `bench-ssg` while preserving output/checksum/stage-metric contracts.
 - **Latest cooperative scheduler reliability step**: `ruff run` now uses timeout-budget cooperative scheduler completion (`run_scheduler_until_complete_with_timeout`) instead of a fixed 1000-round limit after suspension; default timeout is 120s and can be tuned with `RUFF_SCHEDULER_TIMEOUT_MS` for heavy async workloads like `bench-ssg`.
 
 ### v0.10.0 Architecture Cleanup Highlights ✅
@@ -591,6 +592,13 @@
   - All async operations use true tokio concurrency for maximum I/O performance
 
 ### Completed Toward v0.11.0 ✅
+
+* **SSG Throughput Follow-Through: Cached Batch-Metadata Reuse (v0.11.0 P0 - ✅ COMPLETE)**
+  - Added cached per-index render-prefix metadata keyed by `file_count` and reused it across repeated SSG runs
+  - Added cached per-index output-file suffix metadata keyed by `file_count` and reused it during output-path construction
+  - Updated both SSG write paths (`ssg_render_and_write_pages(...)` and Rayon `ssg_run_rayon_read_render_write(...)`) to consume cached metadata
+  - Preserved `checksum`/`files`/`read_ms`/`render_write_ms` output contracts and existing read/write error message behavior
+  - Added focused cache-behavior regression coverage (same-count reuse + cross-count separation) alongside existing pipeline correctness tests
 
 * **SSG Throughput Follow-Through: Sync Vectored Write-Through Hot Path (v0.11.0 P0 - ✅ COMPLETE)**
   - **Added `ssg_write_rendered_html_page_sync(...)`** and migrated `ssg_run_rayon_read_render_write` to direct synchronous vectored writes over `prefix`/`body`/`suffix` segments
