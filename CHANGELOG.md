@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **SSG Throughput Follow-Through: Reused Output-Path Buffers in Rayon Hot Path (v0.11.0 P0)**:
+  - Optimized `ssg_read_render_and_write_pages(...)` to avoid prebuilding full `Vec<String>` output paths for each batch by reusing cached output-file suffix metadata plus per-worker mutable output-path buffers in the Rayon single-pass lane.
+  - Added `ssg_run_rayon_read_render_write_with_reused_output_path_buffer(...)` and routed the timed benchmark path through the reusable-buffer implementation.
+  - Preserved benchmark-facing contracts (`checksum`/`files`/`read_ms`/`render_write_ms`) and existing read/write failure error-message shapes while reducing per-batch output-path allocation pressure.
+  - Added focused regression coverage for reusable-buffer lane behavior:
+    - exact output rendering and stage-metric non-negativity
+    - checksum equivalence with stage-timer toggle behavior
+    - deterministic internal shape-mismatch rejection
+    - write-failure propagation with output-path context preservation
+
 - **SSG Throughput Follow-Through: Cached Batch Metadata Reuse in SSG Native Paths (v0.11.0 P0)**:
   - Added cached render-prefix reuse keyed by `file_count` in `src/interpreter/native_functions/async_ops.rs` so repeated `bench-ssg` runs no longer rebuild identical per-index HTML prefixes.
   - Added cached output-file suffix reuse keyed by `file_count` and switched output-path construction to reuse cached per-index `post_<N>.html` suffixes while preserving output path format and index ordering.
