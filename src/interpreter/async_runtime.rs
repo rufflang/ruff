@@ -168,10 +168,10 @@ mod tests {
 
     #[test]
     fn test_concurrent_tasks() {
-        // Multiple tasks should run concurrently
-        let start = Instant::now();
+        // Verify concurrency using relative timing to avoid brittle machine-dependent thresholds.
+        let concurrent_elapsed = AsyncRuntime::block_on(async {
+            let concurrent_start = Instant::now();
 
-        AsyncRuntime::block_on(async {
             let handle1 = AsyncRuntime::spawn_task(async {
                 tokio::time::sleep(Duration::from_millis(50)).await;
                 Value::Int(1)
@@ -187,12 +187,74 @@ mod tests {
                 Value::Int(3)
             });
 
-            // All three should complete in ~50ms (concurrent), not 150ms (sequential)
-            let _ = tokio::join!(handle1, handle2, handle3);
+            let (result1, result2, result3) = tokio::join!(handle1, handle2, handle3);
+
+            assert!(result1.is_ok());
+            assert!(result2.is_ok());
+            assert!(result3.is_ok());
+
+            assert!(matches!(result1.unwrap(), Value::Int(1)));
+            assert!(matches!(result2.unwrap(), Value::Int(2)));
+            assert!(matches!(result3.unwrap(), Value::Int(3)));
+
+            concurrent_start.elapsed()
         });
 
-        let elapsed = start.elapsed();
-        // Should be ~50ms for concurrent, allow up to 100ms for overhead
-        assert!(elapsed < Duration::from_millis(100));
+        let sequential_elapsed = AsyncRuntime::block_on(async {
+            let sequential_start = Instant::now();
+
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            sequential_start.elapsed()
+        });
+
+        let concurrent_ms = concurrent_elapsed.as_millis();
+        let sequential_ms = sequential_elapsed.as_millis();
+
+        // Concurrent execution should be materially faster than the sequential baseline.
+        assert!(
+            concurrent_ms * 2 < sequential_ms,
+            "expected concurrent runtime to be < 50% of sequential runtime (concurrent={}ms, sequential={}ms)",
+            concurrent_ms,
+            sequential_ms
+        );
+    }
+
+    #[test]
+    fn test_concurrent_tasks_under_timeout_budget() {
+        // Keep a generous timeout budget to ensure tasks complete even on busy CI machines.
+        let result = AsyncRuntime::block_on(async {
+            AsyncRuntime::timeout(Duration::from_secs(2), async {
+                let handle1 = AsyncRuntime::spawn_task(async {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    Value::Int(10)
+                });
+
+                let handle2 = AsyncRuntime::spawn_task(async {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    Value::Int(20)
+                });
+
+                let handle3 = AsyncRuntime::spawn_task(async {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    Value::Int(30)
+                });
+
+                let (result1, result2, result3) = tokio::join!(handle1, handle2, handle3);
+
+                vec![result1.unwrap(), result2.unwrap(), result3.unwrap()]
+            })
+            .await
+        });
+
+        assert!(result.is_ok(), "concurrent tasks exceeded timeout budget");
+
+        let values = result.unwrap();
+        assert_eq!(values.len(), 3);
+        assert!(matches!(values[0], Value::Int(10)));
+        assert!(matches!(values[1], Value::Int(20)));
+        assert!(matches!(values[2], Value::Int(30)));
     }
 }
