@@ -4082,6 +4082,11 @@ impl VM {
                             self.stack.push(object.clone());
                             Value::NativeFunction(format!("__channel_method_{}", field))
                         }
+                        Value::Image { .. } => {
+                            // Mirror channel method marker behavior for image method dispatch.
+                            self.stack.push(object.clone());
+                            Value::NativeFunction(format!("__image_method_{}", field))
+                        }
                         _ => return Err("Cannot access field on non-struct".to_string()),
                     };
 
@@ -4954,6 +4959,27 @@ impl VM {
                     };
                 } else {
                     return Err("Expected Channel for channel method call".to_string());
+                }
+            }
+
+            // Handle image method calls.
+            if name.starts_with("__image_method_") {
+                let method_name = name.strip_prefix("__image_method_").unwrap();
+
+                // Remove the duplicate receiver argument emitted by MethodCall compilation.
+                if !args.is_empty() {
+                    args.pop();
+                }
+
+                // Retrieve receiver value left on the VM stack.
+                let image = self.stack.pop().ok_or("Stack underflow getting image")?;
+
+                match Interpreter::call_image_method_impl(&image, method_name, &args) {
+                    Some(Value::Error(msg)) => return Err(msg),
+                    Some(other) => return Ok(other),
+                    None => {
+                        return Err("Expected Image for image method call".to_string())
+                    }
                 }
             }
 
