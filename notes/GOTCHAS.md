@@ -146,6 +146,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-03-19_07-47_ssg-rayon-pool-cache-and-timing-test-stability.md)
 
+### Animated GIF to WebP conversion depends on external `gif2webp`
+- **Problem:** Animated conversion may fail at runtime despite valid Ruff arguments.
+- **Rule:** `gif_to_webp(...)` requires the `gif2webp` CLI tool to be installed and available in `PATH`.
+- **Implication:** If animated conversion is a product requirement, verify `command -v gif2webp` in setup/CI and keep fallback/error messaging explicit.
+
+(Discovered during: 2026-04-29_17-17_animated-gif-to-webp-conversion.md)
+
 ---
 
 ## Mental Model Summary
