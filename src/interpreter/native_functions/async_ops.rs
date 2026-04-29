@@ -18,6 +18,7 @@ const SSG_HTML_PREFIX_START: &str = "<html><body><h1>Post ";
 const SSG_HTML_PREFIX_END: &str = "</h1><article>";
 const SSG_HTML_SUFFIX: &str = "</article></body></html>";
 const SSG_PROFILE_ASYNC_ENV: &str = "RUFF_BENCH_SSG_PROFILE_ASYNC";
+const SSG_SKIP_FLUSH_ENV: &str = "RUFF_SSG_SKIP_FLUSH";
 
 static SSG_RAYON_POOL_CACHE: OnceLock<Mutex<HashMap<usize, Arc<rayon::ThreadPool>>>> =
     OnceLock::new();
@@ -202,7 +203,9 @@ async fn ssg_write_rendered_html_page(
         IoSlice::advance_slices(&mut remaining_segments, written);
     }
 
-    output_file.flush().await?;
+    if !ssg_skip_flush_enabled_from_env() {
+        output_file.flush().await?;
+    }
 
     Ok(total_written)
 }
@@ -244,7 +247,9 @@ fn ssg_write_rendered_html_page_sync_bytes(
         IoSlice::advance_slices(&mut remaining_segments, written);
     }
 
-    output_file.flush()?;
+    if !ssg_skip_flush_enabled_from_env() {
+        output_file.flush()?;
+    }
 
     Ok(total_written)
 }
@@ -327,7 +332,17 @@ fn ssg_stage_profile_enabled_from_env() -> bool {
             let normalized = value.trim().to_ascii_lowercase();
             !matches!(normalized.as_str(), "0" | "false" | "off" | "no")
         }
-        Err(_) => true,
+        Err(_) => false,
+    }
+}
+
+fn ssg_skip_flush_enabled_from_env() -> bool {
+    match std::env::var(SSG_SKIP_FLUSH_ENV) {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            !matches!(normalized.as_str(), "0" | "false" | "off" | "no")
+        }
+        Err(_) => false,
     }
 }
 
