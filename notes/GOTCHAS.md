@@ -54,6 +54,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md)
 
+### Method support can silently split between call paths
+- **Problem:** A method can appear implemented but still fail in normal `obj.method(...)` usage.
+- **Rule:** Keep method behavior wired to the active `Expr::MethodCall` path and do not leave logic only in legacy field-access call sugar branches.
+- **Implication:** Verify both interpreter `call_method(...)` and VM `FieldGet`/native-call handling when adding methods for non-struct `Value` types.
+
+(Discovered during: 2026-04-29_17-02_image-method-dispatch-parity.md)
+
 ### Strict-arity hardening must preserve legacy fallback contracts unless intentionally changed
 - **Problem:** Rejecting extra args can accidentally alter established missing/invalid-arg behavior.
 - **Rule:** Add explicit extra-arg rejection while preserving existing fallback semantics unless contract change is deliberate.

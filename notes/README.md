@@ -16,3 +16,4 @@ High-signal session notes:
 - `2026-04-27_22-31_bench-ssg-range-spread-warnings.md` — Range-spread warning contracts and threshold-wiring gotchas.
 - `2026-04-28_18-16_ssg-reused-output-path-buffer.md` — Reusable output-path worker buffers in Rayon SSG hot path and `map_init` tuple-typing gotcha.
 - `2026-04-28_22-06_busy-machine-ssg-gate-smoke.md` — Busy-machine SSG gate PASS classified as smoke/local evidence, not final release-gate evidence.
+- `2026-04-29_17-02_image-method-dispatch-parity.md` — Interpreter/VM image method-call dispatch unification, VM FieldGet marker parity, and real conversion test coverage.
