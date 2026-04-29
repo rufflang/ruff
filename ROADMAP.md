@@ -1,587 +1,354 @@
-# Ruff Language - Development Roadmap
+# Ruff Development Roadmap
 
-This roadmap outlines **upcoming** planned features and improvements. For completed features and bug fixes, see [CHANGELOG.md](CHANGELOG.md).
+This roadmap tracks work that is still current or upcoming. Completed features and implementation history belong in [CHANGELOG.md](CHANGELOG.md), not here.
 
-> **Current Version**: Latest stable release (see [CHANGELOG.md](CHANGELOG.md))  
-> **Next Planned Release**: v0.11.0  
-> **Status**: Roadmap tracks upcoming work only (for completed items see CHANGELOG).
-
----
-
-## 🎯 What's Next (Priority Order)
-
-**IMMEDIATE (v0.11.0)**:
-1. **🔥 Parallel Processing / Concurrency (P0)** - SSG and async runtime throughput focus
-2. **Developer Experience Foundations (P1)** - LSP, formatter, linter planning/initial implementation (non-blocking for v0.11 throughput gate)
-
-### v0.11 Scope Lock (March 2026)
-
-- **Gate first**: v0.11 ships on throughput progress (`bench-ssg` target trajectory) and correctness stability.
-- **JIT policy**: function-level JIT is a supporting/parallel workstream in v0.11 and only advances release priority when benchmark-proven to improve `bench-ssg` / `--profile-async` metrics without regressions.
-- **Execution rule**: if an optimization does not materially improve benchmark gates, defer it behind throughput-critical work.
-
-**AFTER v0.11.0**:
-3. **📦 v0.12.0 Developer Experience Expansion** - LSP, formatter, linter, package management
-4. **v1.0 Readiness** - stabilization, docs completeness, ecosystem polish
+> Current crate version: `0.10.0` in [Cargo.toml](Cargo.toml)
+> Next planned release: `v0.11.0`
+> Last audited: April 29, 2026
 
 ---
 
-## Priority Levels
+## Release Focus
 
-- **P0 (Critical)**: Highest-priority next release blockers
-- **P1 (High)**: Core features needed for v1.0 production readiness
-- **P2 (Medium)**: Quality-of-life improvements and developer experience
-- **P3 (Low)**: Nice-to-have features for advanced use cases
+`v0.11.0` is a throughput and release-hardening release. The release should be cut only when the SSG benchmark path has fresh, reproducible evidence and the correctness suite is stable.
+
+Primary release theme:
+
+- Native SSG read/render/write throughput through `bench-ssg`.
+- VM cooperative scheduler reliability for high-volume async workloads.
+- Benchmark measurement quality strong enough to make a release call.
+
+Non-goals for `v0.11.0`:
+
+- LSP, formatter, linter, package manager, and other developer tooling.
+- Module-system completion beyond documenting current limitations.
+- Broad language design changes unrelated to SSG throughput or release stability.
+- Function-level JIT promotion unless it shows measurable `bench-ssg` improvement without correctness regressions.
+
+Completed `v0.11.0` throughput slices are already recorded in [CHANGELOG.md](CHANGELOG.md), including Rayon SSG execution, cached metadata, reusable output-path buffers, opt-in stage profiling, throughput gates, benchmark warning signals, and scheduler timeout-budget support.
 
 ---
 
-Completed release work is archived in [CHANGELOG.md](CHANGELOG.md).
+## v0.11.0 Release Checklist
+
+### P0: Release Blockers
+
+These must be closed before tagging `v0.11.0`.
+
+1. **Capture final release-mode SSG gate evidence**
+
+   Run the current code in release mode on an idle machine and record the output in the release notes.
+
+   ```bash
+   cargo build --release
+   ./target/release/ruff bench-ssg --runs 7 --warmup-runs 2 --profile-async --throughput-gate-ms 10000 --tmp-dir tmp/ruff-v0.11-ssg-gate
+   ```
+
+   Required release decision:
+
+   - PASS if Ruff median build time is `<= 10000 ms` and correctness checks are green.
+   - FAIL or defer if Ruff median build time is above `10000 ms` unless an explicit release exception is made.
+   - Preserve `RUFF_SSG_FILES`, `RUFF_SSG_BUILD_MS`, `RUFF_SSG_FILES_PER_SEC`, `RUFF_SSG_CHECKSUM`, `RUFF_SSG_READ_MS`, and `RUFF_SSG_RENDER_WRITE_MS` metric contracts.
+   - Treat `read_ms` and `render_write_ms` as cumulative stage CPU-time signals from the Rayon path, not wall-clock phase durations.
+
+   Latest local smoke evidence from this audit:
+
+   - command: `cargo run --release -- bench-ssg --runs 3 --warmup-runs 1 --profile-async --throughput-gate-ms 10000`
+   - result: PASS
+   - Ruff median build time: `1114.421 ms`
+   - Ruff median throughput: `8973.27 files/sec`
+   - checksum: `946670`
+   - stage medians: read `1119.445 ms`, render/write `11718.502 ms`
+   - warning status: CV variability warnings emitted for build time, throughput, read stage, and render/write stage
+   - release note: this is a useful smoke result, but the final gate should still use the longer idle-machine command above.
+
+2. **Capture final cross-language context**
+
+   Run the Python comparison on the same machine after the release-gate run. This is not the primary gate, but it gives release-note context and catches checksum drift against the Python baseline.
+
+   ```bash
+   ./target/release/ruff bench-ssg --runs 5 --warmup-runs 1 --compare-python --profile-async --tmp-dir tmp/ruff-v0.11-ssg-python
+   ```
+
+   Required release decision:
+
+   - Ruff and Python checksums must match.
+   - Record median Ruff build time, median Python build time, median speedup, and warning sections if emitted.
+   - If warnings fire, decide whether the run is noisy and should be repeated or whether the warning reflects a real release risk.
+
+3. **Stabilize full-suite correctness signal**
+
+   `cargo test` must be green for release. A recent audit run produced one timing-sensitive failure in `interpreter::async_runtime::tests::test_concurrent_tasks`, then the exact test passed on rerun. Treat that as unresolved until stabilized or intentionally accepted.
+
+   Required release decision:
+
+   - Prefer stabilizing the timing assertion so it does not fail under normal full-suite load.
+   - At minimum, rerun the full suite on an idle machine and record whether the failure reproduces.
+   - Do not cut `v0.11.0` from a known-red full-suite run.
+
+4. **Run focused SSG and benchmark-harness regression tests**
+
+   ```bash
+   cargo test ssg
+   cargo test bench_ssg
+   cargo test run_ssg_benchmark
+   ```
+
+   Required release decision:
+
+   - All focused tests pass.
+   - Any environment-specific failure is documented with repro steps and a release decision.
+
+5. **Run native builtin dispatch and release-hardening coverage**
+
+   ```bash
+   cargo test release_hardening_builtin_dispatch_coverage
+   cargo test test_release_hardening_ssg_render_pages_dispatch_contracts
+   ```
+
+   Required release decision:
+
+   - `expected_known_legacy_dispatch_gaps` remains empty.
+   - No declared builtin regresses to unknown-native fallback.
+   - SSG native helper argument/error-shape contracts remain stable.
+
+6. **Cut release metadata**
+
+   Required edits at release time:
+
+   - Bump [Cargo.toml](Cargo.toml) from `0.10.0` to `0.11.0`.
+   - Move relevant [CHANGELOG.md](CHANGELOG.md) `Unreleased` entries under a dated `v0.11.0` heading.
+   - Update README status text if it still describes `0.11.0` as in progress.
+   - Confirm `ruff --version` reports `0.11.0` after the version bump.
+
+### P1: Release Evidence And Documentation
+
+These should be completed before release unless you explicitly decide to defer them.
+
+1. **Publish one canonical SSG benchmark snapshot**
+
+   Add or update a benchmark-results note with:
+
+   - exact command
+   - date
+   - machine/OS summary
+   - commit SHA
+   - release/debug build mode
+   - warmup count and measured run count
+   - median/mean/p90/p95/min/max/stddev for Ruff build time and throughput
+   - stage medians when `--profile-async` is enabled
+   - warning sections emitted by the benchmark harness
+
+2. **Calibrate benchmark warning thresholds**
+
+   Current defaults are implemented as:
+
+   - variability warning: `5.0%`
+   - trend warning: `10.0%`
+   - mean/median drift warning: `7.5%`
+   - range-spread warning: `42.0%`
+
+   Remaining release question:
+
+   - Run enough repeated samples to decide whether these defaults are useful for local release-gate runs.
+   - If they are too noisy or too quiet, adjust before release and update tests/docs.
+
+3. **Decide whether scheduler timeout needs a CLI flag**
+
+   Current behavior:
+
+   - `RUFF_SCHEDULER_TIMEOUT_MS` controls the VM cooperative scheduler timeout.
+   - default timeout is `120000 ms`.
+
+   Remaining release question:
+
+   - Keep the env-only override for `v0.11.0`, or add a first-class CLI flag for benchmark reproducibility.
+   - If env-only remains, document it in release notes and README.
+
+4. **Clean stale performance claims outside the README**
+
+   Some older docs still describe older execution-mode status or old benchmark claims. Before release, review at least:
+
+   - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+   - [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
+   - [benchmarks/cross-language/BENCHMARK_RESULTS.md](benchmarks/cross-language/BENCHMARK_RESULTS.md)
+   - [benchmarks/cross-language/README.md](benchmarks/cross-language/README.md)
+
+   Remaining release question:
+
+   - Either update stale claims or mark the documents as historical so they do not contradict the `v0.11.0` README and release notes.
+
+5. **Document current runtime boundaries**
+
+   The README now calls out current limitations. Keep the same truth in release notes:
+
+   - VM is default; interpreter remains a fallback.
+   - Module loader syntax exists, but module execution/export collection is incomplete.
+   - Struct methods, spread/destructuring, and richer `Result`/`Option` pattern behavior should be verified per runtime path.
+   - Static typing is optional and not a VM-enforced release gate.
+
+### P2: Optional Follow-Ups Before Release
+
+These are useful, but should not block `v0.11.0` unless the P0/P1 evidence reveals a problem.
+
+1. **Add CLI-output snapshot tests for `bench-ssg`**
+
+   Candidate coverage:
+
+   - warmup banner and measured-run summary
+   - throughput gate PASS/FAIL text
+   - trend warning section
+   - measurement-quality warning section
+   - `--profile-async` stage output presence/absence
+
+2. **Run larger benchmark series for warning readability**
+
+   Suggested command:
+
+   ```bash
+   ./target/release/ruff bench-ssg --runs 10 --warmup-runs 2 --profile-async --tmp-dir tmp/ruff-v0.11-warning-calibration
+   ```
+
+   Use this only for threshold/readability calibration, not as the primary release gate.
+
+3. **Evaluate remaining SSG micro-optimizations only if gate fails**
+
+   Candidate areas from field notes:
+
+   - file pre-allocation in the sync write path
+   - matching reusable output-path-buffer follow-through for `ssg_render_and_write_pages(...)`
+   - bounded eviction for SSG metadata caches if non-benchmark workloads use many `file_count` values
+   - profiling residual render/write overhead after reusable output-path-buffer work
+
+4. **Consider command-level success-path integration tests**
+
+   The benchmark harness has strong unit/error coverage. A real success-path CLI integration test would improve release confidence, but may be too expensive for default CI.
 
 ---
 
-## v0.11.0 - Parallel Processing & Concurrency (P0)
+## v0.11.0 Done And No Longer Roadmap Work
 
-**Focus**: Deliver production-grade async throughput for large I/O-bound workloads (SSG priority)  
-**Timeline**: Q2-Q3 2026  
-**Priority**: P0 - CRITICAL for production performance perception  
-**Status**: In Progress
+The following areas were previously listed as future work but are now implemented and should be tracked through the changelog/tests instead of roadmap tasks:
 
-### Completed Milestones
-
-- **Async VM Integration Completion (✅ Complete, February 2026)**
-  - Made cooperative suspend/resume the default execution model for async-heavy workloads
-  - Enabled `cooperative_suspend_enabled: true` in VM constructor to activate non-blocking await semantics by default
-  - Integrated cooperative scheduler loop into main execution path (`execute_until_suspend()` + `run_scheduler_until_complete()`)
-  - Replaced blocking `vm.execute()` with cooperative scheduler in VM execution entry points
-  - User-defined async functions now execute with true concurrency semantics
-  - Eliminated remaining blocking `block_on()` bottleneck in critical VM await paths
-  - Added comprehensive integration tests for cooperative default behavior (7 new tests, all passing)
-  - Result: Production-ready non-blocking async VM ready for SSG and I/O-bound workloads
-
-- **Benchmark Stability: Repeat-Run + Median Reporting (✅ Complete, March 2026)**
-    - Added `ruff bench-ssg --runs <N>` support for repeated benchmark execution.
-    - Added aggregate benchmark reporting (median/mean/min/max/stddev) for Ruff build time and throughput.
-    - Added aggregate comparison reporting for Python baseline runs and median speedup output.
-    - Added median-based stage bottleneck reporting for `--profile-async` output.
-    - Added comprehensive unit coverage for statistical aggregation and consistency validation.
-
-- **Benchmark Stability: Percentile Reporting for Repeat-Run Interpretation (✅ Complete, March 2026)**
-    - Added deterministic `p90` and `p95` percentile aggregation for measured `bench-ssg` run series.
-    - Extended Ruff and Python aggregate summary output to include percentile tails alongside median/mean/min/max/stddev.
-    - Added focused regression coverage for percentile calculation contracts (even/odd run counts, single-sample behavior, monotonic percentile bounds, and aggregate propagation).
-
-- **Benchmark Stability: Warmup-Run Support for Measurement Quality (✅ Complete, March 2026)**
-    - Added `ruff bench-ssg --warmup-runs <N>` so pre-measurement warmup runs can be executed and excluded from measured summary statistics.
-    - Added shared benchmark harness series orchestration for warmup + measured phases (`run_ssg_benchmark_series(...)`) with consistent validation/error contracts.
-    - Added comprehensive harness coverage for warmup exclusion behavior plus warmup/measured failure surfacing.
-
-- **SSG Native Bulk Helper: Output Path Generation (✅ Complete, March 2026)**
-    - Added `ssg_build_output_paths(output_dir, file_count, extension?)` as a native helper for indexed SSG output path construction.
-    - Updated benchmark pipeline to use native path generation instead of script-level path loops in the timed render/write path.
-    - Added comprehensive native-function behavior and contract validation coverage.
-
-- **SSG Native Bulk Helper: Async Render+Write Fusion (✅ Complete, March 2026)**
-    - Added `ssg_render_and_write_pages(source_pages, output_dir, concurrency_limit?)` to render and write SSG pages in one bounded-concurrency native async operation.
-    - Updated benchmark render/write stage to use the fused native helper instead of separate render + write orchestration.
-    - Added comprehensive success/error contract coverage and dispatcher-level hardening tests.
-
-- **SSG Throughput Follow-Through: Render/Write Pipeline Optimization (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` to eliminate serial pre-render buffering and render HTML inside bounded async write workers.
-    - Preserved benchmark checksum/file-count equivalence contracts while reducing render/write orchestration overhead.
-    - Added comprehensive regression coverage for checksum integrity and empty-input summary behavior.
-
-- **SSG Throughput Follow-Through: Read/Render/Write Pipeline Fusion (✅ Complete, March 2026)**
-    - Added `ssg_read_render_and_write_pages(source_paths, output_dir, concurrency_limit?)` to fuse read + render + write into one bounded-concurrency async native operation.
-    - Updated the timed `bench-ssg` Ruff path to call the fused helper and consume stage timings (`read_ms`, `render_write_ms`) from the native summary.
-    - Added comprehensive success/error contract coverage, including checksum/file-count equivalence and read/write failure propagation.
-
-- **SSG Throughput Follow-Through: Read-to-Write Streaming Pipeline (✅ Complete, March 2026)**
-    - Optimized `ssg_read_render_and_write_pages(...)` to stream completed async reads directly into bounded render/write workers.
-    - Removed full read-stage source-body buffering in the fused helper path while preserving checksum/file-count equivalence contracts.
-    - Added regression coverage for empty-input summary contracts and single-worker output-contract preservation.
-
-- **SSG Throughput Follow-Through: Fused Write-Backpressure Hardening (✅ Complete, March 2026)**
-    - Hardened `ssg_read_render_and_write_pages(...)` to enforce bounded write in-flight concurrency with explicit pending-write backpressure during streaming read/render/write execution.
-    - Preserved stage-metric contracts (`read_ms`, `render_write_ms`) and checksum/file-count equivalence while removing unbounded write-task growth risk under read-heavy batches.
-    - Added high-volume regression coverage for large-batch single-worker and low-concurrency output-contract preservation.
-
-- **SSG Throughput Follow-Through: Output-Path Precompute in Fused Write Pipelines (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute indexed output paths once per batch and reuse them across async write workers.
-    - Removed per-write output-path string construction overhead while preserving checksum/file-count and stage-metric contracts in the timed benchmark path.
-    - Added regression coverage for batch output-path generation and high-volume low-concurrency render/write output-contract preservation.
-
-- **SSG Throughput Follow-Through: Direct Read-to-Write Dispatch + Path-Clone Elimination (✅ Complete, March 2026)**
-    - Optimized `ssg_read_render_and_write_pages(...)` to dispatch completed reads directly into available bounded write slots before queueing, reducing intermediate write-buffer churn under high-concurrency runs.
-    - Optimized fused and render/write-only write futures to reuse precomputed output paths without per-task path cloning while preserving checksum/file-count and stage-metric contracts.
-    - Added regression coverage for high-concurrency output/checksum contract preservation in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)`.
-
-- **SSG Throughput Follow-Through: Fused Read-Ahead Overlap Window (✅ Complete, March 2026)**
-    - Optimized `ssg_read_render_and_write_pages(...)` with a bounded read-ahead scheduling window (`2x` write concurrency, capped by file count) to improve overlap between read completions and bounded write dispatch.
-    - Preserved checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`) in the timed benchmark path while reducing read-lane starvation risk.
-    - Added comprehensive helper + integration regression coverage, including extreme-concurrency contract validation.
-
-- **SSG Throughput Follow-Through: Streamed HTML Writes in Fused Pipelines (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to stream rendered HTML segments directly to async file writes instead of allocating full per-page HTML strings during write futures.
-    - Preserved checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`) while reducing render/write allocation pressure in timed benchmark execution.
-    - Added direct streamed-writer contract coverage for exact-output and write-failure behavior.
-
-- **SSG Throughput Follow-Through: Precomputed HTML Prefixes in Streamed Write Workers (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute per-index HTML prefixes once per batch and reuse them across streamed async write futures.
-    - Removed per-write index formatting overhead while preserving checksum/file-count equivalence and stage-metric contracts (`read_ms`, `render_write_ms`).
-    - Added direct prefix-helper + large-index heading regression coverage to lock rendered output naming/content contracts.
-
-- **SSG Throughput Follow-Through: Adaptive Read-Refill Backpressure in Fused Pipeline (✅ Complete, March 2026)**
-    - Optimized `ssg_read_render_and_write_pages(...)` with adaptive read-refill targeting that scales read in-flight scheduling based on current bounded write backlog budget.
-    - Added write-completion-path read refill so fused scheduling can restore read overlap earlier as write backlog drains, reducing queued source-body churn while preserving bounded write concurrency.
-    - Added focused policy regression coverage for backlog-driven read-target behavior while preserving checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`).
-
-- **SSG Throughput Follow-Through: Precomputed Rendered-Length Scheduling (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute rendered HTML lengths at scheduling time and reuse them during write completion accounting.
-    - Removed per-write rendered-length recomputation in async write futures while preserving checksum/file-count and stage-metric contracts (`read_ms`, `render_write_ms`).
-    - Added focused rendered-length helper regression coverage to lock checksum accounting inputs for empty-body and representative prefix/body scenarios.
-
-- **SSG Throughput Follow-Through: Adaptive Write-Priority Refill Ordering (✅ Complete, March 2026)**
-    - Optimized `ssg_read_render_and_write_pages(...)` read-completion refill ordering to prioritize draining queued writes first when bounded write slots are available.
-    - Preserved adaptive read-refill targeting after write-priority refill to keep read/write overlap while reducing pending-write backlog growth under bursty read completions.
-    - Added focused policy regression coverage for write-priority decision contracts across backlog/no-backlog/saturated-lane scenarios.
-
-- **SSG Throughput Follow-Through: Vectored Streamed HTML Writes (✅ Complete, March 2026)**
-    - Optimized `ssg_write_rendered_html_page(...)` to emit pre-segmented HTML via a vectored async write loop with explicit flush completion.
-    - Reduced per-page write-call overhead in both `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while preserving checksum/file-count and stage-metric contracts.
-    - Added streamed-writer regression coverage for empty-body and large-body output/length contract preservation.
-
-- **SSG Throughput Follow-Through: Write-Result Checksum Accounting (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` to remove pre-write checksum precomputation and account checksum from actual async write-result byte counts.
-    - Optimized `ssg_read_render_and_write_pages(...)` to remove precomputed rendered-length queueing during read completions and account checksum from actual write-result byte counts.
-    - Added focused Unicode checksum regression coverage to preserve byte-accurate checksum/file-count contracts under multibyte content.
-
-- **SSG Throughput Follow-Through: Direct Vectored Write-Byte Accounting (✅ Complete, March 2026)**
-    - Optimized `ssg_write_rendered_html_page(...)` to return accumulated byte totals directly from vectored async write results instead of post-write rendered-length recomputation.
-    - Preserved checksum/file-count and stage-metric contracts in `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` while tightening byte-accounting to observed write totals.
-    - Added focused streamed-writer regression coverage for ASCII and UTF-8 byte-count return contract preservation.
-
-- **SSG Throughput Follow-Through: Single-Worker Fast Path for Write Pipelines (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` with a dedicated `concurrency_limit=1` lane to bypass multi-future scheduling overhead while preserving checksum/file-count output contracts.
-    - Optimized `ssg_read_render_and_write_pages(...)` with a dedicated single-worker read→write lane to reduce queue/select overhead while preserving checksum/file-count and stage-metric keys (`read_ms`, `render_write_ms`).
-    - Added focused regression coverage for single-worker `ssg_render_and_write_pages(...)` output/checksum contract preservation.
-
-- **SSG Throughput Follow-Through: Combined Output-Path and Prefix Precompute Pass (✅ Complete, March 2026)**
-    - Optimized `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)` to precompute output paths and HTML prefixes in one shared batch pass.
-    - Removed duplicate per-index string conversion work across separate precompute loops while preserving checksum/file-count and stage-metric contracts.
-    - Added focused regression coverage for combined path/prefix generation behavior, including empty-input contracts.
-
-- **SSG Throughput Follow-Through: Single-Worker Read/Write Overlap Prefetch Lane (✅ Complete, March 2026)**
-    - Optimized `ssg_read_render_and_write_pages(...)` `concurrency_limit=1` execution to overlap bounded read and write progression with one read in-flight, one write in-flight, and one pending-write slot.
-    - Preserved checksum/file-count and stage-metric key contracts (`read_ms`, `render_write_ms`) while reducing sequential read/write idle gaps in the fused single-worker lane.
-    - Added focused policy regression coverage for single-worker prefetch gating and integration coverage for per-index output mapping preservation.
-
-- **Benchmark Stability: Configurable Artifact Root (✅ Complete, March 2026)**
-    - Added `ruff bench-ssg --tmp-dir <PATH>` to route benchmark artifacts to an explicit directory root.
-    - Updated Ruff and Python benchmark scripts to honor shared `RUFF_BENCH_SSG_TMP_DIR` override semantics.
-    - Added unit coverage for tmp-dir override contract handling in SSG benchmark harness code.
-
-- **Benchmark Stability: Command-Level Failure Validation (✅ Complete, March 2026)**
-    - Added deterministic preflight missing-script checks in SSG benchmark harness execution path.
-    - Added command-level benchmark harness tests for missing required metric outputs.
-    - Added command-level benchmark harness tests for Ruff/Python checksum mismatch rejection.
-
-- **Benchmark Stability: Variability Warning Signals (✅ Complete, March 2026)**
-    - Added coefficient-of-variation (CV) analysis for measured-run aggregate statistics in SSG benchmark reporting.
-    - Added `bench-ssg` measurement-quality warning output when high-variance run distributions are detected (threshold: `5%`).
-    - Added comprehensive regression coverage for warning emission and suppression contracts across high/low-variance and low-run-count scenarios.
-
-- **Benchmark Stability: Range-Spread Warning Signals (✅ Complete, April 2026)**
-    - Added `bench-ssg` measurement-quality warnings for high min/max-to-median run spread to better surface tail instability in measured run series.
-    - Added `bench-ssg --range-spread-warning-threshold <PERCENT>` override support (default: `42.0`) for tuning spread-warning sensitivity.
-    - Added focused regression coverage for range-spread metric calculation, threshold override behavior, warning formatting, and operator guidance output.
-
-- **Throughput Gate Enforcement: Median Target Validation in `bench-ssg` (✅ Complete, April 2026)**
-    - Added optional `bench-ssg --throughput-gate-ms <MILLISECONDS>` support for enforcing Ruff median build-time targets directly in benchmark runs.
-    - Added explicit gate summary output (`PASS`/`FAIL`) with signed margin reporting in milliseconds and percent.
-    - Added non-zero exit behavior when the configured throughput gate is missed.
-    - Added comprehensive regression coverage for gate evaluation and output contracts.
-
-- **Benchmark Stability: Measured-Run Trend Tracking (✅ Complete, March 2026)**
-    - Added first-to-last measured-run trend analysis and reporting for Ruff build-time and throughput metrics in `bench-ssg` summaries.
-    - Added optional Python build-time/throughput and Ruff-vs-Python speedup trend reporting when cross-language comparison data is available.
-    - Added comprehensive regression coverage for trend contracts, including single-run suppression, Python-comparison consistency validation, and zero-baseline percent-delta handling.
-
-- **Benchmark Stability: Trend Drift Warning Signals (✅ Complete, March 2026)**
-    - Added trend-drift warning analysis for first-to-last measured-run percent deltas in `bench-ssg` trend reports.
-    - Added warning output when drift magnitude crosses threshold (`10%`) for Ruff metrics and optional Python/speedup metrics.
-    - Added comprehensive regression coverage for warning emission/suppression and measured-run-count gating behavior.
-
-- **Benchmark Stability: Mean/Median Drift Warning Signals (✅ Complete, March 2026)**
-    - Added mean-vs-median drift warning analysis for measured-run aggregate statistics in `bench-ssg` measurement-quality reporting.
-    - Added warning output when drift magnitude crosses threshold (`7.5%`) for Ruff metrics and optional Python/speedup metrics.
-    - Added comprehensive regression coverage for drift calculation, warning emission/suppression behavior, and measured-run-count gating.
-
-- **Benchmark Stability: Configurable Warning Threshold Overrides (✅ Complete, March 2026)**
-        - Added `bench-ssg` CLI threshold override flags:
-            - `--variability-warning-threshold <PERCENT>`
-            - `--trend-warning-threshold <PERCENT>`
-            - `--mean-median-drift-warning-threshold <PERCENT>`
-        - Added threshold-aware warning collector APIs in benchmark aggregation logic and wired `bench-ssg` output to use caller-supplied thresholds.
-        - Preserved default warning behavior when flags are omitted and added focused threshold-override regression coverage.
-
-- **Benchmark Stability: Warning Presentation and Operator Guidance (✅ Complete, March 2026)**
-    - Added warning headers that surface active threshold values directly in `bench-ssg` output for both trend and measurement-quality warning sections.
-    - Added operator guidance hints in warning sections that point to threshold-tuning flags for faster iteration during noisy local runs.
-    - Added focused regression coverage for warning header formatting and guidance hint output contracts.
-
-- **SSG Throughput: Rayon Parallel Read+Render+Write Pipeline (✅ Complete, March 2026)**
-    - Replaced Tokio `FuturesUnordered` pipeline in `ssg_read_render_and_write_pages(...)` with `spawn_blocking` + Rayon `par_iter` two-phase execution.
-    - Phase 1 (reads): bounded Rayon `ThreadPool` work-stealing parallel file reads across all source files.
-    - Phase 2 (render+writes): parallel HTML render + single-call `std::fs::write` per file using the same Rayon pool.
-    - Eliminates per-file Tokio `spawn_blocking` task-spawning overhead and `FuturesUnordered` polling overhead.
-    - Preserves `checksum`/`files`/`read_ms`/`render_write_ms` stage-metric key contracts with accurate per-phase timing.
-    - Added 5 targeted regression tests for the blocking helper: output-format, checksum, read/write failure propagation, Unicode byte-count.
-    - All correctness regressions (`cargo test`) remain green.
-
-- **SSG Throughput: Single-Pass Rayon Pipeline (✅ Complete, March 2026)**
-    - Replaced the two-phase Rayon pipeline (Phase 1 reads barrier → Phase 2 render+writes) with a single-pass per-file read+render+write task inside one `pool.install()`.
-    - Each Rayon worker reads, renders HTML, and writes its own file independently — write I/O begins per-file as soon as that file is read, without waiting for all reads to complete.
-    - Eliminates the Phase 1→Phase 2 barrier, reducing peak memory from O(N) to O(K) file contents in RAM (where K = Rayon pool size).
-    - `read_ms`/`render_write_ms` preserved as non-negative values; now report cumulative per-task CPU-time sums rather than wall-clock phase boundaries.
-    - Added 4 regression tests: per-file timing non-negativity, cumulative timing monotonicity, large-batch (32-file) checksum, single-worker index mapping.
-    - All correctness regressions (`cargo test`) remain green.
-
-- **SSG Throughput Follow-Through: CPU-Bounded Rayon Thread-Pool Sizing (✅ Complete, March 2026)**
-    - Added `ssg_rayon_cpu_cap()` helper that reads `std::thread::available_parallelism()` with a safe fallback to 1.
-    - Capped `ThreadPoolBuilder` thread count in `ssg_run_rayon_read_render_write` at `min(concurrency_limit, cpu_cap).max(1)` to prevent Rayon thread over-subscription when `concurrency_limit` >> CPU count (e.g. default batch_size=256 on an 8-core machine).
-    - `concurrency_limit` values at or below the CPU count are preserved unchanged; no new crate dependency.
-    - Added 4 regression tests: `ssg_rayon_cpu_cap()` >= 1 floor, oversized-limit checksum correctness, small-limit checksum correctness, exact-CPU-count boundary branch.
-
-- **SSG Throughput Follow-Through: BufWriter Write-Through Render Allocation Elimination (✅ Complete, March 2026)**
-    - Eliminated per-file intermediate `String` allocation in `ssg_run_rayon_read_render_write` Rayon render+write hot path.
-    - Replaced `String::with_capacity(total_len)` + 3× `push_str` + `std::fs::write` with `BufWriter<File>` (pre-sized to `total_len`) + 3× `write_all` + `flush`, removing one heap allocation per file from the render+write path.
-    - For a 10,000-file SSG batch this eliminates 10,000 per-file ~200–300 byte heap allocations from the critical path; `BufWriter` absorbs the three scattered byte-slice writes and flushes in a single kernel I/O call.
-    - All external contracts preserved: `checksum`/`files`/`read_ms`/`render_write_ms` dict key values and error message format strings unchanged.
-    - Added 4 regression tests: exact HTML structure (prefix + body + suffix verbatim), byte-accurate checksum across multi-file batch, write-failure error propagation with correct message format, Unicode byte-accurate checksum.
-    - All 354 lib + 238 integration tests passing.
-
-- **SSG Throughput Follow-Through: Cached CPU-Bounded Rayon Pool Reuse (✅ Complete, March 2026)**
-    - Added a reusable Rayon thread-pool cache for `ssg_read_render_and_write_pages(...)` keyed by effective pool size (`min(concurrency_limit, available_parallelism).max(1)`).
-    - Replaced per-call `ThreadPoolBuilder` initialization in `ssg_run_rayon_read_render_write(...)` with `ssg_get_or_create_rayon_pool(...)`, removing repeated pool construction overhead on repeated SSG benchmark runs.
-    - Preserved `checksum`/`files`/`read_ms`/`render_write_ms` contracts and existing read/write failure message formats.
-    - Added regression coverage for same-size pool reuse, distinct-pool behavior by thread count, and repeated-call checksum/stage-metric contract preservation.
-
-- **SSG Throughput Follow-Through: Sync Vectored Write-Through Hot Path (✅ Complete, March 2026)**
-    - Added `ssg_write_rendered_html_page_sync(...)` and migrated `ssg_run_rayon_read_render_write(...)` to synchronous vectored writes over HTML `prefix`/`body`/`suffix` segments.
-    - Replaced per-file `BufWriter<File>` allocation in the Rayon render/write hot path with direct `File::write_vectored(...)` + flush progression.
-    - Preserved checksum/file-count/stage-metric and read/write error message contracts while switching checksum accounting to observed written-byte totals.
-    - Added comprehensive helper-level and pipeline-level regression coverage for exact output, byte-accurate checksum, failure propagation, large-body integrity, and UTF-8 byte accounting.
-
-- **SSG Throughput Follow-Through: Byte-Path Rayon Read/Write Hot Path (✅ Complete, March 2026)**
-    - Optimized `ssg_run_rayon_read_render_write(...)` to read source files as raw bytes (`std::fs::read`) instead of UTF-8 strings (`read_to_string`) in the single-pass Rayon hot path.
-    - Added `ssg_write_rendered_html_page_sync_bytes(...)` and migrated the Rayon write lane to byte-slice sync vectored writes, removing UTF-8 decode overhead before write progression.
-    - Preserved checksum/file-count/stage-metric keys and read/write error message contracts while expanding source-input support to non-UTF-8 bytes.
-    - Added focused regression coverage for byte-writer contracts and non-UTF-8 source-pipeline checksum/output preservation.
-
-- **SSG Throughput Follow-Through: In-Iterator Rayon Aggregation Reduction (✅ Complete, March 2026)**
-    - Optimized `ssg_run_rayon_read_render_write(...)` to aggregate checksum and timing metrics using Rayon `try_fold` + `try_reduce` directly on the parallel iterator.
-    - Removed per-file intermediate aggregation result-vector buffering in the hot path to reduce temporary allocation pressure under large SSG batches.
-    - Preserved checksum/file-count/stage-metric keys and read/write error message contracts.
-    - Added focused regression coverage for partitioned large-batch checksum equivalence and mixed-batch failure surfacing.
-
-- **SSG Throughput Follow-Through: Zipped Tuple Rayon Lane + Shape Guard (✅ Complete, March 2026)**
-    - Optimized `ssg_run_rayon_read_render_write(...)` to iterate over owned zipped `(source_path, output_path, render_prefix)` tuples in the Rayon single-pass hot path.
-    - Removed repeated per-item indexed vector lookups for output paths and render prefixes while preserving checksum/file-count/stage-metric and read/write error-message contracts.
-    - Added deterministic internal shape validation for mismatched source/output/prefix batch lengths with focused regression coverage.
-
-- **Async Runtime Reliability: Timeout-Based Cooperative Scheduler Budget (✅ Complete, April 2026)**
-    - Added `VM::run_scheduler_until_complete_with_timeout(Duration)` so cooperative scheduler completion can use a wall-clock timeout budget instead of a fixed scheduler-round ceiling.
-    - Updated CLI VM execution path to use timeout-based scheduler completion after suspension, replacing the fixed 1000-round scheduler budget.
-    - Added `RUFF_SCHEDULER_TIMEOUT_MS` override support (default `120000`) for tuning heavy async workload completion budgets.
-    - Added comprehensive VM regression coverage for timeout completion success, zero-timeout validation, and timeout-exhaustion error contracts.
-
-- **SSG Throughput Follow-Through: Opt-In Stage Profiling + Non-Profile Fast Path (✅ Complete, April 2026)**
-    - Wired `bench-ssg --profile-async` intent through benchmark subprocess execution via `RUFF_BENCH_SSG_PROFILE_ASYNC` for both Ruff and Python harness scripts.
-    - Updated cross-language SSG benchmark scripts to emit stage metrics only when profiling is explicitly enabled.
-    - Optimized `ssg_run_rayon_read_render_write(...)` to skip per-file stage timer bookkeeping when profiling is disabled, preserving checksum/file-count contracts while reducing non-profile measurement overhead.
-    - Added focused harness and native-pipeline regression coverage for profile-toggle propagation and no-stage-timer behavior.
-
-- **SSG Throughput Follow-Through: Per-Worker Read-Buffer Reuse in Rayon Hot Path (✅ Complete, April 2026)**
-    - Optimized `ssg_run_rayon_read_render_write(...)` to reuse per-worker source-read buffers via `rayon::map_init` instead of allocating a new `Vec<u8>` per file-read operation.
-    - Added `ssg_read_source_file_bytes(...)` read-buffer helper and migrated the Rayon read lane to clear-and-refill reusable buffers before sync vectored write progression.
-    - Preserved checksum/file-count/stage-metric and read/write error-message contracts while reducing residual per-file read allocation overhead.
-    - Added focused regression coverage for large→small reused-buffer truncation correctness and mixed-source-size output isolation behavior.
-
-- **SSG Throughput Follow-Through: Cached Batch Metadata Reuse in Native SSG Paths (✅ Complete, April 2026)**
-    - Added cached render-prefix metadata keyed by `file_count` so repeated SSG benchmark runs reuse prebuilt per-index HTML prefixes.
-    - Added cached output-file suffix metadata keyed by `file_count` and updated output-path construction to reuse per-index `post_<N>.html` suffixes.
-    - Updated `ssg_render_and_write_pages(...)` and `ssg_run_rayon_read_render_write(...)` to consume cached metadata while preserving output ordering and checksum/file-count/stage-metric contracts.
-    - Added focused regression coverage for cached-prefix reuse, cached-suffix reuse, and cross-count cache separation behavior.
-
-- **SSG Throughput Follow-Through: Reused Output-Path Buffers in Rayon Hot Path (✅ Complete, April 2026)**
-    - Optimized `ssg_read_render_and_write_pages(...)` to avoid prebuilding full output-path vectors for each batch by reusing cached output-file suffix metadata with per-worker mutable output-path buffers in the Rayon single-pass lane.
-    - Added `ssg_run_rayon_read_render_write_with_reused_output_path_buffer(...)` and routed the timed benchmark path through the reusable-buffer implementation.
-    - Preserved checksum/file-count/stage-metric key contracts and read/write error-message shapes while reducing per-batch output-path allocation pressure.
-    - Added focused regression coverage for reusable-buffer lane output correctness, checksum/stage-toggle behavior, shape-mismatch rejection, and write-failure propagation.
-
-### Scope (Forward Work Only)
-
-Existing async/runtime groundwork is tracked in [CHANGELOG.md](CHANGELOG.md).
-v0.11.0 tracks only the remaining performance and architecture work.
-
-**Scope lock**: Throughput gate first. Function-level JIT remains supporting/parallel unless benchmark-proven against v0.11 performance gates.
-
-### Remaining High-Priority Workstreams
-
-1. **SSG Throughput Focus (Primary Benchmark Gate)**
-    - Continue reducing residual render/write overhead in `bench-ssg` execution path after direct dispatch, path-clone elimination, read-ahead overlap, streamed-write, combined path/prefix precompute, write-result checksum-accounting, single-worker fast-path, single-worker read/write-overlap follow-through, Rayon two-phase parallel pipeline, single-pass Rayon pipeline, CPU-bounded Rayon pool sizing, BufWriter write-through allocation elimination, cached CPU-bounded Rayon pool reuse, sync-vectored write-through hot-path follow-through, byte-path read/write hot-path follow-through, in-iterator Rayon aggregation reduction follow-through, per-worker read-buffer reuse follow-through, cached batch-metadata reuse follow-through, reusable output-path-buffer follow-through, and cooperative scheduler timeout-budget follow-through.
-    - Keep checksum/file-count equivalence validation intact for all benchmark path changes.
-    - Profile `bench-ssg` results to measure wall-clock impact after the scheduler timeout-budget follow-through and identify next throughput opportunities.
-
-2. **Benchmark Stability & Measurement Quality**
-     - Keep Ruff-only stage profiling (`--profile-async`) as the optimization signal.
-     - Keep cross-language runs (`--compare-python`) for directional trend tracking.
-    - Continue refining benchmark interpretation ergonomics without changing benchmark metric contracts.
-
-### Success Criteria
-
-- `bench-ssg` Ruff build time: **<10 seconds** (phase target)
-- Stretch target: **<5 seconds**
-- No regressions in correctness (`cargo test` remains green)
-- Async API surface remains stable and documented
-
-### Performance Snapshot (Tracking)
-
-- Baseline (synchronous): ~55 seconds
-- Current (`ruff bench-ssg --compare-python`): ~36 seconds (Ruff local sample)
-- Target (v0.11.0): <10 seconds
+- `bench-ssg --runs`, median/mean/min/max/stddev aggregation.
+- `bench-ssg` p90/p95 percentile reporting.
+- `bench-ssg --warmup-runs`.
+- `bench-ssg --tmp-dir`.
+- `bench-ssg --throughput-gate-ms`.
+- variability, trend, mean/median drift, and range-spread warning signals.
+- threshold override flags for benchmark warnings.
+- opt-in `--profile-async` stage metrics.
+- fused SSG native helpers: `ssg_render_and_write_pages(...)` and `ssg_read_render_and_write_pages(...)`.
+- Rayon single-pass read/render/write pipeline.
+- CPU-bounded and cached Rayon pools.
+- sync vectored write path.
+- byte-path source reads.
+- in-iterator checksum/timing aggregation.
+- cached render-prefix and output-suffix metadata.
+- reusable output-path buffers in the hot SSG path.
+- timeout-budget cooperative scheduler completion.
+- JSON, crypto, database, and network native dispatch coverage. These are implemented modules, not future stub-module work.
 
 ---
 
-## v0.12.0 - Developer Experience
+## v0.12.0: Developer Experience
 
-**Focus**: World-class tooling for productivity  
-**Timeline**: Q3 2026  
-**Priority**: P1
+`v0.12.0` should begin after the `v0.11.0` performance release is tagged.
 
-### Language Server Protocol (LSP) (P1)
+Priority work:
 
-**Estimated Effort**: Large (4-6 weeks)
+1. **Language Server Protocol**
 
-**Features**:
-- Autocomplete (built-ins, variables, functions)
-- Go to definition
-- Find references
-- Hover documentation
-- Real-time diagnostics
-- Rename refactoring
-- Code actions
+   Planned features:
 
-**Implementation**: Use `tower-lsp` Rust framework
+   - autocomplete for builtins, variables, and functions
+   - go to definition
+   - find references
+   - hover documentation
+   - real-time diagnostics
+   - rename refactoring
+   - code actions
 
----
+2. **Formatter**
 
-### Code Formatter (ruff-fmt) (P1)
+   Planned features:
 
-**Estimated Effort**: Medium (2-3 weeks)
+   - opinionated formatting
+   - configurable indentation
+   - line-length policy
+   - import ordering once module semantics are stable
 
-**Features**:
-- Opinionated formatting (like gofmt, black)
-- Configurable indentation
-- Line length limits
-- Import sorting
+3. **Linter**
 
----
+   Planned rules:
 
-### Linter (ruff-lint) (P1)
+   - unused variables
+   - unreachable code
+   - obvious type mismatches
+   - missing error-handling patterns
+   - auto-fix for safe rules
 
-**Estimated Effort**: Medium (3-4 weeks)
+4. **Package/project workflow**
 
-**Rules**:
-- Unused variables
-- Unreachable code
-- Type mismatches
-- Missing error handling
-- Auto-fix for simple issues
+   Planned features:
 
----
+   - `ruff.toml`
+   - dependency metadata
+   - `ruff init`
+   - package install/add/publish workflow
 
-### Package Manager (P1)
+5. **REPL improvements**
 
-**Estimated Effort**: Large (8-12 weeks)
+   Planned features:
 
-**Features**:
-- `ruff.toml` project configuration
-- Dependency management with semver
-- Package registry
-- CLI: `ruff init`, `ruff add`, `ruff install`, `ruff publish`
+   - tab completion
+   - syntax highlighting
+   - stronger multi-line editing
+   - `.help <function>` documentation
 
----
+6. **Documentation generator**
 
-### REPL Improvements (P2)
+   Planned features:
 
-**Estimated Effort**: Medium (1-2 weeks)
-
-**Features**:
-- Tab completion
-- Syntax highlighting
-- Multi-line editing
-- `.help <function>` documentation
+   - HTML docs from `///` comments
+   - examples extracted from doc comments
+   - builtin/native API reference generation
 
 ---
 
-### Documentation Generator (P2)
+## v1.0.0 Readiness
 
-**Estimated Effort**: Medium (2-3 weeks)
+`v1.0.0` should not be planned in detail until `v0.11.0` and `v0.12.0` are complete.
 
-Generate HTML documentation from doc comments:
+Required before `v1.0.0`:
 
-```ruff
-/// Calculates the square of a number.
-/// 
-/// # Examples
-/// ```ruff
-/// result := square(5)  # 25
-/// ```
-func square(n) {
-    return n * n
-}
-```
+- `v0.11.0` performance release complete.
+- `v0.12.0` developer tooling substantially complete.
+- Stable language/runtime API policy.
+- Current, accurate user documentation.
+- Clear compatibility policy for native builtins and CLI output contracts.
 
----
+Possible post-`v0.12.0` design tracks:
 
-## v0.11.0+ - Stub Module Completion
-
-**Status**: Planned  
-**Priority**: P2 - Implement on-demand
-
-### JSON Module (json.rs)
-- `parse_json()`, `to_json()`, `json_get()`, `json_merge()`
-- **Trigger**: When users need JSON API integration
-
-### Crypto Module (crypto.rs)
-- Hashing: MD5, SHA256, SHA512
-- Encryption: AES, RSA
-- Digital signatures
-- **Trigger**: When users need secure authentication
-
-### Database Module (database.rs)
-- MySQL, PostgreSQL, SQLite connections
-- Query execution, transactions
-- Connection pooling
-- **Trigger**: When users need persistent storage
-
-### Network Module (network.rs)
-- TCP/UDP socket operations
-- **Trigger**: When users need low-level networking
-
----
-
-## v1.0.0 - Production Ready
-
-**Focus**: Polish, documentation, community  
-**Timeline**: Q4 2026  
-**Goal**: Production-ready language competitive with Python/Go
-
-**Requirements**:
-- All v0.11.0 performance targets met
-- All v0.12.0 tooling milestones complete
-- Comprehensive documentation
-- Stable API (no breaking changes)
-
----
-
-## Future Versions (v1.0.0+)
-
-### Generic Types (P2)
-```ruff
-func first<T>(arr: Array<T>) -> Option<T> {
-    if len(arr) > 0 { return Some(arr[0]) }
-    return None
-}
-```
-
-### Union Types (P2)
-```ruff
-func process(value: int | string | null) {
-    match type(value) {
-        case "int": print("Number")
-        case "string": print("Text")
-    }
-}
-```
-
-### Enums with Methods (P2)
-```ruff
-enum Status {
-    Pending,
-    Active { user_id: int },
-    Completed { result: string }
-    
-    func is_done(self) {
-        return match self {
-            case Status::Completed: true
-            case _: false
-        }
-    }
-}
-```
-
-### Macros & Metaprogramming (P3)
-```ruff
-macro debug_print(expr) {
-    print("${expr} = ${eval(expr)}")
-}
-```
-
-### Foreign Function Interface (FFI) (P3)
-```ruff
-lib := load_library("libmath.so")
-extern func cos(x: float) -> float from lib
-```
-
-### WebAssembly Compilation (P3)
-```bash
-ruff build --target wasm script.ruff
-```
-
-### AI/ML Built-in (P3)
-```ruff
-import ml
-model := ml.linear_regression()
-model.train(x_train, y_train)
-```
-
----
-
-## 🤝 Contributing
-
-**Good First Issues**:
-- String utility functions
-- Array utility functions
-- Test coverage improvements
-
-**Medium Complexity**:
-- JIT opcode coverage expansion
-- Error message improvements
-- Standard library modules
-
-**Advanced Projects**:
-- LSP implementation
-- Package manager
-- JIT performance optimization
-- Debugger implementation
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+- generic types
+- union types
+- enum methods
+- macros/metaprogramming
+- FFI
+- WebAssembly target
+- ML/AI libraries
 
 ---
 
 ## Version Strategy
 
-- **v0.11.0**: Parallel processing / concurrency performance (SSG focus)
-- **v0.12.0**: Developer experience (LSP, package manager)
-- **v1.0.0**: Production-ready 🎉
+- `v0.11.0`: SSG throughput, async scheduler reliability, benchmark release evidence.
+- `v0.12.0`: developer experience and project tooling.
+- `v1.0.0`: stabilization, documentation, compatibility policy, ecosystem polish.
 
-**See Also**:
-- [CHANGELOG.md](CHANGELOG.md) - Completed features
-- [docs/PERFORMANCE.md](docs/PERFORMANCE.md) - Performance guide
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
+See also:
 
----
-
-*Last Updated: April 28, 2026*
+- [CHANGELOG.md](CHANGELOG.md): completed changes.
+- [docs/PERFORMANCE.md](docs/PERFORMANCE.md): performance guide.
+- [docs/CONCURRENCY.md](docs/CONCURRENCY.md): concurrency notes.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): architecture notes. Some sections may be stale and should be reviewed before release.
