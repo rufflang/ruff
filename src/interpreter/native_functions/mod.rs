@@ -316,6 +316,7 @@ mod tests {
             "spawn_process",
             "pipe_commands",
             "load_image",
+            "gif_to_webp",
             "zip_create",
             "zip_add_file",
             "zip_add_dir",
@@ -4742,6 +4743,77 @@ mod tests {
         }
 
         let _ = std::fs::remove_file(image_path);
+    }
+
+    #[test]
+    fn test_release_hardening_gif_to_webp_dispatch_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let missing_args = call_native_function(&mut interpreter, "gif_to_webp", &[]);
+        assert!(matches!(
+            missing_args,
+            Value::Error(message) if message.contains("gif_to_webp requires 2 to 5 arguments")
+        ));
+
+        let wrong_input_type =
+            call_native_function(&mut interpreter, "gif_to_webp", &[Value::Int(1), Value::Int(2)]);
+        assert!(matches!(
+            wrong_input_type,
+            Value::Error(message) if message.contains("string input_path")
+        ));
+
+        let wrong_output_type = call_native_function(
+            &mut interpreter,
+            "gif_to_webp",
+            &[Value::Str(Arc::new("in.gif".to_string())), Value::Int(2)],
+        );
+        assert!(matches!(
+            wrong_output_type,
+            Value::Error(message) if message.contains("string output_path")
+        ));
+
+        let wrong_quality_type = call_native_function(
+            &mut interpreter,
+            "gif_to_webp",
+            &[
+                Value::Str(Arc::new("in.gif".to_string())),
+                Value::Str(Arc::new("out.webp".to_string())),
+                Value::Bool(true),
+            ],
+        );
+        assert!(matches!(
+            wrong_quality_type,
+            Value::Error(message) if message.contains("quality must be numeric")
+        ));
+
+        let out_of_range_quality = call_native_function(
+            &mut interpreter,
+            "gif_to_webp",
+            &[
+                Value::Str(Arc::new("in.gif".to_string())),
+                Value::Str(Arc::new("out.webp".to_string())),
+                Value::Int(999),
+            ],
+        );
+        assert!(matches!(
+            out_of_range_quality,
+            Value::Error(message) if message.contains("quality must be in range 0-100")
+        ));
+
+        let out_of_range_method = call_native_function(
+            &mut interpreter,
+            "gif_to_webp",
+            &[
+                Value::Str(Arc::new("in.gif".to_string())),
+                Value::Str(Arc::new("out.webp".to_string())),
+                Value::Int(80),
+                Value::Int(7),
+            ],
+        );
+        assert!(matches!(
+            out_of_range_method,
+            Value::Error(message) if message.contains("method must be in range 0-6")
+        ));
     }
 
     #[test]

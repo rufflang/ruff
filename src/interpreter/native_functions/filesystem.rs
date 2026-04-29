@@ -7,6 +7,7 @@ use crate::{builtins, interpreter::DictMap};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
@@ -307,6 +308,120 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 }
             } else {
                 Value::Error("load_image requires a string path argument".to_string())
+            }
+        }
+
+        "gif_to_webp" => {
+            if arg_values.len() < 2 || arg_values.len() > 5 {
+                return Some(Value::Error("gif_to_webp requires 2 to 5 arguments: input_path, output_path, [quality(0-100)], [method(0-6)], [lossless(bool)]".to_string()));
+            }
+
+            let input_path = match arg_values.first() {
+                Some(Value::Str(path)) => path.as_ref().clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "gif_to_webp requires a string input_path argument".to_string(),
+                    ));
+                }
+            };
+
+            let output_path = match arg_values.get(1) {
+                Some(Value::Str(path)) => path.as_ref().clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "gif_to_webp requires a string output_path argument".to_string(),
+                    ));
+                }
+            };
+
+            let quality = match arg_values.get(2) {
+                Some(Value::Int(n)) => *n,
+                Some(Value::Float(n)) => *n as i64,
+                Some(_) => {
+                    return Some(Value::Error(
+                        "gif_to_webp quality must be numeric (0-100)".to_string(),
+                    ));
+                }
+                None => 85,
+            };
+
+            let method = match arg_values.get(3) {
+                Some(Value::Int(n)) => *n,
+                Some(Value::Float(n)) => *n as i64,
+                Some(_) => {
+                    return Some(Value::Error(
+                        "gif_to_webp method must be numeric (0-6)".to_string(),
+                    ));
+                }
+                None => 4,
+            };
+
+            let lossless = match arg_values.get(4) {
+                Some(Value::Bool(flag)) => *flag,
+                Some(_) => {
+                    return Some(Value::Error(
+                        "gif_to_webp lossless flag must be bool".to_string(),
+                    ));
+                }
+                None => false,
+            };
+
+            if quality < 0 || quality > 100 {
+                return Some(Value::Error(
+                    "gif_to_webp quality must be in range 0-100".to_string(),
+                ));
+            }
+
+            if method < 0 || method > 6 {
+                return Some(Value::Error(
+                    "gif_to_webp method must be in range 0-6".to_string(),
+                ));
+            }
+
+            if !Path::new(&input_path).exists() {
+                return Some(Value::Error(format!(
+                    "gif_to_webp input file does not exist: {}",
+                    input_path
+                )));
+            }
+
+            let mut command = Command::new("gif2webp");
+            command
+                .arg(&input_path)
+                .arg("-o")
+                .arg(&output_path)
+                .arg("-q")
+                .arg(quality.to_string())
+                .arg("-m")
+                .arg(method.to_string())
+                .arg("-mt");
+
+            if lossless {
+                command.arg("-lossless");
+            } else {
+                command.arg("-lossy");
+            }
+
+            match command.output() {
+                Ok(output) => {
+                    if output.status.success() {
+                        Value::Bool(true)
+                    } else {
+                        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                        if stderr.is_empty() {
+                            Value::Error("gif_to_webp failed with unknown error".to_string())
+                        } else {
+                            Value::Error(format!("gif_to_webp failed: {}", stderr))
+                        }
+                    }
+                }
+                Err(error) => {
+                    if std::io::ErrorKind::NotFound == error.kind() {
+                        Value::Error("gif_to_webp requires the 'gif2webp' CLI tool to be installed and available in PATH".to_string())
+                    } else {
+                        Value::Error(format!("gif_to_webp command failed: {}", error))
+                    }
+                }
             }
         }
 

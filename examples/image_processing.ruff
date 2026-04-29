@@ -121,6 +121,15 @@ print("  # Supported formats: jpg, jpeg, png, webp, gif, bmp")
 print("  # Method-call form (img.save, img.resize, etc.) is supported")
 print("")
 
+# Example 12b: Animated GIF to animated WebP
+print("Example 12b: Convert animated GIF to animated WebP")
+print("---")
+print("Code:")
+print("  # Preserves animation frames via gif2webp tool")
+print("  ok := gif_to_webp('clip.gif', 'clip.webp', 85, 4, false)")
+print("  # quality=85, method=4, lossless=false")
+print("")
+
 # Example 13: Batch processing
 print("Example 13: Batch process multiple images")
 print("---")

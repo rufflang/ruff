@@ -638,6 +638,7 @@ impl Interpreter {
             "assert_contains",
             // Image processing functions
             "load_image",
+            "gif_to_webp",
             // Compression & Archive functions
             "zip_create",
             "zip_add_file",
@@ -1253,6 +1254,8 @@ impl Interpreter {
 
         // Image processing functions
         self.env.define("load_image".to_string(), Value::NativeFunction("load_image".to_string()));
+        self.env
+            .define("gif_to_webp".to_string(), Value::NativeFunction("gif_to_webp".to_string()));
 
         // Compression & Archive functions
         self.env.define("zip_create".to_string(), Value::NativeFunction("zip_create".to_string()));

@@ -1482,6 +1482,19 @@ impl TypeChecker {
                 return_type: None,                               // Returns Image object
             },
         );
+        self.functions.insert(
+            "gif_to_webp".to_string(),
+            FunctionSignature {
+                param_types: vec![
+                    Some(TypeAnnotation::String),
+                    Some(TypeAnnotation::String),
+                    None,
+                    None,
+                    None,
+                ],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
 
         // I/O functions (CRITICAL - these were missing!)
         self.functions.insert(
