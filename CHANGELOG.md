@@ -357,6 +357,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reduced ambiguity between README in-progress narratives and roadmap release priorities by locking a single throughput-first scope statement.
   - Initialized structured unreleased tracking (`Added`/`Changed`/`Fixed`) so v0.11 progress can be release-prepared incrementally.
 
+- **Async Runtime Full-Suite Timing Flake Stabilization (v0.11.0 P0)**:
+  - Reworked `interpreter::async_runtime::tests::test_concurrent_tasks` to use a relative concurrency-vs-sequential timing assertion instead of a brittle machine-dependent fixed upper bound.
+  - Added stronger completion/result assertions for spawned tasks to verify correctness in addition to concurrency behavior.
+  - Added `test_concurrent_tasks_under_timeout_budget` coverage to lock a generous completion-budget contract under loaded environments.
+  - Verified with `cargo test test_concurrent_tasks` and a full `cargo test` pass to close the previously reported intermittent failure risk.
+
 ## [0.10.0] - 2026-02-18
 
 ### Added

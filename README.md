@@ -162,6 +162,12 @@ Run the Rust test suite:
 cargo test
 ```
 
+Run the async runtime concurrency stability regression directly:
+
+```bash
+cargo test test_concurrent_tasks
+```
+
 Run repository `.ruff` snapshots:
 
 ```bash

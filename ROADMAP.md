@@ -89,17 +89,7 @@ These must be closed before tagging `v0.11.0`.
    - Record median Ruff build time, median Python build time, median speedup, and warning sections if emitted.
    - If warnings fire, decide whether the run is noisy and should be repeated or whether the warning reflects a real release risk.
 
-3. **Stabilize full-suite correctness signal**
-
-   `cargo test` must be green for release. A recent audit run produced one timing-sensitive failure in `interpreter::async_runtime::tests::test_concurrent_tasks`, then the exact test passed on rerun. Treat that as unresolved until stabilized or intentionally accepted.
-
-   Required release decision:
-
-   - Prefer stabilizing the timing assertion so it does not fail under normal full-suite load.
-   - At minimum, rerun the full suite on an idle machine and record whether the failure reproduces.
-   - Do not cut `v0.11.0` from a known-red full-suite run.
-
-4. **Run focused SSG and benchmark-harness regression tests**
+3. **Run focused SSG and benchmark-harness regression tests**
 
    ```bash
    cargo test ssg
@@ -112,7 +102,7 @@ These must be closed before tagging `v0.11.0`.
    - All focused tests pass.
    - Any environment-specific failure is documented with repro steps and a release decision.
 
-5. **Run native builtin dispatch and release-hardening coverage**
+4. **Run native builtin dispatch and release-hardening coverage**
 
    ```bash
    cargo test release_hardening_builtin_dispatch_coverage
@@ -125,7 +115,7 @@ These must be closed before tagging `v0.11.0`.
    - No declared builtin regresses to unknown-native fallback.
    - SSG native helper argument/error-shape contracts remain stable.
 
-6. **Cut release metadata**
+5. **Cut release metadata**
 
    Required edits at release time:
 
@@ -243,6 +233,7 @@ These are useful, but should not block `v0.11.0` unless the P0/P1 evidence revea
 
 The following areas were previously listed as future work but are now implemented and should be tracked through the changelog/tests instead of roadmap tasks:
 
+- async runtime full-suite timing-flake stabilization for `interpreter::async_runtime::tests::test_concurrent_tasks` (migrated to relative timing assertions plus timeout-budget coverage).
 - `bench-ssg --runs`, median/mean/min/max/stddev aggregation.
 - `bench-ssg` p90/p95 percentile reporting.
 - `bench-ssg --warmup-runs`.
