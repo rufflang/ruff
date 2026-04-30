@@ -12,6 +12,7 @@ pub mod errors;
 pub mod interpreter;
 pub mod jit;
 pub mod lexer;
+pub mod lsp_code_actions;
 pub mod lsp_completion;
 pub mod lsp_definition;
 pub mod lsp_diagnostics;

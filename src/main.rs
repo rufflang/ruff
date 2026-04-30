@@ -14,6 +14,7 @@ mod interpreter;
 mod jit;
 mod lexer;
 mod lsp_completion;
+mod lsp_code_actions;
 mod lsp_definition;
 mod lsp_diagnostics;
 mod lsp_hover;
@@ -293,6 +294,16 @@ enum Commands {
         new_name: String,
 
         /// Print rename result as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Return quick-fix code actions based on diagnostics
+    LspCodeActions {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// Print code actions as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -1296,6 +1307,46 @@ async fn main() {
                         edit.column,
                         edit.old_name,
                         edit.new_name
+                    );
+                }
+            }
+        }
+
+        Commands::LspCodeActions { file, json } => {
+            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let actions = lsp_code_actions::code_actions(&code);
+
+            if json {
+                let json_items: Vec<serde_json::Value> = actions
+                    .iter()
+                    .map(|action| {
+                        serde_json::json!({
+                            "title": action.title,
+                            "kind": action.kind,
+                            "line": action.line,
+                            "column": action.column,
+                            "replacement": action.replacement,
+                            "description": action.description,
+                        })
+                    })
+                    .collect();
+
+                match serde_json::to_string_pretty(&json_items) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize code actions result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                for action in actions.iter() {
+                    println!(
+                        "{}\t{}:{}:{}\t{}",
+                        action.title,
+                        file.display(),
+                        action.line,
+                        action.column,
+                        action.replacement
                     );
                 }
             }
