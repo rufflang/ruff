@@ -21,6 +21,7 @@ mod lsp_code_actions;
 mod lsp_definition;
 mod lsp_diagnostics;
 mod lsp_hover;
+mod lsp_server;
 mod lsp_rename;
 mod lsp_references;
 mod module;
@@ -407,6 +408,13 @@ enum Commands {
         /// Print code actions as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
+    },
+
+    /// Launch Ruff as a long-running Language Server Protocol server (JSON-RPC over stdio)
+    Lsp {
+        /// Emit deterministic request/response logs to stderr for debugging
+        #[arg(long, default_value_t = false)]
+        deterministic_logs: bool,
     },
 }
 
@@ -1659,6 +1667,15 @@ async fn main() {
                         action.replacement
                     );
                 }
+            }
+        }
+
+        Commands::Lsp { deterministic_logs } => {
+            let exit_code = lsp_server::run_stdio_server(lsp_server::LspServerConfig {
+                deterministic_logging: deterministic_logs,
+            });
+            if 0 != exit_code {
+                std::process::exit(exit_code);
             }
         }
     }

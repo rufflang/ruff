@@ -105,6 +105,7 @@ The current CLI exposes these subcommands:
 | `ruff package-install` | Validate and enumerate dependencies declared in `ruff.toml`. |
 | `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
 | `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`). |
+| `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing). |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax. |
 | `ruff bench [path]` | Run benchmark scripts. |

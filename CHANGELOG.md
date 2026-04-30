@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added release sign-off evidence in `notes/2026-04-30_10-00_v0.13.0-language-spec-signoff.md`.
   - Linked the spec from `README.md` so language/tooling contract policy is discoverable from primary project documentation.
 
+- **v0.13.0 Official Ruff LSP Server Entrypoint (P0)**:
+  - Added `ruff lsp` as a long-running JSON-RPC server over stdio, including `initialize`, `initialized`, `shutdown`, and `exit` lifecycle handling.
+  - Added deterministic debug logging support via `ruff lsp --deterministic-logs` (stderr request/response trace with stable sequence ordering).
+  - Wired server request handlers to shared analysis modules (`lsp_completion`, `lsp_hover`, `lsp_definition`, `lsp_references`, `lsp_rename`, `lsp_code_actions`, `lsp_diagnostics`) and document-sync notifications (`didOpen`/`didChange`/`didClose`) with `publishDiagnostics` notifications.
+  - Added protocol startup and handler tests in `src/lsp_server.rs` covering lifecycle, diagnostics publication, and completion request behavior.
+
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
   - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
   - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.
