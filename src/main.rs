@@ -15,6 +15,7 @@ mod jit;
 mod lexer;
 mod lsp_completion;
 mod lsp_definition;
+mod lsp_diagnostics;
 mod lsp_hover;
 mod lsp_references;
 mod module;
@@ -259,6 +260,16 @@ enum Commands {
         column: usize,
 
         /// Print hover info as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Return diagnostics for source code at editor refresh time
+    LspDiagnostics {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// Print diagnostics as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -1167,6 +1178,44 @@ async fn main() {
                     None => {
                         println!("not found");
                     }
+                }
+            }
+        }
+
+        Commands::LspDiagnostics { file, json } => {
+            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let diagnostics = lsp_diagnostics::diagnose(&code);
+
+            if json {
+                let json_items: Vec<serde_json::Value> = diagnostics
+                    .iter()
+                    .map(|diagnostic| {
+                        serde_json::json!({
+                            "line": diagnostic.line,
+                            "column": diagnostic.column,
+                            "severity": diagnostic.severity.as_str(),
+                            "message": diagnostic.message,
+                        })
+                    })
+                    .collect();
+
+                match serde_json::to_string_pretty(&json_items) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize diagnostics result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                for diagnostic in diagnostics {
+                    println!(
+                        "{}\t{}:{}:{}\t{}",
+                        diagnostic.severity.as_str(),
+                        file.display(),
+                        diagnostic.line,
+                        diagnostic.column,
+                        diagnostic.message
+                    );
                 }
             }
         }

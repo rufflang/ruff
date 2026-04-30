@@ -14,6 +14,7 @@ pub mod jit;
 pub mod lexer;
 pub mod lsp_completion;
 pub mod lsp_definition;
+pub mod lsp_diagnostics;
 pub mod lsp_hover;
 pub mod lsp_references;
 pub mod module;
