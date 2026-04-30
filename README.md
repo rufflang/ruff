@@ -83,7 +83,7 @@ The current CLI exposes these subcommands:
 | --- | --- |
 | `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
-| `ruff repl` | Start the interactive REPL. |
+| `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
 | `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`). |
 | `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |
 | `ruff init` | Initialize a Ruff project with `ruff.toml` and `src/main.ruff`. |
@@ -160,6 +160,15 @@ Ruff now includes an initial package workflow with:
 - dependency metadata editing via `ruff package-add`
 - dependency validation/enumeration via `ruff package-install`
 - publish preview/trigger surface via `ruff package-publish`
+
+## v0.12.0 REPL Progress
+
+Ruff now includes an improved REPL interaction surface via `ruff repl` with:
+
+- tab completion for REPL commands and builtin function names
+- command-oriented syntax highlighting for quick visual scanning
+- validator-backed multiline continuation for incomplete input
+- `.help <function>` builtin usage guidance
 
 ## Language Overview
 

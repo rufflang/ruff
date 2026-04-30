@@ -31,3 +31,4 @@ High-signal session notes:
 - `2026-04-29_22-53_formatter-initial-cli.md` — Added `ruff format` with configurable indentation, line-length wrapping, and leading import-block sorting.
 - `2026-04-29_22-57_linter-initial-cli.md` — Added `ruff lint` with initial rule coverage, structured output, and safe autofix support.
 - `2026-04-29_23-01_package-workflow-initial-cli.md` — Added initial package workflow commands (`init`, `package-add`, `package-install`, `package-publish`) and manifest metadata handling.
+- `2026-04-29_23-08_repl-improvements-initial-cli.md` — Added REPL helper support for tab completion, command highlighting, multiline continuation validation, and `.help <function>` docs.

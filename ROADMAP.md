@@ -69,10 +69,10 @@ Priority work:
 
    Planned features:
 
-   - tab completion
-   - syntax highlighting
-   - stronger multi-line editing
-   - `.help <function>` documentation
+   - [x] tab completion (initial builtin + command completion in `ruff repl`)
+   - [x] syntax highlighting (initial command-line highlighting in `ruff repl`)
+   - [x] stronger multi-line editing (validator-backed incomplete input detection)
+   - [x] `.help <function>` documentation (initial builtin help surface)
 
 6. **Documentation generator**
 

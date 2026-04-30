@@ -13,22 +13,112 @@ use crate::ast::Stmt;
 use crate::interpreter::{Interpreter, Value};
 use crate::lexer;
 use crate::parser;
+use std::borrow::Cow;
 use colored::Colorize;
+use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
-use rustyline::DefaultEditor;
+use rustyline::highlight::Highlighter;
+use rustyline::hint::Hinter;
+use rustyline::history::DefaultHistory;
+use rustyline::validate::{ValidationContext, ValidationResult, Validator};
+use rustyline::{Context, Editor, Helper};
 use std::collections::HashMap;
 use std::sync::Arc;
+
+struct ReplHelper {
+    completion_items: Vec<String>,
+}
+
+impl ReplHelper {
+    fn new() -> Self {
+        let mut completion_items: Vec<String> = vec![
+            ":help".to_string(),
+            ":quit".to_string(),
+            ":clear".to_string(),
+            ":vars".to_string(),
+            ":reset".to_string(),
+            ".help".to_string(),
+        ];
+
+        completion_items.extend(Interpreter::get_builtin_names().into_iter().map(|name| name.to_string()));
+        completion_items.sort();
+        completion_items.dedup();
+
+        Self { completion_items }
+    }
+
+    fn completion_start(line: &str, pos: usize) -> usize {
+        let prefix = &line[..pos];
+        prefix
+            .rfind(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == ':' || ch == '.'))
+            .map(|index| index + 1)
+            .unwrap_or(0)
+    }
+}
+
+impl Helper for ReplHelper {}
+
+impl Completer for ReplHelper {
+    type Candidate = Pair;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &Context<'_>,
+    ) -> Result<(usize, Vec<Pair>), ReadlineError> {
+        let start = Self::completion_start(line, pos);
+        let needle = &line[start..pos];
+
+        let candidates: Vec<Pair> = self
+            .completion_items
+            .iter()
+            .filter(|item| item.starts_with(needle))
+            .map(|item| Pair {
+                display: item.clone(),
+                replacement: item.clone(),
+            })
+            .collect();
+
+        Ok((start, candidates))
+    }
+}
+
+impl Hinter for ReplHelper {
+    type Hint = String;
+}
+
+impl Highlighter for ReplHelper {
+    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
+        if line.trim_start().starts_with(':') || line.trim_start().starts_with(".help") {
+            Cow::Owned(line.bright_blue().to_string())
+        } else {
+            Cow::Borrowed(line)
+        }
+    }
+}
+
+impl Validator for ReplHelper {
+    fn validate(&self, ctx: &mut ValidationContext<'_>) -> Result<ValidationResult, ReadlineError> {
+        if is_input_complete_text(ctx.input()) {
+            Ok(ValidationResult::Valid(None))
+        } else {
+            Ok(ValidationResult::Incomplete)
+        }
+    }
+}
 
 /// REPL session that maintains interpreter state and handles user interaction
 pub struct Repl {
     interpreter: Interpreter,
-    editor: DefaultEditor,
+    editor: Editor<ReplHelper, DefaultHistory>,
 }
 
 impl Repl {
     /// Creates a new REPL session with a fresh interpreter
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let editor = DefaultEditor::new()?;
+        let mut editor = Editor::<ReplHelper, DefaultHistory>::new()?;
+        editor.set_helper(Some(ReplHelper::new()));
         Ok(Repl { interpreter: Interpreter::new(), editor })
     }
 
@@ -70,7 +160,9 @@ impl Repl {
                     let _ = self.editor.add_history_entry(line.as_str());
 
                     // Check for special commands (only when not in multi-line mode)
-                    if buffer.is_empty() && line.trim().starts_with(':') {
+                    if buffer.is_empty()
+                        && (line.trim().starts_with(':') || line.trim().starts_with(".help"))
+                    {
                         if self.handle_command(line.trim()) {
                             continue;
                         } else {
@@ -109,6 +201,21 @@ impl Repl {
     /// Handles special REPL commands starting with ':'
     /// Returns true to continue REPL, false to quit
     fn handle_command(&mut self, cmd: &str) -> bool {
+        if cmd.starts_with(".help") {
+            let parts: Vec<&str> = cmd.split_whitespace().collect();
+            if parts.len() == 2 {
+                self.show_function_help(parts[1]);
+            } else {
+                println!(
+                    "{} Use {}{}",
+                    "Error:".bright_red(),
+                    ".help".bright_yellow(),
+                    " <function>".bright_blue()
+                );
+            }
+            return true;
+        }
+
         match cmd {
             ":help" | ":h" => {
                 self.show_help();
@@ -161,6 +268,7 @@ impl Repl {
         println!("  {}{}  Clear the screen", ":clear".bright_yellow(), " or :c    ".dimmed());
         println!("  {}{}  Show defined variables", ":vars".bright_yellow(), " or :v    ".dimmed());
         println!("  {}{}  Reset environment", ":reset".bright_yellow(), " or :r   ".dimmed());
+        println!("  {}{}  Show builtin docs", ".help".bright_yellow(), " <function>".dimmed());
         println!();
         println!("{}", "Navigation:".bright_cyan().bold());
         println!();
@@ -180,6 +288,24 @@ impl Repl {
         println!("  {}", "....>     print(\"Hello, \" + name)".dimmed());
         println!("  {}", "....> }".dimmed());
         println!("  {}", "ruff> greet(\"World\")".dimmed());
+        println!();
+    }
+
+    fn show_function_help(&self, function_name: &str) {
+        println!();
+        println!("{} {}", "Function help:".bright_cyan().bold(), function_name.bright_yellow());
+
+        let description = match function_name {
+            "print" => "print(value) -> Writes a value to stdout.",
+            "input" => "input(prompt) -> Reads a line from stdin.",
+            "len" => "len(value) -> Returns length for strings, arrays, and dictionaries.",
+            "range" => "range(start?, end, step?) -> Produces an integer sequence.",
+            "read_file" => "read_file(path) -> Reads a UTF-8 file and returns content.",
+            "http_get" => "http_get(url) -> Performs an HTTP GET request and returns response data.",
+            _ => "No dedicated help text yet for this function.",
+        };
+
+        println!("  {}", description.bright_white());
         println!();
     }
 
@@ -204,56 +330,7 @@ impl Repl {
     /// Checks if the input is syntactically complete
     /// Returns true if all brackets/braces/parentheses are balanced
     fn is_input_complete(&self, input: &str) -> bool {
-        let trimmed = input.trim();
-
-        // Empty input is complete
-        if trimmed.is_empty() {
-            return true;
-        }
-
-        // Count unclosed delimiters
-        let mut brace_count = 0;
-        let mut bracket_count = 0;
-        let mut paren_count = 0;
-        let mut in_string = false;
-        let mut escape_next = false;
-        let mut in_comment = false;
-
-        for ch in trimmed.chars() {
-            if in_comment {
-                if ch == '\n' {
-                    in_comment = false;
-                }
-                continue;
-            }
-
-            if escape_next {
-                escape_next = false;
-                continue;
-            }
-
-            match ch {
-                '\\' if in_string => {
-                    escape_next = true;
-                }
-                '"' => {
-                    in_string = !in_string;
-                }
-                '#' if !in_string => {
-                    in_comment = true;
-                }
-                '{' if !in_string => brace_count += 1,
-                '}' if !in_string => brace_count -= 1,
-                '[' if !in_string => bracket_count += 1,
-                ']' if !in_string => bracket_count -= 1,
-                '(' if !in_string => paren_count += 1,
-                ')' if !in_string => paren_count -= 1,
-                _ => {}
-            }
-        }
-
-        // Input is complete if all delimiters are balanced and we're not in a string
-        !in_string && brace_count == 0 && bracket_count == 0 && paren_count == 0
+        is_input_complete_text(input)
     }
 
     /// Evaluates the input code and displays the result
@@ -410,5 +487,75 @@ impl Repl {
 impl Default for Repl {
     fn default() -> Self {
         Self::new().expect("Failed to create REPL")
+    }
+}
+
+fn is_input_complete_text(input: &str) -> bool {
+    let trimmed = input.trim();
+
+    if trimmed.is_empty() {
+        return true;
+    }
+
+    if trimmed.ends_with('\\') {
+        return false;
+    }
+
+    let mut brace_count = 0;
+    let mut bracket_count = 0;
+    let mut paren_count = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut in_comment = false;
+
+    for ch in trimmed.chars() {
+        if in_comment {
+            if ch == '\n' {
+                in_comment = false;
+            }
+            continue;
+        }
+
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+
+        match ch {
+            '\\' if in_string => escape_next = true,
+            '"' => in_string = !in_string,
+            '#' if !in_string => in_comment = true,
+            '{' if !in_string => brace_count += 1,
+            '}' if !in_string => brace_count -= 1,
+            '[' if !in_string => bracket_count += 1,
+            ']' if !in_string => bracket_count -= 1,
+            '(' if !in_string => paren_count += 1,
+            ')' if !in_string => paren_count -= 1,
+            _ => {}
+        }
+    }
+
+    !in_string && brace_count == 0 && bracket_count == 0 && paren_count == 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_input_complete_text;
+
+    #[test]
+    fn multiline_validator_detects_unclosed_delimiters() {
+        assert!(!is_input_complete_text("func test() {\n"));
+        assert!(!is_input_complete_text("print((1 + 2)\n"));
+    }
+
+    #[test]
+    fn multiline_validator_detects_line_continuation() {
+        assert!(!is_input_complete_text("let x := 1 + \\\n"));
+    }
+
+    #[test]
+    fn multiline_validator_accepts_complete_input() {
+        assert!(is_input_complete_text("let x := 1\n"));
+        assert!(is_input_complete_text("print(1)\n"));
     }
 }

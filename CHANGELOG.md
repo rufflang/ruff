@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 REPL Follow-Through: Completion/Highlighting/Multiline/.help Improvements (P1)**:
+  - Extended `src/repl.rs` with a Rustyline helper that provides tab completion for REPL commands and builtin function names.
+  - Added initial command-oriented syntax highlighting and validator-backed multiline continuation handling for more predictable interactive editing.
+  - Added `.help <function>` support in `ruff repl` for quick builtin usage guidance.
+  - Added regression coverage for multiline completion/continuation detection behavior.
+
 - **v0.12.0 Package Workflow Follow-Through: Initial Manifest + CLI Surfaces (P1)**:
   - Added `src/package_workflow.rs` with `ruff.toml` manifest generation/parsing and dependency metadata editing helpers.
   - Added `ruff init`, `ruff package-add`, `ruff package-install`, and `ruff package-publish` command surfaces for initial project/package workflow support.
