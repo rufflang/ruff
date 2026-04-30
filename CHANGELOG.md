@@ -12,10 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added executable module loading in `src/module.rs` that parses and runs module ASTs, captures explicit `export` bindings, and caches evaluated module exports.
 - Added module-system regression tests for explicit export collection, deterministic missing-symbol errors, and circular import detection in `src/module.rs` tests.
 - Added interpreter integration tests for deterministic import diagnostics when modules are missing or requested symbols are absent in `tests/interpreter_tests.rs`.
+- Added malformed type-annotation regression tests in `tests/parser_type_annotation_regressions.rs` to assert non-panicking parser behavior for invalid `Result<T, E>` and `Option<T>` syntax.
 
 ### Changed
 
 - Changed interpreter import handling in `src/interpreter/mod.rs` to return deterministic runtime errors instead of silently swallowing module and symbol import failures.
+- Changed `src/parser.rs` type-annotation parsing to return graceful parse failure instead of panicking when `Result<T, E>` or `Option<T>` generic syntax is malformed.
 
 ## [0.14.0] - 2026-04-30
 

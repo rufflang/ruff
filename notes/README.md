@@ -34,3 +34,4 @@ High-signal session notes:
 - `2026-04-29_23-08_repl-improvements-initial-cli.md` — Added REPL helper support for tab completion, command highlighting, multiline continuation validation, and `.help <function>` docs.
 - `2026-04-29_23-16_doc-generator-initial-cli.md` — Added `ruff docgen` for `///`-driven HTML docs, fenced-example extraction, and builtin API reference generation.
 - `2026-04-30_23-20_module-system-execution-and-import-diagnostics.md` — Completed module execution/export collection and deterministic import diagnostics with circular/missing-symbol regression coverage.
+- `2026-04-30_23-45_parser-type-annotation-panic-hardening.md` — Removed malformed `Result<T, E>`/`Option<T>` parser panic paths and added non-panicking regression coverage.

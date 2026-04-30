@@ -82,9 +82,9 @@ Use this checklist as the execution queue for follow-up sessions.
 	- [x] Implement module evaluation and export collection in `src/module.rs` (remove parser-only placeholder behavior).
 	- [x] Replace silent import failures with deterministic runtime diagnostics in `src/interpreter/mod.rs`.
 	- [x] Add circular-import and missing-symbol regression tests with stable error shapes.
-- [ ] Remove parser panic paths for user-provided syntax.
-	- Replace `panic!`-based type-annotation parse failures with structured parse errors in `src/parser.rs`.
-	- Add malformed `Result<T, E>` and `Option<T>` syntax tests to ensure non-panicking behavior.
+- [x] Remove parser panic paths for user-provided syntax.
+	- [x] Replace `panic!`-based type-annotation parse failures with structured parse errors in `src/parser.rs`.
+	- [x] Add malformed `Result<T, E>` and `Option<T>` syntax tests to ensure non-panicking behavior.
 - [ ] Close VM/interpreter behavior parity gaps for currently documented language surfaces.
 	- Build a parity matrix and test coverage for struct method behavior, spread/destructuring, match bindings, and spawn semantics.
 	- Ensure documented behavior in `README.md` and `docs/LANGUAGE_SPEC.md` matches both runtime paths.
