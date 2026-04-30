@@ -131,6 +131,7 @@ Protocol contracts, install/upgrade guidance, and release artifact checklist doc
 - [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md)
 - [docs/INSTALLATION_LSP_EDITORS.md](docs/INSTALLATION_LSP_EDITORS.md)
 - [docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md)
+- [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md)
 
 Useful environment variables:
 

@@ -23,14 +23,14 @@ Roadmap planning now focuses on `v0.14.0` stabilization work needed to reduce ri
 
 Required features:
 
-- [ ] add a release playbook in `docs/RELEASE_PROCESS.md` covering version bump, changelog sectioning, checklist verification, and tagging order
-- [ ] add a CI guard that fails if `Cargo.toml` version and README/ROADMAP release status are inconsistent
-- [ ] define and document patch-release policy (`v0.14.x`) for post-release fixes
+- [x] add a release playbook in `docs/RELEASE_PROCESS.md` covering version bump, changelog sectioning, checklist verification, and tagging order
+- [x] add a CI guard that fails if `Cargo.toml` version and README/ROADMAP release status are inconsistent
+- [x] define and document patch-release policy (`v0.14.x`) for post-release fixes
 
 Acceptance criteria:
 
-- [ ] dry-run release execution can be completed with no manual guesswork
-- [ ] CI catches version-state drift before merge
+- [x] dry-run release execution can be completed with no manual guesswork
+- [x] CI catches version-state drift before merge
 
 ### 2. LSP Protocol Stability Guarantees
 
