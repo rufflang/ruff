@@ -96,3 +96,11 @@ Any payload-affecting change to the documented JSON shapes requires all of the f
 - update this document
 - update `tests/cli_json_contracts.rs` contract assertions
 - add/update a `CHANGELOG.md` contract-impact note
+
+## Negative-Path Fixture Guarantees
+
+`tests/cli_json_contracts.rs::cli_json_negative_paths_have_stable_failure_signals` locks these failure-path automation guarantees:
+
+- missing input files for JSON-mode `format`/`lint` exit with code `1`, emit no JSON payload on `stdout`, and report a deterministic read-failure message on `stderr`
+- malformed CLI parameters (for example non-numeric `--line`) exit with code `2`, emit no JSON payload on `stdout`, and return Clap usage diagnostics on `stderr`
+- unknown-symbol rename requests exit with code `1`, emit no JSON payload on `stdout`, and emit deterministic symbol-resolution failure text on `stderr`

@@ -94,9 +94,9 @@ Use this checklist as the execution queue for follow-up sessions.
 - [x] Freeze and verify CLI/LSP contract versioning for v1 baseline.
 	- [x] Align contract status/version metadata in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
 	- [x] Add CI check(s) that fail on contract-doc/version drift.
-- [ ] Expand negative-path contract fixtures for automation reliability.
-	- Add fixtures/tests for malformed params, unknown symbols, IO failures, and consistent stderr/exit-code behavior.
-	- Ensure failure payload guarantees are documented and fixture-locked.
+- [x] Expand negative-path contract fixtures for automation reliability.
+	- [x] Add fixtures/tests for malformed params, unknown symbols, IO failures, and consistent stderr/exit-code behavior.
+	- [x] Ensure failure payload guarantees are documented and fixture-locked.
 
 #### P1: Strongly Recommended For v1 Completeness
 

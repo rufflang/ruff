@@ -215,3 +215,61 @@ fn lsp_cli_json_contracts_are_stable() {
     let code_actions_body = parse_stdout_json(&code_actions);
     assert!(code_actions_body.is_array());
 }
+
+#[test]
+fn cli_json_negative_paths_have_stable_failure_signals() {
+    let dir = unique_temp_dir("cli_json_negative_paths");
+    let file = dir.join("negative_input.ruff");
+    write_fixture(
+        &file,
+        "func greet(name) {\n    return name\n}\nlet value := greet(\"ruff\")\n",
+    );
+
+    let missing_file = dir.join("missing.ruff");
+    let missing_file_str = missing_file.to_str().expect("path should be utf-8");
+
+    let format_missing = run_ruff(&["format", missing_file_str, "--json"]);
+    assert_eq!(format_missing.status.code(), Some(1));
+    assert!(format_missing.stdout.is_empty(), "format failure should not emit JSON stdout");
+    let format_stderr =
+        String::from_utf8(format_missing.stderr).expect("stderr should be valid utf-8");
+    assert!(format_stderr.contains("Failed to read .ruff file"));
+
+    let lint_missing = run_ruff(&["lint", missing_file_str, "--json"]);
+    assert_eq!(lint_missing.status.code(), Some(1));
+    assert!(lint_missing.stdout.is_empty(), "lint failure should not emit JSON stdout");
+    let lint_stderr = String::from_utf8(lint_missing.stderr).expect("stderr should be valid utf-8");
+    assert!(lint_stderr.contains("Failed to read .ruff file"));
+
+    let malformed_line = run_ruff(&[
+        "lsp-definition",
+        file.to_str().expect("path should be utf-8"),
+        "--line",
+        "nope",
+        "--column",
+        "1",
+        "--json",
+    ]);
+    assert_eq!(malformed_line.status.code(), Some(2));
+    assert!(malformed_line.stdout.is_empty());
+    let malformed_stderr =
+        String::from_utf8(malformed_line.stderr).expect("stderr should be valid utf-8");
+    assert!(malformed_stderr.contains("invalid value 'nope'"));
+
+    let unknown_symbol = run_ruff(&[
+        "lsp-rename",
+        file.to_str().expect("path should be utf-8"),
+        "--line",
+        "4",
+        "--column",
+        "1",
+        "--new-name",
+        "renamed",
+        "--json",
+    ]);
+    assert_eq!(unknown_symbol.status.code(), Some(1));
+    assert!(unknown_symbol.stdout.is_empty());
+    let unknown_symbol_stderr =
+        String::from_utf8(unknown_symbol.stderr).expect("stderr should be valid utf-8");
+    assert!(unknown_symbol_stderr.contains("No identifier found at cursor location"));
+}

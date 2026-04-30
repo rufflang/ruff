@@ -712,7 +712,13 @@ async fn main() {
             write,
             json,
         } => {
-            let source = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let source = match fs::read_to_string(&file) {
+                Ok(content) => content,
+                Err(err) => {
+                    eprintln!("Failed to read .ruff file '{}': {}", file.display(), err);
+                    std::process::exit(1);
+                }
+            };
             let options = formatter::FormatterOptions {
                 indent_width: indent,
                 line_length,
@@ -722,7 +728,10 @@ async fn main() {
             let changed = source != formatted;
 
             if write {
-                fs::write(&file, &formatted).expect("Failed to write formatted file");
+                if let Err(err) = fs::write(&file, &formatted) {
+                    eprintln!("Failed to write formatted file '{}': {}", file.display(), err);
+                    std::process::exit(1);
+                }
             }
 
             if json {
@@ -783,13 +792,22 @@ async fn main() {
         }
 
         Commands::Lint { file, fix, json } => {
-            let source = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let source = match fs::read_to_string(&file) {
+                Ok(content) => content,
+                Err(err) => {
+                    eprintln!("Failed to read .ruff file '{}': {}", file.display(), err);
+                    std::process::exit(1);
+                }
+            };
             let issues = linter::lint_source(&source);
 
             if fix {
                 let fixed = linter::apply_safe_fixes(&source, &issues);
                 if fixed != source {
-                    fs::write(&file, fixed).expect("Failed to write lint fixes");
+                    if let Err(err) = fs::write(&file, fixed) {
+                        eprintln!("Failed to write lint fixes to '{}': {}", file.display(), err);
+                        std::process::exit(1);
+                    }
                     println!("applied safe lint fixes to {}", file.display());
                 } else {
                     println!("no safe lint fixes applied");
