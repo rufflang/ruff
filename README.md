@@ -81,7 +81,7 @@ The current CLI exposes these subcommands:
 
 | Command | Purpose |
 | --- | --- |
-| `ruff run <file>` | Run a `.ruff` script with the default VM. |
+| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff repl` | Start the interactive REPL. |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
@@ -97,7 +97,13 @@ Useful environment variables:
 | --- | --- |
 | `DISABLE_JIT=1` | Disables JIT support in the VM path. |
 | `DEBUG_AST=1` | Prints the parsed AST before VM execution. |
-| `RUFF_SCHEDULER_TIMEOUT_MS=<ms>` | Overrides the VM cooperative scheduler completion timeout. The default is `120000`. |
+| `RUFF_SCHEDULER_TIMEOUT_MS=<ms>` | Overrides the VM cooperative scheduler completion timeout when `ruff run --scheduler-timeout-ms` is not provided. The default is `120000`. |
+
+Scheduler timeout precedence for `ruff run` is:
+
+1. `--scheduler-timeout-ms <ms>`
+2. `RUFF_SCHEDULER_TIMEOUT_MS=<ms>`
+3. default `120000 ms`
 
 ## Language Overview
 

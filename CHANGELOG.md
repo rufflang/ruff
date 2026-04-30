@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CLI Scheduler Timeout Override for Reproducible VM Completion Budgets (v0.11.0 P1)**:
+  - Added `ruff run --scheduler-timeout-ms <MILLISECONDS>` to set the cooperative scheduler timeout directly from the command line.
+  - Defined timeout precedence as `CLI flag > RUFF_SCHEDULER_TIMEOUT_MS > default (120000 ms)` to make one-off benchmark/repro runs deterministic without mutating shell environment state.
+  - Added comprehensive regression coverage for timeout resolution contracts: default fallback, env-only override, CLI-over-env precedence, invalid env fallback, and zero-value CLI rejection.
+
 - **SSG Throughput Follow-Through: Reused Output-Path Buffers in Rayon Hot Path (v0.11.0 P0)**:
   - Optimized `ssg_read_render_and_write_pages(...)` to avoid prebuilding full `Vec<String>` output paths for each batch by reusing cached output-file suffix metadata plus per-worker mutable output-path buffers in the Rayon single-pass lane.
   - Added `ssg_run_rayon_read_render_write_with_reused_output_path_buffer(...)` and routed the timed benchmark path through the reusable-buffer implementation.

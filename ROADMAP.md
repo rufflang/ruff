@@ -156,19 +156,7 @@ These should be completed before release unless you explicitly decide to defer t
    - Run enough repeated samples to decide whether these defaults are useful for local release-gate runs.
    - If they are too noisy or too quiet, adjust before release and update tests/docs.
 
-3. **Decide whether scheduler timeout needs a CLI flag**
-
-   Current behavior:
-
-   - `RUFF_SCHEDULER_TIMEOUT_MS` controls the VM cooperative scheduler timeout.
-   - default timeout is `120000 ms`.
-
-   Remaining release question:
-
-   - Keep the env-only override for `v0.11.0`, or add a first-class CLI flag for benchmark reproducibility.
-   - If env-only remains, document it in release notes and README.
-
-4. **Clean stale performance claims outside the README**
+3. **Clean stale performance claims outside the README**
 
    Some older docs still describe older execution-mode status or old benchmark claims. Before release, review at least:
 
@@ -181,7 +169,7 @@ These should be completed before release unless you explicitly decide to defer t
 
    - Either update stale claims or mark the documents as historical so they do not contradict the `v0.11.0` README and release notes.
 
-5. **Document current runtime boundaries**
+4. **Document current runtime boundaries**
 
    The README now calls out current limitations. Keep the same truth in release notes:
 
@@ -251,6 +239,7 @@ The following areas were previously listed as future work but are now implemente
 - cached render-prefix and output-suffix metadata.
 - reusable output-path buffers in the hot SSG path.
 - timeout-budget cooperative scheduler completion.
+- `ruff run --scheduler-timeout-ms <MILLISECONDS>` CLI override support with deterministic precedence over `RUFF_SCHEDULER_TIMEOUT_MS` and default timeout.
 - JSON, crypto, database, and network native dispatch coverage. These are implemented modules, not future stub-module work.
 
 ---
