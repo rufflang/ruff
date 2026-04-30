@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added deterministic fixtures under `tests/lsp_fixtures/` covering completion ordering, rename edit-range stability, and error payload consistency.
   - Wired harness assertions to fail on incompatible response-shape drift by default.
 
+- **v0.13.0 Thin Editor Adapter Baselines (P2)**:
+  - Added canonical adapter guidance in `docs/EDITOR_ADAPTER_BASELINES.md` for VS Code/Cursor, Neovim, and JetBrains (generic LSP plugin path), all launching official `ruff lsp`.
+  - Added sample adapter descriptors under `docs/editor-adapters/` for each editor family.
+  - Added smoke contract tests in `tests/editor_adapter_contracts.rs` to verify descriptor consistency and canonical `ruff lsp` launch wiring.
+
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
   - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
   - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.

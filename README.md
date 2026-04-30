@@ -122,6 +122,8 @@ The current CLI exposes these subcommands:
 
 Machine-readable output and automation contracts are documented in [docs/CLI_MACHINE_READABLE_CONTRACTS.md](docs/CLI_MACHINE_READABLE_CONTRACTS.md).
 
+Cross-editor thin-adapter setup baselines are documented in [docs/EDITOR_ADAPTER_BASELINES.md](docs/EDITOR_ADAPTER_BASELINES.md).
+
 Useful environment variables:
 
 | Variable | Effect |

@@ -137,14 +137,14 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] publish minimal VS Code/Cursor adapter guidance that launches official Ruff LSP
-- [ ] publish setup guidance for Neovim and JetBrains (via LSP plugin path)
-- [ ] keep adapter docs free of duplicated parser/analyzer implementation details
+- [x] publish minimal VS Code/Cursor adapter guidance that launches official Ruff LSP
+- [x] publish setup guidance for Neovim and JetBrains (via LSP plugin path)
+- [x] keep adapter docs free of duplicated parser/analyzer implementation details
 
 Acceptance criteria:
 
-- [ ] one canonical setup path per editor family is documented and smoke-tested
-- [ ] adapter guidance points to shared Ruff contracts and server behavior docs
+- [x] one canonical setup path per editor family is documented and smoke-tested
+- [x] adapter guidance points to shared Ruff contracts and server behavior docs
 
 ### 10. Release Evidence And Completion Gate
 
@@ -264,14 +264,14 @@ Possible post-`v0.12.0` design tracks:
 
    Planned features:
 
-   - [ ] lightweight VS Code/Cursor adapter that launches Ruff LSP without reimplementing language logic
-   - [ ] adapter guidance for JetBrains (via generic LSP plugin), Neovim, and other LSP clients
-   - [ ] editor setup docs focused on shared Ruff LSP configuration
+   - [x] lightweight VS Code/Cursor adapter that launches Ruff LSP without reimplementing language logic
+   - [x] adapter guidance for JetBrains (via generic LSP plugin), Neovim, and other LSP clients
+   - [x] editor setup docs focused on shared Ruff LSP configuration
 
    Acceptance criteria:
 
-   - adapter repos/extensions avoid duplicate parsing/analysis logic
-   - onboarding docs show one canonical Ruff LSP configuration path per editor family
+   - [x] adapter repos/extensions avoid duplicate parsing/analysis logic
+   - [x] onboarding docs show one canonical Ruff LSP configuration path per editor family
 
 ---
 
