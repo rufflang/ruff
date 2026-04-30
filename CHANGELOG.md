@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added multi-file LSP protocol golden fixture `tests/lsp_fixtures/multi_file_workspace_symbol_rename_references.json` to lock workspace-symbol and document-scoped references/rename edge-case behavior.
 - Added cross-platform release artifact validation workflow `.github/workflows/release-artifact-validation-matrix.yml` plus validation script `.github/scripts/validate-release-artifact.sh` covering clean-root install, binary checksum verification, and repository-independent tarball execution checks.
 - Added `docs/RELEASE_ARTIFACT_VALIDATION.md` with reproducible checksum steps and minimum supported toolchain/platform assumptions for release validation.
+- Added tree-sitter regression corpus fixture `tree-sitter-ruff/test/corpus/regressions.txt` for async/await, struct field-access, and match-pattern edge-case coverage.
 
 ### Changed
 
@@ -35,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `docs/PROTOCOL_CONTRACTS.md` with a canonical LSP method compatibility table and explicit unsupported-method JSON-RPC error behavior.
 - Made `workspace/symbol` response ordering deterministic across open documents by URI sorting in `src/lsp_server.rs` for stable fixture-backed contracts.
 - Updated `INSTALLATION.md` and `README.md` to reference release artifact validation flow and current toolchain/platform baselines.
+- Updated `tree-sitter-ruff/queries/highlights.scm` keyword captures and `tests/tree_sitter_ruff_assets.rs` contract checks for representative syntax coverage.
+- Updated extension static smoke checks (`tools/vscode-ruff-extension/scripts/check.js`) to enforce canonical `ruff lsp` launch configuration and Ruff-language activation events.
+- Updated `docs/EDITOR_ADAPTER_BASELINES.md` maintenance policy boundaries and `docs/INSTALLATION_LSP_EDITORS.md` `.vsix` install guidance for VS Code/Cursor/Codex-compatible editors.
+- Updated release artifact validation CI matrix to run extension smoke checks (`npm ci && npm run check`).
 
 ## [0.13.0] - 2026-04-30
 

@@ -53,6 +53,18 @@ vsce package
 
 Install generated `.vsix` in your editor.
 
+Example install commands:
+
+```bash
+# VS Code
+code --install-extension ruff-language-tools-0.1.0.vsix
+
+# Cursor (Codex-compatible fork)
+cursor --install-extension ruff-language-tools-0.1.0.vsix
+```
+
+If your editor fork does not ship a CLI installer, install the same `.vsix` artifact from the Extensions UI.
+
 After install, opening a `.ruff` file should immediately enable Ruff language mode and syntax colorization.
 
 Optional workspace settings baseline:

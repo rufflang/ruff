@@ -10,6 +10,7 @@ Ruff now includes a dedicated Tree-sitter grammar package at:
 
 - Grammar definition: `tree-sitter-ruff/grammar.js`
 - Corpus fixtures: `tree-sitter-ruff/test/corpus/core.txt`
+- Regression corpus fixtures: `tree-sitter-ruff/test/corpus/regressions.txt`
 - Highlight queries: `tree-sitter-ruff/queries/highlights.scm`
 - Injection queries: `tree-sitter-ruff/queries/injections.scm`
 
@@ -22,6 +23,14 @@ cargo test --test tree_sitter_ruff_assets
 ```
 
 This test enforces that required grammar/corpus/query assets exist and include expected baseline rules/tokens.
+
+Regression fixture highlights include:
+
+- async/await function patterns
+- struct literal/field-access patterns
+- match/option pattern structures
+
+Highlight query coverage is validated against representative keyword/function/variable captures used by these fixtures.
 
 ## Editor Integration Baseline
 
