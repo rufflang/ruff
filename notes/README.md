@@ -20,3 +20,4 @@ High-signal session notes:
 - `2026-04-29_17-17_animated-gif-to-webp-conversion.md` — Added `gif_to_webp` animated conversion path, strict contracts, and external tool dependency guidance.
 - `2026-04-29_21-00_scheduler-timeout-cli-override.md` — Added `ruff run --scheduler-timeout-ms` override with deterministic `CLI > env > default` precedence and timeout-resolution contract tests.
 - `2026-04-29_21-22_release-mode-ssg-gate-local-evidence.md` — Release-mode SSG gate PASS recorded as local evidence because idle-machine status was not confirmed.
+- `2026-04-29_21-25_release-mode-ssg-gate-local-smoke-followup.md` — Release-mode SSG gate PASS with CV warning output and high host load recorded as local smoke evidence only.
