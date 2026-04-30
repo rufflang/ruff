@@ -30,7 +30,7 @@ Priority work:
    Planned features:
 
    - [x] autocomplete for builtins, variables, and functions (initial completion engine via `ruff lsp-complete`)
-   - [ ] go to definition
+   - [x] go to definition (initial symbol-definition lookup via `ruff lsp-definition`)
    - [ ] find references
    - [ ] hover documentation
    - [ ] real-time diagnostics

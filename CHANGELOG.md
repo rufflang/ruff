@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 LSP Follow-Through: Initial Go-To-Definition + CLI Surface (P1)**:
+  - Added `src/lsp_definition.rs` with deterministic definition lookup for identifier symbols under a cursor position.
+  - Added `ruff lsp-definition <file> --line <N> --column <N> [--json]` to return definition locations for function, variable, and parameter symbols.
+  - Added regression coverage for function call-site resolution, nearest-previous variable shadowing behavior, parameter resolution from function bodies, future-definition fallback behavior, and non-identifier cursor handling.
+  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial go-to-definition roadmap item; references, hover docs, diagnostics, rename, and code actions remain open.
+
 - **v0.12.0 LSP Groundwork: Completion Engine + CLI Surface (P1)**:
   - Added `src/lsp_completion.rs` with a completion engine that returns candidates for builtins, user-defined functions, and user-defined variables.
   - Added `ruff lsp-complete <file> --line <N> --column <N> [--json]` to expose completion candidates at a cursor position for editor/LSP integration work.

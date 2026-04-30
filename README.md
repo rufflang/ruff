@@ -91,6 +91,7 @@ The current CLI exposes these subcommands:
 | `ruff bench-ssg` | Run the async SSG benchmark, with optional Python comparison and measurement controls. |
 | `ruff profile <file>` | Profile a Ruff script for CPU, memory, and JIT stats. |
 | `ruff lsp-complete <file> --line <N> --column <N>` | Return completion candidates (builtins, functions, variables) for editor/LSP integration; add `--json` for structured output. |
+| `ruff lsp-definition <file> --line <N> --column <N>` | Return the go-to-definition location for the identifier under the cursor; add `--json` for structured output. |
 
 Useful environment variables:
 
@@ -108,7 +109,12 @@ Scheduler timeout precedence for `ruff run` is:
 
 ## v0.12.0 LSP Progress
 
-The highest-priority v0.12.0 roadmap track is Language Server Protocol support. Ruff now includes an initial completion engine surfaced by `ruff lsp-complete`, which provides builtin/function/variable completion candidates at a cursor position. This is groundwork for editor integration, not a full language server implementation yet.
+The highest-priority v0.12.0 roadmap track is Language Server Protocol support. Ruff now includes initial editor-integration primitives:
+
+- `ruff lsp-complete` for builtin/function/variable completion candidates at a cursor position.
+- `ruff lsp-definition` for go-to-definition lookup of function/variable/parameter symbols.
+
+These are targeted LSP groundwork slices, not a full language server implementation yet.
 
 ## Language Overview
 

@@ -22,3 +22,4 @@ High-signal session notes:
 - `2026-04-29_21-22_release-mode-ssg-gate-local-evidence.md` — Release-mode SSG gate PASS recorded as local evidence because idle-machine status was not confirmed.
 - `2026-04-29_21-25_release-mode-ssg-gate-local-smoke-followup.md` — Release-mode SSG gate PASS with CV warning output and high host load recorded as local smoke evidence only.
 - `2026-04-29_21-52_cross-language-and-release-checks-local-evidence.md` — Captured cross-language benchmark context plus focused release-checklist test/dispatch coverage with explicit local-smoke release-exception documentation.
+- `2026-04-29_22-28_lsp-go-to-definition-cli.md` — Added `ruff lsp-definition` with deterministic function/variable/parameter definition lookup and release-cycle verification evidence.
