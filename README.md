@@ -124,6 +124,8 @@ Machine-readable output and automation contracts are documented in [docs/CLI_MAC
 
 Cross-editor thin-adapter setup baselines are documented in [docs/EDITOR_ADAPTER_BASELINES.md](docs/EDITOR_ADAPTER_BASELINES.md).
 
+Tree-sitter grammar assets and integration baseline are documented in [docs/TREE_SITTER_RUFF.md](docs/TREE_SITTER_RUFF.md).
+
 Useful environment variables:
 
 | Variable | Effect |

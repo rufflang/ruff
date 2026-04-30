@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added latency baseline guardrail test `tests/lsp_latency_guardrails.rs` for completion/diagnostics/hover representative samples.
   - Updated `docs/PERFORMANCE.md` with guardrail validation commands and reliability test references.
 
+- **v0.13.0 Tree-sitter Grammar Baseline (P1)**:
+  - Added a dedicated `tree-sitter-ruff/` grammar package scaffold with `grammar.js` and package metadata.
+  - Added baseline corpus fixtures under `tree-sitter-ruff/test/corpus/` and highlighting/injection queries under `tree-sitter-ruff/queries/`.
+  - Added CI-guard asset/corpus test `tests/tree_sitter_ruff_assets.rs` and documentation in `docs/TREE_SITTER_RUFF.md`.
+
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
   - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
   - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.

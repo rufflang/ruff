@@ -1,0 +1,16 @@
+{
+  "name": "tree-sitter-ruff",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for Ruff language",
+  "main": "grammar.js",
+  "license": "MIT",
+  "keywords": [
+    "tree-sitter",
+    "ruff",
+    "language"
+  ],
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  }
+}

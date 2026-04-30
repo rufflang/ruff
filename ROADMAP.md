@@ -85,14 +85,14 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] create `tree-sitter-ruff` grammar crate/repo with syntax coverage for current Ruff language constructs
-- [ ] add corpus tests for core grammar and edge-case constructs
-- [ ] add highlight/query files sufficient for editor consumption
+- [x] create `tree-sitter-ruff` grammar crate/repo with syntax coverage for current Ruff language constructs
+- [x] add corpus tests for core grammar and edge-case constructs
+- [x] add highlight/query files sufficient for editor consumption
 
 Acceptance criteria:
 
-- [ ] corpus tests run in CI and block regressions
-- [ ] at least one editor integration confirms `.ruff` highlighting via Tree-sitter grammar
+- [x] corpus tests run in CI and block regressions
+- [x] at least one editor integration confirms `.ruff` highlighting via Tree-sitter grammar
 
 ### 6. Conformance Test Harness
 
@@ -236,14 +236,14 @@ Possible post-`v0.12.0` design tracks:
 
    Planned features:
 
-   - [ ] `tree-sitter-ruff` grammar with coverage for current language syntax
-   - [ ] grammar corpus tests for language constructs and edge cases
-   - [ ] published query files for highlighting/injections where applicable
+   - [x] `tree-sitter-ruff` grammar with coverage for current language syntax
+   - [x] grammar corpus tests for language constructs and edge cases
+   - [x] published query files for highlighting/injections where applicable
 
    Acceptance criteria:
 
-   - corpus tests pass in CI
-   - at least one editor client can consume the grammar for `.ruff` highlighting
+   - [x] corpus tests pass in CI
+   - [x] at least one editor client can consume the grammar for `.ruff` highlighting
 
 5. **Language-server conformance test suite**
 
