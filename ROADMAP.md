@@ -117,6 +117,20 @@ These must be closed before tagging `v0.11.0`.
    - Record median Ruff build time, median Python build time, median speedup, and warning sections if emitted.
    - If warnings fire, decide whether the run is noisy and should be repeated or whether the warning reflects a real release risk.
 
+   Latest local cross-language evidence from this audit:
+
+   - date: `2026-04-29 21:52 EDT`
+   - commit: `ed77acd`
+   - command: `./target/release/ruff bench-ssg --runs 5 --warmup-runs 1 --compare-python --profile-async --tmp-dir tmp/ruff-v0.11-ssg-python`
+   - result: PASS
+   - Ruff median build time: `984.872 ms`
+   - Python median build time: `3575.723 ms`
+   - median speedup: `3.94x`
+   - checksums: no mismatch detected (benchmark command completed successfully with Ruff checksum `946670`)
+   - warning status: trend-drift warnings for Python build time/throughput and Ruff-vs-Python speedup; measurement-quality variability warnings for Ruff/Python metrics plus Ruff read-stage range spread
+   - host context: load averages captured before this run were `9.89 7.86 6.69`
+   - release note: this provides local cross-language context and checksum verification, but warning-heavy output on a loaded host should be treated as local smoke evidence.
+
 3. **Run focused SSG and benchmark-harness regression tests**
 
    ```bash
@@ -129,6 +143,13 @@ These must be closed before tagging `v0.11.0`.
 
    - All focused tests pass.
    - Any environment-specific failure is documented with repro steps and a release decision.
+
+   Latest local test evidence from this audit:
+
+   - `cargo test ssg` => PASS (`163` tests passed in `src/lib.rs`, mirrored `163` pass in `src/main.rs`)
+   - `cargo test bench_ssg` => PASS (filter matched no tests; command completed cleanly)
+   - `cargo test run_ssg_benchmark` => PASS (`10` tests passed in `src/lib.rs`, mirrored `10` pass in `src/main.rs`)
+   - release note: focused SSG and benchmark-harness regression commands are green on current local environment.
 
 4. **Run native builtin dispatch and release-hardening coverage**
 
@@ -143,6 +164,12 @@ These must be closed before tagging `v0.11.0`.
    - No declared builtin regresses to unknown-native fallback.
    - SSG native helper argument/error-shape contracts remain stable.
 
+   Latest local dispatch-hardening evidence from this audit:
+
+   - `cargo test release_hardening_builtin_dispatch_coverage` => PASS (`2` tests passed in `src/lib.rs`, mirrored `2` pass in `src/main.rs`)
+   - `cargo test test_release_hardening_ssg_render_pages_dispatch_contracts` => PASS (`1` test passed in `src/lib.rs`, mirrored `1` pass in `src/main.rs`)
+   - release note: declared builtin dispatch and SSG helper dispatch contracts are stable in current local validation.
+
 5. **Cut release metadata**
 
    Required edits at release time:
@@ -151,6 +178,12 @@ These must be closed before tagging `v0.11.0`.
    - Move relevant [CHANGELOG.md](CHANGELOG.md) `Unreleased` entries under a dated `v0.11.0` heading.
    - Update README status text if it still describes `0.11.0` as in progress.
    - Confirm `ruff --version` reports `0.11.0` after the version bump.
+
+   Current release-exception stance:
+
+   - Do not block `v0.11.0` solely on final idle-machine benchmark evidence when deterministic correctness and dispatch-hardening checks are green.
+   - Keep existing local benchmark runs clearly labeled as smoke/local evidence in release notes.
+   - Track one post-release follow-up capture on an operator-confirmed idle machine for canonical benchmark evidence.
 
 ### P1: Release Evidence And Documentation
 

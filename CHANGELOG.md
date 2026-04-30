@@ -352,6 +352,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **v0.11.0 Release Evidence Status and Exception Handling (P0)**:
+  - Recorded fresh local cross-language SSG benchmark context using `--compare-python` with median metrics and warning-signal output for release notes.
+  - Verified focused SSG and benchmark harness regression commands (`cargo test ssg`, `cargo test bench_ssg`, `cargo test run_ssg_benchmark`) and release-hardening dispatch coverage commands are green in the current local environment.
+  - Documented release-exception posture to keep `v0.11.0` unblocked when idle-machine benchmark capture is temporarily unavailable, while preserving explicit smoke/local benchmark labeling and a post-release idle-machine evidence follow-up.
+
 - **v0.11 Priority Clarification**:
   - Clarified v0.11 sequencing so SSG/async throughput gate remains the primary release objective.
   - Clarified Developer Experience Foundations work as non-blocking for the v0.11 throughput gate.
