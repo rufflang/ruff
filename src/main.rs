@@ -10,6 +10,7 @@ mod builtins;
 mod bytecode;
 mod compiler;
 mod errors;
+mod formatter;
 mod interpreter;
 mod jit;
 mod lexer;
@@ -96,6 +97,32 @@ enum Commands {
         /// Number of warmup runs (default: 2)
         #[arg(short, long, default_value_t = 2)]
         warmup: usize,
+    },
+
+    /// Format a Ruff source file
+    Format {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// Indentation width (spaces)
+        #[arg(long, default_value_t = 4)]
+        indent: usize,
+
+        /// Maximum preferred line length
+        #[arg(long, default_value_t = 100)]
+        line_length: usize,
+
+        /// Disable import sorting
+        #[arg(long, default_value_t = false)]
+        no_sort_imports: bool,
+
+        /// Check if formatting changes are required
+        #[arg(long, default_value_t = false)]
+        check: bool,
+
+        /// Write formatted output back to file
+        #[arg(long, default_value_t = false)]
+        write: bool,
     },
 
     /// Compare Ruff parallel_map benchmark against Python ProcessPoolExecutor
@@ -580,6 +607,37 @@ async fn main() {
 
             // Print summary
             Reporter::print_summary(&results);
+        }
+
+        Commands::Format {
+            file,
+            indent,
+            line_length,
+            no_sort_imports,
+            check,
+            write,
+        } => {
+            let source = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let options = formatter::FormatterOptions {
+                indent_width: indent,
+                line_length,
+                sort_imports: !no_sort_imports,
+            };
+            let formatted = formatter::format_source(&source, &options);
+
+            if check {
+                if source == formatted {
+                    println!("already formatted");
+                } else {
+                    println!("needs formatting");
+                    std::process::exit(1);
+                }
+            } else if write {
+                fs::write(&file, formatted).expect("Failed to write formatted file");
+                println!("formatted {}", file.display());
+            } else {
+                println!("{}", formatted);
+            }
         }
 
         Commands::BenchCross { ruff_script, python_script, python } => {
