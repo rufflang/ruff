@@ -38,3 +38,4 @@ High-signal session notes:
 - `2026-05-01_00-20_vm-interpreter-parity-matrix-and-runtime-followthrough.md` — Added parity matrix/test baseline, aligned interpreter struct method dispatch, and documented remaining spread/destructuring and match-binding capability gaps.
 - `2026-05-01_00-45_contract-version-freeze-and-ci-drift-guard.md` — Aligned CLI/LSP/language contract metadata to a unified v1 draft baseline and added CI drift checks.
 - `2026-05-01_01-05_vm-destructuring-parity-followthrough.md` — Implemented VM array/dict destructuring bindings for parity-covered scenarios, updated parity tests/matrix, and narrowed remaining parity gaps to spread literals and tag-style match bindings.
+- `2026-05-01_01-25_vm-spread-parity-followthrough.md` — Implemented marker-based VM spread literal construction for arrays/dicts, aligned spread/destructuring parity, and narrowed remaining parity gap to tag-style match bindings.
