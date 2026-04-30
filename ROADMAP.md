@@ -36,14 +36,14 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] lock JSON-RPC error envelopes and success payload contracts behind golden fixtures
-- [ ] publish compatibility table for supported LSP methods and known unsupported method behavior
-- [ ] add regression fixtures for multi-file workspace symbol/rename/reference edge cases
+- [x] lock JSON-RPC error envelopes and success payload contracts behind golden fixtures
+- [x] publish compatibility table for supported LSP methods and known unsupported method behavior
+- [x] add regression fixtures for multi-file workspace symbol/rename/reference edge cases
 
 Acceptance criteria:
 
-- [ ] protocol fixtures fail on contract shape drift unless intentionally updated
-- [ ] docs and fixture expectations match for all supported methods
+- [x] protocol fixtures fail on contract shape drift unless intentionally updated
+- [x] docs and fixture expectations match for all supported methods
 
 ### 3. Packaging And Distribution Follow-Through
 

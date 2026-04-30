@@ -80,3 +80,45 @@ Primary validation is enforced by tests:
 
 - `tests/cli_json_contracts.rs`
 - `tests/lsp_conformance_harness.rs`
+
+Golden fixture set (shape-locked contracts):
+
+- `tests/lsp_fixtures/all_required_methods_success_error.json`
+- `tests/lsp_fixtures/completion_ordering.json`
+- `tests/lsp_fixtures/edit_range_stability.json`
+- `tests/lsp_fixtures/error_payload_consistency.json`
+- `tests/lsp_fixtures/multi_file_workspace_symbol_rename_references.json`
+
+## LSP Method Compatibility Table
+
+The table below is the canonical support matrix for Ruff's LSP server at this contract baseline.
+
+| Method | Status | Contract Notes |
+| --- | --- | --- |
+| `initialize` | Supported | Returns capability set and server version. |
+| `shutdown` | Supported | Returns `null` result and marks clean exit path. |
+| `textDocument/didOpen` | Supported | Stores in-memory document and emits diagnostics. |
+| `textDocument/didChange` | Supported | Applies latest content change and emits diagnostics. |
+| `textDocument/didClose` | Supported | Removes document and emits empty diagnostics. |
+| `textDocument/completion` | Supported | Returns deterministic item ordering for identical source/position. |
+| `textDocument/hover` | Supported | Returns markdown content and symbol range or `null`. |
+| `textDocument/definition` | Supported | Returns location in target document or `null`. |
+| `textDocument/references` | Supported | Returns declaration-aware references for the requested document. |
+| `textDocument/rename` | Supported | Returns text edits under `result.changes[uri]`. |
+| `textDocument/codeAction` | Supported | Returns syntax quick-fix actions derived from diagnostics. |
+| `textDocument/formatting` | Supported | Returns full-document edit list or empty list if unchanged. |
+| `textDocument/rangeFormatting` | Supported | Currently returns full-document-style edit behavior. |
+| `textDocument/documentSymbol` | Supported | Returns symbol list for requested open/resolved document. |
+| `workspace/symbol` | Supported | Returns workspace symbols across open documents; output is URI-sorted for deterministic fixtures. |
+| `$/cancelRequest` | Supported | Cancellation IDs map to JSON-RPC cancelled error envelope. |
+| `initialized` | Supported | Notification accepted as no-op. |
+| `exit` | Supported | Triggers process exit code based on shutdown sequence. |
+
+Unsupported method behavior:
+
+- Any unknown request method returns a JSON-RPC error envelope with:
+	- `code: -32601`
+	- `message: Method '<method>' is not supported`
+- Requests with missing required parameters return:
+	- `code: -32602`
+	- stable method-specific error message (for example: `Missing textDocument.uri`)

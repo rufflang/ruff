@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - patch-release policy for `v0.14.x`
   - release evidence and tagging order requirements
 - Added release-state drift guard script at `.github/scripts/check-release-state.sh` and CI workflow `.github/workflows/release-state-guard.yml` to fail when `Cargo.toml` version diverges from README/ROADMAP status anchors.
+- Added multi-file LSP protocol golden fixture `tests/lsp_fixtures/multi_file_workspace_symbol_rename_references.json` to lock workspace-symbol and document-scoped references/rename edge-case behavior.
 
 ### Changed
 
@@ -29,6 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded `v0.14.0` roadmap editor-maturity checklist in `ROADMAP.md` to explicitly track first-party VS Code/Codex extension outcomes.
 - Updated release-status docs index in `README.md` to include `docs/RELEASE_PROCESS.md`.
 - Marked `ROADMAP.md` v0.14.0 "Release Process Hardening" checklist and acceptance criteria complete with implementation and verification evidence.
+- Updated `docs/PROTOCOL_CONTRACTS.md` with a canonical LSP method compatibility table and explicit unsupported-method JSON-RPC error behavior.
+- Made `workspace/symbol` response ordering deterministic across open documents by URI sorting in `src/lsp_server.rs` for stable fixture-backed contracts.
 
 ## [0.13.0] - 2026-04-30
 
