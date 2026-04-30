@@ -15,6 +15,7 @@ mod jit;
 mod lexer;
 mod lsp_completion;
 mod lsp_definition;
+mod lsp_hover;
 mod lsp_references;
 mod module;
 mod optimizer;
@@ -240,6 +241,24 @@ enum Commands {
         include_definition: bool,
 
         /// Print references as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Return hover information for the identifier under cursor
+    LspHover {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// 1-based line number for the hover request
+        #[arg(long)]
+        line: usize,
+
+        /// 1-based column number for the hover request
+        #[arg(long)]
+        column: usize,
+
+        /// Print hover info as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -1106,6 +1125,48 @@ async fn main() {
                         reference.line,
                         reference.column
                     );
+                }
+            }
+        }
+
+        Commands::LspHover { file, line, column, json } => {
+            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let hover_info = lsp_hover::hover(&code, line, column);
+
+            if json {
+                let output = match hover_info {
+                    Some(info) => serde_json::json!({
+                        "symbol": info.symbol,
+                        "kind": info.kind,
+                        "detail": info.detail,
+                        "line": info.line,
+                        "column": info.column,
+                    }),
+                    None => serde_json::Value::Null,
+                };
+
+                match serde_json::to_string_pretty(&output) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize hover result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                match hover_info {
+                    Some(info) => {
+                        println!(
+                            "{}\t{}\t{}:{}:{}",
+                            info.symbol,
+                            info.detail,
+                            file.display(),
+                            info.line,
+                            info.column
+                        );
+                    }
+                    None => {
+                        println!("not found");
+                    }
                 }
             }
         }
