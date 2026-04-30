@@ -8,20 +8,23 @@ use crate::lsp_rename;
 use crate::formatter::{self, FormatterOptions};
 use crate::lexer::{self, TokenKind};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::PathBuf;
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy)]
 pub struct LspServerConfig {
     pub deterministic_logging: bool,
+    pub request_timeout_ms: u64,
 }
 
 impl Default for LspServerConfig {
     fn default() -> Self {
         Self {
             deterministic_logging: false,
+            request_timeout_ms: 5000,
         }
     }
 }
@@ -32,6 +35,8 @@ pub struct LspServer {
     exit_requested: bool,
     deterministic_logging: bool,
     log_sequence: u64,
+    request_timeout_ms: u64,
+    cancelled_requests: HashSet<String>,
 }
 
 impl LspServer {
@@ -42,6 +47,8 @@ impl LspServer {
             exit_requested: false,
             deterministic_logging: config.deterministic_logging,
             log_sequence: 0,
+            request_timeout_ms: config.request_timeout_ms.max(1),
+            cancelled_requests: HashSet::new(),
         }
     }
 
@@ -54,7 +61,17 @@ impl LspServer {
             if message.get("id").is_some() {
                 let id = message.get("id").cloned().unwrap_or(Value::Null);
                 let params = message.get("params");
-                outbound.push(self.handle_request(method, id, params));
+                if self.is_cancelled_request(&id) {
+                    outbound.push(request_cancelled_response(id));
+                } else {
+                    let start = Instant::now();
+                    let response = self.handle_request(method, id.clone(), params);
+                    if start.elapsed().as_millis() > u128::from(self.request_timeout_ms) {
+                        outbound.push(request_timeout_response(id, self.request_timeout_ms));
+                    } else {
+                        outbound.push(response);
+                    }
+                }
             } else {
                 outbound.extend(self.handle_notification(method, message.get("params")));
             }
@@ -576,6 +593,12 @@ impl LspServer {
     fn handle_notification(&mut self, method: &str, params: Option<&Value>) -> Vec<Value> {
         match method {
             "initialized" => Vec::new(),
+            "$/cancelRequest" => {
+                if let Some(id) = params.and_then(|value| value.get("id")) {
+                    self.cancelled_requests.insert(request_id_key(id));
+                }
+                Vec::new()
+            }
             "exit" => {
                 self.exit_requested = true;
                 Vec::new()
@@ -643,6 +666,10 @@ impl LspServer {
             }
             _ => Vec::new(),
         }
+    }
+
+    fn is_cancelled_request(&self, id: &Value) -> bool {
+        self.cancelled_requests.contains(&request_id_key(id))
     }
 
     fn publish_diagnostics_notification(&self, uri: &str) -> Value {
@@ -995,6 +1022,32 @@ fn invalid_params_response(id: Value, message: &str) -> Value {
     })
 }
 
+fn request_cancelled_response(id: Value) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": -32800,
+            "message": "Request cancelled",
+        }
+    })
+}
+
+fn request_timeout_response(id: Value, timeout_ms: u64) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": -32001,
+            "message": format!("Request timed out after {}ms", timeout_ms),
+        }
+    })
+}
+
+fn request_id_key(id: &Value) -> String {
+    id.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{LspServer, LspServerConfig};
@@ -1245,5 +1298,75 @@ mod tests {
         assert!(!symbols.iter().any(|symbol| {
             symbol.get("name").and_then(Value::as_str) == Some("build_site")
         }));
+    }
+
+    #[test]
+    fn cancelled_request_returns_cancelled_error() {
+        let mut server = LspServer::new(LspServerConfig::default());
+        let _ = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "method": "$/cancelRequest",
+            "params": {
+                "id": 99
+            }
+        }));
+
+        let responses = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 99,
+            "method": "initialize",
+            "params": {}
+        }));
+
+        assert_eq!(responses.len(), 1);
+        assert_eq!(responses[0]["error"]["code"], -32800);
+        assert_eq!(responses[0]["error"]["message"], "Request cancelled");
+    }
+
+    #[test]
+    fn timeout_returns_timeout_error_shape() {
+        let mut server = LspServer::new(LspServerConfig {
+            deterministic_logging: false,
+            request_timeout_ms: 1,
+        });
+
+        let large_source = (0..50_000)
+            .map(|index| format!("let value_{} := {}", index, index))
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        let _ = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/timeout.ruff",
+                    "text": large_source
+                }
+            }
+        }));
+
+        let responses = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "workspace/symbol",
+            "params": {
+                "query": "value_"
+            }
+        }));
+
+        assert_eq!(responses.len(), 1);
+        assert_eq!(responses[0]["error"]["code"], -32001);
+        assert!(responses[0]["error"]["message"]
+            .as_str()
+            .map(|message| message.contains("Request timed out"))
+            .unwrap_or(false));
+    }
+
+    #[test]
+    fn non_object_json_message_does_not_panic_or_emit_response() {
+        let mut server = LspServer::new(LspServerConfig::default());
+        let responses = server.process_message(&json!(["invalid", "shape"]));
+        assert!(responses.is_empty());
     }
 }

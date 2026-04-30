@@ -111,14 +111,14 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] baseline and track latency for diagnostics/completion/hover on representative code samples
-- [ ] add cancellation and timeout handling for long-running analysis requests
-- [ ] ensure server handles malformed requests and parse failures without panicking
+- [x] baseline and track latency for diagnostics/completion/hover on representative code samples
+- [x] add cancellation and timeout handling for long-running analysis requests
+- [x] ensure server handles malformed requests and parse failures without panicking
 
 Acceptance criteria:
 
 - [ ] no known panic paths in LSP request handling under fuzz/invalid-input tests
-- [ ] performance guardrails documented and validated in CI/perf job
+- [x] performance guardrails documented and validated in CI/perf job
 
 ### 8. Packaging And Distribution
 

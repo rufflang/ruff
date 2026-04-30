@@ -423,6 +423,10 @@ enum Commands {
         /// Emit deterministic request/response logs to stderr for debugging
         #[arg(long, default_value_t = false)]
         deterministic_logs: bool,
+
+        /// Timeout budget in milliseconds for a single LSP request
+        #[arg(long, default_value_t = 5000)]
+        request_timeout_ms: u64,
     },
 }
 
@@ -1748,9 +1752,10 @@ async fn main() {
             }
         }
 
-        Commands::Lsp { deterministic_logs } => {
+        Commands::Lsp { deterministic_logs, request_timeout_ms } => {
             let exit_code = lsp_server::run_stdio_server(lsp_server::LspServerConfig {
                 deterministic_logging: deterministic_logs,
+                request_timeout_ms,
             });
             if 0 != exit_code {
                 std::process::exit(exit_code);

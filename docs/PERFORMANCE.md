@@ -509,4 +509,30 @@ ruff profile script.ruff --memory
 
 ---
 
-*Last Updated: January 2026 (v0.9.0 Phase 6)*
+## LSP Latency Guardrails (v0.13.0)
+
+Ruff tracks baseline latency guardrails for key editor-loop operations using representative source samples.
+
+Guarded operations:
+
+- completion (`textDocument/completion` equivalent helper path)
+- diagnostics (`textDocument/publishDiagnostics` equivalent helper path)
+- hover (`textDocument/hover` equivalent helper path)
+
+Guardrail test:
+
+```bash
+cargo test --test lsp_latency_guardrails
+```
+
+The guardrail test intentionally uses conservative thresholds to detect major regressions while remaining stable on loaded CI hosts.
+
+Related reliability tests:
+
+- `cargo test lsp_server::tests::cancelled_request_returns_cancelled_error`
+- `cargo test lsp_server::tests::timeout_returns_timeout_error_shape`
+- `cargo test lsp_server::tests::non_object_json_message_does_not_panic_or_emit_response`
+
+---
+
+*Last Updated: April 2026 (v0.13.0 cross-IDE foundation)*
