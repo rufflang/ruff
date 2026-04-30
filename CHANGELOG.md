@@ -7,130 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No changes yet.
+
+## [0.13.0] - 2026-04-30
+
 ### Added
 
-- **Cross-IDE Foundation Planning Track (v0.13.0 target)**:
-  - Added an execution-ready cross-IDE delivery track in `ROADMAP.md` covering P0/P1/P2 priorities for shared contracts, official Ruff LSP server, deterministic machine-readable outputs, Tree-sitter grammar, protocol conformance testing, and thin editor adapters.
-  - Updated `README.md` with an explicit cross-IDE strategy section and link to roadmap-tracked execution details.
+- Published `docs/LANGUAGE_SPEC.md` with versioned language/tooling compatibility policy and release sign-off notes.
+- Added official `ruff lsp` JSON-RPC server entrypoint with lifecycle support, deterministic logging mode, and shared handler wiring.
+- Completed required LSP parity for diagnostics, completion, hover, definition, references, rename, code actions, formatting/range-formatting, document symbols, and workspace symbols.
+- Hardened machine-readable CLI contracts with `--json` support and schema-style contract tests for format/lint/docgen/LSP helper surfaces.
+- Added fixture-driven LSP conformance harness plus deterministic fixtures for success/error payload validation.
+- Added editor adapter baselines and smoke contract tests for VS Code/Cursor, Neovim, and JetBrains.
+- Added cancellation, timeout, malformed-input resilience, and latency guardrail coverage for the LSP server.
+- Added `tree-sitter-ruff/` grammar baseline assets, corpus fixtures, highlight/injection queries, and guard tests.
+- Added protocol/install/release documentation set for editor integration and release verification.
+- Added Linux/macOS LSP contract CI matrix and external Python/Node LSP smoke client coverage.
 
-- **v0.13.0 Language Specification And Compatibility Policy Baseline (P0)**:
-  - Added `docs/LANGUAGE_SPEC.md` as a versioned language/tooling specification baseline for v0.13.0, including EBNF-style grammar, runtime semantics, compatibility guarantees, and explicit breaking-change/versioning policy.
-  - Added release sign-off evidence in `notes/2026-04-30_10-00_v0.13.0-language-spec-signoff.md`.
-  - Linked the spec from `README.md` so language/tooling contract policy is discoverable from primary project documentation.
+### Changed
 
-- **v0.13.0 Official Ruff LSP Server Entrypoint (P0)**:
-  - Added `ruff lsp` as a long-running JSON-RPC server over stdio, including `initialize`, `initialized`, `shutdown`, and `exit` lifecycle handling.
-  - Added deterministic debug logging support via `ruff lsp --deterministic-logs` (stderr request/response trace with stable sequence ordering).
-  - Wired server request handlers to shared analysis modules (`lsp_completion`, `lsp_hover`, `lsp_definition`, `lsp_references`, `lsp_rename`, `lsp_code_actions`, `lsp_diagnostics`) and document-sync notifications (`didOpen`/`didChange`/`didClose`) with `publishDiagnostics` notifications.
-  - Added server support for `textDocument/formatting`, `textDocument/rangeFormatting`, `textDocument/documentSymbol`, and `workspace/symbol` to close additional v0.13.0 feature-parity gaps.
-  - Added protocol startup and handler tests in `src/lsp_server.rs` covering lifecycle, diagnostics publication, and completion request behavior.
-
-- **v0.13.0 CLI Machine-Readable Contract Hardening (P0)**:
-  - Added `--json` output support for `ruff format` and `ruff docgen` with stable top-level payload fields for automation consumers.
-  - Added CLI JSON contract integration tests in `tests/cli_json_contracts.rs` that gate payload shape compatibility for `format`, `lint`, `docgen`, and all current LSP CLI JSON surfaces.
-  - Added `docs/CLI_MACHINE_READABLE_CONTRACTS.md` to define JSON payload contracts, exit-code policy (`0` success, `1` command failure, `2` usage failure), and automation-facing error-shape guidance.
-
-- **v0.13.0 LSP Conformance Harness (P1)**:
-  - Added fixture-driven protocol harness test `tests/lsp_conformance_harness.rs` for deterministic request/response validation against `LspServer`.
-  - Added deterministic fixtures under `tests/lsp_fixtures/` covering completion ordering, rename edit-range stability, and error payload consistency.
-  - Wired harness assertions to fail on incompatible response-shape drift by default.
-
-- **v0.13.0 Thin Editor Adapter Baselines (P2)**:
-  - Added canonical adapter guidance in `docs/EDITOR_ADAPTER_BASELINES.md` for VS Code/Cursor, Neovim, and JetBrains (generic LSP plugin path), all launching official `ruff lsp`.
-  - Added sample adapter descriptors under `docs/editor-adapters/` for each editor family.
-  - Added smoke contract tests in `tests/editor_adapter_contracts.rs` to verify descriptor consistency and canonical `ruff lsp` launch wiring.
-
-- **v0.13.0 LSP Reliability And Latency Guardrails (P0/P1 follow-through)**:
-  - Added request cancellation support in `src/lsp_server.rs` via `$/cancelRequest` with stable cancelled-request error shape (`code: -32800`).
-  - Added per-request timeout handling in `src/lsp_server.rs` with configurable `ruff lsp --request-timeout-ms` and timeout error shape (`code: -32001`).
-  - Added malformed input resilience test coverage so non-object JSON messages do not panic or emit invalid responses.
-  - Added latency baseline guardrail test `tests/lsp_latency_guardrails.rs` for completion/diagnostics/hover representative samples.
-  - Updated `docs/PERFORMANCE.md` with guardrail validation commands and reliability test references.
-
-- **v0.13.0 Tree-sitter Grammar Baseline (P1)**:
-  - Added a dedicated `tree-sitter-ruff/` grammar package scaffold with `grammar.js` and package metadata.
-  - Added baseline corpus fixtures under `tree-sitter-ruff/test/corpus/` and highlighting/injection queries under `tree-sitter-ruff/queries/`.
-  - Added CI-guard asset/corpus test `tests/tree_sitter_ruff_assets.rs` and documentation in `docs/TREE_SITTER_RUFF.md`.
-
-- **v0.13.0 Packaging/Protocol/Release Evidence Follow-Through**:
-  - Added protocol contract documentation in `docs/PROTOCOL_CONTRACTS.md` for diagnostics, symbol metadata, edit metadata, and JSON-RPC error envelopes.
-  - Added install/upgrade guidance for editor integrations in `docs/INSTALLATION_LSP_EDITORS.md`.
-  - Added release artifact checklist in `docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md` and completion evidence in `notes/2026-04-30_15-25_v0-13-0-completion-checklist.md`.
-  - Added Linux/macOS CI matrix workflow `.github/workflows/lsp-contract-matrix.yml` to enforce protocol/contract tests and release-artifact LSP entrypoint checks.
-
-- **v0.13.0 External LSP Client Smoke Coverage**:
-  - Added two independent external smoke clients (`tools/lsp_smoke_clients/python_client.py` and `tools/lsp_smoke_clients/node_client.mjs`) that launch `ruff lsp` over stdio JSON-RPC and execute initialize/shutdown lifecycle flow.
-  - Added `tests/lsp_external_clients_smoke.rs` to gate two-client launch compatibility in automated runs.
-
-- **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
-  - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
-  - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.
-  - Added regression coverage for doc-comment/function extraction, example extraction, and generated artifact creation.
-
-- **v0.12.0 REPL Follow-Through: Completion/Highlighting/Multiline/.help Improvements (P1)**:
-  - Extended `src/repl.rs` with a Rustyline helper that provides tab completion for REPL commands and builtin function names.
-  - Added initial command-oriented syntax highlighting and validator-backed multiline continuation handling for more predictable interactive editing.
-  - Added `.help <function>` support in `ruff repl` for quick builtin usage guidance.
-  - Added regression coverage for multiline completion/continuation detection behavior.
-
-- **v0.12.0 Package Workflow Follow-Through: Initial Manifest + CLI Surfaces (P1)**:
-  - Added `src/package_workflow.rs` with `ruff.toml` manifest generation/parsing and dependency metadata editing helpers.
-  - Added `ruff init`, `ruff package-add`, `ruff package-install`, and `ruff package-publish` command surfaces for initial project/package workflow support.
-  - Added regression coverage for default manifest generation, manifest parsing, dependency insertion, and dependency input validation.
-
-- **v0.12.0 Linter Follow-Through: Initial Linter Rules + CLI Surface (P1)**:
-  - Added `src/linter.rs` with initial lint rules for unused variables, unreachable code after terminators, obvious annotation/literal type mismatches, and missing error-handling patterns for fallible calls.
-  - Added `ruff lint <file> [--fix] [--json]` for lint reporting and safe autofix application.
-  - Added safe autofix support for selected rules (unused-variable underscore-prefixing) and deterministic structured issue output.
-  - Added regression coverage for all initial rule categories and safe-fix behavior.
-
-- **v0.12.0 Formatter Follow-Through: Initial Formatter Engine + CLI Surface (P1)**:
-  - Added `src/formatter.rs` with initial opinionated formatting rules for spacing, indentation, and optional wrapping of long comma-separated expressions.
-  - Added `ruff format <file> [--indent <N>] [--line-length <N>] [--no-sort-imports] [--check] [--write]` for formatter usage in preview, check, and write-back modes.
-  - Added initial import-ordering support for leading import blocks with opt-out control.
-  - Added regression coverage for spacing/indentation normalization, import sorting, and line-length wrapping behavior.
-
-- **v0.12.0 LSP Follow-Through: Initial Code Actions + CLI Surface (P1)**:
-  - Added `src/lsp_code_actions.rs` with diagnostics-driven quick-fix generation for unmatched closing delimiters and unclosed opening delimiters.
-  - Added `ruff lsp-code-actions <file> [--json]` to return structured quick-fix actions for editor/LSP integration.
-  - Added regression coverage for no-actions-on-valid-source behavior and action generation for unmatched brace, unclosed parenthesis, and unclosed bracket diagnostics.
-  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial code-actions roadmap item.
-
-- **v0.12.0 LSP Follow-Through: Initial Rename Refactoring + CLI Surface (P1)**:
-  - Added `src/lsp_rename.rs` with scope-aware rename logic driven by symbol-reference resolution and identifier validation.
-  - Added `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME> [--json]` to return deterministic rename edits and updated source text.
-  - Added regression coverage for function-definition-and-call rename updates, shadowed-scope isolation, invalid-name rejection, and non-identifier cursor handling.
-  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial rename-refactoring roadmap item; code actions remain open.
-
-- **v0.12.0 LSP Follow-Through: Initial Real-Time Diagnostics + CLI Surface (P1)**:
-  - Added `src/lsp_diagnostics.rs` with syntax-oriented diagnostics for delimiter mismatches and parser panic capture.
-  - Added `ruff lsp-diagnostics <file> [--json]` to expose diagnostics output for editor/LSP refresh loops.
-  - Added regression coverage for valid-program no-diagnostics behavior, unmatched closing delimiters, unclosed opening delimiters, and parser-panic message capture.
-  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial real-time diagnostics roadmap item; rename and code actions remain open.
-
-- **v0.12.0 LSP Follow-Through: Initial Hover Documentation + CLI Surface (P1)**:
-  - Added `src/lsp_hover.rs` with hover lookup that resolves user-defined symbols through definition mapping and builtin symbols through native builtin discovery.
-  - Added `ruff lsp-hover <file> --line <N> --column <N> [--json]` to return hover symbol metadata (`symbol`, `kind`, `detail`, `line`, `column`) for editor/LSP integration.
-  - Added regression coverage for function hover output, builtin hover output, parameter hover mapping, and non-identifier cursor handling.
-  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial hover-documentation roadmap item; diagnostics, rename, and code actions remain open.
-
-- **v0.12.0 LSP Follow-Through: Initial Find-References + CLI Surface (P1)**:
-  - Added `src/lsp_references.rs` with scope-aware symbol reference lookup driven by cursor-position identifier resolution.
-  - Added `ruff lsp-references <file> --line <N> --column <N> [--include-definition <true|false>] [--json]` to return reference locations for the selected symbol.
-  - Added regression coverage for complete function reference collection, optional declaration exclusion, lexical shadowing behavior for duplicate variable names, and non-identifier cursor handling.
-  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial find-references roadmap item; hover docs, diagnostics, rename, and code actions remain open.
-
-- **v0.12.0 LSP Follow-Through: Initial Go-To-Definition + CLI Surface (P1)**:
-  - Added `src/lsp_definition.rs` with deterministic definition lookup for identifier symbols under a cursor position.
-  - Added `ruff lsp-definition <file> --line <N> --column <N> [--json]` to return definition locations for function, variable, and parameter symbols.
-  - Added regression coverage for function call-site resolution, nearest-previous variable shadowing behavior, parameter resolution from function bodies, future-definition fallback behavior, and non-identifier cursor handling.
-  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial go-to-definition roadmap item; references, hover docs, diagnostics, rename, and code actions remain open.
-
-- **v0.12.0 LSP Groundwork: Completion Engine + CLI Surface (P1)**:
-  - Added `src/lsp_completion.rs` with a completion engine that returns candidates for builtins, user-defined functions, and user-defined variables.
-  - Added `ruff lsp-complete <file> --line <N> --column <N> [--json]` to expose completion candidates at a cursor position for editor/LSP integration work.
-  - Added deterministic completion regression tests for identifier-prefix extraction, builtin/function/variable candidate inclusion, and user-symbol precedence over builtin name collisions.
-  - This is a targeted completion slice of the larger `v0.12.0` Language Server Protocol roadmap item; go-to-definition, references, hover docs, diagnostics, rename, and code actions remain open.
+- Updated README and roadmap release narrative from `v0.12.0` planning state to `v0.13.0` released state.
 
 ## [0.11.0] - 2026-04-29
 
@@ -4725,6 +4621,7 @@ This release completes the database foundation for production applications with 
 
 ---
 
-[Unreleased]: https://github.com/rufflang/ruff/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rufflang/ruff/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/rufflang/ruff/compare/v0.12.0...v0.13.0
 [0.3.0]: https://github.com/rufflang/ruff/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rufflang/ruff/releases/tag/v0.2.0

@@ -2,7 +2,7 @@
 
 Ruff is a small programming language and runtime implemented in Rust. It is built for local scripting, automation, runtime experiments, and benchmarking work where a compact language with a Rust-hosted standard library is useful.
 
-The project is currently at `0.12.0` in `Cargo.toml`, after a release cycle focused on developer-experience surfaces. Next planned roadmap work targets `0.13.0` cross-IDE language tooling foundations. Ruff is usable from source today, but the language and runtime APIs are still evolving. Treat the repository tests, examples, and native-function dispatch tests as the source of truth for current behavior.
+The project is currently at `0.13.0` in `Cargo.toml`, after completing the cross-IDE language tooling foundation release. Next planned roadmap work targets `0.14.0` stabilization and `1.0.0` readiness follow-through. Ruff is usable from source today, but the language and runtime APIs are still evolving. Treat the repository tests, examples, and native-function dispatch tests as the source of truth for current behavior.
 
 ## Current Status
 
@@ -23,7 +23,7 @@ Ruff language tooling is being aligned around a universal-first architecture:
 - shared grammar path for syntax highlighting
 - thin editor adapters that launch/configure Ruff tooling instead of reimplementing it
 
-Execution details and phased acceptance criteria are tracked in the `v0.13.0` cross-IDE section of `ROADMAP.md`.
+Execution details and phased acceptance criteria are tracked in `ROADMAP.md` under the active `v0.14.0` track.
 
 The versioned language and compatibility contract baseline for this cycle is published in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
 
@@ -146,66 +146,26 @@ Scheduler timeout precedence for `ruff run` is:
 2. `RUFF_SCHEDULER_TIMEOUT_MS=<ms>`
 3. default `120000 ms`
 
-## v0.12.0 LSP Progress
+## v0.13.0 Release Highlights
 
-The highest-priority v0.12.0 roadmap track is Language Server Protocol support. Ruff now includes initial editor-integration primitives:
+The v0.13.0 release delivered the cross-IDE tooling baseline and made Ruff's LSP/server contracts a first-class surface:
 
-- `ruff lsp-complete` for builtin/function/variable completion candidates at a cursor position.
-- `ruff lsp-definition` for go-to-definition lookup of function/variable/parameter symbols.
-- `ruff lsp-references` for symbol reference lookup with optional declaration inclusion.
-- `ruff lsp-hover` for symbol hover details across builtins and user-defined symbols.
-- `ruff lsp-diagnostics` for syntax-oriented diagnostics suitable for editor refresh cycles.
-- `ruff lsp-rename` for scope-aware symbol renaming with deterministic edit output.
-- `ruff lsp-code-actions` for diagnostics-driven syntax quick-fix actions.
+- `ruff lsp` official JSON-RPC server entrypoint with lifecycle handling, deterministic logging, and shared analyzer wiring.
+- Full required LSP method parity for `v0.13.0` including diagnostics, completion, hover, definition, references, rename, code actions, formatting/range-formatting, document symbols, and workspace symbols.
+- Deterministic machine-readable CLI contracts with `--json` coverage for format/lint/docgen and LSP helper commands.
+- Fixture-driven LSP conformance harness and external client smoke coverage.
+- Baseline tree-sitter grammar assets and editor-adapter setup guidance for VS Code/Cursor, Neovim, and JetBrains.
 
-These are targeted LSP groundwork slices, not a full language server implementation yet.
+Detailed release evidence and artifact validation are documented in `docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md` and the completion notes under `notes/`.
 
-## v0.12.0 Formatter Progress
+## Earlier Milestone Highlights
 
-Ruff now includes an initial formatter surface via `ruff format` with:
+Ruff still includes the `v0.12.0` tooling additions that remain part of the current release:
 
 - opinionated spacing/indentation normalization
 - configurable indentation width
 - line-length-aware wrapping for comma-separated expressions
 - leading import-block sorting (optionally disabled)
-
-## v0.12.0 Linter Progress
-
-Ruff now includes an initial linter surface via `ruff lint` with:
-
-- unused variable detection
-- unreachable statement detection after control-flow terminators
-- obvious annotation/literal type mismatch checks
-- missing error-handling pattern warnings for common fallible calls
-- safe autofix support for selected rules (unused-variable underscore-prefixing)
-
-## v0.12.0 Package Workflow Progress
-
-Ruff now includes an initial package workflow with:
-
-- `ruff init` scaffolding
-- `ruff.toml` manifest generation/parsing
-- dependency metadata editing via `ruff package-add`
-- dependency validation/enumeration via `ruff package-install`
-- publish preview/trigger surface via `ruff package-publish`
-
-## v0.12.0 REPL Progress
-
-Ruff now includes an improved REPL interaction surface via `ruff repl` with:
-
-- tab completion for REPL commands and builtin function names
-- command-oriented syntax highlighting for quick visual scanning
-- validator-backed multiline continuation for incomplete input
-- `.help <function>` builtin usage guidance
-
-## v0.12.0 Documentation Generator Progress
-
-Ruff now includes an initial documentation generator via `ruff docgen` with:
-
-- HTML generation for documented `func` declarations discovered from `///` comments
-- fenced Ruff example extraction from doc comments (` ```ruff ... ``` ` blocks)
-- generated documentation index page
-- builtin/native API reference page from registered builtin names (optional via `--no-builtins`)
 
 ## Language Overview
 

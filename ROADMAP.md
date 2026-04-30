@@ -1,290 +1,129 @@
 # Ruff Development Roadmap
 
-This roadmap tracks work that is still current or upcoming. Completed features and implementation history belong in [CHANGELOG.md](CHANGELOG.md), not here.
+This roadmap tracks work that is still current or upcoming. Completed implementation history belongs in [CHANGELOG.md](CHANGELOG.md) and release evidence notes under `notes/`.
 
-> Current crate version: `0.12.0` in [Cargo.toml](Cargo.toml)
-> Next planned release: `v0.13.0`
+> Current crate version: `0.13.0` in [Cargo.toml](Cargo.toml)
+> Next planned release: `v0.14.0`
 > Last audited: April 30, 2026
 
 ---
 
 ## Release Focus
 
-`v0.11.0` has been released and `v0.12.0` roadmap work is complete.
-Roadmap planning is now focused on `v0.13.0` cross-IDE language tooling and `v1.0.0` readiness prerequisites.
-
-For historical `v0.11.0` release evidence and completion details, see [CHANGELOG.md](CHANGELOG.md) and the dated notes under `notes/`.
+`v0.13.0` is complete and release-ready from a feature perspective.
+Roadmap planning now focuses on `v0.14.0` stabilization work needed to reduce risk before `v1.0.0`.
 
 ---
 
-## v0.13.0: Cross-IDE Foundation (Release Checklist)
+## v0.14.0: Stabilization And 1.0 Runway (Release Checklist)
 
-`v0.13.0` is complete only when all required items below are done.
+`v0.14.0` is complete only when all required items below are done.
 
-### 1. Language Specification And Compatibility Policy
-
-Required features:
-
-- [x] publish `docs/LANGUAGE_SPEC.md` with versioned grammar and runtime semantics
-- [x] define compatibility guarantees for syntax, runtime behavior, and CLI/LSP machine-readable output
-- [x] publish breaking-change policy and versioning rules for language/tooling contracts
-
-Acceptance criteria:
-
-- [x] spec review sign-off captured in release notes
-- [x] compatibility policy linked from README and release docs
-
-### 2. Official Ruff LSP Server
+### 1. Release Process Hardening
 
 Required features:
 
-- [x] add `ruff lsp` long-running JSON-RPC server entrypoint
-- [x] implement LSP initialize/shutdown/exit lifecycle and capability negotiation
-- [x] support both stdio transport and deterministic logging mode for debugging
-- [x] wire server handlers to shared analysis logic (not editor-specific code)
+- [ ] add a release playbook in `docs/RELEASE_PROCESS.md` covering version bump, changelog sectioning, checklist verification, and tagging order
+- [ ] add a CI guard that fails if `Cargo.toml` version and README/ROADMAP release status are inconsistent
+- [ ] define and document patch-release policy (`v0.14.x`) for post-release fixes
 
 Acceptance criteria:
 
-- [x] protocol startup tests pass for initialize, initialized, shutdown, and exit
-- [x] server can be launched by at least two external LSP clients without code changes
+- [ ] dry-run release execution can be completed with no manual guesswork
+- [ ] CI catches version-state drift before merge
 
-### 3. LSP Feature Parity (Required For v0.13.0)
+### 2. LSP Protocol Stability Guarantees
 
 Required features:
 
-- [x] textDocument/publishDiagnostics
-- [x] textDocument/completion
-- [x] textDocument/hover
-- [x] textDocument/definition
-- [x] textDocument/references
-- [x] textDocument/rename
-- [x] textDocument/codeAction
-- [x] textDocument/formatting and textDocument/rangeFormatting
-- [x] textDocument/documentSymbol
-- [x] workspace/symbol
+- [ ] lock JSON-RPC error envelopes and success payload contracts behind golden fixtures
+- [ ] publish compatibility table for supported LSP methods and known unsupported method behavior
+- [ ] add regression fixtures for multi-file workspace symbol/rename/reference edge cases
 
 Acceptance criteria:
 
-- [x] each required method has passing protocol-level fixtures for success and error cases
-- [x] response payloads are stable and versioned where applicable
+- [ ] protocol fixtures fail on contract shape drift unless intentionally updated
+- [ ] docs and fixture expectations match for all supported methods
 
-### 4. CLI And Machine-Readable Contract Hardening
+### 3. Packaging And Distribution Follow-Through
 
 Required features:
 
-- [x] enforce stable `--json` output schemas for `format`, `lint`, `docgen`, and LSP CLI surfaces
-- [x] standardize exit-code policy for all user-facing commands
-- [x] add explicit error-shape documentation for automation use cases
+- [ ] validate release artifacts on Linux/macOS in clean environments using documented install flow
+- [ ] add reproducible binary verification steps (checksum generation + verification docs)
+- [ ] document minimum supported Rust toolchain and platform assumptions
 
 Acceptance criteria:
 
-- [x] snapshot/schema tests gate output contract changes in CI
-- [x] CHANGELOG policy requires contract-change notes for payload-affecting changes
+- [ ] artifact validation logs are captured in a dated release evidence note
+- [ ] install instructions can be executed end-to-end without repository context
 
-### 5. Tree-sitter Grammar For Universal Highlighting
+### 4. Tree-sitter And Editor Adapter Maturity
 
 Required features:
 
-- [x] create `tree-sitter-ruff` grammar crate/repo with syntax coverage for current Ruff language constructs
-- [x] add corpus tests for core grammar and edge-case constructs
-- [x] add highlight/query files sufficient for editor consumption
+- [ ] expand `tree-sitter-ruff` corpus coverage for current parser edge cases
+- [ ] verify highlight-query behavior against representative Ruff syntax samples
+- [ ] publish adapter maintenance policy (what stays in Ruff docs vs editor-specific repos)
 
 Acceptance criteria:
 
-- [x] corpus tests run in CI and block regressions
-- [x] at least one editor integration confirms `.ruff` highlighting via Tree-sitter grammar
+- [ ] grammar corpus tests include regression fixtures for previously reported parse/highlight issues
+- [ ] adapter docs remain thin and reference canonical Ruff contracts
 
-### 6. Conformance Test Harness
+### 5. Runtime And Tooling Reliability Track
 
 Required features:
 
-- [x] build fixture-driven protocol harness for LSP request/response validation
-- [x] add deterministic fixtures for completion ordering and edit-range stability
-- [x] add regression fixtures for diagnostics and error payload consistency
+- [ ] add resilience tests for malformed LSP message sequences and document lifecycle churn (`didOpen`/`didChange`/`didClose` ordering)
+- [ ] add bounded-memory checks for repeated diagnostics/completion request loops
+- [ ] track startup/first-response latency baselines for the `ruff lsp` server
 
 Acceptance criteria:
 
-- [x] harness runs in CI across Linux and macOS
-- [x] incompatible protocol changes fail tests by default
+- [ ] no known panic paths for malformed protocol traffic
+- [ ] reliability test suite is green in CI matrix and documented in release evidence
 
-### 7. Performance, Reliability, And Crash Safety
+### 6. v1.0.0 Scope Definition Gate
 
 Required features:
 
-- [x] baseline and track latency for diagnostics/completion/hover on representative code samples
-- [x] add cancellation and timeout handling for long-running analysis requests
-- [x] ensure server handles malformed requests and parse failures without panicking
+- [ ] publish `docs/V1_SCOPE.md` with explicit in-scope/out-of-scope boundaries for `v1.0.0`
+- [ ] define compatibility commitments for language syntax/runtime behavior and machine-readable tooling contracts
+- [ ] record deferred post-1.0 candidates (generics, FFI, WASM target, macro system) as non-blocking backlog
 
 Acceptance criteria:
 
-- [x] no known panic paths in LSP request handling under fuzz/invalid-input tests
-- [x] performance guardrails documented and validated in CI/perf job
-
-### 8. Packaging And Distribution
-
-Required features:
-
-- [x] provide release artifacts that include `ruff lsp` functionality
-- [x] document install/upgrade path for users integrating Ruff with editors
-- [x] verify binary compatibility for supported target platforms
-
-Acceptance criteria:
-
-- [x] release checklist confirms LSP entrypoint availability in shipped artifacts
-- [x] install docs are validated in a clean-environment smoke test
-
-### 9. Thin Editor Adapter Baselines
-
-Required features:
-
-- [x] publish minimal VS Code/Cursor adapter guidance that launches official Ruff LSP
-- [x] publish setup guidance for Neovim and JetBrains (via LSP plugin path)
-- [x] keep adapter docs free of duplicated parser/analyzer implementation details
-
-Acceptance criteria:
-
-- [x] one canonical setup path per editor family is documented and smoke-tested
-- [x] adapter guidance points to shared Ruff contracts and server behavior docs
-
-### 10. Release Evidence And Completion Gate
-
-Required features:
-
-- [x] add `v0.13.0` completion checklist artifact under `notes/` with command/test evidence
-- [x] add changelog release summary entries for all shipped `v0.13.0` tracks
-- [x] define post-release follow-up list for deferred `v1.0.0` items
-
-Acceptance criteria:
-
-- [x] roadmap checkboxes for required `v0.13.0` items are complete
-- [x] release tag is created only after evidence checklist is signed off
+- [ ] `v1.0.0` scope can be reviewed without mining historical roadmap notes
+- [ ] `v0.14.0` release notes clearly call out what remains before `v1.0.0`
 
 ---
 
 ## v1.0.0 Readiness
 
-`v1.0.0` should not be planned in detail until `v0.11.0` and `v0.12.0` are complete.
+`v1.0.0` planning should proceed only after `v0.14.0` stabilization work is complete.
 
 Required before `v1.0.0`:
 
-- `v0.11.0` performance release complete (done).
-- `v0.12.0` developer tooling substantially complete.
-- Stable language/runtime API policy.
-- Current, accurate user documentation.
-- Clear compatibility policy for native builtins and CLI output contracts.
-
-Possible post-`v0.12.0` design tracks:
-
-- generic types
-- union types
-- enum methods
-- macros/metaprogramming
-- FFI
-- WebAssembly target
-- ML/AI libraries
-
----
-
-## v0.13.0: Cross-IDE Foundation (Execution Plan)
-
-`v0.13.0` is focused on making Ruff first-class across editor ecosystems by prioritizing universally reusable language tooling over editor-specific logic.
-
-### P0 (Must ship)
-
-1. **Canonical language/tooling contract**
-
-   Planned features:
-
-   - [x] versioned language-spec baseline document (`docs/LANGUAGE_SPEC.md`) covering syntax, runtime semantics, and compatibility guarantees
-   - [x] machine-consumable protocol contracts for diagnostics, symbol metadata, and edits used by CLI/LSP outputs
-   - [x] compatibility policy document for breaking vs non-breaking language-tooling changes
-
-   Acceptance criteria:
-
-   - a new test fixture can validate compatibility of structured output fields across versions
-   - at least one CI job fails when output contracts regress without an explicit contract update
-
-2. **Official Ruff LSP server binary**
-
-   Planned features:
-
-   - [x] single `ruff lsp` server entrypoint supporting standard JSON-RPC transport
-   - [x] diagnostics, completion, hover, definition, references, rename, and code actions implemented through server handlers
-   - [x] formatter/linter/doc features exposed through LSP methods where applicable
-
-   Acceptance criteria:
-
-   - LSP protocol-level integration tests cover startup, initialization, and each core request type
-   - cross-client smoke validation passes in at least two LSP-capable editors
-
-3. **Deterministic machine-readable CLI outputs**
-
-   Planned features:
-
-   - [x] consistent `--json` output shape coverage for format/lint/docgen/LSP CLI commands
-   - [x] explicit schema tests for error and success payloads
-   - [x] stable exit-code policy documentation for scripting and IDE task runners
-
-   Acceptance criteria:
-
-   - [x] JSON output snapshots exist for key commands and are enforced in CI
-   - command output contract changes require changelog + schema update in one PR
-
-### P1 (Should ship)
-
-4. **Tree-sitter grammar for universal highlighting**
-
-   Planned features:
-
-   - [x] `tree-sitter-ruff` grammar with coverage for current language syntax
-   - [x] grammar corpus tests for language constructs and edge cases
-   - [x] published query files for highlighting/injections where applicable
-
-   Acceptance criteria:
-
-   - [x] corpus tests pass in CI
-   - [x] at least one editor client can consume the grammar for `.ruff` highlighting
-
-5. **Language-server conformance test suite**
-
-   Planned features:
-
-   - [x] fixture-driven protocol test harness for request/response/diagnostic behavior
-   - [x] deterministic snapshots for completion ordering, symbol locations, and edit ranges
-   - [x] regression tests for failure/error payload consistency
-
-   Acceptance criteria:
-
-   - [x] all core LSP feature handlers have protocol-level test coverage
-   - [x] tests detect incompatible response-shape changes before release
-
-### P2 (Can follow)
-
-6. **Thin editor adapters**
-
-   Planned features:
-
-   - [x] lightweight VS Code/Cursor adapter that launches Ruff LSP without reimplementing language logic
-   - [x] adapter guidance for JetBrains (via generic LSP plugin), Neovim, and other LSP clients
-   - [x] editor setup docs focused on shared Ruff LSP configuration
-
-   Acceptance criteria:
-
-   - [x] adapter repos/extensions avoid duplicate parsing/analysis logic
-   - [x] onboarding docs show one canonical Ruff LSP configuration path per editor family
+- stable and documented language/runtime compatibility guarantees
+- stable and versioned machine-readable CLI/LSP contracts
+- release process that is reproducible and CI-validated
+- current and accurate installation/editor integration documentation
+- clear long-term maintenance boundaries for core tooling vs adapter layers
 
 ---
 
 ## Version Strategy
 
-- `v0.11.0`: released (SSG throughput, async scheduler reliability, benchmark release evidence).
-- `v0.12.0`: developer experience and project tooling (complete).
-- `v0.13.0`: cross-IDE language tooling foundation (`ruff lsp`, output contracts, grammar, conformance tests).
-- `v1.0.0`: stabilization, documentation, compatibility policy, ecosystem polish.
+- `v0.11.0`: released (SSG throughput and async scheduler reliability)
+- `v0.12.0`: released (developer tooling surfaces)
+- `v0.13.0`: released (cross-IDE tooling foundation)
+- `v0.14.0`: stabilization and `v1.0.0` runway
+- `v1.0.0`: compatibility and ecosystem stabilization milestone
 
 See also:
 
-- [CHANGELOG.md](CHANGELOG.md): completed changes.
-- [docs/PERFORMANCE.md](docs/PERFORMANCE.md): performance guide.
-- [docs/CONCURRENCY.md](docs/CONCURRENCY.md): concurrency notes.
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): architecture notes. Some sections may be stale and should be reviewed before release.
+- [CHANGELOG.md](CHANGELOG.md): completed changes
+- [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md): protocol-level contract definitions
+- [docs/INSTALLATION_LSP_EDITORS.md](docs/INSTALLATION_LSP_EDITORS.md): install/upgrade guidance
+- [docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md): prior release evidence model
