@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 LSP Follow-Through: Initial Real-Time Diagnostics + CLI Surface (P1)**:
+  - Added `src/lsp_diagnostics.rs` with syntax-oriented diagnostics for delimiter mismatches and parser panic capture.
+  - Added `ruff lsp-diagnostics <file> [--json]` to expose diagnostics output for editor/LSP refresh loops.
+  - Added regression coverage for valid-program no-diagnostics behavior, unmatched closing delimiters, unclosed opening delimiters, and parser-panic message capture.
+  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial real-time diagnostics roadmap item; rename and code actions remain open.
+
 - **v0.12.0 LSP Follow-Through: Initial Hover Documentation + CLI Surface (P1)**:
   - Added `src/lsp_hover.rs` with hover lookup that resolves user-defined symbols through definition mapping and builtin symbols through native builtin discovery.
   - Added `ruff lsp-hover <file> --line <N> --column <N> [--json]` to return hover symbol metadata (`symbol`, `kind`, `detail`, `line`, `column`) for editor/LSP integration.

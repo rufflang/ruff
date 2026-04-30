@@ -33,7 +33,7 @@ Priority work:
    - [x] go to definition (initial symbol-definition lookup via `ruff lsp-definition`)
    - [x] find references (initial symbol-reference lookup via `ruff lsp-references`)
    - [x] hover documentation (initial hover symbol details via `ruff lsp-hover`)
-   - [ ] real-time diagnostics
+   - [x] real-time diagnostics (initial syntax diagnostics via `ruff lsp-diagnostics`)
    - [ ] rename refactoring
    - [ ] code actions
 
