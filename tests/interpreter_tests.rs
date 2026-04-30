@@ -20,6 +20,11 @@ fn unique_shared_key(prefix: &str) -> String {
     format!("{}_{}", prefix, SHARED_KEY_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
+fn unique_module_name(prefix: &str) -> String {
+    static MODULE_COUNTER: AtomicU64 = AtomicU64::new(1);
+    format!("{}_{}", prefix, MODULE_COUNTER.fetch_add(1, Ordering::Relaxed))
+}
+
 fn run_code(code: &str) -> Interpreter {
     let tokens = tokenize(code);
     let mut parser = Parser::new(tokens);
@@ -3256,6 +3261,38 @@ fn test_parallel_map_rayon_len_pipeline_with_mixed_collections() {
 
     let interp = run_code(code);
     assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_import_missing_module_returns_runtime_error() {
+    let module_name = unique_module_name("module_does_not_exist");
+    let interp = run_code(&format!("import {}", module_name));
+
+    assert!(matches!(
+        interp.return_value,
+        Some(Value::Error(message)) if message.contains(&format!("Module not found: {}", module_name))
+    ));
+}
+
+#[test]
+fn test_from_import_missing_symbol_returns_runtime_error() {
+    let modules_dir = std::path::PathBuf::from("modules");
+    std::fs::create_dir_all(&modules_dir).expect("failed to create modules directory for test");
+
+    let module_name = unique_module_name("module_present");
+    let module_path = modules_dir.join(format!("{}.ruff", module_name));
+    std::fs::write(&module_path, "export present := 1\n")
+        .expect("failed to write temporary module");
+
+    let interp = run_code(&format!("from {} import absent", module_name));
+
+    assert!(matches!(
+        interp.return_value,
+        Some(Value::Error(message))
+            if message.contains(&format!("Symbol 'absent' not found in module '{}'", module_name))
+    ));
+
+    std::fs::remove_file(&module_path).expect("failed to remove temporary module file");
 }
 
 #[test]

@@ -2297,9 +2297,9 @@ impl Interpreter {
                                     self.env.define(name, value);
                                 }
                             }
-                            Err(_) => {
-                                // Module not found or error loading - silently continue for now
-                                // In production, should report error
+                            Err(err) => {
+                                self.return_value = Some(Value::Error(err.message));
+                                return;
                             }
                         }
                     }
@@ -2310,8 +2310,9 @@ impl Interpreter {
                                 Ok(value) => {
                                     self.env.define(symbol_name.clone(), value);
                                 }
-                                Err(_) => {
-                                    // Symbol not found - silently continue for now
+                                Err(err) => {
+                                    self.return_value = Some(Value::Error(err.message));
+                                    return;
                                 }
                             }
                         }
