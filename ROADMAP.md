@@ -25,15 +25,17 @@ Priority work:
 
 1. **Language Server Protocol**
 
+   Status: in progress.
+
    Planned features:
 
-   - autocomplete for builtins, variables, and functions
-   - go to definition
-   - find references
-   - hover documentation
-   - real-time diagnostics
-   - rename refactoring
-   - code actions
+   - [x] autocomplete for builtins, variables, and functions (initial completion engine via `ruff lsp-complete`)
+   - [ ] go to definition
+   - [ ] find references
+   - [ ] hover documentation
+   - [ ] real-time diagnostics
+   - [ ] rename refactoring
+   - [ ] code actions
 
 2. **Formatter**
 

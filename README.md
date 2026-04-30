@@ -90,6 +90,7 @@ The current CLI exposes these subcommands:
 | `ruff bench-cross` | Compare Ruff `parallel_map` against a Python `ProcessPoolExecutor` benchmark. |
 | `ruff bench-ssg` | Run the async SSG benchmark, with optional Python comparison and measurement controls. |
 | `ruff profile <file>` | Profile a Ruff script for CPU, memory, and JIT stats. |
+| `ruff lsp-complete <file> --line <N> --column <N>` | Return completion candidates (builtins, functions, variables) for editor/LSP integration; add `--json` for structured output. |
 
 Useful environment variables:
 
@@ -104,6 +105,10 @@ Scheduler timeout precedence for `ruff run` is:
 1. `--scheduler-timeout-ms <ms>`
 2. `RUFF_SCHEDULER_TIMEOUT_MS=<ms>`
 3. default `120000 ms`
+
+## v0.12.0 LSP Progress
+
+The highest-priority v0.12.0 roadmap track is Language Server Protocol support. Ruff now includes an initial completion engine surfaced by `ruff lsp-complete`, which provides builtin/function/variable completion candidates at a cursor position. This is groundwork for editor integration, not a full language server implementation yet.
 
 ## Language Overview
 

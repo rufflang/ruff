@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **v0.12.0 LSP Groundwork: Completion Engine + CLI Surface (P1)**:
+  - Added `src/lsp_completion.rs` with a completion engine that returns candidates for builtins, user-defined functions, and user-defined variables.
+  - Added `ruff lsp-complete <file> --line <N> --column <N> [--json]` to expose completion candidates at a cursor position for editor/LSP integration work.
+  - Added deterministic completion regression tests for identifier-prefix extraction, builtin/function/variable candidate inclusion, and user-symbol precedence over builtin name collisions.
+  - This is a targeted completion slice of the larger `v0.12.0` Language Server Protocol roadmap item; go-to-definition, references, hover docs, diagnostics, rename, and code actions remain open.
+
 ## [0.11.0] - 2026-04-29
 
 ### Added
