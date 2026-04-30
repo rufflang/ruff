@@ -24,3 +24,4 @@ High-signal session notes:
 - `2026-04-29_21-52_cross-language-and-release-checks-local-evidence.md` — Captured cross-language benchmark context plus focused release-checklist test/dispatch coverage with explicit local-smoke release-exception documentation.
 - `2026-04-29_22-28_lsp-go-to-definition-cli.md` — Added `ruff lsp-definition` with deterministic function/variable/parameter definition lookup and release-cycle verification evidence.
 - `2026-04-29_22-35_lsp-find-references-cli.md` — Added `ruff lsp-references` with scope-aware symbol reference lookup, shadowing-aware behavior, and release-cycle verification evidence.
+- `2026-04-29_22-40_lsp-hover-documentation-cli.md` — Added `ruff lsp-hover` with user/builtin hover metadata output and release-cycle verification evidence.

@@ -93,6 +93,7 @@ The current CLI exposes these subcommands:
 | `ruff lsp-complete <file> --line <N> --column <N>` | Return completion candidates (builtins, functions, variables) for editor/LSP integration; add `--json` for structured output. |
 | `ruff lsp-definition <file> --line <N> --column <N>` | Return the go-to-definition location for the identifier under the cursor; add `--json` for structured output. |
 | `ruff lsp-references <file> --line <N> --column <N>` | Return all references for the identifier under the cursor; add `--include-definition false` to exclude declarations and `--json` for structured output. |
+| `ruff lsp-hover <file> --line <N> --column <N>` | Return hover details for the identifier under the cursor (kind, detail text, definition location when applicable); add `--json` for structured output. |
 
 Useful environment variables:
 
@@ -115,6 +116,7 @@ The highest-priority v0.12.0 roadmap track is Language Server Protocol support. 
 - `ruff lsp-complete` for builtin/function/variable completion candidates at a cursor position.
 - `ruff lsp-definition` for go-to-definition lookup of function/variable/parameter symbols.
 - `ruff lsp-references` for symbol reference lookup with optional declaration inclusion.
+- `ruff lsp-hover` for symbol hover details across builtins and user-defined symbols.
 
 These are targeted LSP groundwork slices, not a full language server implementation yet.
 

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 LSP Follow-Through: Initial Hover Documentation + CLI Surface (P1)**:
+  - Added `src/lsp_hover.rs` with hover lookup that resolves user-defined symbols through definition mapping and builtin symbols through native builtin discovery.
+  - Added `ruff lsp-hover <file> --line <N> --column <N> [--json]` to return hover symbol metadata (`symbol`, `kind`, `detail`, `line`, `column`) for editor/LSP integration.
+  - Added regression coverage for function hover output, builtin hover output, parameter hover mapping, and non-identifier cursor handling.
+  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial hover-documentation roadmap item; diagnostics, rename, and code actions remain open.
+
 - **v0.12.0 LSP Follow-Through: Initial Find-References + CLI Surface (P1)**:
   - Added `src/lsp_references.rs` with scope-aware symbol reference lookup driven by cursor-position identifier resolution.
   - Added `ruff lsp-references <file> --line <N> --column <N> [--include-definition <true|false>] [--json]` to return reference locations for the selected symbol.
