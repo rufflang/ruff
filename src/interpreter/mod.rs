@@ -3243,7 +3243,8 @@ impl Interpreter {
                     if let Value::Image { .. } = &obj_val {
                         let arg_values: Vec<Value> =
                             args.iter().map(|arg| self.eval_expr(arg)).collect();
-                        if let Some(result) = Self::call_image_method_impl(&obj_val, field, &arg_values)
+                        if let Some(result) =
+                            Self::call_image_method_impl(&obj_val, field, &arg_values)
                         {
                             return result;
                         }
@@ -4161,7 +4162,11 @@ impl Interpreter {
         result
     }
 
-    pub(crate) fn call_image_method_impl(obj: &Value, method: &str, args: &[Value]) -> Option<Value> {
+    pub(crate) fn call_image_method_impl(
+        obj: &Value,
+        method: &str,
+        args: &[Value],
+    ) -> Option<Value> {
         let (data, format) = match obj {
             Value::Image { data, format } => (data, format),
             _ => return None,
@@ -4191,7 +4196,11 @@ impl Interpreter {
                     let resized = if args.len() >= 3 {
                         if let Value::Str(mode) = &args[2] {
                             if mode.as_ref() == "fit" {
-                                img.resize(w as u32, h as u32, image::imageops::FilterType::Lanczos3)
+                                img.resize(
+                                    w as u32,
+                                    h as u32,
+                                    image::imageops::FilterType::Lanczos3,
+                                )
                             } else {
                                 img.resize_exact(
                                     w as u32,
@@ -4217,12 +4226,9 @@ impl Interpreter {
             "crop" => {
                 if args.len() < 4 {
                     Value::Error("crop requires x, y, width, and height arguments".to_string())
-                } else if let (Some(x), Some(y), Some(w), Some(h)) = (
-                    as_f32(&args[0]),
-                    as_f32(&args[1]),
-                    as_f32(&args[2]),
-                    as_f32(&args[3]),
-                ) {
+                } else if let (Some(x), Some(y), Some(w), Some(h)) =
+                    (as_f32(&args[0]), as_f32(&args[1]), as_f32(&args[2]), as_f32(&args[3]))
+                {
                     let mut img = data.lock().unwrap().clone();
                     let cropped = img.crop(x as u32, y as u32, w as u32, h as u32);
                     Value::Image { data: Arc::new(Mutex::new(cropped)), format: format.clone() }

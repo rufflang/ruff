@@ -373,9 +373,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
 
             if method < 0 || method > 6 {
-                return Some(Value::Error(
-                    "gif_to_webp method must be in range 0-6".to_string(),
-                ));
+                return Some(Value::Error("gif_to_webp method must be in range 0-6".to_string()));
             }
 
             if !Path::new(&input_path).exists() {

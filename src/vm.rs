@@ -4977,9 +4977,7 @@ impl VM {
                 match Interpreter::call_image_method_impl(&image, method_name, &args) {
                     Some(Value::Error(msg)) => return Err(msg),
                     Some(other) => return Ok(other),
-                    None => {
-                        return Err("Expected Image for image method call".to_string())
-                    }
+                    None => return Err("Expected Image for image method call".to_string()),
                 }
             }
 

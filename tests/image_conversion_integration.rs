@@ -78,11 +78,13 @@ fn image_conversion_roundtrip_works_in_interpreter_and_vm() {
             escape_ruff_string(&out_interp)
         );
         let interp = run_interpreter(&interp_script);
-        assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))), "interpreter save() did not return true");
+        assert!(
+            matches!(interp.env.get("ok"), Some(Value::Bool(true))),
+            "interpreter save() did not return true"
+        );
         assert!(out_interp.exists(), "interpreter output file missing: {:?}", out_interp);
-        let interp_size = std::fs::metadata(&out_interp)
-            .expect("failed to stat interpreter output")
-            .len();
+        let interp_size =
+            std::fs::metadata(&out_interp).expect("failed to stat interpreter output").len();
         assert!(interp_size > 0, "interpreter output file is empty");
         image::open(&out_interp).expect("interpreter output is not loadable image");
 
@@ -123,10 +125,7 @@ fn image_conversion_failure_paths_are_reported() {
     ));
 
     let vm_missing = run_vm(
-        &format!(
-            "missing_result := load_image(\"{}\")\n",
-            escape_ruff_string(&missing_path)
-        ),
+        &format!("missing_result := load_image(\"{}\")\n", escape_ruff_string(&missing_path)),
         vm_env_with_builtins(),
     );
     assert!(matches!(vm_missing, Err(msg) if msg.contains("Cannot load image")));
