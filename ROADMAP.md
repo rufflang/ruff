@@ -49,14 +49,14 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] validate release artifacts on Linux/macOS in clean environments using documented install flow
-- [ ] add reproducible binary verification steps (checksum generation + verification docs)
-- [ ] document minimum supported Rust toolchain and platform assumptions
+- [x] validate release artifacts on Linux/macOS in clean environments using documented install flow
+- [x] add reproducible binary verification steps (checksum generation + verification docs)
+- [x] document minimum supported Rust toolchain and platform assumptions
 
 Acceptance criteria:
 
-- [ ] artifact validation logs are captured in a dated release evidence note
-- [ ] install instructions can be executed end-to-end without repository context
+- [x] artifact validation logs are captured in a dated release evidence note
+- [x] install instructions can be executed end-to-end without repository context
 
 ### 4. Tree-sitter And Editor Adapter Maturity
 

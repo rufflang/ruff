@@ -10,7 +10,15 @@ Ruff is a programming language built with Rust. Currently, you install it by bui
 
 ## Prerequisites
 
-Ruff requires **Rust 1.70+** to build from source.
+Ruff requires **Rust 1.86+** to build from source.
+
+Minimum release validation assumptions for current supported install flow:
+
+- Rust stable `1.86+`
+- Linux (`ubuntu-latest` baseline)
+- macOS (`macos-latest` baseline)
+
+See `docs/RELEASE_ARTIFACT_VALIDATION.md` for cross-platform clean-environment validation and checksum verification flow.
 
 ### Install Rust
 
