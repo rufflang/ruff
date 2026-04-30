@@ -2862,6 +2862,21 @@ impl VM {
                     self.stack.push(Value::Array(Arc::new(elements)));
                 }
 
+                OpCode::MakeArrayFromMarker => {
+                    let mut elements = Vec::new();
+
+                    loop {
+                        let value = self.stack.pop().ok_or("Missing array marker in MakeArrayFromMarker")?;
+                        if matches!(value, Value::ArrayMarker) {
+                            break;
+                        }
+                        elements.push(value);
+                    }
+
+                    elements.reverse();
+                    self.stack.push(Value::Array(Arc::new(elements)));
+                }
+
                 OpCode::PushArrayMarker => {
                     self.stack.push(Value::ArrayMarker);
                 }
@@ -2880,6 +2895,29 @@ impl VM {
 
                         dict.insert(key_str, value);
                     }
+                    self.stack.push(Value::Dict(Arc::new(dict)));
+                }
+
+                OpCode::MakeDictFromMarker => {
+                    let mut dict = DictMap::default();
+
+                    loop {
+                        let value = self.stack.pop().ok_or("Missing dict marker in MakeDictFromMarker")?;
+                        let key = self.stack.pop().ok_or("Missing dict marker in MakeDictFromMarker")?;
+
+                        if matches!(key, Value::ArrayMarker) && matches!(value, Value::ArrayMarker)
+                        {
+                            break;
+                        }
+
+                        let key_str = match key {
+                            Value::Str(s) => Arc::from(s.as_str()),
+                            _ => return Err("Dict keys must be strings".to_string()),
+                        };
+
+                        dict.insert(key_str, value);
+                    }
+
                     self.stack.push(Value::Dict(Arc::new(dict)));
                 }
 
@@ -6034,6 +6072,7 @@ impl VM {
             },
         }
     }
+
 
     fn bind_pattern_name(&mut self, name: &str, value: Value) {
         if self.call_frames.len() <= 1 {

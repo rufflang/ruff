@@ -126,7 +126,7 @@ fn vm_and_interpreter_match_spread_destructuring_surface() {
         vm_globals.get("c"),
         vm_globals.get("destructuring_ok")
     );
-    assert!(matches!(vm_globals.get("spread_ok"), Some(Value::Bool(false))));
+    assert!(matches!(vm_globals.get("spread_ok"), Some(Value::Bool(true))));
 }
 
 #[test]

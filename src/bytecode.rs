@@ -163,12 +163,20 @@ pub enum OpCode {
     /// Note: SpreadArray operations expand before this, so actual count may differ
     MakeArray(usize),
 
+    /// Create an array by collecting stack values until ArrayMarker
+    /// Used for array literals that include spread elements
+    MakeArrayFromMarker,
+
     /// Push a marker value onto the stack (for dynamic collection)
     PushArrayMarker,
 
     /// Create a dict from 2N values on stack (key1, val1, key2, val2, ...)
     /// Operand: number of key-value pairs
     MakeDict(usize),
+
+    /// Create a dict by collecting key/value pairs until marker sentinel pair
+    /// Used for dict literals that include spread elements
+    MakeDictFromMarker,
 
     /// Create a dict from N values on stack with constant string keys
     /// Operand: ordered list of string keys

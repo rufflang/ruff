@@ -883,7 +883,11 @@ impl Compiler {
                 // MakeArray will collect everything
                 // If there was a marker, it collects until marker
                 // Otherwise, it collects exactly 'count' elements
-                self.chunk.emit(OpCode::MakeArray(elements.len()));
+                if has_spread {
+                    self.chunk.emit(OpCode::MakeArrayFromMarker);
+                } else {
+                    self.chunk.emit(OpCode::MakeArray(elements.len()));
+                }
 
                 Ok(())
             }
@@ -924,6 +928,12 @@ impl Compiler {
                     return Ok(());
                 }
 
+                if has_spread {
+                    // Marker sentinel pair for MakeDictFromMarker
+                    self.chunk.emit(OpCode::PushArrayMarker);
+                    self.chunk.emit(OpCode::PushArrayMarker);
+                }
+
                 for element in elements {
                     match element {
                         DictElement::Pair(key, value) => {
@@ -937,7 +947,11 @@ impl Compiler {
                     }
                 }
 
-                self.chunk.emit(OpCode::MakeDict(pair_count));
+                if has_spread {
+                    self.chunk.emit(OpCode::MakeDictFromMarker);
+                } else {
+                    self.chunk.emit(OpCode::MakeDict(pair_count));
+                }
 
                 Ok(())
             }

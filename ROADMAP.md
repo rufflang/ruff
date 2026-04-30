@@ -88,7 +88,8 @@ Use this checklist as the execution queue for follow-up sessions.
 - [ ] Close VM/interpreter behavior parity gaps for currently documented language surfaces.
 	- [x] Build a parity matrix and test coverage baseline for struct method behavior, spread/destructuring, match bindings, and spawn semantics.
 	- [x] Close VM destructuring binding gap surfaced by parity tests (array + dict destructuring now bind correctly on VM path).
-	- [ ] Close remaining capability gaps identified by the parity matrix (`spread` literal VM-path capability gap and tag-style `match` binding capability gap).
+	- [x] Close VM spread literal capability gap surfaced by parity tests (array/dict spread semantics now align in parity-covered scenarios).
+	- [ ] Close remaining capability gaps identified by the parity matrix (tag-style `match` binding capability gap).
 	- [x] Ensure documented behavior in `README.md` and `docs/LANGUAGE_SPEC.md` matches current runtime-path status.
 - [x] Freeze and verify CLI/LSP contract versioning for v1 baseline.
 	- [x] Align contract status/version metadata in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.

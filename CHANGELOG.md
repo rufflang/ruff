@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `src/parser.rs` type-annotation parsing to return graceful parse failure instead of panicking when `Result<T, E>` or `Option<T>` generic syntax is malformed.
 - Changed interpreter `Expr::MethodCall` dispatch in `src/interpreter/mod.rs` to execute user-defined struct methods (including explicit `self` methods), aligning struct-method behavior with VM-path expectations in parity coverage.
 - Changed VM pattern matching in `src/vm.rs` to apply array/dict destructuring bindings (including rest captures), eliminating the prior VM `Undefined global` parity failure for destructuring-covered surfaces.
-- Updated `tests/vm_interpreter_parity_surfaces.rs` and `docs/VM_INTERPRETER_PARITY_MATRIX.md` to treat spread semantics as an explicit remaining VM capability gap while asserting destructuring parity alignment.
+- Changed compiler/bytecode/VM array+dict spread construction to use explicit marker-based collection opcodes (`MakeArrayFromMarker`, `MakeDictFromMarker`) so spread literals align with interpreter behavior in parity-covered scenarios.
+- Updated `tests/vm_interpreter_parity_surfaces.rs` and `docs/VM_INTERPRETER_PARITY_MATRIX.md` to assert spread/destructuring parity alignment and keep only tag-style match-binding as the remaining parity capability gap.
 - Updated runtime-boundary documentation in `README.md` and `docs/LANGUAGE_SPEC.md` to reference the parity matrix and reflect current parity/capability status for v1 tracking.
 - Changed contract metadata baselines in CLI/LSP/language docs to a unified v1 draft marker (`Status: v1.0.0 baseline draft (active)`, version `1.0.0-draft`) for release-cycle contract freezing.
 
