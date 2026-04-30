@@ -98,9 +98,9 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] build fixture-driven protocol harness for LSP request/response validation
-- [ ] add deterministic fixtures for completion ordering and edit-range stability
-- [ ] add regression fixtures for diagnostics and error payload consistency
+- [x] build fixture-driven protocol harness for LSP request/response validation
+- [x] add deterministic fixtures for completion ordering and edit-range stability
+- [x] add regression fixtures for diagnostics and error payload consistency
 
 Acceptance criteria:
 
@@ -249,14 +249,14 @@ Possible post-`v0.12.0` design tracks:
 
    Planned features:
 
-   - [ ] fixture-driven protocol test harness for request/response/diagnostic behavior
-   - [ ] deterministic snapshots for completion ordering, symbol locations, and edit ranges
-   - [ ] regression tests for failure/error payload consistency
+   - [x] fixture-driven protocol test harness for request/response/diagnostic behavior
+   - [x] deterministic snapshots for completion ordering, symbol locations, and edit ranges
+   - [x] regression tests for failure/error payload consistency
 
    Acceptance criteria:
 
-   - all core LSP feature handlers have protocol-level test coverage
-   - tests detect incompatible response-shape changes before release
+   - [x] all core LSP feature handlers have protocol-level test coverage
+   - [x] tests detect incompatible response-shape changes before release
 
 ### P2 (Can follow)
 

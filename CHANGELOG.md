@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added CLI JSON contract integration tests in `tests/cli_json_contracts.rs` that gate payload shape compatibility for `format`, `lint`, `docgen`, and all current LSP CLI JSON surfaces.
   - Added `docs/CLI_MACHINE_READABLE_CONTRACTS.md` to define JSON payload contracts, exit-code policy (`0` success, `1` command failure, `2` usage failure), and automation-facing error-shape guidance.
 
+- **v0.13.0 LSP Conformance Harness (P1)**:
+  - Added fixture-driven protocol harness test `tests/lsp_conformance_harness.rs` for deterministic request/response validation against `LspServer`.
+  - Added deterministic fixtures under `tests/lsp_fixtures/` covering completion ordering, rename edit-range stability, and error payload consistency.
+  - Wired harness assertions to fail on incompatible response-shape drift by default.
+
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
   - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
   - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.
