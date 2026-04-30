@@ -65,11 +65,16 @@ Required features:
 - [ ] expand `tree-sitter-ruff` corpus coverage for current parser edge cases
 - [ ] verify highlight-query behavior against representative Ruff syntax samples
 - [ ] publish adapter maintenance policy (what stays in Ruff docs vs editor-specific repos)
+- [ ] ship first-party VS Code/Cursor/Codex extension baseline with `.ruff` language registration and syntax colorization enabled on file open
+- [ ] ship Ruff LSP client wiring in first-party extension using canonical `ruff lsp` launch path
+- [ ] document `.vsix` packaging/install flow so non-VS Code forks can use same extension artifact
 
 Acceptance criteria:
 
 - [ ] grammar corpus tests include regression fixtures for previously reported parse/highlight issues
 - [ ] adapter docs remain thin and reference canonical Ruff contracts
+- [ ] opening a `.ruff` file in VS Code/Cursor/Codex with extension installed shows Ruff language mode and syntax highlighting without manual mode switching
+- [ ] extension smoke check (`npm run check`) passes in CI or release artifact validation sequence
 
 ### 5. Runtime And Tooling Reliability Track
 

@@ -8,17 +8,24 @@ Adapter rule:
 - adapters must not duplicate parser/analyzer/runtime logic
 - shared behavior contracts belong to Ruff server/CLI docs, not per-editor forks
 
-## VS Code / Cursor
+## VS Code / Cursor / Codex-Compatible Editors
 
 Canonical path:
 
+- extension baseline: `tools/vscode-ruff-extension/`
 - command: `ruff lsp`
-- sample adapter settings: `docs/editor-adapters/vscode-cursor-settings.json`
+- sample workspace settings: `docs/editor-adapters/vscode-cursor-settings.json`
 
 Implementation expectations:
 
+- `.ruff` files are mapped to Ruff language id and syntax scope so code is colorized on open
 - delegate all language intelligence to Ruff LSP
 - keep extension-side logic to launch/config + UX glue only
+
+Notes:
+
+- The first-party extension baseline contributes Ruff language registration, TextMate grammar highlighting, and optional Ruff LSP client startup.
+- VS Code forks (for example Codex-compatible builds) can consume the same `.vsix` package path.
 
 ## Neovim
 

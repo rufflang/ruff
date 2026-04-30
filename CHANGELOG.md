@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+
+- Added first-party VS Code/Cursor/Codex extension baseline under `tools/vscode-ruff-extension/` with:
+  - Ruff language registration for `.ruff` files
+  - TextMate syntax grammar for immediate code colorization
+  - Optional Ruff LSP client startup using canonical `ruff lsp` command settings
+
+### Changed
+
+- Updated editor integration docs:
+  - `docs/EDITOR_ADAPTER_BASELINES.md`
+  - `docs/INSTALLATION_LSP_EDITORS.md`
+  - `docs/editor-adapters/vscode-cursor-settings.json`
+- Expanded `v0.14.0` roadmap editor-maturity checklist in `ROADMAP.md` to explicitly track first-party VS Code/Codex extension outcomes.
 
 ## [0.13.0] - 2026-04-30
 

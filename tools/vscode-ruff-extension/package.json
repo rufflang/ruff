@@ -1,0 +1,79 @@
+{
+  "name": "ruff-language-tools",
+  "displayName": "Ruff Language Tools",
+  "description": "Syntax highlighting and LSP integration for Ruff (.ruff) files.",
+  "version": "0.1.0",
+  "publisher": "rufflang",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:ruff"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "ruff",
+        "aliases": [
+          "Ruff",
+          "ruff"
+        ],
+        "extensions": [
+          ".ruff"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ruff",
+        "scopeName": "source.ruff",
+        "path": "./syntaxes/ruff.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Ruff Language Tools",
+      "properties": {
+        "ruff.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Ruff LSP integration for .ruff files."
+        },
+        "ruff.lsp.command": {
+          "type": "array",
+          "default": [
+            "ruff",
+            "lsp"
+          ],
+          "description": "Command array used to launch Ruff LSP (example: ['ruff', 'lsp']).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ruff.lsp.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace level for LSP communication logs."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check": "node ./scripts/check.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12"
+  }
+}

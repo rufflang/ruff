@@ -1,9 +1,11 @@
 {
+  "files.associations": {
+    "*.ruff": "ruff"
+  },
   "ruff.lsp.enabled": true,
   "ruff.lsp.command": [
     "ruff",
     "lsp"
   ],
-  "ruff.lsp.trace.server": "off",
-  "ruff.lsp.notes": "Canonical VS Code/Cursor adapter path: launch official Ruff LSP server only."
+  "ruff.lsp.trace.server": "off"
 }

@@ -40,6 +40,25 @@ Then keep editor adapter command stable:
   - `docs/EDITOR_ADAPTER_BASELINES.md`
   - `docs/editor-adapters/`
 
+## VS Code / Cursor / Codex Extension Path
+
+Build/install the first-party Ruff extension baseline:
+
+```bash
+cd tools/vscode-ruff-extension
+npm install
+npm install -g @vscode/vsce
+vsce package
+```
+
+Install generated `.vsix` in your editor.
+
+After install, opening a `.ruff` file should immediately enable Ruff language mode and syntax colorization.
+
+Optional workspace settings baseline:
+
+- `docs/editor-adapters/vscode-cursor-settings.json`
+
 ## Clean-Environment Smoke Validation
 
 Minimal smoke sequence:
@@ -47,6 +66,14 @@ Minimal smoke sequence:
 ```bash
 ./target/release/ruff lsp --help
 cargo test --test editor_adapter_contracts
+```
+
+Extension smoke sequence:
+
+```bash
+cd tools/vscode-ruff-extension
+npm install
+npm run check
 ```
 
 This validates shipped binary includes LSP entrypoint and adapter descriptors remain canonical.
