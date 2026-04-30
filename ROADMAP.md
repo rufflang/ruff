@@ -80,14 +80,14 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] add resilience tests for malformed LSP message sequences and document lifecycle churn (`didOpen`/`didChange`/`didClose` ordering)
-- [ ] add bounded-memory checks for repeated diagnostics/completion request loops
-- [ ] track startup/first-response latency baselines for the `ruff lsp` server
+- [x] add resilience tests for malformed LSP message sequences and document lifecycle churn (`didOpen`/`didChange`/`didClose` ordering)
+- [x] add bounded-memory checks for repeated diagnostics/completion request loops
+- [x] track startup/first-response latency baselines for the `ruff lsp` server
 
 Acceptance criteria:
 
-- [ ] no known panic paths for malformed protocol traffic
-- [ ] reliability test suite is green in CI matrix and documented in release evidence
+- [x] no known panic paths for malformed protocol traffic
+- [x] reliability test suite is green in CI matrix and documented in release evidence
 
 ### 6. v1.0.0 Scope Definition Gate
 

@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added cross-platform release artifact validation workflow `.github/workflows/release-artifact-validation-matrix.yml` plus validation script `.github/scripts/validate-release-artifact.sh` covering clean-root install, binary checksum verification, and repository-independent tarball execution checks.
 - Added `docs/RELEASE_ARTIFACT_VALIDATION.md` with reproducible checksum steps and minimum supported toolchain/platform assumptions for release validation.
 - Added tree-sitter regression corpus fixture `tree-sitter-ruff/test/corpus/regressions.txt` for async/await, struct field-access, and match-pattern edge-case coverage.
+- Added LSP reliability-track test suite `tests/lsp_reliability_track.rs` covering malformed sequence resilience, lifecycle churn stability, bounded document-state checks under repeated request loops, and startup/first-response latency guardrails.
+- Added `docs/LSP_RELIABILITY.md` documenting lifecycle churn contracts, bounded-state expectations, and tracked latency baselines.
 
 ### Changed
 
@@ -40,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated extension static smoke checks (`tools/vscode-ruff-extension/scripts/check.js`) to enforce canonical `ruff lsp` launch configuration and Ruff-language activation events.
 - Updated `docs/EDITOR_ADAPTER_BASELINES.md` maintenance policy boundaries and `docs/INSTALLATION_LSP_EDITORS.md` `.vsix` install guidance for VS Code/Cursor/Codex-compatible editors.
 - Updated release artifact validation CI matrix to run extension smoke checks (`npm ci && npm run check`).
+- Updated LSP contract CI matrix (`.github/workflows/lsp-contract-matrix.yml`) to run `cargo test --test lsp_reliability_track`.
 
 ## [0.13.0] - 2026-04-30
 
