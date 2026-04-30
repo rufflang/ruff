@@ -36,3 +36,4 @@ High-signal session notes:
 - `2026-04-30_23-20_module-system-execution-and-import-diagnostics.md` — Completed module execution/export collection and deterministic import diagnostics with circular/missing-symbol regression coverage.
 - `2026-04-30_23-45_parser-type-annotation-panic-hardening.md` — Removed malformed `Result<T, E>`/`Option<T>` parser panic paths and added non-panicking regression coverage.
 - `2026-05-01_00-20_vm-interpreter-parity-matrix-and-runtime-followthrough.md` — Added parity matrix/test baseline, aligned interpreter struct method dispatch, and documented remaining spread/destructuring and match-binding capability gaps.
+- `2026-05-01_00-45_contract-version-freeze-and-ci-drift-guard.md` — Aligned CLI/LSP/language contract metadata to a unified v1 draft baseline and added CI drift checks.

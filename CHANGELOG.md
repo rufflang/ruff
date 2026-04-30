@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added interpreter integration tests for deterministic import diagnostics when modules are missing or requested symbols are absent in `tests/interpreter_tests.rs`.
 - Added malformed type-annotation regression tests in `tests/parser_type_annotation_regressions.rs` to assert non-panicking parser behavior for invalid `Result<T, E>` and `Option<T>` syntax.
 - Added runtime parity matrix `docs/VM_INTERPRETER_PARITY_MATRIX.md` and parity/gap-tracking integration tests in `tests/vm_interpreter_parity_surfaces.rs` for struct methods, spread/destructuring, match-binding behavior, and spawn semantics.
+- Added contract metadata sync guard script `.github/scripts/check-contract-version-sync.sh` and CI wiring in `.github/workflows/release-state-guard.yml` to fail when v1 contract status/version markers drift across `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
 
 ### Changed
 
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `src/parser.rs` type-annotation parsing to return graceful parse failure instead of panicking when `Result<T, E>` or `Option<T>` generic syntax is malformed.
 - Changed interpreter `Expr::MethodCall` dispatch in `src/interpreter/mod.rs` to execute user-defined struct methods (including explicit `self` methods), aligning struct-method behavior with VM-path expectations in parity coverage.
 - Updated runtime-boundary documentation in `README.md` and `docs/LANGUAGE_SPEC.md` to reference the parity matrix and reflect current parity/capability status for v1 tracking.
+- Changed contract metadata baselines in CLI/LSP/language docs to a unified v1 draft marker (`Status: v1.0.0 baseline draft (active)`, version `1.0.0-draft`) for release-cycle contract freezing.
 
 ## [0.14.0] - 2026-04-30
 
