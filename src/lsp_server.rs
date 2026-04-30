@@ -554,7 +554,15 @@ impl LspServer {
                     .to_lowercase();
 
                 let mut symbols = Vec::new();
-                for (uri, source) in self.documents.iter() {
+                let mut uris: Vec<String> = self.documents.keys().cloned().collect();
+                uris.sort();
+
+                for uri in uris.into_iter() {
+                    let source = match self.documents.get(&uri) {
+                        Some(content) => content,
+                        None => continue,
+                    };
+
                     for symbol in collect_document_symbols(source).into_iter() {
                         if !query.is_empty() && !symbol.name.to_lowercase().contains(&query) {
                             continue;
