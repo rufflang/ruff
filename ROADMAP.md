@@ -52,6 +52,67 @@ Top-level execution goals:
 - keep machine-readable CLI/LSP contracts stable and versioned
 - maintain reproducible release validation and artifact verification process
 - keep editor integration and adapter ownership boundaries explicit
+- ship v1.0.0 with downloadable prebuilt binaries so users can run Ruff directly from terminal without Cargo
+
+### v1.0.0 Distribution And Install Release Gate (Explicit)
+
+v1.0.0 is not considered release-ready until Ruff can be installed and used as a standalone CLI binary (for example, `ruff run build.ruff`) without requiring users to build from source via Cargo.
+
+Required distribution outcomes:
+
+- [ ] publish prebuilt release binaries for supported OS targets (at minimum Linux and macOS)
+- [ ] publish SHA-256 checksums for each shipped artifact and document verification steps
+- [ ] publish copy/paste install instructions for standalone binary usage (no Cargo dependency)
+- [ ] validate fresh-machine install + execution flow using published artifacts only
+- [ ] verify direct command usage in terminal (`ruff --version`, `ruff run <file>`, `ruff lsp --help`) after install
+
+Acceptance criteria:
+
+- [ ] a new user can install Ruff from release artifacts and run Ruff commands without cloning repository source
+- [ ] release evidence notes include artifact URLs, checksums, and pass/fail logs for install/exec validation
+- [ ] CI/release checklist includes artifact publication and checksum verification as required sign-off steps
+
+### Comprehensive Pre-v1 Enhancement Backlog
+
+Use this checklist as the execution queue for follow-up sessions.
+
+#### P0: Must-Do Before v1.0.0 Tag
+
+- [ ] Complete module system execution and export semantics.
+	- Implement module evaluation and export collection in `src/module.rs` (remove parser-only placeholder behavior).
+	- Replace silent import failures with deterministic runtime diagnostics in `src/interpreter/mod.rs`.
+	- Add circular-import and missing-symbol regression tests with stable error shapes.
+- [ ] Remove parser panic paths for user-provided syntax.
+	- Replace `panic!`-based type-annotation parse failures with structured parse errors in `src/parser.rs`.
+	- Add malformed `Result<T, E>` and `Option<T>` syntax tests to ensure non-panicking behavior.
+- [ ] Close VM/interpreter behavior parity gaps for currently documented language surfaces.
+	- Build a parity matrix and test coverage for struct method behavior, spread/destructuring, match bindings, and spawn semantics.
+	- Ensure documented behavior in `README.md` and `docs/LANGUAGE_SPEC.md` matches both runtime paths.
+- [ ] Freeze and verify CLI/LSP contract versioning for v1 baseline.
+	- Align contract status/version metadata in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
+	- Add CI check(s) that fail on contract-doc/version drift.
+- [ ] Expand negative-path contract fixtures for automation reliability.
+	- Add fixtures/tests for malformed params, unknown symbols, IO failures, and consistent stderr/exit-code behavior.
+	- Ensure failure payload guarantees are documented and fixture-locked.
+
+#### P1: Strongly Recommended For v1 Completeness
+
+- [ ] Publish explicit v1 optional-typing stance.
+	- Convert exploratory wording in `docs/OPTIONAL_TYPING_DESIGN.md` into a concrete v1 policy (supported vs experimental vs deferred).
+	- Add tests for whichever v1 typing contract is declared.
+- [ ] Expand native standard library documentation coverage to canonical reference quality.
+	- Generate/maintain per-function docs with stability tiers and examples for major builtin categories.
+	- Ensure docs map to actual runtime dispatch behavior and tests.
+- [ ] Add end-to-end package + module workflow integration tests.
+	- Cover `ruff init`, `package-add`, `package-install`, import/export execution, and run/lint/format/docgen flows together.
+
+#### P2: Nice-To-Have Hardening Before/Just After v1
+
+- [ ] Publish a formal deprecation policy for CLI/LSP/runtime surfaces.
+	- Define warning format, deprecation windows, and removal policy tied to semver.
+- [ ] Add a security posture pass for high-risk native APIs.
+	- Document trust model and operational caveats for process/network/filesystem/crypto/database builtins.
+	- Add targeted regression tests for failure and misuse boundaries.
 
 ---
 
