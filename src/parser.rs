@@ -1558,21 +1558,21 @@ impl Parser {
                 self.advance(); // consume Result
                                 // Expect Result<T, E> syntax
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    panic!("Expected '<' after Result");
+                    return None;
                 }
                 self.advance(); // consume <
 
                 let ok_type = self.parse_type_annotation_inner()?;
 
                 if !matches!(self.peek(), TokenKind::Punctuation(',')) {
-                    panic!("Expected ',' in Result<T, E> type");
+                    return None;
                 }
                 self.advance(); // consume ,
 
                 let err_type = self.parse_type_annotation_inner()?;
 
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    panic!("Expected '>' to close Result type");
+                    return None;
                 }
                 self.advance(); // consume >
 
@@ -1585,14 +1585,14 @@ impl Parser {
                 self.advance(); // consume Option
                                 // Expect Option<T> syntax
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    panic!("Expected '<' after Option");
+                    return None;
                 }
                 self.advance(); // consume <
 
                 let inner_type = self.parse_type_annotation_inner()?;
 
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    panic!("Expected '>' to close Option type");
+                    return None;
                 }
                 self.advance(); // consume >
 
@@ -1630,21 +1630,21 @@ impl Parser {
             TokenKind::Keyword(k) if k == "Result" => {
                 self.advance();
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    panic!("Expected '<' after Result");
+                    return None;
                 }
                 self.advance();
 
                 let ok_type = self.parse_type_annotation_inner()?;
 
                 if !matches!(self.peek(), TokenKind::Punctuation(',')) {
-                    panic!("Expected ',' in Result<T, E> type");
+                    return None;
                 }
                 self.advance();
 
                 let err_type = self.parse_type_annotation_inner()?;
 
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    panic!("Expected '>' to close Result type");
+                    return None;
                 }
                 self.advance();
 
@@ -1656,14 +1656,14 @@ impl Parser {
             TokenKind::Keyword(k) if k == "Option" => {
                 self.advance();
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    panic!("Expected '<' after Option");
+                    return None;
                 }
                 self.advance();
 
                 let inner_type = self.parse_type_annotation_inner()?;
 
                 if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    panic!("Expected '>' to close Option type");
+                    return None;
                 }
                 self.advance();
 
