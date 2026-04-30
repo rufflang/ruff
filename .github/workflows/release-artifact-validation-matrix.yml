@@ -1,0 +1,24 @@
+name: release-artifact-validation-matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate-artifact-install-flow:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate release artifact install/checksum flow
+        run: bash .github/scripts/validate-release-artifact.sh
