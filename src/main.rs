@@ -13,6 +13,7 @@ mod errors;
 mod interpreter;
 mod jit;
 mod lexer;
+mod lsp_completion;
 mod module;
 mod optimizer;
 mod parser;
@@ -181,6 +182,24 @@ enum Commands {
         /// Generate flamegraph output file
         #[arg(long)]
         flamegraph: Option<PathBuf>,
+    },
+
+    /// Return completion candidates for LSP/autocomplete integration
+    LspComplete {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// 1-based line number for the completion request
+        #[arg(long)]
+        line: usize,
+
+        /// 1-based column number for the completion request
+        #[arg(long)]
+        column: usize,
+
+        /// Print completion items as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
     },
 }
 
@@ -929,6 +948,35 @@ async fn main() {
 
             // Cleanup
             interp.cleanup();
+        }
+
+        Commands::LspComplete { file, line, column, json } => {
+            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let completion_items = lsp_completion::complete(&code, line, column);
+
+            if json {
+                let json_items: Vec<serde_json::Value> = completion_items
+                    .iter()
+                    .map(|item| {
+                        serde_json::json!({
+                            "label": item.label,
+                            "kind": item.kind.as_str(),
+                        })
+                    })
+                    .collect();
+
+                match serde_json::to_string_pretty(&json_items) {
+                    Ok(output) => println!("{}", output),
+                    Err(e) => {
+                        eprintln!("Failed to serialize completion results: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                for item in completion_items {
+                    println!("{}\t{}", item.label, item.kind.as_str());
+                }
+            }
         }
     }
 }

@@ -12,6 +12,7 @@ pub mod errors;
 pub mod interpreter;
 pub mod jit;
 pub mod lexer;
+pub mod lsp_completion;
 pub mod module;
 pub mod optimizer;
 pub mod parser;
