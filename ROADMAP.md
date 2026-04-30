@@ -31,7 +31,7 @@ Priority work:
 
    - [x] autocomplete for builtins, variables, and functions (initial completion engine via `ruff lsp-complete`)
    - [x] go to definition (initial symbol-definition lookup via `ruff lsp-definition`)
-   - [ ] find references
+   - [x] find references (initial symbol-reference lookup via `ruff lsp-references`)
    - [ ] hover documentation
    - [ ] real-time diagnostics
    - [ ] rename refactoring
