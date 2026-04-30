@@ -301,12 +301,13 @@ These are intentional caveats for production readers rather than fine print:
 - Ruff is source-built today. Do not assume official release binaries or package-manager taps are available.
 - VM execution is the default, but the tree-walking interpreter still matters for some language surfaces and diagnostics.
 - Static typing is optional and not a VM-enforced compile-time contract in the current CLI path.
-- `import`/`export` syntax and a module loader exist, but `src/module.rs` currently resolves/parses modules without executing them and collecting exports. Treat the module system as incomplete.
-- Struct fields and instance literals exist. Struct method behavior is still a moving target across runtime paths, so avoid documenting it as a stable production feature without a fresh test.
-- Spread literals and destructuring syntax exist, but behavior is uneven across runtime modes. Verify them against the exact execution path before documenting them as stable.
+- `import`/`export` syntax and module execution/export collection are implemented, but broader package/module workflow hardening is still active v1.0.0 work.
+- Struct fields and instance literals exist, and explicit `self` struct methods are parity-covered in VM/interpreter tests.
+- Spread literals and destructuring syntax exist, but destructuring parity gaps remain in VM-path coverage for the tracked scenario in the parity matrix.
 - `spawn { ... }` is parsed and executed as fire-and-forget work; do not rely on spawned output or shared state without using the explicit concurrency/native async APIs.
-- `Result`/`Option` values are implemented, but richer pattern-binding behavior should be verified against the runtime mode you intend to use.
+- `Result`/`Option` values are implemented, but richer pattern-binding behavior remains an active compatibility-hardening surface.
 - Benchmark numbers are environment-sensitive. Prefer `bench-ssg --runs <N> --warmup-runs <N>` and read the measurement warnings before drawing conclusions.
+- Runtime parity status is tracked in [docs/VM_INTERPRETER_PARITY_MATRIX.md](docs/VM_INTERPRETER_PARITY_MATRIX.md).
 
 ## Documentation
 

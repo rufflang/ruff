@@ -176,11 +176,13 @@ Notes:
 - Arrays preserve insertion order.
 - Dictionaries preserve key/value associations; merge/spread behavior is right-biased for duplicate keys.
 - Struct fields are resolved by declared field names.
+- Struct method behavior and runtime-path parity are tracked in `docs/VM_INTERPRETER_PARITY_MATRIX.md`.
 
 ### 5.7 Concurrency and await
 
 - `await` blocks expression completion on pending async values.
 - `spawn { ... }` schedules detached async work where supported by runtime mode.
+- Current VM/interpreter parity and capability notes for `spawn`, spread/destructuring, and match-binding surfaces are tracked in `docs/VM_INTERPRETER_PARITY_MATRIX.md`.
 
 ## 6. Tooling Contract Compatibility Guarantees
 

@@ -13,11 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added module-system regression tests for explicit export collection, deterministic missing-symbol errors, and circular import detection in `src/module.rs` tests.
 - Added interpreter integration tests for deterministic import diagnostics when modules are missing or requested symbols are absent in `tests/interpreter_tests.rs`.
 - Added malformed type-annotation regression tests in `tests/parser_type_annotation_regressions.rs` to assert non-panicking parser behavior for invalid `Result<T, E>` and `Option<T>` syntax.
+- Added runtime parity matrix `docs/VM_INTERPRETER_PARITY_MATRIX.md` and parity/gap-tracking integration tests in `tests/vm_interpreter_parity_surfaces.rs` for struct methods, spread/destructuring, match-binding behavior, and spawn semantics.
 
 ### Changed
 
 - Changed interpreter import handling in `src/interpreter/mod.rs` to return deterministic runtime errors instead of silently swallowing module and symbol import failures.
 - Changed `src/parser.rs` type-annotation parsing to return graceful parse failure instead of panicking when `Result<T, E>` or `Option<T>` generic syntax is malformed.
+- Changed interpreter `Expr::MethodCall` dispatch in `src/interpreter/mod.rs` to execute user-defined struct methods (including explicit `self` methods), aligning struct-method behavior with VM-path expectations in parity coverage.
+- Updated runtime-boundary documentation in `README.md` and `docs/LANGUAGE_SPEC.md` to reference the parity matrix and reflect current parity/capability status for v1 tracking.
 
 ## [0.14.0] - 2026-04-30
 

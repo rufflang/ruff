@@ -86,8 +86,9 @@ Use this checklist as the execution queue for follow-up sessions.
 	- [x] Replace `panic!`-based type-annotation parse failures with structured parse errors in `src/parser.rs`.
 	- [x] Add malformed `Result<T, E>` and `Option<T>` syntax tests to ensure non-panicking behavior.
 - [ ] Close VM/interpreter behavior parity gaps for currently documented language surfaces.
-	- Build a parity matrix and test coverage for struct method behavior, spread/destructuring, match bindings, and spawn semantics.
-	- Ensure documented behavior in `README.md` and `docs/LANGUAGE_SPEC.md` matches both runtime paths.
+	- [x] Build a parity matrix and test coverage baseline for struct method behavior, spread/destructuring, match bindings, and spawn semantics.
+	- [ ] Close remaining capability gaps identified by the parity matrix (`spread/destructuring` VM-path gap and tag-style `match` binding capability gap).
+	- [x] Ensure documented behavior in `README.md` and `docs/LANGUAGE_SPEC.md` matches current runtime-path status.
 - [ ] Freeze and verify CLI/LSP contract versioning for v1 baseline.
 	- Align contract status/version metadata in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
 	- Add CI check(s) that fail on contract-doc/version drift.
