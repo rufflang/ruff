@@ -98,13 +98,13 @@ The current CLI exposes these subcommands:
 | `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
-| `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`). |
+| `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`, `--json`). |
 | `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |
 | `ruff init` | Initialize a Ruff project with `ruff.toml` and `src/main.ruff`. |
 | `ruff package-add <name>` | Add a dependency to `ruff.toml` (`--version`, `--manifest`). |
 | `ruff package-install` | Validate and enumerate dependencies declared in `ruff.toml`. |
 | `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
-| `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`). |
+| `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`, `--json`). |
 | `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing). |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax. |
@@ -119,6 +119,8 @@ The current CLI exposes these subcommands:
 | `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (delimiter mismatches and parser panic-derived syntax errors); add `--json` for structured output. |
 | `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME>` | Return rename edits for the symbol under the cursor and the updated source text; add `--json` for structured output. |
 | `ruff lsp-code-actions <file>` | Return syntax quick-fix actions derived from diagnostics (for example unmatched/unclosed delimiters); add `--json` for structured output. |
+
+Machine-readable output and automation contracts are documented in [docs/CLI_MACHINE_READABLE_CONTRACTS.md](docs/CLI_MACHINE_READABLE_CONTRACTS.md).
 
 Useful environment variables:
 

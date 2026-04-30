@@ -127,6 +127,10 @@ enum Commands {
         /// Write formatted output back to file
         #[arg(long, default_value_t = false)]
         write: bool,
+
+        /// Print formatter result as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
     },
 
     /// Lint a Ruff source file
@@ -198,6 +202,10 @@ enum Commands {
         /// Disable builtin/native API reference generation
         #[arg(long, default_value_t = false)]
         no_builtins: bool,
+
+        /// Print documentation generation result as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
     },
 
     /// Compare Ruff parallel_map benchmark against Python ProcessPoolExecutor
@@ -698,6 +706,7 @@ async fn main() {
             no_sort_imports,
             check,
             write,
+            json,
         } => {
             let source = fs::read_to_string(&file).expect("Failed to read .ruff file");
             let options = formatter::FormatterOptions {
@@ -706,16 +715,63 @@ async fn main() {
                 sort_imports: !no_sort_imports,
             };
             let formatted = formatter::format_source(&source, &options);
+            let changed = source != formatted;
+
+            if write {
+                fs::write(&file, &formatted).expect("Failed to write formatted file");
+            }
+
+            if json {
+                let status = if write {
+                    "written"
+                } else if check {
+                    if changed {
+                        "needs_formatting"
+                    } else {
+                        "already_formatted"
+                    }
+                } else {
+                    "preview"
+                };
+
+                let output = serde_json::json!({
+                    "command": "format",
+                    "file": file.display().to_string(),
+                    "status": status,
+                    "changed": changed,
+                    "options": {
+                        "indent": indent,
+                        "line_length": line_length,
+                        "sort_imports": !no_sort_imports,
+                        "check": check,
+                        "write": write,
+                    },
+                    "formatted_source": if write { serde_json::Value::Null } else { serde_json::Value::String(formatted.clone()) },
+                });
+
+                match serde_json::to_string_pretty(&output) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize formatter result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+
+                if check && changed {
+                    std::process::exit(1);
+                }
+
+                return;
+            }
 
             if check {
-                if source == formatted {
+                if !changed {
                     println!("already formatted");
                 } else {
                     println!("needs formatting");
                     std::process::exit(1);
                 }
             } else if write {
-                fs::write(&file, formatted).expect("Failed to write formatted file");
                 println!("formatted {}", file.display());
             } else {
                 println!("{}", formatted);
@@ -878,6 +934,7 @@ async fn main() {
             file,
             out_dir,
             no_builtins,
+            json,
         } => {
             let output_dir = out_dir.unwrap_or_else(|| PathBuf::from("docs/generated"));
             let summary = match doc_generator::generate_docs_for_file(
@@ -891,6 +948,27 @@ async fn main() {
                     std::process::exit(1);
                 }
             };
+
+            if json {
+                let output = serde_json::json!({
+                    "command": "docgen",
+                    "file": file.display().to_string(),
+                    "output_dir": summary.output_dir.display().to_string(),
+                    "module_doc_path": summary.module_doc_path.display().to_string(),
+                    "builtin_doc_path": summary.builtin_doc_path.as_ref().map(|path| path.display().to_string()),
+                    "item_count": summary.item_count,
+                });
+
+                match serde_json::to_string_pretty(&output) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize docgen result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+
+                return;
+            }
 
             println!("generated docs in {}", summary.output_dir.display());
             println!("module docs: {}", summary.module_doc_path.display());

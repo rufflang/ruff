@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added server support for `textDocument/formatting`, `textDocument/rangeFormatting`, `textDocument/documentSymbol`, and `workspace/symbol` to close additional v0.13.0 feature-parity gaps.
   - Added protocol startup and handler tests in `src/lsp_server.rs` covering lifecycle, diagnostics publication, and completion request behavior.
 
+- **v0.13.0 CLI Machine-Readable Contract Hardening (P0)**:
+  - Added `--json` output support for `ruff format` and `ruff docgen` with stable top-level payload fields for automation consumers.
+  - Added CLI JSON contract integration tests in `tests/cli_json_contracts.rs` that gate payload shape compatibility for `format`, `lint`, `docgen`, and all current LSP CLI JSON surfaces.
+  - Added `docs/CLI_MACHINE_READABLE_CONTRACTS.md` to define JSON payload contracts, exit-code policy (`0` success, `1` command failure, `2` usage failure), and automation-facing error-shape guidance.
+
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
   - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
   - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.

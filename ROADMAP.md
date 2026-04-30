@@ -17,70 +17,147 @@ For historical `v0.11.0` release evidence and completion details, see [CHANGELOG
 
 ---
 
-## v0.12.0: Developer Experience
+## v0.13.0: Cross-IDE Foundation (Release Checklist)
 
-`v0.12.0` is the active roadmap cycle after the `v0.11.0` performance release.
+`v0.13.0` is complete only when all required items below are done.
 
-Priority work:
+### 1. Language Specification And Compatibility Policy
 
-1. **Language Server Protocol**
+Required features:
 
-   Status: in progress.
+- [x] publish `docs/LANGUAGE_SPEC.md` with versioned grammar and runtime semantics
+- [x] define compatibility guarantees for syntax, runtime behavior, and CLI/LSP machine-readable output
+- [x] publish breaking-change policy and versioning rules for language/tooling contracts
 
-   Planned features:
+Acceptance criteria:
 
-   - [x] autocomplete for builtins, variables, and functions (initial completion engine via `ruff lsp-complete`)
-   - [x] go to definition (initial symbol-definition lookup via `ruff lsp-definition`)
-   - [x] find references (initial symbol-reference lookup via `ruff lsp-references`)
-   - [x] hover documentation (initial hover symbol details via `ruff lsp-hover`)
-   - [x] real-time diagnostics (initial syntax diagnostics via `ruff lsp-diagnostics`)
-   - [x] rename refactoring (initial symbol rename edits via `ruff lsp-rename`)
-   - [x] code actions (initial syntax quick-fixes via `ruff lsp-code-actions`)
+- [x] spec review sign-off captured in release notes
+- [x] compatibility policy linked from README and release docs
 
-2. **Formatter**
+### 2. Official Ruff LSP Server
 
-   Planned features:
+Required features:
 
-   - [x] opinionated formatting (initial spacing/indentation normalization via `ruff format`)
-   - [x] configurable indentation (`ruff format --indent <N>`)
-   - [x] line-length policy (`ruff format --line-length <N>` wrapping for comma-separated expressions)
-   - [x] import ordering once module semantics are stable (initial leading import-block sorting; disable with `--no-sort-imports`)
+- [x] add `ruff lsp` long-running JSON-RPC server entrypoint
+- [x] implement LSP initialize/shutdown/exit lifecycle and capability negotiation
+- [x] support both stdio transport and deterministic logging mode for debugging
+- [x] wire server handlers to shared analysis logic (not editor-specific code)
 
-3. **Linter**
+Acceptance criteria:
 
-   Planned rules:
+- [x] protocol startup tests pass for initialize, initialized, shutdown, and exit
+- [ ] server can be launched by at least two external LSP clients without code changes
 
-   - [x] unused variables (initial token-based declaration/use checks)
-   - [x] unreachable code (initial post-terminator statement checks)
-   - [x] obvious type mismatches (initial annotation-literal mismatch checks)
-   - [x] missing error-handling patterns (initial fallible-call pattern checks)
-   - [x] auto-fix for safe rules (initial unused-variable underscore-prefix fix)
+### 3. LSP Feature Parity (Required For v0.13.0)
 
-4. **Package/project workflow**
+Required features:
 
-   Planned features:
+- [x] textDocument/publishDiagnostics
+- [x] textDocument/completion
+- [x] textDocument/hover
+- [x] textDocument/definition
+- [x] textDocument/references
+- [x] textDocument/rename
+- [x] textDocument/codeAction
+- [x] textDocument/formatting and textDocument/rangeFormatting
+- [x] textDocument/documentSymbol
+- [x] workspace/symbol
 
-   - [x] `ruff.toml` (initial manifest generation and parsing)
-   - [x] dependency metadata (initial dependency table support)
-   - [x] `ruff init` (project scaffold generation with `src/main.ruff`)
-   - [x] package install/add/publish workflow (initial `package-add`, `package-install`, and `package-publish` command surfaces)
+Acceptance criteria:
 
-5. **REPL improvements**
+- [ ] each required method has passing protocol-level fixtures for success and error cases
+- [ ] response payloads are stable and versioned where applicable
 
-   Planned features:
+### 4. CLI And Machine-Readable Contract Hardening
 
-   - [x] tab completion (initial builtin + command completion in `ruff repl`)
-   - [x] syntax highlighting (initial command-line highlighting in `ruff repl`)
-   - [x] stronger multi-line editing (validator-backed incomplete input detection)
-   - [x] `.help <function>` documentation (initial builtin help surface)
+Required features:
 
-6. **Documentation generator**
+- [x] enforce stable `--json` output schemas for `format`, `lint`, `docgen`, and LSP CLI surfaces
+- [x] standardize exit-code policy for all user-facing commands
+- [x] add explicit error-shape documentation for automation use cases
 
-   Planned features:
+Acceptance criteria:
 
-   - [x] HTML docs from `///` comments (initial `ruff docgen` module-function page generation)
-   - [x] examples extracted from doc comments (initial fenced-code example extraction)
-   - [x] builtin/native API reference generation (initial builtin registry HTML reference)
+- [x] snapshot/schema tests gate output contract changes in CI
+- [ ] CHANGELOG policy requires contract-change notes for payload-affecting changes
+
+### 5. Tree-sitter Grammar For Universal Highlighting
+
+Required features:
+
+- [ ] create `tree-sitter-ruff` grammar crate/repo with syntax coverage for current Ruff language constructs
+- [ ] add corpus tests for core grammar and edge-case constructs
+- [ ] add highlight/query files sufficient for editor consumption
+
+Acceptance criteria:
+
+- [ ] corpus tests run in CI and block regressions
+- [ ] at least one editor integration confirms `.ruff` highlighting via Tree-sitter grammar
+
+### 6. Conformance Test Harness
+
+Required features:
+
+- [ ] build fixture-driven protocol harness for LSP request/response validation
+- [ ] add deterministic fixtures for completion ordering and edit-range stability
+- [ ] add regression fixtures for diagnostics and error payload consistency
+
+Acceptance criteria:
+
+- [ ] harness runs in CI across Linux and macOS
+- [ ] incompatible protocol changes fail tests by default
+
+### 7. Performance, Reliability, And Crash Safety
+
+Required features:
+
+- [ ] baseline and track latency for diagnostics/completion/hover on representative code samples
+- [ ] add cancellation and timeout handling for long-running analysis requests
+- [ ] ensure server handles malformed requests and parse failures without panicking
+
+Acceptance criteria:
+
+- [ ] no known panic paths in LSP request handling under fuzz/invalid-input tests
+- [ ] performance guardrails documented and validated in CI/perf job
+
+### 8. Packaging And Distribution
+
+Required features:
+
+- [ ] provide release artifacts that include `ruff lsp` functionality
+- [ ] document install/upgrade path for users integrating Ruff with editors
+- [ ] verify binary compatibility for supported target platforms
+
+Acceptance criteria:
+
+- [ ] release checklist confirms LSP entrypoint availability in shipped artifacts
+- [ ] install docs are validated in a clean-environment smoke test
+
+### 9. Thin Editor Adapter Baselines
+
+Required features:
+
+- [ ] publish minimal VS Code/Cursor adapter guidance that launches official Ruff LSP
+- [ ] publish setup guidance for Neovim and JetBrains (via LSP plugin path)
+- [ ] keep adapter docs free of duplicated parser/analyzer implementation details
+
+Acceptance criteria:
+
+- [ ] one canonical setup path per editor family is documented and smoke-tested
+- [ ] adapter guidance points to shared Ruff contracts and server behavior docs
+
+### 10. Release Evidence And Completion Gate
+
+Required features:
+
+- [ ] add `v0.13.0` completion checklist artifact under `notes/` with command/test evidence
+- [ ] add changelog release summary entries for all shipped `v0.13.0` tracks
+- [ ] define post-release follow-up list for deferred `v1.0.0` items
+
+Acceptance criteria:
+
+- [ ] roadmap checkboxes for required `v0.13.0` items are complete
+- [ ] release tag is created only after evidence checklist is signed off
 
 ---
 
@@ -118,9 +195,9 @@ Possible post-`v0.12.0` design tracks:
 
    Planned features:
 
-   - [ ] versioned language-spec baseline document (`docs/LANGUAGE_SPEC.md`) covering syntax, runtime semantics, and compatibility guarantees
+   - [x] versioned language-spec baseline document (`docs/LANGUAGE_SPEC.md`) covering syntax, runtime semantics, and compatibility guarantees
    - [ ] machine-consumable protocol contracts for diagnostics, symbol metadata, and edits used by CLI/LSP outputs
-   - [ ] compatibility policy document for breaking vs non-breaking language-tooling changes
+   - [x] compatibility policy document for breaking vs non-breaking language-tooling changes
 
    Acceptance criteria:
 
@@ -131,9 +208,9 @@ Possible post-`v0.12.0` design tracks:
 
    Planned features:
 
-   - [ ] single `ruff lsp` server entrypoint supporting standard JSON-RPC transport
-   - [ ] diagnostics, completion, hover, definition, references, rename, and code actions implemented through server handlers
-   - [ ] formatter/linter/doc features exposed through LSP methods where applicable
+   - [x] single `ruff lsp` server entrypoint supporting standard JSON-RPC transport
+   - [x] diagnostics, completion, hover, definition, references, rename, and code actions implemented through server handlers
+   - [x] formatter/linter/doc features exposed through LSP methods where applicable
 
    Acceptance criteria:
 
@@ -144,13 +221,13 @@ Possible post-`v0.12.0` design tracks:
 
    Planned features:
 
-   - [ ] consistent `--json` output shape coverage for format/lint/docgen/LSP CLI commands
-   - [ ] explicit schema tests for error and success payloads
-   - [ ] stable exit-code policy documentation for scripting and IDE task runners
+   - [x] consistent `--json` output shape coverage for format/lint/docgen/LSP CLI commands
+   - [x] explicit schema tests for error and success payloads
+   - [x] stable exit-code policy documentation for scripting and IDE task runners
 
    Acceptance criteria:
 
-   - JSON output snapshots exist for key commands and are enforced in CI
+   - [x] JSON output snapshots exist for key commands and are enforced in CI
    - command output contract changes require changelog + schema update in one PR
 
 ### P1 (Should ship)
