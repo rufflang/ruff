@@ -13,6 +13,18 @@ The project is currently at `0.11.0` in `Cargo.toml`, following a release focuse
 - Optional type annotations are parsed. In the CLI, type-checking warnings are emitted on the interpreter path; VM execution does not currently enforce a static type gate before running.
 - Some advanced language surfaces are experimental or have runtime-mode gaps. See [Known Boundaries](#known-boundaries).
 
+## Cross-IDE Strategy
+
+Ruff language tooling is being aligned around a universal-first architecture:
+
+- shared language/tooling contracts
+- one canonical Ruff LSP server for editor intelligence
+- deterministic machine-readable CLI/LSP outputs
+- shared grammar path for syntax highlighting
+- thin editor adapters that launch/configure Ruff tooling instead of reimplementing it
+
+Execution details and phased acceptance criteria are tracked in the `v0.13.0` cross-IDE section of `ROADMAP.md`.
+
 ## Install
 
 Ruff currently installs by building this repository.

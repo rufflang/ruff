@@ -3,15 +3,15 @@
 This roadmap tracks work that is still current or upcoming. Completed features and implementation history belong in [CHANGELOG.md](CHANGELOG.md), not here.
 
 > Current crate version: `0.11.0` in [Cargo.toml](Cargo.toml)
-> Next planned release: `v0.12.0`
-> Last audited: April 29, 2026
+> Next planned release: `v0.13.0`
+> Last audited: April 30, 2026
 
 ---
 
 ## Release Focus
 
-`v0.11.0` has been released.
-Roadmap planning is now focused on `v0.12.0` developer-experience work and `v1.0.0` readiness prerequisites.
+`v0.11.0` has been released and `v0.12.0` roadmap work is complete.
+Roadmap planning is now focused on `v0.13.0` cross-IDE language tooling and `v1.0.0` readiness prerequisites.
 
 For historical `v0.11.0` release evidence and completion details, see [CHANGELOG.md](CHANGELOG.md) and the dated notes under `notes/`.
 
@@ -108,10 +108,101 @@ Possible post-`v0.12.0` design tracks:
 
 ---
 
+## v0.13.0: Cross-IDE Foundation (Execution Plan)
+
+`v0.13.0` is focused on making Ruff first-class across editor ecosystems by prioritizing universally reusable language tooling over editor-specific logic.
+
+### P0 (Must ship)
+
+1. **Canonical language/tooling contract**
+
+   Planned features:
+
+   - [ ] versioned language-spec baseline document (`docs/LANGUAGE_SPEC.md`) covering syntax, runtime semantics, and compatibility guarantees
+   - [ ] machine-consumable protocol contracts for diagnostics, symbol metadata, and edits used by CLI/LSP outputs
+   - [ ] compatibility policy document for breaking vs non-breaking language-tooling changes
+
+   Acceptance criteria:
+
+   - a new test fixture can validate compatibility of structured output fields across versions
+   - at least one CI job fails when output contracts regress without an explicit contract update
+
+2. **Official Ruff LSP server binary**
+
+   Planned features:
+
+   - [ ] single `ruff lsp` server entrypoint supporting standard JSON-RPC transport
+   - [ ] diagnostics, completion, hover, definition, references, rename, and code actions implemented through server handlers
+   - [ ] formatter/linter/doc features exposed through LSP methods where applicable
+
+   Acceptance criteria:
+
+   - LSP protocol-level integration tests cover startup, initialization, and each core request type
+   - cross-client smoke validation passes in at least two LSP-capable editors
+
+3. **Deterministic machine-readable CLI outputs**
+
+   Planned features:
+
+   - [ ] consistent `--json` output shape coverage for format/lint/docgen/LSP CLI commands
+   - [ ] explicit schema tests for error and success payloads
+   - [ ] stable exit-code policy documentation for scripting and IDE task runners
+
+   Acceptance criteria:
+
+   - JSON output snapshots exist for key commands and are enforced in CI
+   - command output contract changes require changelog + schema update in one PR
+
+### P1 (Should ship)
+
+4. **Tree-sitter grammar for universal highlighting**
+
+   Planned features:
+
+   - [ ] `tree-sitter-ruff` grammar with coverage for current language syntax
+   - [ ] grammar corpus tests for language constructs and edge cases
+   - [ ] published query files for highlighting/injections where applicable
+
+   Acceptance criteria:
+
+   - corpus tests pass in CI
+   - at least one editor client can consume the grammar for `.ruff` highlighting
+
+5. **Language-server conformance test suite**
+
+   Planned features:
+
+   - [ ] fixture-driven protocol test harness for request/response/diagnostic behavior
+   - [ ] deterministic snapshots for completion ordering, symbol locations, and edit ranges
+   - [ ] regression tests for failure/error payload consistency
+
+   Acceptance criteria:
+
+   - all core LSP feature handlers have protocol-level test coverage
+   - tests detect incompatible response-shape changes before release
+
+### P2 (Can follow)
+
+6. **Thin editor adapters**
+
+   Planned features:
+
+   - [ ] lightweight VS Code/Cursor adapter that launches Ruff LSP without reimplementing language logic
+   - [ ] adapter guidance for JetBrains (via generic LSP plugin), Neovim, and other LSP clients
+   - [ ] editor setup docs focused on shared Ruff LSP configuration
+
+   Acceptance criteria:
+
+   - adapter repos/extensions avoid duplicate parsing/analysis logic
+   - onboarding docs show one canonical Ruff LSP configuration path per editor family
+
+---
+
 ## Version Strategy
 
 - `v0.11.0`: released (SSG throughput, async scheduler reliability, benchmark release evidence).
-- `v0.12.0`: developer experience and project tooling.
+- `v0.12.0`: developer experience and project tooling (complete).
+- `v0.13.0`: cross-IDE language tooling foundation (`ruff lsp`, output contracts, grammar, conformance tests).
 - `v1.0.0`: stabilization, documentation, compatibility policy, ecosystem polish.
 
 See also:
