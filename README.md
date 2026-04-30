@@ -86,6 +86,10 @@ The current CLI exposes these subcommands:
 | `ruff repl` | Start the interactive REPL. |
 | `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`). |
 | `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |
+| `ruff init` | Initialize a Ruff project with `ruff.toml` and `src/main.ruff`. |
+| `ruff package-add <name>` | Add a dependency to `ruff.toml` (`--version`, `--manifest`). |
+| `ruff package-install` | Validate and enumerate dependencies declared in `ruff.toml`. |
+| `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax. |
 | `ruff bench [path]` | Run benchmark scripts. |
@@ -146,6 +150,16 @@ Ruff now includes an initial linter surface via `ruff lint` with:
 - obvious annotation/literal type mismatch checks
 - missing error-handling pattern warnings for common fallible calls
 - safe autofix support for selected rules (unused-variable underscore-prefixing)
+
+## v0.12.0 Package Workflow Progress
+
+Ruff now includes an initial package workflow with:
+
+- `ruff init` scaffolding
+- `ruff.toml` manifest generation/parsing
+- dependency metadata editing via `ruff package-add`
+- dependency validation/enumeration via `ruff package-install`
+- publish preview/trigger surface via `ruff package-publish`
 
 ## Language Overview
 

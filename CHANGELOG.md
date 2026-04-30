@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 Package Workflow Follow-Through: Initial Manifest + CLI Surfaces (P1)**:
+  - Added `src/package_workflow.rs` with `ruff.toml` manifest generation/parsing and dependency metadata editing helpers.
+  - Added `ruff init`, `ruff package-add`, `ruff package-install`, and `ruff package-publish` command surfaces for initial project/package workflow support.
+  - Added regression coverage for default manifest generation, manifest parsing, dependency insertion, and dependency input validation.
+
 - **v0.12.0 Linter Follow-Through: Initial Linter Rules + CLI Surface (P1)**:
   - Added `src/linter.rs` with initial lint rules for unused variables, unreachable code after terminators, obvious annotation/literal type mismatches, and missing error-handling patterns for fallible calls.
   - Added `ruff lint <file> [--fix] [--json]` for lint reporting and safe autofix application.

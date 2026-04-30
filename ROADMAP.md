@@ -60,10 +60,10 @@ Priority work:
 
    Planned features:
 
-   - `ruff.toml`
-   - dependency metadata
-   - `ruff init`
-   - package install/add/publish workflow
+   - [x] `ruff.toml` (initial manifest generation and parsing)
+   - [x] dependency metadata (initial dependency table support)
+   - [x] `ruff init` (project scaffold generation with `src/main.ruff`)
+   - [x] package install/add/publish workflow (initial `package-add`, `package-install`, and `package-publish` command surfaces)
 
 5. **REPL improvements**
 
