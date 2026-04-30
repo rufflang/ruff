@@ -78,9 +78,9 @@ Priority work:
 
    Planned features:
 
-   - HTML docs from `///` comments
-   - examples extracted from doc comments
-   - builtin/native API reference generation
+   - [x] HTML docs from `///` comments (initial `ruff docgen` module-function page generation)
+   - [x] examples extracted from doc comments (initial fenced-code example extraction)
+   - [x] builtin/native API reference generation (initial builtin registry HTML reference)
 
 ---
 

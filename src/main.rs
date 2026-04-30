@@ -9,6 +9,7 @@ mod benchmarks;
 mod builtins;
 mod bytecode;
 mod compiler;
+mod doc_generator;
 mod errors;
 mod formatter;
 mod interpreter;
@@ -182,6 +183,20 @@ enum Commands {
         /// Execute publish instead of dry-run preview
         #[arg(long, default_value_t = false)]
         publish: bool,
+    },
+
+    /// Generate HTML documentation from Ruff /// comments
+    Docgen {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// Output directory for generated docs (defaults to docs/generated)
+        #[arg(long)]
+        out_dir: Option<PathBuf>,
+
+        /// Disable builtin/native API reference generation
+        #[arg(long, default_value_t = false)]
+        no_builtins: bool,
     },
 
     /// Compare Ruff parallel_map benchmark against Python ProcessPoolExecutor
@@ -849,6 +864,32 @@ async fn main() {
                     parsed.dependencies.len()
                 );
             }
+        }
+
+        Commands::Docgen {
+            file,
+            out_dir,
+            no_builtins,
+        } => {
+            let output_dir = out_dir.unwrap_or_else(|| PathBuf::from("docs/generated"));
+            let summary = match doc_generator::generate_docs_for_file(
+                &file,
+                &output_dir,
+                !no_builtins,
+            ) {
+                Ok(result) => result,
+                Err(message) => {
+                    eprintln!("{}", message);
+                    std::process::exit(1);
+                }
+            };
+
+            println!("generated docs in {}", summary.output_dir.display());
+            println!("module docs: {}", summary.module_doc_path.display());
+            if let Some(builtin_path) = summary.builtin_doc_path {
+                println!("builtin docs: {}", builtin_path.display());
+            }
+            println!("documented items: {}", summary.item_count);
         }
 
         Commands::BenchCross { ruff_script, python_script, python } => {

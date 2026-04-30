@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
+  - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
+  - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.
+  - Added regression coverage for doc-comment/function extraction, example extraction, and generated artifact creation.
+
 - **v0.12.0 REPL Follow-Through: Completion/Highlighting/Multiline/.help Improvements (P1)**:
   - Extended `src/repl.rs` with a Rustyline helper that provides tab completion for REPL commands and builtin function names.
   - Added initial command-oriented syntax highlighting and validator-backed multiline continuation handling for more predictable interactive editing.

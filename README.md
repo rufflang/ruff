@@ -90,6 +90,7 @@ The current CLI exposes these subcommands:
 | `ruff package-add <name>` | Add a dependency to `ruff.toml` (`--version`, `--manifest`). |
 | `ruff package-install` | Validate and enumerate dependencies declared in `ruff.toml`. |
 | `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
+| `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`). |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax. |
 | `ruff bench [path]` | Run benchmark scripts. |
@@ -169,6 +170,15 @@ Ruff now includes an improved REPL interaction surface via `ruff repl` with:
 - command-oriented syntax highlighting for quick visual scanning
 - validator-backed multiline continuation for incomplete input
 - `.help <function>` builtin usage guidance
+
+## v0.12.0 Documentation Generator Progress
+
+Ruff now includes an initial documentation generator via `ruff docgen` with:
+
+- HTML generation for documented `func` declarations discovered from `///` comments
+- fenced Ruff example extraction from doc comments (` ```ruff ... ``` ` blocks)
+- generated documentation index page
+- builtin/native API reference page from registered builtin names (optional via `--no-builtins`)
 
 ## Language Overview
 
