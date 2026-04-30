@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added runtime parity matrix `docs/VM_INTERPRETER_PARITY_MATRIX.md` and parity/gap-tracking integration tests in `tests/vm_interpreter_parity_surfaces.rs` for struct methods, spread/destructuring, match-binding behavior, and spawn semantics.
 - Added contract metadata sync guard script `.github/scripts/check-contract-version-sync.sh` and CI wiring in `.github/workflows/release-state-guard.yml` to fail when v1 contract status/version markers drift across `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
 - Added negative-path CLI JSON contract coverage in `tests/cli_json_contracts.rs` for malformed parameters, unknown-symbol rename failures, and missing-file IO failures with locked exit-code/stdout/stderr expectations.
+- Added `tests/optional_typing_v1_contract.rs` to lock v1 optional-typing behavior: annotation metadata is preserved by the parser while runtime execution remains dynamic by default (no implicit enforcement).
 
 ### Changed
 
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated runtime-boundary documentation in `README.md` and `docs/LANGUAGE_SPEC.md` to reference the parity matrix and reflect current parity/capability status for v1 tracking.
 - Changed contract metadata baselines in CLI/LSP/language docs to a unified v1 draft marker (`Status: v1.0.0 baseline draft (active)`, version `1.0.0-draft`) for release-cycle contract freezing.
 - Changed `format`/`lint` CLI file IO handling in `src/main.rs` to return deterministic runtime errors (exit `1`) instead of panicking on missing/unreadable inputs in JSON automation paths.
+- Changed `docs/OPTIONAL_TYPING_DESIGN.md` from exploratory notes into an explicit v1 policy document that defines supported annotation metadata behavior and deferred enforcement/optimization tracks.
 
 ## [0.14.0] - 2026-04-30
 

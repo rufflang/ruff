@@ -1,18 +1,40 @@
-# Optional Static Typing Design (v0.10 Exploratory)
+# Optional Typing Policy (v1.0.0)
 
-This document captures the v0.10 exploratory design package for optional static typing in Ruff.
+This document defines Ruff's explicit v1 optional-typing policy.
+
+## v1 Policy Summary
+
+Status: v1.0.0 baseline draft (active)
+
+For v1.0.0, Ruff typing is intentionally split into two categories:
+
+- Supported in v1:
+    - type-annotation syntax for function parameters, function returns, and variable/const declarations
+    - parser/AST preservation of annotations as metadata
+    - incremental adoption in mixed typed/untyped codebases without breaking existing dynamic execution
+- Deferred after v1:
+    - runtime type enforcement
+    - mandatory static type checking gates in `ruff run`
+    - typed-JIT specialization guarantees as part of the stable v1 contract
+
+Compatibility contract for v1:
+
+- annotated code must remain runnable under current dynamic semantics
+- type annotations must not change runtime behavior by default
+- missing annotations keep current dynamic behavior
 
 ## Goals
 
 - Define a concrete annotation syntax surface for functions, variables, and collections.
-- Define optional runtime type-check mode behavior and error contract.
-- Define typed-JIT optimization boundaries and explicit deferrals.
+- Define explicit v1 support/defer boundaries for runtime checking and optimization.
 - Preserve backward compatibility with existing untyped Ruff code.
 
 ## Design Status
 
-- **Scope**: Design-only in v0.10 (no mandatory typing, no breaking changes)
-- **Implementation commitment**: Deferred pending feedback and benchmark validation
+- **Scope**: v1 policy and compatibility contract
+- **Implementation commitment**:
+    - annotation syntax and metadata behavior are supported for v1
+    - enforcement and optimization tracks remain deferred
 
 ## Stage 1: Annotation Surface Proposal
 
@@ -48,9 +70,9 @@ let user_scores: Dict<string, int> := {"alice": 95}
 - AST: preserve annotations as metadata without changing runtime semantics by default.
 - Type checker: run as optional pass that can emit diagnostics without blocking execution unless explicitly configured.
 
-## Stage 2: Optional Runtime Type-Check Mode Contract
+## Runtime Type Enforcement (Deferred)
 
-### Proposed opt-in forms
+Potential opt-in forms remain design candidates and are not part of the v1 stable contract:
 
 ```ruff
 @type_check
@@ -64,13 +86,13 @@ Future global opt-in could be provided via CLI and/or config, for example:
 - `ruff run script.ruff --type-check`
 - project-level `ruff.toml` setting (deferred decision)
 
-### Proposed Runtime Behavior
+### Deferred Behavior Targets
 
-- Default mode: no runtime type enforcement (current behavior).
-- Opt-in mode: enforce argument and return type contracts on annotated functions.
-- Errors are deterministic and include function name, parameter/return position, expected type, and actual runtime type.
+- Default mode: no runtime type enforcement (current v1 behavior).
+- Future opt-in mode: enforce argument and return type contracts on annotated functions.
+- Future errors should be deterministic and include function name, parameter/return position, expected type, and actual runtime type.
 
-### Proposed Error Shape
+### Future Error Shape Target
 
 Human-facing format (subject to final wording):
 
@@ -79,17 +101,17 @@ Human-facing format (subject to final wording):
 
 Compatibility note:
 
-- Existing error model remains authoritative; this format is a contract target for any future implementation.
+- Existing error model remains authoritative; this format is a target for a post-v1 implementation.
 
-## Stage 3: Typed-JIT Optimization Boundaries
+## Typed-JIT Optimization Boundaries (Deferred)
 
-### In Scope (future candidates)
+### Future Candidates
 
 - Specialized numeric fast paths for consistently typed arithmetic.
 - Reduced boxing/unboxing in tight loops over typed arrays.
 - Improved call-site specialization for stable typed signatures.
 
-### Out of Scope for v0.10/v1.0
+### Out of Scope for v1.0.0
 
 - Mandatory typing across all code.
 - Full Hindley-Milner inference.
@@ -103,26 +125,26 @@ Compatibility note:
 - Typed and untyped modules interoperate through existing runtime value model.
 - Any future runtime checks must remain opt-in and backward compatible by default.
 
-## Open Decisions
+## Open Decisions (Post-v1)
 
 - Final syntax for union/optional types (e.g., `A | B` vs helper forms).
 - How generic parameter constraints are represented (if at all).
 - CLI-only vs config-based type-check mode enabling.
 - Whether warnings-only mode should be separate from strict fail mode.
 
-## Non-Goals (for this design package)
+## Non-Goals for v1
 
 - Shipping a full compiler-grade static type system.
 - Requiring developers to annotate all public functions.
 - Changing default dynamic semantics in v1.0.
 
-## Decision Summary
+## v1 Decision
 
-Ruff should pursue **optional, incremental typing** with strict backward compatibility:
+Ruff v1 adopts **optional, incremental typing metadata** with strict backward compatibility:
 
-- Keep dynamic execution as default.
-- Add annotations as metadata first.
-- Introduce runtime checks only via explicit opt-in.
-- Use typed information for targeted JIT specialization where measurable and safe.
+- keep dynamic execution as default
+- support annotation syntax and metadata preservation
+- defer runtime checks to a future opt-in track
+- defer typed-JIT specialization guarantees to a future release
 
-This approach lowers adoption risk while preserving Ruff’s ergonomics and enabling future performance/tooling gains.
+This policy keeps v1 semantics stable while leaving room for future typed enforcement and optimization work without breaking existing code.

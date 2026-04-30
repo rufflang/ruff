@@ -100,9 +100,9 @@ Use this checklist as the execution queue for follow-up sessions.
 
 #### P1: Strongly Recommended For v1 Completeness
 
-- [ ] Publish explicit v1 optional-typing stance.
-	- Convert exploratory wording in `docs/OPTIONAL_TYPING_DESIGN.md` into a concrete v1 policy (supported vs experimental vs deferred).
-	- Add tests for whichever v1 typing contract is declared.
+- [x] Publish explicit v1 optional-typing stance.
+	- [x] Convert exploratory wording in `docs/OPTIONAL_TYPING_DESIGN.md` into a concrete v1 policy (supported vs experimental vs deferred).
+	- [x] Add tests for whichever v1 typing contract is declared.
 - [ ] Expand native standard library documentation coverage to canonical reference quality.
 	- Generate/maintain per-function docs with stability tiers and examples for major builtin categories.
 	- Ensure docs map to actual runtime dispatch behavior and tests.
