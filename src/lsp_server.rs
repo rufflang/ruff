@@ -96,6 +96,11 @@ impl LspServer {
         }
     }
 
+    #[allow(dead_code)] // Exposed for integration reliability tests that assert bounded lifecycle state.
+    pub fn open_document_count(&self) -> usize {
+        self.documents.len()
+    }
+
     fn handle_request(&mut self, method: &str, id: Value, params: Option<&Value>) -> Value {
         match method {
             "initialize" => json!({
