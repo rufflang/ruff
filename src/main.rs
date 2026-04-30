@@ -14,6 +14,7 @@ mod formatter;
 mod interpreter;
 mod jit;
 mod lexer;
+mod linter;
 mod lsp_completion;
 mod lsp_code_actions;
 mod lsp_definition;
@@ -123,6 +124,20 @@ enum Commands {
         /// Write formatted output back to file
         #[arg(long, default_value_t = false)]
         write: bool,
+    },
+
+    /// Lint a Ruff source file
+    Lint {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// Apply safe autofixes
+        #[arg(long, default_value_t = false)]
+        fix: bool,
+
+        /// Print lint issues as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
     },
 
     /// Compare Ruff parallel_map benchmark against Python ProcessPoolExecutor
@@ -637,6 +652,64 @@ async fn main() {
                 println!("formatted {}", file.display());
             } else {
                 println!("{}", formatted);
+            }
+        }
+
+        Commands::Lint { file, fix, json } => {
+            let source = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let issues = linter::lint_source(&source);
+
+            if fix {
+                let fixed = linter::apply_safe_fixes(&source, &issues);
+                if fixed != source {
+                    fs::write(&file, fixed).expect("Failed to write lint fixes");
+                    println!("applied safe lint fixes to {}", file.display());
+                } else {
+                    println!("no safe lint fixes applied");
+                }
+            }
+
+            if json {
+                let json_items: Vec<serde_json::Value> = issues
+                    .iter()
+                    .map(|issue| {
+                        serde_json::json!({
+                            "rule_id": issue.rule_id,
+                            "line": issue.line,
+                            "column": issue.column,
+                            "severity": issue.severity.as_str(),
+                            "message": issue.message,
+                            "fix": issue.fix.as_ref().map(|fix| serde_json::json!({
+                                "replacement_line": fix.replacement_line,
+                                "description": fix.description,
+                            })),
+                        })
+                    })
+                    .collect();
+
+                match serde_json::to_string_pretty(&json_items) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize lint results: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                for issue in issues.iter() {
+                    println!(
+                        "{}\t{}\t{}:{}:{}\t{}",
+                        issue.severity.as_str(),
+                        issue.rule_id,
+                        file.display(),
+                        issue.line,
+                        issue.column,
+                        issue.message
+                    );
+                }
+            }
+
+            if issues.iter().any(|issue| matches!(issue.severity, linter::LintSeverity::Error)) {
+                std::process::exit(1);
             }
         }
 

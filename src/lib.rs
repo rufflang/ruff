@@ -13,6 +13,7 @@ pub mod formatter;
 pub mod interpreter;
 pub mod jit;
 pub mod lexer;
+pub mod linter;
 pub mod lsp_code_actions;
 pub mod lsp_completion;
 pub mod lsp_definition;
