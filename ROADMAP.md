@@ -41,10 +41,10 @@ Priority work:
 
    Planned features:
 
-   - opinionated formatting
-   - configurable indentation
-   - line-length policy
-   - import ordering once module semantics are stable
+   - [x] opinionated formatting (initial spacing/indentation normalization via `ruff format`)
+   - [x] configurable indentation (`ruff format --indent <N>`)
+   - [x] line-length policy (`ruff format --line-length <N>` wrapping for comma-separated expressions)
+   - [x] import ordering once module semantics are stable (initial leading import-block sorting; disable with `--no-sort-imports`)
 
 3. **Linter**
 

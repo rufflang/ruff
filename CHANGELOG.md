@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 Formatter Follow-Through: Initial Formatter Engine + CLI Surface (P1)**:
+  - Added `src/formatter.rs` with initial opinionated formatting rules for spacing, indentation, and optional wrapping of long comma-separated expressions.
+  - Added `ruff format <file> [--indent <N>] [--line-length <N>] [--no-sort-imports] [--check] [--write]` for formatter usage in preview, check, and write-back modes.
+  - Added initial import-ordering support for leading import blocks with opt-out control.
+  - Added regression coverage for spacing/indentation normalization, import sorting, and line-length wrapping behavior.
+
 - **v0.12.0 LSP Follow-Through: Initial Code Actions + CLI Surface (P1)**:
   - Added `src/lsp_code_actions.rs` with diagnostics-driven quick-fix generation for unmatched closing delimiters and unclosed opening delimiters.
   - Added `ruff lsp-code-actions <file> [--json]` to return structured quick-fix actions for editor/LSP integration.

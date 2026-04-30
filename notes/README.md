@@ -28,3 +28,4 @@ High-signal session notes:
 - `2026-04-29_22-43_lsp-real-time-diagnostics-cli.md` — Added `ruff lsp-diagnostics` with syntax diagnostics output and parser panic-capture behavior suitable for editor refresh cycles.
 - `2026-04-29_22-47_lsp-rename-refactoring-cli.md` — Added `ruff lsp-rename` with scope-aware rename edits, updated-source preview output, and release-cycle verification evidence.
 - `2026-04-29_22-49_lsp-code-actions-cli.md` — Added `ruff lsp-code-actions` with diagnostics-driven syntax quick-fixes and release-cycle verification evidence.
+- `2026-04-29_22-53_formatter-initial-cli.md` — Added `ruff format` with configurable indentation, line-length wrapping, and leading import-block sorting.

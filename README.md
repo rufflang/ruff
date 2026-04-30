@@ -84,6 +84,7 @@ The current CLI exposes these subcommands:
 | `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff repl` | Start the interactive REPL. |
+| `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`). |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax. |
 | `ruff bench [path]` | Run benchmark scripts. |
@@ -125,6 +126,15 @@ The highest-priority v0.12.0 roadmap track is Language Server Protocol support. 
 - `ruff lsp-code-actions` for diagnostics-driven syntax quick-fix actions.
 
 These are targeted LSP groundwork slices, not a full language server implementation yet.
+
+## v0.12.0 Formatter Progress
+
+Ruff now includes an initial formatter surface via `ruff format` with:
+
+- opinionated spacing/indentation normalization
+- configurable indentation width
+- line-length-aware wrapping for comma-separated expressions
+- leading import-block sorting (optionally disabled)
 
 ## Language Overview
 
