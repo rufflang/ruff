@@ -14,6 +14,7 @@ mod interpreter;
 mod jit;
 mod lexer;
 mod lsp_completion;
+mod lsp_definition;
 mod module;
 mod optimizer;
 mod parser;
@@ -198,6 +199,24 @@ enum Commands {
         column: usize,
 
         /// Print completion items as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Return go-to-definition location for an identifier under cursor
+    LspDefinition {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// 1-based line number for the definition request
+        #[arg(long)]
+        line: usize,
+
+        /// 1-based column number for the definition request
+        #[arg(long)]
+        column: usize,
+
+        /// Print definition result as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -975,6 +994,46 @@ async fn main() {
             } else {
                 for item in completion_items {
                     println!("{}\t{}", item.label, item.kind.as_str());
+                }
+            }
+        }
+
+        Commands::LspDefinition { file, line, column, json } => {
+            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let definition = lsp_definition::find_definition(&code, line, column);
+
+            if json {
+                let output = match definition {
+                    Some(location) => serde_json::json!({
+                        "name": location.name,
+                        "line": location.line,
+                        "column": location.column,
+                        "kind": location.kind.as_str(),
+                    }),
+                    None => serde_json::Value::Null,
+                };
+
+                match serde_json::to_string_pretty(&output) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize definition result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                match definition {
+                    Some(location) => {
+                        println!(
+                            "{}\t{}:{}:{}",
+                            location.name,
+                            file.display(),
+                            location.line,
+                            location.column
+                        );
+                    }
+                    None => {
+                        println!("not found");
+                    }
                 }
             }
         }
