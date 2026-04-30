@@ -126,6 +126,12 @@ Cross-editor thin-adapter setup baselines are documented in [docs/EDITOR_ADAPTER
 
 Tree-sitter grammar assets and integration baseline are documented in [docs/TREE_SITTER_RUFF.md](docs/TREE_SITTER_RUFF.md).
 
+Protocol contracts, install/upgrade guidance, and release artifact checklist docs:
+
+- [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md)
+- [docs/INSTALLATION_LSP_EDITORS.md](docs/INSTALLATION_LSP_EDITORS.md)
+- [docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md)
+
 Useful environment variables:
 
 | Variable | Effect |

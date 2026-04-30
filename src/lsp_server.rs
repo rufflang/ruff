@@ -1051,6 +1051,7 @@ fn request_id_key(id: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::{LspServer, LspServerConfig};
+    use rand::Rng;
     use serde_json::{json, Value};
 
     #[test]
@@ -1368,5 +1369,29 @@ mod tests {
         let mut server = LspServer::new(LspServerConfig::default());
         let responses = server.process_message(&json!(["invalid", "shape"]));
         assert!(responses.is_empty());
+    }
+
+    #[test]
+    fn random_invalid_payload_shapes_do_not_panic() {
+        let mut server = LspServer::new(LspServerConfig::default());
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..200 {
+            let selector = rng.gen_range(0..6);
+            let payload = match selector {
+                0 => json!(null),
+                1 => json!([1, 2, 3, {"unexpected": true}]),
+                2 => json!({"jsonrpc": "2.0"}),
+                3 => json!({"jsonrpc": "2.0", "method": 42, "params": true}),
+                4 => json!({"jsonrpc": "2.0", "id": {"bad": "shape"}, "method": "textDocument/hover", "params": {}}),
+                _ => json!({"jsonrpc": "2.0", "id": rng.gen_range(1..1000), "method": "workspace/unknown", "params": {"junk": rng.gen_range(0..100)}}),
+            };
+
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                server.process_message(&payload)
+            }));
+
+            assert!(result.is_ok(), "payload caused panic: {:?}", payload);
+        }
     }
 }

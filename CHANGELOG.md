@@ -52,6 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added baseline corpus fixtures under `tree-sitter-ruff/test/corpus/` and highlighting/injection queries under `tree-sitter-ruff/queries/`.
   - Added CI-guard asset/corpus test `tests/tree_sitter_ruff_assets.rs` and documentation in `docs/TREE_SITTER_RUFF.md`.
 
+- **v0.13.0 Packaging/Protocol/Release Evidence Follow-Through**:
+  - Added protocol contract documentation in `docs/PROTOCOL_CONTRACTS.md` for diagnostics, symbol metadata, edit metadata, and JSON-RPC error envelopes.
+  - Added install/upgrade guidance for editor integrations in `docs/INSTALLATION_LSP_EDITORS.md`.
+  - Added release artifact checklist in `docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md` and completion evidence in `notes/2026-04-30_15-25_v0-13-0-completion-checklist.md`.
+  - Added Linux/macOS CI matrix workflow `.github/workflows/lsp-contract-matrix.yml` to enforce protocol/contract tests and release-artifact LSP entrypoint checks.
+
+- **v0.13.0 External LSP Client Smoke Coverage**:
+  - Added two independent external smoke clients (`tools/lsp_smoke_clients/python_client.py` and `tools/lsp_smoke_clients/node_client.mjs`) that launch `ruff lsp` over stdio JSON-RPC and execute initialize/shutdown lifecycle flow.
+  - Added `tests/lsp_external_clients_smoke.rs` to gate two-client launch compatibility in automated runs.
+
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
   - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
   - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.

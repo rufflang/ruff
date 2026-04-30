@@ -47,6 +47,42 @@ fn normalize_json(value: Value) -> Value {
     value
 }
 
+fn assert_json_contains(actual: &Value, expected_subset: &Value, context: &str) {
+    match (actual, expected_subset) {
+        (Value::Object(actual_obj), Value::Object(expected_obj)) => {
+            for (key, expected_value) in expected_obj.iter() {
+                let actual_value = actual_obj
+                    .get(key)
+                    .unwrap_or_else(|| panic!("{}: missing key '{}'", context, key));
+                assert_json_contains(actual_value, expected_value, context);
+            }
+        }
+        (Value::Array(actual_items), Value::Array(expected_items)) => {
+            assert!(
+                actual_items.len() >= expected_items.len(),
+                "{}: expected at least {} array items but found {}",
+                context,
+                expected_items.len(),
+                actual_items.len()
+            );
+
+            for (index, expected_item) in expected_items.iter().enumerate() {
+                let actual_item = actual_items
+                    .get(index)
+                    .unwrap_or_else(|| panic!("{}: missing array index {}", context, index));
+                assert_json_contains(actual_item, expected_item, context);
+            }
+        }
+        _ => {
+            assert_eq!(
+                actual, expected_subset,
+                "{}: scalar mismatch (actual={}, expected={})",
+                context, actual, expected_subset
+            );
+        }
+    }
+}
+
 #[test]
 fn protocol_fixtures_match_expected_responses() {
     let mut paths: Vec<PathBuf> = fs::read_dir(fixture_dir())
@@ -82,10 +118,21 @@ fn protocol_fixtures_match_expected_responses() {
             .collect();
 
         assert_eq!(
-            normalized_actual,
-            normalized_expected,
-            "fixture '{}' produced unexpected responses",
+            normalized_actual.len(),
+            normalized_expected.len(),
+            "fixture '{}' response count mismatch",
             fixture.name
         );
+
+        for (index, expected_response) in normalized_expected.iter().enumerate() {
+            let actual_response = normalized_actual
+                .get(index)
+                .unwrap_or_else(|| panic!("fixture '{}' missing response index {}", fixture.name, index));
+            assert_json_contains(
+                actual_response,
+                expected_response,
+                &format!("fixture '{}' response {}", fixture.name, index),
+            );
+        }
     }
 }

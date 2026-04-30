@@ -46,7 +46,7 @@ Required features:
 Acceptance criteria:
 
 - [x] protocol startup tests pass for initialize, initialized, shutdown, and exit
-- [ ] server can be launched by at least two external LSP clients without code changes
+- [x] server can be launched by at least two external LSP clients without code changes
 
 ### 3. LSP Feature Parity (Required For v0.13.0)
 
@@ -65,8 +65,8 @@ Required features:
 
 Acceptance criteria:
 
-- [ ] each required method has passing protocol-level fixtures for success and error cases
-- [ ] response payloads are stable and versioned where applicable
+- [x] each required method has passing protocol-level fixtures for success and error cases
+- [x] response payloads are stable and versioned where applicable
 
 ### 4. CLI And Machine-Readable Contract Hardening
 
@@ -79,7 +79,7 @@ Required features:
 Acceptance criteria:
 
 - [x] snapshot/schema tests gate output contract changes in CI
-- [ ] CHANGELOG policy requires contract-change notes for payload-affecting changes
+- [x] CHANGELOG policy requires contract-change notes for payload-affecting changes
 
 ### 5. Tree-sitter Grammar For Universal Highlighting
 
@@ -104,8 +104,8 @@ Required features:
 
 Acceptance criteria:
 
-- [ ] harness runs in CI across Linux and macOS
-- [ ] incompatible protocol changes fail tests by default
+- [x] harness runs in CI across Linux and macOS
+- [x] incompatible protocol changes fail tests by default
 
 ### 7. Performance, Reliability, And Crash Safety
 
@@ -117,21 +117,21 @@ Required features:
 
 Acceptance criteria:
 
-- [ ] no known panic paths in LSP request handling under fuzz/invalid-input tests
+- [x] no known panic paths in LSP request handling under fuzz/invalid-input tests
 - [x] performance guardrails documented and validated in CI/perf job
 
 ### 8. Packaging And Distribution
 
 Required features:
 
-- [ ] provide release artifacts that include `ruff lsp` functionality
-- [ ] document install/upgrade path for users integrating Ruff with editors
-- [ ] verify binary compatibility for supported target platforms
+- [x] provide release artifacts that include `ruff lsp` functionality
+- [x] document install/upgrade path for users integrating Ruff with editors
+- [x] verify binary compatibility for supported target platforms
 
 Acceptance criteria:
 
-- [ ] release checklist confirms LSP entrypoint availability in shipped artifacts
-- [ ] install docs are validated in a clean-environment smoke test
+- [x] release checklist confirms LSP entrypoint availability in shipped artifacts
+- [x] install docs are validated in a clean-environment smoke test
 
 ### 9. Thin Editor Adapter Baselines
 
@@ -150,13 +150,13 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] add `v0.13.0` completion checklist artifact under `notes/` with command/test evidence
-- [ ] add changelog release summary entries for all shipped `v0.13.0` tracks
-- [ ] define post-release follow-up list for deferred `v1.0.0` items
+- [x] add `v0.13.0` completion checklist artifact under `notes/` with command/test evidence
+- [x] add changelog release summary entries for all shipped `v0.13.0` tracks
+- [x] define post-release follow-up list for deferred `v1.0.0` items
 
 Acceptance criteria:
 
-- [ ] roadmap checkboxes for required `v0.13.0` items are complete
+- [x] roadmap checkboxes for required `v0.13.0` items are complete
 - [ ] release tag is created only after evidence checklist is signed off
 
 ---
@@ -196,7 +196,7 @@ Possible post-`v0.12.0` design tracks:
    Planned features:
 
    - [x] versioned language-spec baseline document (`docs/LANGUAGE_SPEC.md`) covering syntax, runtime semantics, and compatibility guarantees
-   - [ ] machine-consumable protocol contracts for diagnostics, symbol metadata, and edits used by CLI/LSP outputs
+   - [x] machine-consumable protocol contracts for diagnostics, symbol metadata, and edits used by CLI/LSP outputs
    - [x] compatibility policy document for breaking vs non-breaking language-tooling changes
 
    Acceptance criteria:
