@@ -5,6 +5,8 @@ use crate::lsp_diagnostics;
 use crate::lsp_hover;
 use crate::lsp_references;
 use crate::lsp_rename;
+use crate::formatter::{self, FormatterOptions};
+use crate::lexer::{self, TokenKind};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
@@ -93,7 +95,11 @@ impl LspServer {
                         "definitionProvider": true,
                         "referencesProvider": true,
                         "renameProvider": true,
-                        "codeActionProvider": true
+                        "codeActionProvider": true,
+                        "documentFormattingProvider": true,
+                        "documentRangeFormattingProvider": true,
+                        "documentSymbolProvider": true,
+                        "workspaceSymbolProvider": true
                     },
                     "serverInfo": {
                         "name": "ruff",
@@ -413,6 +419,156 @@ impl LspServer {
                     "result": actions
                 })
             }
+            "textDocument/formatting" => {
+                let uri = match request_uri(params) {
+                    Some(value) => value,
+                    None => {
+                        return invalid_params_response(id, "Missing textDocument.uri");
+                    }
+                };
+
+                let source = match self.resolve_document_source(&uri) {
+                    Ok(content) => content,
+                    Err(message) => {
+                        return invalid_params_response(id, &message);
+                    }
+                };
+
+                let options = formatter_options_from_lsp_params(params);
+                let formatted = formatter::format_source(&source, &options);
+
+                let edits = if formatted == source {
+                    Vec::new()
+                } else {
+                    vec![full_document_text_edit(&source, formatted)]
+                };
+
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": edits
+                })
+            }
+            "textDocument/rangeFormatting" => {
+                let uri = match request_uri(params) {
+                    Some(value) => value,
+                    None => {
+                        return invalid_params_response(id, "Missing textDocument.uri");
+                    }
+                };
+
+                let source = match self.resolve_document_source(&uri) {
+                    Ok(content) => content,
+                    Err(message) => {
+                        return invalid_params_response(id, &message);
+                    }
+                };
+
+                let options = formatter_options_from_lsp_params(params);
+                let formatted = formatter::format_source(&source, &options);
+                let edits = if formatted == source {
+                    Vec::new()
+                } else {
+                    vec![full_document_text_edit(&source, formatted)]
+                };
+
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": edits
+                })
+            }
+            "textDocument/documentSymbol" => {
+                let uri = match request_uri(params) {
+                    Some(value) => value,
+                    None => {
+                        return invalid_params_response(id, "Missing textDocument.uri");
+                    }
+                };
+
+                let source = match self.resolve_document_source(&uri) {
+                    Ok(content) => content,
+                    Err(message) => {
+                        return invalid_params_response(id, &message);
+                    }
+                };
+
+                let symbols = collect_document_symbols(&source)
+                    .into_iter()
+                    .map(|symbol| {
+                        json!({
+                            "name": symbol.name,
+                            "kind": symbol.kind,
+                            "range": {
+                                "start": {
+                                    "line": zero_based(symbol.line),
+                                    "character": zero_based(symbol.column),
+                                },
+                                "end": {
+                                    "line": zero_based(symbol.line),
+                                    "character": zero_based(symbol.column + symbol.length),
+                                }
+                            },
+                            "selectionRange": {
+                                "start": {
+                                    "line": zero_based(symbol.line),
+                                    "character": zero_based(symbol.column),
+                                },
+                                "end": {
+                                    "line": zero_based(symbol.line),
+                                    "character": zero_based(symbol.column + symbol.length),
+                                }
+                            }
+                        })
+                    })
+                    .collect::<Vec<Value>>();
+
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": symbols
+                })
+            }
+            "workspace/symbol" => {
+                let query = params
+                    .and_then(|value| value.get("query"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_lowercase();
+
+                let mut symbols = Vec::new();
+                for (uri, source) in self.documents.iter() {
+                    for symbol in collect_document_symbols(source).into_iter() {
+                        if !query.is_empty() && !symbol.name.to_lowercase().contains(&query) {
+                            continue;
+                        }
+
+                        symbols.push(json!({
+                            "name": symbol.name,
+                            "kind": symbol.kind,
+                            "location": {
+                                "uri": uri,
+                                "range": {
+                                    "start": {
+                                        "line": zero_based(symbol.line),
+                                        "character": zero_based(symbol.column),
+                                    },
+                                    "end": {
+                                        "line": zero_based(symbol.line),
+                                        "character": zero_based(symbol.column + symbol.length),
+                                    }
+                                }
+                            }
+                        }));
+                    }
+                }
+
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": symbols
+                })
+            }
             _ => method_not_found_response(id, method),
         }
     }
@@ -701,6 +857,122 @@ fn completion_item_kind_to_lsp(kind: CompletionItemKind) -> u8 {
     }
 }
 
+#[derive(Debug, Clone)]
+struct SymbolEntry {
+    name: String,
+    line: usize,
+    column: usize,
+    length: usize,
+    kind: u8,
+}
+
+fn formatter_options_from_lsp_params(params: Option<&Value>) -> FormatterOptions {
+    let tab_size = params
+        .and_then(|value| value.get("options"))
+        .and_then(|value| value.get("tabSize"))
+        .and_then(Value::as_u64)
+        .map(|value| value as usize)
+        .unwrap_or(4);
+
+    FormatterOptions {
+        indent_width: tab_size.max(1),
+        line_length: 100,
+        sort_imports: true,
+    }
+}
+
+fn full_document_text_edit(source: &str, new_text: String) -> Value {
+    let (end_line, end_character) = source_end_position(source);
+    json!({
+        "range": {
+            "start": {
+                "line": 0,
+                "character": 0,
+            },
+            "end": {
+                "line": end_line,
+                "character": end_character,
+            }
+        },
+        "newText": new_text,
+    })
+}
+
+fn source_end_position(source: &str) -> (usize, usize) {
+    if source.is_empty() {
+        return (0, 0);
+    }
+
+    let lines: Vec<&str> = source.lines().collect();
+    if lines.is_empty() {
+        return (0, 0);
+    }
+
+    let end_line = lines.len().saturating_sub(1);
+    let end_character = lines[end_line].chars().count();
+    (end_line, end_character)
+}
+
+fn collect_document_symbols(source: &str) -> Vec<SymbolEntry> {
+    let mut symbols = Vec::new();
+    let tokens = lexer::tokenize(source);
+    let mut index = 0;
+
+    while index < tokens.len() {
+        let token = &tokens[index];
+        match &token.kind {
+            TokenKind::Keyword(keyword) if keyword == "func" => {
+                if let Some(name_token) = tokens.get(index + 1) {
+                    if let TokenKind::Identifier(name) = &name_token.kind {
+                        let start = name_token.column.saturating_sub(name.chars().count());
+                        if start > 0 {
+                            symbols.push(SymbolEntry {
+                                name: name.clone(),
+                                line: name_token.line,
+                                column: start,
+                                length: name.chars().count(),
+                                kind: 12,
+                            });
+                        }
+                    }
+                }
+            }
+            TokenKind::Keyword(keyword) if keyword == "let" || keyword == "const" => {
+                let mut name_index = index + 1;
+                if keyword == "let" {
+                    if let Some(next_token) = tokens.get(name_index) {
+                        if let TokenKind::Keyword(next_keyword) = &next_token.kind {
+                            if next_keyword == "mut" {
+                                name_index += 1;
+                            }
+                        }
+                    }
+                }
+
+                if let Some(name_token) = tokens.get(name_index) {
+                    if let TokenKind::Identifier(name) = &name_token.kind {
+                        let start = name_token.column.saturating_sub(name.chars().count());
+                        if start > 0 {
+                            symbols.push(SymbolEntry {
+                                name: name.clone(),
+                                line: name_token.line,
+                                column: start,
+                                length: name.chars().count(),
+                                kind: 13,
+                            });
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        index += 1;
+    }
+
+    symbols
+}
+
 fn method_not_found_response(id: Value, method: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -850,6 +1122,128 @@ mod tests {
         }));
         assert!(items.iter().any(|item| {
             item.get("label").and_then(|value| value.as_str()) == Some("printer")
+        }));
+    }
+
+    #[test]
+    fn formatting_request_returns_text_edit_when_source_changes() {
+        let mut server = LspServer::new(LspServerConfig::default());
+
+        let _ = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/format.ruff",
+                    "text": "let value:=1\n"
+                }
+            }
+        }));
+
+        let response = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/formatting",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/format.ruff"
+                },
+                "options": {
+                    "tabSize": 4,
+                    "insertSpaces": true
+                }
+            }
+        }));
+
+        let edits = response[0]
+            .get("result")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        assert_eq!(edits.len(), 1);
+        assert!(edits[0]
+            .get("newText")
+            .and_then(Value::as_str)
+            .map(|text| text.contains("let value := 1"))
+            .unwrap_or(false));
+    }
+
+    #[test]
+    fn document_symbol_returns_function_and_variable_entries() {
+        let mut server = LspServer::new(LspServerConfig::default());
+
+        let _ = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/symbols.ruff",
+                    "text": "func greet(name) {\n    return name\n}\nlet value := 1\n"
+                }
+            }
+        }));
+
+        let response = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/documentSymbol",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/symbols.ruff"
+                }
+            }
+        }));
+
+        let symbols = response[0]
+            .get("result")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        assert!(symbols.iter().any(|symbol| {
+            symbol.get("name").and_then(Value::as_str) == Some("greet")
+        }));
+        assert!(symbols.iter().any(|symbol| {
+            symbol.get("name").and_then(Value::as_str) == Some("value")
+        }));
+    }
+
+    #[test]
+    fn workspace_symbol_filters_results_by_query() {
+        let mut server = LspServer::new(LspServerConfig::default());
+
+        let _ = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/workspace_symbols.ruff",
+                    "text": "func render_page() {\n    return 1\n}\nfunc build_site() {\n    return 2\n}\n"
+                }
+            }
+        }));
+
+        let response = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "workspace/symbol",
+            "params": {
+                "query": "render"
+            }
+        }));
+
+        let symbols = response[0]
+            .get("result")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        assert!(symbols.iter().any(|symbol| {
+            symbol.get("name").and_then(Value::as_str) == Some("render_page")
+        }));
+        assert!(!symbols.iter().any(|symbol| {
+            symbol.get("name").and_then(Value::as_str) == Some("build_site")
         }));
     }
 }

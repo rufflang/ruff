@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added `ruff lsp` as a long-running JSON-RPC server over stdio, including `initialize`, `initialized`, `shutdown`, and `exit` lifecycle handling.
   - Added deterministic debug logging support via `ruff lsp --deterministic-logs` (stderr request/response trace with stable sequence ordering).
   - Wired server request handlers to shared analysis modules (`lsp_completion`, `lsp_hover`, `lsp_definition`, `lsp_references`, `lsp_rename`, `lsp_code_actions`, `lsp_diagnostics`) and document-sync notifications (`didOpen`/`didChange`/`didClose`) with `publishDiagnostics` notifications.
+  - Added server support for `textDocument/formatting`, `textDocument/rangeFormatting`, `textDocument/documentSymbol`, and `workspace/symbol` to close additional v0.13.0 feature-parity gaps.
   - Added protocol startup and handler tests in `src/lsp_server.rs` covering lifecycle, diagnostics publication, and completion request behavior.
 
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
