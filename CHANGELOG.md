@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 LSP Follow-Through: Initial Code Actions + CLI Surface (P1)**:
+  - Added `src/lsp_code_actions.rs` with diagnostics-driven quick-fix generation for unmatched closing delimiters and unclosed opening delimiters.
+  - Added `ruff lsp-code-actions <file> [--json]` to return structured quick-fix actions for editor/LSP integration.
+  - Added regression coverage for no-actions-on-valid-source behavior and action generation for unmatched brace, unclosed parenthesis, and unclosed bracket diagnostics.
+  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial code-actions roadmap item.
+
 - **v0.12.0 LSP Follow-Through: Initial Rename Refactoring + CLI Surface (P1)**:
   - Added `src/lsp_rename.rs` with scope-aware rename logic driven by symbol-reference resolution and identifier validation.
   - Added `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME> [--json]` to return deterministic rename edits and updated source text.

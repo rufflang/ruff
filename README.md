@@ -96,6 +96,7 @@ The current CLI exposes these subcommands:
 | `ruff lsp-hover <file> --line <N> --column <N>` | Return hover details for the identifier under the cursor (kind, detail text, definition location when applicable); add `--json` for structured output. |
 | `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (delimiter mismatches and parser panic-derived syntax errors); add `--json` for structured output. |
 | `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME>` | Return rename edits for the symbol under the cursor and the updated source text; add `--json` for structured output. |
+| `ruff lsp-code-actions <file>` | Return syntax quick-fix actions derived from diagnostics (for example unmatched/unclosed delimiters); add `--json` for structured output. |
 
 Useful environment variables:
 
@@ -121,6 +122,7 @@ The highest-priority v0.12.0 roadmap track is Language Server Protocol support. 
 - `ruff lsp-hover` for symbol hover details across builtins and user-defined symbols.
 - `ruff lsp-diagnostics` for syntax-oriented diagnostics suitable for editor refresh cycles.
 - `ruff lsp-rename` for scope-aware symbol renaming with deterministic edit output.
+- `ruff lsp-code-actions` for diagnostics-driven syntax quick-fix actions.
 
 These are targeted LSP groundwork slices, not a full language server implementation yet.
 
