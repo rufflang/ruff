@@ -16,6 +16,7 @@ pub mod lsp_completion;
 pub mod lsp_definition;
 pub mod lsp_diagnostics;
 pub mod lsp_hover;
+pub mod lsp_rename;
 pub mod lsp_references;
 pub mod module;
 pub mod optimizer;

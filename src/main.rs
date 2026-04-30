@@ -17,6 +17,7 @@ mod lsp_completion;
 mod lsp_definition;
 mod lsp_diagnostics;
 mod lsp_hover;
+mod lsp_rename;
 mod lsp_references;
 mod module;
 mod optimizer;
@@ -270,6 +271,28 @@ enum Commands {
         file: PathBuf,
 
         /// Print diagnostics as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Rename the symbol under cursor and return edits
+    LspRename {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// 1-based line number for the rename request
+        #[arg(long)]
+        line: usize,
+
+        /// 1-based column number for the rename request
+        #[arg(long)]
+        column: usize,
+
+        /// New symbol name
+        #[arg(long)]
+        new_name: String,
+
+        /// Print rename result as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -1215,6 +1238,64 @@ async fn main() {
                         diagnostic.line,
                         diagnostic.column,
                         diagnostic.message
+                    );
+                }
+            }
+        }
+
+        Commands::LspRename {
+            file,
+            line,
+            column,
+            new_name,
+            json,
+        } => {
+            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let rename_result = match lsp_rename::rename_symbol(&code, line, column, &new_name) {
+                Ok(result) => result,
+                Err(message) => {
+                    eprintln!("{}", message);
+                    std::process::exit(1);
+                }
+            };
+
+            if json {
+                let json_edits: Vec<serde_json::Value> = rename_result
+                    .edits
+                    .iter()
+                    .map(|edit| {
+                        serde_json::json!({
+                            "line": edit.line,
+                            "column": edit.column,
+                            "old_name": edit.old_name,
+                            "new_name": edit.new_name,
+                        })
+                    })
+                    .collect();
+
+                let output = serde_json::json!({
+                    "edit_count": json_edits.len(),
+                    "edits": json_edits,
+                    "updated_source": rename_result.updated_source,
+                });
+
+                match serde_json::to_string_pretty(&output) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize rename result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                println!("renamed\t{} edits", rename_result.edits.len());
+                for edit in rename_result.edits.iter() {
+                    println!(
+                        "{}:{}:{}\t{} -> {}",
+                        file.display(),
+                        edit.line,
+                        edit.column,
+                        edit.old_name,
+                        edit.new_name
                     );
                 }
             }
