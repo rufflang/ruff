@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 LSP Follow-Through: Initial Rename Refactoring + CLI Surface (P1)**:
+  - Added `src/lsp_rename.rs` with scope-aware rename logic driven by symbol-reference resolution and identifier validation.
+  - Added `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME> [--json]` to return deterministic rename edits and updated source text.
+  - Added regression coverage for function-definition-and-call rename updates, shadowed-scope isolation, invalid-name rejection, and non-identifier cursor handling.
+  - This advances the active `v0.12.0` Language Server Protocol track by completing the initial rename-refactoring roadmap item; code actions remain open.
+
 - **v0.12.0 LSP Follow-Through: Initial Real-Time Diagnostics + CLI Surface (P1)**:
   - Added `src/lsp_diagnostics.rs` with syntax-oriented diagnostics for delimiter mismatches and parser panic capture.
   - Added `ruff lsp-diagnostics <file> [--json]` to expose diagnostics output for editor/LSP refresh loops.

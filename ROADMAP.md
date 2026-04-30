@@ -34,7 +34,7 @@ Priority work:
    - [x] find references (initial symbol-reference lookup via `ruff lsp-references`)
    - [x] hover documentation (initial hover symbol details via `ruff lsp-hover`)
    - [x] real-time diagnostics (initial syntax diagnostics via `ruff lsp-diagnostics`)
-   - [ ] rename refactoring
+   - [x] rename refactoring (initial symbol rename edits via `ruff lsp-rename`)
    - [ ] code actions
 
 2. **Formatter**
