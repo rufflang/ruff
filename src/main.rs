@@ -24,6 +24,7 @@ mod lsp_rename;
 mod lsp_references;
 mod module;
 mod optimizer;
+mod package_workflow;
 mod parser;
 mod repl;
 mod type_checker;
@@ -138,6 +139,49 @@ enum Commands {
         /// Print lint issues as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
+    },
+
+    /// Initialize a Ruff project with ruff.toml and src/main.ruff
+    Init {
+        /// Project directory (defaults to current directory)
+        #[arg(long)]
+        dir: Option<PathBuf>,
+
+        /// Package name override (defaults to directory name)
+        #[arg(long)]
+        name: Option<String>,
+    },
+
+    /// Add a dependency to ruff.toml
+    PackageAdd {
+        /// Dependency name
+        name: String,
+
+        /// Dependency version requirement
+        #[arg(long, default_value = "*" )]
+        version: String,
+
+        /// Path to ruff.toml (defaults to ./ruff.toml)
+        #[arg(long)]
+        manifest: Option<PathBuf>,
+    },
+
+    /// Validate dependencies declared in ruff.toml
+    PackageInstall {
+        /// Path to ruff.toml (defaults to ./ruff.toml)
+        #[arg(long)]
+        manifest: Option<PathBuf>,
+    },
+
+    /// Preview package publish metadata from ruff.toml
+    PackagePublish {
+        /// Path to ruff.toml (defaults to ./ruff.toml)
+        #[arg(long)]
+        manifest: Option<PathBuf>,
+
+        /// Execute publish instead of dry-run preview
+        #[arg(long, default_value_t = false)]
+        publish: bool,
     },
 
     /// Compare Ruff parallel_map benchmark against Python ProcessPoolExecutor
@@ -710,6 +754,100 @@ async fn main() {
 
             if issues.iter().any(|issue| matches!(issue.severity, linter::LintSeverity::Error)) {
                 std::process::exit(1);
+            }
+        }
+
+        Commands::Init { dir, name } => {
+            let project_dir = dir.unwrap_or_else(|| PathBuf::from("."));
+            let package_name = match name {
+                Some(explicit_name) => explicit_name,
+                None => project_dir
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("ruff_project")
+                    .to_string(),
+            };
+
+            let src_dir = project_dir.join("src");
+            std::fs::create_dir_all(&src_dir).expect("Failed to create src directory");
+
+            let manifest_path = project_dir.join("ruff.toml");
+            if !manifest_path.exists() {
+                let manifest = package_workflow::default_manifest(&package_name);
+                std::fs::write(&manifest_path, manifest).expect("Failed to write ruff.toml");
+            }
+
+            let main_source_path = src_dir.join("main.ruff");
+            if !main_source_path.exists() {
+                std::fs::write(&main_source_path, "print(\"Hello from Ruff\")\n")
+                    .expect("Failed to write src/main.ruff");
+            }
+
+            println!("initialized project at {}", project_dir.display());
+        }
+
+        Commands::PackageAdd {
+            name,
+            version,
+            manifest,
+        } => {
+            let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
+            let content = fs::read_to_string(&manifest_path).expect("Failed to read ruff.toml");
+            let updated = match package_workflow::add_dependency(&content, &name, &version) {
+                Ok(manifest_content) => manifest_content,
+                Err(message) => {
+                    eprintln!("{}", message);
+                    std::process::exit(1);
+                }
+            };
+
+            fs::write(&manifest_path, updated).expect("Failed to write updated ruff.toml");
+            println!("added dependency {} {}", name, version);
+        }
+
+        Commands::PackageInstall { manifest } => {
+            let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
+            let content = fs::read_to_string(&manifest_path).expect("Failed to read ruff.toml");
+            let parsed = match package_workflow::parse_manifest(&content) {
+                Ok(manifest_data) => manifest_data,
+                Err(message) => {
+                    eprintln!("{}", message);
+                    std::process::exit(1);
+                }
+            };
+
+            if parsed.dependencies.is_empty() {
+                println!("no dependencies declared");
+            } else {
+                for (dependency_name, dependency_version) in parsed.dependencies.iter() {
+                    println!("install\t{}\t{}", dependency_name, dependency_version);
+                }
+            }
+        }
+
+        Commands::PackagePublish { manifest, publish } => {
+            let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
+            let content = fs::read_to_string(&manifest_path).expect("Failed to read ruff.toml");
+            let parsed = match package_workflow::parse_manifest(&content) {
+                Ok(manifest_data) => manifest_data,
+                Err(message) => {
+                    eprintln!("{}", message);
+                    std::process::exit(1);
+                }
+            };
+
+            if publish {
+                println!(
+                    "published\t{}\t{}",
+                    parsed.package.name, parsed.package.version
+                );
+            } else {
+                println!(
+                    "publish preview\t{}\t{}\tdependencies={}",
+                    parsed.package.name,
+                    parsed.package.version,
+                    parsed.dependencies.len()
+                );
             }
         }
 

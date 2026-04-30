@@ -23,6 +23,7 @@ pub mod lsp_rename;
 pub mod lsp_references;
 pub mod module;
 pub mod optimizer;
+pub mod package_workflow;
 pub mod parser;
 pub mod repl;
 pub mod type_checker;
