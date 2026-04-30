@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **v0.12.0 Linter Follow-Through: Initial Linter Rules + CLI Surface (P1)**:
+  - Added `src/linter.rs` with initial lint rules for unused variables, unreachable code after terminators, obvious annotation/literal type mismatches, and missing error-handling patterns for fallible calls.
+  - Added `ruff lint <file> [--fix] [--json]` for lint reporting and safe autofix application.
+  - Added safe autofix support for selected rules (unused-variable underscore-prefixing) and deterministic structured issue output.
+  - Added regression coverage for all initial rule categories and safe-fix behavior.
+
 - **v0.12.0 Formatter Follow-Through: Initial Formatter Engine + CLI Surface (P1)**:
   - Added `src/formatter.rs` with initial opinionated formatting rules for spacing, indentation, and optional wrapping of long comma-separated expressions.
   - Added `ruff format <file> [--indent <N>] [--line-length <N>] [--no-sort-imports] [--check] [--write]` for formatter usage in preview, check, and write-back modes.

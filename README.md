@@ -85,6 +85,7 @@ The current CLI exposes these subcommands:
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff repl` | Start the interactive REPL. |
 | `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`). |
+| `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax. |
 | `ruff bench [path]` | Run benchmark scripts. |
@@ -135,6 +136,16 @@ Ruff now includes an initial formatter surface via `ruff format` with:
 - configurable indentation width
 - line-length-aware wrapping for comma-separated expressions
 - leading import-block sorting (optionally disabled)
+
+## v0.12.0 Linter Progress
+
+Ruff now includes an initial linter surface via `ruff lint` with:
+
+- unused variable detection
+- unreachable statement detection after control-flow terminators
+- obvious annotation/literal type mismatch checks
+- missing error-handling pattern warnings for common fallible calls
+- safe autofix support for selected rules (unused-variable underscore-prefixing)
 
 ## Language Overview
 

@@ -50,11 +50,11 @@ Priority work:
 
    Planned rules:
 
-   - unused variables
-   - unreachable code
-   - obvious type mismatches
-   - missing error-handling patterns
-   - auto-fix for safe rules
+   - [x] unused variables (initial token-based declaration/use checks)
+   - [x] unreachable code (initial post-terminator statement checks)
+   - [x] obvious type mismatches (initial annotation-literal mismatch checks)
+   - [x] missing error-handling patterns (initial fallible-call pattern checks)
+   - [x] auto-fix for safe rules (initial unused-variable underscore-prefix fix)
 
 4. **Package/project workflow**
 

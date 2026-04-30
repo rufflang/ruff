@@ -29,3 +29,4 @@ High-signal session notes:
 - `2026-04-29_22-47_lsp-rename-refactoring-cli.md` — Added `ruff lsp-rename` with scope-aware rename edits, updated-source preview output, and release-cycle verification evidence.
 - `2026-04-29_22-49_lsp-code-actions-cli.md` — Added `ruff lsp-code-actions` with diagnostics-driven syntax quick-fixes and release-cycle verification evidence.
 - `2026-04-29_22-53_formatter-initial-cli.md` — Added `ruff format` with configurable indentation, line-length wrapping, and leading import-block sorting.
+- `2026-04-29_22-57_linter-initial-cli.md` — Added `ruff lint` with initial rule coverage, structured output, and safe autofix support.
