@@ -238,6 +238,8 @@ Native functions are registered in `src/interpreter/mod.rs` and dispatched throu
 
 The standard library is broad, but not all functions have polished reference documentation yet. When adding user-facing docs for a specific API, verify the handler contract in `src/interpreter/native_functions/` and the corresponding regression tests.
 
+High-risk native APIs (process/network/filesystem/crypto/database) are powerful and unsandboxed by default. Review `docs/NATIVE_API_SECURITY_POSTURE.md` before running untrusted scripts or deploying automation in shared environments.
+
 ## Testing
 
 Ruff has two testing layers.
@@ -301,9 +303,9 @@ These are intentional caveats for production readers rather than fine print:
 - Ruff is source-built today. Do not assume official release binaries or package-manager taps are available.
 - VM execution is the default, but the tree-walking interpreter still matters for some language surfaces and diagnostics.
 - Static typing is optional and not a VM-enforced compile-time contract in the current CLI path.
-- `import`/`export` syntax and module execution/export collection are implemented, but broader package/module workflow hardening is still active v1.0.0 work.
+- `import`/`export` syntax and module execution/export collection are implemented, and end-to-end package/module workflow integration coverage is present for core CLI flows.
 - Struct fields and instance literals exist, and explicit `self` struct methods are parity-covered in VM/interpreter tests.
-- Spread literals and destructuring syntax exist, but destructuring parity gaps remain in VM-path coverage for the tracked scenario in the parity matrix.
+- Spread literals and destructuring syntax are parity-covered in VM/interpreter tests for the tracked matrix scenarios.
 - `spawn { ... }` is parsed and executed as fire-and-forget work; do not rely on spawned output or shared state without using the explicit concurrency/native async APIs.
 - `Result`/`Option` values are implemented, but richer pattern-binding behavior remains an active compatibility-hardening surface.
 - Benchmark numbers are environment-sensitive. Prefer `bench-ssg --runs <N> --warmup-runs <N>` and read the measurement warnings before drawing conclusions.
@@ -319,6 +321,8 @@ These are intentional caveats for production readers rather than fine print:
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md): benchmark and profiling notes.
 - [docs/VM_INSTRUCTIONS.md](docs/VM_INSTRUCTIONS.md): bytecode VM instruction reference.
 - [docs/EXTENDING.md](docs/EXTENDING.md): adding native functionality.
+- [docs/DEPRECATION_POLICY.md](docs/DEPRECATION_POLICY.md): semver-tied deprecation windows and removal policy.
+- [docs/NATIVE_API_SECURITY_POSTURE.md](docs/NATIVE_API_SECURITY_POSTURE.md): trust model and operational caveats for high-risk native APIs.
 
 Some older docs may lag the current VM-default execution path. Prefer the code and tests when behavior differs.
 

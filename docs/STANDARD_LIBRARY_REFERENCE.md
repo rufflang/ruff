@@ -1,0 +1,195 @@
+# Standard Library Reference (v1.0.0)
+
+Status: v1.0.0 baseline draft (active)
+Last updated: 2026-05-01
+
+This is the canonical native standard library reference for major builtin categories in v1.
+
+Tier definitions:
+
+- `stable`: expected to remain backward-compatible across v1 patch/minor releases
+- `preview`: available and documented, but may evolve with additional edge-case hardening
+- `experimental`: available for advanced workflows, with higher change risk before post-v1 hardening
+
+Source of truth:
+
+- runtime registration and dispatch are implemented in `src/interpreter/mod.rs`
+- builtin name inventory is returned by `Interpreter::get_builtin_names()`
+
+## Core IO and Formatting
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `print` | stable | `print("hello")` |
+| `input` | preview | `name := input("name: ")` |
+| `format` | stable | `line := format("{}-{}", ["a", 1])` |
+
+## Strings and Text
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `len` | stable | `size := len("abc")` |
+| `substring` | stable | `part := substring("abcdef", 1, 4)` |
+| `to_upper` | stable | `v := to_upper("hello")` |
+| `to_lower` | stable | `v := to_lower("HELLO")` |
+| `trim` | stable | `v := trim("  hi  ")` |
+| `contains` | stable | `ok := contains("abcdef", "cd")` |
+| `replace_str` | stable | `v := replace_str("a-b", "-", "_")` |
+| `split` | stable | `parts := split("a,b", ",")` |
+| `join` | stable | `text := join(["a", "b"], ",")` |
+| `starts_with` | stable | `ok := starts_with("abc", "a")` |
+| `ends_with` | stable | `ok := ends_with("abc", "c")` |
+| `slugify` | preview | `slug := slugify("Hello World")` |
+| `to_camel_case` | preview | `v := to_camel_case("hello_world")` |
+| `to_snake_case` | preview | `v := to_snake_case("helloWorld")` |
+| `to_kebab_case` | preview | `v := to_kebab_case("helloWorld")` |
+
+## Arrays and Collection Helpers
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `push` | stable | `arr := push([1, 2], 3)` |
+| `pop` | stable | `last := pop([1, 2, 3])` |
+| `insert` | stable | `arr := insert([1, 3], 1, 2)` |
+| `remove_at` | stable | `arr := remove_at([1, 2, 3], 1)` |
+| `slice` | stable | `part := slice([1, 2, 3, 4], 1, 3)` |
+| `concat` | stable | `all := concat([1], [2, 3])` |
+| `map` | stable | `out := map([1, 2], func (x) { return x * 2 })` |
+| `filter` | stable | `out := filter([1, 2, 3], func (x) { return x > 1 })` |
+| `reduce` | stable | `sum := reduce([1, 2, 3], 0, func (a, b) { return a + b })` |
+| `sort` | preview | `out := sort([3, 1, 2])` |
+| `reverse` | preview | `out := reverse([1, 2, 3])` |
+| `chunk` | preview | `out := chunk([1, 2, 3, 4], 2)` |
+| `flatten` | preview | `out := flatten([[1], [2, 3]])` |
+| `zip` | preview | `out := zip([1, 2], ["a", "b"])` |
+| `range` | stable | `nums := range(0, 5)` |
+
+## Dicts and Structured Data
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `keys` | stable | `k := keys({"a": 1, "b": 2})` |
+| `values` | stable | `v := values({"a": 1, "b": 2})` |
+| `items` | stable | `it := items({"a": 1})` |
+| `has_key` | stable | `ok := has_key({"a": 1}, "a")` |
+| `get` | stable | `v := get({"a": 1}, "a")` |
+| `get_default` | stable | `v := get_default({"a": 1}, "b", 0)` |
+| `merge` | preview | `m := merge({"a": 1}, {"b": 2})` |
+| `update` | preview | `m := update({"a": 1}, {"a": 2})` |
+| `invert` | preview | `m := invert({"a": 1, "b": 2})` |
+| `parse_json` | stable | `obj := parse_json("{\"a\":1}")` |
+| `to_json` | stable | `txt := to_json({"a": 1})` |
+| `parse_toml` | preview | `cfg := parse_toml("x = 1")` |
+| `to_toml` | preview | `txt := to_toml({"x": 1})` |
+| `parse_yaml` | preview | `cfg := parse_yaml("x: 1")` |
+| `to_yaml` | preview | `txt := to_yaml({"x": 1})` |
+| `parse_csv` | preview | `rows := parse_csv("name\nruff")` |
+| `to_csv` | preview | `txt := to_csv([["name"], ["ruff"]])` |
+
+## Math, Time, and Random
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `abs` | stable | `v := abs(-1)` |
+| `sqrt` | stable | `v := sqrt(9)` |
+| `pow` | stable | `v := pow(2, 8)` |
+| `min` | stable | `v := min(1, 2)` |
+| `max` | stable | `v := max(1, 2)` |
+| `random` | preview | `v := random()` |
+| `random_int` | preview | `v := random_int(1, 10)` |
+| `set_random_seed` | preview | `set_random_seed(42)` |
+| `now` | stable | `t := now()` |
+| `current_timestamp` | stable | `ts := current_timestamp()` |
+| `performance_now` | preview | `ms := performance_now()` |
+| `elapsed` | preview | `dt := elapsed(now())` |
+
+## File System and Paths
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `read_file` | stable | `txt := read_file("notes.txt")` |
+| `write_file` | stable | `write_file("notes.txt", "hello")` |
+| `append_file` | stable | `append_file("notes.txt", "more")` |
+| `file_exists` | stable | `ok := file_exists("notes.txt")` |
+| `list_dir` | stable | `entries := list_dir(".")` |
+| `create_dir` | stable | `create_dir("tmp")` |
+| `delete_file` | stable | `delete_file("old.txt")` |
+| `rename_file` | stable | `rename_file("a.txt", "b.txt")` |
+| `copy_file` | preview | `copy_file("a.txt", "b.txt")` |
+| `join_path` | stable | `p := join_path("a", "b")` |
+| `dirname` | stable | `d := dirname("a/b.txt")` |
+| `basename` | stable | `b := basename("a/b.txt")` |
+| `path_absolute` | preview | `p := path_absolute(".")` |
+| `path_is_dir` | stable | `ok := path_is_dir(".")` |
+| `path_is_file` | stable | `ok := path_is_file("a.txt")` |
+
+## Environment, Process, and Concurrency
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `env` | stable | `home := env("HOME")` |
+| `env_or` | stable | `mode := env_or("MODE", "dev")` |
+| `args` | stable | `argv := args()` |
+| `sleep` | stable | `sleep(100)` |
+| `execute` | preview | `result := execute(["echo", "hi"])` |
+| `spawn_process` | experimental | `proc := spawn_process(["echo", "hi"])` |
+| `pipe_commands` | experimental | `out := pipe_commands([["echo", "hi"], ["cat"]])` |
+| `channel` | preview | `ch := channel()` |
+| `shared_set` | preview | `shared_set("count", 1)` |
+| `shared_get` | preview | `v := shared_get("count")` |
+| `shared_add_int` | preview | `shared_add_int("count", 1)` |
+| `parallel_map` | preview | `out := parallel_map([1,2], func (x) { return x + 1 })` |
+| `set_task_pool_size` | preview | `set_task_pool_size(8)` |
+| `get_task_pool_size` | preview | `n := get_task_pool_size()` |
+
+## Network, HTTP, and Auth
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `http_get` | preview | `res := http_get("https://example.com")` |
+| `http_post` | preview | `res := http_post("https://example.com", {"x":1})` |
+| `http_get_binary` | preview | `blob := http_get_binary("https://example.com/a.bin")` |
+| `parallel_http` | preview | `all := parallel_http(["https://a", "https://b"])` |
+| `http_server` | experimental | `srv := http_server(8080)` |
+| `http_response` | preview | `res := http_response(200, "ok")` |
+| `json_response` | preview | `res := json_response({"ok": true})` |
+| `jwt_encode` | preview | `tok := jwt_encode({"sub":"user"}, "secret")` |
+| `jwt_decode` | preview | `payload := jwt_decode(tok, "secret")` |
+| `oauth2_auth_url` | preview | `url := oauth2_auth_url(cfg)` |
+| `oauth2_get_token` | preview | `tok := oauth2_get_token(cfg)` |
+
+## Database, Compression, Crypto, and Image
+
+| Function | Tier | Example |
+| --- | --- | --- |
+| `db_connect` | preview | `db := db_connect("sqlite://local.db")` |
+| `db_query` | preview | `rows := db_query(db, "select 1")` |
+| `db_execute` | preview | `n := db_execute(db, "delete from t")` |
+| `db_pool` | experimental | `pool := db_pool(cfg)` |
+| `zip_create` | preview | `z := zip_create("out.zip")` |
+| `zip_add_file` | preview | `zip_add_file(z, "a.txt")` |
+| `unzip` | preview | `unzip("in.zip", "out")` |
+| `sha256` | stable | `h := sha256("hello")` |
+| `md5` | stable | `h := md5("hello")` |
+| `hash_password` | preview | `h := hash_password("secret")` |
+| `verify_password` | preview | `ok := verify_password("secret", h)` |
+| `aes_encrypt` | experimental | `c := aes_encrypt("msg", key)` |
+| `aes_decrypt` | experimental | `p := aes_decrypt(c, key)` |
+| `rsa_generate_keypair` | experimental | `kp := rsa_generate_keypair()` |
+| `rsa_sign` | experimental | `sig := rsa_sign(data, key)` |
+| `load_image` | preview | `img := load_image("photo.png")` |
+| `gif_to_webp` | preview | `out := gif_to_webp("in.gif", "out.webp")` |
+
+## Dispatch and Coverage Guarantees
+
+This reference is validated by tests to stay aligned with runtime dispatch:
+
+- `tests/interpreter_tests.rs::test_builtin_names_include_release_hardening_contract_entries`
+- `tests/interpreter_tests.rs::test_builtin_names_do_not_contain_duplicates`
+- `tests/stdlib_reference_contract.rs::stdlib_reference_documents_runtime_builtins`
+
+When adding/removing/renaming builtins, update all of:
+
+- `src/interpreter/mod.rs` builtin registration/dispatch
+- this document
+- the reference contract tests

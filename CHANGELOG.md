@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added contract metadata sync guard script `.github/scripts/check-contract-version-sync.sh` and CI wiring in `.github/workflows/release-state-guard.yml` to fail when v1 contract status/version markers drift across `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
 - Added negative-path CLI JSON contract coverage in `tests/cli_json_contracts.rs` for malformed parameters, unknown-symbol rename failures, and missing-file IO failures with locked exit-code/stdout/stderr expectations.
 - Added `tests/optional_typing_v1_contract.rs` to lock v1 optional-typing behavior: annotation metadata is preserved by the parser while runtime execution remains dynamic by default (no implicit enforcement).
+- Added canonical major-category builtin reference `docs/STANDARD_LIBRARY_REFERENCE.md` with per-function stability tiers and examples, plus `tests/stdlib_reference_contract.rs` to verify docs remain aligned with runtime builtin registration.
+- Added formal semver-tied deprecation policy in `docs/DEPRECATION_POLICY.md` covering warning format, deprecation windows, removal floors, and required release/process artifacts for CLI/LSP/runtime surface changes.
+- Added native API security posture reference `docs/NATIVE_API_SECURITY_POSTURE.md` with explicit trust model and operational caveats for process/network/filesystem/crypto/database builtins.
+- Added `tests/native_api_security_boundaries.rs` integration coverage to lock deterministic misuse/failure boundary behavior for high-risk process/network/filesystem/crypto/database native APIs.
 
 ### Changed
 
@@ -30,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed contract metadata baselines in CLI/LSP/language docs to a unified v1 draft marker (`Status: v1.0.0 baseline draft (active)`, version `1.0.0-draft`) for release-cycle contract freezing.
 - Changed `format`/`lint` CLI file IO handling in `src/main.rs` to return deterministic runtime errors (exit `1`) instead of panicking on missing/unreadable inputs in JSON automation paths.
 - Changed `docs/OPTIONAL_TYPING_DESIGN.md` from exploratory notes into an explicit v1 policy document that defines supported annotation metadata behavior and deferred enforcement/optimization tracks.
+- Updated `README.md` documentation and native-stdlib guidance to reference the formal deprecation policy and high-risk native API security posture docs.
 
 ## [0.14.0] - 2026-04-30
 

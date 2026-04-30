@@ -103,19 +103,19 @@ Use this checklist as the execution queue for follow-up sessions.
 - [x] Publish explicit v1 optional-typing stance.
 	- [x] Convert exploratory wording in `docs/OPTIONAL_TYPING_DESIGN.md` into a concrete v1 policy (supported vs experimental vs deferred).
 	- [x] Add tests for whichever v1 typing contract is declared.
-- [ ] Expand native standard library documentation coverage to canonical reference quality.
-	- Generate/maintain per-function docs with stability tiers and examples for major builtin categories.
-	- Ensure docs map to actual runtime dispatch behavior and tests.
-- [ ] Add end-to-end package + module workflow integration tests.
-	- Cover `ruff init`, `package-add`, `package-install`, import/export execution, and run/lint/format/docgen flows together.
+- [x] Expand native standard library documentation coverage to canonical reference quality.
+	- [x] Generate/maintain per-function docs with stability tiers and examples for major builtin categories.
+	- [x] Ensure docs map to actual runtime dispatch behavior and tests.
+- [x] Add end-to-end package + module workflow integration tests.
+	- [x] Cover `ruff init`, `package-add`, `package-install`, import/export execution, and run/lint/format/docgen flows together.
 
 #### P2: Nice-To-Have Hardening Before/Just After v1
 
-- [ ] Publish a formal deprecation policy for CLI/LSP/runtime surfaces.
-	- Define warning format, deprecation windows, and removal policy tied to semver.
-- [ ] Add a security posture pass for high-risk native APIs.
-	- Document trust model and operational caveats for process/network/filesystem/crypto/database builtins.
-	- Add targeted regression tests for failure and misuse boundaries.
+- [x] Publish a formal deprecation policy for CLI/LSP/runtime surfaces.
+	- [x] Define warning format, deprecation windows, and removal policy tied to semver.
+- [x] Add a security posture pass for high-risk native APIs.
+	- [x] Document trust model and operational caveats for process/network/filesystem/crypto/database builtins.
+	- [x] Add targeted regression tests for failure and misuse boundaries.
 
 ---
 
