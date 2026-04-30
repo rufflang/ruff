@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added tree-sitter regression corpus fixture `tree-sitter-ruff/test/corpus/regressions.txt` for async/await, struct field-access, and match-pattern edge-case coverage.
 - Added LSP reliability-track test suite `tests/lsp_reliability_track.rs` covering malformed sequence resilience, lifecycle churn stability, bounded document-state checks under repeated request loops, and startup/first-response latency guardrails.
 - Added `docs/LSP_RELIABILITY.md` documenting lifecycle churn contracts, bounded-state expectations, and tracked latency baselines.
+- Added `docs/V1_SCOPE.md` defining explicit `v1.0.0` in-scope/out-of-scope boundaries, compatibility commitments, and deferred post-1.0 backlog candidates.
 
 ### Changed
 
@@ -43,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `docs/EDITOR_ADAPTER_BASELINES.md` maintenance policy boundaries and `docs/INSTALLATION_LSP_EDITORS.md` `.vsix` install guidance for VS Code/Cursor/Codex-compatible editors.
 - Updated release artifact validation CI matrix to run extension smoke checks (`npm ci && npm run check`).
 - Updated LSP contract CI matrix (`.github/workflows/lsp-contract-matrix.yml`) to run `cargo test --test lsp_reliability_track`.
+
+### v1.0.0 Readiness Callout
+
+- `v0.14.0` stabilization checklist is the required gate before `v1.0.0` tagging.
+- Deferred non-blocking post-1.0 candidates are explicitly tracked in `docs/V1_SCOPE.md`: generics, FFI, WASM target, macro system.
+- `v1.0.0` release readiness requires contract and release-process docs/tests to stay in sync with the completed `v0.14.0` checklist.
 
 ## [0.13.0] - 2026-04-30
 

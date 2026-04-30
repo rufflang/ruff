@@ -93,14 +93,14 @@ Acceptance criteria:
 
 Required features:
 
-- [ ] publish `docs/V1_SCOPE.md` with explicit in-scope/out-of-scope boundaries for `v1.0.0`
-- [ ] define compatibility commitments for language syntax/runtime behavior and machine-readable tooling contracts
-- [ ] record deferred post-1.0 candidates (generics, FFI, WASM target, macro system) as non-blocking backlog
+- [x] publish `docs/V1_SCOPE.md` with explicit in-scope/out-of-scope boundaries for `v1.0.0`
+- [x] define compatibility commitments for language syntax/runtime behavior and machine-readable tooling contracts
+- [x] record deferred post-1.0 candidates (generics, FFI, WASM target, macro system) as non-blocking backlog
 
 Acceptance criteria:
 
-- [ ] `v1.0.0` scope can be reviewed without mining historical roadmap notes
-- [ ] `v0.14.0` release notes clearly call out what remains before `v1.0.0`
+- [x] `v1.0.0` scope can be reviewed without mining historical roadmap notes
+- [x] `v0.14.0` release notes clearly call out what remains before `v1.0.0`
 
 ---
 
