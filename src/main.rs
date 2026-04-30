@@ -15,6 +15,7 @@ mod jit;
 mod lexer;
 mod lsp_completion;
 mod lsp_definition;
+mod lsp_references;
 mod module;
 mod optimizer;
 mod parser;
@@ -217,6 +218,28 @@ enum Commands {
         column: usize,
 
         /// Print definition result as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
+    /// Return all references for the identifier under cursor
+    LspReferences {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// 1-based line number for the references request
+        #[arg(long)]
+        line: usize,
+
+        /// 1-based column number for the references request
+        #[arg(long)]
+        column: usize,
+
+        /// Include definition location in results
+        #[arg(long, default_value_t = true)]
+        include_definition: bool,
+
+        /// Print references as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
     },
@@ -1034,6 +1057,55 @@ async fn main() {
                     None => {
                         println!("not found");
                     }
+                }
+            }
+        }
+
+        Commands::LspReferences {
+            file,
+            line,
+            column,
+            include_definition,
+            json,
+        } => {
+            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let references =
+                lsp_references::find_references(&code, line, column, include_definition);
+
+            if json {
+                let json_items: Vec<serde_json::Value> = references
+                    .iter()
+                    .map(|reference| {
+                        serde_json::json!({
+                            "line": reference.line,
+                            "column": reference.column,
+                            "is_definition": reference.is_definition,
+                        })
+                    })
+                    .collect();
+
+                match serde_json::to_string_pretty(&json_items) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(e) => {
+                        eprintln!("Failed to serialize references result: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                for reference in references {
+                    let role = if reference.is_definition {
+                        "definition"
+                    } else {
+                        "reference"
+                    };
+
+                    println!(
+                        "{}\t{}:{}:{}",
+                        role,
+                        file.display(),
+                        reference.line,
+                        reference.column
+                    );
                 }
             }
         }
