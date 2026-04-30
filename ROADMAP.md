@@ -75,6 +75,20 @@ These must be closed before tagging `v0.11.0`.
    - warning status: trend drift, CV variability, mean/median drift, and range-spread warnings emitted across Ruff build/throughput and stage metrics
    - release note: the operator confirmed the machine was maxed out with other apps during this run, so this is local smoke evidence only and does not satisfy the final idle-machine release gate.
 
+   Additional local release-mode evidence from this audit:
+
+   - date: `2026-04-29 21:04 EDT`
+   - commit: `15d1eaa`
+   - command: `./target/release/ruff bench-ssg --runs 7 --warmup-runs 2 --profile-async --throughput-gate-ms 10000 --tmp-dir tmp/ruff-v0.11-ssg-gate`
+   - result: PASS
+   - Ruff median build time: `1804.098 ms`
+   - Ruff median throughput: `5542.94 files/sec`
+   - checksum: `946670`
+   - stage medians: read `1929.052 ms`, render/write `18918.995 ms`
+   - warning status: no benchmark warning sections emitted
+   - host context: macOS `26.3.1` on Darwin `25.3.0`; load averages captured before the run were `3.95 4.71 3.75`
+   - release note: this was a clean local release-mode PASS, but idle-machine status was not operator-confirmed, so it is local evidence only and does not satisfy the final idle-machine release gate.
+
 2. **Capture final cross-language context**
 
    Run the Python comparison on the same machine after the release-gate run. This is not the primary gate, but it gives release-note context and catches checksum drift against the Python baseline.
