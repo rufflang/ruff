@@ -157,7 +157,7 @@ Required features:
 Acceptance criteria:
 
 - [x] roadmap checkboxes for required `v0.13.0` items are complete
-- [ ] release tag is created only after evidence checklist is signed off
+- [x] release tag is created only after evidence checklist is signed off
 
 ---
 
