@@ -4466,10 +4466,67 @@ impl Interpreter {
             }
             _ => {
                 // Check if it's a struct method
-                match &obj {
-                    Value::Struct { name: _, fields: _ } => {
-                        // Look for method in struct definition
-                        // For now, return error
+                match obj {
+                    Value::Struct { name, fields } => {
+                        if let Some(Value::StructDef { name: _, field_names: _, methods }) =
+                            self.env.get(&name)
+                        {
+                            if let Some(Value::Function(params, body, _captured_env)) =
+                                methods.get(method)
+                            {
+                                self.env.push_scope();
+
+                                let has_self_param =
+                                    params.first().map(|param| param == "self").unwrap_or(false);
+
+                                if has_self_param {
+                                    self.env.define(
+                                        "self".to_string(),
+                                        Value::Struct {
+                                            name: name.clone(),
+                                            fields: fields.clone(),
+                                        },
+                                    );
+
+                                    for (index, param) in params.iter().skip(1).enumerate() {
+                                        if let Some(arg) = args.get(index) {
+                                            self.env.define(param.clone(), arg.clone());
+                                        }
+                                    }
+                                } else {
+                                    for (field_name, field_value) in &fields {
+                                        self.env.define(field_name.clone(), field_value.clone());
+                                    }
+
+                                    for (index, param) in params.iter().enumerate() {
+                                        if let Some(arg) = args.get(index) {
+                                            self.env.define(param.clone(), arg.clone());
+                                        }
+                                    }
+                                }
+
+                                self.eval_stmts(&body.get());
+
+                                let result = if let Some(Value::Return(value)) =
+                                    self.return_value.clone()
+                                {
+                                    self.return_value = None;
+                                    *value
+                                } else if let Some(Value::Error(message)) =
+                                    self.return_value.clone()
+                                {
+                                    Value::Error(message)
+                                } else {
+                                    self.return_value = None;
+                                    Value::Int(0)
+                                };
+
+                                self.env.pop_scope();
+
+                                return result;
+                            }
+                        }
+
                         Value::Error(format!("Unknown method: {}", method))
                     }
                     _ => Value::Error(format!("Unknown method: {}", method)),
