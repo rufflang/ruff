@@ -92,28 +92,41 @@ fn vm_and_interpreter_match_struct_method_behavior_contract() {
 }
 
 #[test]
-fn vm_and_interpreter_document_current_spread_destructuring_gap() {
+fn vm_and_interpreter_match_spread_destructuring_surface() {
     let script = r#"
         values := [1, 2, 3, 4]
         let [first, second, third, fourth] := values
         profile := {"a": 1, "b": 2, "c": 3}
         let {a, b, c} := profile
+        destructuring_ok := first == 1 && second == 2 && third == 3 && fourth == 4 && a == 1 && b == 2 && c == 3
         spread_array := [0, ...values, 9]
         spread_dict := {"x": 0, ...profile, "z": 9}
-        spread_ok := first == 1 && second == 2 && third == 3 && fourth == 4 && a == 1 && b == 2 && c == 3 && spread_array[2] == 2 && spread_dict["b"] == 2
+        spread_ok := spread_array[2] == 2 && spread_dict["b"] == 2
     "#;
 
     let interp = run_interpreter(&script);
     assert!(interp.return_value.is_none(), "interpreter returned runtime error: {:?}", interp.return_value);
+    assert!(matches!(interp.env.get("destructuring_ok"), Some(Value::Bool(true))));
     assert!(matches!(interp.env.get("spread_ok"), Some(Value::Bool(true))));
 
     let vm_env = vm_env_with_builtins();
     let vm_result = run_vm(script, vm_env.clone());
+    assert!(vm_result.is_ok(), "vm execution failed: {:?}", vm_result.err());
+
+    let vm_globals = vm_env.lock().expect("failed to lock vm globals");
     assert!(
-        matches!(vm_result, Err(ref message) if message.contains("Undefined global: first")),
-        "expected VM destructuring gap error, got {:?}",
-        vm_result
+        matches!(vm_globals.get("destructuring_ok"), Some(Value::Bool(true))),
+        "vm destructuring values: first={:?}, second={:?}, third={:?}, fourth={:?}, a={:?}, b={:?}, c={:?}, destructuring_ok={:?}",
+        vm_globals.get("first"),
+        vm_globals.get("second"),
+        vm_globals.get("third"),
+        vm_globals.get("fourth"),
+        vm_globals.get("a"),
+        vm_globals.get("b"),
+        vm_globals.get("c"),
+        vm_globals.get("destructuring_ok")
     );
+    assert!(matches!(vm_globals.get("spread_ok"), Some(Value::Bool(false))));
 }
 
 #[test]

@@ -5955,32 +5955,93 @@ impl VM {
     fn match_pattern(&mut self, pattern: &Pattern, value: &Value) -> Result<bool, String> {
         match pattern {
             Pattern::Identifier(name) => {
-                // Bind the value to the name
-                if let Some(frame) = self.call_frames.last_mut() {
-                    frame.locals.insert(name.clone(), value.clone());
-                }
+                self.bind_pattern_name(name, value.clone());
                 Ok(true)
             }
 
             Pattern::Ignore => Ok(true),
 
-            Pattern::Array { elements: _, rest: _ } => {
-                if let Value::Array(_arr) = value {
-                    // TODO: Implement full pattern matching
+            Pattern::Array { elements, rest } => {
+                if let Value::Array(arr) = value {
+                    if rest.is_none() && arr.len() != elements.len() {
+                        return Ok(false);
+                    }
+
+                    if arr.len() < elements.len() {
+                        return Ok(false);
+                    }
+
+                    for (index, element_pattern) in elements.iter().enumerate() {
+                        if !self.match_pattern(element_pattern, &arr[index])? {
+                            return Ok(false);
+                        }
+                    }
+
+                    if let Some(rest_name) = rest {
+                        let rest_values = arr[elements.len()..].to_vec();
+                        self.bind_pattern_name(rest_name, Value::Array(std::sync::Arc::new(rest_values)));
+                    }
+
                     Ok(true)
                 } else {
                     Ok(false)
                 }
             }
 
-            Pattern::Dict { keys: _, rest: _ } => {
-                if let Value::Dict(_dict) = value {
-                    // TODO: Implement full pattern matching
+            Pattern::Dict { keys, rest } => match value {
+                Value::Dict(dict) => {
+                    for key in keys {
+                        let Some(dict_value) = dict.get(key.as_str()) else {
+                            return Ok(false);
+                        };
+                        self.bind_pattern_name(key, dict_value.clone());
+                    }
+
+                    if let Some(rest_name) = rest {
+                        let mut rest_dict = DictMap::default();
+                        for (key, dict_value) in dict.iter() {
+                            if !keys.iter().any(|existing| existing.as_str() == key.as_ref()) {
+                                rest_dict.insert(key.clone(), dict_value.clone());
+                            }
+                        }
+                        self.bind_pattern_name(rest_name, Value::Dict(std::sync::Arc::new(rest_dict)));
+                    }
+
                     Ok(true)
-                } else {
-                    Ok(false)
                 }
-            }
+                Value::FixedDict { keys: dict_keys, values } => {
+                    for key in keys {
+                        let key_index = dict_keys.iter().position(|dict_key| dict_key.as_ref() == key.as_str());
+                        let Some(index) = key_index else {
+                            return Ok(false);
+                        };
+                        self.bind_pattern_name(key, values[index].clone());
+                    }
+
+                    if let Some(rest_name) = rest {
+                        let mut rest_dict = DictMap::default();
+                        for (dict_key, dict_value) in dict_keys.iter().zip(values.iter()) {
+                            if !keys.iter().any(|existing| existing.as_str() == dict_key.as_ref()) {
+                                rest_dict.insert(dict_key.clone(), dict_value.clone());
+                            }
+                        }
+                        self.bind_pattern_name(rest_name, Value::Dict(std::sync::Arc::new(rest_dict)));
+                    }
+
+                    Ok(true)
+                }
+                _ => Ok(false),
+            },
+        }
+    }
+
+    fn bind_pattern_name(&mut self, name: &str, value: Value) {
+        if self.call_frames.len() <= 1 {
+            self.globals.lock().unwrap().set(name.to_string(), value.clone());
+        }
+
+        if let Some(frame) = self.call_frames.last_mut() {
+            frame.locals.insert(name.to_string(), value);
         }
     }
 
