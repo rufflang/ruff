@@ -48,6 +48,10 @@ enum Commands {
         #[arg(long)]
         interpreter: bool,
 
+        /// Cooperative scheduler timeout in milliseconds (overrides env/default)
+        #[arg(long)]
+        scheduler_timeout_ms: Option<u64>,
+
         /// Arguments to pass to the script
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         script_args: Vec<String>,
@@ -182,13 +186,23 @@ enum Commands {
 
 const DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS: u64 = 120_000;
 
-fn cooperative_scheduler_timeout() -> std::time::Duration {
+fn cooperative_scheduler_timeout(
+    cli_timeout_ms: Option<u64>,
+) -> Result<std::time::Duration, String> {
+    if let Some(timeout_ms) = cli_timeout_ms {
+        if timeout_ms == 0 {
+            return Err("Scheduler timeout must be greater than 0ms".to_string());
+        }
+
+        return Ok(std::time::Duration::from_millis(timeout_ms));
+    }
+
     match std::env::var("RUFF_SCHEDULER_TIMEOUT_MS") {
         Ok(raw_timeout_ms) => match raw_timeout_ms.parse::<u64>() {
-            Ok(timeout_ms) if timeout_ms > 0 => std::time::Duration::from_millis(timeout_ms),
-            _ => std::time::Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS),
+            Ok(timeout_ms) if timeout_ms > 0 => Ok(std::time::Duration::from_millis(timeout_ms)),
+            _ => Ok(std::time::Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS)),
         },
-        Err(_) => std::time::Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS),
+        Err(_) => Ok(std::time::Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS)),
     }
 }
 
@@ -197,7 +211,15 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { file, interpreter, script_args } => {
+        Commands::Run { file, interpreter, scheduler_timeout_ms, script_args } => {
+            let scheduler_timeout = match cooperative_scheduler_timeout(scheduler_timeout_ms) {
+                Ok(timeout) => timeout,
+                Err(error_message) => {
+                    eprintln!("{}", error_message);
+                    std::process::exit(1);
+                }
+            };
+
             // Store script arguments in environment for args() function to retrieve
             // We need to prepend the script filename so the filtering logic works correctly
             if !script_args.is_empty() {
@@ -262,9 +284,7 @@ async fn main() {
                                     // Run scheduler until all contexts complete.
                                     // Use a timeout budget so long-running async workloads
                                     // can complete without relying on a fixed round count.
-                                    vm.run_scheduler_until_complete_with_timeout(
-                                        cooperative_scheduler_timeout(),
-                                    )
+                                    vm.run_scheduler_until_complete_with_timeout(scheduler_timeout)
                                 }
                                 Err(e) => Err(e),
                             };
@@ -910,5 +930,74 @@ async fn main() {
             // Cleanup
             interp.cleanup();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{cooperative_scheduler_timeout, DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS};
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_scheduler_timeout_env<F>(value: Option<&str>, test_fn: F)
+    where
+        F: FnOnce(),
+    {
+        let _guard = ENV_LOCK.lock().expect("environment lock poisoned");
+
+        match value {
+            Some(raw) => std::env::set_var("RUFF_SCHEDULER_TIMEOUT_MS", raw),
+            None => std::env::remove_var("RUFF_SCHEDULER_TIMEOUT_MS"),
+        }
+
+        test_fn();
+        std::env::remove_var("RUFF_SCHEDULER_TIMEOUT_MS");
+    }
+
+    #[test]
+    fn cooperative_scheduler_timeout_uses_default_when_unset() {
+        with_scheduler_timeout_env(None, || {
+            let timeout = cooperative_scheduler_timeout(None)
+                .expect("default scheduler timeout should resolve successfully");
+            assert_eq!(timeout, Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS));
+        });
+    }
+
+    #[test]
+    fn cooperative_scheduler_timeout_uses_env_when_cli_missing() {
+        with_scheduler_timeout_env(Some("2345"), || {
+            let timeout = cooperative_scheduler_timeout(None)
+                .expect("env scheduler timeout should resolve successfully");
+            assert_eq!(timeout, Duration::from_millis(2345));
+        });
+    }
+
+    #[test]
+    fn cooperative_scheduler_timeout_prefers_cli_over_env() {
+        with_scheduler_timeout_env(Some("5000"), || {
+            let timeout = cooperative_scheduler_timeout(Some(2500))
+                .expect("cli scheduler timeout should resolve successfully");
+            assert_eq!(timeout, Duration::from_millis(2500));
+        });
+    }
+
+    #[test]
+    fn cooperative_scheduler_timeout_rejects_cli_zero() {
+        with_scheduler_timeout_env(Some("5000"), || {
+            let error = cooperative_scheduler_timeout(Some(0))
+                .expect_err("zero cli scheduler timeout should be rejected");
+            assert_eq!(error, "Scheduler timeout must be greater than 0ms");
+        });
+    }
+
+    #[test]
+    fn cooperative_scheduler_timeout_falls_back_on_invalid_env() {
+        with_scheduler_timeout_env(Some("invalid"), || {
+            let timeout = cooperative_scheduler_timeout(None)
+                .expect("invalid env value should fall back to default");
+            assert_eq!(timeout, Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS));
+        });
     }
 }
