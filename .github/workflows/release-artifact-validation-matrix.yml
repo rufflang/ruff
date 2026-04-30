@@ -20,5 +20,16 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Validate release artifact install/checksum flow
         run: bash .github/scripts/validate-release-artifact.sh
+
+      - name: Validate first-party extension smoke check
+        working-directory: tools/vscode-ruff-extension
+        run: |
+          npm ci
+          npm run check

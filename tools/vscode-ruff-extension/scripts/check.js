@@ -50,4 +50,21 @@ if (!Array.isArray(ruff_language.extensions) || !ruff_language.extensions.includ
 	throw new Error('Ruff language must declare .ruff extension association.');
 }
 
+if (!Array.isArray(package_json.activationEvents) || !package_json.activationEvents.includes('onLanguage:ruff')) {
+	throw new Error('Extension must activate on Ruff language files (onLanguage:ruff).');
+}
+
+const lsp_properties = package_json.contributes
+	&& package_json.contributes.configuration
+	&& package_json.contributes.configuration.properties;
+
+if (!lsp_properties || !Array.isArray(lsp_properties['ruff.lsp.command'] && lsp_properties['ruff.lsp.command'].default)) {
+	throw new Error('Extension must define ruff.lsp.command default command array.');
+}
+
+const command_default = lsp_properties['ruff.lsp.command'].default;
+if (2 !== command_default.length || 'ruff' !== command_default[0] || 'lsp' !== command_default[1]) {
+	throw new Error('ruff.lsp.command default must be ["ruff", "lsp"].');
+}
+
 console.log('Extension static checks passed.');

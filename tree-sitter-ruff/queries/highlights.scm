@@ -10,6 +10,11 @@
 "in" @keyword
 "while" @keyword
 "return" @keyword
+"async" @keyword
+"await" @keyword
+"struct" @keyword
+"match" @keyword
+"case" @keyword
 
 (function_definition
   name: (identifier) @function)
