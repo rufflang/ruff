@@ -2,7 +2,7 @@
 
 This roadmap tracks work that is still current or upcoming. Completed features and implementation history belong in [CHANGELOG.md](CHANGELOG.md), not here.
 
-> Current crate version: `0.11.0` in [Cargo.toml](Cargo.toml)
+> Current crate version: `0.12.0` in [Cargo.toml](Cargo.toml)
 > Next planned release: `v0.13.0`
 > Last audited: April 30, 2026
 
