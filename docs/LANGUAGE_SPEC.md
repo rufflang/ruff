@@ -1,12 +1,12 @@
 # Ruff Language Specification
 
-Status: v0.14.0 baseline draft (active)
-Spec version: 0.14.0
+Status: v1.0.0 baseline draft (active)
+Spec version: 1.0.0-draft
 Last updated: 2026-04-30
 
 ## 1. Scope
 
-This document defines the Ruff language and tooling compatibility contract for the v0.14.0 release line.
+This document defines the Ruff language and tooling compatibility contract for the active v1.0.0 baseline draft.
 
 It is normative for:
 

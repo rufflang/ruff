@@ -15,3 +15,6 @@ jobs:
 
       - name: Validate Cargo and release-status docs consistency
         run: bash .github/scripts/check-release-state.sh
+
+      - name: Validate CLI/LSP/language contract metadata sync
+        run: bash .github/scripts/check-contract-version-sync.sh

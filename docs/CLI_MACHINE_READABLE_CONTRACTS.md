@@ -1,6 +1,7 @@
 # CLI Machine-Readable Contracts
 
-Status: v0.13.0 baseline
+Status: v1.0.0 baseline draft (active)
+Contract version: `1.0.0-draft`
 Last updated: 2026-04-30
 
 This document defines automation-facing contracts for Ruff CLI JSON outputs and exit behavior.
@@ -20,7 +21,7 @@ Notes:
 
 ## Error Shape Policy
 
-Current v0.13.0 baseline for CLI `--json` mode:
+Current v1.0.0 baseline draft for CLI `--json` mode:
 
 - `stdout` is reserved for machine-readable JSON payloads on successful command execution.
 - `stderr` carries human-readable error text for failures.
