@@ -1,12 +1,12 @@
 # Ruff Protocol Contracts
 
-Status: v0.13.0 baseline
+Status: v0.14.0 baseline
 
 This document defines machine-consumable protocol contracts used by Ruff CLI/LSP surfaces.
 
 ## Versioning
 
-Contract version: `0.13.0`
+Contract version: `0.14.0`
 
 Rules:
 

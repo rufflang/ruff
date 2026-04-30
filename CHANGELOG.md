@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-04-30
+
 ### Added
 
 - Added first-party VS Code/Cursor/Codex extension baseline under `tools/vscode-ruff-extension/` with:
@@ -4663,7 +4665,8 @@ This release completes the database foundation for production applications with 
 
 ---
 
-[Unreleased]: https://github.com/rufflang/ruff/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/rufflang/ruff/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/rufflang/ruff/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/rufflang/ruff/compare/v0.12.0...v0.13.0
 [0.3.0]: https://github.com/rufflang/ruff/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rufflang/ruff/releases/tag/v0.2.0

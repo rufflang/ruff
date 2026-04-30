@@ -2,7 +2,7 @@
 
 Ruff is a small programming language and runtime implemented in Rust. It is built for local scripting, automation, runtime experiments, and benchmarking work where a compact language with a Rust-hosted standard library is useful.
 
-The project is currently at `0.13.0` in `Cargo.toml`, after completing the cross-IDE language tooling foundation release. Next planned roadmap work targets `0.14.0` stabilization and `1.0.0` readiness follow-through. Ruff is usable from source today, but the language and runtime APIs are still evolving. Treat the repository tests, examples, and native-function dispatch tests as the source of truth for current behavior.
+The project is currently at `0.14.0` in `Cargo.toml`, after completing the stabilization and v1-runway release cycle. Next planned roadmap work targets `1.0.0` scope execution and compatibility hardening. Ruff is usable from source today, but the language and runtime APIs are still evolving. Treat the repository tests, examples, and native-function dispatch tests as the source of truth for current behavior.
 
 ## Current Status
 
@@ -23,7 +23,7 @@ Ruff language tooling is being aligned around a universal-first architecture:
 - shared grammar path for syntax highlighting
 - thin editor adapters that launch/configure Ruff tooling instead of reimplementing it
 
-Execution details and phased acceptance criteria are tracked in `ROADMAP.md` under the active `v0.14.0` track.
+Execution details and phased acceptance criteria are tracked in `ROADMAP.md` under the active `v1.0.0` planning track.
 
 The versioned language and compatibility contract baseline for this cycle is published in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
 
@@ -130,6 +130,7 @@ Protocol contracts, install/upgrade guidance, and release artifact checklist doc
 
 - [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md)
 - [docs/INSTALLATION_LSP_EDITORS.md](docs/INSTALLATION_LSP_EDITORS.md)
+- [docs/RELEASE_ARTIFACT_CHECKLIST_V0_14_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_14_0.md)
 - [docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md)
 - [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md)
 - [docs/RELEASE_ARTIFACT_VALIDATION.md](docs/RELEASE_ARTIFACT_VALIDATION.md)
@@ -149,6 +150,19 @@ Scheduler timeout precedence for `ruff run` is:
 1. `--scheduler-timeout-ms <ms>`
 2. `RUFF_SCHEDULER_TIMEOUT_MS=<ms>`
 3. default `120000 ms`
+
+## v0.14.0 Release Highlights
+
+The v0.14.0 release delivered stabilization and release-hardening work required before v1.0.0:
+
+- release process hardening with deterministic playbook + CI release-state guard
+- fixture-locked LSP protocol stability guarantees and compatibility table
+- packaging/distribution follow-through with Linux/macOS artifact validation and reproducible checksum flow
+- tree-sitter and editor adapter maturity follow-through, including first-party extension smoke coverage in CI
+- runtime/tooling reliability track with malformed-sequence, lifecycle churn, bounded-state, and latency guardrail coverage
+- explicit v1.0.0 scope definition and deferred post-1.0 backlog commitments
+
+Detailed release evidence and checklist completion notes are documented under `notes/`.
 
 ## v0.13.0 Release Highlights
 

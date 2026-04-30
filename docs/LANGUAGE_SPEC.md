@@ -1,12 +1,12 @@
 # Ruff Language Specification
 
-Status: v0.13.0 baseline draft (active)
-Spec version: 0.13.0
+Status: v0.14.0 baseline draft (active)
+Spec version: 0.14.0
 Last updated: 2026-04-30
 
 ## 1. Scope
 
-This document defines the Ruff language and tooling compatibility contract for the v0.13.0 release line.
+This document defines the Ruff language and tooling compatibility contract for the v0.14.0 release line.
 
 It is normative for:
 
@@ -38,7 +38,7 @@ The lexer tokenizes source into:
 
 Contextual constructors `Ok`, `Err`, `Some`, and `None` are identifiers in tokenization and parser flow (not lexer keywords).
 
-## 4. Core Grammar Baseline (v0.13.0)
+## 4. Core Grammar Baseline (v0.14.0)
 
 This section is an EBNF-style baseline for currently supported syntax.
 
