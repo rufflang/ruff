@@ -2,7 +2,7 @@
 
 Ruff is a small programming language and runtime implemented in Rust. It is built for local scripting, automation, runtime experiments, and benchmarking work where a compact language with a Rust-hosted standard library is useful.
 
-The project is currently at `0.10.0` in `Cargo.toml`, with active `0.11.0` work focused on async static-site-generation benchmark throughput and VM scheduler reliability. Ruff is usable from source today, but the language and runtime APIs are still evolving. Treat the repository tests, examples, and native-function dispatch tests as the source of truth for current behavior.
+The project is currently at `0.11.0` in `Cargo.toml`, following a release focused on async static-site-generation benchmark throughput and VM scheduler reliability. Next planned roadmap work targets `0.12.0` developer-experience surfaces. Ruff is usable from source today, but the language and runtime APIs are still evolving. Treat the repository tests, examples, and native-function dispatch tests as the source of truth for current behavior.
 
 ## Current Status
 

@@ -2,15 +2,16 @@
 
 This roadmap tracks work that is still current or upcoming. Completed features and implementation history belong in [CHANGELOG.md](CHANGELOG.md), not here.
 
-> Current crate version: `0.10.0` in [Cargo.toml](Cargo.toml)
-> Next planned release: `v0.11.0`
+> Current crate version: `0.11.0` in [Cargo.toml](Cargo.toml)
+> Next planned release: `v0.12.0`
 > Last audited: April 29, 2026
 
 ---
 
 ## Release Focus
 
-`v0.11.0` is a throughput and release-hardening release. The release should be cut only when the SSG benchmark path has fresh, reproducible evidence and the correctness suite is stable.
+`v0.11.0` is the completed throughput and release-hardening release.
+Current roadmap focus shifts to `v0.12.0` developer-experience work.
 
 Primary release theme:
 
@@ -29,11 +30,11 @@ Completed `v0.11.0` throughput slices are already recorded in [CHANGELOG.md](CHA
 
 ---
 
-## v0.11.0 Release Checklist
+## v0.11.0 Release Checklist (Completed For Release Cut)
 
 ### P0: Release Blockers
 
-These must be closed before tagging `v0.11.0`.
+These were used as the release-cut readiness checklist for `v0.11.0`.
 
 1. **Capture final release-mode SSG gate evidence**
 
