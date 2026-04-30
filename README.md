@@ -25,6 +25,8 @@ Ruff language tooling is being aligned around a universal-first architecture:
 
 Execution details and phased acceptance criteria are tracked in the `v0.13.0` cross-IDE section of `ROADMAP.md`.
 
+The versioned language and compatibility contract baseline for this cycle is published in [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md).
+
 ## Install
 
 Ruff currently installs by building this repository.

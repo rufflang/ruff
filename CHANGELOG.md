@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added an execution-ready cross-IDE delivery track in `ROADMAP.md` covering P0/P1/P2 priorities for shared contracts, official Ruff LSP server, deterministic machine-readable outputs, Tree-sitter grammar, protocol conformance testing, and thin editor adapters.
   - Updated `README.md` with an explicit cross-IDE strategy section and link to roadmap-tracked execution details.
 
+- **v0.13.0 Language Specification And Compatibility Policy Baseline (P0)**:
+  - Added `docs/LANGUAGE_SPEC.md` as a versioned language/tooling specification baseline for v0.13.0, including EBNF-style grammar, runtime semantics, compatibility guarantees, and explicit breaking-change/versioning policy.
+  - Added release sign-off evidence in `notes/2026-04-30_10-00_v0.13.0-language-spec-signoff.md`.
+  - Linked the spec from `README.md` so language/tooling contract policy is discoverable from primary project documentation.
+
 - **v0.12.0 Documentation Generator Follow-Through: Initial HTML Docs + API Reference (P1)**:
   - Added `src/doc_generator.rs` with extraction of function documentation from `///` comments and fenced ` ```ruff ` example blocks.
   - Added `ruff docgen <file> [--out-dir <DIR>] [--no-builtins]` to generate module documentation HTML, docs index HTML, and optional builtin/native API reference HTML.
