@@ -1,151 +1,102 @@
 # Ruff Development Roadmap
 
-This roadmap tracks work that is still current or upcoming. Completed implementation history belongs in [CHANGELOG.md](CHANGELOG.md) and release evidence notes under `notes/`.
+This roadmap tracks only work that is still current or upcoming. Completed implementation history belongs in [CHANGELOG.md](CHANGELOG.md) and release evidence notes under `notes/`.
 
 > Current crate version: `0.14.0` in [Cargo.toml](Cargo.toml)
 > Next planned release: `v1.0.0`
-> Last audited: April 30, 2026
+> Last audited: May 1, 2026
 
 ---
 
 ## Release Focus
 
-`v0.14.0` is complete and released.
-Roadmap planning now focuses on `v1.0.0` scope execution and compatibility hardening.
+Ruff's pre-v1 implementation, compatibility hardening, documentation baseline, release automation, and local artifact validation are complete.
+
+The remaining work before public `v1.0.0` is release execution: version bump, final validation, tag publication, artifact verification, and public release evidence.
 
 ---
 
-## v0.14.0 Release Summary
+## v1.0.0 Remaining Release Checklist
 
-`v0.14.0` was completed and released with all stabilization checklist items closed.
+### P0: Required Before Public v1.0.0
 
-Completed release tracks:
+- [ ] Resolve or explicitly waive the locked dependency warning for `core2 v0.4.0`.
+  - Current source: `image -> ravif -> rav1e -> bitstream-io -> core2`.
+  - Current status: local locked/offline artifact validation passes, but Cargo warns that `core2 v0.4.0` is yanked.
+  - Release expectation: either refresh the dependency graph so the warning disappears, or record a signed-off release exception explaining why the locked transitive dependency is acceptable for `v1.0.0`.
 
-- release process hardening
-- LSP protocol stability guarantees
-- packaging and distribution follow-through
-- tree-sitter and editor adapter maturity
-- runtime and tooling reliability track
-- v1.0.0 scope definition gate
+- [ ] Run final pre-release validation on the release candidate commit.
+  - `cargo test --quiet`
+  - `bash .github/scripts/check-release-state.sh`
+  - `bash .github/scripts/validate-release-artifact.sh`
+  - YAML parse/sanity check for release workflows:
+    - `.github/workflows/release-binaries.yml`
+    - `.github/workflows/release-published-artifact-smoke.yml`
 
-For completed implementation details and evidence, see:
+- [ ] Bump version metadata for `v1.0.0`.
+  - Update `[package].version` in `Cargo.toml` from `0.14.0` to `1.0.0`.
+  - Update `README.md` current-version text.
+  - Update this roadmap's current-version text.
+  - Re-run `bash .github/scripts/check-release-state.sh`.
 
-- [CHANGELOG.md](CHANGELOG.md)
-- `notes/2026-04-30_23-40_release-process-hardening-and-ci-guard.md`
-- `notes/2026-04-30_23-55_lsp-protocol-stability-golden-fixtures.md`
-- `notes/2026-05-01_00-20_packaging-distribution-follow-through.md`
-- `notes/2026-05-01_00-45_tree-sitter-editor-adapter-maturity.md`
-- `notes/2026-05-01_01-10_runtime-tooling-reliability-track.md`
-- `notes/2026-05-01_01-25_v1-scope-definition-gate.md`
+- [ ] Finalize `CHANGELOG.md` for `v1.0.0`.
+  - Move finalized `[Unreleased]` entries under a `[1.0.0] - YYYY-MM-DD` section.
+  - Update bottom comparison links so `[Unreleased]` compares from `v1.0.0` to `HEAD`.
+  - Add or update the `[1.0.0]` tag comparison link.
 
-## v1.0.0: Compatibility And Ecosystem Stabilization (Planning)
+- [ ] Create and push the release commit.
+  - Include version metadata, changelog, roadmap, and any final release-process/doc edits.
+  - Push the release commit to `main`.
 
-Primary planning inputs:
+- [ ] Create and push the annotated `v1.0.0` tag.
+  - Example: `git tag -a v1.0.0 -m "Ruff v1.0.0"`
+  - Push the tag to `origin`.
 
-- `docs/V1_SCOPE.md`
-- `docs/LANGUAGE_SPEC.md`
-- `docs/PROTOCOL_CONTRACTS.md`
+- [ ] Publish the GitHub release for `v1.0.0`.
+  - Use the `v1.0.0` tag.
+  - Use finalized changelog notes as release notes.
+  - Confirm `.github/workflows/release-binaries.yml` attaches Linux/macOS archives and checksum files.
 
-Top-level execution goals:
+- [ ] Verify published release artifacts.
+  - Confirm Linux and macOS artifact assets are attached.
+  - Confirm per-asset `.sha256` files and consolidated `checksums.txt` are attached.
+  - Confirm `.github/workflows/release-published-artifact-smoke.yml` passes for the published release.
+  - Run the documented artifact install flow from [INSTALLATION.md](INSTALLATION.md) using the published `v1.0.0` assets.
 
-- finalize compatibility guarantees for language/runtime behavior
-- keep machine-readable CLI/LSP contracts stable and versioned
-- maintain reproducible release validation and artifact verification process
-- keep editor integration and adapter ownership boundaries explicit
-- ship v1.0.0 with downloadable prebuilt binaries so users can run Ruff directly from terminal without Cargo
+- [ ] Record final public release evidence.
+  - Create a dated note under `notes/`.
+  - Include artifact URLs, checksum values, workflow URLs/statuses, exact validation commands, and pass/fail logs.
+  - Update [docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md) only after the published-artifact checks pass.
 
-### v1.0.0 Distribution And Install Release Gate (Explicit)
+### P1: Strongly Recommended Before Announcement
 
-v1.0.0 is not considered release-ready until Ruff can be installed and used as a standalone CLI binary (for example, `ruff run build.ruff`) without requiring users to build from source via Cargo.
+- [ ] Smoke-test the most visible examples you plan to keep in the public README/docs.
+  - This is not a language/runtime release blocker, but it is important for first-user experience.
+  - At minimum, confirm any examples linked from `README.md`, `INSTALLATION.md`, or release notes run with the published binary.
 
-Required distribution outcomes:
+- [ ] Review public-facing install wording after release assets exist.
+  - Confirm all `v1.0.0` artifact names in docs match the actual published asset names.
+  - Confirm the install guide does not imply package-manager support beyond the shipped archive flow.
 
-- [x] automate prebuilt release binary publication for supported OS targets (at minimum Linux and macOS)
-- [x] automate SHA-256 checksum publication for each shipped artifact and document verification steps
-- [x] publish copy/paste install instructions for standalone binary usage (no Cargo dependency)
-- [x] add published-artifact smoke validation for fresh-machine install + execution flow
-- [x] verify direct command usage in terminal (`ruff --version`, `ruff run <file>`, `ruff lsp --help`) before artifact publication
-
-Tag-time sign-off criteria:
-
-- [ ] publish the actual `v1.0.0` release artifacts
-- [ ] record artifact URLs, checksums, and pass/fail logs for install/exec validation in `notes/`
-- [x] CI/release checklist includes artifact publication and checksum verification as required sign-off steps
-
-### Comprehensive Pre-v1 Enhancement Backlog
-
-Use this checklist as the execution queue for follow-up sessions.
-
-#### P0: Must-Do Before v1.0.0 Tag
-
-- [x] Complete module system execution and export semantics.
-	- [x] Implement module evaluation and export collection in `src/module.rs` (remove parser-only placeholder behavior).
-	- [x] Replace silent import failures with deterministic runtime diagnostics in `src/interpreter/mod.rs`.
-	- [x] Add circular-import and missing-symbol regression tests with stable error shapes.
-- [x] Remove parser panic paths for user-provided syntax.
-	- [x] Replace `panic!`-based type-annotation parse failures with structured parse errors in `src/parser.rs`.
-	- [x] Add malformed `Result<T, E>` and `Option<T>` syntax tests to ensure non-panicking behavior.
-- [x] Close VM/interpreter behavior parity gaps for currently documented language surfaces.
-	- [x] Build a parity matrix and test coverage baseline for struct method behavior, spread/destructuring, match bindings, and spawn semantics.
-	- [x] Close VM destructuring binding gap surfaced by parity tests (array + dict destructuring now bind correctly on VM path).
-	- [x] Close VM spread literal capability gap surfaced by parity tests (array/dict spread semantics now align in parity-covered scenarios).
-	- [x] Close remaining capability gaps identified by the parity matrix (tag-style `match` binding capability gap).
-	- [x] Ensure documented behavior in `README.md` and `docs/LANGUAGE_SPEC.md` matches current runtime-path status.
-- [x] Freeze and verify CLI/LSP contract versioning for v1 baseline.
-	- [x] Align contract status/version metadata in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
-	- [x] Add CI check(s) that fail on contract-doc/version drift.
-- [x] Expand negative-path contract fixtures for automation reliability.
-	- [x] Add fixtures/tests for malformed params, unknown symbols, IO failures, and consistent stderr/exit-code behavior.
-	- [x] Ensure failure payload guarantees are documented and fixture-locked.
-
-#### P1: Strongly Recommended For v1 Completeness
-
-- [x] Publish explicit v1 optional-typing stance.
-	- [x] Convert exploratory wording in `docs/OPTIONAL_TYPING_DESIGN.md` into a concrete v1 policy (supported vs experimental vs deferred).
-	- [x] Add tests for whichever v1 typing contract is declared.
-- [x] Expand native standard library documentation coverage to canonical reference quality.
-	- [x] Generate/maintain per-function docs with stability tiers and examples for major builtin categories.
-	- [x] Ensure docs map to actual runtime dispatch behavior and tests.
-- [x] Add end-to-end package + module workflow integration tests.
-	- [x] Cover `ruff init`, `package-add`, `package-install`, import/export execution, and run/lint/format/docgen flows together.
-
-#### P2: Nice-To-Have Hardening Before/Just After v1
-
-- [x] Publish a formal deprecation policy for CLI/LSP/runtime surfaces.
-	- [x] Define warning format, deprecation windows, and removal policy tied to semver.
-- [x] Add a security posture pass for high-risk native APIs.
-	- [x] Document trust model and operational caveats for process/network/filesystem/crypto/database builtins.
-	- [x] Add targeted regression tests for failure and misuse boundaries.
+- [ ] Decide whether image conversion support is in or out of public v1 messaging.
+  - If it remains out of scope, keep examples/docs from implying reliable image format conversion.
+  - If it becomes in scope, complete the work tracked in [docs/IMAGE_CONVERSION_AGENT_HANDOFF.md](docs/IMAGE_CONVERSION_AGENT_HANDOFF.md) before announcing it.
 
 ---
 
-## v1.0.0 Readiness
+## Current Release Position
 
-`v0.14.0` stabilization work is complete. `v1.0.0` implementation and release automation are ready for final tag-time sign-off.
+There are no remaining known P0 language/runtime parity blockers in the tracked v1 surface.
 
-Required before `v1.0.0`:
-
-- stable and documented language/runtime compatibility guarantees
-- stable and versioned machine-readable CLI/LSP contracts
-- release process that is reproducible and CI-validated
-- current and accurate installation/editor integration documentation
-- clear long-term maintenance boundaries for core tooling vs adapter layers
+The official public `v1.0.0` release is blocked only by the open release-execution items above.
 
 ---
 
-## Version Strategy
+## References
 
-- `v0.11.0`: released (SSG throughput and async scheduler reliability)
-- `v0.12.0`: released (developer tooling surfaces)
-- `v0.13.0`: released (cross-IDE tooling foundation)
-- `v0.14.0`: released (stabilization and `v1.0.0` runway)
-- `v1.0.0`: compatibility and ecosystem stabilization milestone
-
-See also:
-
-- [CHANGELOG.md](CHANGELOG.md): completed changes
-- [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md): protocol-level contract definitions
-- [docs/INSTALLATION_LSP_EDITORS.md](docs/INSTALLATION_LSP_EDITORS.md): install/upgrade guidance
-- [docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md): v1 artifact publication and install-gate checklist
-- [docs/RELEASE_ARTIFACT_CHECKLIST_V0_14_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_14_0.md): current release evidence model
-- [docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md): prior release evidence model
+- [CHANGELOG.md](CHANGELOG.md): completed changes and release notes source.
+- [docs/V1_SCOPE.md](docs/V1_SCOPE.md): v1 scope definition and compatibility commitments.
+- [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md): language/tooling compatibility baseline.
+- [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md): protocol-level contract definitions.
+- [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md): release execution process.
+- [docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md): artifact publication and tag-time sign-off checklist.
