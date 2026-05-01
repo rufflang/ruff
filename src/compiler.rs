@@ -89,7 +89,11 @@ impl Compiler {
 
         // Apply optimizations if enabled
         let mut chunk = self.chunk.clone();
-        if optimize {
+        let has_match_case_flow = chunk.instructions.iter().any(|instr| {
+            matches!(instr, OpCode::MatchCasePattern(_) | OpCode::BeginCase | OpCode::EndCase)
+        });
+
+        if optimize && !has_match_case_flow {
             let mut optimizer = Optimizer::new();
             optimizer.optimize(&mut chunk);
 
@@ -537,12 +541,8 @@ impl Compiler {
                     // Duplicate the value for matching
                     self.chunk.emit(OpCode::Dup);
 
-                    // For now, just match against string patterns
-                    // TODO: Implement full pattern matching with Pattern enum
-                    let pattern_str_index =
-                        self.chunk.add_constant(Constant::String(pattern_name.clone()));
-                    self.chunk.emit(OpCode::LoadConst(pattern_str_index));
-                    self.chunk.emit(OpCode::Equal);
+                    // Match with case-pattern aware semantics (including tag-style bindings).
+                    self.chunk.emit(OpCode::MatchCasePattern(pattern_name.clone()));
 
                     // If match fails, jump to next case
                     let next_case_jump = self.chunk.emit(OpCode::JumpIfFalse(0));
@@ -1068,6 +1068,43 @@ impl Compiler {
                     // Emit throw instruction
                     self.chunk.emit(OpCode::Throw);
 
+                    return Ok(());
+                }
+
+                // Canonical Result/Option tag constructors should map to dedicated
+                // runtime value opcodes so VM match semantics can inspect structured values.
+                if tag == "Result::Ok" {
+                    if values.len() != 1 {
+                        return Err("Result::Ok(...) requires exactly one argument".to_string());
+                    }
+                    self.compile_expr(&values[0])?;
+                    self.chunk.emit(OpCode::MakeOk);
+                    return Ok(());
+                }
+
+                if tag == "Result::Err" {
+                    if values.len() != 1 {
+                        return Err("Result::Err(...) requires exactly one argument".to_string());
+                    }
+                    self.compile_expr(&values[0])?;
+                    self.chunk.emit(OpCode::MakeErr);
+                    return Ok(());
+                }
+
+                if tag == "Option::Some" {
+                    if values.len() != 1 {
+                        return Err("Option::Some(...) requires exactly one argument".to_string());
+                    }
+                    self.compile_expr(&values[0])?;
+                    self.chunk.emit(OpCode::MakeSome);
+                    return Ok(());
+                }
+
+                if tag == "Option::None" {
+                    if !values.is_empty() {
+                        return Err("Option::None takes no arguments".to_string());
+                    }
+                    self.chunk.emit(OpCode::MakeNone);
                     return Ok(());
                 }
 

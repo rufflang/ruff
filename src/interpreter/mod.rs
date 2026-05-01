@@ -2331,17 +2331,17 @@ impl Interpreter {
                 let default_clone = default.clone();
 
                 // Handle Result and Option types specially by extracting data first
-                let (is_result_or_option, tag_str, extracted_value) = match &val {
+                let (is_result_or_option, short_tag, full_tag, extracted_value) = match &val {
                     Value::Result { is_ok, value } => {
                         let tag = if *is_ok { "Ok" } else { "Err" };
-                        (true, tag.to_string(), Some((**value).clone()))
+                        (true, tag.to_string(), format!("Result::{}", tag), Some((**value).clone()))
                     }
                     Value::Option { is_some, value } => {
                         let tag = if *is_some { "Some" } else { "None" };
                         let val = if *is_some { Some((**value).clone()) } else { None };
-                        (true, tag.to_string(), val)
+                        (true, tag.to_string(), format!("Option::{}", tag), val)
                     }
-                    _ => (false, String::new(), None),
+                    _ => (false, String::new(), String::new(), None),
                 };
 
                 if is_result_or_option {
@@ -2350,19 +2350,20 @@ impl Interpreter {
                         if let Some(open_paren) = pattern.find('(') {
                             let (enum_tag, param_var) = pattern.split_at(open_paren);
                             let param_var = param_var.trim_matches(&['(', ')'][..]);
-                            if tag_str == enum_tag.trim() {
-                                // Create new scope for pattern match body
-                                self.env.push_scope();
+                            let enum_tag = enum_tag.trim();
+                            if short_tag == enum_tag || full_tag == enum_tag {
                                 if let Some(val) = extracted_value {
                                     self.env.define(param_var.to_string(), val);
                                 }
                                 self.eval_stmts(body);
-                                self.env.pop_scope();
                                 return;
                             }
-                        } else if pattern.as_str() == tag_str {
-                            self.eval_stmts(body);
-                            return;
+                        } else {
+                            let pattern = pattern.as_str().trim();
+                            if pattern == short_tag || pattern == full_tag {
+                                self.eval_stmts(body);
+                                return;
+                            }
                         }
                     }
 
@@ -2392,10 +2393,6 @@ impl Interpreter {
                         let (enum_tag, param_var) = pattern.split_at(open_paren);
                         let param_var = param_var.trim_matches(&['(', ')'][..]);
                         if tag == enum_tag.trim() {
-                            // Create new scope for pattern match body
-                            // Push new scope
-                            self.env.push_scope();
-
                             for i in 0.. {
                                 let key = format!("${}", i);
                                 if let Some(val) = fields.get(&key) {
@@ -2411,9 +2408,6 @@ impl Interpreter {
                             }
 
                             self.eval_stmts(body);
-
-                            // Restore parent environment
-                            self.env.pop_scope();
                             return;
                         }
                     } else if pattern.as_str() == tag {
@@ -4507,19 +4501,18 @@ impl Interpreter {
 
                                 self.eval_stmts(&body.get());
 
-                                let result = if let Some(Value::Return(value)) =
-                                    self.return_value.clone()
-                                {
-                                    self.return_value = None;
-                                    *value
-                                } else if let Some(Value::Error(message)) =
-                                    self.return_value.clone()
-                                {
-                                    Value::Error(message)
-                                } else {
-                                    self.return_value = None;
-                                    Value::Int(0)
-                                };
+                                let result =
+                                    if let Some(Value::Return(value)) = self.return_value.clone() {
+                                        self.return_value = None;
+                                        *value
+                                    } else if let Some(Value::Error(message)) =
+                                        self.return_value.clone()
+                                    {
+                                        Value::Error(message)
+                                    } else {
+                                        self.return_value = None;
+                                        Value::Int(0)
+                                    };
 
                                 self.env.pop_scope();
 

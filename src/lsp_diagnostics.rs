@@ -28,6 +28,7 @@ pub fn diagnose(source: &str) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
     diagnostics.extend(check_delimiter_balance(&tokens));
+    diagnostics.extend(check_type_annotation_syntax(&tokens));
     diagnostics.extend(check_parser_panics(&tokens));
 
     diagnostics.sort_by_key(|diagnostic| (diagnostic.line, diagnostic.column));
@@ -107,6 +108,67 @@ fn check_delimiter_balance(tokens: &[Token]) -> Vec<Diagnostic> {
     diagnostics
 }
 
+fn check_type_annotation_syntax(tokens: &[Token]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        if !is_symbol(token, "Result") && !is_symbol(token, "Option") {
+            continue;
+        }
+
+        if !matches!(
+            tokens.get(index + 1).map(|token| &token.kind),
+            Some(TokenKind::Operator(op)) if op == "<"
+        ) {
+            continue;
+        }
+
+        let mut depth = 0usize;
+        let mut saw_top_level_comma = false;
+        let mut closed = false;
+
+        for generic_token in tokens.iter().skip(index + 1) {
+            match &generic_token.kind {
+                TokenKind::Operator(op) if op == "<" => depth += 1,
+                TokenKind::Operator(op) if op == ">" => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        closed = true;
+                        break;
+                    }
+                }
+                TokenKind::Punctuation(',') if depth == 1 => {
+                    saw_top_level_comma = true;
+                }
+                _ => {}
+            }
+        }
+
+        if is_symbol(token, "Result") && !saw_top_level_comma {
+            diagnostics.push(Diagnostic {
+                line: token.line,
+                column: token.column,
+                severity: DiagnosticSeverity::Error,
+                message: "Expected ',' in Result<T, E> type".to_string(),
+            });
+        } else if !closed {
+            let type_name = if is_symbol(token, "Result") { "Result<T, E>" } else { "Option<T>" };
+            diagnostics.push(Diagnostic {
+                line: token.line,
+                column: token.column,
+                severity: DiagnosticSeverity::Error,
+                message: format!("Expected '>' in {} type", type_name),
+            });
+        }
+    }
+
+    diagnostics
+}
+
+fn is_symbol(token: &Token, name: &str) -> bool {
+    matches!(&token.kind, TokenKind::Identifier(value) | TokenKind::Keyword(value) if value == name)
+}
+
 fn check_parser_panics(tokens: &[Token]) -> Vec<Diagnostic> {
     let mut parser = parser::Parser::new(tokens.to_vec());
     let previous_hook = panic::take_hook();
@@ -126,12 +188,7 @@ fn check_parser_panics(tokens: &[Token]) -> Vec<Diagnostic> {
                 "Parser panic while producing diagnostics".to_string()
             };
 
-            vec![Diagnostic {
-                line: 1,
-                column: 1,
-                severity: DiagnosticSeverity::Error,
-                message,
-            }]
+            vec![Diagnostic { line: 1, column: 1, severity: DiagnosticSeverity::Error, message }]
         }
     }
 }
@@ -142,13 +199,8 @@ mod tests {
 
     #[test]
     fn diagnostics_empty_for_valid_program() {
-        let source = [
-            "func greet(name) {",
-            "    return name",
-            "}",
-            "print(greet(\"ruff\"))",
-        ]
-        .join("\n");
+        let source =
+            ["func greet(name) {", "    return name", "}", "print(greet(\"ruff\"))"].join("\n");
 
         let diagnostics = diagnose(&source);
         assert!(diagnostics.is_empty());

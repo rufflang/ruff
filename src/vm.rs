@@ -2866,7 +2866,10 @@ impl VM {
                     let mut elements = Vec::new();
 
                     loop {
-                        let value = self.stack.pop().ok_or("Missing array marker in MakeArrayFromMarker")?;
+                        let value = self
+                            .stack
+                            .pop()
+                            .ok_or("Missing array marker in MakeArrayFromMarker")?;
                         if matches!(value, Value::ArrayMarker) {
                             break;
                         }
@@ -2902,8 +2905,10 @@ impl VM {
                     let mut dict = DictMap::default();
 
                     loop {
-                        let value = self.stack.pop().ok_or("Missing dict marker in MakeDictFromMarker")?;
-                        let key = self.stack.pop().ok_or("Missing dict marker in MakeDictFromMarker")?;
+                        let value =
+                            self.stack.pop().ok_or("Missing dict marker in MakeDictFromMarker")?;
+                        let key =
+                            self.stack.pop().ok_or("Missing dict marker in MakeDictFromMarker")?;
 
                         if matches!(key, Value::ArrayMarker) && matches!(value, Value::ArrayMarker)
                         {
@@ -4266,6 +4271,12 @@ impl VM {
                     } else {
                         return Err("Expected pattern constant".to_string());
                     }
+                }
+
+                OpCode::MatchCasePattern(pattern) => {
+                    let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                    let success = self.match_case_pattern(pattern.as_str(), &value);
+                    self.stack.push(Value::Bool(success));
                 }
 
                 OpCode::BeginCase | OpCode::EndCase => {
@@ -6017,7 +6028,10 @@ impl VM {
 
                     if let Some(rest_name) = rest {
                         let rest_values = arr[elements.len()..].to_vec();
-                        self.bind_pattern_name(rest_name, Value::Array(std::sync::Arc::new(rest_values)));
+                        self.bind_pattern_name(
+                            rest_name,
+                            Value::Array(std::sync::Arc::new(rest_values)),
+                        );
                     }
 
                     Ok(true)
@@ -6042,14 +6056,18 @@ impl VM {
                                 rest_dict.insert(key.clone(), dict_value.clone());
                             }
                         }
-                        self.bind_pattern_name(rest_name, Value::Dict(std::sync::Arc::new(rest_dict)));
+                        self.bind_pattern_name(
+                            rest_name,
+                            Value::Dict(std::sync::Arc::new(rest_dict)),
+                        );
                     }
 
                     Ok(true)
                 }
                 Value::FixedDict { keys: dict_keys, values } => {
                     for key in keys {
-                        let key_index = dict_keys.iter().position(|dict_key| dict_key.as_ref() == key.as_str());
+                        let key_index =
+                            dict_keys.iter().position(|dict_key| dict_key.as_ref() == key.as_str());
                         let Some(index) = key_index else {
                             return Ok(false);
                         };
@@ -6063,7 +6081,10 @@ impl VM {
                                 rest_dict.insert(dict_key.clone(), dict_value.clone());
                             }
                         }
-                        self.bind_pattern_name(rest_name, Value::Dict(std::sync::Arc::new(rest_dict)));
+                        self.bind_pattern_name(
+                            rest_name,
+                            Value::Dict(std::sync::Arc::new(rest_dict)),
+                        );
                     }
 
                     Ok(true)
@@ -6073,6 +6094,68 @@ impl VM {
         }
     }
 
+    fn match_case_pattern(&mut self, pattern: &str, value: &Value) -> bool {
+        let (case_tag, binding_name) = if let Some(open_paren) = pattern.find('(') {
+            if pattern.ends_with(')') {
+                let tag = pattern[..open_paren].trim();
+                let binding = pattern[open_paren + 1..pattern.len() - 1].trim();
+                if !binding.is_empty() {
+                    (tag.to_string(), Some(binding.to_string()))
+                } else {
+                    (tag.to_string(), None)
+                }
+            } else {
+                (pattern.trim().to_string(), None)
+            }
+        } else {
+            (pattern.trim().to_string(), None)
+        };
+
+        match value {
+            Value::Result { is_ok, value } => {
+                let short_tag = if *is_ok { "Ok" } else { "Err" };
+                let full_tag = format!("Result::{}", short_tag);
+                if case_tag == short_tag || case_tag == full_tag {
+                    if let Some(name) = binding_name {
+                        self.bind_pattern_name(name.as_str(), (**value).clone());
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            Value::Option { is_some, value } => {
+                let short_tag = if *is_some { "Some" } else { "None" };
+                let full_tag = format!("Option::{}", short_tag);
+                if case_tag == short_tag || case_tag == full_tag {
+                    if let Some(name) = binding_name {
+                        if *is_some {
+                            self.bind_pattern_name(name.as_str(), (**value).clone());
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            Value::Tagged { tag, fields } => {
+                if case_tag == *tag {
+                    if let Some(name) = binding_name {
+                        if let Some(bound) = fields.get("$0") {
+                            self.bind_pattern_name(name.as_str(), bound.clone());
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            Value::Enum(enum_name) => case_tag == *enum_name,
+            Value::Str(s) => case_tag == s.as_ref().as_str(),
+            Value::Float(n) => case_tag == n.to_string(),
+            _ => false,
+        }
+    }
 
     fn bind_pattern_name(&mut self, name: &str, value: Value) {
         if self.call_frames.len() <= 1 {

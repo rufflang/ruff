@@ -82,11 +82,7 @@ fn vm_and_interpreter_match_struct_method_behavior_contract() {
 
     let vm_env = vm_env_with_builtins();
     let vm_result = run_vm(script, vm_env.clone());
-    assert!(
-        vm_result.is_ok(),
-        "unexpected vm struct-method behavior: {:?}",
-        vm_result
-    );
+    assert!(vm_result.is_ok(), "unexpected vm struct-method behavior: {:?}", vm_result);
     let vm_globals = vm_env.lock().expect("failed to lock vm globals");
     assert!(matches!(vm_globals.get("struct_ok"), Some(Value::Bool(true))));
 }
@@ -105,7 +101,11 @@ fn vm_and_interpreter_match_spread_destructuring_surface() {
     "#;
 
     let interp = run_interpreter(&script);
-    assert!(interp.return_value.is_none(), "interpreter returned runtime error: {:?}", interp.return_value);
+    assert!(
+        interp.return_value.is_none(),
+        "interpreter returned runtime error: {:?}",
+        interp.return_value
+    );
     assert!(matches!(interp.env.get("destructuring_ok"), Some(Value::Bool(true))));
     assert!(matches!(interp.env.get("spread_ok"), Some(Value::Bool(true))));
 
@@ -147,16 +147,20 @@ fn vm_and_interpreter_match_enum_match_binding_surface() {
             default: { matched_label := "none" }
         }
 
-        match_ok := matched_ok == -999 && matched_label == "none"
+        match_ok := matched_ok == 42 && matched_label == "ready"
     "#;
 
     let interp = run_interpreter(script);
-    assert!(interp.return_value.is_none(), "interpreter returned runtime error: {:?}", interp.return_value);
     assert!(
-        interp.env.get("match_ok").is_none()
-            && interp.env.get("matched_ok").is_none()
-            && interp.env.get("matched_label").is_none(),
-        "expected current interpreter match-binding gap, got matched_ok={:?}, matched_label={:?}, match_ok={:?}",
+        interp.return_value.is_none(),
+        "interpreter returned runtime error: {:?}",
+        interp.return_value
+    );
+    assert!(
+        matches!(interp.env.get("matched_ok"), Some(Value::Int(42)))
+            && matches!(interp.env.get("matched_label"), Some(Value::Str(v)) if v.as_ref() == "ready")
+            && matches!(interp.env.get("match_ok"), Some(Value::Bool(true))),
+        "expected interpreter tag-style match binding support, got matched_ok={:?}, matched_label={:?}, match_ok={:?}",
         interp.env.get("matched_ok"),
         interp.env.get("matched_label"),
         interp.env.get("match_ok")
@@ -168,10 +172,10 @@ fn vm_and_interpreter_match_enum_match_binding_surface() {
 
     let vm_globals = vm_env.lock().expect("failed to lock vm globals");
     assert!(
-        vm_globals.get("match_ok").is_none()
-            && vm_globals.get("matched_ok").is_none()
-            && vm_globals.get("matched_label").is_none(),
-        "expected current VM match-binding gap, got matched_ok={:?}, matched_label={:?}, match_ok={:?}",
+        matches!(vm_globals.get("matched_ok"), Some(Value::Int(42)))
+            && matches!(vm_globals.get("matched_label"), Some(Value::Str(v)) if v.as_ref() == "ready")
+            && matches!(vm_globals.get("match_ok"), Some(Value::Bool(true))),
+        "expected VM tag-style match binding support, got matched_ok={:?}, matched_label={:?}, match_ok={:?}",
         vm_globals.get("matched_ok"),
         vm_globals.get("matched_label"),
         vm_globals.get("match_ok")
@@ -195,7 +199,11 @@ fn vm_and_interpreter_match_spawn_surface() {
     );
 
     let interp = run_interpreter(&script);
-    assert!(interp.return_value.is_none(), "interpreter returned runtime error: {:?}", interp.return_value);
+    assert!(
+        interp.return_value.is_none(),
+        "interpreter returned runtime error: {:?}",
+        interp.return_value
+    );
     assert!(matches!(interp.env.get("spawn_ok"), Some(Value::Bool(true))));
 
     let vm_env = vm_env_with_builtins();

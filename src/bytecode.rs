@@ -227,6 +227,12 @@ pub enum OpCode {
     /// Operand: pattern index in constant pool
     MatchPattern(usize),
 
+    /// Match a value against a `match case` pattern string, with optional binding support
+    /// Stack: [value] -> [success: bool]
+    /// If match succeeds and the case has a binding (e.g. `Result::Ok(v)`), bind it
+    /// Operand: match-case pattern string
+    MatchCasePattern(String),
+
     /// Start a new match case branch
     /// Used for organizing match statement bytecode
     BeginCase,

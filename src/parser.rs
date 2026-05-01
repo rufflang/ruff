@@ -1554,56 +1554,63 @@ impl Parser {
                 self.advance();
                 Some(TypeAnnotation::Bool)
             }
-            TokenKind::Keyword(k) if k == "Result" => {
-                self.advance(); // consume Result
-                                // Expect Result<T, E> syntax
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    return None;
-                }
-                self.advance(); // consume <
-
-                let ok_type = self.parse_type_annotation_inner()?;
-
-                if !matches!(self.peek(), TokenKind::Punctuation(',')) {
-                    return None;
-                }
-                self.advance(); // consume ,
-
-                let err_type = self.parse_type_annotation_inner()?;
-
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    return None;
-                }
-                self.advance(); // consume >
-
-                Some(TypeAnnotation::Result {
-                    ok_type: Box::new(ok_type),
-                    err_type: Box::new(err_type),
-                })
-            }
-            TokenKind::Keyword(k) if k == "Option" => {
-                self.advance(); // consume Option
-                                // Expect Option<T> syntax
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    return None;
-                }
-                self.advance(); // consume <
-
-                let inner_type = self.parse_type_annotation_inner()?;
-
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    return None;
-                }
-                self.advance(); // consume >
-
-                Some(TypeAnnotation::Option { inner_type: Box::new(inner_type) })
-            }
+            TokenKind::Keyword(k) if k == "Result" => self.parse_result_type_annotation(),
+            TokenKind::Identifier(i) if i == "Result" => self.parse_result_type_annotation(),
+            TokenKind::Keyword(k) if k == "Option" => self.parse_option_type_annotation(),
+            TokenKind::Identifier(i) if i == "Option" => self.parse_option_type_annotation(),
             _ => {
                 // Invalid type, backtrack
                 self.pos = saved_pos;
                 None
             }
         }
+    }
+
+    fn parse_result_type_annotation(&mut self) -> Option<crate::ast::TypeAnnotation> {
+        use crate::ast::TypeAnnotation;
+
+        self.advance(); // consume Result
+                        // Expect Result<T, E> syntax
+        if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+            return None;
+        }
+        self.advance(); // consume <
+
+        let ok_type = self.parse_type_annotation_inner()?;
+
+        if !matches!(self.peek(), TokenKind::Punctuation(',')) {
+            return None;
+        }
+        self.advance(); // consume ,
+
+        let err_type = self.parse_type_annotation_inner()?;
+
+        if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+            return None;
+        }
+        self.advance(); // consume >
+
+        Some(TypeAnnotation::Result { ok_type: Box::new(ok_type), err_type: Box::new(err_type) })
+    }
+
+    fn parse_option_type_annotation(&mut self) -> Option<crate::ast::TypeAnnotation> {
+        use crate::ast::TypeAnnotation;
+
+        self.advance(); // consume Option
+                        // Expect Option<T> syntax
+        if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+            return None;
+        }
+        self.advance(); // consume <
+
+        let inner_type = self.parse_type_annotation_inner()?;
+
+        if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+            return None;
+        }
+        self.advance(); // consume >
+
+        Some(TypeAnnotation::Option { inner_type: Box::new(inner_type) })
     }
 
     /// Parse a type annotation without consuming a leading colon (used inside generics)
@@ -1627,48 +1634,10 @@ impl Parser {
                 self.advance();
                 Some(TypeAnnotation::Bool)
             }
-            TokenKind::Keyword(k) if k == "Result" => {
-                self.advance();
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    return None;
-                }
-                self.advance();
-
-                let ok_type = self.parse_type_annotation_inner()?;
-
-                if !matches!(self.peek(), TokenKind::Punctuation(',')) {
-                    return None;
-                }
-                self.advance();
-
-                let err_type = self.parse_type_annotation_inner()?;
-
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    return None;
-                }
-                self.advance();
-
-                Some(TypeAnnotation::Result {
-                    ok_type: Box::new(ok_type),
-                    err_type: Box::new(err_type),
-                })
-            }
-            TokenKind::Keyword(k) if k == "Option" => {
-                self.advance();
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
-                    return None;
-                }
-                self.advance();
-
-                let inner_type = self.parse_type_annotation_inner()?;
-
-                if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
-                    return None;
-                }
-                self.advance();
-
-                Some(TypeAnnotation::Option { inner_type: Box::new(inner_type) })
-            }
+            TokenKind::Keyword(k) if k == "Result" => self.parse_result_type_annotation(),
+            TokenKind::Identifier(i) if i == "Result" => self.parse_result_type_annotation(),
+            TokenKind::Keyword(k) if k == "Option" => self.parse_option_type_annotation(),
+            TokenKind::Identifier(i) if i == "Option" => self.parse_option_type_annotation(),
             _ => None,
         }
     }
