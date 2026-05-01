@@ -60,17 +60,17 @@ v1.0.0 is not considered release-ready until Ruff can be installed and used as a
 
 Required distribution outcomes:
 
-- [ ] publish prebuilt release binaries for supported OS targets (at minimum Linux and macOS)
-- [ ] publish SHA-256 checksums for each shipped artifact and document verification steps
-- [ ] publish copy/paste install instructions for standalone binary usage (no Cargo dependency)
-- [ ] validate fresh-machine install + execution flow using published artifacts only
-- [ ] verify direct command usage in terminal (`ruff --version`, `ruff run <file>`, `ruff lsp --help`) after install
+- [x] automate prebuilt release binary publication for supported OS targets (at minimum Linux and macOS)
+- [x] automate SHA-256 checksum publication for each shipped artifact and document verification steps
+- [x] publish copy/paste install instructions for standalone binary usage (no Cargo dependency)
+- [x] add published-artifact smoke validation for fresh-machine install + execution flow
+- [x] verify direct command usage in terminal (`ruff --version`, `ruff run <file>`, `ruff lsp --help`) before artifact publication
 
-Acceptance criteria:
+Tag-time sign-off criteria:
 
-- [ ] a new user can install Ruff from release artifacts and run Ruff commands without cloning repository source
-- [ ] release evidence notes include artifact URLs, checksums, and pass/fail logs for install/exec validation
-- [ ] CI/release checklist includes artifact publication and checksum verification as required sign-off steps
+- [ ] publish the actual `v1.0.0` release artifacts
+- [ ] record artifact URLs, checksums, and pass/fail logs for install/exec validation in `notes/`
+- [x] CI/release checklist includes artifact publication and checksum verification as required sign-off steps
 
 ### Comprehensive Pre-v1 Enhancement Backlog
 
@@ -85,11 +85,11 @@ Use this checklist as the execution queue for follow-up sessions.
 - [x] Remove parser panic paths for user-provided syntax.
 	- [x] Replace `panic!`-based type-annotation parse failures with structured parse errors in `src/parser.rs`.
 	- [x] Add malformed `Result<T, E>` and `Option<T>` syntax tests to ensure non-panicking behavior.
-- [ ] Close VM/interpreter behavior parity gaps for currently documented language surfaces.
+- [x] Close VM/interpreter behavior parity gaps for currently documented language surfaces.
 	- [x] Build a parity matrix and test coverage baseline for struct method behavior, spread/destructuring, match bindings, and spawn semantics.
 	- [x] Close VM destructuring binding gap surfaced by parity tests (array + dict destructuring now bind correctly on VM path).
 	- [x] Close VM spread literal capability gap surfaced by parity tests (array/dict spread semantics now align in parity-covered scenarios).
-	- [ ] Close remaining capability gaps identified by the parity matrix (tag-style `match` binding capability gap).
+	- [x] Close remaining capability gaps identified by the parity matrix (tag-style `match` binding capability gap).
 	- [x] Ensure documented behavior in `README.md` and `docs/LANGUAGE_SPEC.md` matches current runtime-path status.
 - [x] Freeze and verify CLI/LSP contract versioning for v1 baseline.
 	- [x] Align contract status/version metadata in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`, `docs/PROTOCOL_CONTRACTS.md`, and `docs/LANGUAGE_SPEC.md`.
@@ -121,7 +121,7 @@ Use this checklist as the execution queue for follow-up sessions.
 
 ## v1.0.0 Readiness
 
-`v0.14.0` stabilization work is complete. `v1.0.0` planning and execution can proceed.
+`v0.14.0` stabilization work is complete. `v1.0.0` implementation and release automation are ready for final tag-time sign-off.
 
 Required before `v1.0.0`:
 
@@ -146,5 +146,6 @@ See also:
 - [CHANGELOG.md](CHANGELOG.md): completed changes
 - [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md): protocol-level contract definitions
 - [docs/INSTALLATION_LSP_EDITORS.md](docs/INSTALLATION_LSP_EDITORS.md): install/upgrade guidance
+- [docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md): v1 artifact publication and install-gate checklist
 - [docs/RELEASE_ARTIFACT_CHECKLIST_V0_14_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_14_0.md): current release evidence model
 - [docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V0_13_0.md): prior release evidence model

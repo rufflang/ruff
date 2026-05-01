@@ -2,7 +2,7 @@
 
 This document defines the canonical release workflow for Ruff.
 
-Current active target: v0.14.0
+Current active target: v1.0.0
 
 ## Goals
 
@@ -12,14 +12,14 @@ Current active target: v0.14.0
 
 ## Release Types
 
-- Minor stabilization release: `v0.N.0` (example: `v0.14.0`)
-- Patch release: `v0.14.x` where `x >= 1`
+- Major compatibility release: `v1.0.0`
+- Patch release: `v1.0.x` where `x >= 1`
 
-## Patch Release Policy (`v0.14.x`)
+## Patch Release Policy (`v1.0.x`)
 
 Patch releases are allowed only for:
 
-- regressions introduced in `v0.14.0`
+- regressions introduced in `v1.0.0`
 - correctness bugs in runtime, CLI, LSP, or packaging/distribution flow
 - security fixes
 - release-process and artifact-installation fixes that block adoption
@@ -28,7 +28,7 @@ Patch releases must not include:
 
 - new language syntax
 - major runtime behavior expansions
-- roadmap features that are planned for `v1.0.0`
+- roadmap features planned for a future minor/major cycle
 
 Patch-release requirements:
 
@@ -75,11 +75,12 @@ bash .github/scripts/check-release-state.sh
 ```
 
 5. Ensure roadmap release-checklist items claimed complete have evidence in `notes/`.
+6. Ensure `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` sign-off items are complete.
 
 ## Version Bump + Changelog Sectioning
 
 1. Set `[package].version` in `Cargo.toml` to target version.
-2. Add new release section to `CHANGELOG.md` (for example: `[0.14.0] - YYYY-MM-DD`) and move finalized unreleased entries under that section.
+2. Add new release section to `CHANGELOG.md` (for example: `[1.0.0] - YYYY-MM-DD`) and move finalized unreleased entries under that section.
 3. Update comparison links at the bottom of `CHANGELOG.md`:
 	- `[Unreleased]` should compare from new tag to `HEAD`
 	- add/update version link for the new tag
@@ -100,15 +101,15 @@ Use this order exactly.
 
 ```bash
 git add Cargo.toml CHANGELOG.md README.md ROADMAP.md
-git commit -m ":rocket: RELEASE: v0.14.0"
+git commit -m ":rocket: RELEASE: v1.0.0"
 git push origin main
 ```
 
 2. Create and push annotated tag.
 
 ```bash
-git tag -a v0.14.0 -m "Ruff v0.14.0"
-git push origin v0.14.0
+git tag -a v1.0.0 -m "Ruff v1.0.0"
+git push origin v1.0.0
 ```
 
 3. Publish GitHub release using the same tag and changelog notes.
@@ -122,7 +123,7 @@ Use this for rehearsal before final release.
 1. Create a temporary branch.
 
 ```bash
-git checkout -b release-dry-run-v0.14.0
+git checkout -b release-dry-run-v1.0.0
 ```
 
 2. Execute all pre-release checks.

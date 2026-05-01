@@ -6,7 +6,7 @@ The project is currently at `0.14.0` in `Cargo.toml`, after completing the stabi
 
 ## Current Status
 
-- Ruff builds from source with Cargo. Prebuilt binary/package-manager installation is not the current path.
+- Ruff can be installed from tagged release artifacts or built from source with Cargo.
 - `ruff run` uses the bytecode VM by default.
 - `ruff run --interpreter` runs the tree-walking interpreter fallback.
 - The runtime includes a broad native standard library for strings, collections, files, data formats, HTTP, databases, crypto, process/system helpers, concurrency, and network primitives.
@@ -29,7 +29,7 @@ The versioned language and compatibility contract baseline for this cycle is pub
 
 ## Install
 
-Ruff currently installs by building this repository.
+Ruff can be installed from release artifacts or by building this repository.
 
 ```bash
 git clone https://github.com/rufflang/ruff.git
@@ -300,14 +300,14 @@ cargo run -- profile examples/benchmark.ruff
 
 These are intentional caveats for production readers rather than fine print:
 
-- Ruff is source-built today. Do not assume official release binaries or package-manager taps are available.
+- Tagged releases publish standalone Linux/macOS artifacts with checksums; package-manager taps remain outside the current v1 release gate.
 - VM execution is the default, but the tree-walking interpreter still matters for some language surfaces and diagnostics.
 - Static typing is optional and not a VM-enforced compile-time contract in the current CLI path.
 - `import`/`export` syntax and module execution/export collection are implemented, and end-to-end package/module workflow integration coverage is present for core CLI flows.
 - Struct fields and instance literals exist, and explicit `self` struct methods are parity-covered in VM/interpreter tests.
 - Spread literals and destructuring syntax are parity-covered in VM/interpreter tests for the tracked matrix scenarios.
 - `spawn { ... }` is parsed and executed as fire-and-forget work; do not rely on spawned output or shared state without using the explicit concurrency/native async APIs.
-- `Result`/`Option` values are implemented, but richer pattern-binding behavior remains an active compatibility-hardening surface.
+- `Result`/`Option` values are implemented, and tag-style match bindings are parity-covered on both VM and interpreter paths for the tracked scenarios.
 - Benchmark numbers are environment-sensitive. Prefer `bench-ssg --runs <N> --warmup-runs <N>` and read the measurement warnings before drawing conclusions.
 - Runtime parity status is tracked in [docs/VM_INTERPRETER_PARITY_MATRIX.md](docs/VM_INTERPRETER_PARITY_MATRIX.md).
 

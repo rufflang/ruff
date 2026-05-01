@@ -21,7 +21,7 @@ cargo build --release
 install_root="$(mktemp -d)/ruff-install-root"
 
 echo "[artifact-validate] installing from clean root: $install_root"
-cargo install --path . --root "$install_root" --force --locked
+cargo install --path . --root "$install_root" --force --locked --offline
 
 ruff_bin="$install_root/bin/ruff"
 if [[ ! -x "$ruff_bin" ]]; then

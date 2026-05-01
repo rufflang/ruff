@@ -4,7 +4,7 @@ Return to [README](README.md) for full language overview.
 
 > Looking for how to get Ruff installed on your system? You're in the right place.
 
-Ruff is a programming language built with Rust. Currently, you install it by building from source using Cargo. Pre-built binaries and package managers are planned for future releases.
+Ruff is a programming language built with Rust. You can install Ruff either from prebuilt release artifacts (recommended for users) or by building from source with Cargo.
 
 ---
 
@@ -38,7 +38,64 @@ cargo --version
 
 ---
 
-## Build from Source (Current Method)
+## Install From Prebuilt Release Artifacts (Recommended)
+
+Use this path when consuming a tagged Ruff release.
+
+Set the release tag and detect platform:
+
+```bash
+RUFF_VERSION="v1.0.0"
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+   RUFF_OS="macos"
+else
+   RUFF_OS="linux"
+fi
+
+RUFF_ARCH="$(uname -m)"
+if [[ "${RUFF_ARCH}" == "aarch64" ]]; then
+   RUFF_ARCH="arm64"
+fi
+
+RUFF_TARGET="${RUFF_OS}-${RUFF_ARCH}"
+```
+
+Download binary archive and checksum:
+
+```bash
+BASE_URL="https://github.com/rufflang/ruff/releases/download/${RUFF_VERSION}"
+ARCHIVE="ruff-${RUFF_VERSION}-${RUFF_TARGET}.tar.gz"
+
+curl -sSfL "${BASE_URL}/${ARCHIVE}" -o "${ARCHIVE}"
+curl -sSfL "${BASE_URL}/${ARCHIVE}.sha256" -o "${ARCHIVE}.sha256"
+```
+
+Verify checksum:
+
+```bash
+if command -v sha256sum >/dev/null 2>&1; then
+   sha256sum -c "${ARCHIVE}.sha256"
+else
+   shasum -a 256 -c "${ARCHIVE}.sha256"
+fi
+```
+
+Install and verify commands:
+
+```bash
+mkdir -p ~/.local/bin
+tar -xzf "${ARCHIVE}"
+cp ruff ~/.local/bin/ruff
+chmod +x ~/.local/bin/ruff
+
+export PATH="$HOME/.local/bin:$PATH"
+ruff --version
+ruff run examples/hello.ruff
+ruff lsp --help
+```
+
+## Build from Source
 
 ### 1. Clone the Repository
 
@@ -163,12 +220,6 @@ brew install ruff
 scoop bucket add ruff https://github.com/rufflang/scoop-bucket
 scoop install ruff
 ```
-
-### Pre-built Binaries
-Download from [Releases](https://github.com/rufflang/ruff/releases):
-- `ruff-v0.1.0-linux-x64.tar.gz`
-- `ruff-v0.1.0-macos-universal.tar.gz`
-- `ruff-v0.1.0-windows-x64.zip`
 
 ### Package Managers
 - **apt** (Ubuntu/Debian): Planned

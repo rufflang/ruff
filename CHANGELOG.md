@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added formal semver-tied deprecation policy in `docs/DEPRECATION_POLICY.md` covering warning format, deprecation windows, removal floors, and required release/process artifacts for CLI/LSP/runtime surface changes.
 - Added native API security posture reference `docs/NATIVE_API_SECURITY_POSTURE.md` with explicit trust model and operational caveats for process/network/filesystem/crypto/database builtins.
 - Added `tests/native_api_security_boundaries.rs` integration coverage to lock deterministic misuse/failure boundary behavior for high-risk process/network/filesystem/crypto/database native APIs.
+- Added release artifact publication workflow `.github/workflows/release-binaries.yml` to build/publish Linux and macOS prebuilt binaries with per-asset SHA-256 checksum files plus a consolidated checksum manifest on tagged releases.
+- Added published-artifact smoke workflow `.github/workflows/release-published-artifact-smoke.yml` to validate fresh-machine install/verify/run flow directly from release-hosted artifacts.
+- Added v1 release artifact checklist `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` and release evidence note `notes/2026-05-01_03-10_v1-artifact-gate-and-match-binding-parity.md` for final v1 sign-off tracking.
 
 ### Changed
 
@@ -35,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `format`/`lint` CLI file IO handling in `src/main.rs` to return deterministic runtime errors (exit `1`) instead of panicking on missing/unreadable inputs in JSON automation paths.
 - Changed `docs/OPTIONAL_TYPING_DESIGN.md` from exploratory notes into an explicit v1 policy document that defines supported annotation metadata behavior and deferred enforcement/optimization tracks.
 - Updated `README.md` documentation and native-stdlib guidance to reference the formal deprecation policy and high-risk native API security posture docs.
+- Changed parser/lexer handling so `Result`/`Option` constructor tags and enum-style `match` patterns parse consistently as identifier-like symbols while preserving generic type-annotation parsing.
+- Changed compiler/VM match lowering with `OpCode::MatchCasePattern` support and `Result::`/`Option::` constructor lowering so tag-style `match` bindings execute correctly on both runtime paths.
+- Changed release artifact validation to use locked offline clean-root install after the release build, avoiding unnecessary registry access during local/CI artifact validation.
+- Changed LSP diagnostics to report malformed `Result<T, E>` / `Option<T>` annotations without depending on parser panic behavior.
+- Changed native API security boundary test temp roots to include process/counter entropy so parallel tests cannot collide on the same script file.
+- Updated parity coverage/docs (`tests/vm_interpreter_parity_surfaces.rs`, `docs/VM_INTERPRETER_PARITY_MATRIX.md`, and roadmap/readme status markers) to mark tag-style match-binding capability as closed.
 
 ## [0.14.0] - 2026-04-30
 
