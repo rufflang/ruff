@@ -4130,6 +4130,14 @@ impl VM {
                             self.stack.push(object.clone());
                             Value::NativeFunction(format!("__image_method_{}", field))
                         }
+                        Value::HttpServer { .. } => match field.as_str() {
+                            "route" | "listen" => {
+                                // Mirror method marker behavior used by channel/image dispatch.
+                                self.stack.push(object.clone());
+                                Value::NativeFunction(format!("__http_server_method_{}", field))
+                            }
+                            _ => return Err(format!("HttpServer has no method '{}'", field)),
+                        },
                         _ => return Err("Cannot access field on non-struct".to_string()),
                     };
 
@@ -4964,6 +4972,203 @@ impl VM {
         }
     }
 
+    fn match_http_route_pattern(pattern: &str, path: &str) -> Option<HashMap<String, String>> {
+        let pattern_parts: Vec<&str> = pattern.split('/').collect();
+        let path_parts: Vec<&str> = path.split('/').collect();
+
+        if pattern_parts.len() != path_parts.len() {
+            return None;
+        }
+
+        let mut params = HashMap::new();
+        for (pattern_part, path_part) in pattern_parts.iter().zip(path_parts.iter()) {
+            if let Some(param_name) = pattern_part.strip_prefix(':') {
+                params.insert(param_name.to_string(), path_part.to_string());
+            } else if *pattern_part != *path_part {
+                return None;
+            }
+        }
+
+        Some(params)
+    }
+
+    fn http_value_to_constant(value: &Value) -> Result<Constant, String> {
+        match value {
+            Value::Null => Ok(Constant::None),
+            Value::Int(n) => Ok(Constant::Int(*n)),
+            Value::Float(f) => Ok(Constant::Float(*f)),
+            Value::Str(s) => Ok(Constant::String(s.as_ref().clone())),
+            Value::Bool(b) => Ok(Constant::Bool(*b)),
+            Value::Array(items) => {
+                let mut constants = Vec::with_capacity(items.len());
+                for item in items.iter() {
+                    constants.push(Self::http_value_to_constant(item)?);
+                }
+                Ok(Constant::Array(constants))
+            }
+            Value::Dict(dict) => {
+                let mut pairs = Vec::with_capacity(dict.len());
+                for (key, value) in dict.iter() {
+                    pairs.push((
+                        Constant::String(key.as_ref().to_string()),
+                        Self::http_value_to_constant(value)?,
+                    ));
+                }
+                Ok(Constant::Dict(pairs))
+            }
+            Value::FixedDict { keys, values } => {
+                let mut pairs = Vec::with_capacity(keys.len());
+                for (key, value) in keys.iter().zip(values.iter()) {
+                    pairs.push((
+                        Constant::String(key.as_ref().to_string()),
+                        Self::http_value_to_constant(value)?,
+                    ));
+                }
+                Ok(Constant::Dict(pairs))
+            }
+            _ => Err(format!(
+                "Unsupported request value type for HTTP handler invocation: {:?}",
+                value
+            )),
+        }
+    }
+
+    fn call_http_handler_vm(&mut self, handler: Value, req_obj: Value) -> Result<Value, String> {
+        match handler {
+            Value::BytecodeFunction { .. } | Value::NativeFunction(_) => {
+                let handler_name = format!("__http_handler_tmp_{}", self.next_execution_context_id);
+                self.next_execution_context_id = self.next_execution_context_id.wrapping_add(1);
+
+                {
+                    let mut globals = self.globals.lock().unwrap();
+                    globals.set(handler_name.clone(), handler);
+                }
+
+                let req_constant = Self::http_value_to_constant(&req_obj)?;
+
+                let mut wrapper_chunk = BytecodeChunk::new();
+                wrapper_chunk.name = Some("__http_handler_wrapper".to_string());
+                let request_constant_idx = wrapper_chunk.add_constant(req_constant);
+
+                wrapper_chunk.emit(OpCode::LoadConst(request_constant_idx));
+                wrapper_chunk.emit(OpCode::LoadGlobal(handler_name.clone()));
+                wrapper_chunk.emit(OpCode::Call(1));
+                wrapper_chunk.emit(OpCode::Return);
+
+                let mut temp_vm = VM::new();
+                temp_vm.jit_enabled = false;
+                temp_vm.set_globals(Arc::clone(&self.globals));
+                let result = temp_vm.execute(wrapper_chunk);
+
+                {
+                    let mut globals = self.globals.lock().unwrap();
+                    globals.set(handler_name, Value::Null);
+                }
+
+                result
+            }
+            _ => Err("Route handler must be a callable function".to_string()),
+        }
+    }
+
+    fn start_http_server_vm(
+        &mut self,
+        port: u16,
+        routes: Vec<(String, String, Value)>,
+    ) -> Result<Value, String> {
+        use tiny_http::{Response, Server};
+
+        println!("Starting HTTP server on port {}...", port);
+        let server =
+            Server::http(format!("0.0.0.0:{}", port)).map_err(|e| format!("Failed to start server: {}", e))?;
+
+        println!("Server listening on http://localhost:{}", port);
+        println!("Press Ctrl+C to stop");
+
+        for mut request in server.incoming_requests() {
+            let method = request.method().to_string();
+            let url_path = request.url().to_string();
+
+            let body_content = {
+                let mut reader = request.as_reader();
+                let mut buffer = Vec::new();
+                std::io::Read::read_to_end(&mut reader, &mut buffer).ok();
+                String::from_utf8_lossy(&buffer).to_string()
+            };
+
+            let mut matched_handler: Option<(Value, HashMap<String, String>)> = None;
+
+            for (route_method, route_path, handler) in &routes {
+                if method == *route_method && url_path == *route_path {
+                    matched_handler = Some((handler.clone(), HashMap::new()));
+                    break;
+                }
+            }
+
+            if matched_handler.is_none() {
+                for (route_method, route_path, handler) in &routes {
+                    if method != *route_method {
+                        continue;
+                    }
+                    if route_path.contains(':') {
+                        if let Some(path_params) =
+                            Self::match_http_route_pattern(route_path, &url_path)
+                        {
+                            matched_handler = Some((handler.clone(), path_params));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            let response = if let Some((handler, path_params)) = matched_handler {
+                let mut params_dict = DictMap::default();
+                for (key, value) in &path_params {
+                    params_dict.insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
+                }
+
+                let mut req_fields = DictMap::default();
+                req_fields.insert("method".into(), Value::Str(Arc::new(method.clone())));
+                req_fields.insert("path".into(), Value::Str(Arc::new(url_path.clone())));
+                req_fields.insert("body".into(), Value::Str(Arc::new(body_content.clone())));
+                req_fields.insert("params".into(), Value::Dict(Arc::new(params_dict)));
+
+                let mut headers_dict = DictMap::default();
+                for header in request.headers() {
+                    let header_name = header.field.as_str().to_string();
+                    let header_value = header.value.as_str().to_string();
+                    headers_dict.insert(header_name.into(), Value::Str(Arc::new(header_value)));
+                }
+                req_fields.insert("headers".into(), Value::Dict(Arc::new(headers_dict)));
+
+                match self.call_http_handler_vm(handler, Value::Dict(Arc::new(req_fields))) {
+                    Ok(Value::HttpResponse { status, body, headers }) => {
+                        let mut response = Response::from_string(body).with_status_code(status);
+                        for (key, value) in headers {
+                            if let Ok(header) =
+                                tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes())
+                            {
+                                response = response.with_header(header);
+                            }
+                        }
+                        response
+                    }
+                    Ok(_other) => Response::from_string(
+                        "Internal Server Error: route handler must return an HTTP response",
+                    )
+                    .with_status_code(500),
+                    Err(error) => Response::from_string(error).with_status_code(500),
+                }
+            } else {
+                Response::from_string("Not Found").with_status_code(404)
+            };
+
+            let _ = request.respond(response);
+        }
+
+        Ok(Value::Int(0))
+    }
+
     /// Call a native function (returns synchronously)
     fn call_native_function_vm(
         &mut self,
@@ -5027,6 +5232,55 @@ impl VM {
                     Some(Value::Error(msg)) => return Err(msg),
                     Some(other) => return Ok(other),
                     None => return Err("Expected Image for image method call".to_string()),
+                }
+            }
+
+            // Handle HttpServer method calls.
+            if name.starts_with("__http_server_method_") {
+                let method_name = name.strip_prefix("__http_server_method_").unwrap();
+
+                // Remove duplicate receiver argument emitted by MethodCall compilation.
+                if !args.is_empty() {
+                    args.pop();
+                }
+
+                let server = self
+                    .stack
+                    .pop()
+                    .ok_or("Stack underflow getting HTTP server")?;
+
+                if let Value::HttpServer { port, routes } = server {
+                    return match method_name {
+                        "route" => {
+                            if args.len() != 3 {
+                                Err("route() requires (method, path, handler_function)".to_string())
+                            } else {
+                                match (&args[0], &args[1], &args[2]) {
+                                    (
+                                        Value::Str(method),
+                                        Value::Str(path),
+                                        Value::BytecodeFunction { .. } | Value::NativeFunction(_),
+                                    ) => {
+                                        let mut new_routes = routes.clone();
+                                        new_routes.push((
+                                            method.as_ref().clone(),
+                                            path.as_ref().clone(),
+                                            args[2].clone(),
+                                        ));
+                                        Ok(Value::HttpServer { port, routes: new_routes })
+                                    }
+                                    _ => Err(
+                                        "route() requires (method, path, handler_function)"
+                                            .to_string(),
+                                    ),
+                                }
+                            }
+                        }
+                        "listen" => self.start_http_server_vm(port, routes),
+                        _ => Err(format!("HttpServer has no method '{}'", method_name)),
+                    };
+                } else {
+                    return Err("Expected HttpServer for HTTP server method call".to_string());
                 }
             }
 
@@ -6434,6 +6688,28 @@ mod tests {
         vm.execute(chunk)
     }
 
+    fn run_vm_code_with_natives(code: &str, native_names: &[&str]) -> Result<Value, String> {
+        let tokens = lexer::tokenize(code);
+        let mut parser = Parser::new(tokens);
+        let ast = parser.parse();
+
+        let mut compiler = Compiler::new();
+        let chunk = compiler.compile(&ast)?;
+
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            for native_name in native_names {
+                globals.define(
+                    (*native_name).to_string(),
+                    Value::NativeFunction((*native_name).to_string()),
+                );
+            }
+        }
+
+        vm.execute(chunk)
+    }
+
     fn compile_chunk(code: &str) -> BytecodeChunk {
         let tokens = lexer::tokenize(code);
         let mut parser = Parser::new(tokens);
@@ -7054,6 +7330,128 @@ mod tests {
         match result {
             Ok(Value::Int(n)) => assert_eq!(n, 42),
             Ok(other) => panic!("Expected int 42, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_vm_to_json_serializes_fixed_dict_literals() {
+        let code = r#"
+            payload := {"title": "Ruff", "count": 2}
+            return to_json(payload)
+        "#;
+
+        match run_vm_code_with_natives(code, &["to_json"]) {
+            Ok(Value::Str(json)) => {
+                let decoded: serde_json::Value =
+                    serde_json::from_str(json.as_ref()).expect("serialized JSON should parse");
+                assert_eq!(decoded["title"], serde_json::Value::String("Ruff".to_string()));
+                assert_eq!(decoded["count"], serde_json::Value::Number(2.into()));
+            }
+            Ok(other) => panic!("Expected JSON string, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_vm_to_json_array_does_not_duplicate_entries() {
+        let code = r#"
+            values := [1, 2, 3]
+            return to_json(values)
+        "#;
+
+        match run_vm_code_with_natives(code, &["to_json"]) {
+            Ok(Value::Str(json)) => {
+                let decoded: serde_json::Value =
+                    serde_json::from_str(json.as_ref()).expect("serialized JSON should parse");
+                let items = decoded
+                    .as_array()
+                    .expect("serialized array should decode to an array");
+                assert_eq!(items.len(), 3);
+                assert_eq!(items[0], serde_json::Value::Number(1.into()));
+                assert_eq!(items[1], serde_json::Value::Number(2.into()));
+                assert_eq!(items[2], serde_json::Value::Number(3.into()));
+            }
+            Ok(other) => panic!("Expected JSON string, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_vm_http_server_route_method_returns_updated_server() {
+        let code = r#"
+            server := http_server(4123)
+            server := server.route("GET", "/health", func(req) {
+                return http_response(200, "ok")
+            })
+            return server
+        "#;
+
+        match run_vm_code_with_natives(code, &["http_server", "http_response"]) {
+            Ok(Value::HttpServer { port, routes }) => {
+                assert_eq!(port, 4123);
+                assert_eq!(routes.len(), 1);
+                assert_eq!(routes[0].0, "GET");
+                assert_eq!(routes[0].1, "/health");
+            }
+            Ok(other) => panic!("Expected HttpServer, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_vm_http_handler_wrapper_executes_lambda_response_correctly() {
+        let code = r#"
+            func with_cors(response) {
+                response := set_header(response, "Access-Control-Allow-Origin", "*")
+                response := set_header(response, "Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+                response := set_header(response, "Access-Control-Allow-Headers", "Content-Type, Authorization")
+                return response
+            }
+
+            func api_json(status, payload) {
+                return with_cors(json_response(status, payload))
+            }
+
+            return func(request) {
+                return api_json(200, {
+                    "service": "Ruff CRUD API Showcase",
+                    "status_values": ["draft", "published", "archived"]
+                })
+            }
+        "#;
+
+        let chunk = compile_chunk(code);
+        let mut vm = VM::new();
+        {
+            let mut globals = vm.globals.lock().unwrap();
+            globals.define(
+                "json_response".to_string(),
+                Value::NativeFunction("json_response".to_string()),
+            );
+            globals.define(
+                "set_header".to_string(),
+                Value::NativeFunction("set_header".to_string()),
+            );
+        }
+
+        let handler = vm.execute(chunk).expect("handler should compile and execute");
+
+        let mut req_fields = DictMap::default();
+        req_fields.insert("method".into(), Value::Str(Arc::new("GET".to_string())));
+        req_fields.insert("path".into(), Value::Str(Arc::new("/".to_string())));
+        req_fields.insert("body".into(), Value::Str(Arc::new(String::new())));
+        req_fields.insert("params".into(), Value::Dict(Arc::new(DictMap::default())));
+        req_fields.insert("headers".into(), Value::Dict(Arc::new(DictMap::default())));
+
+        match vm.call_http_handler_vm(handler, Value::Dict(Arc::new(req_fields))) {
+            Ok(Value::HttpResponse { status, body, .. }) => {
+                assert_eq!(status, 200);
+                assert!(body.contains("\"service\":\"Ruff CRUD API Showcase\""));
+                assert!(body.contains("\"status_values\""));
+                assert!(body.contains("\"archived\""));
+            }
+            Ok(other) => panic!("Expected HttpResponse, got: {:?}", other),
             Err(e) => panic!("VM error: {}", e),
         }
     }
