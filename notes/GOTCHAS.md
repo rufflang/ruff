@@ -68,6 +68,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-04-29_17-02_image-method-dispatch-parity.md)
 
+### HTTP route matching must ignore query strings
+- **Problem:** Exact/parameterized routes can fail when handlers are matched against full URLs containing `?query=...`.
+- **Rule:** Split request URL into path and query first, then route-match using normalized path only.
+- **Implication:** Keep request metadata (`path`, `raw_path`, `query`, `query_string`) explicit and parity-aligned across interpreter and VM runtimes.
+
+(Discovered during: 2026-05-05_11-17_http-query-route-hardening.md)
+
 ### Strict-arity hardening must preserve legacy fallback contracts unless intentionally changed
 - **Problem:** Rejecting extra args can accidentally alter established missing/invalid-arg behavior.
 - **Rule:** Add explicit extra-arg rejection while preserving existing fallback semantics unless contract change is deliberate.

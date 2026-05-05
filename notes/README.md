@@ -44,4 +44,5 @@ High-signal session notes:
 - `2026-05-01_02-25_stdlib-canonical-reference-coverage.md` — Added canonical standard library reference docs with function tiers/examples and a runtime-alignment contract test to keep docs synchronized with builtin registration.
 - `2026-05-01_02-40_deprecation-policy-and-native-api-security-posture.md` — Added formal deprecation policy and native API security posture docs, plus misuse-boundary integration tests for high-risk native APIs.
 - `2026-05-01_03-10_v1-artifact-gate-and-match-binding-parity.md` — Closed tag-style match-binding parity gap and added v1 release artifact publication/smoke-validation workflows with updated install/release docs.
+- `2026-05-05_11-17_http-query-route-hardening.md` — Captured query-string-safe route matching in interpreter/VM, new HTTP request query metadata contract, and production-hardening patterns used in the CRUD showcase.
 - `2026-05-05_10-29_vm-example-compatibility-followthrough.md` — Captured VM bootstrap/constants and method-dispatch parity gotchas, plus automation-safe example sweep rules and commit-splitting practice.
