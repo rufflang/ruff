@@ -54,6 +54,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-15_09-18_release-hardening-alias-api-contract.md)
 
+### VM builtin name registration does not bootstrap constants
+- **Problem:** VM runs can report undefined `PI`, `E`, or `null` even when builtin globals seem initialized.
+- **Rule:** Treat constant injection as a separate bootstrap contract from native builtin-name registration.
+- **Implication:** When touching VM startup/bootstrap, assert both callable builtins and constant globals are present.
+
+(Discovered during: 2026-05-05_10-29_vm-example-compatibility-followthrough.md)
+
 ### Method support can silently split between call paths
 - **Problem:** A method can appear implemented but still fail in normal `obj.method(...)` usage.
 - **Rule:** Keep method behavior wired to the active `Expr::MethodCall` path and do not leave logic only in legacy field-access call sugar branches.
@@ -145,6 +152,13 @@ If you are new to the project, read this first.
 - **Implication:** Performance tests should detect regressions by contract, not raw wall-clock ordering.
 
 (Discovered during: 2026-03-19_07-47_ssg-rayon-pool-cache-and-timing-test-stability.md)
+
+### Top-level example harnesses must explicitly separate automation-safe and interactive flows
+- **Problem:** One-shot example sweeps can fail or hang on interactive/server/network demos.
+- **Rule:** Keep a clear automation contract (non-benchmark, non-interactive) and guard long-running examples.
+- **Implication:** Use a deterministic smoke target for CI/local sweeps and validate interactive flows separately.
+
+(Discovered during: 2026-05-05_10-29_vm-example-compatibility-followthrough.md)
 
 ### Animated GIF to WebP conversion depends on external `gif2webp`
 - **Problem:** Animated conversion may fail at runtime despite valid Ruff arguments.
