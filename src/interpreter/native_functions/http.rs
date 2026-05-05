@@ -285,7 +285,15 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             if let (Some(Value::Int(status)), Some(data)) = (arg_values.first(), arg_values.get(1))
             {
-                let body = builtins::to_json(data).unwrap_or_else(|_| "{}".to_string());
+                let body = match builtins::to_json(data) {
+                    Ok(body) => body,
+                    Err(error) => {
+                        return Some(Value::Error(format!(
+                            "json_response failed to serialize data: {}",
+                            error
+                        )));
+                    }
+                };
                 let mut headers = HashMap::new();
                 headers.insert("Content-Type".to_string(), "application/json".to_string());
                 Value::HttpResponse { status: *status as u16, body, headers }

@@ -612,7 +612,6 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
             let mut json_arr = Vec::new();
             for item in arr.iter() {
                 json_arr.push(ruff_value_to_json(item)?);
-                json_arr.push(ruff_value_to_json(item)?);
             }
             Ok(serde_json::Value::Array(json_arr))
         }
@@ -620,6 +619,27 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
             let mut json_obj = serde_json::Map::new();
             for (key, val) in dict.iter() {
                 json_obj.insert(key.to_string(), ruff_value_to_json(val)?);
+            }
+            Ok(serde_json::Value::Object(json_obj))
+        }
+        Value::FixedDict { keys, values } => {
+            let mut json_obj = serde_json::Map::new();
+            for (key, val) in keys.iter().zip(values.iter()) {
+                json_obj.insert(key.to_string(), ruff_value_to_json(val)?);
+            }
+            Ok(serde_json::Value::Object(json_obj))
+        }
+        Value::IntDict(dict) => {
+            let mut json_obj = serde_json::Map::new();
+            for (key, val) in dict.iter() {
+                json_obj.insert(key.to_string(), ruff_value_to_json(val)?);
+            }
+            Ok(serde_json::Value::Object(json_obj))
+        }
+        Value::DenseIntDict(values) => {
+            let mut json_obj = serde_json::Map::new();
+            for (index, val) in values.iter().enumerate() {
+                json_obj.insert(index.to_string(), ruff_value_to_json(val)?);
             }
             Ok(serde_json::Value::Object(json_obj))
         }
@@ -2011,6 +2031,7 @@ pub fn generate_help(arg_defs: &[ArgumentDef], app_name: &str, description: &str
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn test_math_functions() {
@@ -2044,5 +2065,53 @@ mod tests {
         assert_eq!(repeat("ha", 3.0), "hahaha");
         assert_eq!(split("a,b,c", ","), vec!["a", "b", "c"]);
         assert_eq!(join(&["a".to_string(), "b".to_string(), "c".to_string()], ","), "a,b,c");
+    }
+
+    #[test]
+    fn test_to_json_fixed_dict_serializes_successfully() {
+        let value = Value::FixedDict {
+            keys: Arc::new(vec![Arc::<str>::from("title"), Arc::<str>::from("count")]),
+            values: vec![Value::Str(Arc::new("Ruff".to_string())), Value::Int(2)],
+        };
+
+        let encoded = to_json(&value).expect("FixedDict should serialize to JSON");
+        let decoded: serde_json::Value =
+            serde_json::from_str(&encoded).expect("Serialized JSON should parse");
+
+        assert_eq!(decoded["title"], serde_json::Value::String("Ruff".to_string()));
+        assert_eq!(decoded["count"], serde_json::Value::Number(2.into()));
+    }
+
+    #[test]
+    fn test_to_json_array_does_not_duplicate_entries() {
+        let value = Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2), Value::Int(3)]));
+
+        let encoded = to_json(&value).expect("Array should serialize to JSON");
+        let decoded: serde_json::Value =
+            serde_json::from_str(&encoded).expect("Serialized JSON should parse");
+
+        let items = decoded
+            .as_array()
+            .expect("Decoded array JSON should contain an array root");
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0], serde_json::Value::Number(1.into()));
+        assert_eq!(items[1], serde_json::Value::Number(2.into()));
+        assert_eq!(items[2], serde_json::Value::Number(3.into()));
+    }
+
+    #[test]
+    fn test_json_roundtrip_array_of_objects_preserves_cardinality() {
+        let raw = r#"{"items":[{"id":1},{"id":2}],"ok":true}"#;
+        let parsed = parse_json(raw).expect("Input JSON should parse");
+        let encoded = to_json(&parsed).expect("Roundtrip JSON should serialize");
+        let decoded: serde_json::Value =
+            serde_json::from_str(&encoded).expect("Roundtrip JSON output should parse");
+
+        let items = decoded["items"]
+            .as_array()
+            .expect("items should remain an array after roundtrip");
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["id"], serde_json::Value::Number(1.into()));
+        assert_eq!(items[1]["id"], serde_json::Value::Number(2.into()));
     }
 }
