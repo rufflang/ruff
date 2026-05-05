@@ -1639,6 +1639,43 @@ impl Interpreter {
         Some(params)
     }
 
+    /// Splits a request URL into a normalized path and query metadata.
+    fn split_http_path_and_query(url: &str) -> (String, HashMap<String, String>, String) {
+        if let Some((path, raw_query)) = url.split_once('?') {
+            (
+                path.to_string(),
+                Self::parse_http_query_params(raw_query),
+                raw_query.to_string(),
+            )
+        } else {
+            (url.to_string(), HashMap::new(), String::new())
+        }
+    }
+
+    /// Parses query string pairs into a map without URL decoding.
+    fn parse_http_query_params(raw_query: &str) -> HashMap<String, String> {
+        let mut query_params = HashMap::new();
+
+        for pair in raw_query.split('&') {
+            if pair.is_empty() {
+                continue;
+            }
+
+            let (key, value) = match pair.split_once('=') {
+                Some((k, v)) => (k, v),
+                None => (pair, ""),
+            };
+
+            if key.is_empty() {
+                continue;
+            }
+
+            query_params.insert(key.to_string(), value.to_string());
+        }
+
+        query_params
+    }
+
     /// Starts an HTTP server with registered routes
     fn start_http_server(&mut self, port: u16, routes: Vec<(String, String, Value)>) -> Value {
         use tiny_http::{Response, Server};
@@ -1656,7 +1693,9 @@ impl Interpreter {
         // Main server loop
         for mut request in server.incoming_requests() {
             let method = request.method().to_string();
-            let url_path = request.url().to_string();
+            let request_url = request.url().to_string();
+            let (url_path, query_params, raw_query) =
+                Self::split_http_path_and_query(&request_url);
 
             // Read body first (before any response handling)
             let body_content = {
@@ -1708,8 +1747,17 @@ impl Interpreter {
                 let mut req_fields = DictMap::default();
                 req_fields.insert("method".into(), Value::Str(Arc::new(method.clone())));
                 req_fields.insert("path".into(), Value::Str(Arc::new(url_path.clone())));
+                req_fields.insert("raw_path".into(), Value::Str(Arc::new(request_url.clone())));
                 req_fields.insert("body".into(), Value::Str(Arc::new(body_content.clone())));
                 req_fields.insert("params".into(), Value::Dict(Arc::new(params_dict)));
+
+                // Extract query params from URL
+                let mut query_dict = DictMap::default();
+                for (key, value) in &query_params {
+                    query_dict.insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
+                }
+                req_fields.insert("query".into(), Value::Dict(Arc::new(query_dict)));
+                req_fields.insert("query_string".into(), Value::Str(Arc::new(raw_query.clone())));
 
                 // Extract headers from request
                 let mut headers_dict = DictMap::default();
