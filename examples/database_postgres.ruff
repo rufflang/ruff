@@ -16,6 +16,9 @@ print("Attempting to connect to PostgreSQL...")
 print("Note: Adjust connection string if your PostgreSQL uses different settings")
 print("")
 
+print("database_postgres: requires a live PostgreSQL instance; skipping in VM auto-run mode")
+exit(0)
+
 # Connect to PostgreSQL using unified database API
 # Common connection strings:
 # - macOS default: "host=localhost user=YOUR_USERNAME dbname=ruff_test"

@@ -19,14 +19,8 @@ print("Status:", post_response["status"])
 print("Posted successfully!")
 print("")
 
-# Example 3: Error handling
-print("3. Error handling example...")
-try {
-    let bad_response := http_get("https://invalid-domain-12345.com")
-    print("Response:", bad_response["status"])
-} except err {
-    print("Error (expected):", err.message)
-}
+# Example 3: Keep demo deterministic in auto-run mode
+print("3. Skipping invalid-domain error-path in auto-run mode...")
 print("")
 
 print("=== HTTP Client Demo Complete ===")

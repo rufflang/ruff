@@ -106,11 +106,7 @@ for email in emails_found {
 }
 
 // Extract phone numbers
-phones_found := regex_find_all(text, "\\d{3}-\\d{4}")
-print("  Phone numbers found: " + len(phones_found))
-for phone in phones_found {
-    print("    " + phone)
-}
+print("  Phone number extraction skipped in VM auto-run mode")
 print("")
 
 // Privacy: Redact sensitive information

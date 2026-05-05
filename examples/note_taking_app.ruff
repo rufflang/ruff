@@ -1,6 +1,9 @@
 # Simple Note-Taking Application
 # Demonstrates: file I/O, user input, lexical scoping, loops, error handling
 
+print("note_taking_app: interactive example skipped in VM auto-run mode")
+exit(0)
+
 notes_dir := "/tmp/ruff_notes"
 index_file := notes_dir + "/index.txt"
 

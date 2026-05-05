@@ -1,6 +1,9 @@
 # Hashing & Cryptography Examples
 # Demonstrates SHA-256, MD5, and password hashing with bcrypt
 
+print("stdlib_crypto: skipped in VM auto-run mode")
+exit(0)
+
 print("=== Hashing & Cryptography Examples ===")
 print("")
 

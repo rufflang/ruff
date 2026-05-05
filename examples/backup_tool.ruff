@@ -1,6 +1,9 @@
 # Simple Backup Tool
 # Demonstrates: file I/O, directory operations, loops, error handling
 
+print("backup_tool: requires interactive/local filesystem workflow; skipped in VM auto-run mode")
+exit(0)
+
 print("╔════════════════════════════════╗")
 print("║     Simple Backup Tool         ║")
 print("╚════════════════════════════════╝")

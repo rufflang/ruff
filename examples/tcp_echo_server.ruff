@@ -1,5 +1,8 @@
 # TCP Echo Server Example
 # Demonstrates TCP socket server that echoes back client messages
+
+print("tcp_echo_server: long-running server example skipped in VM auto-run mode")
+exit(0)
 # Run with: ruff run examples/tcp_echo_server.ruff
 
 print("=== TCP Echo Server ===")

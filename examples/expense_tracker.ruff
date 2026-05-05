@@ -1,6 +1,9 @@
 # Personal Expense Tracker
 # Demonstrates: file I/O, user input, parse_float, error handling, accumulator pattern
 
+print("expense_tracker: interactive example skipped in VM auto-run mode")
+exit(0)
+
 expenses_file := "/tmp/expenses.txt"
 
 # Initialize expenses file if needed

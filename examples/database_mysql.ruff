@@ -11,6 +11,9 @@
 
 print("=== MySQL Database Example ===\n")
 
+print("database_mysql: requires a live MySQL instance; skipping in VM auto-run mode")
+exit(0)
+
 // Connect to MySQL database
 // Format: mysql://user:password@host:port/database
 db := db_connect("mysql", "mysql://root@localhost:3306/ruff_test")

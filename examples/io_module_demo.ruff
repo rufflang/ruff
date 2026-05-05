@@ -38,7 +38,7 @@ print("-------------------------------------------")
 let image_file := "/tmp/test.png"
 # PNG files start with: 0x89 0x50 0x4E 0x47 (magic number)
 let png_header := decode_base64("iVBORw==")  # Base64 for PNG header bytes
-let image_data := decode_base64("...actual image data here...")
+let image_data := decode_base64(encode_base64("placeholder image bytes"))
 io_write_bytes(image_file, png_header)
 
 # Read just the first 8 bytes to detect file type
@@ -135,7 +135,11 @@ io_write_bytes(inspect_file, decode_base64(encode_base64(test_data)))
 let meta := io_file_metadata(inspect_file)
 
 print("File: " + inspect_file)
-print("  Type: " + (meta["is_file"] ? "File" : "Directory"))
+    let type_label := "Directory"
+    if meta["is_file"] {
+        type_label := "File"
+    }
+    print("  Type: " + type_label)
 print("  Size: " + to_string(meta["size"]) + " bytes")
 print("  Read-only: " + to_string(meta["readonly"]))
 print("  Modified: " + to_string(meta["modified"]) + " (Unix timestamp)")

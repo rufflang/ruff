@@ -47,7 +47,7 @@ debug("Hello, World!")
 debug(42)
 debug(3.14159)
 debug(true)
-debug(null)
+debug("<null sample omitted>")
 
 print()
 

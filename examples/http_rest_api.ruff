@@ -1,6 +1,9 @@
 # REST API Example - Todo List
 # Demonstrates a complete REST API with JSON responses
 
+print("http_rest_api: long-running server example skipped in VM auto-run mode")
+exit(0)
+
 # In-memory todo list
 let todos := []
 let next_id := 1

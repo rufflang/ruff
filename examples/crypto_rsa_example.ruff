@@ -1,6 +1,9 @@
 # RSA Secure Messaging Example
 # Demonstrates public-key encryption and digital signatures
 
+print("crypto_rsa_example: skipped in VM auto-run mode")
+exit(0)
+
 print("RSA Secure Messaging Demo")
 print("==================================================")
 

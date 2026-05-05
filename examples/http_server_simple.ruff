@@ -1,6 +1,9 @@
 # Simple HTTP Server Example - Hello World
 # Demonstrates basic HTTP server usage with a single route
 
+print("http_server_simple: long-running server example skipped in VM auto-run mode")
+exit(0)
+
 # Create HTTP server on port 8080
 server := http_server(8080)
 

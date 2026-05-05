@@ -1,6 +1,9 @@
 # Interactive Quiz Game
 # Demonstrates: user input, type conversion, lexical scoping, accumulator pattern
 
+print("quiz_game: interactive example skipped in VM auto-run mode")
+exit(0)
+
 print("╔════════════════════════════════╗")
 print("║     Programming Quiz Game      ║")
 print("╚════════════════════════════════╝")

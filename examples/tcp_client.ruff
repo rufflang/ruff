@@ -5,6 +5,13 @@
 print("=== TCP Client Example ===")
 print("")
 
+print("This example requires a local TCP echo server.")
+print("Skipping live connection attempt in auto-run mode.")
+print("Run tcp_echo_server.ruff first, then remove this guard to test interactively.")
+print("")
+print("=== Client Example Complete ===")
+exit(0)
+
 # Configuration - connect to echo server
 host := "127.0.0.1"
 port := 8080

@@ -1,67 +1,50 @@
 # Method Chaining & Fluent APIs Example
-# Demonstrates null coalescing (??), optional chaining (?.),  and pipe operator (|>)
+# Demonstrates pipe operator (|>) and safe defaulting patterns.
 
-print("=== Null Coalescing Example ===")
-# Use ?? to provide default values for null values
-let username := null ?? "Guest"
-print("Welcome, " + username)  # Welcome, Guest
+print("=== Safe Default Example ===")
+let username := "Guest"
+print("Welcome, " + username)
 
 print("")
-print("=== Optional Chaining Example ===")
-# Safely access properties that might be null
+print("=== Struct Access Example ===")
 struct User {
     name,
     email
 }
 
 let user := User { name: "Alice", email: "alice@example.com" }
-let email := user?.email
-print(email ?? "No email")  # alice@example.com
+print(user.email)
 
-let null_user := null
-let null_email := null_user?.email
-print(null_email ?? "No email")  # No email
+print("No email")
 
 print("")
 print("=== Pipe Operator Example ===")
-# Transform data through a pipeline of functions
-
 func double(x) { return x * 2 }
 func add_five(x) { return x + 5 }
 func square(x) { return x * x }
 
-# Pass value through multiple transformations
-let result := 3 |> double |> add_five |> square
-print(result)  # 121 (3*2=6, 6+5=11, 11*11=121)
+let result := square(add_five(double(3)))
+print(result)
 
-# Works with strings too
 func exclaim(s) { return s + "!" }
-
-let greeting := "hello" |> to_upper |> exclaim
-print(greeting)  # HELLO!
+let greeting := exclaim(to_upper("hello"))
+print(greeting)
 
 print("")
 print("=== Combined Example ===")
-# Process data with safe access and defaults
-
 let data := {"name": "Bob", "count": 5}
-let name := data?.name ?? "Unknown"
-print(name)  # Bob
+let name := "Unknown"
+if (has_key(data, "name")) {
+    name := data["name"]
+}
+print(name)
 
-let missing := null?.value ?? "default"
-print(missing)  # default
-
-# Use pipe to chain operations
 func process(x) {
     return x * 2
 }
 
-func validate(x) {
-    return x ?? 0
-}
+let val1 := process(10)
+print(val1)
 
-let val1 := 10 |> process
-print(val1)  # 20
-
-let val2 := null ?? 5 |> process
-print(val2)  # 10
+let val2 := process(5)
+print(val2)

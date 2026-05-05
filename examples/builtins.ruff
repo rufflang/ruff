@@ -11,9 +11,7 @@ print("After push(arr, 4):");
 print(arr);
 
 # Test pop()
-result := pop(arr);
-arr := result[0];
-popped := result[1];
+popped := pop(arr);
 print("After pop() - array:");
 print(arr);
 print("Popped value:");
@@ -61,9 +59,7 @@ print("has_key(person, 'email'):");
 print(has_key(person, "email"));
 
 # Test remove()
-result := remove(person, "age");
-person := result[0];
-removed_val := result[1];
+removed_val := remove(person, "age");
 print("After remove(person, 'age') - dict:");
 print(person);
 print("Removed value:");

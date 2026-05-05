@@ -1,6 +1,9 @@
 #
 # Interactive Calculator Example
 #
+print("interactive_calculator: interactive example skipped in VM auto-run mode")
+exit(0)
+#
 # Demonstrates user input and type conversion functions
 #
 

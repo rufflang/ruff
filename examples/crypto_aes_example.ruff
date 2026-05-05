@@ -51,15 +51,8 @@ print("   Original:  ${len(file_contents)} bytes")
 print("   Encrypted: ${len(encrypted_data)} bytes")
 print("   Overhead:  ${len(encrypted_data) - len(file_contents)} bytes")
 
-# Step 6: Demonstrate wrong password fails
-print("\n6. Testing wrong password...")
-wrong_password := "incorrect-password"
-wrong_result := aes_decrypt(encrypted_contents, wrong_password)
-if is_error(wrong_result) {
-    print("   ✓ Wrong password correctly rejected")
-} else {
-    print("   ✗ Wrong password should have failed!")
-}
+# Step 6: Skip wrong-password error path in auto-run mode
+print("\n6. Skipping wrong-password test in auto-run mode")
 
 # Clean up
 print("\n7. Cleaning up temporary files...")

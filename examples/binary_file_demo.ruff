@@ -88,28 +88,28 @@ let files := ["/tmp/file1.bin", "/tmp/file2.bin", "/tmp/file3.bin"]
 let contents := ["Content for file 1", "Content for file 2", "Content for file 3"]
 
 # Write multiple binary files
-let index := 0.0
+let index := 0
 for content in contents {
     let binary := decode_base64(encode_base64(content))
     let filepath := files[index]
     write_binary_file(filepath, binary)
     print("✓ Created: " + filepath)
-    index := index + 1.0
+    index := index + 1
 }
 print()
 
 # Read them all back and verify
 print("Verifying all files...")
-index := 0.0
+index := 0
 for filepath in files {
     let data := read_binary_file(filepath)
     let size := len(data)
-    if size > 0.0 {
+    if size > 0 {
         print("✓ " + filepath + " - OK")
     } else {
         print("✗ " + filepath + " - FAILED")
     }
-    index := index + 1.0
+    index := index + 1
 }
 print()
 

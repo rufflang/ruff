@@ -17,12 +17,11 @@ print("   ✓ Added X-API-Version, X-Request-ID, and Cache-Control\n")
 # Example 2: Bulk header setting
 print("2. Setting multiple headers at once:")
 
-headers := {
-    "X-Custom-Header": "CustomValue",
-    "X-Rate-Limit": "1000",
-    "X-Rate-Remaining": "999",
-    "Access-Control-Allow-Origin": "*"
-}
+headers := dict()
+headers["X-Custom-Header"] := "CustomValue"
+headers["X-Rate-Limit"] := "1000"
+headers["X-Rate-Remaining"] := "999"
+headers["Access-Control-Allow-Origin"] := "*"
 
 api_response := http_response(200, "API Response")
 api_response := set_headers(api_response, headers)
@@ -44,10 +43,9 @@ print("   ✓ Content-Type: application/json added automatically\n")
 # Example 4: Redirects with custom headers
 print("4. Redirects with additional headers:")
 
-redirect_headers := {
-    "X-Redirect-Reason": "Resource moved permanently",
-    "Cache-Control": "no-store"
-}
+redirect_headers := dict()
+redirect_headers["X-Redirect-Reason"] := "Resource moved permanently"
+redirect_headers["Cache-Control"] := "no-store"
 
 redirect := redirect_response("https://new-location.com", redirect_headers)
 print("   ✓ Location + custom headers included\n")
@@ -55,26 +53,24 @@ print("   ✓ Location + custom headers included\n")
 # Example 5: CORS headers for APIs
 print("5. Setting CORS headers for cross-origin requests:")
 
-cors_headers := {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "86400"
-}
+cors_headers := dict()
+cors_headers["Access-Control-Allow-Origin"] := "*"
+cors_headers["Access-Control-Allow-Methods"] := "GET, POST, PUT, DELETE"
+cors_headers["Access-Control-Allow-Headers"] := "Content-Type, Authorization"
+cors_headers["Access-Control-Max-Age"] := "86400"
 
-cors_response := http_response(200, '{"status": "ok"}')
+cors_response := http_response(200, "{\"status\": \"ok\"}")
 cors_response := set_headers(cors_response, cors_headers)
 print("   ✓ CORS headers configured for API endpoint\n")
 
 # Example 6: Security headers
 print("6. Adding security headers:")
 
-security_headers := {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "X-XSS-Protection": "1; mode=block",
-    "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
-}
+security_headers := dict()
+security_headers["X-Content-Type-Options"] := "nosniff"
+security_headers["X-Frame-Options"] := "DENY"
+security_headers["X-XSS-Protection"] := "1; mode=block"
+security_headers["Strict-Transport-Security"] := "max-age=31536000; includeSubDomains"
 
 secure_response := http_response(200, "Secure content")
 secure_response := set_headers(secure_response, security_headers)

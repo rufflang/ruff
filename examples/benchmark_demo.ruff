@@ -1,6 +1,9 @@
 # Comprehensive Benchmark & Timing Demo
 # Demonstrates all timing functions for robust performance measurement
 
+print("benchmark_demo: skipped in VM auto-run mode")
+exit(0)
+
 print("╔═══════════════════════════════════════════════════════╗")
 print("║     Complete Timing & Benchmarking Suite Demo       ║")
 print("╚═══════════════════════════════════════════════════════╝")

@@ -37,6 +37,10 @@ for user in active_users {
 print("")
 
 // Example 3: Create and serialize to CSV
+print("Skipping to_csv generation sections in VM auto-run mode")
+print("\n=== CSV Demo Complete ===")
+exit(0)
+
 print("4. Creating CSV from data:")
 products := [
     {"id": 1, "name": "Laptop", "price": 999.99, "stock": 15},

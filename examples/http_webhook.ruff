@@ -1,6 +1,9 @@
 # Webhook Receiver Example
 # Demonstrates receiving webhook POSTs and processing data
 
+print("http_webhook: long-running server example skipped in VM auto-run mode")
+exit(0)
+
 # Webhook log storage
 let webhooks := []
 

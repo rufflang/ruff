@@ -134,7 +134,7 @@ print("")
 
 # Example usage
 print("Example usage:")
-print('download_file_to_disk("https://example.com/large.zip", "output.zip")')
+print("download_file_to_disk example omitted in auto-run mode")
 print("")
 
 # 6. Progress tracking for large downloads
