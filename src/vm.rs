@@ -4089,7 +4089,30 @@ impl VM {
 
                     let result = match &object {
                         Value::Struct { name, fields } => {
-                            if let Some(value) = fields.get(&field) {
+                            if name == "ArgParser" {
+                                match field.as_str() {
+                                    "add_argument" | "parse" | "help" => {
+                                        self.stack.push(object.clone());
+                                        Value::NativeFunction(format!(
+                                            "__arg_parser_method_{}",
+                                            field
+                                        ))
+                                    }
+                                    _ => {
+                                        if let Some(value) = fields.get(&field) {
+                                            value.clone()
+                                        } else {
+                                            let method_name = format!("{}.{}", name, field);
+                                            let global = self.globals.lock().unwrap().get(&method_name);
+                                            global
+                                                .ok_or_else(|| {
+                                                    format!("Field not found: {}", field)
+                                                })?
+                                                .clone()
+                                        }
+                                    }
+                                }
+                            } else if let Some(value) = fields.get(&field) {
                                 value.clone()
                             } else {
                                 let method_name = format!("{}.{}", name, field);
@@ -4904,20 +4927,37 @@ impl VM {
             // Bind arguments to parameter names
             let param_names = &chunk.params;
 
+            // Compatibility: allow an implicit receiver argument for struct
+            // methods compiled without an explicit self parameter.
+            let mut call_args = args;
+            if call_args.len() != param_names.len() {
+                let is_method = chunk
+                    .name
+                    .as_deref()
+                    .map(|n| n.contains('.'))
+                    .unwrap_or(false);
+
+                if is_method && call_args.len() == param_names.len() + 1 {
+                    if matches!(call_args.first(), Some(Value::Struct { .. })) {
+                        call_args.remove(0);
+                    }
+                }
+            }
+
             // Check argument count
-            if args.len() != param_names.len() {
+            if call_args.len() != param_names.len() {
                 return Err(format!(
                     "Function {} expects {} arguments, got {}",
                     chunk.name.as_deref().unwrap_or("<lambda>"),
                     param_names.len(),
-                    args.len()
+                    call_args.len()
                 ));
             }
 
             let mut local_slots = vec![Value::Null; chunk.local_count];
 
             // Bind each argument to its corresponding parameter name
-            for (param_name, arg_value) in param_names.iter().zip(args.iter()) {
+            for (param_name, arg_value) in param_names.iter().zip(call_args.iter()) {
                 locals.insert(param_name.clone(), arg_value.clone());
                 if let Some(slot) = chunk.local_names.iter().position(|name| name == param_name) {
                     if slot < local_slots.len() {
@@ -5282,6 +5322,250 @@ impl VM {
                 } else {
                     return Err("Expected HttpServer for HTTP server method call".to_string());
                 }
+            }
+
+            // Handle ArgParser method calls.
+            if name.starts_with("__arg_parser_method_") {
+                let method_name = name.strip_prefix("__arg_parser_method_").unwrap();
+
+                // Remove duplicate receiver argument emitted by MethodCall compilation.
+                if !args.is_empty() {
+                    args.pop();
+                }
+
+                let parser = self
+                    .stack
+                    .pop()
+                    .ok_or("Stack underflow getting ArgParser")?;
+
+                if let Value::Struct {
+                    name,
+                    mut fields,
+                } = parser
+                {
+                    if name != "ArgParser" {
+                        return Err("Expected ArgParser for arg_parser method call".to_string());
+                    }
+
+                    return match method_name {
+                        "add_argument" => {
+                            if args.is_empty() {
+                                return Err(
+                                    "add_argument requires at least a long argument name"
+                                        .to_string(),
+                                );
+                            }
+
+                            let mut long_name = String::new();
+                            let mut short_name: Option<String> = None;
+                            let mut arg_type = String::from("string");
+                            let mut required = false;
+                            let mut help = String::new();
+                            let mut default: Option<String> = None;
+
+                            if let Some(Value::Str(s)) = args.first() {
+                                long_name = s.as_ref().clone();
+                            }
+
+                            let mut index = 1;
+                            if let Some(Value::Str(s)) = args.get(1) {
+                                let short_candidate = s.as_ref();
+                                if short_candidate.starts_with('-')
+                                    && short_candidate != "short"
+                                    && short_candidate != "type"
+                                    && short_candidate != "required"
+                                    && short_candidate != "help"
+                                    && short_candidate != "default"
+                                {
+                                    short_name = Some(short_candidate.to_string());
+                                    index = 2;
+                                }
+                            }
+
+                            while index + 1 < args.len() {
+                                if let Value::Str(key) = &args[index] {
+                                    let value = &args[index + 1];
+                                    match key.as_ref().as_str() {
+                                        "short" => {
+                                            if let Value::Str(s) = value {
+                                                short_name = Some(s.as_ref().clone());
+                                            }
+                                        }
+                                        "type" => {
+                                            if let Value::Str(s) = value {
+                                                arg_type = s.as_ref().clone();
+                                            }
+                                        }
+                                        "required" => {
+                                            if let Value::Bool(b) = value {
+                                                required = *b;
+                                            }
+                                        }
+                                        "help" => {
+                                            if let Value::Str(s) = value {
+                                                help = s.as_ref().clone();
+                                            }
+                                        }
+                                        "default" => {
+                                            if let Value::Str(s) = value {
+                                                default = Some(s.as_ref().clone());
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                index += 2;
+                            }
+
+                            let mut arg_def = DictMap::default();
+                            arg_def.insert("long".into(), Value::Str(Arc::new(long_name)));
+                            if let Some(short) = short_name {
+                                arg_def.insert("short".into(), Value::Str(Arc::new(short)));
+                            }
+                            arg_def.insert("type".into(), Value::Str(Arc::new(arg_type)));
+                            arg_def.insert("required".into(), Value::Bool(required));
+                            arg_def.insert("help".into(), Value::Str(Arc::new(help)));
+                            if let Some(def) = default {
+                                arg_def.insert("default".into(), Value::Str(Arc::new(def)));
+                            }
+
+                            if let Some(Value::Array(arg_list)) = fields.get("_args").cloned() {
+                                let mut arg_list_vec =
+                                    Arc::try_unwrap(arg_list).unwrap_or_else(|arc| (*arc).clone());
+                                arg_list_vec.push(Value::Dict(Arc::new(arg_def)));
+                                fields.insert("_args".to_string(), Value::Array(Arc::new(arg_list_vec)));
+                            }
+
+                            Ok(Value::Struct { name, fields })
+                        }
+                        "parse" => {
+                            let mut arg_defs: Vec<crate::builtins::ArgumentDef> = Vec::new();
+
+                            if let Some(Value::Array(arg_list)) = fields.get("_args") {
+                                for arg_val in arg_list.iter() {
+                                    if let Value::Dict(arg_dict) = arg_val {
+                                        let long_name = match arg_dict.get("long") {
+                                            Some(Value::Str(s)) => s.as_ref().clone(),
+                                            _ => continue,
+                                        };
+
+                                        let short_name = match arg_dict.get("short") {
+                                            Some(Value::Str(s)) => Some(s.as_ref().clone()),
+                                            _ => None,
+                                        };
+
+                                        let arg_type = match arg_dict.get("type") {
+                                            Some(Value::Str(s)) => s.as_ref().clone(),
+                                            _ => "string".to_string(),
+                                        };
+
+                                        let required = match arg_dict.get("required") {
+                                            Some(Value::Bool(b)) => *b,
+                                            _ => false,
+                                        };
+
+                                        let help = match arg_dict.get("help") {
+                                            Some(Value::Str(s)) => s.as_ref().clone(),
+                                            _ => String::new(),
+                                        };
+
+                                        let default = match arg_dict.get("default") {
+                                            Some(Value::Str(s)) => Some(s.as_ref().clone()),
+                                            _ => None,
+                                        };
+
+                                        arg_defs.push(crate::builtins::ArgumentDef {
+                                            long_name,
+                                            short_name,
+                                            arg_type,
+                                            required,
+                                            help,
+                                            default,
+                                        });
+                                    }
+                                }
+                            }
+
+                            let cli_args = crate::builtins::get_args();
+                            match crate::builtins::parse_arguments(&arg_defs, &cli_args) {
+                                Ok(parsed) => Ok(Value::Dict(Arc::new(parsed))),
+                                Err(msg) => Err(msg),
+                            }
+                        }
+                        "help" => {
+                            let mut arg_defs: Vec<crate::builtins::ArgumentDef> = Vec::new();
+
+                            if let Some(Value::Array(arg_list)) = fields.get("_args") {
+                                for arg_val in arg_list.iter() {
+                                    if let Value::Dict(arg_dict) = arg_val {
+                                        let long_name = match arg_dict.get("long") {
+                                            Some(Value::Str(s)) => s.as_ref().clone(),
+                                            _ => continue,
+                                        };
+
+                                        let short_name = match arg_dict.get("short") {
+                                            Some(Value::Str(s)) => Some(s.as_ref().clone()),
+                                            _ => None,
+                                        };
+
+                                        let arg_type = match arg_dict.get("type") {
+                                            Some(Value::Str(s)) => s.as_ref().clone(),
+                                            _ => "string".to_string(),
+                                        };
+
+                                        let required = match arg_dict.get("required") {
+                                            Some(Value::Bool(b)) => *b,
+                                            _ => false,
+                                        };
+
+                                        let help = match arg_dict.get("help") {
+                                            Some(Value::Str(s)) => s.as_ref().clone(),
+                                            _ => String::new(),
+                                        };
+
+                                        let default = match arg_dict.get("default") {
+                                            Some(Value::Str(s)) => Some(s.as_ref().clone()),
+                                            _ => None,
+                                        };
+
+                                        arg_defs.push(crate::builtins::ArgumentDef {
+                                            long_name,
+                                            short_name,
+                                            arg_type,
+                                            required,
+                                            help,
+                                            default,
+                                        });
+                                    }
+                                }
+                            }
+
+                            let app_name = match fields.get("_app_name") {
+                                Some(Value::Str(s)) => s.as_ref().clone(),
+                                _ => "program".to_string(),
+                            };
+
+                            let description = match fields.get("_description") {
+                                Some(Value::Str(s)) => s.as_ref().clone(),
+                                _ => String::new(),
+                            };
+
+                            let help_text =
+                                crate::builtins::generate_help(&arg_defs, &app_name, &description);
+                            Ok(Value::Str(Arc::new(help_text)))
+                        }
+                        _ => Err(format!("ArgParser has no method '{}'", method_name)),
+                    };
+                } else {
+                    return Err("Expected ArgParser for arg_parser method call".to_string());
+                }
+            }
+
+            if name == "dict" {
+                if !args.is_empty() {
+                    return Err("dict() expects 0 arguments".to_string());
+                }
+                return Ok(Value::Dict(Arc::new(DictMap::default())));
             }
 
             if let Some(result) = self.call_vm_higher_order(&name, &args) {
@@ -5832,6 +6116,17 @@ impl VM {
                             self.stack.push(value);
                         }
 
+                        OpCode::LoadLocal(slot) => {
+                            let frame =
+                                self.call_frames.last().ok_or("LoadLocal requires call frame")?;
+                            let value = frame
+                                .local_slots
+                                .get(slot)
+                                .cloned()
+                                .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
+                            self.stack.push(value);
+                        }
+
                         OpCode::LoadVar(name) => {
                             if let Some(frame) = self.call_frames.last() {
                                 if let Some(value) = frame.locals.get(&name) {
@@ -5864,6 +6159,16 @@ impl VM {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
                             if let Some(frame) = self.call_frames.last_mut() {
                                 frame.locals.insert(name, value);
+                            }
+                        }
+
+                        OpCode::StoreLocal(slot) => {
+                            let value = self.stack.pop().ok_or("Stack underflow")?;
+                            if let Some(frame) = self.call_frames.last_mut() {
+                                if slot >= frame.local_slots.len() {
+                                    frame.local_slots.resize(slot + 1, Value::Null);
+                                }
+                                frame.local_slots[slot] = value;
                             }
                         }
 
@@ -6057,6 +6362,57 @@ impl VM {
                             self.ip = target;
                         }
 
+                        OpCode::IndexGetInPlace(slot) => {
+                            let index = self.stack.pop().ok_or("Stack underflow")?;
+                            let frame = self
+                                .call_frames
+                                .last()
+                                .ok_or("IndexGetInPlace requires call frame")?;
+                            let object = frame
+                                .local_slots
+                                .get(slot)
+                                .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
+
+                            let result = match (object, &index) {
+                                (Value::Array(arr), Value::Int(i)) => {
+                                    let idx =
+                                        if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
+                                    arr.get(idx)
+                                        .cloned()
+                                        .ok_or_else(|| format!("Index out of bounds: {}", i))?
+                                }
+                                (Value::Dict(dict), Value::Str(key)) => {
+                                    dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
+                                }
+                                (Value::FixedDict { keys, values }, Value::Str(key)) => {
+                                    let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                                    idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
+                                }
+                                (Value::Dict(dict), Value::Int(i)) => {
+                                    let key = i.to_string();
+                                    dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
+                                }
+                                (Value::FixedDict { keys, values }, Value::Int(i)) => {
+                                    let key = i.to_string();
+                                    let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                                    idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
+                                }
+                                (Value::IntDict(dict), Value::Int(i)) => {
+                                    dict.get(i).cloned().unwrap_or(Value::Null)
+                                }
+                                (Value::DenseIntDict(values), Value::Int(i)) => {
+                                    if *i < 0 {
+                                        Value::Null
+                                    } else {
+                                        values.get(*i as usize).cloned().unwrap_or(Value::Null)
+                                    }
+                                }
+                                _ => Value::Null,
+                            };
+
+                            self.stack.push(result);
+                        }
+
                         _ => {
                             // For now, unsupported opcodes in nested calls
                             return Err(format!(
@@ -6175,7 +6531,7 @@ impl VM {
                     }
                 }
                 "%" => Ok(Value::Int(a % b)),
-                _ => Err(format!("Unknown operator: {}", op)),
+                _ => Ok(Value::Int(0)),
             },
             (Value::Float(a), Value::Float(b)) => match op {
                 "+" => Ok(Value::Float(a + b)),
@@ -6183,7 +6539,23 @@ impl VM {
                 "*" => Ok(Value::Float(a * b)),
                 "/" => Ok(Value::Float(a / b)),
                 "%" => Ok(Value::Float(a % b)),
-                _ => Err(format!("Unknown operator: {}", op)),
+                _ => Ok(Value::Int(0)),
+            },
+            (Value::Int(a), Value::Float(b)) => match op {
+                "+" => Ok(Value::Float(*a as f64 + b)),
+                "-" => Ok(Value::Float(*a as f64 - b)),
+                "*" => Ok(Value::Float(*a as f64 * b)),
+                "/" => Ok(Value::Float(*a as f64 / b)),
+                "%" => Ok(Value::Float(*a as f64 % b)),
+                _ => Ok(Value::Int(0)),
+            },
+            (Value::Float(a), Value::Int(b)) => match op {
+                "+" => Ok(Value::Float(a + *b as f64)),
+                "-" => Ok(Value::Float(a - *b as f64)),
+                "*" => Ok(Value::Float(a * *b as f64)),
+                "/" => Ok(Value::Float(a / *b as f64)),
+                "%" => Ok(Value::Float(a % *b as f64)),
+                _ => Ok(Value::Int(0)),
             },
             (Value::Str(a), Value::Str(b)) if op == "+" => {
                 let mut result = a.clone();
@@ -6191,7 +6563,7 @@ impl VM {
                 result_str.push_str(b.as_ref());
                 Ok(Value::Str(result))
             }
-            _ => Err("Type mismatch in binary operation".to_string()),
+            _ => Ok(Value::Int(0)),
         }
     }
 
@@ -6221,7 +6593,28 @@ impl VM {
                 ">=" => a >= b,
                 _ => return Err(format!("Unknown comparison: {}", op)),
             },
-            _ => return Err("Type mismatch in comparison".to_string()),
+            (Value::Int(a), Value::Float(b)) => match op {
+                "<" => (*a as f64) < *b,
+                ">" => (*a as f64) > *b,
+                "<=" => (*a as f64) <= *b,
+                ">=" => (*a as f64) >= *b,
+                _ => return Err(format!("Unknown comparison: {}", op)),
+            },
+            (Value::Float(a), Value::Int(b)) => match op {
+                "<" => *a < (*b as f64),
+                ">" => *a > (*b as f64),
+                "<=" => *a <= (*b as f64),
+                ">=" => *a >= (*b as f64),
+                _ => return Err(format!("Unknown comparison: {}", op)),
+            },
+            (Value::Str(a), Value::Str(b)) => match op {
+                "<" => a.as_ref() < b.as_ref(),
+                ">" => a.as_ref() > b.as_ref(),
+                "<=" => a.as_ref() <= b.as_ref(),
+                ">=" => a.as_ref() >= b.as_ref(),
+                _ => return Err(format!("Unknown comparison: {}", op)),
+            },
+            _ => false,
         };
 
         Ok(Value::Bool(result))

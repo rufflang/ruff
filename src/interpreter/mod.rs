@@ -331,6 +331,7 @@ impl Interpreter {
         vec![
             // I/O functions
             "print",
+            "println",
             // Math functions
             "abs",
             "sqrt",
@@ -435,8 +436,12 @@ impl Interpreter {
             "to_int",
             "to_float",
             "to_string",
+            "str",
             "to_bool",
             "bytes",
+            "dict",
+            "array",
+            "error",
             // Type checking functions
             "type",
             "is_int",
@@ -499,6 +504,7 @@ impl Interpreter {
             // Date/Time functions
             "now",
             "current_timestamp",
+            "time",
             "performance_now",
             "time_us",
             "time_ns",
@@ -683,6 +689,10 @@ impl Interpreter {
     fn register_builtins(&mut self) {
         // I/O functions
         self.env.define("print".to_string(), Value::NativeFunction("print".to_string()));
+        self.env.define("println".to_string(), Value::NativeFunction("print".to_string()));
+
+        // Legacy/null compatibility alias
+        self.env.define("null".to_string(), Value::Null);
 
         // Math constants
         self.env.define("PI".to_string(), Value::Float(std::f64::consts::PI));
@@ -834,8 +844,12 @@ impl Interpreter {
         self.env.define("to_int".to_string(), Value::NativeFunction("to_int".to_string()));
         self.env.define("to_float".to_string(), Value::NativeFunction("to_float".to_string()));
         self.env.define("to_string".to_string(), Value::NativeFunction("to_string".to_string()));
+        self.env.define("str".to_string(), Value::NativeFunction("to_string".to_string()));
         self.env.define("to_bool".to_string(), Value::NativeFunction("to_bool".to_string()));
         self.env.define("bytes".to_string(), Value::NativeFunction("bytes".to_string()));
+        self.env.define("dict".to_string(), Value::NativeFunction("dict".to_string()));
+        self.env.define("array".to_string(), Value::NativeFunction("array".to_string()));
+        self.env.define("error".to_string(), Value::NativeFunction("error".to_string()));
 
         // Type introspection functions
         self.env.define("type".to_string(), Value::NativeFunction("type".to_string()));
@@ -957,6 +971,8 @@ impl Interpreter {
             "current_timestamp".to_string(),
             Value::NativeFunction("current_timestamp".to_string()),
         );
+        self.env
+            .define("time".to_string(), Value::NativeFunction("current_timestamp".to_string()));
         self.env.define(
             "performance_now".to_string(),
             Value::NativeFunction("performance_now".to_string()),

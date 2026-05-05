@@ -23,48 +23,97 @@ use super::{Interpreter, Value};
 
 /// Main dispatcher that routes native function calls to appropriate category modules
 pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Value {
+    // Legacy aliases and compatibility helpers.
+    match name {
+        "dict" => {
+            if !arg_values.is_empty() {
+                return Value::Error("dict() expects 0 arguments".to_string());
+            }
+            return Value::dict(Default::default());
+        }
+        "array" => {
+            return Value::Array(std::sync::Arc::new(arg_values.to_vec()));
+        }
+        "error" => {
+            if arg_values.len() != 1 {
+                return Value::Error("error() expects exactly 1 argument".to_string());
+            }
+
+            let message = match &arg_values[0] {
+                Value::Str(text) => text.as_ref().clone(),
+                other => format!("{:?}", other),
+            };
+
+            return Value::ErrorObject {
+                message,
+                stack: Vec::new(),
+                line: None,
+                cause: None,
+            };
+        }
+        "collect" => {
+            if arg_values.len() != 1 {
+                return Value::Error("collect() expects exactly 1 argument".to_string());
+            }
+
+            return match &arg_values[0] {
+                Value::Array(arr) => Value::Array(arr.clone()),
+                Value::Iterator { .. } => interp.collect_iterator(arg_values[0].clone()),
+                _ => Value::Error("collect() expects an iterator or array".to_string()),
+            };
+        }
+        _ => {}
+    }
+
+    let canonical_name = match name {
+        "println" => "print",
+        "str" => "to_string",
+        "time" => "current_timestamp",
+        other => other,
+    };
+
     // Try async operations first (high priority for async functions)
-    if let Some(result) = async_ops::handle(interp, name, arg_values) {
+    if let Some(result) = async_ops::handle(interp, canonical_name, arg_values) {
         return result;
     }
     // Try each category in order
-    if let Some(result) = io::handle(interp, name, arg_values) {
+    if let Some(result) = io::handle(interp, canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = math::handle(name, arg_values) {
+    if let Some(result) = math::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = strings::handle(name, arg_values) {
+    if let Some(result) = strings::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = collections::handle(interp, name, arg_values) {
+    if let Some(result) = collections::handle(interp, canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = type_ops::handle(name, arg_values) {
+    if let Some(result) = type_ops::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = filesystem::handle(interp, name, arg_values) {
+    if let Some(result) = filesystem::handle(interp, canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = http::handle(name, arg_values) {
+    if let Some(result) = http::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = json::handle(name, arg_values) {
+    if let Some(result) = json::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = crypto::handle(name, arg_values) {
+    if let Some(result) = crypto::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = system::handle(name, arg_values) {
+    if let Some(result) = system::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = concurrency::handle(interp, name, arg_values) {
+    if let Some(result) = concurrency::handle(interp, canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = database::handle(name, arg_values) {
+    if let Some(result) = database::handle(canonical_name, arg_values) {
         return result;
     }
-    if let Some(result) = network::handle(interp, name, arg_values) {
+    if let Some(result) = network::handle(interp, canonical_name, arg_values) {
         return result;
     }
 

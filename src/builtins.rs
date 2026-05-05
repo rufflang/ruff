@@ -715,6 +715,27 @@ fn ruff_value_to_toml(value: &Value) -> Result<toml::Value, String> {
             }
             Ok(toml::Value::Table(toml_table))
         }
+        Value::FixedDict { keys, values } => {
+            let mut toml_table = toml::map::Map::new();
+            for (key, val) in keys.iter().zip(values.iter()) {
+                toml_table.insert(key.to_string(), ruff_value_to_toml(val)?);
+            }
+            Ok(toml::Value::Table(toml_table))
+        }
+        Value::IntDict(dict) => {
+            let mut toml_table = toml::map::Map::new();
+            for (key, val) in dict.iter() {
+                toml_table.insert(key.to_string(), ruff_value_to_toml(val)?);
+            }
+            Ok(toml::Value::Table(toml_table))
+        }
+        Value::DenseIntDict(values) => {
+            let mut toml_table = toml::map::Map::new();
+            for (index, val) in values.iter().enumerate() {
+                toml_table.insert(index.to_string(), ruff_value_to_toml(val)?);
+            }
+            Ok(toml::Value::Table(toml_table))
+        }
         _ => Err(format!("Cannot convert {:?} to TOML", value)),
     }
 }
@@ -803,6 +824,36 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
             for (key, val) in dict.iter() {
                 yaml_map
                     .insert(serde_yaml::Value::String(key.to_string()), ruff_value_to_yaml(val)?);
+            }
+            Ok(serde_yaml::Value::Mapping(yaml_map))
+        }
+        Value::FixedDict { keys, values } => {
+            let mut yaml_map = serde_yaml::Mapping::new();
+            for (key, val) in keys.iter().zip(values.iter()) {
+                yaml_map.insert(
+                    serde_yaml::Value::String(key.to_string()),
+                    ruff_value_to_yaml(val)?,
+                );
+            }
+            Ok(serde_yaml::Value::Mapping(yaml_map))
+        }
+        Value::IntDict(dict) => {
+            let mut yaml_map = serde_yaml::Mapping::new();
+            for (key, val) in dict.iter() {
+                yaml_map.insert(
+                    serde_yaml::Value::String(key.to_string()),
+                    ruff_value_to_yaml(val)?,
+                );
+            }
+            Ok(serde_yaml::Value::Mapping(yaml_map))
+        }
+        Value::DenseIntDict(values) => {
+            let mut yaml_map = serde_yaml::Mapping::new();
+            for (index, val) in values.iter().enumerate() {
+                yaml_map.insert(
+                    serde_yaml::Value::String(index.to_string()),
+                    ruff_value_to_yaml(val)?,
+                );
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
         }
