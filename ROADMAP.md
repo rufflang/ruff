@@ -239,7 +239,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-RUN-002: Enforce function, method, closure, async, and generator arity
+[x] V1-RUN-002: Enforce function, method, closure, async, and generator arity
     Priority: P0
     Severity: High
     Area: Correctness
@@ -259,7 +259,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Variadic native functions accept expected ranges.
         - Error messages include function name, expected count/range, and received count.
     Acceptance criteria: Every callable has a tested arity contract and no call path silently ignores or invents arguments.
-    Notes: Complete after `V1-RUN-001` if undefined missing params currently mask arity failures.
+    Notes: Completed on 2026-05-06. Added shared callable arity metadata (`name`, `min/max`, `variadic`, `parameter_names`) and wired it through interpreter call paths, VM bytecode call preparation, and selected native dispatch metadata. Too-few/too-many calls now return consistent `... expects ... arguments, got ...` runtime errors for functions, closures, struct methods, async functions, generators, and covered native strict/range contracts (including `len` and `input`) while preserving explicit variadic natives (`debug`, `print`, `array`). Added VM/interpreter parity coverage for function/method/closure/async/generator/native failure modes plus success paths and variadic native acceptance. Verification: `cargo test --test vm_interpreter_parity_surfaces`, `cargo test arity`, and `cargo test` passed.
 ```
 
 ```text

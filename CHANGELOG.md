@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Changed interpreter and VM identifier resolution so missing bindings report `Undefined variable: <name>` instead of allowing the interpreter to coerce unknown identifiers into strings.
+- Changed callable invocation contracts so interpreter and VM now enforce strict arity for user-defined functions, closures, struct methods, async functions, and generator definitions, and added centralized native arity metadata for strict/ranged/variadic native contracts (for example `len`, `input`, `debug`, `print`, and `array`) with consistent `... expects ... arguments, got ...` runtime errors.
 - Changed cooperative VM execution to surface returned runtime error values as execution errors, and gated top-level script JIT away from global/local variable loads until JIT preserves checked undefined-identifier semantics.
 - Changed VM and interpreter map indexing so missing dictionary keys now report deterministic runtime errors (`Missing map key: ...`) instead of falling through to `Null`/`Int(0)` sentinel behavior.
 - Changed VM `IndexGet`/`IndexGetInPlace` map reads to share one centralized lookup helper, keeping normal, in-place, and nested bytecode-call paths aligned for missing keys, invalid key types, and optimized integer-key map storage.

@@ -352,11 +352,11 @@ fn test_parallel_map_and_par_map_argument_shape_contract() {
 
     assert!(matches!(
         interp_parallel_missing.env.get("parallel_missing"),
-        Some(Value::Error(message)) if message.contains("expects 2 or 3 arguments")
+        Some(Value::Error(message)) if message.contains("expects 2 to 3 arguments")
     ));
     assert!(matches!(
         interp_alias_missing.env.get("alias_missing"),
-        Some(Value::Error(message)) if message.contains("expects 2 or 3 arguments")
+        Some(Value::Error(message)) if message.contains("expects 2 to 3 arguments")
     ));
     assert!(matches!(
         interp_parallel_non_array.env.get("parallel_non_array"),

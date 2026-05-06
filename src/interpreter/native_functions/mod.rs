@@ -818,13 +818,13 @@ mod tests {
             ],
         );
         assert!(
-            matches!(input_extra_arg, Value::Error(message) if message.contains("expects 0-1 arguments"))
+            matches!(input_extra_arg, Value::Error(message) if message.contains("input expects 0 to 1 arguments, got 2"))
         );
 
         let exit_extra_arg =
             call_native_function(&mut interpreter, "exit", &[Value::Int(1), Value::Int(2)]);
         assert!(
-            matches!(exit_extra_arg, Value::Error(message) if message.contains("expects 0-1 arguments"))
+            matches!(exit_extra_arg, Value::Error(message) if message.contains("exit expects 0 to 1 arguments, got 2"))
         );
 
         let exit_wrong_type = call_native_function(
@@ -843,12 +843,12 @@ mod tests {
 
         let contains_missing_args = call_native_function(&mut interpreter, "contains", &[]);
         assert!(
-            matches!(contains_missing_args, Value::Error(message) if message.contains("contains() requires two arguments"))
+            matches!(contains_missing_args, Value::Error(message) if message.contains("contains expects 2 arguments, got 0"))
         );
 
         let index_of_missing_args = call_native_function(&mut interpreter, "index_of", &[]);
         assert!(
-            matches!(index_of_missing_args, Value::Error(message) if message.contains("index_of() requires two arguments"))
+            matches!(index_of_missing_args, Value::Error(message) if message.contains("index_of expects 2 arguments, got 0"))
         );
 
         let contains_array = call_native_function(
@@ -1389,7 +1389,9 @@ mod tests {
             "repeat",
             &[Value::Str(Arc::new("ru".to_string()))],
         );
-        assert!(matches!(repeat_missing, Value::Str(value) if value.as_ref().is_empty()));
+        assert!(
+            matches!(repeat_missing, Value::Error(message) if message.contains("repeat expects 2 arguments, got 1"))
+        );
 
         let char_at_ok = call_native_function(
             &mut interpreter,
@@ -1463,7 +1465,9 @@ mod tests {
             "substring",
             &[Value::Str(Arc::new("ruff-language".to_string()))],
         );
-        assert!(matches!(substring_missing, Value::Str(value) if value.as_ref().is_empty()));
+        assert!(
+            matches!(substring_missing, Value::Error(message) if message.contains("substring expects 3 arguments, got 1"))
+        );
 
         let capitalize_ok = call_native_function(
             &mut interpreter,
@@ -1473,7 +1477,9 @@ mod tests {
         assert!(matches!(capitalize_ok, Value::Str(value) if value.as_ref() == "Ruff language"));
 
         let capitalize_missing = call_native_function(&mut interpreter, "capitalize", &[]);
-        assert!(matches!(capitalize_missing, Value::Str(value) if value.as_ref().is_empty()));
+        assert!(
+            matches!(capitalize_missing, Value::Error(message) if message.contains("capitalize expects 1 arguments, got 0"))
+        );
 
         let trim_ok = call_native_function(
             &mut interpreter,
@@ -1497,7 +1503,9 @@ mod tests {
         assert!(matches!(trim_end_ok, Value::Str(value) if value.as_ref() == "ruff"));
 
         let trim_missing = call_native_function(&mut interpreter, "trim", &[]);
-        assert!(matches!(trim_missing, Value::Str(value) if value.as_ref().is_empty()));
+        assert!(
+            matches!(trim_missing, Value::Error(message) if message.contains("trim expects 1 arguments, got 0"))
+        );
 
         let split_ok = call_native_function(
             &mut interpreter,
@@ -1514,7 +1522,9 @@ mod tests {
             "split",
             &[Value::Str(Arc::new("a,b,c".to_string()))],
         );
-        assert!(matches!(split_missing, Value::Array(parts) if parts.is_empty()));
+        assert!(
+            matches!(split_missing, Value::Error(message) if message.contains("split expects 2 arguments, got 1"))
+        );
 
         let join_ok = call_native_function(
             &mut interpreter,
@@ -1535,7 +1545,9 @@ mod tests {
             "join",
             &[Value::Array(Arc::new(vec![Value::Str(Arc::new("ruff".to_string()))]))],
         );
-        assert!(matches!(join_missing, Value::Str(value) if value.as_ref().is_empty()));
+        assert!(
+            matches!(join_missing, Value::Error(message) if message.contains("join expects 2 arguments, got 1"))
+        );
     }
 
     #[test]
@@ -4070,7 +4082,7 @@ mod tests {
         for alias in ["Promise.all", "promise_all", "await_all"] {
             let missing_args = call_native_function(&mut interpreter, alias, &[]);
             assert!(
-                matches!(missing_args, Value::Error(ref message) if message.contains("Promise.all() expects 1 or 2 arguments")),
+                matches!(missing_args, Value::Error(ref message) if message.contains("Promise.all expects 1 to 2 arguments, got 0")),
                 "Unexpected missing-args contract for {}: {:?}",
                 alias,
                 missing_args

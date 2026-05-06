@@ -1976,8 +1976,20 @@ impl Interpreter {
                 2,
                 vec!["promises".to_string(), "concurrency".to_string()],
             ),
+            "promise_all" | "await_all" => CallableArity::range(
+                "Promise.all",
+                1,
+                2,
+                vec!["promises".to_string(), "concurrency".to_string()],
+            ),
             "parallel_map" | "par_map" => CallableArity::range(
                 name,
+                2,
+                3,
+                vec!["items".to_string(), "mapper".to_string(), "concurrency".to_string()],
+            ),
+            "par_each" => CallableArity::range(
+                "par_each",
                 2,
                 3,
                 vec!["items".to_string(), "mapper".to_string(), "concurrency".to_string()],
