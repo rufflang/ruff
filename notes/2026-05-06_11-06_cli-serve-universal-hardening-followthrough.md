@@ -42,7 +42,8 @@
 - Keep TLS pair validation strict: if either `--tls-cert` or `--tls-key` is provided, require both.
 
 ## Follow-ups / TODO
-- [ ] Add black-box integration tests that start the server and verify HTTP/TLS behavior over real sockets.
+- [x] Added black-box integration tests that start the server and verify HTTP behavior over real sockets.
+- [ ] Extend black-box coverage to HTTPS/TLS handshake and certificate/key-path error cases.
 - [ ] Add explicit CLI switches for cache-control presets (`--cache-public`, `--cache-private`, `--no-cache`) if preview workflows demand finer control.
 - [ ] Consider structured log output mode for `--access-log` to improve machine parsing.
 

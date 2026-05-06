@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added dedicated static server runtime module `src/serve_http.rs` for `ruff serve` with conditional request support (ETag/If-None-Match `304`), single-range byte responses (`206`/`416`), precompressed asset selection (`.br`/`.gz`), and deterministic status mapping for file access errors (`404`/`403`/`500`).
 - Added HTTPS serving support for `ruff serve` via `--tls-cert` and `--tls-key`, including strict pair validation and secure-request-aware header behavior.
+- Added CLI integration tests in `tests/serve_command_integration.rs` that run `ruff serve` as a subprocess and validate `HEAD`, byte ranges, ETag `304` behavior, and `Accept-Encoding` precompressed asset negotiation over live TCP requests.
 - Added executable module loading in `src/module.rs` that parses and runs module ASTs, captures explicit `export` bindings, and caches evaluated module exports.
 - Added module-system regression tests for explicit export collection, deterministic missing-symbol errors, and circular import detection in `src/module.rs` tests.
 - Added interpreter integration tests for deterministic import diagnostics when modules are missing or requested symbols are absent in `tests/interpreter_tests.rs`.
