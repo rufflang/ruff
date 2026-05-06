@@ -2127,6 +2127,7 @@ impl Interpreter {
                 let cond_val = self.eval_expr(condition);
                 let is_truthy = match cond_val {
                     Value::Bool(b) => b,
+                    Value::Int(n) => n != 0,
                     Value::Float(n) => n != 0.0,
                     Value::Str(s) => {
                         // Handle string representations of booleans for backward compatibility
@@ -2711,6 +2712,7 @@ impl Interpreter {
                     let cond_val = self.eval_expr(condition);
                     let is_truthy = match cond_val {
                         Value::Bool(b) => b,
+                        Value::Int(n) => n != 0,
                         Value::Float(n) => n != 0.0,
                         Value::Str(s) => {
                             if s.as_ref() == "true" {
@@ -3155,6 +3157,16 @@ impl Interpreter {
 
                 // Default behavior for built-in types
                 match (l, r) {
+                    (Value::Null, Value::Null) => match op.as_str() {
+                        "==" => Value::Bool(true),
+                        "!=" => Value::Bool(false),
+                        _ => Value::Int(0),
+                    },
+                    (Value::Null, _) | (_, Value::Null) => match op.as_str() {
+                        "==" => Value::Bool(false),
+                        "!=" => Value::Bool(true),
+                        _ => Value::Int(0),
+                    },
                     // Int + Int = Int (preserve integer type)
                     (Value::Int(a), Value::Int(b)) => match op.as_str() {
                         "+" => Value::Int(a.wrapping_add(b)),
@@ -3680,6 +3692,10 @@ impl Interpreter {
                         // Push to call stack
                         self.call_stack.push("<anonymous function>".to_string());
 
+						// Evaluate call arguments in the caller scope before any environment switch.
+						let evaluated_args: Vec<Value> =
+							args.iter().map(|arg| self.eval_expr(arg)).collect();
+
                         // Handle closure with captured environment
                         if let Some(closure_env_ref) = captured_env {
                             // Save current environment
@@ -3690,11 +3706,10 @@ impl Interpreter {
                             self.env.push_scope();
 
                             for (i, param) in params.iter().enumerate() {
-                                if let Some(arg) = args.get(i) {
-                                    let val = self.eval_expr(arg);
-                                    self.env.define(param.clone(), val);
-                                }
-                            }
+								if let Some(arg) = evaluated_args.get(i) {
+									self.env.define(param.clone(), arg.clone());
+								}
+							}
 
                             self.eval_stmts(&body.get());
 
@@ -3725,11 +3740,10 @@ impl Interpreter {
                             self.env.push_scope();
 
                             for (i, param) in params.iter().enumerate() {
-                                if let Some(arg) = args.get(i) {
-                                    let val = self.eval_expr(arg);
-                                    self.env.define(param.clone(), val);
-                                }
-                            }
+								if let Some(arg) = evaluated_args.get(i) {
+									self.env.define(param.clone(), arg.clone());
+								}
+							}
 
                             self.eval_stmts(&body.get());
 

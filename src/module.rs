@@ -1,11 +1,12 @@
 use crate::errors::{ErrorKind, RuffError};
 use crate::ast::{Expr, Pattern, Stmt};
-use crate::interpreter::{Interpreter, Value};
+use crate::interpreter::{Environment, Interpreter, Value};
 use crate::lexer::tokenize;
 use crate::parser::Parser;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 /// Represents a loaded module with its exported symbols
 #[derive(Debug, Clone)]
@@ -102,6 +103,33 @@ impl ModuleLoader {
         deduped
     }
 
+    fn bind_export_value_to_module_env(
+        value: Value,
+        module_env: &Arc<Mutex<Environment>>,
+    ) -> Value {
+        match value {
+            Value::Function(params, body, captured_env) => {
+                let bound_env = captured_env.or_else(|| Some(Arc::clone(module_env)));
+                Value::Function(params, body, bound_env)
+            }
+            Value::AsyncFunction(params, body, captured_env) => {
+                let bound_env = captured_env.or_else(|| Some(Arc::clone(module_env)));
+                Value::AsyncFunction(params, body, bound_env)
+            }
+            Value::StructDef { name, field_names, methods } => {
+                let mut bound_methods = HashMap::new();
+                for (method_name, method_value) in methods {
+                    bound_methods.insert(
+                        method_name,
+                        Self::bind_export_value_to_module_env(method_value, module_env),
+                    );
+                }
+                Value::StructDef { name, field_names, methods: bound_methods }
+            }
+            other => other,
+        }
+    }
+
     /// Creates a new module loader with default search paths
     pub fn new() -> Self {
         ModuleLoader {
@@ -195,10 +223,13 @@ impl ModuleLoader {
                 }
             }
 
+            let module_env = Arc::new(Mutex::new(interpreter.env.clone()));
+
             let mut exports = HashMap::new();
             for export_name in export_names {
                 if let Some(value) = interpreter.env.get(&export_name) {
-                    exports.insert(export_name, value);
+                    let bound_value = Self::bind_export_value_to_module_env(value, &module_env);
+                    exports.insert(export_name, bound_value);
                 } else {
                     return Err(Self::runtime_error(format!(
                         "Exported symbol '{}' was not defined in module '{}'",

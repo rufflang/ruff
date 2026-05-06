@@ -3296,6 +3296,63 @@ fn test_from_import_missing_symbol_returns_runtime_error() {
 }
 
 #[test]
+fn test_imported_function_can_call_module_local_helper() {
+    let modules_dir = std::path::PathBuf::from("modules");
+    std::fs::create_dir_all(&modules_dir).expect("failed to create modules directory for test");
+
+    let module_name = unique_module_name("module_function_helper");
+    let module_path = modules_dir.join(format!("{}.ruff", module_name));
+    std::fs::write(
+        &module_path,
+        "func helper(x) {\n\treturn x + 1\n}\n\nfunc add_one_impl(x) {\n\treturn helper(x)\n}\n\nexport add_one := add_one_impl\n",
+    )
+    .expect("failed to write temporary module");
+
+    let code = format!("from {} import add_one\nresult := add_one(41)\n", module_name);
+    let interp = run_code(&code);
+
+    assert!(matches!(interp.env.get("result"), Some(Value::Int(42))));
+
+    std::fs::remove_file(&module_path).expect("failed to remove temporary module file");
+}
+
+#[test]
+fn test_null_equality_and_inequality_semantics() {
+    let code = r#"
+        eq_null := null == null
+        ne_null := null != null
+        eq_mixed_left := null == 1
+        eq_mixed_right := 1 == null
+        ne_mixed_left := null != 1
+        ne_mixed_right := 1 != null
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("eq_null"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("ne_null"), Some(Value::Bool(false))));
+    assert!(matches!(interp.env.get("eq_mixed_left"), Some(Value::Bool(false))));
+    assert!(matches!(interp.env.get("eq_mixed_right"), Some(Value::Bool(false))));
+    assert!(matches!(interp.env.get("ne_mixed_left"), Some(Value::Bool(true))));
+    assert!(matches!(interp.env.get("ne_mixed_right"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_integer_zero_is_falsey_in_if_conditions() {
+    let code = r#"
+        flag := 0
+        branch := "then"
+        if flag {
+            branch := "then"
+        } else {
+            branch := "else"
+        }
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("branch"), Some(Value::Str(s)) if s.as_ref() == "else"));
+}
+
+#[test]
 fn test_parallel_map_handles_mixed_immediate_and_promise_results() {
     let code = r#"
         func maybe_async_value(x) {
