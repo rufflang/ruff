@@ -75,6 +75,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-05_11-17_http-query-route-hardening.md)
 
+### Control-flow truthiness must explicitly handle integer zero
+- **Problem:** Missing-key/fallback branches can silently execute incorrectly when condition values are numeric sentinels.
+- **Rule:** `Int(0)` must be falsey and non-zero ints truthy in both `Stmt::If` and `Stmt::While` evaluation paths.
+- **Implication:** Keep truthiness logic parity between `src/interpreter/mod.rs` and `src/interpreter/legacy_full.rs`, and guard with dedicated regression tests.
+
+(Discovered during: 2026-05-05_22-20_ai-sdk-runtime-truthiness-and-test-run-gotchas.md)
+
 ### Strict-arity hardening must preserve legacy fallback contracts unless intentionally changed
 - **Problem:** Rejecting extra args can accidentally alter established missing/invalid-arg behavior.
 - **Rule:** Add explicit extra-arg rejection while preserving existing fallback semantics unless contract change is deliberate.
@@ -173,6 +180,13 @@ If you are new to the project, read this first.
 - **Implication:** If animated conversion is a product requirement, verify `command -v gif2webp` in setup/CI and keep fallback/error messaging explicit.
 
 (Discovered during: 2026-04-29_17-17_animated-gif-to-webp-conversion.md)
+
+### `test-run` initialization is setup-boundary driven
+- **Problem:** Tests can fail with undefined symbols even though the same file works under normal `run` execution.
+- **Rule:** Put imports/bootstrap code needed by tests inside `test_setup`; do not rely on top-level import execution.
+- **Implication:** When diagnosing `test-run` failures, verify setup/import timing before changing runtime internals.
+
+(Discovered during: 2026-05-05_22-20_ai-sdk-runtime-truthiness-and-test-run-gotchas.md)
 
 ---
 

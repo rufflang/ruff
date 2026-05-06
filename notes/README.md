@@ -46,3 +46,4 @@ High-signal session notes:
 - `2026-05-01_03-10_v1-artifact-gate-and-match-binding-parity.md` — Closed tag-style match-binding parity gap and added v1 release artifact publication/smoke-validation workflows with updated install/release docs.
 - `2026-05-05_11-17_http-query-route-hardening.md` — Captured query-string-safe route matching in interpreter/VM, new HTTP request query metadata contract, and production-hardening patterns used in the CRUD showcase.
 - `2026-05-05_10-29_vm-example-compatibility-followthrough.md` — Captured VM bootstrap/constants and method-dispatch parity gotchas, plus automation-safe example sweep rules and commit-splitting practice.
+- `2026-05-05_22-20_ai-sdk-runtime-truthiness-and-test-run-gotchas.md` — Captured integer-zero truthiness bug fix across interpreter paths, strict assertion/builtin return-type gotcha (`has_key`), and `test-run` setup-bound import behavior.
