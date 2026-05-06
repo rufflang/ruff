@@ -972,8 +972,7 @@ impl Interpreter {
             "current_timestamp".to_string(),
             Value::NativeFunction("current_timestamp".to_string()),
         );
-        self.env
-            .define("time".to_string(), Value::NativeFunction("current_timestamp".to_string()));
+        self.env.define("time".to_string(), Value::NativeFunction("current_timestamp".to_string()));
         self.env.define(
             "performance_now".to_string(),
             Value::NativeFunction("performance_now".to_string()),
@@ -1645,11 +1644,7 @@ impl Interpreter {
     /// Splits a request URL into a normalized path and query metadata.
     fn split_http_path_and_query(url: &str) -> (String, HashMap<String, String>, String) {
         if let Some((path, raw_query)) = url.split_once('?') {
-            (
-                path.to_string(),
-                Self::parse_http_query_params(raw_query),
-                raw_query.to_string(),
-            )
+            (path.to_string(), Self::parse_http_query_params(raw_query), raw_query.to_string())
         } else {
             (url.to_string(), HashMap::new(), String::new())
         }
@@ -1697,8 +1692,7 @@ impl Interpreter {
         for mut request in server.incoming_requests() {
             let method = request.method().to_string();
             let request_url = request.url().to_string();
-            let (url_path, query_params, raw_query) =
-                Self::split_http_path_and_query(&request_url);
+            let (url_path, query_params, raw_query) = Self::split_http_path_and_query(&request_url);
 
             // Read body first (before any response handling)
             let body_content = {
@@ -1837,6 +1831,9 @@ impl Interpreter {
     fn call_native_function(&mut self, name: &str, args: &[Expr]) -> Value {
         // Evaluate all arguments
         let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
+        if let Some(error) = arg_values.iter().find(|value| Self::is_error_value(value)) {
+            return error.clone();
+        }
 
         // Delegate to the implementation that works with Values
         self.call_native_function_impl(name, &arg_values)
@@ -1869,6 +1866,23 @@ impl Interpreter {
                 x.iter().all(|(key, val)| y.get(key).map_or(false, |v| Self::values_equal(val, v)))
             }
             _ => false, // Different types or complex types not supported for equality
+        }
+    }
+
+    fn undefined_variable(name: &str) -> Value {
+        Value::Error(format!("Undefined variable: {}", name))
+    }
+
+    fn is_error_value(value: &Value) -> bool {
+        matches!(value, Value::Error(_) | Value::ErrorObject { .. })
+    }
+
+    fn set_return_if_error(&mut self, value: &Value) -> bool {
+        if Self::is_error_value(value) {
+            self.return_value = Some(value.clone());
+            true
+        } else {
+            false
         }
     }
 
@@ -2128,6 +2142,9 @@ impl Interpreter {
         match stmt {
             Stmt::If { condition, then_branch, else_branch } => {
                 let cond_val = self.eval_expr(condition);
+                if self.set_return_if_error(&cond_val) {
+                    return;
+                }
                 let is_truthy = match cond_val {
                     Value::Bool(b) => b,
                     Value::Int(n) => n != 0,
@@ -2165,22 +2182,17 @@ impl Interpreter {
             }
             Stmt::Let { pattern, value, mutable: _, type_annotation: _ } => {
                 let val = self.eval_expr(value);
-                // If expression evaluation resulted in an error, propagate it
-                if matches!(val, Value::Error(_)) {
-                    self.return_value = Some(val.clone());
-                }
+                self.set_return_if_error(&val);
                 self.bind_pattern(pattern, val);
             }
             Stmt::Const { name, value, type_annotation: _ } => {
                 let val = self.eval_expr(value);
-                // If expression evaluation resulted in an error, propagate it
-                if matches!(val, Value::Error(_)) {
-                    self.return_value = Some(val.clone());
-                }
+                self.set_return_if_error(&val);
                 self.env.define(name.clone(), val);
             }
             Stmt::Assign { target, value } => {
                 let val = self.eval_expr(value);
+                self.set_return_if_error(&val);
 
                 // Always perform the assignment, even for errors
                 match target {
@@ -2191,6 +2203,9 @@ impl Interpreter {
                     Expr::IndexAccess { object, index } => {
                         // Array or dict element assignment
                         let index_val = self.eval_expr(index);
+                        if self.set_return_if_error(&index_val) {
+                            return;
+                        }
 
                         // Get the container (array or dict) from the object expression
                         // For now, only support direct identifiers as the object
@@ -2244,6 +2259,9 @@ impl Interpreter {
                             Expr::IndexAccess { object: index_obj, index } => {
                                 // Array/dict element field assignment: arr[0].field := value
                                 let index_val = self.eval_expr(index);
+                                if self.set_return_if_error(&index_val) {
+                                    return;
+                                }
 
                                 if let Expr::Identifier(container_name) = index_obj.as_ref() {
                                     let field_clone = field.clone();
@@ -2299,9 +2317,7 @@ impl Interpreter {
                 }
 
                 // If expression evaluation resulted in an error, propagate it
-                if matches!(val, Value::Error(_)) {
-                    self.return_value = Some(val);
-                }
+                self.set_return_if_error(&val);
             }
             Stmt::FuncDef {
                 name,
@@ -2393,6 +2409,9 @@ impl Interpreter {
             }
             Stmt::Match { value, cases, default } => {
                 let val = self.eval_expr(value);
+                if self.set_return_if_error(&val) {
+                    return;
+                }
 
                 // Clone cases and default to avoid borrow issues during evaluation
                 let cases_clone = cases.clone();
@@ -2489,11 +2508,17 @@ impl Interpreter {
                 }
             }
             Stmt::Loop { condition, body } => {
-                while condition
-                    .as_ref()
-                    .map(|c| matches!(self.eval_expr(c), Value::Float(n) if n != 0.0))
-                    .unwrap_or(true)
-                {
+                loop {
+                    if let Some(condition) = condition.as_ref() {
+                        let condition_value = self.eval_expr(condition);
+                        if self.set_return_if_error(&condition_value) {
+                            return;
+                        }
+                        if !matches!(condition_value, Value::Float(n) if n != 0.0) {
+                            break;
+                        }
+                    }
+
                     self.eval_stmts(body);
 
                     // Handle control flow
@@ -2512,6 +2537,9 @@ impl Interpreter {
             }
             Stmt::For { var, iterable, body } => {
                 let mut iterable_value = self.eval_expr(iterable);
+                if self.set_return_if_error(&iterable_value) {
+                    return;
+                }
 
                 // If we got a GeneratorDef, call it to get a Generator instance
                 // This handles cases like: for x in generator_func() { ... }
@@ -2552,7 +2580,7 @@ impl Interpreter {
                                 break;
                             }
                             Value::Error(msg) => {
-                                eprintln!("Error iterating generator: {}", msg);
+                                self.return_value = Some(Value::Error(msg));
                                 break;
                             }
                             _ => {
@@ -2713,6 +2741,9 @@ impl Interpreter {
                 // While loop: execute body while condition is truthy
                 loop {
                     let cond_val = self.eval_expr(condition);
+                    if self.set_return_if_error(&cond_val) {
+                        return;
+                    }
                     let is_truthy = match cond_val {
                         Value::Bool(b) => b,
                         Value::Int(n) => n != 0,
@@ -2759,7 +2790,11 @@ impl Interpreter {
             }
             Stmt::Return(expr) => {
                 let value = expr.as_ref().map(|e| self.eval_expr(e)).unwrap_or(Value::Int(0));
-                self.return_value = Some(Value::Return(Box::new(value)));
+                if Self::is_error_value(&value) {
+                    self.return_value = Some(value);
+                } else {
+                    self.return_value = Some(Value::Return(Box::new(value)));
+                }
             }
             Stmt::TryExcept { try_block, except_var, except_block } => {
                 // Save current environment and create child scope for try block
@@ -2830,13 +2865,14 @@ impl Interpreter {
                 match expr {
                     // built-in print
                     Expr::Tag(name, args) if name == "print" => {
-                        let output_parts: Vec<String> = args
-                            .iter()
-                            .map(|arg| {
-                                let v = self.eval_expr(arg);
-                                Interpreter::stringify_value(&v)
-                            })
-                            .collect();
+                        let mut output_parts = Vec::new();
+                        for arg in args {
+                            let v = self.eval_expr(arg);
+                            if self.set_return_if_error(&v) {
+                                return;
+                            }
+                            output_parts.push(Interpreter::stringify_value(&v));
+                        }
                         self.write_output(&output_parts.join(" "));
                     }
 
@@ -2890,7 +2926,8 @@ impl Interpreter {
 
                     // enum constructors or user functions (tags)
                     Expr::Tag(_, _) => {
-                        let _ = self.eval_expr(expr);
+                        let result = self.eval_expr(expr);
+                        self.set_return_if_error(&result);
                     }
 
                     // everything else (including Call expressions and yield)
@@ -2899,6 +2936,8 @@ impl Interpreter {
                         // Check if this is a yield (signaled by Return value)
                         if matches!(result, Value::Return(_)) {
                             self.return_value = Some(result);
+                        } else {
+                            self.set_return_if_error(&result);
                         }
                     }
                 }
@@ -2990,6 +3029,9 @@ impl Interpreter {
                         }
                         InterpolatedStringPart::Expr(expr) => {
                             let val = self.eval_expr(expr);
+                            if Self::is_error_value(&val) {
+                                return val;
+                            }
                             result.push_str(&Self::stringify_value(&val));
                         }
                     }
@@ -3000,7 +3042,7 @@ impl Interpreter {
                 if name == "null" {
                     Value::Null
                 } else {
-                    self.env.get(name).unwrap_or(Value::Str(Arc::new(name.clone())))
+                    self.env.get(name).unwrap_or_else(|| Self::undefined_variable(name))
                 }
             }
             Expr::Function {
@@ -3030,6 +3072,9 @@ impl Interpreter {
             }
             Expr::UnaryOp { op, operand } => {
                 let val = self.eval_expr(operand);
+                if Self::is_error_value(&val) {
+                    return val;
+                }
 
                 // Check if the operand is a struct with an unary operator method
                 if let Some(method_name) = crate::ast::operator_methods::unary_op_method(op) {
@@ -3051,6 +3096,9 @@ impl Interpreter {
                     // Null coalescing: return left if not null, otherwise right
                     "??" => {
                         let l = self.eval_expr(left);
+                        if Self::is_error_value(&l) {
+                            return l;
+                        }
                         if matches!(l, Value::Null) {
                             return self.eval_expr(right);
                         }
@@ -3059,6 +3107,9 @@ impl Interpreter {
                     // Optional chaining: return null if left is null, otherwise access field
                     "?." => {
                         let l = self.eval_expr(left);
+                        if Self::is_error_value(&l) {
+                            return l;
+                        }
                         if matches!(l, Value::Null) {
                             return Value::Null;
                         }
@@ -3083,7 +3134,13 @@ impl Interpreter {
                     // Pipe operator: pass left value as first argument to right function
                     "|>" => {
                         let value = self.eval_expr(left);
+                        if Self::is_error_value(&value) {
+                            return value;
+                        }
                         let func = self.eval_expr(right);
+                        if Self::is_error_value(&func) {
+                            return func;
+                        }
 
                         // Call the function with the value as the first argument
                         if let Value::Function(params, body, captured_env) = func {
@@ -3149,7 +3206,13 @@ impl Interpreter {
                 }
 
                 let l = self.eval_expr(left);
+                if Self::is_error_value(&l) {
+                    return l;
+                }
                 let r = self.eval_expr(right);
+                if Self::is_error_value(&r) {
+                    return r;
+                }
 
                 // Check if left operand is a struct with an operator method
                 if let Some(method_name) = crate::ast::operator_methods::binary_op_method(op) {
@@ -3273,6 +3336,9 @@ impl Interpreter {
                 // Special handling for method calls: obj.method(args)
                 if let Expr::FieldAccess { object, field } = function.as_ref() {
                     let obj_val = self.eval_expr(object);
+                    if Self::is_error_value(&obj_val) {
+                        return obj_val;
+                    }
 
                     // Handle HttpServer methods
                     if let Value::HttpServer { port, routes } = &obj_val {
@@ -3671,9 +3737,11 @@ impl Interpreter {
                         }
                     }
                 }
-
                 // Regular function call
                 let func_val = self.eval_expr(function);
+                if Self::is_error_value(&func_val) {
+                    return func_val;
+                }
                 let call_result = match func_val {
                     Value::NativeFunction(name) => {
                         // Handle native function calls
@@ -3695,9 +3763,15 @@ impl Interpreter {
                         // Push to call stack
                         self.call_stack.push("<anonymous function>".to_string());
 
-						// Evaluate call arguments in the caller scope before any environment switch.
-						let evaluated_args: Vec<Value> =
-							args.iter().map(|arg| self.eval_expr(arg)).collect();
+                        // Evaluate call arguments in the caller scope before any environment switch.
+                        let evaluated_args: Vec<Value> =
+                            args.iter().map(|arg| self.eval_expr(arg)).collect();
+                        if let Some(error) =
+                            evaluated_args.iter().find(|value| Self::is_error_value(value))
+                        {
+                            self.call_stack.pop();
+                            return error.clone();
+                        }
 
                         // Handle closure with captured environment
                         if let Some(closure_env_ref) = captured_env {
@@ -3709,10 +3783,10 @@ impl Interpreter {
                             self.env.push_scope();
 
                             for (i, param) in params.iter().enumerate() {
-								if let Some(arg) = evaluated_args.get(i) {
-									self.env.define(param.clone(), arg.clone());
-								}
-							}
+                                if let Some(arg) = evaluated_args.get(i) {
+                                    self.env.define(param.clone(), arg.clone());
+                                }
+                            }
 
                             self.eval_stmts(&body.get());
 
@@ -3743,10 +3817,10 @@ impl Interpreter {
                             self.env.push_scope();
 
                             for (i, param) in params.iter().enumerate() {
-								if let Some(arg) = evaluated_args.get(i) {
-									self.env.define(param.clone(), arg.clone());
-								}
-							}
+                                if let Some(arg) = evaluated_args.get(i) {
+                                    self.env.define(param.clone(), arg.clone());
+                                }
+                            }
 
                             self.eval_stmts(&body.get());
 
@@ -3775,6 +3849,11 @@ impl Interpreter {
                         // Evaluate arguments
                         let args_vec: Vec<Value> =
                             args.iter().map(|arg| self.eval_expr(arg)).collect();
+                        if let Some(error) =
+                            args_vec.iter().find(|value| Self::is_error_value(value))
+                        {
+                            return error.clone();
+                        }
 
                         // Clone what we need for the thread
                         let params = params.clone();
@@ -3832,6 +3911,11 @@ impl Interpreter {
                         // Calling a generator function creates a Generator instance
                         let args_vec: Vec<Value> =
                             args.iter().map(|arg| self.eval_expr(arg)).collect();
+                        if let Some(error) =
+                            args_vec.iter().find(|value| Self::is_error_value(value))
+                        {
+                            return error.clone();
+                        }
 
                         // Create a new environment for the generator
                         let mut gen_env = self.env.clone();
@@ -3881,6 +3965,12 @@ impl Interpreter {
                                 for (i, param) in params.iter().enumerate() {
                                     if let Some(arg) = args.get(i) {
                                         let val = self.eval_expr(arg);
+                                        if Self::is_error_value(&val) {
+                                            self.env.pop_scope();
+                                            self.env = saved_env;
+                                            self.call_stack.pop();
+                                            return val;
+                                        }
                                         self.env.define(param.clone(), val);
                                     }
                                 }
@@ -3917,6 +4007,11 @@ impl Interpreter {
                                 for (i, param) in params.iter().enumerate() {
                                     if let Some(arg) = args.get(i) {
                                         let val = self.eval_expr(arg);
+                                        if Self::is_error_value(&val) {
+                                            self.env.pop_scope();
+                                            self.call_stack.pop();
+                                            return val;
+                                        }
                                         self.env.define(param.clone(), val);
                                     }
                                 }
@@ -3949,6 +4044,11 @@ impl Interpreter {
                             // Calling a generator function creates a Generator instance
                             let args_vec: Vec<Value> =
                                 args.iter().map(|arg| self.eval_expr(arg)).collect();
+                            if let Some(error) =
+                                args_vec.iter().find(|value| Self::is_error_value(value))
+                            {
+                                return error.clone();
+                            }
 
                             // Create a new environment for the generator
                             let mut gen_env = self.env.clone();
@@ -3977,7 +4077,11 @@ impl Interpreter {
                 // Otherwise, treat as enum constructor
                 let mut fields = HashMap::new();
                 for (i, arg) in args.iter().enumerate() {
-                    fields.insert(format!("${}", i), self.eval_expr(arg));
+                    let value = self.eval_expr(arg);
+                    if Self::is_error_value(&value) {
+                        return value;
+                    }
+                    fields.insert(format!("${}", i), value);
                 }
                 Value::Tagged { tag: name.clone(), fields }
             }
@@ -3985,7 +4089,11 @@ impl Interpreter {
                 // Create a struct instance
                 let mut field_values = HashMap::new();
                 for (field_name, field_expr) in fields {
-                    field_values.insert(field_name.clone(), self.eval_expr(field_expr));
+                    let value = self.eval_expr(field_expr);
+                    if Self::is_error_value(&value) {
+                        return value;
+                    }
+                    field_values.insert(field_name.clone(), value);
                 }
                 Value::Struct { name: name.clone(), fields: field_values }
             }
@@ -3994,7 +4102,10 @@ impl Interpreter {
                 match obj_val {
                     Value::Struct { name: _, fields } => {
                         // Access field from struct instance
-                        fields.get(field).cloned().unwrap_or(Value::Int(0))
+                        fields
+                            .get(field)
+                            .cloned()
+                            .unwrap_or_else(|| Value::Error(format!("Field not found: {}", field)))
                     }
                     Value::Image { data, format } => {
                         // Access image properties
@@ -4011,7 +4122,11 @@ impl Interpreter {
                             _ => Value::Error(format!("Image has no field '{}'", field)),
                         }
                     }
-                    _ => Value::Int(0),
+                    Value::Error(_) | Value::ErrorObject { .. } => obj_val,
+                    _ => Value::Error(format!(
+                        "Cannot access field or method '{}' on non-struct value",
+                        field
+                    )),
                 }
             }
             Expr::ArrayLiteral(elements) => {
@@ -4021,11 +4136,18 @@ impl Interpreter {
                 for elem in elements {
                     match elem {
                         ArrayElement::Single(expr) => {
-                            values.push(self.eval_expr(expr));
+                            let value = self.eval_expr(expr);
+                            if Self::is_error_value(&value) {
+                                return value;
+                            }
+                            values.push(value);
                         }
                         ArrayElement::Spread(expr) => {
                             // Evaluate spread expression and merge its elements
                             let spread_val = self.eval_expr(expr);
+                            if Self::is_error_value(&spread_val) {
+                                return spread_val;
+                            }
                             if let Value::Array(arr) = spread_val {
                                 values.extend(arr.iter().cloned());
                             }
@@ -4044,17 +4166,24 @@ impl Interpreter {
                     match elem {
                         DictElement::Pair(key_expr, val_expr) => {
                             let key = match self.eval_expr(key_expr) {
+                                error if Self::is_error_value(&error) => return error,
                                 Value::Str(s) => s.as_ref().clone(),
                                 Value::Int(n) => n.to_string(),
                                 Value::Float(n) => n.to_string(),
                                 _ => continue,
                             };
                             let value = self.eval_expr(val_expr);
+                            if Self::is_error_value(&value) {
+                                return value;
+                            }
                             map.insert(Arc::from(key), value);
                         }
                         DictElement::Spread(expr) => {
                             // Evaluate spread expression and merge its entries
                             let spread_val = self.eval_expr(expr);
+                            if Self::is_error_value(&spread_val) {
+                                return spread_val;
+                            }
                             if let Value::Dict(dict) = spread_val {
                                 for (k, v) in dict.iter() {
                                     map.insert(k.clone(), v.clone());
@@ -4069,7 +4198,13 @@ impl Interpreter {
             }
             Expr::IndexAccess { object, index } => {
                 let obj_val = self.eval_expr(object);
+                if Self::is_error_value(&obj_val) {
+                    return obj_val;
+                }
                 let idx_val = self.eval_expr(index);
+                if Self::is_error_value(&idx_val) {
+                    return idx_val;
+                }
 
                 match (obj_val, idx_val) {
                     (Value::Array(arr), Value::Int(n)) => {
@@ -4085,11 +4220,10 @@ impl Interpreter {
                             Value::Error(format!("Missing map key: {:?}", key.as_ref()))
                         })
                     }
-                    (Value::Dict(map), Value::Int(key)) => {
-                        map.get(key.to_string().as_str())
-                            .cloned()
-                            .unwrap_or_else(|| Value::Error(format!("Missing map key: {}", key)))
-                    }
+                    (Value::Dict(map), Value::Int(key)) => map
+                        .get(key.to_string().as_str())
+                        .cloned()
+                        .unwrap_or_else(|| Value::Error(format!("Missing map key: {}", key))),
                     (Value::Str(s), Value::Int(n)) => {
                         let idx = n as usize;
                         s.chars()
@@ -4228,7 +4362,13 @@ impl Interpreter {
             Expr::MethodCall { object, method, args } => {
                 // Method call on an expression - used for iterator chaining
                 let obj_value = self.eval_expr(object);
+                if Self::is_error_value(&obj_value) {
+                    return obj_value;
+                }
                 let arg_values: Vec<Value> = args.iter().map(|arg| self.eval_expr(arg)).collect();
+                if let Some(error) = arg_values.iter().find(|value| Self::is_error_value(value)) {
+                    return error.clone();
+                }
 
                 // Call the method on the object
                 self.call_method(obj_value, method, arg_values)
@@ -4422,6 +4562,35 @@ impl Interpreter {
     fn call_method(&mut self, obj: Value, method: &str, args: Vec<Value>) -> Value {
         if let Some(result) = Self::call_image_method_impl(&obj, method, &args) {
             return result;
+        }
+
+        if let Value::Channel(chan) = &obj {
+            return match method {
+                "send" => {
+                    if args.is_empty() {
+                        return Value::Error("send requires a value argument".to_string());
+                    }
+
+                    let chan_lock = chan.lock().unwrap();
+                    let (sender, _) = &*chan_lock;
+                    match sender.send(args[0].clone()) {
+                        Ok(_) => Value::Bool(true),
+                        Err(_) => Value::Error("Failed to send to channel".to_string()),
+                    }
+                }
+                "receive" => {
+                    let chan_lock = chan.lock().unwrap();
+                    let (_, receiver) = &*chan_lock;
+                    match receiver.try_recv() {
+                        Ok(value) => value,
+                        Err(std::sync::mpsc::TryRecvError::Empty) => Value::Null,
+                        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                            Value::Error("Channel disconnected".to_string())
+                        }
+                    }
+                }
+                _ => Value::Error(format!("Channel has no method '{}'", method)),
+            };
         }
 
         match method {

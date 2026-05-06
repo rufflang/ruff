@@ -225,6 +225,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Functions declared with `func`, including anonymous function expressions and `async func`.
 - `if`/`else`, `while`, `loop`, `for ... in`, `break`, and `continue`.
 - Arrays and dictionaries with indexing and standard library helpers.
+- Undefined identifiers are runtime errors. Use quoted string literals when a string value is intended.
 - Missing dictionary keys are runtime errors. Use helpers such as `has_key`, `get`, or `get_default` when a fallback value is intended.
 - String interpolation with `${...}` inside double-quoted strings.
 - `Result` and `Option` values through `Ok(...)`, `Err(...)`, `Some(...)`, and `None`.

@@ -152,6 +152,7 @@ Notes:
 - Top-level script bindings resolve in the global scope.
 - Function bodies introduce lexical scope boundaries.
 - Shadowing is allowed and resolved by nearest lexical definition.
+- Referencing an identifier with no visible binding is a runtime error of the form `Undefined variable: <name>`. Ruff does not convert unknown identifiers into strings; quote string literals explicitly.
 
 ### 5.3 Function execution
 

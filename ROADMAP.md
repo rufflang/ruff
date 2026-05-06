@@ -212,7 +212,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-RUN-001: Make undefined identifiers runtime errors
+[x] V1-RUN-001: Make undefined identifiers runtime errors
     Priority: P0
     Severity: High
     Area: Correctness/Security
@@ -235,7 +235,7 @@ If a command is not yet available, create the missing configuration as part of t
         - String literals still work normally.
         - Existing examples do not rely on implicit identifier strings.
     Acceptance criteria: No runtime path converts an unknown identifier into a string silently.
-    Notes: This may expose many latent tests that relied on demo behavior. Fix tests by making strings explicit.
+    Notes: Completed on 2026-05-06. Interpreter identifier lookup now reports `Undefined variable: <name>` instead of implicitly producing a string, errors propagate through common expression/statement surfaces, and explicit string literals/defined identifiers keep working. VM global/local lookup errors now use the same undefined-variable message, cooperative VM execution surfaces returned error values as execution errors, and top-level script JIT avoids variable-load programs until checked undefined lookup parity is preserved. Verification: `cargo test` passed.
 ```
 
 ```text

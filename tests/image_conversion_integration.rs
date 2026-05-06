@@ -138,8 +138,8 @@ fn image_conversion_failure_paths_are_reported() {
         escape_ruff_string(&unsupported_output)
     ));
     assert!(matches!(
-        interp_unsupported.env.get("unsupported_result"),
-        Some(Value::Error(msg)) if msg.contains("Failed to save image")
+        interp_unsupported.return_value,
+        Some(Value::Error(ref msg)) if msg.contains("Failed to save image")
     ));
 
     let vm_unsupported = run_vm(
@@ -158,8 +158,8 @@ fn image_conversion_failure_paths_are_reported() {
         escape_ruff_string(&input_png)
     ));
     assert!(matches!(
-        interp_invalid_args.env.get("invalid_resize"),
-        Some(Value::Error(msg)) if msg.contains("resize requires numeric width and height")
+        interp_invalid_args.return_value,
+        Some(Value::Error(ref msg)) if msg.contains("resize requires numeric width and height")
     ));
 
     let vm_invalid_args = run_vm(

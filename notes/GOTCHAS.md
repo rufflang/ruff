@@ -89,6 +89,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-16_20-23_release-hardening-strict-arity-follow-through-slices.md)
 
+### Native `Value::Error` can be data, while undefined identifiers are fatal
+- **Problem:** Treating every `Value::Error` as an immediate statement-level halt breaks native helpers that intentionally return error values for callers to inspect.
+- **Rule:** Undefined identifier lookup must produce `Undefined variable: <name>` and stop execution, but `let x := native_call(...)` must still be allowed to bind a native `Value::Error` unless that API is intentionally changed.
+- **Implication:** Runtime-error hardening should distinguish language semantic errors from native error-as-value contracts before changing `let`/assignment behavior.
+
+(Discovered during: 2026-05-06_17-07_undefined-identifier-runtime-errors.md)
+
 ### Promise receivers are single-consumer
 - **Problem:** Re-awaiting or re-aggregating promise handles can fail if cached result checks are skipped.
 - **Rule:** Aggregation helpers must short-circuit on cached completion before touching receiver paths.
@@ -127,6 +134,13 @@ If you are new to the project, read this first.
 - **Implication:** Indexing changes must cover `IndexGet`, `IndexGetInPlace`, optimized local paths, and nested bytecode-call paths.
 
 (Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
+
+### Script JIT can bypass runtime error semantics
+- **Problem:** Top-level script JIT may return a default value for opcodes whose checked VM path would report a runtime error.
+- **Rule:** Do not admit opcodes into script JIT unless the JIT implementation preserves the same error semantics as the bytecode VM.
+- **Implication:** Undefined-name work gates `LoadVar`/`LoadGlobal` out of script JIT until JIT variable lookup has explicit parity tests.
+
+(Discovered during: 2026-05-06_17-07_undefined-identifier-runtime-errors.md)
 
 ### Interpreter named nested functions are not closure expressions
 - **Problem:** A nested `func name(...) { ... }` may not capture local variables the way an anonymous `func(...) { ... }` expression does.

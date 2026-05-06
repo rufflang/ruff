@@ -255,6 +255,86 @@ fn vm_and_interpreter_error_on_invalid_map_key_type() {
     assert_interpreter_and_vm_error_contains(script, "Invalid index operation");
 }
 
+#[test]
+fn vm_and_interpreter_error_on_undefined_top_level_identifier() {
+    let script = r#"
+        return missing_top_level_name
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: missing_top_level_name");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_undefined_identifier_in_binary_expression() {
+    let script = r#"
+        return missing_operand + 1
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: missing_operand");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_undefined_identifier_in_condition() {
+    let script = r#"
+        if missing_condition {
+            condition_reached := true
+        }
+        return false
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: missing_condition");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_undefined_identifier_inside_function() {
+    let script = r#"
+        func read_missing() {
+            return missing_inside_function
+        }
+
+        return read_missing()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: missing_inside_function");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_undefined_identifier_inside_closure() {
+    let script = r#"
+        func make_reader() {
+            captured := 1
+            reader := func() {
+                return missing_inside_closure
+            }
+            return reader
+        }
+
+        read := make_reader()
+        return read()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: missing_inside_closure");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_undefined_method_receiver() {
+    let script = r#"
+        return missing_receiver.collect()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: missing_receiver");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_unknown_method_member() {
+    let script = r#"
+        values := [1, 2, 3]
+        return values.definitely_missing_method()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "method");
+}
+
 fn assert_interpreter_and_vm_bool(script: &str, flag_name: &str) {
     let interp = run_interpreter(script);
     assert!(
@@ -270,6 +350,39 @@ fn assert_interpreter_and_vm_bool(script: &str, flag_name: &str) {
 
     let vm_globals = vm_env.lock().expect("failed to lock vm globals");
     assert!(matches!(vm_globals.get(flag_name), Some(Value::Bool(true))));
+}
+
+#[test]
+fn vm_and_interpreter_keep_string_literals_explicit() {
+    let script = r#"
+        literal := "missing_top_level_name"
+        literal_ok := literal == "missing_top_level_name"
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "literal_ok");
+}
+
+#[test]
+fn vm_and_interpreter_resolve_defined_identifiers() {
+    let script = r#"
+        top := 10
+
+        func add_one(value) {
+            local := value + 1
+            return local
+        }
+
+        func make_adder(seed) {
+            return func(delta) {
+                return seed + delta
+            }
+        }
+
+        add_seed := make_adder(top)
+        identifiers_ok := add_one(top) == 11 && add_seed(5) == 15
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "identifiers_ok");
 }
 
 #[test]

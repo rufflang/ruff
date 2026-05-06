@@ -51,3 +51,4 @@ High-signal session notes:
 - `2026-05-06_11-06_cli-serve-universal-hardening-followthrough.md` — Captured serve-module extraction, TLS/caching/security/range/etag hardening, subprocess-level integration testing strategy, and header-comparison type gotchas.
 - `2026-05-06_11-18_field-notes-system-enforcement.md` — Captured policy-enforcement alignment for session-note structure contracts, curated gotcha hygiene, and future CI/template follow-up options.
 - `2026-05-06_11-30_field-notes-ci-guard.md` — Added automated CI enforcement for new field-note filename/template contracts and captured Bash 3 portability constraints for repo shell guards.
+- `2026-05-06_17-07_undefined-identifier-runtime-errors.md` — Replaced implicit identifier-to-string fallback with runtime errors, preserved native error-as-value bindings, and gated script JIT off variable loads until undefined-name parity is explicit.

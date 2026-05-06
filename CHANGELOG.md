@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed interpreter and VM identifier resolution so missing bindings report `Undefined variable: <name>` instead of allowing the interpreter to coerce unknown identifiers into strings.
+- Changed cooperative VM execution to surface returned runtime error values as execution errors, and gated top-level script JIT away from global/local variable loads until JIT preserves checked undefined-identifier semantics.
 - Changed VM and interpreter map indexing so missing dictionary keys now report deterministic runtime errors (`Missing map key: ...`) instead of falling through to `Null`/`Int(0)` sentinel behavior.
 - Changed VM `IndexGet`/`IndexGetInPlace` map reads to share one centralized lookup helper, keeping normal, in-place, and nested bytecode-call paths aligned for missing keys, invalid key types, and optimized integer-key map storage.
 - Changed `ruff serve` CLI surface in `src/main.rs` to route through `src/serve_http.rs` and expose universal serve controls (`--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`).

@@ -399,6 +399,18 @@ pub(crate) struct CallFrame {
 
 #[allow(dead_code)] // VM not yet integrated into execution path
 impl VM {
+    fn undefined_variable_message(name: &str) -> String {
+        format!("Undefined variable: {}", name)
+    }
+
+    fn value_error_message(value: &Value) -> Option<String> {
+        match value {
+            Value::Error(message) => Some(message.clone()),
+            Value::ErrorObject { message, .. } => Some(message.clone()),
+            _ => None,
+        }
+    }
+
     pub fn new() -> Self {
         let vm = Self {
             stack: Vec::new(),
@@ -672,9 +684,7 @@ impl VM {
         match (object, index) {
             (Value::Array(arr), Value::Int(i)) => {
                 let idx = if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
-                arr.get(idx)
-                    .cloned()
-                    .ok_or_else(|| format!("Index out of bounds: {}", i))
+                arr.get(idx).cloned().ok_or_else(|| format!("Index out of bounds: {}", i))
             }
             (Value::Str(s), Value::Int(i)) => {
                 let idx = if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
@@ -683,10 +693,9 @@ impl VM {
                     .map(|c| Value::Str(Arc::new(c.to_string())))
                     .ok_or_else(|| format!("Index out of bounds: {}", i))
             }
-            (Value::Dict(dict), Value::Str(key)) => dict
-                .get(key.as_str())
-                .cloned()
-                .ok_or_else(|| Self::missing_map_key_error(index)),
+            (Value::Dict(dict), Value::Str(key)) => {
+                dict.get(key.as_str()).cloned().ok_or_else(|| Self::missing_map_key_error(index))
+            }
             (Value::FixedDict { keys, values }, Value::Str(key)) => {
                 let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
                 idx.and_then(|i| values.get(i).cloned())
@@ -695,9 +704,7 @@ impl VM {
             (Value::Dict(dict), Value::Int(i)) => {
                 hashmap_profile_bump(&HASHMAP_GET_DICT_INTKEY);
                 let key = i.to_string();
-                dict.get(key.as_str())
-                    .cloned()
-                    .ok_or_else(|| Self::missing_map_key_error(index))
+                dict.get(key.as_str()).cloned().ok_or_else(|| Self::missing_map_key_error(index))
             }
             (Value::FixedDict { keys, values }, Value::Int(i)) => {
                 let key = i.to_string();
@@ -743,10 +750,9 @@ impl VM {
                 }
             }
             (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
-                Ok(int_key) => dict
-                    .get(&int_key)
-                    .cloned()
-                    .ok_or_else(|| Self::missing_map_key_error(index)),
+                Ok(int_key) => {
+                    dict.get(&int_key).cloned().ok_or_else(|| Self::missing_map_key_error(index))
+                }
                 Err(_) => Err("Invalid index operation".to_string()),
             },
             (Value::DenseIntDict(values), Value::Str(key)) => match key.parse::<i64>() {
@@ -867,7 +873,13 @@ impl VM {
         self.cooperative_suspend_enabled = false;
 
         match result {
-            Ok(_) => Ok(VmExecutionResult::Completed),
+            Ok(value) => {
+                if let Some(error) = Self::value_error_message(&value) {
+                    Err(error)
+                } else {
+                    Ok(VmExecutionResult::Completed)
+                }
+            }
             Err(error) => {
                 if let Some(context_id) = Self::parse_suspend_error(&error) {
                     Ok(VmExecutionResult::Suspended { context_id })
@@ -891,7 +903,10 @@ impl VM {
         self.cooperative_suspend_enabled = false;
 
         match result {
-            Ok(_) => {
+            Ok(value) => {
+                if let Some(error) = Self::value_error_message(&value) {
+                    return Err(error);
+                }
                 self.execution_contexts.remove(&context_id);
                 if self.active_execution_context == Some(context_id) {
                     self.active_execution_context = None;
@@ -1045,6 +1060,8 @@ impl VM {
                             | OpCode::IndexSet
                             | OpCode::IndexGetInPlace(_)
                             | OpCode::IndexSetInPlace(_)
+                            | OpCode::LoadVar(_)
+                            | OpCode::LoadGlobal(_)
                             | OpCode::SumIntMapUntilLocalInPlace(_, _, _, _)
                             | OpCode::FillIntMapWithDoubleUntilLocalInPlace(_, _, _)
                     ) {
@@ -1550,7 +1567,7 @@ impl VM {
                                         .map(|f| f.locals.keys().collect::<Vec<_>>())
                                 );
                             }
-                            format!("Undefined variable: {}", name)
+                            Self::undefined_variable_message(&name)
                         })?;
 
                     self.stack.push(value);
@@ -1562,7 +1579,7 @@ impl VM {
                         .lock()
                         .unwrap()
                         .get(&name)
-                        .ok_or_else(|| format!("Undefined global: {}", name))?;
+                        .ok_or_else(|| Self::undefined_variable_message(&name))?;
                     self.stack.push(value);
                 }
 
@@ -3973,7 +3990,8 @@ impl VM {
                                             value.clone()
                                         } else {
                                             let method_name = format!("{}.{}", name, field);
-                                            let global = self.globals.lock().unwrap().get(&method_name);
+                                            let global =
+                                                self.globals.lock().unwrap().get(&method_name);
                                             global
                                                 .ok_or_else(|| {
                                                     format!("Field not found: {}", field)
@@ -4031,7 +4049,12 @@ impl VM {
                             }
                             _ => return Err(format!("HttpServer has no method '{}'", field)),
                         },
-                        _ => return Err("Cannot access field on non-struct".to_string()),
+                        _ => {
+                            return Err(format!(
+                                "Cannot access field or method '{}' on non-struct value",
+                                field
+                            ))
+                        }
                     };
 
                     self.stack.push(result);
@@ -4801,11 +4824,7 @@ impl VM {
             // methods compiled without an explicit self parameter.
             let mut call_args = args;
             if call_args.len() != param_names.len() {
-                let is_method = chunk
-                    .name
-                    .as_deref()
-                    .map(|n| n.contains('.'))
-                    .unwrap_or(false);
+                let is_method = chunk.name.as_deref().map(|n| n.contains('.')).unwrap_or(false);
 
                 if is_method && call_args.len() == param_names.len() + 1 {
                     if matches!(call_args.first(), Some(Value::Struct { .. })) {
@@ -4904,11 +4923,7 @@ impl VM {
 
     fn split_http_path_and_query(url: &str) -> (String, HashMap<String, String>, String) {
         if let Some((path, raw_query)) = url.split_once('?') {
-            (
-                path.to_string(),
-                Self::parse_http_query_params(raw_query),
-                raw_query.to_string(),
-            )
+            (path.to_string(), Self::parse_http_query_params(raw_query), raw_query.to_string())
         } else {
             (url.to_string(), HashMap::new(), String::new())
         }
@@ -5024,8 +5039,8 @@ impl VM {
         use tiny_http::{Response, Server};
 
         println!("Starting HTTP server on port {}...", port);
-        let server =
-            Server::http(format!("0.0.0.0:{}", port)).map_err(|e| format!("Failed to start server: {}", e))?;
+        let server = Server::http(format!("0.0.0.0:{}", port))
+            .map_err(|e| format!("Failed to start server: {}", e))?;
 
         println!("Server listening on http://localhost:{}", port);
         println!("Press Ctrl+C to stop");
@@ -5033,8 +5048,7 @@ impl VM {
         for mut request in server.incoming_requests() {
             let method = request.method().to_string();
             let request_url = request.url().to_string();
-            let (url_path, query_params, raw_query) =
-                Self::split_http_path_and_query(&request_url);
+            let (url_path, query_params, raw_query) = Self::split_http_path_and_query(&request_url);
 
             let body_content = {
                 let mut reader = request.as_reader();
@@ -5071,7 +5085,8 @@ impl VM {
             let response = if let Some((handler, path_params)) = matched_handler {
                 let mut params_dict = DictMap::default();
                 for (key, value) in &path_params {
-                    params_dict.insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
+                    params_dict
+                        .insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
                 }
 
                 let mut req_fields = DictMap::default();
@@ -5199,10 +5214,7 @@ impl VM {
                     args.pop();
                 }
 
-                let server = self
-                    .stack
-                    .pop()
-                    .ok_or("Stack underflow getting HTTP server")?;
+                let server = self.stack.pop().ok_or("Stack underflow getting HTTP server")?;
 
                 if let Value::HttpServer { port, routes } = server {
                     return match method_name {
@@ -5224,10 +5236,8 @@ impl VM {
                                         ));
                                         Ok(Value::HttpServer { port, routes: new_routes })
                                     }
-                                    _ => Err(
-                                        "route() requires (method, path, handler_function)"
-                                            .to_string(),
-                                    ),
+                                    _ => Err("route() requires (method, path, handler_function)"
+                                        .to_string()),
                                 }
                             }
                         }
@@ -5248,16 +5258,9 @@ impl VM {
                     args.pop();
                 }
 
-                let parser = self
-                    .stack
-                    .pop()
-                    .ok_or("Stack underflow getting ArgParser")?;
+                let parser = self.stack.pop().ok_or("Stack underflow getting ArgParser")?;
 
-                if let Value::Struct {
-                    name,
-                    mut fields,
-                } = parser
-                {
+                if let Value::Struct { name, mut fields } = parser {
                     if name != "ArgParser" {
                         return Err("Expected ArgParser for arg_parser method call".to_string());
                     }
@@ -5265,10 +5268,8 @@ impl VM {
                     return match method_name {
                         "add_argument" => {
                             if args.is_empty() {
-                                return Err(
-                                    "add_argument requires at least a long argument name"
-                                        .to_string(),
-                                );
+                                return Err("add_argument requires at least a long argument name"
+                                    .to_string());
                             }
 
                             let mut long_name = String::new();
@@ -5348,7 +5349,10 @@ impl VM {
                                 let mut arg_list_vec =
                                     Arc::try_unwrap(arg_list).unwrap_or_else(|arc| (*arc).clone());
                                 arg_list_vec.push(Value::Dict(Arc::new(arg_def)));
-                                fields.insert("_args".to_string(), Value::Array(Arc::new(arg_list_vec)));
+                                fields.insert(
+                                    "_args".to_string(),
+                                    Value::Array(Arc::new(arg_list_vec)),
+                                );
                             }
 
                             Ok(Value::Struct { name, fields })
@@ -6053,7 +6057,7 @@ impl VM {
                                 {
                                     self.stack.push(value.clone());
                                 } else {
-                                    return Err(format!("Undefined local variable: {}", name));
+                                    return Err(Self::undefined_variable_message(&name));
                                 }
                             } else {
                                 return Err("No call frame for LoadVar".to_string());
@@ -6066,7 +6070,7 @@ impl VM {
                                 .lock()
                                 .unwrap()
                                 .get(&name)
-                                .ok_or_else(|| format!("Undefined global: {}", name))?;
+                                .ok_or_else(|| Self::undefined_variable_message(&name))?;
                             self.stack.push(value);
                         }
 
@@ -6814,7 +6818,7 @@ impl VM {
 
                         let value = value
                             .or_else(|| self.globals.lock().unwrap().get(&name))
-                            .ok_or_else(|| format!("Undefined variable: {}", name))?;
+                            .ok_or_else(|| Self::undefined_variable_message(&name))?;
                         self.stack.push(value);
                     }
                     OpCode::StoreVar(name) => {
@@ -7637,9 +7641,7 @@ mod tests {
             Ok(Value::Str(json)) => {
                 let decoded: serde_json::Value =
                     serde_json::from_str(json.as_ref()).expect("serialized JSON should parse");
-                let items = decoded
-                    .as_array()
-                    .expect("serialized array should decode to an array");
+                let items = decoded.as_array().expect("serialized array should decode to an array");
                 assert_eq!(items.len(), 3);
                 assert_eq!(items[0], serde_json::Value::Number(1.into()));
                 assert_eq!(items[1], serde_json::Value::Number(2.into()));
@@ -7702,10 +7704,8 @@ mod tests {
                 "json_response".to_string(),
                 Value::NativeFunction("json_response".to_string()),
             );
-            globals.define(
-                "set_header".to_string(),
-                Value::NativeFunction("set_header".to_string()),
-            );
+            globals
+                .define("set_header".to_string(), Value::NativeFunction("set_header".to_string()));
         }
 
         let handler = vm.execute(chunk).expect("handler should compile and execute");
