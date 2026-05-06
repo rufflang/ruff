@@ -97,6 +97,7 @@ The current CLI exposes these subcommands:
 | --- | --- |
 | `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
+| `ruff serve [dir]` | Serve a directory over HTTP for local preview/testing (`--host`, `--port`, `--index`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
 | `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`, `--json`). |
 | `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |

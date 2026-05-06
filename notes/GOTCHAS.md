@@ -188,6 +188,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-05_22-20_ai-sdk-runtime-truthiness-and-test-run-gotchas.md)
 
+### Cross-project local preview should be a CLI primitive, not a one-off script
+- **Problem:** Script-level server examples can depend on runtime-mode behavior and become project-specific workarounds.
+- **Rule:** If a workflow should be available to all users, expose it as `ruff <subcommand>` (for example `ruff serve`) instead of per-project helper scripts.
+- **Implication:** Prefer CLI-level shared capabilities for portability and lower maintenance; keep script examples as optional convenience only.
+
+(Discovered during: 2026-05-06_10-09_cli-serve-command-holistic-preview.md)
+
 ---
 
 ## Mental Model Summary
