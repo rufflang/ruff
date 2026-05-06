@@ -18,7 +18,7 @@ rand = "0.8"
 chrono = "0.4"
 regex = "1"
 rustyline = "14.0"
-tiny_http = "0.12"
+tiny_http = { version = "0.12", features = ["ssl-rustls"] }
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 tokio-util = { version = "0.7", features = ["io"] }
 tokio-stream = "0.1"

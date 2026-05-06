@@ -47,8 +47,10 @@
 - **Final diagnosis:** The one-off script approach depended on runtime mode behavior; a CLI command is the stable holistic surface.
 
 ## Follow-ups / TODO (For Future Agents)
-- [ ] Add dedicated Rust unit/integration tests for `ruff serve` status codes, path traversal rejection, and content-type headers.
+- [x] Added dedicated Rust tests for status code mapping, path traversal rejection, and MIME/security header behavior.
+- [x] Extended static serving toward production-style behavior (ETag, range requests, precompressed assets, cache/security header controls).
 - [ ] Consider optional SPA fallback flag (`--spa`) to map 404 paths to index file when needed.
+- [ ] Consider explicit CLI toggle to disable cache headers entirely (`--no-cache`) for debugging-heavy preview workflows.
 
 ## Links / References
 - Files touched:

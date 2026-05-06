@@ -29,14 +29,19 @@ mod optimizer;
 mod package_workflow;
 mod parser;
 mod repl;
+mod serve_http;
 mod type_checker;
 mod vm;
 
 use clap::{Parser as ClapParser, Subcommand};
 use std::fs;
+#[cfg(test)]
 use std::io::Read;
-use std::path::{Path, PathBuf};
-use tiny_http::{Header, Method, Response, Server, StatusCode};
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
+#[cfg(test)]
+use tiny_http::Method;
 
 #[derive(ClapParser)]
 #[command(
@@ -88,6 +93,26 @@ enum Commands {
         /// Default index file when requesting '/'
         #[arg(long, default_value = "index.html")]
         index: String,
+
+        /// Enable hardened defaults (security headers + strict static behavior)
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        hardened: bool,
+
+        /// Cache-Control max-age in seconds for successful file responses
+        #[arg(long, default_value_t = 300)]
+        cache_max_age: u32,
+
+        /// Enable concise access logs for each request
+        #[arg(long, default_value_t = false)]
+        access_log: bool,
+
+        /// TLS certificate path (PEM). Requires --tls-key.
+        #[arg(long)]
+        tls_cert: Option<PathBuf>,
+
+        /// TLS private key path (PEM). Requires --tls-cert.
+        #[arg(long)]
+        tls_key: Option<PathBuf>,
     },
 
     /// Launch interactive Ruff REPL
@@ -473,6 +498,7 @@ fn cooperative_scheduler_timeout(
     }
 }
 
+#[cfg(test)]
 fn split_content_path_and_encoding(path: &Path) -> (PathBuf, Option<&'static str>) {
     let extension = path
         .extension()
@@ -498,6 +524,7 @@ fn split_content_path_and_encoding(path: &Path) -> (PathBuf, Option<&'static str
     }
 }
 
+#[cfg(test)]
 fn has_known_safe_extension(path: &Path) -> bool {
     let extension = path
         .extension()
@@ -542,6 +569,7 @@ fn has_known_safe_extension(path: &Path) -> bool {
     )
 }
 
+#[cfg(test)]
 fn is_potentially_active_content_type(content_type: &str) -> bool {
     matches!(
         content_type,
@@ -555,6 +583,7 @@ fn is_potentially_active_content_type(content_type: &str) -> bool {
     )
 }
 
+#[cfg(test)]
 fn sanitize_header_value(value: &str) -> Option<String> {
     if value.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
         return None;
@@ -563,6 +592,7 @@ fn sanitize_header_value(value: &str) -> Option<String> {
     Some(value.to_string())
 }
 
+#[cfg(test)]
 fn guess_content_type(path: &Path, file_bytes: &[u8]) -> String {
     let extension = path
         .extension()
@@ -630,12 +660,14 @@ fn guess_content_type(path: &Path, file_bytes: &[u8]) -> String {
     "application/octet-stream".to_string()
 }
 
+#[cfg(test)]
 fn guess_response_headers(path: &Path, file_bytes: &[u8]) -> (String, Option<&'static str>) {
     let (content_path, content_encoding) = split_content_path_and_encoding(path);
     let content_type = guess_content_type(&content_path, file_bytes);
     (content_type, content_encoding)
 }
 
+#[cfg(test)]
 #[derive(Debug)]
 struct ServeResponse {
     status_code: u16,
@@ -643,12 +675,14 @@ struct ServeResponse {
     headers: Vec<(String, String)>,
 }
 
+#[cfg(test)]
 fn add_serve_header(headers: &mut Vec<(String, String)>, name: &str, value: &str) {
     if let Some(safe_value) = sanitize_header_value(value) {
         headers.push((name.to_string(), safe_value));
     }
 }
 
+#[cfg(test)]
 fn text_response(status_code: u16, body: &str) -> ServeResponse {
     let mut headers = Vec::new();
     add_serve_header(&mut headers, "Content-Type", "text/plain; charset=utf-8");
@@ -661,6 +695,7 @@ fn text_response(status_code: u16, body: &str) -> ServeResponse {
     }
 }
 
+#[cfg(test)]
 fn read_served_file(path: &Path) -> std::io::Result<Vec<u8>> {
     #[cfg(unix)]
     {
@@ -698,6 +733,7 @@ fn read_served_file(path: &Path) -> std::io::Result<Vec<u8>> {
     }
 }
 
+#[cfg(test)]
 fn build_serve_response(root_dir: &Path, index: &str, method: &Method, url: &str) -> ServeResponse {
     if method != &Method::Get {
         return text_response(405, "Method Not Allowed");
@@ -919,49 +955,29 @@ async fn main() {
             }
         }
 
-        Commands::Serve { dir, port, host, index } => {
-            let root_dir = match fs::canonicalize(&dir) {
-                Ok(path) => path,
-                Err(err) => {
-                    eprintln!(
-                        "Failed to resolve serve directory '{}': {}",
-                        dir.display(),
-                        err
-                    );
-                    std::process::exit(1);
-                }
+        Commands::Serve {
+            dir,
+            port,
+            host,
+            index,
+            hardened,
+            cache_max_age,
+            access_log,
+            tls_cert,
+            tls_key,
+        } => {
+            let options = serve_http::ServeServerOptions {
+                index,
+                hardened,
+                cache_max_age: Some(u64::from(cache_max_age)),
+                access_log,
+                tls_cert,
+                tls_key,
             };
 
-            if !root_dir.is_dir() {
-                eprintln!("Serve target is not a directory: {}", root_dir.display());
+            if let Err(message) = serve_http::run_static_server(dir, host, port, options) {
+                eprintln!("{}", message);
                 std::process::exit(1);
-            }
-
-            let bind_addr = format!("{}:{}", host, port);
-            let server = match Server::http(&bind_addr) {
-                Ok(server) => server,
-                Err(err) => {
-                    eprintln!("Failed to start server on {}: {}", bind_addr, err);
-                    std::process::exit(1);
-                }
-            };
-
-            println!("Serving {} on http://{}", root_dir.display(), bind_addr);
-            println!("Press Ctrl+C to stop");
-
-            for request in server.incoming_requests() {
-                let serve_response =
-                    build_serve_response(&root_dir, &index, request.method(), request.url());
-                let mut response = Response::from_data(serve_response.body)
-                    .with_status_code(StatusCode(serve_response.status_code));
-
-                for (name, value) in serve_response.headers.iter() {
-                    if let Ok(header) = Header::from_bytes(name.as_bytes(), value.as_bytes()) {
-                        response.add_header(header);
-                    }
-                }
-
-                let _ = request.respond(response);
             }
         }
 

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added dedicated static server runtime module `src/serve_http.rs` for `ruff serve` with conditional request support (ETag/If-None-Match `304`), single-range byte responses (`206`/`416`), precompressed asset selection (`.br`/`.gz`), and deterministic status mapping for file access errors (`404`/`403`/`500`).
+- Added HTTPS serving support for `ruff serve` via `--tls-cert` and `--tls-key`, including strict pair validation and secure-request-aware header behavior.
 - Added executable module loading in `src/module.rs` that parses and runs module ASTs, captures explicit `export` bindings, and caches evaluated module exports.
 - Added module-system regression tests for explicit export collection, deterministic missing-symbol errors, and circular import detection in `src/module.rs` tests.
 - Added interpreter integration tests for deterministic import diagnostics when modules are missing or requested symbols are absent in `tests/interpreter_tests.rs`.
@@ -27,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `ruff serve` CLI surface in `src/main.rs` to route through `src/serve_http.rs` and expose universal serve controls (`--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`).
+- Updated `README.md` static server documentation with HTTP/HTTPS examples, option coverage, and hardening behavior details.
 - Changed interpreter import handling in `src/interpreter/mod.rs` to return deterministic runtime errors instead of silently swallowing module and symbol import failures.
 - Changed `src/parser.rs` type-annotation parsing to return graceful parse failure instead of panicking when `Result<T, E>` or `Option<T>` generic syntax is malformed.
 - Changed interpreter `Expr::MethodCall` dispatch in `src/interpreter/mod.rs` to execute user-defined struct methods (including explicit `self` methods), aligning struct-method behavior with VM-path expectations in parity coverage.

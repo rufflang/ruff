@@ -97,7 +97,7 @@ The current CLI exposes these subcommands:
 | --- | --- |
 | `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
-| `ruff serve [dir]` | Serve a directory over HTTP for local preview/testing (`--host`, `--port`, `--index`). |
+| `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
 | `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`, `--json`). |
 | `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |
@@ -120,6 +120,35 @@ The current CLI exposes these subcommands:
 | `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (delimiter mismatches and parser panic-derived syntax errors); add `--json` for structured output. |
 | `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME>` | Return rename edits for the symbol under the cursor and the updated source text; add `--json` for structured output. |
 | `ruff lsp-code-actions <file>` | Return syntax quick-fix actions derived from diagnostics (for example unmatched/unclosed delimiters); add `--json` for structured output. |
+
+### Static Server (`ruff serve`)
+
+`ruff serve` is intended to be a universal local static preview surface for Ruff users.
+
+Examples:
+
+```bash
+# Basic HTTP preview
+ruff serve output --host 127.0.0.1 --port 8080
+
+# Hardened mode with access logs and explicit cache controls
+ruff serve output --hardened --access-log --cache-max-age 300
+
+# HTTPS preview (both certificate and key are required)
+ruff serve output --tls-cert ./certs/dev-cert.pem --tls-key ./certs/dev-key.pem
+```
+
+Behavior highlights:
+
+- Supports `GET` and `HEAD` requests (returns `405` for unsupported methods).
+- Enforces canonical root-boundary checks to block path traversal.
+- Uses no-follow file reads on Unix to reduce symlink race/swap risks.
+- Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
+- Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).
+- Detects and serves precompressed sibling assets (`.br`, `.gz`) when accepted.
+- Applies MIME guessing with conservative handling for unknown potentially active content.
+- Adds baseline hardening headers (`X-Content-Type-Options`) and stricter security headers in hardened mode.
+- Adds `Strict-Transport-Security` only for secure (TLS) requests.
 
 Machine-readable output and automation contracts are documented in [docs/CLI_MACHINE_READABLE_CONTRACTS.md](docs/CLI_MACHINE_READABLE_CONTRACTS.md).
 
