@@ -548,6 +548,7 @@ impl Interpreter {
             "regex_split",
             // HTTP client functions
             "http_get",
+            "http_request",
             "http_post",
             "http_put",
             "http_delete",
@@ -1046,6 +1047,8 @@ impl Interpreter {
 
         // HTTP client functions
         self.env.define("http_get".to_string(), Value::NativeFunction("http_get".to_string()));
+        self.env
+            .define("http_request".to_string(), Value::NativeFunction("http_request".to_string()));
         self.env.define("http_post".to_string(), Value::NativeFunction("http_post".to_string()));
         self.env.define("http_put".to_string(), Value::NativeFunction("http_put".to_string()));
         self.env

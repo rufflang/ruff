@@ -4,8 +4,10 @@
 
 use crate::builtins;
 use crate::interpreter::{DictMap, Value};
+use reqwest::Method;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -95,6 +97,138 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 }
             } else {
                 Value::Error("http_post requires URL and JSON body strings".to_string())
+            }
+        }
+
+        "http_request" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "http_request() expects 2 arguments (url, options), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            let url = match arg_values.first() {
+                Some(Value::Str(url)) => url.as_ref().clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "http_request() requires a URL string as first argument".to_string(),
+                    ));
+                }
+            };
+
+            let options = match arg_values.get(1) {
+                Some(Value::Dict(options)) => options.clone(),
+                _ => {
+                    return Some(Value::Error(
+                        "http_request() requires an options dictionary as second argument"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let method_name = options
+                .get("method")
+                .and_then(|value| {
+                    if let Value::Str(text) = value { Some(text.as_ref().to_uppercase()) } else { None }
+                })
+                .unwrap_or_else(|| "GET".to_string());
+
+            let method = match Method::from_bytes(method_name.as_bytes()) {
+                Ok(method) => method,
+                Err(error) => {
+                    return Some(Value::Result {
+                        is_ok: false,
+                        value: Box::new(Value::Str(Arc::new(format!(
+                            "Invalid HTTP method '{}': {}",
+                            method_name, error
+                        )))),
+                    });
+                }
+            };
+
+            let timeout_seconds = options
+                .get("timeout")
+                .and_then(|value| match value {
+                    Value::Float(timeout) => Some(*timeout),
+                    Value::Int(timeout) => Some(*timeout as f64),
+                    _ => None,
+                })
+                .unwrap_or(45.0_f64)
+                .max(0.001_f64);
+
+            let client = match reqwest::blocking::Client::builder()
+                .timeout(Duration::from_secs_f64(timeout_seconds))
+                .build()
+            {
+                Ok(client) => client,
+                Err(error) => {
+                    return Some(Value::Result {
+                        is_ok: false,
+                        value: Box::new(Value::Str(Arc::new(format!(
+                            "Failed to create HTTP client: {}",
+                            error
+                        )))),
+                    });
+                }
+            };
+
+            let mut request = client.request(method, &url);
+
+            let header_dict = options
+                .get("_headers")
+                .or_else(|| options.get("headers"))
+                .and_then(|value| {
+                    if let Value::Dict(headers) = value { Some(headers.clone()) } else { None }
+                });
+
+            if let Some(headers) = header_dict {
+                for (key, value) in headers.iter() {
+                    if let Value::Str(header_value) = value {
+                        request = request.header(key.as_ref(), header_value.as_ref());
+                    }
+                }
+            }
+
+            if let Some(Value::Str(body)) = options.get("_body").or_else(|| options.get("body")) {
+                request = request.body(body.as_ref().clone());
+            }
+
+            match request.send() {
+                Ok(response) => {
+                    let status = response.status().as_u16() as i64;
+                    let response_headers = response.headers().clone();
+                    let body = response.text().unwrap_or_default();
+
+                    let mut result_dict = DictMap::default();
+                    result_dict.insert("status".into(), Value::Int(status));
+                    result_dict.insert("_status".into(), Value::Int(status));
+                    result_dict.insert("body".into(), Value::Str(Arc::new(body.clone())));
+                    result_dict.insert("_body".into(), Value::Str(Arc::new(body)));
+
+                    let mut headers_dict = DictMap::default();
+                    for (name, value) in response_headers.iter() {
+                        if let Ok(value_str) = value.to_str() {
+                            headers_dict.insert(
+                                name.as_str().to_string().into(),
+                                Value::Str(Arc::new(value_str.to_string())),
+                            );
+                        }
+                    }
+                    result_dict.insert("headers".into(), Value::Dict(Arc::new(headers_dict)));
+
+                    Value::Result {
+                        is_ok: true,
+                        value: Box::new(Value::Dict(Arc::new(result_dict))),
+                    }
+                }
+                Err(error) => Value::Result {
+                    is_ok: false,
+                    value: Box::new(Value::Str(Arc::new(format!(
+                        "HTTP request failed: {}",
+                        error
+                    )))),
+                },
             }
         }
 

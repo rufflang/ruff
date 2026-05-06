@@ -297,6 +297,7 @@ mod tests {
             "io_truncate",
             "io_copy_range",
             "http_get",
+            "http_request",
             "http_post",
             "http_put",
             "http_delete",
