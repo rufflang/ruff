@@ -153,6 +153,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-17_18-48_io-strict-arity-hardening.md)
 
+### Repository shell guards should remain Bash 3 compatible for local macOS runs
+- **Problem:** CI/helper scripts can work in GitHub Actions but fail locally with `mapfile: command not found`.
+- **Rule:** Prefer portable `while read` loops over Bash-4-only helpers (for example `mapfile`) in repo-level scripts.
+- **Implication:** Validate new `.github/scripts/*.sh` locally on macOS before relying on CI-only execution confidence.
+
+(Discovered during: 2026-05-06_11-30_field-notes-ci-guard.md)
+
 ### Benchmark harness paths are sensitive to working directory
 - **Problem:** Running bench commands outside repo-root can resolve fixtures/scripts incorrectly.
 - **Rule:** Normalize CWD assumptions and prefer explicit tmp/artifact roots for harnesses.
