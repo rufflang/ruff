@@ -195,6 +195,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_10-09_cli-serve-command-holistic-preview.md)
 
+### `tiny_http` header field comparisons are type-sensitive
+- **Problem:** Header matching code can fail to compile when comparing `HeaderField` values directly with `&str` using methods that expect `AsciiStr`.
+- **Rule:** In dynamic/header-name helper code, normalize the header field to string form before case-insensitive comparison against `&str`.
+- **Implication:** For serve/header refactors in `src/serve_http.rs`, verify header lookup helpers compile before broader protocol changes.
+
+(Discovered during: 2026-05-06_11-06_cli-serve-universal-hardening-followthrough.md)
+
 ---
 
 ## Mental Model Summary

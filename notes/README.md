@@ -48,3 +48,5 @@ High-signal session notes:
 - `2026-05-05_10-29_vm-example-compatibility-followthrough.md` — Captured VM bootstrap/constants and method-dispatch parity gotchas, plus automation-safe example sweep rules and commit-splitting practice.
 - `2026-05-05_22-20_ai-sdk-runtime-truthiness-and-test-run-gotchas.md` — Captured integer-zero truthiness bug fix across interpreter paths, strict assertion/builtin return-type gotcha (`has_key`), and `test-run` setup-bound import behavior.
 - `2026-05-06_10-09_cli-serve-command-holistic-preview.md` — Added first-class `ruff serve` CLI primitive for static directory preview, replaced one-off SSG server script usage, and documented mode-parity/security path-boundary constraints.
+- `2026-05-06_11-06_cli-serve-universal-hardening-followthrough.md` — Captured serve-module extraction, TLS/caching/security/range/etag hardening, subprocess-level integration testing strategy, and header-comparison type gotchas.
+- `2026-05-06_11-18_field-notes-system-enforcement.md` — Captured policy-enforcement alignment for session-note structure contracts, curated gotcha hygiene, and future CI/template follow-up options.
