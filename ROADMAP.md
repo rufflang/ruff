@@ -1,7 +1,7 @@
 # Ruff v1.0 Completeness-Ready Roadmap
 
 Last audit date: 2026-05-06
-Current crate version: 0.14.0
+> Current crate version: `0.14.0` in [Cargo.toml](Cargo.toml)
 Target release: 1.0.0
 Roadmap status: active production-readiness backlog
 
