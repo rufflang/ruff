@@ -576,6 +576,88 @@ pub enum Value {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableArity {
+    pub name: String,
+    pub min_args: usize,
+    pub max_args: Option<usize>,
+    pub variadic: bool,
+    pub parameter_names: Vec<String>,
+}
+
+impl CallableArity {
+    pub fn exact(name: impl Into<String>, parameter_names: Vec<String>) -> Self {
+        let count = parameter_names.len();
+        Self {
+            name: name.into(),
+            min_args: count,
+            max_args: Some(count),
+            variadic: false,
+            parameter_names,
+        }
+    }
+
+    pub fn range(
+        name: impl Into<String>,
+        min_args: usize,
+        max_args: usize,
+        parameter_names: Vec<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            min_args,
+            max_args: Some(max_args),
+            variadic: min_args != max_args,
+            parameter_names,
+        }
+    }
+
+    pub fn variadic(
+        name: impl Into<String>,
+        min_args: usize,
+        parameter_names: Vec<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            min_args,
+            max_args: None,
+            variadic: true,
+            parameter_names,
+        }
+    }
+
+    pub fn validate(&self, received_args: usize) -> Result<(), String> {
+        if received_args < self.min_args {
+            return Err(self.format_error(received_args));
+        }
+
+        if let Some(max_args) = self.max_args {
+            if received_args > max_args {
+                return Err(self.format_error(received_args));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn expected_description(&self) -> String {
+        match self.max_args {
+            Some(max_args) if self.min_args == max_args => format!("{}", self.min_args),
+            Some(max_args) => format!("{} to {}", self.min_args, max_args),
+            None => format!("at least {}", self.min_args),
+        }
+    }
+
+    fn format_error(&self, received_args: usize) -> String {
+        format!(
+            "{} expects {} arguments, got {}",
+            self.name,
+            self.expected_description(),
+            received_args
+        )
+    }
+}
+
 // Manual Debug implementation for Value
 impl std::fmt::Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

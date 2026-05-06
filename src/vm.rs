@@ -6,7 +6,8 @@
 use crate::ast::Pattern;
 use crate::bytecode::{BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{
-    DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap, Interpreter, Value,
+    CallableArity, DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap, Interpreter,
+    Value,
 };
 use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler};
 use std::collections::HashMap;
@@ -2318,6 +2319,8 @@ impl VM {
                     // Check if this is a bytecode function or native function
                     match &function {
                         Value::BytecodeFunction { chunk, captured: _ } => {
+                            let args = self.prepare_bytecode_call_args(chunk, args.clone())?;
+
                             // Track function calls for JIT compilation
                             if self.jit_enabled && !chunk.is_generator {
                                 let func_name = chunk.name.as_deref().unwrap_or("<anonymous>");
@@ -4810,6 +4813,41 @@ impl VM {
         }
     }
 
+    fn prepare_bytecode_call_args(
+        &self,
+        chunk: &BytecodeChunk,
+        mut args: Vec<Value>,
+    ) -> Result<Vec<Value>, String> {
+        let param_names = &chunk.params;
+
+        let callable_name = chunk.name.clone().unwrap_or_else(|| "<lambda>".to_string());
+        let is_method = chunk.name.as_deref().map(|name| name.contains('.')).unwrap_or(false)
+            && matches!(args.first(), Some(Value::Struct { .. }));
+
+        if is_method {
+            let has_self_param = param_names.first().map(|p| p == "self").unwrap_or(false);
+            let external_params: Vec<String> = if has_self_param {
+                param_names.iter().skip(1).cloned().collect()
+            } else {
+                param_names.clone()
+            };
+
+            let arity = CallableArity::exact(callable_name, external_params);
+            let external_args_count = args.len().saturating_sub(1);
+            arity.validate(external_args_count)?;
+
+            // Compatibility: allow legacy methods compiled without explicit self.
+            if !has_self_param && args.len() == param_names.len() + 1 {
+                args.remove(0);
+            }
+        } else {
+            let arity = CallableArity::exact(callable_name, param_names.clone());
+            arity.validate(args.len())?;
+        }
+
+        Ok(args)
+    }
+
     /// Call a function
     /// Set up a call frame for a bytecode function (doesn't return - Return opcode will handle that)
     fn call_bytecode_function(&mut self, function: Value, args: Vec<Value>) -> Result<(), String> {
@@ -4817,31 +4855,8 @@ impl VM {
             // Create new call frame with parameters bound
             let mut locals = HashMap::new();
 
-            // Bind arguments to parameter names
+            let call_args = self.prepare_bytecode_call_args(&chunk, args)?;
             let param_names = &chunk.params;
-
-            // Compatibility: allow an implicit receiver argument for struct
-            // methods compiled without an explicit self parameter.
-            let mut call_args = args;
-            if call_args.len() != param_names.len() {
-                let is_method = chunk.name.as_deref().map(|n| n.contains('.')).unwrap_or(false);
-
-                if is_method && call_args.len() == param_names.len() + 1 {
-                    if matches!(call_args.first(), Some(Value::Struct { .. })) {
-                        call_args.remove(0);
-                    }
-                }
-            }
-
-            // Check argument count
-            if call_args.len() != param_names.len() {
-                return Err(format!(
-                    "Function {} expects {} arguments, got {}",
-                    chunk.name.as_deref().unwrap_or("<lambda>"),
-                    param_names.len(),
-                    call_args.len()
-                ));
-            }
 
             let mut local_slots = vec![Value::Null; chunk.local_count];
 
@@ -5157,8 +5172,11 @@ impl VM {
                 if let Value::Channel(chan) = channel {
                     return match method_name {
                         "send" => {
-                            if args.is_empty() {
-                                return Err("send requires a value argument".to_string());
+                            if args.len() != 1 {
+                                return Err(format!(
+                                    "Channel.send expects 1 arguments, got {}",
+                                    args.len()
+                                ));
                             }
                             let value = args.remove(0);
                             let chan_lock = chan.lock().unwrap();
@@ -5169,6 +5187,12 @@ impl VM {
                             }
                         }
                         "receive" => {
+                            if !args.is_empty() {
+                                return Err(format!(
+                                    "Channel.receive expects 0 arguments, got {}",
+                                    args.len()
+                                ));
+                            }
                             let chan_lock = chan.lock().unwrap();
                             let (_, receiver) = &*chan_lock;
                             match receiver.try_recv() {
@@ -5241,7 +5265,13 @@ impl VM {
                                 }
                             }
                         }
-                        "listen" => self.start_http_server_vm(port, routes),
+                        "listen" => {
+                            if !args.is_empty() {
+                                Err(format!("HttpServer.listen expects 0 arguments, got {}", args.len()))
+                            } else {
+                                self.start_http_server_vm(port, routes)
+                            }
+                        }
                         _ => Err(format!("HttpServer has no method '{}'", method_name)),
                     };
                 } else {

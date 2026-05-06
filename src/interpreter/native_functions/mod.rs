@@ -26,8 +26,10 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
     // Legacy aliases and compatibility helpers.
     match name {
         "dict" => {
-            if !arg_values.is_empty() {
-                return Value::Error("dict() expects 0 arguments".to_string());
+            if let Some(arity) = Interpreter::native_callable_arity("dict") {
+                if let Err(message) = arity.validate(arg_values.len()) {
+                    return Value::Error(message);
+                }
             }
             return Value::dict(Default::default());
         }
@@ -35,8 +37,10 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
             return Value::Array(std::sync::Arc::new(arg_values.to_vec()));
         }
         "error" => {
-            if arg_values.len() != 1 {
-                return Value::Error("error() expects exactly 1 argument".to_string());
+            if let Some(arity) = Interpreter::native_callable_arity("error") {
+                if let Err(message) = arity.validate(arg_values.len()) {
+                    return Value::Error(message);
+                }
             }
 
             let message = match &arg_values[0] {
@@ -52,8 +56,10 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
             };
         }
         "collect" => {
-            if arg_values.len() != 1 {
-                return Value::Error("collect() expects exactly 1 argument".to_string());
+            if let Some(arity) = Interpreter::native_callable_arity("collect") {
+                if let Err(message) = arity.validate(arg_values.len()) {
+                    return Value::Error(message);
+                }
             }
 
             return match &arg_values[0] {
@@ -71,6 +77,12 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
         "time" => "current_timestamp",
         other => other,
     };
+
+    if let Some(arity) = Interpreter::native_callable_arity(canonical_name) {
+        if let Err(message) = arity.validate(arg_values.len()) {
+            return Value::Error(message);
+        }
+    }
 
     // Try async operations first (high priority for async functions)
     if let Some(result) = async_ops::handle(interp, canonical_name, arg_values) {
@@ -911,7 +923,17 @@ mod tests {
         assert!(matches!(fallback_len, Value::Int(0)));
 
         let missing_args_len = call_native_function(&mut interpreter, "len", &[]);
-        assert!(matches!(missing_args_len, Value::Int(0)));
+        assert!(matches!(
+            missing_args_len,
+            Value::Error(message) if message.contains("len expects 1 arguments, got 0")
+        ));
+
+        let extra_args_len =
+            call_native_function(&mut interpreter, "len", &[Value::Int(1), Value::Int(2)]);
+        assert!(matches!(
+            extra_args_len,
+            Value::Error(message) if message.contains("len expects 1 arguments, got 2")
+        ));
     }
 
     #[test]

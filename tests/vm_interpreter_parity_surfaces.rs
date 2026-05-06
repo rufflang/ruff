@@ -335,6 +335,245 @@ fn vm_and_interpreter_error_on_unknown_method_member() {
     assert_interpreter_and_vm_error_contains(script, "method");
 }
 
+#[test]
+fn vm_and_interpreter_error_on_function_arity_too_few() {
+    let script = r#"
+        func add(a, b) {
+            return a + b
+        }
+
+        return add(1)
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "add expects 2 arguments, got 1");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_function_arity_too_many() {
+    let script = r#"
+        func add(a, b) {
+            return a + b
+        }
+
+        return add(1, 2, 3)
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "add expects 2 arguments, got 3");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_closure_arity_mismatch() {
+    let script = r#"
+        multiplier := func(value) {
+            return value * 2
+        }
+
+        return multiplier()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "expects 1 arguments, got 0");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_closure_arity_too_many() {
+    let script = r#"
+        multiplier := func(value) {
+            return value * 2
+        }
+
+        return multiplier(1, 2)
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "expects 1 arguments, got 2");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_method_arity_mismatch() {
+    let script = r#"
+        struct Counter {
+            count: int,
+
+            func bump(self, delta) {
+                return self.count + delta
+            }
+        }
+
+        counter := Counter { count: 4 }
+        return counter.bump()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Counter.bump expects 1 arguments, got 0");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_method_arity_too_many() {
+    let script = r#"
+        struct Counter {
+            count: int,
+
+            func bump(self, delta) {
+                return self.count + delta
+            }
+        }
+
+        counter := Counter { count: 4 }
+        return counter.bump(1, 2)
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Counter.bump expects 1 arguments, got 2");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_async_function_arity_mismatch() {
+    let script = r#"
+        async func combine(a, b) {
+            return a + b
+        }
+
+        promise := combine(1)
+        return await promise
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "combine expects 2 arguments, got 1");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_async_function_arity_too_many() {
+    let script = r#"
+        async func combine(a, b) {
+            return a + b
+        }
+
+        promise := combine(1, 2, 3)
+        return await promise
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "combine expects 2 arguments, got 3");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_generator_arity_mismatch() {
+    let script = r#"
+        func* emit_twice(value) {
+            yield value
+            yield value
+        }
+
+        total := 0
+        for item in emit_twice() {
+            total := total + item
+        }
+
+        return total
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "emit_twice expects 1 arguments, got 0");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_generator_arity_too_many() {
+    let script = r#"
+        func* emit_twice(value) {
+            yield value
+            yield value
+        }
+
+        total := 0
+        for item in emit_twice(1, 2) {
+            total := total + item
+        }
+
+        return total
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "emit_twice expects 1 arguments, got 2");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_native_function_arity_mismatch() {
+    let script = r#"
+        return len("ruff", "extra")
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "len expects 1 arguments, got 2");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_native_function_arity_too_few() {
+    let script = r#"
+        return len()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "len expects 1 arguments, got 0");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_range_native_arity() {
+    let script = r#"
+        return input("prompt", "extra")
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "input expects 0 to 1 arguments, got 2");
+}
+
+#[test]
+fn vm_and_interpreter_match_callable_arity_success_paths() {
+    let script = r#"
+        func add(a, b) {
+            return a + b
+        }
+
+        closure := func(value) {
+            return value * 2
+        }
+
+        struct Counter {
+            count: int,
+
+            func bump(self, delta) {
+                return self.count + delta
+            }
+        }
+
+        async func async_add(a, b) {
+            return a + b
+        }
+
+        counter := Counter { count: 10 }
+        async_result := await async_add(4, 5)
+        arity_success_ok := add(1, 2) == 3
+            && closure(5) == 10
+            && counter.bump(7) == 17
+            && async_result == 9
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "arity_success_ok");
+}
+
+#[test]
+fn vm_and_interpreter_preserve_variadic_native_contracts() {
+    let script = r#"
+        debug("single")
+        debug("a", "b", "c")
+        print("variadic-path-ok")
+    "#;
+
+    let interp = run_interpreter(script);
+    assert!(
+        interp.return_value.is_none(),
+        "interpreter returned runtime error for variadic native call: {:?}",
+        interp.return_value
+    );
+
+    let vm_env = vm_env_with_builtins();
+    let vm_result = run_vm(script, vm_env);
+    assert!(
+        vm_result.is_ok(),
+        "vm returned runtime error for variadic native call: {:?}",
+        vm_result.err()
+    );
+}
+
 fn assert_interpreter_and_vm_bool(script: &str, flag_name: &str) {
     let interp = run_interpreter(script);
     assert!(

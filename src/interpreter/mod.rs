@@ -33,8 +33,8 @@ pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
 // Database infrastructure - used by stub database.rs module
 #[allow(unused_imports)]
 pub use value::{
-    ConnectionPool, DatabaseConnection, DenseIntDict, DenseIntDictInt, DenseIntDictIntFull,
-    DictMap, IntDictMap, LeakyFunctionBody, Value,
+    CallableArity, ConnectionPool, DatabaseConnection, DenseIntDict, DenseIntDictInt,
+    DenseIntDictIntFull, DictMap, IntDictMap, LeakyFunctionBody, Value,
 };
 
 // Internal-only imports
@@ -1386,6 +1386,11 @@ impl Interpreter {
     fn call_user_function(&mut self, func: &Value, args: &[Value]) -> Value {
         match func {
             Value::GeneratorDef(params, body) => {
+                let arity = Self::function_arity("<anonymous generator>", params);
+                if let Some(error) = self.validate_callable_arity(&arity, args.len()) {
+                    return error;
+                }
+
                 // Calling a generator function returns a Generator instance
                 // Create a new environment for the generator
                 let mut gen_env = self.env.clone();
@@ -1408,6 +1413,11 @@ impl Interpreter {
                 }
             }
             Value::Function(params, body, captured_env) => {
+                let arity = Self::function_arity("<anonymous function>", params);
+                if let Some(error) = self.validate_callable_arity(&arity, args.len()) {
+                    return error;
+                }
+
                 // Push function name to call stack
                 let func_name = format!("<function with {} params>", params.len());
                 self.call_stack.push(func_name);
@@ -1518,6 +1528,11 @@ impl Interpreter {
             {
                 if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name)
                 {
+                    let arity = Self::struct_method_arity(name, method_name, params);
+                    if let Some(error) = self.validate_callable_arity(&arity, 1) {
+                        return Some(error);
+                    }
+
                     // Create new scope for operator method call
                     self.env.push_scope();
 
@@ -1578,6 +1593,11 @@ impl Interpreter {
             {
                 if let Some(Value::Function(params, body, _captured_env)) = methods.get(method_name)
                 {
+                    let arity = Self::struct_method_arity(name, method_name, params);
+                    if let Some(error) = self.validate_callable_arity(&arity, 0) {
+                        return Some(error);
+                    }
+
                     // Create new scope for operator method call
                     self.env.push_scope();
 
@@ -1884,6 +1904,89 @@ impl Interpreter {
         } else {
             false
         }
+    }
+
+    fn validate_callable_arity(&self, arity: &CallableArity, received_args: usize) -> Option<Value> {
+        arity.validate(received_args).err().map(Value::Error)
+    }
+
+    fn function_arity(name: impl Into<String>, params: &[String]) -> CallableArity {
+        CallableArity::exact(name, params.to_vec())
+    }
+
+    fn struct_method_arity(struct_name: &str, method_name: &str, params: &[String]) -> CallableArity {
+        let has_self = params.first().map(|p| p == "self").unwrap_or(false);
+        let external_params: Vec<String> = if has_self {
+            params.iter().skip(1).cloned().collect()
+        } else {
+            params.to_vec()
+        };
+        CallableArity::exact(format!("{}.{}", struct_name, method_name), external_params)
+    }
+
+    pub(crate) fn native_callable_arity(name: &str) -> Option<CallableArity> {
+        let metadata = match name {
+            "dict" => CallableArity::exact("dict", vec![]),
+            "error" => CallableArity::exact("error", vec!["message".to_string()]),
+            "collect" => CallableArity::exact("collect", vec!["iterable".to_string()]),
+            "len" => CallableArity::exact("len", vec!["value".to_string()]),
+            "to_upper" | "upper" => CallableArity::exact(name, vec!["value".to_string()]),
+            "to_lower" | "lower" => CallableArity::exact(name, vec!["value".to_string()]),
+            "capitalize" => CallableArity::exact("capitalize", vec!["value".to_string()]),
+            "trim" => CallableArity::exact("trim", vec!["value".to_string()]),
+            "trim_start" => CallableArity::exact("trim_start", vec!["value".to_string()]),
+            "trim_end" => CallableArity::exact("trim_end", vec!["value".to_string()]),
+            "split" => {
+                CallableArity::exact("split", vec!["value".to_string(), "delimiter".to_string()])
+            }
+            "join" => {
+                CallableArity::exact("join", vec!["values".to_string(), "separator".to_string()])
+            }
+            "contains" => {
+                CallableArity::exact("contains", vec!["value".to_string(), "needle".to_string()])
+            }
+            "starts_with" => CallableArity::exact(
+                "starts_with",
+                vec!["value".to_string(), "prefix".to_string()],
+            ),
+            "ends_with" => {
+                CallableArity::exact("ends_with", vec!["value".to_string(), "suffix".to_string()])
+            }
+            "index_of" => CallableArity::exact(
+                "index_of",
+                vec!["value".to_string(), "needle".to_string()],
+            ),
+            "replace" => CallableArity::exact(
+                "replace",
+                vec!["value".to_string(), "from".to_string(), "to".to_string()],
+            ),
+            "substring" => CallableArity::exact(
+                "substring",
+                vec!["value".to_string(), "start".to_string(), "end".to_string()],
+            ),
+            "repeat" => CallableArity::exact(
+                "repeat",
+                vec!["value".to_string(), "count".to_string()],
+            ),
+            "input" => CallableArity::range("input", 0, 1, vec!["prompt".to_string()]),
+            "exit" => CallableArity::range("exit", 0, 1, vec!["code".to_string()]),
+            "Promise.all" => CallableArity::range(
+                "Promise.all",
+                1,
+                2,
+                vec!["promises".to_string(), "concurrency".to_string()],
+            ),
+            "parallel_map" | "par_map" => CallableArity::range(
+                name,
+                2,
+                3,
+                vec!["items".to_string(), "mapper".to_string(), "concurrency".to_string()],
+            ),
+            "print" | "debug" | "array" => CallableArity::variadic(name, 0, vec![]),
+            _ => return None,
+        };
+
+        Some(metadata)
     }
 
     /// Binds a pattern to a value, defining variables as needed
@@ -3345,7 +3448,7 @@ impl Interpreter {
                         match field.as_str() {
                             "route" => {
                                 // server.route(method, path, handler)
-                                if args.len() >= 3 {
+                                if args.len() == 3 {
                                     let method_val = self.eval_expr(&args[0]);
                                     let path_val = self.eval_expr(&args[1]);
                                     let handler_val = self.eval_expr(&args[2]);
@@ -3373,6 +3476,12 @@ impl Interpreter {
                                 );
                             }
                             "listen" => {
+                                if !args.is_empty() {
+                                    return Value::Error(format!(
+                                        "HttpServer.listen expects 0 arguments, got {}",
+                                        args.len()
+                                    ));
+                                }
                                 // server.listen() - start the HTTP server
                                 return self.start_http_server(*port, routes.clone());
                             }
@@ -3395,9 +3504,12 @@ impl Interpreter {
                         match field.as_str() {
                             "send" => {
                                 // chan.send(value) - send value to channel
-                                if args.is_empty() {
+                                if args.len() != 1 {
                                     return Value::Error(
-                                        "send requires a value argument".to_string(),
+                                        format!(
+                                            "Channel.send expects 1 arguments, got {}",
+                                            args.len()
+                                        ),
                                     );
                                 }
 
@@ -3415,6 +3527,12 @@ impl Interpreter {
                                 }
                             }
                             "receive" => {
+                                if !args.is_empty() {
+                                    return Value::Error(format!(
+                                        "Channel.receive expects 0 arguments, got {}",
+                                        args.len()
+                                    ));
+                                }
                                 // chan.receive() - receive value from channel (non-blocking for now)
                                 // TODO: Implement proper blocking receive
                                 let chan_lock = chan.lock().unwrap();
@@ -3679,6 +3797,21 @@ impl Interpreter {
                             if let Some(Value::Function(params, body, _captured_env)) =
                                 methods.get(field)
                             {
+                                let evaluated_args: Vec<Value> =
+                                    args.iter().map(|arg| self.eval_expr(arg)).collect();
+                                if let Some(error) =
+                                    evaluated_args.iter().find(|value| Self::is_error_value(value))
+                                {
+                                    return error.clone();
+                                }
+
+                                let arity = Self::struct_method_arity(name, field, params);
+                                if let Some(error) =
+                                    self.validate_callable_arity(&arity, evaluated_args.len())
+                                {
+                                    return error;
+                                }
+
                                 // Create new scope for method call
                                 // Push new scope
                                 self.env.push_scope();
@@ -3693,9 +3826,8 @@ impl Interpreter {
 
                                     // Bind remaining method parameters (skip first 'self' param)
                                     for (i, param) in params.iter().skip(1).enumerate() {
-                                        if let Some(arg) = args.get(i) {
-                                            let val = self.eval_expr(arg);
-                                            self.env.define(param.clone(), val);
+                                        if let Some(arg) = evaluated_args.get(i) {
+                                            self.env.define(param.clone(), arg.clone());
                                         }
                                     }
                                 } else {
@@ -3706,9 +3838,8 @@ impl Interpreter {
 
                                     // Bind method parameters
                                     for (i, param) in params.iter().enumerate() {
-                                        if let Some(arg) = args.get(i) {
-                                            let val = self.eval_expr(arg);
-                                            self.env.define(param.clone(), val);
+                                        if let Some(arg) = evaluated_args.get(i) {
+                                            self.env.define(param.clone(), arg.clone());
                                         }
                                     }
                                 }
@@ -3742,6 +3873,10 @@ impl Interpreter {
                 if Self::is_error_value(&func_val) {
                     return func_val;
                 }
+                let callable_name = match function.as_ref() {
+                    Expr::Identifier(name) => name.clone(),
+                    _ => "<anonymous function>".to_string(),
+                };
                 let call_result = match func_val {
                     Value::NativeFunction(name) => {
                         // Handle native function calls
@@ -3761,7 +3896,7 @@ impl Interpreter {
                     }
                     Value::Function(params, body, captured_env) => {
                         // Push to call stack
-                        self.call_stack.push("<anonymous function>".to_string());
+                        self.call_stack.push(callable_name.clone());
 
                         // Evaluate call arguments in the caller scope before any environment switch.
                         let evaluated_args: Vec<Value> =
@@ -3771,6 +3906,13 @@ impl Interpreter {
                         {
                             self.call_stack.pop();
                             return error.clone();
+                        }
+
+                        let arity = Self::function_arity(callable_name.clone(), &params);
+                        if let Some(error) = self.validate_callable_arity(&arity, evaluated_args.len())
+                        {
+                            self.call_stack.pop();
+                            return error;
                         }
 
                         // Handle closure with captured environment
@@ -3855,6 +3997,11 @@ impl Interpreter {
                             return error.clone();
                         }
 
+                        let arity = Self::function_arity(callable_name.clone(), &params);
+                        if let Some(error) = self.validate_callable_arity(&arity, args_vec.len()) {
+                            return error;
+                        }
+
                         // Clone what we need for the thread
                         let params = params.clone();
                         let body = body.clone();
@@ -3917,6 +4064,11 @@ impl Interpreter {
                             return error.clone();
                         }
 
+                        let arity = Self::function_arity(callable_name.clone(), params);
+                        if let Some(error) = self.validate_callable_arity(&arity, args_vec.len()) {
+                            return error;
+                        }
+
                         // Create a new environment for the generator
                         let mut gen_env = self.env.clone();
                         gen_env.push_scope();
@@ -3953,6 +4105,23 @@ impl Interpreter {
                             // Push function name to call stack
                             self.call_stack.push(name.clone());
 
+                            let evaluated_args: Vec<Value> =
+                                args.iter().map(|arg| self.eval_expr(arg)).collect();
+                            if let Some(error) =
+                                evaluated_args.iter().find(|value| Self::is_error_value(value))
+                            {
+                                self.call_stack.pop();
+                                return error.clone();
+                            }
+
+                            let arity = Self::function_arity(name, &params);
+                            if let Some(error) =
+                                self.validate_callable_arity(&arity, evaluated_args.len())
+                            {
+                                self.call_stack.pop();
+                                return error;
+                            }
+
                             // Handle closure with captured environment
                             if let Some(closure_env_ref) = captured_env {
                                 // Save current environment
@@ -3963,15 +4132,14 @@ impl Interpreter {
                                 self.env.push_scope();
 
                                 for (i, param) in params.iter().enumerate() {
-                                    if let Some(arg) = args.get(i) {
-                                        let val = self.eval_expr(arg);
-                                        if Self::is_error_value(&val) {
+                                    if let Some(arg) = evaluated_args.get(i) {
+                                        if Self::is_error_value(arg) {
                                             self.env.pop_scope();
                                             self.env = saved_env;
                                             self.call_stack.pop();
-                                            return val;
+                                            return arg.clone();
                                         }
-                                        self.env.define(param.clone(), val);
+                                        self.env.define(param.clone(), arg.clone());
                                     }
                                 }
 
@@ -4005,14 +4173,13 @@ impl Interpreter {
                                 self.env.push_scope();
 
                                 for (i, param) in params.iter().enumerate() {
-                                    if let Some(arg) = args.get(i) {
-                                        let val = self.eval_expr(arg);
-                                        if Self::is_error_value(&val) {
+                                    if let Some(arg) = evaluated_args.get(i) {
+                                        if Self::is_error_value(arg) {
                                             self.env.pop_scope();
                                             self.call_stack.pop();
-                                            return val;
+                                            return arg.clone();
                                         }
-                                        self.env.define(param.clone(), val);
+                                        self.env.define(param.clone(), arg.clone());
                                     }
                                 }
 
@@ -4048,6 +4215,11 @@ impl Interpreter {
                                 args_vec.iter().find(|value| Self::is_error_value(value))
                             {
                                 return error.clone();
+                            }
+
+                            let arity = Self::function_arity(name, params);
+                            if let Some(error) = self.validate_callable_arity(&arity, args_vec.len()) {
+                                return error;
                             }
 
                             // Create a new environment for the generator
@@ -4567,8 +4739,11 @@ impl Interpreter {
         if let Value::Channel(chan) = &obj {
             return match method {
                 "send" => {
-                    if args.is_empty() {
-                        return Value::Error("send requires a value argument".to_string());
+                    if args.len() != 1 {
+                        return Value::Error(format!(
+                            "Channel.send expects 1 arguments, got {}",
+                            args.len()
+                        ));
                     }
 
                     let chan_lock = chan.lock().unwrap();
@@ -4579,6 +4754,13 @@ impl Interpreter {
                     }
                 }
                 "receive" => {
+                    if !args.is_empty() {
+                        return Value::Error(format!(
+                            "Channel.receive expects 0 arguments, got {}",
+                            args.len()
+                        ));
+                    }
+
                     let chan_lock = chan.lock().unwrap();
                     let (_, receiver) = &*chan_lock;
                     match receiver.try_recv() {
@@ -4725,6 +4907,11 @@ impl Interpreter {
                             if let Some(Value::Function(params, body, _captured_env)) =
                                 methods.get(method)
                             {
+                                let arity = Self::struct_method_arity(&name, method, params);
+                                if let Some(error) = self.validate_callable_arity(&arity, args.len()) {
+                                    return error;
+                                }
+
                                 self.env.push_scope();
 
                                 let has_self_param =
