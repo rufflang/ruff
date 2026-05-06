@@ -121,6 +121,20 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-28_18-50_compiler-stack-pop-fix.md)
 
+### VM opcode semantics may have duplicate execution arms
+- **Problem:** Fixing only the primary VM loop can leave nested bytecode/JIT-call execution with old behavior.
+- **Rule:** Search every `OpCode::<Name>` arm and route shared semantics through one helper when changing opcode behavior.
+- **Implication:** Indexing changes must cover `IndexGet`, `IndexGetInPlace`, optimized local paths, and nested bytecode-call paths.
+
+(Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
+
+### Interpreter named nested functions are not closure expressions
+- **Problem:** A nested `func name(...) { ... }` may not capture local variables the way an anonymous `func(...) { ... }` expression does.
+- **Rule:** Use function expressions when a test or example requires closure-captured locals.
+- **Implication:** Captured-state parity tests should use `binding := func(...) { ... }` unless the selected task is explicitly about named nested function capture.
+
+(Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
+
 ### Dead-code elimination must remap all index-based metadata
 - **Problem:** Jump targets/handlers/source-map entries become invalid after instruction removal.
 - **Rule:** Build old→new index mapping and rewrite every metadata surface carrying instruction indices.

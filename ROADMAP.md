@@ -27,13 +27,13 @@ Ruff 1.0 must not be released until all of these are true:
 
 ## 1. Current Baseline
 
-The audit found this current state:
+The audit originally found this state:
 
 ```text
-Known failing command:
+Previously failing command:
     cargo test
 
-Known failing test:
+Previously failing test:
     vm::tests::test_sum_int_map_until_local_in_place_missing_key_errors
 
 Observed failure:
@@ -44,7 +44,7 @@ Observed summary:
     462 passed, 1 failed, 7 ignored
 ```
 
-The failing VM test is not a release-execution detail. It proves the runtime can silently convert a missing map key in an in-place operation into `Int(0)` instead of reporting a runtime error. This is exactly the kind of behavior that makes a language hard to trust.
+This VM test was not a release-execution detail. It proved the runtime could silently convert a missing map key in an in-place operation into `Int(0)` instead of reporting a runtime error. `V1-TEST-001` has restored the base test suite by making missing map keys runtime errors across VM/interpreter map indexing paths.
 
 ## 2. Priority And Severity Definitions
 
@@ -189,7 +189,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 1: Stop The Bleeding
 
 ```text
-[ ] V1-TEST-001: Fix the failing VM missing-key in-place map operation
+[x] V1-TEST-001: Fix the failing VM missing-key in-place map operation
     Priority: P0
     Severity: High
     Area: Correctness/Tests
@@ -208,7 +208,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Add VM/interpreter parity tests for missing string key, missing integer key, nested missing key, and successful update.
         - Run `cargo test`.
     Acceptance criteria: Missing map keys never silently become `Int(0)` in VM or interpreter execution.
-    Notes: This is the first code item to complete because it restores the base test suite.
+    Notes: Completed on 2026-05-06. VM `IndexGet`/`IndexGetInPlace` now share centralized missing-key handling, interpreter dictionary indexing reports matching missing-key errors, and parity coverage locks missing string keys, missing integer keys, nested missing keys, invalid key types, and local/nested/captured update success paths. Verification: `cargo test` passed.
 ```
 
 ```text

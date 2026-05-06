@@ -656,6 +656,127 @@ impl VM {
         value
     }
 
+    fn index_key_description(index: &Value) -> String {
+        match index {
+            Value::Str(key) => format!("{:?}", key.as_ref()),
+            Value::Int(key) => key.to_string(),
+            other => Self::value_to_string(other),
+        }
+    }
+
+    fn missing_map_key_error(index: &Value) -> String {
+        format!("Missing map key: {}", Self::index_key_description(index))
+    }
+
+    fn get_indexed_value(object: &Value, index: &Value) -> Result<Value, String> {
+        match (object, index) {
+            (Value::Array(arr), Value::Int(i)) => {
+                let idx = if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
+                arr.get(idx)
+                    .cloned()
+                    .ok_or_else(|| format!("Index out of bounds: {}", i))
+            }
+            (Value::Str(s), Value::Int(i)) => {
+                let idx = if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
+                s.chars()
+                    .nth(idx)
+                    .map(|c| Value::Str(Arc::new(c.to_string())))
+                    .ok_or_else(|| format!("Index out of bounds: {}", i))
+            }
+            (Value::Dict(dict), Value::Str(key)) => dict
+                .get(key.as_str())
+                .cloned()
+                .ok_or_else(|| Self::missing_map_key_error(index)),
+            (Value::FixedDict { keys, values }, Value::Str(key)) => {
+                let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                idx.and_then(|i| values.get(i).cloned())
+                    .ok_or_else(|| Self::missing_map_key_error(index))
+            }
+            (Value::Dict(dict), Value::Int(i)) => {
+                hashmap_profile_bump(&HASHMAP_GET_DICT_INTKEY);
+                let key = i.to_string();
+                dict.get(key.as_str())
+                    .cloned()
+                    .ok_or_else(|| Self::missing_map_key_error(index))
+            }
+            (Value::FixedDict { keys, values }, Value::Int(i)) => {
+                let key = i.to_string();
+                let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
+                idx.and_then(|i| values.get(i).cloned())
+                    .ok_or_else(|| Self::missing_map_key_error(index))
+            }
+            (Value::IntDict(dict), Value::Int(i)) => {
+                hashmap_profile_bump(&HASHMAP_GET_INTDICT);
+                dict.get(i).cloned().ok_or_else(|| Self::missing_map_key_error(index))
+            }
+            (Value::DenseIntDict(values), Value::Int(i)) => {
+                hashmap_profile_bump(&HASHMAP_GET_DENSE);
+                if *i < 0 {
+                    Err(Self::missing_map_key_error(index))
+                } else {
+                    values
+                        .get(*i as usize)
+                        .cloned()
+                        .ok_or_else(|| Self::missing_map_key_error(index))
+                }
+            }
+            (Value::DenseIntDictInt(values), Value::Int(i)) => {
+                hashmap_profile_bump(&HASHMAP_GET_DENSE_INT);
+                if *i < 0 {
+                    Err(Self::missing_map_key_error(index))
+                } else {
+                    match values.get(*i as usize) {
+                        Some(Some(value)) => Ok(Value::Int(*value)),
+                        _ => Err(Self::missing_map_key_error(index)),
+                    }
+                }
+            }
+            (Value::DenseIntDictIntFull(values), Value::Int(i)) => {
+                hashmap_profile_bump(&HASHMAP_GET_DENSE_INT);
+                if *i < 0 {
+                    Err(Self::missing_map_key_error(index))
+                } else {
+                    values
+                        .get(*i as usize)
+                        .map(|value| Value::Int(*value))
+                        .ok_or_else(|| Self::missing_map_key_error(index))
+                }
+            }
+            (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
+                Ok(int_key) => dict
+                    .get(&int_key)
+                    .cloned()
+                    .ok_or_else(|| Self::missing_map_key_error(index)),
+                Err(_) => Err("Invalid index operation".to_string()),
+            },
+            (Value::DenseIntDict(values), Value::Str(key)) => match key.parse::<i64>() {
+                Ok(int_key) if int_key >= 0 => values
+                    .get(int_key as usize)
+                    .cloned()
+                    .ok_or_else(|| Self::missing_map_key_error(index)),
+                Ok(_) => Err(Self::missing_map_key_error(index)),
+                Err(_) => Err("Invalid index operation".to_string()),
+            },
+            (Value::DenseIntDictInt(values), Value::Str(key)) => match key.parse::<i64>() {
+                Ok(int_key) if int_key >= 0 => match values.get(int_key as usize) {
+                    Some(Some(value)) => Ok(Value::Int(*value)),
+                    _ => Err(Self::missing_map_key_error(index)),
+                },
+                Ok(_) => Err(Self::missing_map_key_error(index)),
+                Err(_) => Err("Invalid index operation".to_string()),
+            },
+            (Value::DenseIntDictIntFull(values), Value::Str(key)) => match key.parse::<i64>() {
+                Ok(int_key) if int_key >= 0 => values
+                    .get(int_key as usize)
+                    .map(|value| Value::Int(*value))
+                    .ok_or_else(|| Self::missing_map_key_error(index)),
+                Ok(_) => Err(Self::missing_map_key_error(index)),
+                Err(_) => Err("Invalid index operation".to_string()),
+            },
+            _ => Err("Invalid index operation".to_string()),
+        }
+    }
+
     fn dense_int_dict_to_int_dict(values: &[Value]) -> IntDictMap {
         let mut dict = IntDictMap::default();
         dict.reserve(values.len());
@@ -2938,133 +3059,7 @@ impl VM {
                 OpCode::IndexGet => {
                     let index = self.stack.pop().ok_or("Stack underflow")?;
                     let object = self.stack.pop().ok_or("Stack underflow")?;
-
-                    let result = match (&object, &index) {
-                        (Value::Array(arr), Value::Int(i)) => {
-                            let idx =
-                                if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
-                            arr.get(idx)
-                                .cloned()
-                                .ok_or_else(|| format!("Index out of bounds: {}", i))?
-                        }
-                        (Value::Dict(dict), Value::Str(key)) => {
-                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
-                        }
-                        (Value::FixedDict { keys, values }, Value::Str(key)) => {
-                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
-                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
-                        }
-                        (Value::Dict(dict), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DICT_INTKEY);
-                            // Support integer keys by converting to string
-                            let key = self.int_key_string(*i);
-                            dict.get(key.as_ref()).cloned().unwrap_or(Value::Null)
-                        }
-                        (Value::FixedDict { keys, values }, Value::Int(i)) => {
-                            let key = self.int_key_string(*i);
-                            let idx = keys.iter().position(|k| k.as_ref() == key.as_ref());
-                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
-                        }
-                        (Value::IntDict(dict), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_INTDICT);
-                            dict.get(i).cloned().unwrap_or(Value::Null)
-                        }
-                        (Value::DenseIntDict(values), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DENSE);
-                            if *i < 0 {
-                                Value::Null
-                            } else {
-                                values.get(*i as usize).cloned().unwrap_or(Value::Null)
-                            }
-                        }
-                        (Value::DenseIntDictInt(values), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DENSE_INT);
-                            if *i < 0 {
-                                Value::Null
-                            } else {
-                                let index = *i as usize;
-                                if index < values.len() {
-                                    match values[index] {
-                                        Some(value) => Value::Int(value),
-                                        None => Value::Null,
-                                    }
-                                } else {
-                                    Value::Null
-                                }
-                            }
-                        }
-                        (Value::DenseIntDictIntFull(values), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DENSE_INT);
-                            if *i < 0 {
-                                Value::Null
-                            } else {
-                                values
-                                    .get(*i as usize)
-                                    .map(|value| Value::Int(*value))
-                                    .unwrap_or(Value::Null)
-                            }
-                        }
-                        (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
-                            Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
-                            Err(_) => Value::Null,
-                        },
-                        (Value::DenseIntDict(values), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        Value::Null
-                                    } else {
-                                        values.get(int_key as usize).cloned().unwrap_or(Value::Null)
-                                    }
-                                }
-                                Err(_) => Value::Null,
-                            }
-                        }
-                        (Value::DenseIntDictInt(values), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        Value::Null
-                                    } else {
-                                        let index = int_key as usize;
-                                        if index < values.len() {
-                                            match values[index] {
-                                                Some(value) => Value::Int(value),
-                                                None => Value::Null,
-                                            }
-                                        } else {
-                                            Value::Null
-                                        }
-                                    }
-                                }
-                                Err(_) => Value::Null,
-                            }
-                        }
-                        (Value::DenseIntDictIntFull(values), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        Value::Null
-                                    } else {
-                                        values
-                                            .get(int_key as usize)
-                                            .map(|value| Value::Int(*value))
-                                            .unwrap_or(Value::Null)
-                                    }
-                                }
-                                Err(_) => Value::Null,
-                            }
-                        }
-                        (Value::Str(s), Value::Int(i)) => {
-                            let idx =
-                                if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
-                            s.chars()
-                                .nth(idx)
-                                .map(|c| Value::Str(Arc::new(c.to_string())))
-                                .ok_or_else(|| format!("Index out of bounds: {}", i))?
-                        }
-                        _ => return Err("Invalid index operation".to_string()),
-                    };
+                    let result = Self::get_indexed_value(&object, &index)?;
 
                     self.stack.push(result);
                 }
@@ -3516,134 +3511,9 @@ impl VM {
                     let object = frame
                         .local_slots
                         .get(slot)
+                        .cloned()
                         .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
-
-                    // Perform the index access
-                    let result = match (object, &index) {
-                        (Value::Array(arr), Value::Int(i)) => {
-                            let idx =
-                                if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
-                            arr.get(idx)
-                                .cloned()
-                                .ok_or_else(|| format!("Index out of bounds: {}", i))?
-                        }
-                        (Value::Dict(dict), Value::Str(key)) => {
-                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
-                        }
-                        (Value::FixedDict { keys, values }, Value::Str(key)) => {
-                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
-                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
-                        }
-                        (Value::Dict(dict), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DICT_INTKEY);
-                            let key = i.to_string();
-                            dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
-                        }
-                        (Value::FixedDict { keys, values }, Value::Int(i)) => {
-                            let key = i.to_string();
-                            let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
-                            idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
-                        }
-                        (Value::IntDict(dict), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_INTDICT);
-                            dict.get(i).cloned().unwrap_or(Value::Null)
-                        }
-                        (Value::DenseIntDict(values), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DENSE);
-                            if *i < 0 {
-                                Value::Null
-                            } else {
-                                values.get(*i as usize).cloned().unwrap_or(Value::Null)
-                            }
-                        }
-                        (Value::DenseIntDictInt(values), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DENSE_INT);
-                            if *i < 0 {
-                                Value::Null
-                            } else {
-                                let index = *i as usize;
-                                if index < values.len() {
-                                    match values[index] {
-                                        Some(value) => Value::Int(value),
-                                        None => Value::Null,
-                                    }
-                                } else {
-                                    Value::Null
-                                }
-                            }
-                        }
-                        (Value::DenseIntDictIntFull(values), Value::Int(i)) => {
-                            hashmap_profile_bump(&HASHMAP_GET_DENSE_INT);
-                            if *i < 0 {
-                                Value::Null
-                            } else {
-                                values
-                                    .get(*i as usize)
-                                    .map(|value| Value::Int(*value))
-                                    .unwrap_or(Value::Null)
-                            }
-                        }
-                        (Value::IntDict(dict), Value::Str(key)) => match key.parse::<i64>() {
-                            Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
-                            Err(_) => Value::Null,
-                        },
-                        (Value::DenseIntDict(values), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        Value::Null
-                                    } else {
-                                        values.get(int_key as usize).cloned().unwrap_or(Value::Null)
-                                    }
-                                }
-                                Err(_) => Value::Null,
-                            }
-                        }
-                        (Value::DenseIntDictInt(values), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        Value::Null
-                                    } else {
-                                        let index = int_key as usize;
-                                        if index < values.len() {
-                                            match values[index] {
-                                                Some(value) => Value::Int(value),
-                                                None => Value::Null,
-                                            }
-                                        } else {
-                                            Value::Null
-                                        }
-                                    }
-                                }
-                                Err(_) => Value::Null,
-                            }
-                        }
-                        (Value::DenseIntDictIntFull(values), Value::Str(key)) => {
-                            match key.parse::<i64>() {
-                                Ok(int_key) => {
-                                    if int_key < 0 {
-                                        Value::Null
-                                    } else {
-                                        values
-                                            .get(int_key as usize)
-                                            .map(|value| Value::Int(*value))
-                                            .unwrap_or(Value::Null)
-                                    }
-                                }
-                                Err(_) => Value::Null,
-                            }
-                        }
-                        (Value::Str(s), Value::Int(i)) => {
-                            let idx =
-                                if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
-                            s.chars()
-                                .nth(idx)
-                                .map(|c| Value::Str(Arc::new(c.to_string())))
-                                .ok_or_else(|| format!("Index out of bounds: {}", i))?
-                        }
-                        _ => return Err("Invalid index operation".to_string()),
-                    };
+                    let result = Self::get_indexed_value(&object, &index)?;
 
                     self.stack.push(result);
                 }
@@ -6416,44 +6286,9 @@ impl VM {
                             let object = frame
                                 .local_slots
                                 .get(slot)
+                                .cloned()
                                 .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
-
-                            let result = match (object, &index) {
-                                (Value::Array(arr), Value::Int(i)) => {
-                                    let idx =
-                                        if *i < 0 { (arr.len() as i64 + i) as usize } else { *i as usize };
-                                    arr.get(idx)
-                                        .cloned()
-                                        .ok_or_else(|| format!("Index out of bounds: {}", i))?
-                                }
-                                (Value::Dict(dict), Value::Str(key)) => {
-                                    dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
-                                }
-                                (Value::FixedDict { keys, values }, Value::Str(key)) => {
-                                    let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
-                                    idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
-                                }
-                                (Value::Dict(dict), Value::Int(i)) => {
-                                    let key = i.to_string();
-                                    dict.get(key.as_str()).cloned().unwrap_or(Value::Null)
-                                }
-                                (Value::FixedDict { keys, values }, Value::Int(i)) => {
-                                    let key = i.to_string();
-                                    let idx = keys.iter().position(|k| k.as_ref() == key.as_str());
-                                    idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
-                                }
-                                (Value::IntDict(dict), Value::Int(i)) => {
-                                    dict.get(i).cloned().unwrap_or(Value::Null)
-                                }
-                                (Value::DenseIntDict(values), Value::Int(i)) => {
-                                    if *i < 0 {
-                                        Value::Null
-                                    } else {
-                                        values.get(*i as usize).cloned().unwrap_or(Value::Null)
-                                    }
-                                }
-                                _ => Value::Null,
-                            };
+                            let result = Self::get_indexed_value(&object, &index)?;
 
                             self.stack.push(result);
                         }
@@ -8088,7 +7923,7 @@ mod tests {
 
         match run_vm_code(code) {
             Ok(value) => panic!("Expected runtime error, got value: {:?}", value),
-            Err(error) => assert!(error.contains("Type mismatch in binary operation")),
+            Err(error) => assert!(error.contains("Missing map key")),
         }
     }
 

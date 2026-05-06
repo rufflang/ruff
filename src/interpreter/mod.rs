@@ -4081,7 +4081,14 @@ impl Interpreter {
                         arr.get(idx).cloned().unwrap_or(Value::Int(0))
                     }
                     (Value::Dict(map), Value::Str(key)) => {
-                        map.get(key.as_str()).cloned().unwrap_or(Value::Int(0))
+                        map.get(key.as_str()).cloned().unwrap_or_else(|| {
+                            Value::Error(format!("Missing map key: {:?}", key.as_ref()))
+                        })
+                    }
+                    (Value::Dict(map), Value::Int(key)) => {
+                        map.get(key.to_string().as_str())
+                            .cloned()
+                            .unwrap_or_else(|| Value::Error(format!("Missing map key: {}", key)))
                     }
                     (Value::Str(s), Value::Int(n)) => {
                         let idx = n as usize;
@@ -4097,7 +4104,7 @@ impl Interpreter {
                             .map(|c| Value::Str(Arc::new(c.to_string())))
                             .unwrap_or(Value::Str(Arc::new(String::new())))
                     }
-                    _ => Value::Int(0),
+                    _ => Value::Error("Invalid index operation".to_string()),
                 }
             }
             Expr::Ok(value_expr) => {

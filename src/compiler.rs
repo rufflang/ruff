@@ -1301,7 +1301,7 @@ impl Compiler {
                 // IndexSet leaves the modified object on the stack
                 // We need to store it back to the variable if object is an identifier
                 if let Expr::Identifier(name) = &**object {
-                    if self.is_local(name) {
+                    if self.is_upvalue(name) || self.is_local(name) {
                         self.chunk.emit(OpCode::StoreVar(name.clone()));
                     } else {
                         self.chunk.emit(OpCode::StoreGlobal(name.clone()));
