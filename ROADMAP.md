@@ -1,102 +1,1870 @@
-# Ruff Development Roadmap
+# Ruff v1.0 Completeness-Ready Roadmap
 
-This roadmap tracks only work that is still current or upcoming. Completed implementation history belongs in [CHANGELOG.md](CHANGELOG.md) and release evidence notes under `notes/`.
+Last audit date: 2026-05-06
+Current crate version: 0.14.0
+Target release: 1.0.0
+Roadmap status: active production-readiness backlog
 
-> Current crate version: `0.14.0` in [Cargo.toml](Cargo.toml)
-> Next planned release: `v1.0.0`
-> Last audited: May 1, 2026
+This roadmap replaces the previous release-execution roadmap. The prior roadmap stated that Ruff had no known P0 language/runtime parity blockers. That is no longer accurate. The current audit found at least one failing test plus multiple security, correctness, diagnostics, runtime, HTTP, filesystem, and documentation gaps that must be closed before Ruff can credibly ship a production-ready 1.0 release.
 
----
+The purpose of this document is to let an implementation agent work through Ruff item by item until the project is secure, predictable, tested, documented, benchmarked, and releasable.
 
-## Release Focus
+## 0. Non-Negotiable Release Rules
 
-Ruff's pre-v1 implementation, compatibility hardening, documentation baseline, release automation, and local artifact validation are complete.
+Ruff 1.0 must not be released until all of these are true:
 
-The remaining work before public `v1.0.0` is release execution: version bump, final validation, tag publication, artifact verification, and public release evidence.
+1. Every P0 and P1 item in this roadmap is complete.
+2. Every changed behavior has tests.
+3. Every changed language semantic is documented in `docs/LANGUAGE_SPEC.md`.
+4. Every changed CLI contract is documented in `README.md` and, where machine-readable output is involved, `docs/CLI_MACHINE_READABLE_CONTRACTS.md`.
+5. Every changed native API security boundary is documented in `docs/NATIVE_API_SECURITY_POSTURE.md`.
+6. `cargo test` passes with no unexpected failures.
+7. Security boundary integration tests pass.
+8. VM/interpreter parity tests pass or every divergence is explicitly documented and justified.
+9. Static server integration tests pass.
+10. Examples and documented commands are smoke-tested.
+11. The release checklist at the end of this file is complete.
 
----
+## 1. Current Baseline
 
-## v1.0.0 Remaining Release Checklist
+The audit found this current state:
 
-### P0: Required Before Public v1.0.0
+```text
+Known failing command:
+    cargo test
 
-- [ ] Resolve or explicitly waive the locked dependency warning for `core2 v0.4.0`.
-  - Current source: `image -> ravif -> rav1e -> bitstream-io -> core2`.
-  - Current status: local locked/offline artifact validation passes, but Cargo warns that `core2 v0.4.0` is yanked.
-  - Release expectation: either refresh the dependency graph so the warning disappears, or record a signed-off release exception explaining why the locked transitive dependency is acceptable for `v1.0.0`.
+Known failing test:
+    vm::tests::test_sum_int_map_until_local_in_place_missing_key_errors
 
-- [ ] Run final pre-release validation on the release candidate commit.
-  - `cargo test --quiet`
-  - `bash .github/scripts/check-release-state.sh`
-  - `bash .github/scripts/validate-release-artifact.sh`
-  - YAML parse/sanity check for release workflows:
-    - `.github/workflows/release-binaries.yml`
-    - `.github/workflows/release-published-artifact-smoke.yml`
+Observed failure:
+    src/vm.rs:8090:26
+    Expected runtime error, got value: Int(0)
 
-- [ ] Bump version metadata for `v1.0.0`.
-  - Update `[package].version` in `Cargo.toml` from `0.14.0` to `1.0.0`.
-  - Update `README.md` current-version text.
-  - Update this roadmap's current-version text.
-  - Re-run `bash .github/scripts/check-release-state.sh`.
+Observed summary:
+    462 passed, 1 failed, 7 ignored
+```
 
-- [ ] Finalize `CHANGELOG.md` for `v1.0.0`.
-  - Move finalized `[Unreleased]` entries under a `[1.0.0] - YYYY-MM-DD` section.
-  - Update bottom comparison links so `[Unreleased]` compares from `v1.0.0` to `HEAD`.
-  - Add or update the `[1.0.0]` tag comparison link.
+The failing VM test is not a release-execution detail. It proves the runtime can silently convert a missing map key in an in-place operation into `Int(0)` instead of reporting a runtime error. This is exactly the kind of behavior that makes a language hard to trust.
 
-- [ ] Create and push the release commit.
-  - Include version metadata, changelog, roadmap, and any final release-process/doc edits.
-  - Push the release commit to `main`.
+## 2. Priority And Severity Definitions
 
-- [ ] Create and push the annotated `v1.0.0` tag.
-  - Example: `git tag -a v1.0.0 -m "Ruff v1.0.0"`
-  - Push the tag to `origin`.
+Priority:
 
-- [ ] Publish the GitHub release for `v1.0.0`.
-  - Use the `v1.0.0` tag.
-  - Use finalized changelog notes as release notes.
-  - Confirm `.github/workflows/release-binaries.yml` attaches Linux/macOS archives and checksum files.
+- P0: Must fix before any serious public use or v1.0 release candidate.
+- P1: Must fix before v1.0 unless explicitly deferred in a documented release exception.
+- P2: Strongly recommended for v1.0. Can be deferred only if the limitation is documented and tested.
+- P3: Useful polish or future hardening. Not required for 1.0 unless it becomes a dependency of a higher-priority item.
 
-- [ ] Verify published release artifacts.
-  - Confirm Linux and macOS artifact assets are attached.
-  - Confirm per-asset `.sha256` files and consolidated `checksums.txt` are attached.
-  - Confirm `.github/workflows/release-published-artifact-smoke.yml` passes for the published release.
-  - Run the documented artifact install flow from [INSTALLATION.md](INSTALLATION.md) using the published `v1.0.0` assets.
+Severity:
 
-- [ ] Record final public release evidence.
-  - Create a dated note under `notes/`.
-  - Include artifact URLs, checksum values, workflow URLs/statuses, exact validation commands, and pass/fail logs.
-  - Update [docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md) only after the published-artifact checks pass.
+- Critical: Can cause unsafe host effects, severe security exposure, data loss, or unusable language/runtime behavior.
+- High: Can cause incorrect execution, silent failure, dangerous defaults, major crashes, or misleading behavior.
+- Medium: Important robustness, maintainability, diagnostics, performance, or coverage gap.
+- Low: Minor behavior, polish, or local maintainability issue.
+- Enhancement: Expands usefulness, ergonomics, coverage, or future maintainability.
 
-### P1: Strongly Recommended Before Announcement
+## 3. Agent Execution Contract
 
-- [ ] Smoke-test the most visible examples you plan to keep in the public README/docs.
-  - This is not a language/runtime release blocker, but it is important for first-user experience.
-  - At minimum, confirm any examples linked from `README.md`, `INSTALLATION.md`, or release notes run with the published binary.
+Any agent implementing this roadmap must follow these rules:
 
-- [ ] Review public-facing install wording after release assets exist.
-  - Confirm all `v1.0.0` artifact names in docs match the actual published asset names.
-  - Confirm the install guide does not imply package-manager support beyond the shipped archive flow.
+1. Work one roadmap item or one tightly related item group at a time.
+2. Do not remove existing functionality unless it is unsafe or obsolete and replacement behavior is added.
+3. Do not reduce test coverage.
+4. Do not skip tests for new behavior.
+5. Do not silently change language semantics without documenting and testing the change.
+6. Do not patch around symptoms when a centralized abstraction is the correct fix.
+7. Every completed item must include code changes, tests, and documentation updates where relevant.
+8. Every item must leave the repository with all relevant tests passing.
+9. If an item exposes additional bugs, add regression tests before or with the fix.
+10. If a current behavior is intentionally retained, document it and test it.
 
-- [ ] Decide whether image conversion support is in or out of public v1 messaging.
-  - If it remains out of scope, keep examples/docs from implying reliable image format conversion.
-  - If it becomes in scope, complete the work tracked in [docs/IMAGE_CONVERSION_AGENT_HANDOFF.md](docs/IMAGE_CONVERSION_AGENT_HANDOFF.md) before announcing it.
+## 4. Required Verification Commands
 
----
+Run the smallest relevant test command while developing an item. Before marking any P0 or P1 item complete, run the item-specific tests plus `cargo test` unless the item explicitly documents why that is not possible.
 
-## Current Release Position
+Required release-gate commands:
 
-There are no remaining known P0 language/runtime parity blockers in the tracked v1 surface.
+```sh
+cargo test
+cargo test --test native_api_security_boundaries
+cargo test --test serve_command_integration
+cargo test --test package_module_workflow_integration
+cargo test --test vm_interpreter_parity_surfaces
+cargo run -- test
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
+```
 
-The official public `v1.0.0` release is blocked only by the open release-execution items above.
+Additional commands to add during the roadmap:
 
----
+```sh
+cargo audit
+cargo deny check
+cargo fuzz run lexer
+cargo fuzz run parser
+cargo fuzz run runtime_entrypoints
+cargo bench
+```
 
-## References
+If a command is not yet available, create the missing configuration as part of the relevant roadmap item.
 
-- [CHANGELOG.md](CHANGELOG.md): completed changes and release notes source.
-- [docs/V1_SCOPE.md](docs/V1_SCOPE.md): v1 scope definition and compatibility commitments.
-- [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md): language/tooling compatibility baseline.
-- [docs/PROTOCOL_CONTRACTS.md](docs/PROTOCOL_CONTRACTS.md): protocol-level contract definitions.
-- [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md): release execution process.
-- [docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md](docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md): artifact publication and tag-time sign-off checklist.
+## 5. Repository Map
+
+| Area | Files/Paths | Responsibility | Current Maturity | Immediate Concerns |
+| ---- | ----------- | -------------- | ---------------- | ------------------ |
+| Crate config | `Cargo.toml`, `Cargo.lock` | Build metadata, dependencies, crate version | usable | Version is pre-1.0; security tooling and release gates need formalization. |
+| CLI entry point | `src/main.rs` | Command dispatch, serve command helpers, test-only server helpers | partial | Contains duplicate `#[cfg(test)]` MIME/server logic that differs from production server policy. CLI exit-code and diagnostics policy need tightening. |
+| Library facade | `src/lib.rs` | Public crate module exposure | usable | Needs stable 1.0 embedding/API surface decisions. |
+| Lexer | `src/lexer.rs` | Source tokenization | partial | Silent invalid-character handling, weak malformed literal handling, no structured diagnostics. |
+| Parser | `src/parser.rs` | AST construction and grammar handling | partial | `Option`-based parse failures, unchecked delimiter consumption, weak recovery, recursion/depth risks. |
+| AST | `src/ast.rs` | Syntax tree representation | usable | Needs consistent spans and semantic invariants. |
+| Diagnostics | `src/errors.rs`, `src/lsp_diagnostics.rs` | Error formatting and LSP diagnostics | partial | Error model is not yet central across lexer/parser/runtime/CLI/VM. |
+| Interpreter | `src/interpreter/mod.rs`, `src/interpreter/environment.rs`, `src/interpreter/value.rs` | Tree-walk execution, values, scopes | partial | Undefined identifiers become strings, arity is inconsistent, invalid operations silently fall back. |
+| Native filesystem APIs | `src/interpreter/native_functions/filesystem.rs` | File IO, archive helpers, metadata | partial | `unzip` path traversal risk, no centralized safe path/root policy. |
+| Native system APIs | `src/interpreter/native_functions/system.rs`, `src/interpreter/builtins.rs` | Process/env/shell/native host effects | partial | Powerful trusted-code APIs have no runtime capability policy. Shell execution requires explicit hardening. |
+| Native networking APIs | `src/interpreter/native_functions/network.rs` | TCP/UDP/network helpers | partial | Raw networking needs capability controls, timeouts, limits, and documentation. |
+| Native HTTP APIs | `src/interpreter/native_functions/http.rs` | HTTP client/server helpers | partial | Needs request/response contracts, limits, timeout policy, and tests. |
+| Async runtime helpers | `src/interpreter/native_functions/async_ops.rs` | Async operations and scheduling helpers | partial | Needs cancellation/resource semantics and tests. |
+| Module system | `src/module.rs` | Imports, package/module resolution | usable | Needs path normalization, cache invalidation rules, security tests, and docs. |
+| Compiler | `src/compiler.rs` | Bytecode generation | partial | Must stay semantically aligned with interpreter and VM. |
+| VM | `src/vm.rs` | Bytecode execution | partial | Current failing missing-key test; parity and runtime error behavior need hardening. |
+| JIT | `src/jit.rs` | Optional execution optimization path | demo/partial | Must be gated behind parity tests and explicit unsupported-surface behavior. |
+| Static server | `src/serve_http.rs`, `tests/serve_command_integration.rs` | `ruff serve` static file serving | usable/partial | Security policy is incomplete: dotfiles, unknown active content fallback, limits, 405 headers, streaming/range. |
+| Tests | `tests/*.rs`, inline module tests | Unit, integration, security, parity tests | usable | Strong base, but missing fuzzing, broader negative tests, benchmarks, and full security matrix. |
+| Documentation | `README.md`, `docs/*.md` | User docs, spec, security posture, contracts | partial | Some docs overstate current production readiness or mismatch implementation. |
+| Examples | `examples/`, documented snippets | User-facing behavior samples | partial | Need smoke tests that examples still parse/run. |
+
+## 6. Phase Overview
+
+| Phase | Name | Goal | Included Priorities | Exit Condition |
+| ----- | ---- | ---- | ------------------- | -------------- |
+| 0 | Baseline Reset | Make the roadmap and CI reflect the real current state. | P0 | Current failing tests and blockers are tracked, not hidden. |
+| 1 | Stop The Bleeding | Fix release-blocking crashes, silent failures, and dangerous filesystem/server behavior. | P0 | `cargo test` is green and P0 safety regressions are covered. |
+| 2 | Make Behavior Predictable | Harden lexer, parser, diagnostics, and core runtime semantics. | P0/P1 | Bad input fails with structured diagnostics instead of silent partial behavior. |
+| 3 | Secure Host Boundaries | Add capability policy and safe defaults for filesystem, process, network, HTTP, imports. | P1 | Native APIs have explicit security boundaries and tests. |
+| 4 | Make Ruff Universally Useful | Generalize HTTP, stdlib, CLI, module, docs, and examples beyond demo paths. | P1/P2 | Core user workflows are broad, tested, and documented. |
+| 5 | Make It Measurable | Add fuzzing, benchmarks, performance budgets, and regression gates. | P1/P2 | CI can catch correctness, security, and performance regressions. |
+| 6 | Make It Releasable | Complete docs, packaging, release process, versioning, changelog, and support policy. | P1/P2/P3 | Ruff can cut a 1.0 release candidate with clear gates. |
+
+## 7. Master Roadmap Checklist
+
+### Phase 0: Baseline Reset
+
+```text
+[ ] V1-BASE-001: Establish the audited baseline as the source of truth
+    Priority: P0
+    Severity: High
+    Area: Release/Tests/Docs
+    Affected files: ROADMAP.md, README.md, docs/LANGUAGE_SPEC.md, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: The previous roadmap described Ruff as having no known P0 blockers, but the audit found a failing VM test and multiple production-readiness gaps.
+    Recommendation: Treat this roadmap as the active release gate. Update any public docs that currently imply production readiness before the P0 items are fixed.
+    Implementation steps:
+        1. Search docs for claims such as "production-ready", "no known blockers", "v1 complete", and "release blocked only by packaging".
+        2. Replace those claims with accurate pre-1.0 language.
+        3. Add a short "1.0 readiness status" section to README.md that points to this roadmap.
+    Tests required: Documentation smoke check only. Run `cargo test` to confirm no accidental code changes if files outside docs are touched.
+    Acceptance criteria: Public docs do not overstate readiness, and this roadmap is the single 1.0 completion source.
+    Notes: This item is complete for ROADMAP.md once this file lands, but README/spec claims still need inspection.
+```
+
+```text
+[ ] V1-BASE-002: Create a release-gate checklist script
+    Priority: P1
+    Severity: Medium
+    Area: DX/Tests/Release
+    Affected files: scripts/release_gate.sh, README.md, docs/RELEASE_PROCESS.md
+    Problem: Required verification commands are documented manually, but there is no single repeatable local release-gate command.
+    Recommendation: Add a script that runs formatting, clippy, tests, security checks, docs/example smoke tests, and benchmarks where configured.
+    Implementation steps:
+        1. Create `scripts/release_gate.sh`.
+        2. Run commands in this order: fmt check, clippy, cargo test, selected integration tests, Ruff self-test command, audit/deny if installed.
+        3. Print each command before running it.
+        4. Exit non-zero on the first failure.
+        5. Document prerequisites and expected runtime.
+    Tests required: Add a lightweight CI job or local test that executes the script in a minimal mode if full mode is too expensive.
+    Acceptance criteria: A contributor can run one command and get the same required gate used for 1.0 readiness.
+    Notes: Do not hide failing commands with `|| true`.
+```
+
+### Phase 1: Stop The Bleeding
+
+```text
+[ ] V1-TEST-001: Fix the failing VM missing-key in-place map operation
+    Priority: P0
+    Severity: High
+    Area: Correctness/Tests
+    Affected files: src/vm.rs, src/compiler.rs, tests/vm_interpreter_parity_surfaces.rs
+    Problem: `cargo test` currently fails because the VM returns `Int(0)` for a missing map key in an in-place operation instead of reporting a runtime error.
+    Recommendation: Make VM map indexing and in-place update paths use the same missing-key error semantics as the interpreter.
+    Implementation steps:
+        1. Inspect `vm::tests::test_sum_int_map_until_local_in_place_missing_key_errors`.
+        2. Trace the bytecode emitted for the failing program.
+        3. Locate the map read/update opcode path that defaults missing values to `Int(0)`.
+        4. Replace the default with a structured runtime error containing key/index context.
+        5. Confirm compiler-generated bytecode does not skip the error path.
+        6. Add parity coverage for local map update, captured map update, nested map update, and invalid key type.
+    Tests required:
+        - Existing `vm::tests::test_sum_int_map_until_local_in_place_missing_key_errors` must pass.
+        - Add VM/interpreter parity tests for missing string key, missing integer key, nested missing key, and successful update.
+        - Run `cargo test`.
+    Acceptance criteria: Missing map keys never silently become `Int(0)` in VM or interpreter execution.
+    Notes: This is the first code item to complete because it restores the base test suite.
+```
+
+```text
+[ ] V1-RUN-001: Make undefined identifiers runtime errors
+    Priority: P0
+    Severity: High
+    Area: Correctness/Security
+    Affected files: src/interpreter/mod.rs, src/interpreter/environment.rs, src/interpreter/value.rs, src/errors.rs, docs/LANGUAGE_SPEC.md
+    Problem: Identifier evaluation currently falls back to `Value::Str(name)` when a binding is missing. This turns typos and failed security checks into valid string values.
+    Recommendation: Replace the fallback with a structured undefined-variable runtime error.
+    Implementation steps:
+        1. Locate `Expr::Identifier` evaluation in `src/interpreter/mod.rs`.
+        2. Replace `unwrap_or(Value::Str(...))` behavior with an error.
+        3. Include identifier name and source span when available.
+        4. Audit call sites that intentionally depended on identifier-to-string fallback.
+        5. For any intended symbol/string shorthand, introduce an explicit syntax or built-in helper instead of implicit fallback.
+        6. Update compiler/VM identifier resolution to match.
+        7. Update spec and examples.
+    Tests required:
+        - Undefined top-level variable fails.
+        - Undefined variable inside function fails.
+        - Undefined variable inside closure fails.
+        - Undefined method receiver/member fails with useful message.
+        - String literals still work normally.
+        - Existing examples do not rely on implicit identifier strings.
+    Acceptance criteria: No runtime path converts an unknown identifier into a string silently.
+    Notes: This may expose many latent tests that relied on demo behavior. Fix tests by making strings explicit.
+```
+
+```text
+[ ] V1-RUN-002: Enforce function, method, closure, async, and generator arity
+    Priority: P0
+    Severity: High
+    Area: Correctness
+    Affected files: src/interpreter/mod.rs, src/interpreter/value.rs, src/compiler.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
+    Problem: User-defined call paths can leave missing parameters unbound or ignore extra arguments, causing unpredictable execution.
+    Recommendation: Centralize arity checking and apply it to all callable values.
+    Implementation steps:
+        1. Create a shared callable metadata helper that exposes function name, min args, max args, variadic status, and parameter names.
+        2. Apply it before entering user functions, closures, methods, async functions, generator functions, and native functions.
+        3. Return a consistent runtime error for too few and too many args.
+        4. Preserve intentional variadic native behavior only where explicitly declared.
+        5. Update VM call opcodes to enforce the same rules.
+    Tests required:
+        - Too few args fail for functions, methods, closures, async functions, generators, and natives.
+        - Too many args fail for the same call types.
+        - Correct arity succeeds.
+        - Variadic native functions accept expected ranges.
+        - Error messages include function name, expected count/range, and received count.
+    Acceptance criteria: Every callable has a tested arity contract and no call path silently ignores or invents arguments.
+    Notes: Complete after `V1-RUN-001` if undefined missing params currently mask arity failures.
+```
+
+```text
+[ ] V1-RUN-003: Replace silent invalid operation fallbacks with runtime errors
+    Priority: P0
+    Severity: High
+    Area: Correctness/Security
+    Affected files: src/interpreter/mod.rs, src/interpreter/value.rs, src/vm.rs, src/compiler.rs, docs/LANGUAGE_SPEC.md
+    Problem: Some invalid indexing, invalid assignment, invalid operation, and missing value paths return `Int(0)`, empty strings, print to stderr, or continue execution.
+    Recommendation: Add centralized runtime semantic helpers for invalid operations and use them across interpreter and VM.
+    Implementation steps:
+        1. Audit indexing, assignment, arithmetic, comparison, call, member access, map/list access, and in-place update paths.
+        2. Replace sentinel fallback values with structured runtime errors.
+        3. Replace `eprintln!` plus continue behavior with returned errors.
+        4. Add helper functions for `index_value`, `assign_index`, `assign_member`, `binary_op`, and `unary_op`.
+        5. Ensure VM and interpreter share equivalent messages and error kinds.
+    Tests required:
+        - Out-of-bounds list access fails.
+        - Out-of-bounds string access fails.
+        - Missing map key fails.
+        - Indexing non-indexable values fails.
+        - Assigning to invalid target fails.
+        - Unsupported binary/unary operations fail.
+        - VM/interpreter parity tests cover all cases.
+    Acceptance criteria: Invalid runtime operations never silently return default values or only print to stderr.
+    Notes: This item should create reusable helpers, not a scattered set of one-off checks.
+```
+
+```text
+[ ] V1-SEC-001: Make archive extraction safe against Zip Slip and resource exhaustion
+    Priority: P0
+    Severity: Critical
+    Area: Security/FileSystem
+    Affected files: src/interpreter/native_functions/filesystem.rs, tests/native_api_security_boundaries.rs, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: `unzip` joins `output_dir` with archive entry names directly. Malicious archive paths can escape the target directory. There are also no extraction size/count limits.
+    Recommendation: Implement safe archive extraction with normalized containment checks and explicit resource limits.
+    Implementation steps:
+        1. Use sanitized archive entry paths instead of raw names.
+        2. Reject absolute paths, parent components, drive prefixes, null bytes, and empty normalized paths.
+        3. Resolve output paths through a central containment helper.
+        4. Reject symlink entries unless a documented safe policy is implemented.
+        5. Add max total uncompressed bytes.
+        6. Add max entry count.
+        7. Add max single entry size.
+        8. Fail the whole extraction on the first unsafe entry.
+        9. Document the limits and failure behavior.
+    Tests required:
+        - Archive entry `../escape.txt` is rejected.
+        - Archive entry `/tmp/escape.txt` is rejected.
+        - Windows drive-like paths are rejected.
+        - Null-byte names are rejected.
+        - Symlink entries are rejected or safely handled according to documented policy.
+        - Oversized total extraction is rejected.
+        - Oversized single file is rejected.
+        - Safe nested extraction succeeds.
+    Acceptance criteria: No archive entry can write outside the requested output directory, and extraction cannot consume unbounded disk space.
+    Notes: Reuse the same containment helper required by `V1-FS-001`.
+```
+
+```text
+[ ] V1-HTTP-001: Unify static server MIME and active-content policy
+    Priority: P0
+    Severity: High
+    Area: Security/HTTP
+    Affected files: src/main.rs, src/serve_http.rs, tests/serve_command_integration.rs, README.md
+    Problem: `src/main.rs` contains `#[cfg(test)]` duplicate static-server helper logic that blocks unknown active content, while production `src/serve_http.rs` does not implement the same fallback policy. This creates test/production security drift.
+    Recommendation: Move MIME detection and active-content fallback policy into one production module and make tests exercise the production code.
+    Implementation steps:
+        1. Create or consolidate a single MIME registry used by `src/serve_http.rs`.
+        2. Remove duplicate test-only MIME logic from `src/main.rs`.
+        3. Define exact fallback behavior:
+           - known safe extension: configured MIME type
+           - unknown passive file: `application/octet-stream`
+           - unknown active content extension: reject with `415 Unsupported Media Type` or serve as download-only octet-stream according to documented policy
+           - extensionless file: documented fallback
+        4. Make extension matching case-insensitive.
+        5. Add `X-Content-Type-Options: nosniff` for file responses.
+        6. Update README claims to match actual production behavior.
+    Tests required:
+        - Known HTML, CSS, JS, JSON, PNG, JPG, SVG, WASM, font, PDF, text mappings.
+        - Unknown extension fallback.
+        - Case-insensitive extension mapping.
+        - Extensionless file fallback.
+        - Unknown active-content extension blocked or forced-download according to policy.
+        - Tests import and exercise production helpers, not duplicate test helpers.
+    Acceptance criteria: There is exactly one MIME/security policy implementation used by production server code and tests.
+    Notes: This item should be done before expanding static server behavior.
+```
+
+```text
+[ ] V1-CI-001: Prevent release with a failing test suite
+    Priority: P0
+    Severity: High
+    Area: CI/Tests/Release
+    Affected files: .github/workflows/*.yml, scripts/release_gate.sh, README.md
+    Problem: The repo can drift into a state where roadmap/docs claim readiness while `cargo test` fails.
+    Recommendation: CI must block merges and releases on the release-gate test suite.
+    Implementation steps:
+        1. Inspect existing GitHub Actions workflows.
+        2. Ensure `cargo test` runs on every pull request and push to main.
+        3. Ensure integration tests run on every pull request.
+        4. Add fmt and clippy checks.
+        5. Add a release-gate workflow or job that calls `scripts/release_gate.sh`.
+        6. Add badges or README notes only after the workflow is green.
+    Tests required: CI itself is the test. Locally run `scripts/release_gate.sh` after it exists.
+    Acceptance criteria: A failing unit or integration test prevents merge/release.
+    Notes: If there is no `.github/workflows` directory, create it.
+```
+
+### Phase 2: Make Behavior Predictable
+
+```text
+[ ] V1-LEX-001: Convert lexer failures into structured diagnostics
+    Priority: P0
+    Severity: High
+    Area: Parser/Diagnostics/Correctness
+    Affected files: src/lexer.rs, src/errors.rs, src/lsp_diagnostics.rs, docs/LANGUAGE_SPEC.md
+    Problem: Lexer behavior is too optimistic for production. Invalid characters, malformed strings, invalid escapes, unterminated comments, and huge numeric literals can be ignored or downgraded into sentinel values.
+    Recommendation: Make lexing return tokens plus diagnostics, or `Result<Vec<Token>, Vec<Diagnostic>>`, with precise spans.
+    Implementation steps:
+        1. Define lexer diagnostic kinds: invalid character, invalid UTF-8/encoding if applicable, null byte, unterminated string, unterminated comment, invalid escape, numeric literal overflow, malformed numeric literal.
+        2. Track byte offsets, line, column, and file path where available.
+        3. Reject null bytes in source.
+        4. Reject or diagnose invalid escape sequences instead of accepting them silently.
+        5. Replace numeric `unwrap_or(0)` and `unwrap_or(0.0)` fallbacks with diagnostics.
+        6. Set maximum token length limits for identifiers and literals, with configurable constants.
+        7. Preserve recovery where useful, but never silently drop invalid input.
+    Tests required:
+        - Invalid character reports diagnostic.
+        - Unterminated string reports diagnostic.
+        - Unterminated block comment reports diagnostic.
+        - Invalid escape reports diagnostic.
+        - Huge integer reports diagnostic.
+        - Huge float reports diagnostic.
+        - Null byte reports diagnostic.
+        - Mixed line endings preserve correct line/column.
+        - Long identifier and long string limit tests.
+    Acceptance criteria: Lexing malformed source always produces a diagnostic and never fabricates valid tokens without reporting the problem.
+    Notes: This item is a dependency for robust parser diagnostics.
+```
+
+```text
+[ ] V1-PAR-001: Replace `Option` parser failures with structured parse results
+    Priority: P0
+    Severity: High
+    Area: Parser/Diagnostics
+    Affected files: src/parser.rs, src/errors.rs, src/lsp_diagnostics.rs, src/main.rs, docs/LANGUAGE_SPEC.md
+    Problem: The parser uses `Option` and unchecked token advancement in many places. Missing delimiters or malformed syntax can produce partial ASTs or confusing failures.
+    Recommendation: Introduce a parser result type that returns AST plus diagnostics, and make expected-token failures explicit.
+    Implementation steps:
+        1. Add `ParseDiagnostic` or reuse the central diagnostic type from `V1-ERR-001`.
+        2. Replace delimiter consumption helpers with `expect_token(kind, message)`.
+        3. Ensure every `advance()` that expects a token has an EOF check.
+        4. Add synchronization points for statement-level recovery.
+        5. Return parse failure for invalid top-level constructs.
+        6. Ensure CLI exits non-zero on parse diagnostics.
+        7. Update LSP diagnostic conversion to preserve spans and messages.
+    Tests required:
+        - Missing `)` fails with clear location.
+        - Missing `]` fails with clear location.
+        - Missing `}` fails with clear location.
+        - Invalid assignment target fails.
+        - Unexpected EOF fails.
+        - Parser recovery reports multiple independent errors without infinite loop.
+        - CLI exits non-zero for parse errors.
+    Acceptance criteria: Parser never silently accepts malformed syntax as a valid partial program.
+    Notes: Do this with incremental helpers to avoid a risky full parser rewrite.
+```
+
+```text
+[ ] V1-ERR-001: Centralize diagnostics across lexer, parser, runtime, VM, CLI, and LSP
+    Priority: P1
+    Severity: High
+    Area: Diagnostics/Architecture
+    Affected files: src/errors.rs, src/lsp_diagnostics.rs, src/lexer.rs, src/parser.rs, src/interpreter/mod.rs, src/vm.rs, src/main.rs, docs/CLI_MACHINE_READABLE_CONTRACTS.md
+    Problem: Error reporting is inconsistent across subsystems. Production Ruff errors should answer what failed, where, why, and what to do next.
+    Recommendation: Introduce one diagnostic model with severity, code, message, optional help, file path, span, line, column, and subsystem.
+    Implementation steps:
+        1. Define stable diagnostic codes such as `RUFLEX001`, `RUFPARSE001`, `RUFRUN001`, `RUFVM001`, `RUFCLI001`.
+        2. Add text rendering for humans.
+        3. Add JSON rendering for machine-readable CLI mode.
+        4. Add LSP conversion.
+        5. Route lexer, parser, runtime, VM, and CLI errors through the model.
+        6. Document exit-code mapping.
+    Tests required:
+        - Snapshot/golden tests for human errors.
+        - JSON schema tests for machine-readable diagnostics.
+        - LSP conversion tests.
+        - CLI exit-code tests.
+        - Runtime error includes file/line/column when available.
+    Acceptance criteria: Each user-visible failure has a stable code, precise location when possible, and consistent rendering.
+    Notes: Add this before large documentation updates so docs can cite real diagnostic codes.
+```
+
+```text
+[ ] V1-PAR-002: Add parser depth and source size safety limits
+    Priority: P1
+    Severity: High
+    Area: Security/Parser/Performance
+    Affected files: src/parser.rs, src/lexer.rs, src/main.rs, docs/LANGUAGE_SPEC.md
+    Problem: Deep nesting and very large source files can cause stack overflows, excessive CPU, or excessive memory use.
+    Recommendation: Add explicit limits with clear diagnostics and, where appropriate, CLI flags/env config for trusted local use.
+    Implementation steps:
+        1. Define default maximum source bytes for CLI file input.
+        2. Define maximum expression nesting depth.
+        3. Define maximum block nesting depth.
+        4. Define maximum call nesting depth if recursive parsing remains.
+        5. Increment/decrement depth counters in parser entry points.
+        6. Return structured diagnostics when limits are exceeded.
+    Tests required:
+        - Deep parentheses exceed limit gracefully.
+        - Deep list/map literals exceed limit gracefully.
+        - Deep nested blocks exceed limit gracefully.
+        - Large source file over limit fails before parsing.
+        - Boundary-at-limit input succeeds.
+    Acceptance criteria: Malicious deep or huge source cannot crash the process through parser recursion or unbounded allocation.
+    Notes: If limits are configurable, unsafe large values must be clearly opt-in.
+```
+
+```text
+[ ] V1-PAR-003: Lock operator precedence and associativity with golden tests
+    Priority: P1
+    Severity: Medium
+    Area: Correctness/Tests
+    Affected files: src/parser.rs, src/ast.rs, docs/LANGUAGE_SPEC.md, tests/parser_precedence.rs
+    Problem: A language cannot be production-ready if precedence or associativity is implicit, incomplete, or untested.
+    Recommendation: Define and test the full operator table.
+    Implementation steps:
+        1. Document precedence from highest to lowest.
+        2. Document associativity for each operator.
+        3. Add AST shape golden tests for every binary/unary operator pair.
+        4. Add runtime evaluation tests where AST shape is insufficient.
+        5. Include assignment and in-place operators.
+    Tests required:
+        - Arithmetic precedence.
+        - Comparison precedence.
+        - Equality precedence.
+        - Boolean precedence.
+        - Unary precedence.
+        - Assignment associativity.
+        - In-place update behavior.
+        - Parenthesized override behavior.
+    Acceptance criteria: Precedence behavior is documented and protected by tests.
+    Notes: Use readable AST snapshots rather than brittle debug output if possible.
+```
+
+```text
+[ ] V1-PAR-004: Make AST spans complete and consistent
+    Priority: P1
+    Severity: Medium
+    Area: Diagnostics/Architecture
+    Affected files: src/ast.rs, src/parser.rs, src/lexer.rs, src/errors.rs, src/lsp_diagnostics.rs
+    Problem: Diagnostics cannot be precise unless AST nodes consistently carry source spans.
+    Recommendation: Ensure every expression, statement, declaration, and token-derived node has a start/end span.
+    Implementation steps:
+        1. Define one span type with byte offsets and line/column conversion.
+        2. Add spans to AST nodes that do not have them.
+        3. Populate spans during parsing.
+        4. Use spans in runtime errors where source node context is available.
+        5. Update LSP diagnostics to use the same spans.
+    Tests required:
+        - Span tests for literals, identifiers, binary expressions, function declarations, calls, blocks, loops, imports.
+        - Runtime error location tests.
+        - Parser error location tests.
+    Acceptance criteria: User-facing diagnostics point to the correct source range for all common syntax and runtime failures.
+    Notes: Keep AST changes mechanical and covered by compiler errors.
+```
+
+### Phase 3: Runtime, VM, And Language Semantics
+
+```text
+[ ] V1-RUN-004: Centralize truthiness semantics
+    Priority: P1
+    Severity: Medium
+    Area: Correctness/Language Semantics
+    Affected files: src/interpreter/value.rs, src/interpreter/mod.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
+    Problem: Truthiness rules can drift across interpreter, VM, native functions, and docs.
+    Recommendation: Implement one `is_truthy` semantic helper and use it everywhere conditions are evaluated.
+    Implementation steps:
+        1. Define truthiness for `Bool`, `Null`, `Int`, `Float`, `String`, lists, maps, functions, objects, and native handles.
+        2. Decide whether empty string/list/map are truthy or falsey.
+        3. Use the helper in `if`, `while`, `for`, logical operators, and VM conditional jumps.
+        4. Document rules in the language spec.
+    Tests required:
+        - Truthiness table tests for every value kind.
+        - Interpreter and VM parity tests.
+        - Logical `and`/`or` short-circuit tests.
+    Acceptance criteria: Truthiness is deterministic, documented, and identical across execution backends.
+    Notes: Do not inherit Python truthiness accidentally unless explicitly chosen.
+```
+
+```text
+[ ] V1-RUN-005: Enforce `let`, `const`, and mutability semantics
+    Priority: P1
+    Severity: High
+    Area: Correctness/Language Semantics
+    Affected files: src/interpreter/environment.rs, src/interpreter/mod.rs, src/compiler.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
+    Problem: The spec describes mutability concepts that are not consistently enforced by the runtime.
+    Recommendation: Store binding metadata and reject invalid reassignment or mutation according to documented rules.
+    Implementation steps:
+        1. Define exact semantics for `let`, `const`, and any `mut` construct Ruff supports.
+        2. Store binding kind in environment frames.
+        3. Reject reassignment to immutable bindings.
+        4. Decide and document whether mutable containers bound to const can mutate internally.
+        5. Apply the same checks in compiler/VM paths.
+        6. Add clear diagnostics.
+    Tests required:
+        - Reassigning const fails.
+        - Reassigning immutable let fails or succeeds according to documented semantics.
+        - Mutable binding reassignment succeeds.
+        - Shadowing behavior is tested separately from reassignment.
+        - VM/interpreter parity tests.
+    Acceptance criteria: Binding mutability matches the language spec and cannot be bypassed by backend differences.
+    Notes: If current syntax does not include explicit `mut`, document the exact 1.0 choice.
+```
+
+```text
+[ ] V1-RUN-006: Enforce scope isolation, shadowing, and declaration rules
+    Priority: P1
+    Severity: High
+    Area: Correctness/Language Semantics
+    Affected files: src/interpreter/environment.rs, src/interpreter/mod.rs, src/compiler.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
+    Problem: Scope leaks and unclear shadowing make programs unpredictable and complicate future compiler work.
+    Recommendation: Define lexical scope rules and enforce them in interpreter and VM.
+    Implementation steps:
+        1. Define block scope, function scope, loop scope, module scope, and closure capture behavior.
+        2. Decide whether duplicate declarations in the same scope are errors.
+        3. Decide whether inner-scope shadowing is allowed.
+        4. Implement environment checks for duplicate declarations and shadowing policy.
+        5. Update compiler symbol resolution.
+        6. Add runtime and compile/parse diagnostics where applicable.
+    Tests required:
+        - Block-local variables do not leak.
+        - Function-local variables do not leak.
+        - Loop variables follow documented lifetime.
+        - Closure captures see correct values.
+        - Duplicate same-scope declaration behavior is tested.
+        - Shadowing behavior is tested.
+    Acceptance criteria: Scope behavior is documented, tested, and identical across interpreter and VM.
+    Notes: This item may require a symbol-resolution pass if VM/compiler behavior is currently ad hoc.
+```
+
+```text
+[ ] V1-RUN-007: Enforce `return`, `break`, and `continue` context rules
+    Priority: P1
+    Severity: High
+    Area: Correctness/Diagnostics
+    Affected files: src/parser.rs, src/interpreter/mod.rs, src/compiler.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
+    Problem: Control-flow constructs outside valid contexts must fail predictably.
+    Recommendation: Add parse-time or semantic validation for return outside functions and break/continue outside loops.
+    Implementation steps:
+        1. Track function depth and loop depth during parsing or semantic analysis.
+        2. Reject `return` outside a function.
+        3. Reject `break` outside a loop.
+        4. Reject `continue` outside a loop.
+        5. Ensure compiler and VM do not need to handle invalid control-flow AST.
+    Tests required:
+        - Top-level `return` fails.
+        - `return` inside function succeeds.
+        - `break` outside loop fails.
+        - `continue` outside loop fails.
+        - Nested loop/function cases behave correctly.
+    Acceptance criteria: Invalid control flow cannot reach runtime as a partially meaningful sentinel.
+    Notes: Prefer early diagnostics if parser/semantic analysis can produce better locations.
+```
+
+```text
+[ ] V1-SEM-001: Define numeric overflow, division, and float edge-case behavior
+    Priority: P1
+    Severity: Medium
+    Area: Correctness/Security
+    Affected files: src/interpreter/value.rs, src/interpreter/mod.rs, src/vm.rs, src/compiler.rs, docs/LANGUAGE_SPEC.md
+    Problem: Numeric behavior must be stable for production programs. Overflow, division by zero, NaN, and infinity behavior need explicit policy.
+    Recommendation: Define checked integer arithmetic and consistent float behavior.
+    Implementation steps:
+        1. Decide integer width and overflow policy.
+        2. Use checked arithmetic for integer add/sub/mul/div/rem/pow where applicable.
+        3. Return runtime errors for division by zero.
+        4. Define float division by zero behavior: error or IEEE result.
+        5. Define comparison behavior for NaN.
+        6. Align interpreter and VM.
+    Tests required:
+        - Integer overflow fails or wraps according to documented policy.
+        - Division by zero fails.
+        - Modulo by zero fails.
+        - Float NaN comparisons match spec.
+        - Infinity handling matches spec.
+        - VM/interpreter parity tests.
+    Acceptance criteria: Numeric edge cases are deterministic and documented.
+    Notes: Prefer checked integer behavior for safe 1.0 defaults.
+```
+
+```text
+[ ] V1-SEM-002: Define null, fallthrough, and return-without-value behavior
+    Priority: P1
+    Severity: Medium
+    Area: Correctness/Language Semantics
+    Affected files: src/interpreter/mod.rs, src/interpreter/value.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
+    Problem: The spec indicates null-like behavior in places where implementation may currently return `Int(0)`.
+    Recommendation: Use an explicit `Null` value for missing return values and fallthrough where the language allows it.
+    Implementation steps:
+        1. Define when expressions/statements produce a value.
+        2. Define function fallthrough result.
+        3. Define `return` without expression result.
+        4. Replace `Int(0)` sentinel returns with `Null` where appropriate.
+        5. Update VM return opcodes.
+    Tests required:
+        - Function with no return returns null.
+        - `return` without value returns null.
+        - Explicit `return 0` still returns int zero.
+        - Null equality and truthiness tests.
+        - VM/interpreter parity tests.
+    Acceptance criteria: Null behavior is explicit and no missing-value path uses integer zero as a sentinel.
+    Notes: Complete with or after `V1-RUN-003`.
+```
+
+```text
+[ ] V1-SEM-003: Define equality and cross-type comparison semantics
+    Priority: P1
+    Severity: Medium
+    Area: Correctness/Language Semantics
+    Affected files: src/interpreter/value.rs, src/interpreter/mod.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
+    Problem: Equality and ordering across types are core language semantics and must not be accidental.
+    Recommendation: Define which cross-type equality and ordering operations are allowed.
+    Implementation steps:
+        1. Define equality for primitive values.
+        2. Define equality for lists, maps, objects, functions, native handles, and null.
+        3. Define whether `1 == 1.0` is true.
+        4. Reject unsupported ordering comparisons with runtime errors.
+        5. Align VM comparison opcodes.
+    Tests required:
+        - Primitive equality tests.
+        - Cross-type equality tests.
+        - Collection equality tests if supported.
+        - Unsupported ordering errors.
+        - VM/interpreter parity tests.
+    Acceptance criteria: Equality and comparison behavior is documented and stable.
+    Notes: Avoid adding deep structural equality for all objects unless there is a clear language decision.
+```
+
+```text
+[ ] V1-COMP-001: Maintain VM/interpreter/compiler parity as a release gate
+    Priority: P1
+    Severity: High
+    Area: Correctness/Architecture/Tests
+    Affected files: src/compiler.rs, src/vm.rs, src/interpreter/mod.rs, tests/vm_interpreter_parity_surfaces.rs, docs/VM_INTERPRETER_PARITY_MATRIX.md
+    Problem: Ruff has multiple execution paths. Production users cannot trust behavior if interpreter and VM diverge without documentation.
+    Recommendation: Expand parity tests and require all supported surfaces to match.
+    Implementation steps:
+        1. Review the existing parity matrix.
+        2. Mark each feature as supported, unsupported, intentionally divergent, or not yet implemented.
+        3. Add parity tests for variables, functions, closures, classes/structs if present, loops, errors, collections, maps, imports, natives allowed in VM, and control flow.
+        4. Make unsupported VM surfaces fail clearly instead of executing incorrectly.
+        5. Keep the matrix updated with every semantic change.
+    Tests required:
+        - Parity test suite for all supported language surfaces.
+        - Negative parity tests for unsupported features.
+        - CI job running parity tests.
+    Acceptance criteria: Any interpreter/VM divergence is either eliminated or explicitly documented and tested.
+    Notes: JIT must not be considered production-ready until it passes the same semantic contract.
+```
+
+```text
+[ ] V1-JIT-001: Gate JIT behind explicit support and parity guarantees
+    Priority: P2
+    Severity: Medium
+    Area: Performance/Correctness/Architecture
+    Affected files: src/jit.rs, src/main.rs, src/compiler.rs, src/vm.rs, docs/VM_INTERPRETER_PARITY_MATRIX.md
+    Problem: JIT code is high-risk if it can execute unsupported surfaces or diverge from interpreter semantics.
+    Recommendation: Treat JIT as opt-in unless it passes explicit feature support checks and parity tests.
+    Implementation steps:
+        1. Identify all AST/opcode surfaces the JIT supports.
+        2. Add a support checker that rejects unsupported programs before JIT execution.
+        3. Add diagnostics for unsupported JIT features.
+        4. Add parity tests for supported JIT surfaces.
+        5. Document JIT status as experimental unless complete.
+    Tests required:
+        - Supported JIT arithmetic/function cases match interpreter.
+        - Unsupported feature produces clear diagnostic.
+        - JIT disabled by default unless release policy says otherwise.
+    Acceptance criteria: JIT cannot silently execute a program with different semantics from interpreter/VM.
+    Notes: Do not optimize unsafe or unmeasured behavior into the 1.0 default path.
+```
+
+### Phase 4: Secure Host Boundaries
+
+```text
+[ ] V1-SEC-002: Add a native capability policy for host-effect APIs
+    Priority: P1
+    Severity: Critical
+    Area: Security/Architecture
+    Affected files: src/interpreter/native_functions/*.rs, src/interpreter/builtins.rs, src/main.rs, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: Ruff exposes powerful trusted-code APIs for filesystem, process execution, environment mutation, network access, database access, and shell commands without a runtime capability policy.
+    Recommendation: Add an explicit capability model with safe defaults and opt-in flags/config for dangerous APIs.
+    Implementation steps:
+        1. Inventory all native APIs with host side effects.
+        2. Define capabilities: filesystem-read, filesystem-write, filesystem-delete, process-exec, shell-exec, env-read, env-write, network-client, network-server, database, clock, random.
+        3. Add runtime configuration storing enabled capabilities.
+        4. Check capabilities at every native boundary.
+        5. Add CLI flags such as `--allow-fs-read`, `--allow-fs-write`, `--allow-net`, `--allow-run`, or a documented equivalent.
+        6. Make dangerous capabilities disabled by default for untrusted execution modes.
+        7. Preserve a trusted local script mode only if explicitly documented.
+    Tests required:
+        - Each capability-denied API returns a structured error.
+        - Each capability-enabled API works.
+        - CLI flags enable only the requested capability.
+        - No dangerous API bypasses the policy.
+    Acceptance criteria: A Ruff program cannot access host filesystem, process, environment, or network effects unless policy allows it.
+    Notes: This is a major 1.0 trust boundary. Keep policy lean but explicit.
+```
+
+```text
+[ ] V1-SEC-003: Harden shell and process execution APIs
+    Priority: P1
+    Severity: Critical
+    Area: Security
+    Affected files: src/interpreter/builtins.rs, src/interpreter/native_functions/system.rs, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: Shell execution through `sh -c` or `cmd /C` is dangerous when command strings can contain untrusted input.
+    Recommendation: Separate direct process execution from shell execution and require explicit shell capability for shell mode.
+    Implementation steps:
+        1. Identify all process execution helpers.
+        2. Add safe direct exec API that accepts executable plus argv list without shell interpolation.
+        3. Mark shell-string execution as dangerous and require `shell-exec` capability.
+        4. Add timeouts.
+        5. Add max stdout/stderr capture size.
+        6. Add environment allow/deny behavior.
+        7. Return structured exit status instead of ambiguous strings.
+    Tests required:
+        - Direct argv exec does not invoke shell expansion.
+        - Shell exec denied without capability.
+        - Shell exec allowed with capability.
+        - Timeout kills long process.
+        - Output larger than limit is truncated or rejected according to docs.
+        - Non-zero exit status is represented predictably.
+    Acceptance criteria: Untrusted strings are not accidentally interpreted by a shell, and process execution is bounded.
+    Notes: Do not remove existing shell helper without adding replacement behavior and migration docs.
+```
+
+```text
+[ ] V1-FS-001: Centralize safe path normalization and containment
+    Priority: P1
+    Severity: Critical
+    Area: Security/FileSystem/Architecture
+    Affected files: src/interpreter/native_functions/filesystem.rs, src/module.rs, src/serve_http.rs, src/main.rs
+    Problem: Filesystem, module, archive, and static-server code need consistent path traversal, symlink, absolute path, and root containment behavior.
+    Recommendation: Add one reusable path security module.
+    Implementation steps:
+        1. Create a helper module such as `src/path_security.rs`.
+        2. Implement lexical rejection for null bytes, empty paths where invalid, parent traversal, absolute paths when disallowed, Windows drive prefixes, and reserved names where relevant.
+        3. Implement canonical root containment checks after resolving paths.
+        4. Add safe open/read helpers that avoid separate check-then-use where possible.
+        5. Define symlink policy per caller: reject, allow only inside root, or follow safely.
+        6. Replace ad hoc normalization in filesystem, module, archive, and server code.
+    Tests required:
+        - `../` traversal rejected.
+        - URL-encoded traversal rejected in server path flow.
+        - Symlink escape rejected.
+        - Absolute path rejected where not allowed.
+        - Windows drive-like path rejected cross-platform.
+        - Valid nested path accepted.
+    Acceptance criteria: Every root-bound path operation uses the central helper.
+    Notes: This is a dependency for secure static serving and archive extraction.
+```
+
+```text
+[ ] V1-FS-002: Add file operation size, overwrite, and permission safeguards
+    Priority: P1
+    Severity: High
+    Area: Security/FileSystem
+    Affected files: src/interpreter/native_functions/filesystem.rs, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: Native file APIs can read/write/delete without consistent limits or overwrite policy.
+    Recommendation: Add bounded file IO behavior and explicit overwrite semantics.
+    Implementation steps:
+        1. Add default max read size for whole-file reads.
+        2. Add write size limits for string/binary writes.
+        3. Add explicit overwrite flag for write APIs if overwriting is currently implicit.
+        4. Make delete APIs require filesystem-delete capability.
+        5. Reject directory deletion unless a separate explicit recursive API exists.
+        6. Document platform-specific permission behavior.
+    Tests required:
+        - Read over size limit fails.
+        - Write over size limit fails.
+        - Existing file overwrite fails unless allowed.
+        - Delete denied without capability.
+        - Directory delete behavior is tested.
+    Acceptance criteria: File APIs are bounded, permissioned, and documented.
+    Notes: Avoid surprising behavior changes by adding migration notes if current APIs overwrite by default.
+```
+
+```text
+[ ] V1-MOD-001: Harden module import path resolution and caching
+    Priority: P1
+    Severity: High
+    Area: Security/Correctness/Modules
+    Affected files: src/module.rs, src/main.rs, docs/LANGUAGE_SPEC.md, tests/package_module_workflow_integration.rs
+    Problem: Module imports can become a security and correctness boundary if paths, package roots, caches, or cycles are weakly defined.
+    Recommendation: Define and enforce safe import resolution rooted in project/package boundaries.
+    Implementation steps:
+        1. Document import search order.
+        2. Reject traversal outside package roots unless explicitly allowed.
+        3. Canonicalize import paths with `V1-FS-001` helpers.
+        4. Detect import cycles and report them clearly.
+        5. Define cache keys by canonical path plus package context.
+        6. Add cache invalidation behavior for CLI runs and tests.
+    Tests required:
+        - Relative import inside package succeeds.
+        - Traversal import outside package fails.
+        - Symlink escape import fails.
+        - Import cycle reports useful error.
+        - Import cache does not reuse wrong module after path changes.
+    Acceptance criteria: Import resolution is deterministic, contained, and documented.
+    Notes: Coordinate with any package manager or project config behavior.
+```
+
+```text
+[ ] V1-NET-001: Add network timeout, size, and capability controls
+    Priority: P1
+    Severity: High
+    Area: Security/Networking
+    Affected files: src/interpreter/native_functions/network.rs, src/interpreter/native_functions/http.rs, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: Network APIs can hang, consume unbounded memory, or access external resources unexpectedly.
+    Recommendation: Require network capabilities and add timeouts plus request/response size limits.
+    Implementation steps:
+        1. Require `network-client` for outbound connections.
+        2. Require `network-server` for listening sockets.
+        3. Add default connect/read/write timeouts.
+        4. Add max response/body size limits.
+        5. Add clear errors for timeout and limit exceeded.
+        6. Document trusted-code assumptions and sandbox boundaries.
+    Tests required:
+        - Network APIs denied without capability.
+        - Timeout behavior tested with local listener or mock.
+        - Oversized response/body rejected.
+        - Allowed local request succeeds with capability.
+    Acceptance criteria: Network APIs cannot hang indefinitely or run without explicit policy.
+    Notes: Keep tests local and deterministic.
+```
+
+### Phase 5: HTTP And Static Server Hardening
+
+```text
+[ ] V1-HTTP-002: Add complete static response status and header handling
+    Priority: P1
+    Severity: High
+    Area: HTTP/Security/DX
+    Affected files: src/serve_http.rs, tests/serve_command_integration.rs, README.md
+    Problem: Static server status handling is too narrow for production and may omit required headers such as `Allow` for 405.
+    Recommendation: Add a central HTTP response builder for static server responses.
+    Implementation steps:
+        1. Define supported status codes for static serving: 200, 301/302 if redirects are supported, 304 if conditional requests are supported, 400, 403, 404, 405, 408, 413, 414, 415, 500, 501, 503.
+        2. Return `405 Method Not Allowed` with `Allow: GET, HEAD`.
+        3. Return `501 Not Implemented` for methods/features explicitly unsupported if more accurate than 405.
+        4. Add `Content-Length` to all responses where possible.
+        5. Add `Content-Type` to all bodies.
+        6. Add safe default headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and conservative cache policy.
+        7. Ensure HEAD responses include headers but no body.
+    Tests required:
+        - GET file returns 200 with length/type.
+        - HEAD file returns 200 with length/type and empty body.
+        - POST returns 405 with `Allow`.
+        - Unsupported method behavior is documented and tested.
+        - 404/403/415/500 response shape tests.
+    Acceptance criteria: Static server responses are standards-aware, predictable, and tested.
+    Notes: Do not add every HTTP status blindly. Only implement statuses tied to server behavior.
+```
+
+```text
+[ ] V1-HTTP-003: Harden URL decoding and request-target validation
+    Priority: P1
+    Severity: Critical
+    Area: HTTP/Security
+    Affected files: src/serve_http.rs, tests/serve_command_integration.rs
+    Problem: Static serving must safely handle encoded traversal, double-decoding, null bytes, invalid UTF-8, long URIs, query strings, and fragments.
+    Recommendation: Add a request-target parser that decodes exactly once and validates before filesystem resolution.
+    Implementation steps:
+        1. Parse path separately from query.
+        2. Reject fragments if present in raw request target.
+        3. Percent-decode exactly once.
+        4. Reject invalid percent encodings.
+        5. Reject decoded null bytes.
+        6. Reject encoded and decoded traversal.
+        7. Reject URI length over configured limit with 414.
+        8. Pass only validated paths into `V1-FS-001` containment helpers.
+    Tests required:
+        - `%2e%2e/` traversal rejected.
+        - Double-encoded traversal does not bypass policy.
+        - Invalid percent encoding returns 400.
+        - Null byte returns 400.
+        - Oversized URI returns 414.
+        - Query string does not affect filesystem path.
+    Acceptance criteria: Request paths cannot escape the server root through encoding tricks.
+    Notes: This item is security-critical for `ruff serve`.
+```
+
+```text
+[ ] V1-HTTP-004: Add dotfile, hidden-file, and private-file policy
+    Priority: P1
+    Severity: High
+    Area: HTTP/Security
+    Affected files: src/serve_http.rs, tests/serve_command_integration.rs, README.md
+    Problem: Static servers commonly leak `.env`, `.git`, hidden files, backup files, or private config unless blocked.
+    Recommendation: Deny hidden and private files by default with explicit opt-in if needed.
+    Implementation steps:
+        1. Block dotfiles and dot-directories by default.
+        2. Block known private names: `.env`, `.git`, `.svn`, `.hg`, `.DS_Store`, backup suffixes, editor swap files.
+        3. Add CLI option only if there is a strong use case, such as `--allow-hidden`.
+        4. Return 403 for blocked existing files.
+        5. Do not reveal whether blocked private paths exist if the documented policy chooses indistinguishable 404 behavior.
+    Tests required:
+        - `.env` blocked.
+        - `.git/config` blocked.
+        - `.DS_Store` blocked.
+        - Backup/swap files blocked.
+        - Normal files still served.
+        - Optional allow-hidden flag works if added.
+    Acceptance criteria: `ruff serve` does not expose common private files by default.
+    Notes: Decide 403 vs 404 once and document it.
+```
+
+```text
+[ ] V1-HTTP-005: Add request size, header size, timeout, and connection limits
+    Priority: P1
+    Severity: High
+    Area: HTTP/Security/Performance
+    Affected files: src/serve_http.rs, src/main.rs, tests/serve_command_integration.rs, README.md
+    Problem: A server without limits is vulnerable to slowloris-style behavior, oversized request lines/headers, and resource exhaustion.
+    Recommendation: Add conservative defaults and CLI configuration for server limits.
+    Implementation steps:
+        1. Set max request line length.
+        2. Set max header bytes.
+        3. Set max header count.
+        4. Add read timeout.
+        5. Add write timeout if supported by the server implementation.
+        6. Add max concurrent connection or thread limit if server is threaded.
+        7. Return 400, 408, 413, or 414 as appropriate.
+    Tests required:
+        - Oversized request line returns 414.
+        - Oversized headers return 413 or 400 according to docs.
+        - Too many headers returns 400 or 413.
+        - Timeout behavior tested deterministically where possible.
+        - Normal requests still succeed.
+    Acceptance criteria: Static server resource use is bounded by documented defaults.
+    Notes: Avoid flaky timeout tests by using very small local controlled sockets.
+```
+
+```text
+[ ] V1-HTTP-006: Stream large files and define range-request policy
+    Priority: P2
+    Severity: Medium
+    Area: HTTP/Performance
+    Affected files: src/serve_http.rs, tests/serve_command_integration.rs, README.md
+    Problem: Loading large files into memory before serving does not scale.
+    Recommendation: Stream file responses and explicitly support or reject Range requests.
+    Implementation steps:
+        1. Replace whole-file reads with buffered streaming.
+        2. Preserve correct `Content-Length`.
+        3. Define max served file size if full support is not intended.
+        4. Either implement single-range requests with 206/416 or reject Range with documented behavior.
+        5. Add benchmarks for large static files.
+    Tests required:
+        - Large file served without excessive memory use.
+        - Content-Length correct.
+        - HEAD large file does not read whole body.
+        - Range supported or rejected according to docs.
+    Acceptance criteria: Static serving does not require loading entire files into memory.
+    Notes: Range support is useful but can be deferred if rejection is explicit and tested.
+```
+
+```text
+[ ] V1-HTTP-007: Expand MIME registry for real-world static assets
+    Priority: P1
+    Severity: Medium
+    Area: HTTP/Standard Library/Usefulness
+    Affected files: src/serve_http.rs, tests/serve_command_integration.rs, README.md
+    Problem: A narrow MIME map makes the server feel demo-grade.
+    Recommendation: Add a centralized broad MIME registry with safe fallback.
+    Implementation steps:
+        1. Add mappings for html, htm, css, js, mjs, json, xml, svg, txt, md, csv, pdf.
+        2. Add image mappings for png, jpg, jpeg, gif, webp, avif, ico, bmp, tif, tiff.
+        3. Add audio/video mappings for mp3, wav, ogg, mp4, webm, mov.
+        4. Add font mappings for wasm, woff, woff2, ttf, otf, eot.
+        5. Add archive mappings for zip, tar, gz, tgz, 7z.
+        6. Use `application/octet-stream` as binary fallback unless active-content policy blocks the file.
+        7. Make extension matching case-insensitive.
+    Tests required:
+        - One test per supported family.
+        - Unknown extension fallback.
+        - Extensionless fallback.
+        - Double extension behavior.
+        - Dotfile behavior interacts correctly with `V1-HTTP-004`.
+    Acceptance criteria: Common static assets are served with correct types and unknown content is handled safely.
+    Notes: Keep map centralized and easy to extend.
+```
+
+### Phase 6: Standard Library And Universal Usefulness
+
+```text
+[ ] V1-STD-001: Create a complete native API inventory and support table
+    Priority: P1
+    Severity: Medium
+    Area: Docs/Standard Library/Security
+    Affected files: src/interpreter/native_functions/*.rs, src/interpreter/builtins.rs, docs/STANDARD_LIBRARY.md, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: Ruff exposes many native helpers, but users and reviewers need a complete support, safety, and capability table.
+    Recommendation: Document every native function with signature, return type, errors, required capability, and examples.
+    Implementation steps:
+        1. Inventory all builtins and native modules.
+        2. Group by module: filesystem, system, network, HTTP, async, database, collections, strings, math, time, environment.
+        3. Document argument types and arity.
+        4. Document failure modes and diagnostic codes.
+        5. Document required capabilities from `V1-SEC-002`.
+        6. Add examples that are covered by tests.
+    Tests required:
+        - Doc examples parse/run where safe.
+        - Native arity tests cover documented signatures.
+        - Capability tests match documented requirements.
+    Acceptance criteria: There is no undocumented native API exposed to users.
+    Notes: If a native API is experimental, mark it clearly.
+```
+
+```text
+[ ] V1-STD-002: Add robust JSON support or document its absence
+    Priority: P2
+    Severity: Enhancement
+    Area: Standard Library/Usefulness
+    Affected files: src/interpreter/native_functions/*.rs, docs/STANDARD_LIBRARY.md, tests/native_json.rs
+    Problem: A production scripting/application language needs safe JSON parse/stringify support or a clear statement that it is not included in 1.0.
+    Recommendation: Provide `json.parse`, `json.stringify`, and structured errors if not already present.
+    Implementation steps:
+        1. Check whether JSON support already exists.
+        2. If present, harden arity, type conversion, invalid JSON errors, nesting limits, and output determinism.
+        3. If absent and in scope, add a native module using a well-maintained Rust parser.
+        4. Add max nesting and max input size.
+        5. Document conversion between Ruff values and JSON.
+    Tests required:
+        - Parse object/array/string/number/bool/null.
+        - Invalid JSON fails with location.
+        - Stringify primitive and nested values.
+        - Unsupported value types fail clearly.
+        - Size/depth limits.
+    Acceptance criteria: JSON behavior is useful, bounded, and documented, or explicitly deferred.
+    Notes: Do not build an ad hoc JSON parser if a safe dependency is already available.
+```
+
+```text
+[ ] V1-STD-003: Harden string, collection, math, time, and environment helpers
+    Priority: P2
+    Severity: Medium
+    Area: Standard Library/Correctness
+    Affected files: src/interpreter/native_functions/*.rs, src/interpreter/value.rs, docs/STANDARD_LIBRARY.md
+    Problem: Standard library helpers should validate inputs, return structured errors, and cover common real-world cases.
+    Recommendation: Review each helper for arity, type checks, bounds, Unicode behavior, resource limits, and docs.
+    Implementation steps:
+        1. Inventory string helpers and define Unicode vs byte behavior.
+        2. Inventory collection helpers and define mutation/immutability behavior.
+        3. Inventory math helpers and define domain errors.
+        4. Inventory time helpers and define timezone/format behavior.
+        5. Inventory environment helpers and apply capability policy.
+        6. Add missing tests for every helper.
+    Tests required:
+        - Wrong arity and wrong type tests for every helper.
+        - Edge values for strings and collections.
+        - Math domain errors.
+        - Time formatting/parsing edge cases where supported.
+        - Env access denied/allowed tests.
+    Acceptance criteria: Native helper behavior is broad enough for real scripts and never fails silently.
+    Notes: Prefer a small reliable stdlib over a large inconsistent one.
+```
+
+### Phase 7: CLI And Developer Experience
+
+```text
+[ ] V1-CLI-001: Define and enforce CLI command/exit-code contract
+    Priority: P1
+    Severity: High
+    Area: CLI/DX/Diagnostics
+    Affected files: src/main.rs, docs/CLI_MACHINE_READABLE_CONTRACTS.md, README.md, tests/cli_contracts.rs
+    Problem: Production tools need predictable commands, flags, stdout/stderr separation, and exit codes.
+    Recommendation: Document and test the CLI contract for all commands.
+    Implementation steps:
+        1. Inventory current CLI commands.
+        2. Define exit codes: success, usage error, lex/parse error, runtime error, IO error, internal error.
+        3. Ensure user-facing diagnostics go to stderr.
+        4. Ensure program output goes to stdout.
+        5. Add `--version`.
+        6. Add consistent `--help`.
+        7. Define behavior for stdin, multiple files, directories, and missing files.
+        8. Add JSON diagnostics mode if supported by `V1-ERR-001`.
+    Tests required:
+        - Help exits 0.
+        - Version exits 0 and prints crate version.
+        - Missing file exits with IO error code.
+        - Parse error exits with parse error code.
+        - Runtime error exits with runtime error code.
+        - JSON diagnostics are valid JSON.
+    Acceptance criteria: CLI behavior is stable, documented, and covered by integration tests.
+    Notes: Do not change command names without migration notes.
+```
+
+```text
+[ ] V1-CLI-002: Add `check`, `run`, and `test` workflow clarity
+    Priority: P2
+    Severity: Enhancement
+    Area: CLI/DX
+    Affected files: src/main.rs, README.md, docs/CLI_MACHINE_READABLE_CONTRACTS.md, tests/cli_contracts.rs
+    Problem: Developers need clear commands for parsing/checking, running, and testing Ruff programs.
+    Recommendation: Ensure the CLI exposes predictable workflows.
+    Implementation steps:
+        1. Decide whether default file execution is equivalent to `run`.
+        2. Add or document `ruff run <file>`.
+        3. Add or document `ruff check <file>` that lexes/parses/semantically validates without executing.
+        4. Add or document `ruff test` behavior for Ruff test files.
+        5. Add `--quiet`, `--verbose`, and `--json` only where useful and tested.
+    Tests required:
+        - `check` does not execute side effects.
+        - `run` executes program output.
+        - `test` discovers and runs expected tests.
+        - Verbose/quiet behavior is deterministic.
+    Acceptance criteria: Common developer workflows are first-class and documented.
+    Notes: If a command is deferred, document the current equivalent.
+```
+
+### Phase 8: Performance And Resource Management
+
+```text
+[ ] V1-PERF-001: Add a benchmark suite for lexer, parser, interpreter, VM, modules, and server
+    Priority: P1
+    Severity: Medium
+    Area: Performance/Tests
+    Affected files: benches/*.rs, Cargo.toml, src/lexer.rs, src/parser.rs, src/interpreter/mod.rs, src/vm.rs, src/serve_http.rs
+    Problem: Ruff cannot protect performance without measured baselines.
+    Recommendation: Add criterion-based benchmarks for core hot paths.
+    Implementation steps:
+        1. Add benchmark dependencies and `benches/` targets.
+        2. Add lexer benchmark for large source and many tokens.
+        3. Add parser benchmark for large files and deep expressions.
+        4. Add interpreter benchmark for loops, function calls, recursion, strings, and collections.
+        5. Add VM benchmark for the same workloads.
+        6. Add module resolution benchmark for many small modules.
+        7. Add static server benchmark for small and large files if feasible.
+    Tests required: Benchmarks compile and run locally with `cargo bench`.
+    Acceptance criteria: Ruff has repeatable performance baselines for release comparison.
+    Notes: Do not optimize before measuring unless fixing obvious O(n^2) behavior found during implementation.
+```
+
+```text
+[ ] V1-PERF-002: Audit and remove avoidable O(n^2) parser/runtime behavior
+    Priority: P2
+    Severity: Medium
+    Area: Performance
+    Affected files: src/lexer.rs, src/parser.rs, src/interpreter/mod.rs, src/interpreter/environment.rs, src/vm.rs, src/module.rs
+    Problem: Repeated parsing, repeated string concatenation, linear symbol lookup, and repeated filesystem stats can degrade real-world workloads.
+    Recommendation: Use benchmark results to fix specific hot spots without changing semantics.
+    Implementation steps:
+        1. Profile benchmarks from `V1-PERF-001`.
+        2. Identify repeated tokenization/parsing paths.
+        3. Replace repeated string concatenation in loops with buffered construction where applicable.
+        4. Review environment lookup cost and cache only where semantically safe.
+        5. Cache module resolution metadata with correct invalidation.
+        6. Add regression benchmarks for fixed hot spots.
+    Tests required:
+        - Existing correctness tests still pass.
+        - Benchmarks show no regression for targeted cases.
+        - Add regression test if optimization changes a failure mode.
+    Acceptance criteria: Each performance change is tied to a measured bottleneck and has no semantic regression.
+    Notes: Avoid broad rewrites that make semantics harder to audit.
+```
+
+```text
+[ ] V1-PERF-003: Add memory and resource exhaustion safeguards
+    Priority: P1
+    Severity: High
+    Area: Security/Performance/Runtime
+    Affected files: src/lexer.rs, src/parser.rs, src/interpreter/mod.rs, src/vm.rs, src/serve_http.rs, src/interpreter/native_functions/*.rs
+    Problem: Large literals, huge collections, unbounded recursion, unbounded loops, and unbounded IO can exhaust memory or CPU.
+    Recommendation: Add explicit limits for resource-heavy operations and make them configurable for trusted runs.
+    Implementation steps:
+        1. Define default max source size.
+        2. Define max string literal size.
+        3. Define max collection literal length.
+        4. Define recursion depth limit.
+        5. Define max call stack depth for VM and interpreter.
+        6. Define native IO limits.
+        7. Return structured resource-limit errors.
+    Tests required:
+        - Limit exceeded tests for source, string, collection, recursion, call stack, native IO.
+        - Boundary-at-limit success tests.
+        - Config override tests if overrides exist.
+    Acceptance criteria: Untrusted input cannot force unbounded memory/CPU use without hitting a documented limit.
+    Notes: Infinite loop timeouts are optional for trusted local execution, but recursion and allocation limits are required.
+```
+
+### Phase 9: Test Coverage, Fuzzing, And Regression Gates
+
+```text
+[ ] V1-TEST-002: Add lexer/parser fuzzing
+    Priority: P1
+    Severity: High
+    Area: Security/Tests
+    Affected files: fuzz/fuzz_targets/lexer.rs, fuzz/fuzz_targets/parser.rs, Cargo.toml, src/lexer.rs, src/parser.rs
+    Problem: Lexers and parsers are exposed to untrusted input and should not panic, hang, or allocate unbounded memory.
+    Recommendation: Add cargo-fuzz targets for lexer and parser.
+    Implementation steps:
+        1. Initialize `cargo fuzz` if not present.
+        2. Add lexer fuzz target that feeds arbitrary bytes/source strings.
+        3. Add parser fuzz target that lexes then parses.
+        4. Treat panics and infinite loops as bugs.
+        5. Add seed corpus from real examples and malformed cases.
+    Tests required:
+        - Fuzz targets compile.
+        - Run each fuzz target for a short smoke duration in CI or nightly job.
+        - Add regression tests for every crash found.
+    Acceptance criteria: Fuzzing can continuously exercise malformed input without crashing the process.
+    Notes: If invalid UTF-8 is not accepted at API boundaries, fuzz the byte-to-source conversion separately.
+```
+
+```text
+[ ] V1-TEST-003: Add runtime and native API security regression suite
+    Priority: P1
+    Severity: Critical
+    Area: Security/Tests
+    Affected files: tests/native_api_security_boundaries.rs, tests/runtime_security.rs, tests/serve_command_integration.rs
+    Problem: Security-sensitive behavior must be locked with regression tests.
+    Recommendation: Add malicious input tests for source execution, filesystem, modules, process, network, and static serving.
+    Implementation steps:
+        1. Add malicious Ruff source tests for deep recursion, huge literals, invalid identifiers, invalid escapes, and bad control flow.
+        2. Add filesystem traversal, symlink, dotfile, overwrite, and archive extraction tests.
+        3. Add module traversal and cycle tests.
+        4. Add process/network capability-denied tests.
+        5. Add HTTP malformed request tests.
+    Tests required: This item itself is the test suite expansion.
+    Acceptance criteria: Every P0/P1 security fix has at least one regression test that fails before the fix and passes after it.
+    Notes: Keep tests deterministic and local-only.
+```
+
+```text
+[ ] V1-TEST-004: Add golden tests for diagnostics
+    Priority: P1
+    Severity: Medium
+    Area: Diagnostics/Tests
+    Affected files: tests/diagnostics_golden.rs, tests/fixtures/diagnostics/*.ruff, src/errors.rs
+    Problem: Diagnostics often regress accidentally when parsers and runtimes evolve.
+    Recommendation: Add golden tests for human and JSON diagnostics.
+    Implementation steps:
+        1. Create fixture Ruff files for lex, parse, semantic, runtime, CLI, and server errors.
+        2. Capture expected human output.
+        3. Capture expected JSON output if JSON mode exists.
+        4. Normalize file paths and line endings in snapshots.
+        5. Add update procedure to docs.
+    Tests required:
+        - Human diagnostics snapshots.
+        - JSON diagnostics snapshots.
+        - Cross-platform line ending handling.
+    Acceptance criteria: Diagnostic formatting is stable and intentional.
+    Notes: Avoid snapshots that include nondeterministic temp paths.
+```
+
+```text
+[ ] V1-TEST-005: Smoke-test examples and documentation snippets
+    Priority: P1
+    Severity: Medium
+    Area: Docs/Tests/DX
+    Affected files: examples/**, README.md, docs/*.md, tests/docs_examples.rs
+    Problem: Examples can drift from real syntax and runtime behavior.
+    Recommendation: Add automated smoke tests for examples and documented code blocks where feasible.
+    Implementation steps:
+        1. Inventory examples.
+        2. Mark each example as parse-only, run, expected-fail, or manual.
+        3. Add tests that parse or run examples according to metadata.
+        4. Extract fenced Ruff code blocks from docs where feasible.
+        5. Update examples that rely on obsolete semantics.
+    Tests required: Example smoke test suite.
+    Acceptance criteria: Documented Ruff code either runs, parses, or is explicitly marked as illustrative/manual.
+    Notes: Do not silently delete examples. Update or mark them.
+```
+
+### Phase 10: Documentation And Release Readiness
+
+```text
+[ ] V1-DOC-001: Reconcile language spec with implementation
+    Priority: P1
+    Severity: High
+    Area: Docs/Correctness
+    Affected files: docs/LANGUAGE_SPEC.md, README.md, tests/docs_examples.rs
+    Problem: The language spec and implementation are not fully aligned, especially around mutability, null/fallthrough, identifiers, errors, and backend parity.
+    Recommendation: Update the spec after semantic fixes land, and add tests for every documented feature.
+    Implementation steps:
+        1. Add sections for lexical grammar, literals, comments, escapes, and invalid input.
+        2. Add parser grammar or syntax summary.
+        3. Add operator precedence table.
+        4. Add binding, scope, shadowing, mutability rules.
+        5. Add function, closure, method, async, generator arity rules.
+        6. Add null, return, break, continue rules.
+        7. Add collection, indexing, equality, comparison, truthiness rules.
+        8. Add module/import rules.
+        9. Add diagnostic and exit-code overview.
+    Tests required:
+        - Every spec example is covered by docs/example smoke tests.
+        - Semantic tests exist for every table/rule.
+    Acceptance criteria: A user can predict Ruff behavior from the spec, and the test suite enforces that behavior.
+    Notes: Do not document desired behavior until code and tests match it, unless clearly marked "planned".
+```
+
+```text
+[ ] V1-DOC-002: Expand native API security posture into an operator-grade security guide
+    Priority: P1
+    Severity: High
+    Area: Docs/Security
+    Affected files: docs/NATIVE_API_SECURITY_POSTURE.md, README.md
+    Problem: Ruff exposes trusted-code host APIs. Users need explicit guidance for safe operation.
+    Recommendation: Document threat model, trusted vs untrusted execution, capabilities, sandboxing, filesystem/network/process risks, and safe deployment patterns.
+    Implementation steps:
+        1. State whether Ruff is safe for untrusted code by default.
+        2. Document every capability and the APIs it controls.
+        3. Document static server security defaults.
+        4. Document archive extraction safety.
+        5. Document process/shell execution risks.
+        6. Document recommended OS sandboxing for high-risk deployments.
+        7. Add examples of safe and unsafe configurations.
+    Tests required: Documentation examples and referenced CLI flags must be smoke-tested.
+    Acceptance criteria: Users can understand and configure Ruff's host security boundary without reading the source.
+    Notes: Be direct about limitations. Do not market unsafe behavior as sandboxed.
+```
+
+```text
+[ ] V1-DOC-003: Create a release process and compatibility policy
+    Priority: P1
+    Severity: Medium
+    Area: Release/Docs
+    Affected files: docs/RELEASE_PROCESS.md, CHANGELOG.md, README.md, Cargo.toml
+    Problem: A production 1.0 release needs versioning, compatibility, changelog, and release-gate rules.
+    Recommendation: Add a documented release process.
+    Implementation steps:
+        1. Define semantic versioning policy.
+        2. Define language backward compatibility rules.
+        3. Define stdlib compatibility rules.
+        4. Define diagnostic code stability rules.
+        5. Define release candidate process.
+        6. Define required CI gates.
+        7. Add changelog format.
+        8. Document how to publish crate/artifacts.
+    Tests required: Release-gate script passes locally and in CI.
+    Acceptance criteria: Maintainers can cut a repeatable release without relying on tribal knowledge.
+    Notes: Do not bump to 1.0 until all required gates pass.
+```
+
+```text
+[ ] V1-DOC-004: Update README for accurate 1.0 user expectations
+    Priority: P1
+    Severity: Medium
+    Area: Docs/DX
+    Affected files: README.md
+    Problem: README is the first contract users see. It must not overstate maturity or omit important safety constraints.
+    Recommendation: Rewrite README sections around installation, quickstart, CLI, serve command, language status, security model, examples, and roadmap link.
+    Implementation steps:
+        1. Add current status and target 1.0 readiness note.
+        2. Add install/build instructions.
+        3. Add quickstart script.
+        4. Add CLI command table.
+        5. Add static server usage and security defaults.
+        6. Add capability/security note.
+        7. Add links to language spec, stdlib docs, release process, and roadmap.
+    Tests required: README commands and examples smoke-tested by `V1-TEST-005`.
+    Acceptance criteria: README accurately represents what Ruff can do today and what is required for 1.0.
+    Notes: Keep marketing claims restrained until release gates pass.
+```
+
+```text
+[ ] V1-REL-001: Prepare v1.0 release candidate gate
+    Priority: P1
+    Severity: High
+    Area: Release/CI
+    Affected files: Cargo.toml, Cargo.lock, CHANGELOG.md, docs/RELEASE_PROCESS.md, .github/workflows/*.yml
+    Problem: The project needs a final release gate before tagging v1.0.0.
+    Recommendation: Add a release candidate checklist and require every gate to pass.
+    Implementation steps:
+        1. Complete all P0 and P1 items.
+        2. Review P2 items and explicitly defer or complete each one.
+        3. Run full release-gate script.
+        4. Run benchmarks and record baseline.
+        5. Run fuzz smoke jobs.
+        6. Update changelog.
+        7. Update crate version only after gates pass.
+        8. Tag release candidate.
+    Tests required:
+        - Full release-gate script.
+        - CI release workflow dry run if available.
+    Acceptance criteria: Ruff can produce a v1.0.0 release candidate from a clean checkout with documented commands.
+    Notes: Do not tag 1.0.0 from a dirty working tree or with ignored failing tests.
+```
+
+## 8. Cross-Cutting Test Matrix
+
+| Test Area | What To Test | Why It Matters | Suggested Test Names |
+| --------- | ------------ | -------------- | -------------------- |
+| Lexer malformed input | Invalid characters, invalid escapes, unterminated strings/comments, huge numerics, null bytes, mixed line endings | Prevents unsafe or silent acceptance of bad source | `lexer_rejects_invalid_character`, `lexer_reports_unterminated_string`, `lexer_rejects_invalid_escape`, `lexer_rejects_null_byte` |
+| Lexer limits | Long identifiers, huge strings, huge source files | Prevents memory exhaustion | `lexer_rejects_identifier_over_limit`, `lexer_rejects_string_literal_over_limit` |
+| Parser delimiters | Missing `)`, `]`, `}`, unexpected EOF | Prevents partial ASTs | `parser_reports_missing_right_paren`, `parser_reports_unexpected_eof` |
+| Parser recovery | Multiple syntax errors in one file | Improves diagnostics and avoids infinite loops | `parser_recovers_after_statement_error` |
+| Parser precedence | All operator precedence and associativity combinations | Locks language semantics | `parser_precedence_arithmetic_before_comparison`, `parser_assignment_is_right_associative` |
+| Parser depth | Deep expressions, nested blocks, nested calls | Prevents stack overflow | `parser_rejects_expression_depth_over_limit` |
+| Runtime identifiers | Missing variables in all scopes | Prevents typos becoming strings | `runtime_undefined_identifier_errors` |
+| Runtime arity | Too few/too many args for all callable kinds | Prevents unbound params and ignored args | `runtime_function_arity_too_few_errors`, `runtime_method_arity_too_many_errors` |
+| Runtime invalid ops | Bad indexing, bad assignment, unsupported operators | Prevents sentinel fallbacks | `runtime_list_index_oob_errors`, `runtime_invalid_assignment_target_errors` |
+| Semantics | Truthiness, null, equality, comparison, mutability, scope | Makes language predictable | `semantics_truthiness_table`, `semantics_const_reassignment_errors` |
+| VM parity | Interpreter and VM agree on values and errors | Prevents backend drift | `vm_parity_missing_map_key_errors`, `vm_parity_function_arity_errors` |
+| JIT parity | Supported JIT surfaces match interpreter | Prevents unsafe optimization | `jit_parity_basic_arithmetic`, `jit_rejects_unsupported_feature` |
+| Filesystem security | Traversal, symlinks, dotfiles, overwrite, archive extraction | Protects host files | `fs_rejects_parent_traversal`, `unzip_rejects_zip_slip` |
+| Module security | Import traversal, symlink escape, cycles, cache keys | Protects project boundaries | `module_rejects_import_outside_root`, `module_reports_import_cycle` |
+| Native capabilities | FS/process/network/env APIs denied/allowed | Enforces security boundary | `capability_denies_shell_exec`, `capability_allows_fs_read_only` |
+| Static server paths | Encoded traversal, double decoding, null bytes, long URI | Prevents web path escape | `serve_rejects_encoded_traversal`, `serve_rejects_oversized_uri` |
+| Static server headers | Content-Type, Content-Length, Allow, nosniff, HEAD | Standards and security | `serve_405_includes_allow`, `serve_head_has_no_body` |
+| Static server MIME | Broad MIME map, fallback, case-insensitive extensions | Universal usefulness | `serve_mime_maps_wasm`, `serve_unknown_extension_fallback` |
+| CLI | Help, version, stdin, missing file, parse/runtime errors, JSON | Predictable developer experience | `cli_help_exits_zero`, `cli_parse_error_exit_code`, `cli_json_diagnostic_valid` |
+| Diagnostics | Human and JSON golden outputs | Stable user-facing errors | `diagnostics_parse_error_golden`, `diagnostics_runtime_error_json` |
+| Fuzzing | Lexer, parser, runtime entrypoints | Finds panics and hangs | `fuzz_lexer`, `fuzz_parser`, `fuzz_runtime_entrypoints` |
+| Benchmarks | Large parse, loops, functions, collections, server throughput | Performance baseline | `bench_parse_large_file`, `bench_vm_function_calls`, `bench_static_large_file` |
+| Docs/examples | README snippets, examples, spec samples | Prevents documentation drift | `docs_readme_examples_smoke`, `examples_parse_or_run` |
+
+## 9. Security Hardening Plan
+
+Immediate risks:
+
+1. Archive extraction can write outside output directories unless fixed by `V1-SEC-001`.
+2. Undefined identifiers and sentinel fallbacks can bypass intended runtime checks unless fixed by `V1-RUN-001` and `V1-RUN-003`.
+3. Native host APIs can perform filesystem, process, environment, and network effects without explicit capabilities unless fixed by `V1-SEC-002`.
+4. Shell execution can interpret untrusted strings unless fixed by `V1-SEC-003`.
+5. Static server path and MIME policy can drift or expose unsafe content unless fixed by `V1-HTTP-001` through `V1-HTTP-005`.
+
+Recommended safeguards:
+
+- Central path containment helper for filesystem, imports, archives, and static server paths.
+- Capability checks at every host-effect native API.
+- Structured diagnostics for malformed source and runtime security failures.
+- Request-target validation before static file lookup.
+- Dotfile/private-file deny-by-default policy.
+- Archive entry sanitization and extraction limits.
+- Process execution timeout and output limits.
+- Network timeout and body size limits.
+- Fuzzing for lexer/parser/runtime entrypoints.
+
+Abuse cases to simulate:
+
+- Ruff source with deeply nested expressions.
+- Ruff source with huge string and numeric literals.
+- Ruff source with invalid UTF-8 or null bytes at file boundary.
+- Ruff source with invalid escapes and unterminated comments.
+- Undefined variable used in an authorization-style condition.
+- Missing function args that previously became missing bindings.
+- Path traversal through filesystem API.
+- Symlink escape through filesystem API and static server.
+- Zip archive with `../escape.txt`.
+- Zip archive with absolute paths and too many entries.
+- Module import using traversal outside package root.
+- Shell command containing metacharacters passed to direct exec.
+- Network request without capability.
+- HTTP request with `%2e%2e`, double-encoded traversal, invalid percent encoding, null byte, long URI, oversized headers, unexpected method.
+- Request for `.env`, `.git/config`, backup files, and unknown active content.
+
+## 10. Performance Plan
+
+Likely hot paths:
+
+- Tokenization of large source files.
+- Recursive expression parsing.
+- AST walking in interpreter execution.
+- Environment and symbol lookup.
+- Function call dispatch.
+- Collection and map operations.
+- Module import resolution.
+- VM opcode dispatch.
+- Static server file IO.
+- Native string and collection helpers.
+
+Measurement strategy:
+
+1. Add benchmarks before broad optimization.
+2. Benchmark interpreter and VM on identical workloads.
+3. Track parse-only, run-only, and compile-plus-run timings separately.
+4. Include memory-sensitive workloads where possible.
+5. Record baseline numbers before v1.0 release candidate.
+6. Add a performance regression threshold only after baseline stability is understood.
+
+Benchmarks to add:
+
+- Large source file lexing.
+- Large source file parsing.
+- Deep expression parsing at safe boundary.
+- Many variable declarations.
+- Many function calls.
+- Large loops.
+- Recursive functions up to recursion limit.
+- Large string concatenation.
+- Large list/map construction and lookup.
+- Module import graph with many small files.
+- VM opcode loop.
+- Static server small-file and large-file throughput.
+
+Low-risk optimizations:
+
+- Replace repeated string concatenation in tight loops with buffered construction.
+- Avoid repeated tokenization/parsing of unchanged modules.
+- Use canonical module cache keys.
+- Stream static files instead of full reads.
+- Centralize environment lookup helpers and avoid duplicate lookups.
+
+High-risk optimizations to avoid until measured:
+
+- Broad parser rewrite.
+- Aggressive AST interning.
+- Global mutable caches without invalidation.
+- JIT as default execution path.
+- Unsafe filesystem shortcuts that bypass containment checks.
+- Silent fallback behavior for speed.
+
+Performance acceptance criteria:
+
+- Benchmarks exist and compile.
+- P0/P1 correctness and security tests pass after optimizations.
+- No optimization changes documented language semantics.
+- Static server large-file serving does not require whole-file memory allocation.
+- Parser rejects malicious deep input with diagnostics before stack overflow.
+
+## 11. Documentation Plan
+
+Missing or incomplete docs:
+
+- Accurate 1.0 readiness status.
+- Complete language reference.
+- Operator precedence table.
+- Scope, shadowing, mutability, null, truthiness, equality, and numeric semantics.
+- Callable arity and function/method behavior.
+- Parser and runtime diagnostic code catalog.
+- CLI command and exit-code contract.
+- Static server security and MIME behavior.
+- Complete standard library/native API reference.
+- Capability/security guide.
+- Release process and compatibility policy.
+- Benchmark and performance baseline guide.
+
+Docs that should be created:
+
+- `docs/STANDARD_LIBRARY.md`
+- `docs/RELEASE_PROCESS.md`
+- `docs/DIAGNOSTICS.md`
+- `docs/SECURITY_MODEL.md` if `docs/NATIVE_API_SECURITY_POSTURE.md` becomes too large
+- `docs/PERFORMANCE.md` after benchmarks exist
+
+Docs that should be generated or checked from tests:
+
+- README command examples.
+- Language spec examples.
+- Standard library examples.
+- CLI JSON diagnostic examples.
+- Static server examples.
+
+README improvements:
+
+- State current pre-1.0 maturity honestly.
+- Show install/build commands.
+- Show minimal run/check/test workflows.
+- Show static server usage and safe defaults.
+- Link to security model and roadmap.
+- Avoid claims of production readiness until release gates pass.
+
+Security notes:
+
+- Clearly state whether Ruff is safe for untrusted code by default.
+- Document capabilities and dangerous native APIs.
+- Document shell execution risks.
+- Document filesystem and network risks.
+- Document recommended OS-level sandboxing for high-risk deployments.
+
+## 12. Implementation Roadmap By Phase
+
+### Phase 1: Stop The Bleeding
+
+Goals:
+
+- Restore a passing test baseline.
+- Remove the most dangerous silent runtime failures.
+- Fix archive extraction traversal.
+- Remove static server policy drift.
+- Ensure CI blocks failing tests.
+
+Checklist items:
+
+- `V1-TEST-001`
+- `V1-RUN-001`
+- `V1-RUN-002`
+- `V1-RUN-003`
+- `V1-SEC-001`
+- `V1-HTTP-001`
+- `V1-CI-001`
+
+Expected outcome:
+
+- `cargo test` passes.
+- Undefined identifiers, missing map keys, bad arity, bad indexing, and invalid assignments fail clearly.
+- Archive extraction cannot escape its destination.
+- Static server tests use production policy.
+
+Risk level: High. These changes may expose tests and examples that relied on old demo semantics.
+
+### Phase 2: Make Behavior Predictable
+
+Goals:
+
+- Give lexer/parser/runtime failures structured diagnostics.
+- Add source spans.
+- Lock down parser correctness and source limits.
+- Define core semantics in code and docs.
+
+Checklist items:
+
+- `V1-LEX-001`
+- `V1-PAR-001`
+- `V1-ERR-001`
+- `V1-PAR-002`
+- `V1-PAR-003`
+- `V1-PAR-004`
+- `V1-RUN-004`
+- `V1-RUN-005`
+- `V1-RUN-006`
+- `V1-RUN-007`
+- `V1-SEM-001`
+- `V1-SEM-002`
+- `V1-SEM-003`
+
+Expected outcome:
+
+- Ruff accepts valid source predictably and rejects invalid source with useful diagnostics.
+- Language semantics are documented and tested.
+- Runtime no longer relies on sentinel values for invalid behavior.
+
+Risk level: High. Parser and semantic changes touch broad behavior.
+
+### Phase 3: Secure Host Boundaries
+
+Goals:
+
+- Make native APIs safe by policy.
+- Centralize filesystem/path containment.
+- Harden process, network, module, archive, and server boundaries.
+
+Checklist items:
+
+- `V1-SEC-002`
+- `V1-SEC-003`
+- `V1-FS-001`
+- `V1-FS-002`
+- `V1-MOD-001`
+- `V1-NET-001`
+- `V1-HTTP-003`
+- `V1-HTTP-004`
+- `V1-HTTP-005`
+
+Expected outcome:
+
+- Ruff has a clear trusted-code/security model.
+- Host effects require explicit capability policy.
+- Static and native path handling use one hardened implementation.
+
+Risk level: High. Security policy affects user-visible API behavior.
+
+### Phase 4: Make Ruff Universally Useful
+
+Goals:
+
+- Broaden server, stdlib, CLI, and docs beyond narrow demo use.
+- Keep additions lean and strongly tested.
+
+Checklist items:
+
+- `V1-HTTP-002`
+- `V1-HTTP-006`
+- `V1-HTTP-007`
+- `V1-STD-001`
+- `V1-STD-002`
+- `V1-STD-003`
+- `V1-CLI-001`
+- `V1-CLI-002`
+
+Expected outcome:
+
+- Common static assets work safely.
+- Standard library behavior is documented and tested.
+- CLI workflows are predictable for real users.
+
+Risk level: Medium. Most work is additive but must avoid scope creep.
+
+### Phase 5: Make It Measurable
+
+Goals:
+
+- Add fuzzing, diagnostics golden tests, examples smoke tests, and benchmarks.
+- Establish performance and security regression gates.
+
+Checklist items:
+
+- `V1-PERF-001`
+- `V1-PERF-002`
+- `V1-PERF-003`
+- `V1-TEST-002`
+- `V1-TEST-003`
+- `V1-TEST-004`
+- `V1-TEST-005`
+- `V1-COMP-001`
+- `V1-JIT-001`
+
+Expected outcome:
+
+- Regressions are much harder to introduce.
+- Performance can be discussed with data.
+- VM/JIT support is explicitly bounded by tests.
+
+Risk level: Medium. Tooling may require CI configuration and runtime tuning.
+
+### Phase 6: Make It Releasable
+
+Goals:
+
+- Finish docs, release process, changelog, versioning, and release candidate gates.
+
+Checklist items:
+
+- `V1-DOC-001`
+- `V1-DOC-002`
+- `V1-DOC-003`
+- `V1-DOC-004`
+- `V1-REL-001`
+- `V1-BASE-002`
+
+Expected outcome:
+
+- Ruff can cut a credible v1.0 release candidate.
+- Users can understand what is stable, what is experimental, and how to use Ruff safely.
+
+Risk level: Medium. Release docs must match actual implemented behavior.
+
+## 13. Final v1.0 Release Checklist
+
+Before tagging v1.0.0:
+
+```text
+[ ] All P0 items complete.
+[ ] All P1 items complete or explicitly deferred with documented release exception.
+[ ] P2 items reviewed and either completed or documented as post-1.0.
+[ ] `cargo fmt --check` passes.
+[ ] `cargo clippy --all-targets --all-features -- -D warnings` passes.
+[ ] `cargo test` passes.
+[ ] Integration tests pass.
+[ ] Security boundary tests pass.
+[ ] Static server tests pass.
+[ ] VM/interpreter parity tests pass.
+[ ] Fuzz targets compile and smoke-run.
+[ ] Benchmarks compile and baseline is recorded.
+[ ] README is accurate.
+[ ] Language spec matches implementation.
+[ ] Standard library docs are complete for exposed APIs.
+[ ] Security posture docs are accurate.
+[ ] Release process docs are complete.
+[ ] Changelog is updated.
+[ ] Cargo version is bumped intentionally.
+[ ] Release candidate is built from a clean working tree.
+```
+
+## 14. Handoff Instructions For Implementation Agents
+
+Work order summary:
+
+Start with Phase 1. Restore the failing test baseline, remove silent runtime failures, fix archive extraction, unify static server policy, and make CI block regressions. Then move through parser/diagnostics, host security boundaries, HTTP/server hardening, stdlib/CLI usefulness, benchmarks/fuzzing, and release docs.
+
+Rules:
+
+1. Do not remove existing functionality unless it is unsafe or obsolete and replacement behavior is added.
+2. Do not reduce test coverage.
+3. Do not skip tests for new behavior.
+4. Do not silently change language semantics without documenting and testing the change.
+5. Do not patch around symptoms when a centralized abstraction is the correct fix.
+6. Every completed item must include code changes, tests, and documentation updates where relevant.
+7. The final state must have all tests passing.
+
+Suggested first items:
+
+1. `V1-TEST-001`
+2. `V1-RUN-001`
+3. `V1-RUN-002`
+4. `V1-RUN-003`
+5. `V1-SEC-001`
+6. `V1-HTTP-001`
+7. `V1-CI-001`
+
+Suggested execution order:
+
+1. Fix the known failing VM test.
+2. Add or update regression tests for the fixed behavior.
+3. Remove the undefined-identifier fallback.
+4. Enforce callable arity.
+5. Replace invalid-operation sentinel fallbacks with structured errors.
+6. Fix archive extraction and path containment.
+7. Unify static server MIME/security behavior.
+8. Run `cargo test`.
+9. Update docs for changed semantics.
+10. Continue to Phase 2 only after Phase 1 is green.
+
+No-regression requirement:
+
+Every item must leave Ruff more correct, more secure, or more measurable than before. If a change breaks an existing example or behavior, either preserve the behavior safely or document and test the replacement behavior.
