@@ -1057,6 +1057,8 @@ impl VM {
                         instruction,
                         OpCode::MakeDict(_)
                             | OpCode::MakeDictWithKeys(_)
+                            | OpCode::Negate
+                            | OpCode::Not
                             | OpCode::IndexGet
                             | OpCode::IndexSet
                             | OpCode::IndexGetInPlace(_)
@@ -2258,7 +2260,7 @@ impl VM {
                 // Logical operations
                 OpCode::Not => {
                     let value = self.stack.pop().ok_or("Stack underflow")?;
-                    let result = Value::Bool(!self.is_truthy(&value));
+                    let result = self.unary_op("!", &value)?;
                     self.stack.push(result);
                 }
 
@@ -5267,7 +5269,10 @@ impl VM {
                         }
                         "listen" => {
                             if !args.is_empty() {
-                                Err(format!("HttpServer.listen expects 0 arguments, got {}", args.len()))
+                                Err(format!(
+                                    "HttpServer.listen expects 0 arguments, got {}",
+                                    args.len()
+                                ))
                             } else {
                                 self.start_http_server_vm(port, routes)
                             }
@@ -6178,7 +6183,7 @@ impl VM {
 
                         OpCode::Not => {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
-                            let result = Value::Bool(!self.is_truthy(&value));
+                            let result = self.unary_op("!", &value)?;
                             self.stack.push(result);
                         }
 
@@ -6430,6 +6435,32 @@ impl VM {
         }
     }
 
+    fn value_type_name(value: &Value) -> &'static str {
+        match value {
+            Value::Int(_) => "int",
+            Value::Float(_) => "float",
+            Value::Bool(_) => "bool",
+            Value::Str(_) => "string",
+            Value::Array(_) => "array",
+            Value::Dict(_) => "dict",
+            Value::Struct { .. } => "struct",
+            Value::Function(..) => "function",
+            Value::NativeFunction(_) => "native_function",
+            Value::Null => "null",
+            Value::Error(_) | Value::ErrorObject { .. } => "error",
+            _ => "value",
+        }
+    }
+
+    fn invalid_binary_operation(op: &str, left: &Value, right: &Value) -> String {
+        format!(
+            "Invalid binary operation: {} {} {}",
+            Self::value_type_name(left),
+            op,
+            Self::value_type_name(right)
+        )
+    }
+
     /// Binary operation
     fn binary_op(&self, left: &Value, op: &str, right: &Value) -> Result<Value, String> {
         match (left, right) {
@@ -6444,8 +6475,14 @@ impl VM {
                         Ok(Value::Int(a / b))
                     }
                 }
-                "%" => Ok(Value::Int(a % b)),
-                _ => Ok(Value::Int(0)),
+                "%" => {
+                    if *b == 0 {
+                        Err("Modulo by zero".to_string())
+                    } else {
+                        Ok(Value::Int(a % b))
+                    }
+                }
+                _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Float(a), Value::Float(b)) => match op {
                 "+" => Ok(Value::Float(a + b)),
@@ -6453,7 +6490,7 @@ impl VM {
                 "*" => Ok(Value::Float(a * b)),
                 "/" => Ok(Value::Float(a / b)),
                 "%" => Ok(Value::Float(a % b)),
-                _ => Ok(Value::Int(0)),
+                _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Int(a), Value::Float(b)) => match op {
                 "+" => Ok(Value::Float(*a as f64 + b)),
@@ -6461,7 +6498,7 @@ impl VM {
                 "*" => Ok(Value::Float(*a as f64 * b)),
                 "/" => Ok(Value::Float(*a as f64 / b)),
                 "%" => Ok(Value::Float(*a as f64 % b)),
-                _ => Ok(Value::Int(0)),
+                _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Float(a), Value::Int(b)) => match op {
                 "+" => Ok(Value::Float(a + *b as f64)),
@@ -6469,7 +6506,7 @@ impl VM {
                 "*" => Ok(Value::Float(a * *b as f64)),
                 "/" => Ok(Value::Float(a / *b as f64)),
                 "%" => Ok(Value::Float(a % *b as f64)),
-                _ => Ok(Value::Int(0)),
+                _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Str(a), Value::Str(b)) if op == "+" => {
                 let mut result = a.clone();
@@ -6477,7 +6514,7 @@ impl VM {
                 result_str.push_str(b.as_ref());
                 Ok(Value::Str(result))
             }
-            _ => Ok(Value::Int(0)),
+            _ => Err(Self::invalid_binary_operation(op, left, right)),
         }
     }
 
@@ -6486,6 +6523,7 @@ impl VM {
         match (op, value) {
             ("-", Value::Int(n)) => Ok(Value::Int(-n)),
             ("-", Value::Float(f)) => Ok(Value::Float(-f)),
+            ("!", Value::Bool(b)) => Ok(Value::Bool(!b)),
             _ => Err(format!("Invalid unary operation: {} {:?}", op, value)),
         }
     }

@@ -1906,7 +1906,388 @@ impl Interpreter {
         }
     }
 
-    fn validate_callable_arity(&self, arity: &CallableArity, received_args: usize) -> Option<Value> {
+    fn value_type_name(value: &Value) -> &'static str {
+        match value {
+            Value::Int(_) => "int",
+            Value::Float(_) => "float",
+            Value::Bool(_) => "bool",
+            Value::Str(_) => "string",
+            Value::Array(_) => "array",
+            Value::Dict(_) => "dict",
+            Value::Struct { .. } => "struct",
+            Value::Function(..) => "function",
+            Value::NativeFunction(_) => "native_function",
+            Value::Null => "null",
+            Value::Error(_) | Value::ErrorObject { .. } => "error",
+            _ => "value",
+        }
+    }
+
+    fn index_key_description(index: &Value) -> String {
+        match index {
+            Value::Str(key) => format!("{:?}", key.as_ref()),
+            Value::Int(key) => key.to_string(),
+            _ => Self::stringify_value(index),
+        }
+    }
+
+    fn invalid_binary_operation(op: &str, left: &Value, right: &Value) -> Value {
+        Value::Error(format!(
+            "Invalid binary operation: {} {} {}",
+            Self::value_type_name(left),
+            op,
+            Self::value_type_name(right)
+        ))
+    }
+
+    fn invalid_unary_operation(op: &str, value: &Value) -> Value {
+        Value::Error(format!("Invalid unary operation: {} {}", op, Self::value_type_name(value)))
+    }
+
+    fn index_value(object: &Value, index: &Value) -> Value {
+        match (object, index) {
+            (Value::Array(arr), Value::Int(i)) => {
+                let idx = if *i < 0 { (arr.len() as i64) + *i } else { *i };
+                if idx < 0 {
+                    Value::Error(format!("Index out of bounds: {}", i))
+                } else {
+                    arr.get(idx as usize)
+                        .cloned()
+                        .unwrap_or_else(|| Value::Error(format!("Index out of bounds: {}", i)))
+                }
+            }
+            (Value::Array(arr), Value::Float(i)) => {
+                if !i.is_finite() {
+                    return Value::Error("Invalid index operation".to_string());
+                }
+                let idx = *i as i64;
+                let resolved = if idx < 0 { (arr.len() as i64) + idx } else { idx };
+                if resolved < 0 {
+                    Value::Error(format!("Index out of bounds: {}", i))
+                } else {
+                    arr.get(resolved as usize)
+                        .cloned()
+                        .unwrap_or_else(|| Value::Error(format!("Index out of bounds: {}", i)))
+                }
+            }
+            (Value::Str(s), Value::Int(i)) => {
+                let idx = if *i < 0 { (s.chars().count() as i64) + *i } else { *i };
+                if idx < 0 {
+                    Value::Error(format!("Index out of bounds: {}", i))
+                } else {
+                    s.chars()
+                        .nth(idx as usize)
+                        .map(|c| Value::Str(Arc::new(c.to_string())))
+                        .unwrap_or_else(|| Value::Error(format!("Index out of bounds: {}", i)))
+                }
+            }
+            (Value::Str(s), Value::Float(i)) => {
+                if !i.is_finite() {
+                    return Value::Error("Invalid index operation".to_string());
+                }
+                let idx = *i as i64;
+                let resolved = if idx < 0 { (s.chars().count() as i64) + idx } else { idx };
+                if resolved < 0 {
+                    Value::Error(format!("Index out of bounds: {}", i))
+                } else {
+                    s.chars()
+                        .nth(resolved as usize)
+                        .map(|c| Value::Str(Arc::new(c.to_string())))
+                        .unwrap_or_else(|| Value::Error(format!("Index out of bounds: {}", i)))
+                }
+            }
+            (Value::Dict(map), Value::Str(key)) => map
+                .get(key.as_str())
+                .cloned()
+                .unwrap_or_else(|| Value::Error(format!("Missing map key: {:?}", key.as_ref()))),
+            (Value::Dict(map), Value::Int(key)) => map
+                .get(key.to_string().as_str())
+                .cloned()
+                .unwrap_or_else(|| Value::Error(format!("Missing map key: {}", key))),
+            _ => Value::Error("Invalid index operation".to_string()),
+        }
+    }
+
+    fn assign_index(&mut self, object: &Expr, index: &Expr, value: &Value) -> Value {
+        let index_value = self.eval_expr(index);
+        if Self::is_error_value(&index_value) {
+            return index_value;
+        }
+
+        let container_name = match object {
+            Expr::Identifier(name) => name.as_str(),
+            _ => return Value::Error("Complex index assignment not yet supported".to_string()),
+        };
+
+        let mut assignment_error: Option<String> = None;
+        let index_clone = index_value.clone();
+        let value_clone = value.clone();
+
+        let mutated = self.env.mutate(container_name, |container| match container {
+            Value::Array(arr) => {
+                let idx = match &index_clone {
+                    Value::Int(i) => *i,
+                    Value::Float(f) if f.is_finite() => *f as i64,
+                    _ => {
+                        assignment_error = Some(
+                            "Invalid index assignment: unsupported array index type".to_string(),
+                        );
+                        return;
+                    }
+                };
+
+                let arr_mut = Arc::make_mut(arr);
+                let resolved = if idx < 0 { (arr_mut.len() as i64) + idx } else { idx };
+                if resolved < 0 || resolved as usize >= arr_mut.len() {
+                    assignment_error = Some(format!("Index out of bounds: {}", idx));
+                    return;
+                }
+
+                arr_mut[resolved as usize] = value_clone.clone();
+            }
+            Value::Dict(dict) => {
+                let key = Self::stringify_value(&index_clone);
+                Arc::make_mut(dict).insert(key.into(), value_clone.clone());
+            }
+            _ => {
+                assignment_error = Some("Invalid index assignment".to_string());
+            }
+        });
+
+        if !mutated {
+            return Self::undefined_variable(container_name);
+        }
+
+        if let Some(error) = assignment_error {
+            return Value::Error(error);
+        }
+
+        Value::Null
+    }
+
+    fn assign_member(&mut self, object: &Expr, field: &str, value: &Value) -> Value {
+        let field_name = field.to_string();
+        let value_clone = value.clone();
+
+        match object {
+            Expr::Identifier(name) => {
+                let mut assignment_error: Option<String> = None;
+                let mutated = self.env.mutate(name.as_str(), |obj_value| {
+                    if let Value::Struct { name: _, fields } = obj_value {
+                        fields.insert(field_name.clone(), value_clone.clone());
+                    } else {
+                        assignment_error = Some("Cannot set field on non-struct value".to_string());
+                    }
+                });
+
+                if !mutated {
+                    return Self::undefined_variable(name);
+                }
+
+                if let Some(error) = assignment_error {
+                    return Value::Error(error);
+                }
+
+                Value::Null
+            }
+            Expr::IndexAccess { object: container_expr, index } => {
+                let index_value = self.eval_expr(index);
+                if Self::is_error_value(&index_value) {
+                    return index_value;
+                }
+
+                let container_name = match container_expr.as_ref() {
+                    Expr::Identifier(name) => name.as_str(),
+                    _ => {
+                        return Value::Error(
+                            "Complex field assignment not yet supported".to_string(),
+                        )
+                    }
+                };
+
+                let mut assignment_error: Option<String> = None;
+                let index_clone = index_value.clone();
+                let mutated = self.env.mutate(container_name, |container| match container {
+                    Value::Array(arr) => {
+                        let idx = match &index_clone {
+                            Value::Int(i) => *i,
+                            Value::Float(f) if f.is_finite() => *f as i64,
+                            _ => {
+                                assignment_error = Some(
+                                    "Invalid index assignment: unsupported array index type"
+                                        .to_string(),
+                                );
+                                return;
+                            }
+                        };
+
+                        let arr_mut = Arc::make_mut(arr);
+                        let resolved = if idx < 0 { (arr_mut.len() as i64) + idx } else { idx };
+                        if resolved < 0 || resolved as usize >= arr_mut.len() {
+                            assignment_error = Some(format!("Index out of bounds: {}", idx));
+                            return;
+                        }
+
+                        if let Value::Struct { name: _, fields } = &mut arr_mut[resolved as usize] {
+                            fields.insert(field_name.clone(), value_clone.clone());
+                        } else {
+                            assignment_error = Some("Array element is not a struct".to_string());
+                        }
+                    }
+                    Value::Dict(dict) => {
+                        let key = Self::stringify_value(&index_clone);
+                        if let Some(Value::Struct { name: _, fields }) =
+                            Arc::make_mut(dict).get_mut(key.as_str())
+                        {
+                            fields.insert(field_name.clone(), value_clone.clone());
+                        } else {
+                            assignment_error = Some(format!(
+                                "Missing map key: {}",
+                                Self::index_key_description(&index_clone)
+                            ));
+                        }
+                    }
+                    _ => {
+                        assignment_error = Some("Invalid index assignment".to_string());
+                    }
+                });
+
+                if !mutated {
+                    return Self::undefined_variable(container_name);
+                }
+
+                if let Some(error) = assignment_error {
+                    return Value::Error(error);
+                }
+
+                Value::Null
+            }
+            _ => Value::Error("Complex field assignment not yet supported".to_string()),
+        }
+    }
+
+    fn unary_op_value(&self, op: &str, value: &Value) -> Value {
+        match (op, value) {
+            ("-", Value::Int(n)) => Value::Int(-n),
+            ("-", Value::Float(n)) => Value::Float(-n),
+            ("!", Value::Bool(b)) => Value::Bool(!b),
+            _ => Self::invalid_unary_operation(op, value),
+        }
+    }
+
+    fn binary_op_value(&self, left: &Value, op: &str, right: &Value) -> Value {
+        match (left, right) {
+            (Value::Null, Value::Null) => match op {
+                "==" => Value::Bool(true),
+                "!=" => Value::Bool(false),
+                _ => Self::invalid_binary_operation(op, left, right),
+            },
+            (Value::Null, _) | (_, Value::Null) => match op {
+                "==" => Value::Bool(false),
+                "!=" => Value::Bool(true),
+                _ => Self::invalid_binary_operation(op, left, right),
+            },
+            (Value::Int(a), Value::Int(b)) => match op {
+                "+" => Value::Int(a.wrapping_add(*b)),
+                "-" => Value::Int(a.wrapping_sub(*b)),
+                "*" => Value::Int(a.wrapping_mul(*b)),
+                "/" => {
+                    if *b == 0 {
+                        Value::Error("Division by zero".to_string())
+                    } else {
+                        Value::Int(a / b)
+                    }
+                }
+                "%" => {
+                    if *b == 0 {
+                        Value::Error("Modulo by zero".to_string())
+                    } else {
+                        Value::Int(a % b)
+                    }
+                }
+                "==" => Value::Bool(a == b),
+                "!=" => Value::Bool(a != b),
+                ">" => Value::Bool(a > b),
+                "<" => Value::Bool(a < b),
+                ">=" => Value::Bool(a >= b),
+                "<=" => Value::Bool(a <= b),
+                _ => Self::invalid_binary_operation(op, left, right),
+            },
+            (Value::Float(a), Value::Float(b)) => match op {
+                "+" => Value::Float(a + b),
+                "-" => Value::Float(a - b),
+                "*" => Value::Float(a * b),
+                "/" => Value::Float(a / b),
+                "%" => Value::Float(a % b),
+                "==" => Value::Bool((a - b).abs() < f64::EPSILON),
+                "!=" => Value::Bool((a - b).abs() >= f64::EPSILON),
+                ">" => Value::Bool(a > b),
+                "<" => Value::Bool(a < b),
+                ">=" => Value::Bool(a >= b),
+                "<=" => Value::Bool(a <= b),
+                _ => Self::invalid_binary_operation(op, left, right),
+            },
+            (Value::Int(a), Value::Float(b)) => {
+                let a_float = *a as f64;
+                match op {
+                    "+" => Value::Float(a_float + b),
+                    "-" => Value::Float(a_float - b),
+                    "*" => Value::Float(a_float * b),
+                    "/" => Value::Float(a_float / b),
+                    "%" => Value::Float(a_float % b),
+                    "==" => Value::Bool((a_float - b).abs() < f64::EPSILON),
+                    "!=" => Value::Bool((a_float - b).abs() >= f64::EPSILON),
+                    ">" => Value::Bool(a_float > *b),
+                    "<" => Value::Bool(a_float < *b),
+                    ">=" => Value::Bool(a_float >= *b),
+                    "<=" => Value::Bool(a_float <= *b),
+                    _ => Self::invalid_binary_operation(op, left, right),
+                }
+            }
+            (Value::Float(a), Value::Int(b)) => {
+                let b_float = *b as f64;
+                match op {
+                    "+" => Value::Float(a + b_float),
+                    "-" => Value::Float(a - b_float),
+                    "*" => Value::Float(a * b_float),
+                    "/" => Value::Float(a / b_float),
+                    "%" => Value::Float(a % b_float),
+                    "==" => Value::Bool((a - b_float).abs() < f64::EPSILON),
+                    "!=" => Value::Bool((a - b_float).abs() >= f64::EPSILON),
+                    ">" => Value::Bool(*a > b_float),
+                    "<" => Value::Bool(*a < b_float),
+                    ">=" => Value::Bool(*a >= b_float),
+                    "<=" => Value::Bool(*a <= b_float),
+                    _ => Self::invalid_binary_operation(op, left, right),
+                }
+            }
+            (Value::Str(a), Value::Str(b)) => match op {
+                "+" => {
+                    let mut result = a.clone();
+                    let result_str = Arc::make_mut(&mut result);
+                    result_str.push_str(b.as_ref());
+                    Value::Str(result)
+                }
+                "==" => Value::Bool(a.as_ref() == b.as_ref()),
+                "!=" => Value::Bool(a.as_ref() != b.as_ref()),
+                _ => Self::invalid_binary_operation(op, left, right),
+            },
+            (Value::Bool(a), Value::Bool(b)) => match op {
+                "==" => Value::Bool(a == b),
+                "!=" => Value::Bool(a != b),
+                "&&" => Value::Bool(*a && *b),
+                "||" => Value::Bool(*a || *b),
+                _ => Self::invalid_binary_operation(op, left, right),
+            },
+            _ => Self::invalid_binary_operation(op, left, right),
+        }
+    }
+
+    fn validate_callable_arity(
+        &self,
+        arity: &CallableArity,
+        received_args: usize,
+    ) -> Option<Value> {
         arity.validate(received_args).err().map(Value::Error)
     }
 
@@ -1914,13 +2295,14 @@ impl Interpreter {
         CallableArity::exact(name, params.to_vec())
     }
 
-    fn struct_method_arity(struct_name: &str, method_name: &str, params: &[String]) -> CallableArity {
+    fn struct_method_arity(
+        struct_name: &str,
+        method_name: &str,
+        params: &[String],
+    ) -> CallableArity {
         let has_self = params.first().map(|p| p == "self").unwrap_or(false);
-        let external_params: Vec<String> = if has_self {
-            params.iter().skip(1).cloned().collect()
-        } else {
-            params.to_vec()
-        };
+        let external_params: Vec<String> =
+            if has_self { params.iter().skip(1).cloned().collect() } else { params.to_vec() };
         CallableArity::exact(format!("{}.{}", struct_name, method_name), external_params)
     }
 
@@ -1945,17 +2327,15 @@ impl Interpreter {
             "contains" => {
                 CallableArity::exact("contains", vec!["value".to_string(), "needle".to_string()])
             }
-            "starts_with" => CallableArity::exact(
-                "starts_with",
-                vec!["value".to_string(), "prefix".to_string()],
-            ),
+            "starts_with" => {
+                CallableArity::exact("starts_with", vec!["value".to_string(), "prefix".to_string()])
+            }
             "ends_with" => {
                 CallableArity::exact("ends_with", vec!["value".to_string(), "suffix".to_string()])
             }
-            "index_of" => CallableArity::exact(
-                "index_of",
-                vec!["value".to_string(), "needle".to_string()],
-            ),
+            "index_of" => {
+                CallableArity::exact("index_of", vec!["value".to_string(), "needle".to_string()])
+            }
             "replace" => CallableArity::exact(
                 "replace",
                 vec!["value".to_string(), "from".to_string(), "to".to_string()],
@@ -1964,10 +2344,9 @@ impl Interpreter {
                 "substring",
                 vec!["value".to_string(), "start".to_string(), "end".to_string()],
             ),
-            "repeat" => CallableArity::exact(
-                "repeat",
-                vec!["value".to_string(), "count".to_string()],
-            ),
+            "repeat" => {
+                CallableArity::exact("repeat", vec!["value".to_string(), "count".to_string()])
+            }
             "input" => CallableArity::range("input", 0, 1, vec!["prompt".to_string()]),
             "exit" => CallableArity::range("exit", 0, 1, vec!["code".to_string()]),
             "Promise.all" => CallableArity::range(
@@ -2310,125 +2689,23 @@ impl Interpreter {
                 self.set_return_if_error(&val);
 
                 // Always perform the assignment, even for errors
-                match target {
+                let assignment_result = match target {
                     Expr::Identifier(name) => {
                         // Simple variable assignment - use set to update in correct scope
                         self.env.set(name.clone(), val.clone());
+                        Value::Null
                     }
                     Expr::IndexAccess { object, index } => {
-                        // Array or dict element assignment
-                        let index_val = self.eval_expr(index);
-                        if self.set_return_if_error(&index_val) {
-                            return;
-                        }
-
-                        // Get the container (array or dict) from the object expression
-                        // For now, only support direct identifiers as the object
-                        if let Expr::Identifier(container_name) = object.as_ref() {
-                            let val_clone = val.clone();
-                            let idx_clone = index_val.clone();
-                            self.env.mutate(container_name.as_str(), |container| match container {
-                                Value::Array(arr) => {
-                                    let i = match &idx_clone {
-                                        Value::Int(n) => *n as usize,
-                                        Value::Float(n) => *n as usize,
-                                        _ => return,
-                                    };
-                                    let arr_mut = Arc::make_mut(arr);
-                                    if i < arr_mut.len() {
-                                        arr_mut[i] = val_clone.clone();
-                                    } else {
-                                        eprintln!("Array index out of bounds: {}", i);
-                                    }
-                                }
-                                Value::Dict(dict) => {
-                                    let key = Self::stringify_value(&idx_clone);
-                                    Arc::make_mut(dict).insert(key.into(), val_clone.clone());
-                                }
-                                _ => {
-                                    eprintln!("Cannot index non-collection type");
-                                }
-                            });
-                        } else {
-                            eprintln!("Complex index assignment not yet supported");
-                        }
+                        self.assign_index(object.as_ref(), index.as_ref(), &val)
                     }
                     Expr::FieldAccess { object, field } => {
-                        // Field assignment like obj.field or arr[0].field
-                        // We need to evaluate the object, update the field, then assign it back
-
-                        // Handle different types of object expressions
-                        match object.as_ref() {
-                            Expr::Identifier(name) => {
-                                // Direct field assignment: obj.field := value
-                                let field_clone = field.clone();
-                                let val_clone = val.clone();
-                                self.env.mutate(name.as_str(), |obj_val| {
-                                    if let Value::Struct { name: _, fields } = obj_val {
-                                        fields.insert(field_clone, val_clone);
-                                    } else {
-                                        eprintln!("Cannot access field on non-struct type");
-                                    }
-                                });
-                            }
-                            Expr::IndexAccess { object: index_obj, index } => {
-                                // Array/dict element field assignment: arr[0].field := value
-                                let index_val = self.eval_expr(index);
-                                if self.set_return_if_error(&index_val) {
-                                    return;
-                                }
-
-                                if let Expr::Identifier(container_name) = index_obj.as_ref() {
-                                    let field_clone = field.clone();
-                                    let val_clone = val.clone();
-                                    let idx_clone = index_val.clone();
-
-                                    self.env.mutate(container_name.as_str(), |container| {
-                                        match container {
-                                            Value::Array(arr) => {
-                                                let i = match &idx_clone {
-                                                    Value::Int(n) => *n as usize,
-                                                    Value::Float(n) => *n as usize,
-                                                    _ => return,
-                                                };
-                                                let arr_mut = Arc::make_mut(arr);
-                                                if i < arr_mut.len() {
-                                                    if let Value::Struct { name: _, fields } =
-                                                        &mut arr_mut[i]
-                                                    {
-                                                        fields.insert(field_clone, val_clone);
-                                                    } else {
-                                                        eprintln!("Array element is not a struct");
-                                                    }
-                                                } else {
-                                                    eprintln!("Array index out of bounds: {}", i);
-                                                }
-                                            }
-                                            Value::Dict(dict) => {
-                                                let key = Self::stringify_value(&idx_clone);
-                                                if let Some(Value::Struct { name: _, fields }) =
-                                                    Arc::make_mut(dict).get_mut(key.as_str())
-                                                {
-                                                    fields.insert(field_clone, val_clone);
-                                                } else {
-                                                    eprintln!("Dict value is not a struct");
-                                                }
-                                            }
-                                            _ => {
-                                                eprintln!("Cannot index non-collection type");
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                            _ => {
-                                eprintln!("Complex field assignment not yet supported");
-                            }
-                        }
+                        self.assign_member(object.as_ref(), field, &val)
                     }
-                    _ => {
-                        eprintln!("Invalid assignment target");
-                    }
+                    _ => Value::Error("Invalid assignment target".to_string()),
+                };
+
+                if self.set_return_if_error(&assignment_result) {
+                    return;
                 }
 
                 // If expression evaluation resulted in an error, propagate it
@@ -3198,12 +3475,7 @@ impl Interpreter {
                     }
                 }
 
-                // Default behavior for built-in types
-                match (op.as_str(), val) {
-                    ("-", Value::Float(n)) => Value::Float(-n),
-                    ("!", Value::Bool(b)) => Value::Bool(!b),
-                    _ => Value::Int(0), // Default for unsupported operations
-                }
+                self.unary_op_value(op.as_str(), &val)
             }
             Expr::BinaryOp { left, op, right } => {
                 // Handle special operators that need custom evaluation
@@ -3336,116 +3608,7 @@ impl Interpreter {
                     }
                 }
 
-                // Default behavior for built-in types
-                match (l, r) {
-                    (Value::Null, Value::Null) => match op.as_str() {
-                        "==" => Value::Bool(true),
-                        "!=" => Value::Bool(false),
-                        _ => Value::Int(0),
-                    },
-                    (Value::Null, _) | (_, Value::Null) => match op.as_str() {
-                        "==" => Value::Bool(false),
-                        "!=" => Value::Bool(true),
-                        _ => Value::Int(0),
-                    },
-                    // Int + Int = Int (preserve integer type)
-                    (Value::Int(a), Value::Int(b)) => match op.as_str() {
-                        "+" => Value::Int(a.wrapping_add(b)),
-                        "-" => Value::Int(a.wrapping_sub(b)),
-                        "*" => Value::Int(a.wrapping_mul(b)),
-                        "/" => {
-                            if b == 0 {
-                                Value::Error("Division by zero".to_string())
-                            } else {
-                                Value::Int(a / b) // Integer division: 5/2 = 2
-                            }
-                        }
-                        "%" => {
-                            if b == 0 {
-                                Value::Error("Modulo by zero".to_string())
-                            } else {
-                                Value::Int(a % b)
-                            }
-                        }
-                        "==" => Value::Bool(a == b),
-                        "!=" => Value::Bool(a != b),
-                        ">" => Value::Bool(a > b),
-                        "<" => Value::Bool(a < b),
-                        ">=" => Value::Bool(a >= b),
-                        "<=" => Value::Bool(a <= b),
-                        _ => Value::Int(0),
-                    },
-                    // Float + Float = Float
-                    (Value::Float(a), Value::Float(b)) => match op.as_str() {
-                        "+" => Value::Float(a + b),
-                        "-" => Value::Float(a - b),
-                        "*" => Value::Float(a * b),
-                        "/" => Value::Float(a / b),
-                        "%" => Value::Float(a % b),
-                        "==" => Value::Bool((a - b).abs() < f64::EPSILON),
-                        "!=" => Value::Bool((a - b).abs() >= f64::EPSILON),
-                        ">" => Value::Bool(a > b),
-                        "<" => Value::Bool(a < b),
-                        ">=" => Value::Bool(a >= b),
-                        "<=" => Value::Bool(a <= b),
-                        _ => Value::Int(0),
-                    },
-                    // Int + Float = Float (promote to float)
-                    (Value::Int(a), Value::Float(b)) => {
-                        let a_float = a as f64;
-                        match op.as_str() {
-                            "+" => Value::Float(a_float + b),
-                            "-" => Value::Float(a_float - b),
-                            "*" => Value::Float(a_float * b),
-                            "/" => Value::Float(a_float / b),
-                            "%" => Value::Float(a_float % b),
-                            "==" => Value::Bool((a_float - b).abs() < f64::EPSILON),
-                            "!=" => Value::Bool((a_float - b).abs() >= f64::EPSILON),
-                            ">" => Value::Bool(a_float > b),
-                            "<" => Value::Bool(a_float < b),
-                            ">=" => Value::Bool(a_float >= b),
-                            "<=" => Value::Bool(a_float <= b),
-                            _ => Value::Int(0),
-                        }
-                    }
-                    // Float + Int = Float (promote to float)
-                    (Value::Float(a), Value::Int(b)) => {
-                        let b_float = b as f64;
-                        match op.as_str() {
-                            "+" => Value::Float(a + b_float),
-                            "-" => Value::Float(a - b_float),
-                            "*" => Value::Float(a * b_float),
-                            "/" => Value::Float(a / b_float),
-                            "%" => Value::Float(a % b_float),
-                            "==" => Value::Bool((a - b_float).abs() < f64::EPSILON),
-                            "!=" => Value::Bool((a - b_float).abs() >= f64::EPSILON),
-                            ">" => Value::Bool(a > b_float),
-                            "<" => Value::Bool(a < b_float),
-                            ">=" => Value::Bool(a >= b_float),
-                            "<=" => Value::Bool(a <= b_float),
-                            _ => Value::Int(0),
-                        }
-                    }
-                    (Value::Str(a), Value::Str(b)) => match op.as_str() {
-                        "+" => {
-                            let mut result = a.clone();
-                            let result_str = Arc::make_mut(&mut result);
-                            result_str.push_str(b.as_ref());
-                            Value::Str(result)
-                        }
-                        "==" => Value::Bool(a.as_ref() == b.as_ref()),
-                        "!=" => Value::Bool(a.as_ref() != b.as_ref()),
-                        _ => Value::Int(0),
-                    },
-                    (Value::Bool(a), Value::Bool(b)) => match op.as_str() {
-                        "==" => Value::Bool(a == b),
-                        "!=" => Value::Bool(a != b),
-                        "&&" => Value::Bool(a && b),
-                        "||" => Value::Bool(a || b),
-                        _ => Value::Int(0),
-                    },
-                    _ => Value::Int(0),
-                }
+                self.binary_op_value(&l, op.as_str(), &r)
             }
             Expr::Call { function, args } => {
                 // Special handling for method calls: obj.method(args)
@@ -3517,12 +3680,10 @@ impl Interpreter {
                             "send" => {
                                 // chan.send(value) - send value to channel
                                 if args.len() != 1 {
-                                    return Value::Error(
-                                        format!(
-                                            "Channel.send expects 1 arguments, got {}",
-                                            args.len()
-                                        ),
-                                    );
+                                    return Value::Error(format!(
+                                        "Channel.send expects 1 arguments, got {}",
+                                        args.len()
+                                    ));
                                 }
 
                                 let value = self.eval_expr(&args[0]);
@@ -3921,7 +4082,8 @@ impl Interpreter {
                         }
 
                         let arity = Self::function_arity(callable_name.clone(), &params);
-                        if let Some(error) = self.validate_callable_arity(&arity, evaluated_args.len())
+                        if let Some(error) =
+                            self.validate_callable_arity(&arity, evaluated_args.len())
                         {
                             self.call_stack.pop();
                             return error;
@@ -4230,7 +4392,9 @@ impl Interpreter {
                             }
 
                             let arity = Self::function_arity(name, params);
-                            if let Some(error) = self.validate_callable_arity(&arity, args_vec.len()) {
+                            if let Some(error) =
+                                self.validate_callable_arity(&arity, args_vec.len())
+                            {
                                 return error;
                             }
 
@@ -4390,40 +4554,7 @@ impl Interpreter {
                     return idx_val;
                 }
 
-                match (obj_val, idx_val) {
-                    (Value::Array(arr), Value::Int(n)) => {
-                        let idx = n as usize;
-                        arr.get(idx).cloned().unwrap_or(Value::Int(0))
-                    }
-                    (Value::Array(arr), Value::Float(n)) => {
-                        let idx = n as usize;
-                        arr.get(idx).cloned().unwrap_or(Value::Int(0))
-                    }
-                    (Value::Dict(map), Value::Str(key)) => {
-                        map.get(key.as_str()).cloned().unwrap_or_else(|| {
-                            Value::Error(format!("Missing map key: {:?}", key.as_ref()))
-                        })
-                    }
-                    (Value::Dict(map), Value::Int(key)) => map
-                        .get(key.to_string().as_str())
-                        .cloned()
-                        .unwrap_or_else(|| Value::Error(format!("Missing map key: {}", key))),
-                    (Value::Str(s), Value::Int(n)) => {
-                        let idx = n as usize;
-                        s.chars()
-                            .nth(idx)
-                            .map(|c| Value::Str(Arc::new(c.to_string())))
-                            .unwrap_or(Value::Str(Arc::new(String::new())))
-                    }
-                    (Value::Str(s), Value::Float(n)) => {
-                        let idx = n as usize;
-                        s.chars()
-                            .nth(idx)
-                            .map(|c| Value::Str(Arc::new(c.to_string())))
-                            .unwrap_or(Value::Str(Arc::new(String::new())))
-                    }
-                    _ => Value::Error("Invalid index operation".to_string()),
-                }
+                Self::index_value(&obj_val, &idx_val)
             }
             Expr::Ok(value_expr) => {
                 let value = self.eval_expr(value_expr);
@@ -4920,7 +5051,9 @@ impl Interpreter {
                                 methods.get(method)
                             {
                                 let arity = Self::struct_method_arity(&name, method, params);
-                                if let Some(error) = self.validate_callable_arity(&arity, args.len()) {
+                                if let Some(error) =
+                                    self.validate_callable_arity(&arity, args.len())
+                                {
                                     return error;
                                 }
 

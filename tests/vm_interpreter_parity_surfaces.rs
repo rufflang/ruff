@@ -256,6 +256,76 @@ fn vm_and_interpreter_error_on_invalid_map_key_type() {
 }
 
 #[test]
+fn vm_and_interpreter_error_on_out_of_bounds_array_index() {
+    let script = r#"
+        values := [10, 20]
+        return values[5]
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Index out of bounds");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_out_of_bounds_string_index() {
+    let script = r#"
+        label := "ruff"
+        return label[10]
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Index out of bounds");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_indexing_non_indexable_value() {
+    let script = r#"
+        value := 42
+        return value[0]
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Invalid index operation");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_invalid_index_assignment_target() {
+    let script = r#"
+        value := 42
+        value[0] := 7
+        return value
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Invalid index assignment");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_unsupported_binary_operation() {
+    let script = r#"
+        return "left" - "right"
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Invalid binary operation");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_unsupported_unary_operation() {
+    let script = r#"
+        return -true
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Invalid unary operation");
+}
+
+#[test]
+fn vm_and_interpreter_match_valid_index_assignment_success_path() {
+    let script = r#"
+        values := [2, 4, 6]
+        values[1] := values[1] + 3
+        index_assignment_ok := values[1] == 7
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "index_assignment_ok");
+}
+
+#[test]
 fn vm_and_interpreter_error_on_undefined_top_level_identifier() {
     let script = r#"
         return missing_top_level_name
