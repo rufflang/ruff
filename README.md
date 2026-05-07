@@ -229,11 +229,13 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Numeric, string, boolean, `null`, array, and dictionary values.
 - `let`, `mut`, and `const` bindings with `:=` assignment syntax.
 - `let` and `const` bindings are immutable (reassignment and in-place mutation through those bindings are runtime errors); `mut` bindings allow reassignment and in-place mutation.
+- Duplicate declarations in the same lexical scope are runtime/compile errors (`Duplicate declaration in the same scope: <name>`).
 - Assignment/update statements support `:=`, `=`, `+=`, `-=`, `*=`, `/=`, and `%=` (chained assignment like `a := b := 1` is rejected).
 - Operator precedence is explicit and documented in `docs/LANGUAGE_SPEC.md` (postfix/unary through multiplicative/additive/comparison/equality/boolean/null-coalescing/pipe).
 - Optional annotations on variables and functions, such as `let x: int := 42` and `func add(a: int, b: int) -> int`.
 - Functions declared with `func`, including anonymous function expressions and `async func`.
 - `if`/`else`, `while`, `loop`, `for ... in`, `break`, and `continue`.
+- Function bodies and control-flow bodies (`if`/`else`, `while`, `loop`, and `for`) use lexical scopes; inner shadowing is allowed, loop variables do not leak after loop completion, and closures capture the nearest lexical binding.
 - Shared truthiness semantics across interpreter/VM/native predicates: `false`, `null`, `0`, `0.0`, empty string, empty array, and empty dictionary are falsey; all other values are truthy.
 - Logical `&&` and `||` use truthiness and short-circuit (RHS is evaluated only when required), returning boolean results.
 - Arrays and dictionaries with indexing and standard library helpers.

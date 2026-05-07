@@ -577,7 +577,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-RUN-006: Enforce scope isolation, shadowing, and declaration rules
+[x] V1-RUN-006: Enforce scope isolation, shadowing, and declaration rules
     Priority: P1
     Severity: High
     Area: Correctness/Language Semantics
@@ -599,7 +599,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Duplicate same-scope declaration behavior is tested.
         - Shadowing behavior is tested.
     Acceptance criteria: Scope behavior is documented, tested, and identical across interpreter and VM.
-    Notes: This item may require a symbol-resolution pass if VM/compiler behavior is currently ad hoc.
+    Notes: Completed on 2026-05-07. Added centralized same-scope declaration guards in `src/interpreter/environment.rs` (`define_with_kind_checked`) and routed interpreter `let`/`const` pattern binding through checked declaration paths so duplicate declarations now fail with deterministic `Duplicate declaration in the same scope: <name>` diagnostics. Updated compiler local symbol handling in `src/compiler.rs` with explicit local-scope declaration checks, function/lambda/method parameter duplicate-name rejection, and scoped resolution updates for `if`/`while`/`loop`/`for` bodies so function-local and loop-local bindings follow lexical lifetime/shadowing rules. Updated VM `DefineGlobal` execution paths in `src/vm.rs` to honor checked declarations for bytecode-defined bindings. Added parity regressions in `tests/vm_interpreter_parity_surfaces.rs` covering shadowing success, closure nearest-binding capture, duplicate `let`/`const` declaration failures, function-local control-flow leak prevention, and loop-variable lifetime isolation. Updated scope/declaration language contract text in `docs/LANGUAGE_SPEC.md` and README language overview. Verification: `cargo test --test vm_interpreter_parity_surfaces`, `cargo test --test interpreter_tests scope`, and `cargo test`.
 ```
 
 ```text

@@ -191,7 +191,11 @@ From highest precedence to lowest:
 
 - Top-level script bindings resolve in the global scope.
 - Function bodies introduce lexical scope boundaries.
-- Shadowing is allowed and resolved by nearest lexical definition.
+- `if`/`else`, `while`, and `loop` bodies execute in nested lexical scopes.
+- `for ... in` introduces a loop-variable scope; the loop variable does not leak after the loop completes.
+- Duplicate declarations in the same lexical scope are rejected with `Duplicate declaration in the same scope: <name>`.
+- Inner-scope shadowing is allowed and resolved by nearest lexical definition.
+- Closures capture the nearest visible lexical binding.
 - Referencing an identifier with no visible binding is a runtime error of the form `Undefined variable: <name>`. Ruff does not convert unknown identifiers into strings; quote string literals explicitly.
 
 ### 5.3 Function execution
