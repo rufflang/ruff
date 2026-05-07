@@ -4,10 +4,10 @@
 // Stack-based VM with support for function calls, closures, and all Ruff features.
 
 use crate::ast::Pattern;
-use crate::bytecode::{BytecodeChunk, Constant, OpCode};
+use crate::bytecode::{BytecodeBindingKind, BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{
-    CallableArity, DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap, Interpreter,
-    Value,
+    BindingKind, CallableArity, DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap,
+    Interpreter, Value,
 };
 use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler};
 use std::collections::HashMap;
@@ -368,7 +368,10 @@ pub struct CallFrameData {
     pub return_ip: usize,
     pub stack_offset: usize,
     pub locals: HashMap<String, Value>,
+    pub locals_binding_kinds: HashMap<String, BytecodeBindingKind>,
     pub local_slots: Vec<Value>,
+    pub local_slot_binding_kinds: Vec<BytecodeBindingKind>,
+    pub local_slot_initialized: Vec<bool>,
     pub captured: HashMap<String, Arc<Mutex<Value>>>,
 }
 
@@ -385,8 +388,17 @@ pub(crate) struct CallFrame {
     /// Local environment for this frame (parameters and local variables)
     locals: HashMap<String, Value>,
 
+    /// Binding mutability metadata for local named variables.
+    locals_binding_kinds: HashMap<String, BytecodeBindingKind>,
+
     /// Local slot storage for fast variable access
     pub(crate) local_slots: Vec<Value>,
+
+    /// Binding mutability metadata for local slots.
+    local_slot_binding_kinds: Vec<BytecodeBindingKind>,
+
+    /// Tracks whether a slot has been initialized at least once.
+    local_slot_initialized: Vec<bool>,
 
     /// Captured variables (upvalues) with shared mutable state
     captured: HashMap<String, Arc<Mutex<Value>>>,
@@ -400,6 +412,34 @@ pub(crate) struct CallFrame {
 
 #[allow(dead_code)] // VM not yet integrated into execution path
 impl VM {
+    fn env_binding_kind(kind: BytecodeBindingKind) -> BindingKind {
+        match kind {
+            BytecodeBindingKind::Mutable => BindingKind::Mutable,
+            BytecodeBindingKind::LetImmutable => BindingKind::LetImmutable,
+            BytecodeBindingKind::Const => BindingKind::Const,
+        }
+    }
+
+    fn local_reassignment_error(kind: BytecodeBindingKind, name: &str) -> String {
+        match kind {
+            BytecodeBindingKind::Mutable => unreachable!("mutable bindings allow reassignment"),
+            BytecodeBindingKind::LetImmutable => {
+                format!("Cannot reassign immutable let binding: {}", name)
+            }
+            BytecodeBindingKind::Const => format!("Cannot reassign const binding: {}", name),
+        }
+    }
+
+    fn local_mutation_error(kind: BytecodeBindingKind, name: &str) -> String {
+        match kind {
+            BytecodeBindingKind::Mutable => unreachable!("mutable bindings allow mutation"),
+            BytecodeBindingKind::LetImmutable => {
+                format!("Cannot mutate immutable let binding: {}", name)
+            }
+            BytecodeBindingKind::Const => format!("Cannot mutate const binding: {}", name),
+        }
+    }
+
     fn undefined_variable_message(name: &str) -> String {
         format!("Undefined variable: {}", name)
     }
@@ -1065,6 +1105,8 @@ impl VM {
                             | OpCode::IndexSetInPlace(_)
                             | OpCode::LoadVar(_)
                             | OpCode::LoadGlobal(_)
+                            | OpCode::DefineGlobal(_, _)
+                            | OpCode::EnsureMutableGlobalForMutation(_)
                             | OpCode::SumIntMapUntilLocalInPlace(_, _, _, _)
                             | OpCode::FillIntMapWithDoubleUntilLocalInPlace(_, _, _)
                     ) {
@@ -1597,27 +1639,55 @@ impl VM {
                             }
                             *captured_ref.lock().unwrap() = value;
                         } else {
+                            if let Some(kind) = frame.locals_binding_kinds.get(&name).copied() {
+                                if !matches!(kind, BytecodeBindingKind::Mutable) {
+                                    return Err(Self::local_reassignment_error(kind, &name));
+                                }
+                            }
                             // Store in local variables
                             if std::env::var("DEBUG_VM").is_ok() {
                                 eprintln!("StoreVar('{}'): storing in frame locals", name);
                             }
+                            frame
+                                .locals_binding_kinds
+                                .entry(name.clone())
+                                .or_insert(BytecodeBindingKind::Mutable);
                             frame.locals.insert(name, value);
                         }
                     } else {
                         if std::env::var("DEBUG_VM").is_ok() {
                             eprintln!("StoreVar('{}'): storing in globals (no frame)", name);
                         }
-                        // Store in global
-                        self.globals.lock().unwrap().set(name, value);
+                        self.globals.lock().unwrap().assign_checked(name, value)?;
                     }
                 }
 
                 OpCode::StoreLocal(slot) => {
                     let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                    let binding_name = self
+                        .chunk
+                        .local_names
+                        .get(slot)
+                        .cloned()
+                        .unwrap_or_else(|| format!("<local:{}>", slot));
                     let frame =
                         self.call_frames.last_mut().ok_or("StoreLocal requires call frame")?;
                     if let Some(target) = frame.local_slots.get_mut(slot) {
+                        let kind = frame
+                            .local_slot_binding_kinds
+                            .get(slot)
+                            .copied()
+                            .unwrap_or(BytecodeBindingKind::Mutable);
+                        let initialized =
+                            frame.local_slot_initialized.get(slot).copied().unwrap_or(false);
+                        if initialized && !matches!(kind, BytecodeBindingKind::Mutable) {
+                            return Err(Self::local_reassignment_error(kind, &binding_name));
+                        }
+
                         *target = value;
+                        if let Some(initialized_flag) = frame.local_slot_initialized.get_mut(slot) {
+                            *initialized_flag = true;
+                        }
                     } else {
                         return Err(format!("Invalid local slot: {}", slot));
                     }
@@ -1625,8 +1695,20 @@ impl VM {
 
                 OpCode::StoreGlobal(name) => {
                     let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                    self.globals.lock().unwrap().assign_checked(name, value)?;
+                }
 
-                    self.globals.lock().unwrap().set(name, value);
+                OpCode::DefineGlobal(name, kind) => {
+                    let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                    self.globals.lock().unwrap().define_with_kind(
+                        name,
+                        value,
+                        Self::env_binding_kind(kind),
+                    );
+                }
+
+                OpCode::EnsureMutableGlobalForMutation(name) => {
+                    self.globals.lock().unwrap().ensure_mutable_for_mutation(name.as_str())?;
                 }
 
                 OpCode::Pop => {
@@ -3545,9 +3627,24 @@ impl VM {
                     // Pop index and value from stack
                     let index = self.stack.pop().ok_or("Stack underflow")?;
                     let value = self.stack.pop().ok_or("Stack underflow")?;
+                    let binding_name = self
+                        .chunk
+                        .local_names
+                        .get(slot)
+                        .cloned()
+                        .unwrap_or_else(|| format!("<local:{}>", slot));
 
                     let frame =
                         self.call_frames.last_mut().ok_or("IndexSetInPlace requires call frame")?;
+
+                    let kind = frame
+                        .local_slot_binding_kinds
+                        .get(slot)
+                        .copied()
+                        .unwrap_or(BytecodeBindingKind::Mutable);
+                    if !matches!(kind, BytecodeBindingKind::Mutable) {
+                        return Err(Self::local_mutation_error(kind, &binding_name));
+                    }
 
                     {
                         let object = frame
@@ -4191,11 +4288,11 @@ impl VM {
                 }
 
                 // Pattern matching
-                OpCode::MatchPattern(pattern_index) => {
+                OpCode::MatchPattern(pattern_index, binding_kind) => {
                     let constant = self.chunk.constants[pattern_index].clone();
                     if let Constant::Pattern(pattern) = constant {
                         let value = self.stack.last().ok_or("Stack underflow")?.clone();
-                        let success = self.match_pattern(&pattern, &value)?;
+                        let success = self.match_pattern(&pattern, &value, binding_kind)?;
                         self.stack.push(Value::Bool(success));
                     } else {
                         return Err("Expected pattern constant".to_string());
@@ -4856,18 +4953,31 @@ impl VM {
         if let Value::BytecodeFunction { chunk, captured } = function {
             // Create new call frame with parameters bound
             let mut locals = HashMap::new();
+            let mut locals_binding_kinds = HashMap::new();
 
             let call_args = self.prepare_bytecode_call_args(&chunk, args)?;
             let param_names = &chunk.params;
 
             let mut local_slots = vec![Value::Null; chunk.local_count];
+            let mut local_slot_binding_kinds =
+                if chunk.local_binding_kinds.len() < chunk.local_count {
+                    let mut kinds = chunk.local_binding_kinds.clone();
+                    kinds.resize(chunk.local_count, BytecodeBindingKind::Mutable);
+                    kinds
+                } else {
+                    chunk.local_binding_kinds.clone()
+                };
+            let mut local_slot_initialized = vec![false; chunk.local_count];
 
             // Bind each argument to its corresponding parameter name
             for (param_name, arg_value) in param_names.iter().zip(call_args.iter()) {
                 locals.insert(param_name.clone(), arg_value.clone());
+                locals_binding_kinds.insert(param_name.clone(), BytecodeBindingKind::Mutable);
                 if let Some(slot) = chunk.local_names.iter().position(|name| name == param_name) {
                     if slot < local_slots.len() {
                         local_slots[slot] = arg_value.clone();
+                        local_slot_binding_kinds[slot] = BytecodeBindingKind::Mutable;
+                        local_slot_initialized[slot] = true;
                     }
                 }
             }
@@ -4890,7 +5000,10 @@ impl VM {
                 return_ip: self.ip,
                 stack_offset: self.stack.len(),
                 locals,
+                locals_binding_kinds,
                 local_slots,
+                local_slot_binding_kinds,
+                local_slot_initialized,
                 captured: captured_map,
                 prev_chunk: Some(self.chunk.clone()),
                 is_async: chunk.is_async,
@@ -6112,23 +6225,75 @@ impl VM {
                         OpCode::StoreVar(name) => {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
                             if let Some(frame) = self.call_frames.last_mut() {
+                                if let Some(kind) = frame.locals_binding_kinds.get(&name).copied() {
+                                    if !matches!(kind, BytecodeBindingKind::Mutable) {
+                                        return Err(Self::local_reassignment_error(kind, &name));
+                                    }
+                                }
+                                frame
+                                    .locals_binding_kinds
+                                    .entry(name.clone())
+                                    .or_insert(BytecodeBindingKind::Mutable);
                                 frame.locals.insert(name, value);
                             }
                         }
 
                         OpCode::StoreLocal(slot) => {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
+                            let binding_name = self
+                                .chunk
+                                .local_names
+                                .get(slot)
+                                .cloned()
+                                .unwrap_or_else(|| format!("<local:{}>", slot));
                             if let Some(frame) = self.call_frames.last_mut() {
                                 if slot >= frame.local_slots.len() {
                                     frame.local_slots.resize(slot + 1, Value::Null);
+                                    frame
+                                        .local_slot_binding_kinds
+                                        .resize(slot + 1, BytecodeBindingKind::Mutable);
+                                    frame.local_slot_initialized.resize(slot + 1, false);
+                                }
+                                let kind = frame
+                                    .local_slot_binding_kinds
+                                    .get(slot)
+                                    .copied()
+                                    .unwrap_or(BytecodeBindingKind::Mutable);
+                                let initialized = frame
+                                    .local_slot_initialized
+                                    .get(slot)
+                                    .copied()
+                                    .unwrap_or(false);
+                                if initialized && !matches!(kind, BytecodeBindingKind::Mutable) {
+                                    return Err(Self::local_reassignment_error(
+                                        kind,
+                                        &binding_name,
+                                    ));
                                 }
                                 frame.local_slots[slot] = value;
+                                frame.local_slot_initialized[slot] = true;
                             }
                         }
 
                         OpCode::StoreGlobal(name) => {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
-                            self.globals.lock().unwrap().set(name, value);
+                            self.globals.lock().unwrap().assign_checked(name, value)?;
+                        }
+
+                        OpCode::DefineGlobal(name, kind) => {
+                            let value = self.stack.pop().ok_or("Stack underflow")?;
+                            self.globals.lock().unwrap().define_with_kind(
+                                name,
+                                value,
+                                Self::env_binding_kind(kind),
+                            );
+                        }
+
+                        OpCode::EnsureMutableGlobalForMutation(name) => {
+                            self.globals
+                                .lock()
+                                .unwrap()
+                                .ensure_mutable_for_mutation(name.as_str())?;
                         }
 
                         OpCode::Pop => {
@@ -6591,10 +6756,15 @@ impl VM {
     }
 
     /// Match a pattern against a value
-    fn match_pattern(&mut self, pattern: &Pattern, value: &Value) -> Result<bool, String> {
+    fn match_pattern(
+        &mut self,
+        pattern: &Pattern,
+        value: &Value,
+        binding_kind: BytecodeBindingKind,
+    ) -> Result<bool, String> {
         match pattern {
             Pattern::Identifier(name) => {
-                self.bind_pattern_name(name, value.clone());
+                self.bind_pattern_name(name, value.clone(), binding_kind);
                 Ok(true)
             }
 
@@ -6611,7 +6781,7 @@ impl VM {
                     }
 
                     for (index, element_pattern) in elements.iter().enumerate() {
-                        if !self.match_pattern(element_pattern, &arr[index])? {
+                        if !self.match_pattern(element_pattern, &arr[index], binding_kind)? {
                             return Ok(false);
                         }
                     }
@@ -6621,6 +6791,7 @@ impl VM {
                         self.bind_pattern_name(
                             rest_name,
                             Value::Array(std::sync::Arc::new(rest_values)),
+                            binding_kind,
                         );
                     }
 
@@ -6636,7 +6807,7 @@ impl VM {
                         let Some(dict_value) = dict.get(key.as_str()) else {
                             return Ok(false);
                         };
-                        self.bind_pattern_name(key, dict_value.clone());
+                        self.bind_pattern_name(key, dict_value.clone(), binding_kind);
                     }
 
                     if let Some(rest_name) = rest {
@@ -6649,6 +6820,7 @@ impl VM {
                         self.bind_pattern_name(
                             rest_name,
                             Value::Dict(std::sync::Arc::new(rest_dict)),
+                            binding_kind,
                         );
                     }
 
@@ -6661,7 +6833,7 @@ impl VM {
                         let Some(index) = key_index else {
                             return Ok(false);
                         };
-                        self.bind_pattern_name(key, values[index].clone());
+                        self.bind_pattern_name(key, values[index].clone(), binding_kind);
                     }
 
                     if let Some(rest_name) = rest {
@@ -6674,6 +6846,7 @@ impl VM {
                         self.bind_pattern_name(
                             rest_name,
                             Value::Dict(std::sync::Arc::new(rest_dict)),
+                            binding_kind,
                         );
                     }
 
@@ -6707,7 +6880,11 @@ impl VM {
                 let full_tag = format!("Result::{}", short_tag);
                 if case_tag == short_tag || case_tag == full_tag {
                     if let Some(name) = binding_name {
-                        self.bind_pattern_name(name.as_str(), (**value).clone());
+                        self.bind_pattern_name(
+                            name.as_str(),
+                            (**value).clone(),
+                            BytecodeBindingKind::Mutable,
+                        );
                     }
                     true
                 } else {
@@ -6720,7 +6897,11 @@ impl VM {
                 if case_tag == short_tag || case_tag == full_tag {
                     if let Some(name) = binding_name {
                         if *is_some {
-                            self.bind_pattern_name(name.as_str(), (**value).clone());
+                            self.bind_pattern_name(
+                                name.as_str(),
+                                (**value).clone(),
+                                BytecodeBindingKind::Mutable,
+                            );
                         }
                     }
                     true
@@ -6732,7 +6913,11 @@ impl VM {
                 if case_tag == *tag {
                     if let Some(name) = binding_name {
                         if let Some(bound) = fields.get("$0") {
-                            self.bind_pattern_name(name.as_str(), bound.clone());
+                            self.bind_pattern_name(
+                                name.as_str(),
+                                bound.clone(),
+                                BytecodeBindingKind::Mutable,
+                            );
                         }
                     }
                     true
@@ -6747,12 +6932,17 @@ impl VM {
         }
     }
 
-    fn bind_pattern_name(&mut self, name: &str, value: Value) {
+    fn bind_pattern_name(&mut self, name: &str, value: Value, binding_kind: BytecodeBindingKind) {
         if self.call_frames.len() <= 1 {
-            self.globals.lock().unwrap().set(name.to_string(), value.clone());
+            self.globals.lock().unwrap().define_with_kind(
+                name.to_string(),
+                value.clone(),
+                Self::env_binding_kind(binding_kind),
+            );
         }
 
         if let Some(frame) = self.call_frames.last_mut() {
+            frame.locals_binding_kinds.insert(name.to_string(), binding_kind);
             frame.locals.insert(name.to_string(), value);
         }
     }
@@ -6786,7 +6976,10 @@ impl VM {
                     return_ip: frame_data.return_ip,
                     stack_offset: frame_data.stack_offset,
                     locals: frame_data.locals.clone(),
+                    locals_binding_kinds: frame_data.locals_binding_kinds.clone(),
                     local_slots: frame_data.local_slots.clone(),
+                    local_slot_binding_kinds: frame_data.local_slot_binding_kinds.clone(),
+                    local_slot_initialized: frame_data.local_slot_initialized.clone(),
                     captured: frame_data.captured.clone(),
                     prev_chunk: None,
                     is_async: false, // Generators are not async
@@ -6823,7 +7016,10 @@ impl VM {
                             return_ip: frame.return_ip,
                             stack_offset: frame.stack_offset,
                             locals: frame.locals.clone(),
+                            locals_binding_kinds: frame.locals_binding_kinds.clone(),
                             local_slots: frame.local_slots.clone(),
+                            local_slot_binding_kinds: frame.local_slot_binding_kinds.clone(),
+                            local_slot_initialized: frame.local_slot_initialized.clone(),
                             captured: frame.captured.clone(),
                         });
                     }
@@ -7113,7 +7309,16 @@ mod tests {
             return_ip: 11,
             stack_offset: 1,
             locals: HashMap::from([("local_x".to_string(), Value::Int(10))]),
+            locals_binding_kinds: HashMap::from([(
+                "local_x".to_string(),
+                BytecodeBindingKind::Mutable,
+            )]),
             local_slots: vec![Value::Int(10), Value::Bool(false)],
+            local_slot_binding_kinds: vec![
+                BytecodeBindingKind::Mutable,
+                BytecodeBindingKind::Mutable,
+            ],
+            local_slot_initialized: vec![true, true],
             captured: HashMap::new(),
             prev_chunk: Some(frame_chunk),
             is_async: false,

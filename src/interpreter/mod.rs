@@ -26,7 +26,7 @@ mod value;
 
 // Re-exports for backward compatibility
 pub use async_runtime::AsyncRuntime;
-pub use environment::Environment;
+pub use environment::{BindingKind, Environment};
 // Test framework exports - used by CLI test command
 #[allow(unused_imports)]
 pub use test_runner::{TestCase, TestReport, TestResult, TestRunner};
@@ -2023,7 +2023,7 @@ impl Interpreter {
         let index_clone = index_value.clone();
         let value_clone = value.clone();
 
-        let mutated = self.env.mutate(container_name, |container| match container {
+        let mutate_result = self.env.mutate_checked(container_name, |container| match container {
             Value::Array(arr) => {
                 let idx = match &index_clone {
                     Value::Int(i) => *i,
@@ -2054,8 +2054,8 @@ impl Interpreter {
             }
         });
 
-        if !mutated {
-            return Self::undefined_variable(container_name);
+        if let Err(error) = mutate_result {
+            return Value::Error(error);
         }
 
         if let Some(error) = assignment_error {
@@ -2072,7 +2072,7 @@ impl Interpreter {
         match object {
             Expr::Identifier(name) => {
                 let mut assignment_error: Option<String> = None;
-                let mutated = self.env.mutate(name.as_str(), |obj_value| {
+                let mutate_result = self.env.mutate_checked(name.as_str(), |obj_value| {
                     if let Value::Struct { name: _, fields } = obj_value {
                         fields.insert(field_name.clone(), value_clone.clone());
                     } else {
@@ -2080,8 +2080,8 @@ impl Interpreter {
                     }
                 });
 
-                if !mutated {
-                    return Self::undefined_variable(name);
+                if let Err(error) = mutate_result {
+                    return Value::Error(error);
                 }
 
                 if let Some(error) = assignment_error {
@@ -2107,53 +2107,57 @@ impl Interpreter {
 
                 let mut assignment_error: Option<String> = None;
                 let index_clone = index_value.clone();
-                let mutated = self.env.mutate(container_name, |container| match container {
-                    Value::Array(arr) => {
-                        let idx = match &index_clone {
-                            Value::Int(i) => *i,
-                            Value::Float(f) if f.is_finite() => *f as i64,
-                            _ => {
-                                assignment_error = Some(
-                                    "Invalid index assignment: unsupported array index type"
-                                        .to_string(),
-                                );
+                let mutate_result =
+                    self.env.mutate_checked(container_name, |container| match container {
+                        Value::Array(arr) => {
+                            let idx = match &index_clone {
+                                Value::Int(i) => *i,
+                                Value::Float(f) if f.is_finite() => *f as i64,
+                                _ => {
+                                    assignment_error = Some(
+                                        "Invalid index assignment: unsupported array index type"
+                                            .to_string(),
+                                    );
+                                    return;
+                                }
+                            };
+
+                            let arr_mut = Arc::make_mut(arr);
+                            let resolved = if idx < 0 { (arr_mut.len() as i64) + idx } else { idx };
+                            if resolved < 0 || resolved as usize >= arr_mut.len() {
+                                assignment_error = Some(format!("Index out of bounds: {}", idx));
                                 return;
                             }
-                        };
 
-                        let arr_mut = Arc::make_mut(arr);
-                        let resolved = if idx < 0 { (arr_mut.len() as i64) + idx } else { idx };
-                        if resolved < 0 || resolved as usize >= arr_mut.len() {
-                            assignment_error = Some(format!("Index out of bounds: {}", idx));
-                            return;
+                            if let Value::Struct { name: _, fields } =
+                                &mut arr_mut[resolved as usize]
+                            {
+                                fields.insert(field_name.clone(), value_clone.clone());
+                            } else {
+                                assignment_error =
+                                    Some("Array element is not a struct".to_string());
+                            }
                         }
+                        Value::Dict(dict) => {
+                            let key = Self::stringify_value(&index_clone);
+                            if let Some(Value::Struct { name: _, fields }) =
+                                Arc::make_mut(dict).get_mut(key.as_str())
+                            {
+                                fields.insert(field_name.clone(), value_clone.clone());
+                            } else {
+                                assignment_error = Some(format!(
+                                    "Missing map key: {}",
+                                    Self::index_key_description(&index_clone)
+                                ));
+                            }
+                        }
+                        _ => {
+                            assignment_error = Some("Invalid index assignment".to_string());
+                        }
+                    });
 
-                        if let Value::Struct { name: _, fields } = &mut arr_mut[resolved as usize] {
-                            fields.insert(field_name.clone(), value_clone.clone());
-                        } else {
-                            assignment_error = Some("Array element is not a struct".to_string());
-                        }
-                    }
-                    Value::Dict(dict) => {
-                        let key = Self::stringify_value(&index_clone);
-                        if let Some(Value::Struct { name: _, fields }) =
-                            Arc::make_mut(dict).get_mut(key.as_str())
-                        {
-                            fields.insert(field_name.clone(), value_clone.clone());
-                        } else {
-                            assignment_error = Some(format!(
-                                "Missing map key: {}",
-                                Self::index_key_description(&index_clone)
-                            ));
-                        }
-                    }
-                    _ => {
-                        assignment_error = Some("Invalid index assignment".to_string());
-                    }
-                });
-
-                if !mutated {
-                    return Self::undefined_variable(container_name);
+                if let Err(error) = mutate_result {
+                    return Value::Error(error);
                 }
 
                 if let Some(error) = assignment_error {
@@ -2386,12 +2390,12 @@ impl Interpreter {
     }
 
     /// Binds a pattern to a value, defining variables as needed
-    fn bind_pattern(&mut self, pattern: &crate::ast::Pattern, value: Value) {
+    fn bind_pattern(&mut self, pattern: &crate::ast::Pattern, value: Value, binding: BindingKind) {
         use crate::ast::Pattern;
 
         match pattern {
             Pattern::Identifier(name) => {
-                self.env.define(name.clone(), value);
+                self.env.define_with_kind(name.clone(), value, binding);
             }
             Pattern::Ignore => {
                 // Do nothing - value is discarded
@@ -2405,11 +2409,11 @@ impl Interpreter {
                     // Bind each pattern element
                     for pattern_elem in elements {
                         if i < arr_len {
-                            self.bind_pattern(pattern_elem, arr[i].clone());
+                            self.bind_pattern(pattern_elem, arr[i].clone(), binding);
                             i += 1;
                         } else {
                             // Not enough elements - bind to null
-                            self.bind_pattern(pattern_elem, Value::Null);
+                            self.bind_pattern(pattern_elem, Value::Null, binding);
                         }
                     }
 
@@ -2417,15 +2421,23 @@ impl Interpreter {
                     if let Some(rest_name) = rest {
                         let rest_values: Vec<Value> =
                             if i < arr_len { arr[i..].to_vec() } else { vec![] };
-                        self.env.define(rest_name.clone(), Value::Array(Arc::new(rest_values)));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Array(Arc::new(rest_values)),
+                            binding,
+                        );
                     }
                 } else {
                     // Not an array - bind all patterns to null
                     for pattern_elem in elements {
-                        self.bind_pattern(pattern_elem, Value::Null);
+                        self.bind_pattern(pattern_elem, Value::Null, binding);
                     }
                     if let Some(rest_name) = rest {
-                        self.env.define(rest_name.clone(), Value::Array(Arc::new(vec![])));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Array(Arc::new(vec![])),
+                            binding,
+                        );
                     }
                 }
             }
@@ -2435,7 +2447,7 @@ impl Interpreter {
                     // Bind each key
                     for key in keys {
                         let val = dict.get(key.as_str()).cloned().unwrap_or(Value::Null);
-                        self.env.define(key.clone(), val);
+                        self.env.define_with_kind(key.clone(), val, binding);
                     }
 
                     // Bind rest elements if present
@@ -2446,13 +2458,17 @@ impl Interpreter {
                                 rest_dict.insert(k.clone(), v.clone());
                             }
                         }
-                        self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Dict(Arc::new(rest_dict)),
+                            binding,
+                        );
                     }
                 } else if let Value::FixedDict { keys: dict_keys, values } = value {
                     for key in keys {
                         let idx = dict_keys.iter().position(|k| k.as_ref() == key.as_str());
                         let val = idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null);
-                        self.env.define(key.clone(), val);
+                        self.env.define_with_kind(key.clone(), val, binding);
                     }
 
                     if let Some(rest_name) = rest {
@@ -2462,7 +2478,11 @@ impl Interpreter {
                                 rest_dict.insert(k, v);
                             }
                         }
-                        self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Dict(Arc::new(rest_dict)),
+                            binding,
+                        );
                     }
                 } else if let Value::DenseIntDict(values) = value {
                     for key in keys {
@@ -2476,7 +2496,7 @@ impl Interpreter {
                             }
                             Err(_) => Value::Null,
                         };
-                        self.env.define(key.clone(), val);
+                        self.env.define_with_kind(key.clone(), val, binding);
                     }
 
                     if let Some(rest_name) = rest {
@@ -2487,7 +2507,11 @@ impl Interpreter {
                                 rest_dict.insert(Arc::from(key.as_str()), value.clone());
                             }
                         }
-                        self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Dict(Arc::new(rest_dict)),
+                            binding,
+                        );
                     }
                 } else if let Value::DenseIntDictInt(values) = value {
                     for key in keys {
@@ -2506,7 +2530,7 @@ impl Interpreter {
                             }
                             Err(_) => Value::Null,
                         };
-                        self.env.define(key.clone(), val);
+                        self.env.define_with_kind(key.clone(), val, binding);
                     }
 
                     if let Some(rest_name) = rest {
@@ -2520,7 +2544,11 @@ impl Interpreter {
                                 );
                             }
                         }
-                        self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Dict(Arc::new(rest_dict)),
+                            binding,
+                        );
                     }
                 } else if let Value::DenseIntDictIntFull(values) = value {
                     for key in keys {
@@ -2537,7 +2565,7 @@ impl Interpreter {
                             }
                             Err(_) => Value::Null,
                         };
-                        self.env.define(key.clone(), val);
+                        self.env.define_with_kind(key.clone(), val, binding);
                     }
 
                     if let Some(rest_name) = rest {
@@ -2548,16 +2576,23 @@ impl Interpreter {
                                 rest_dict.insert(Arc::from(key.as_str()), Value::Int(*value));
                             }
                         }
-                        self.env.define(rest_name.clone(), Value::Dict(Arc::new(rest_dict)));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Dict(Arc::new(rest_dict)),
+                            binding,
+                        );
                     }
                 } else {
                     // Not a dict - bind all to null
                     for key in keys {
-                        self.env.define(key.clone(), Value::Null);
+                        self.env.define_with_kind(key.clone(), Value::Null, binding);
                     }
                     if let Some(rest_name) = rest {
-                        self.env
-                            .define(rest_name.clone(), Value::Dict(Arc::new(DictMap::default())));
+                        self.env.define_with_kind(
+                            rest_name.clone(),
+                            Value::Dict(Arc::new(DictMap::default())),
+                            binding,
+                        );
                     }
                 }
             }
@@ -2660,15 +2695,17 @@ impl Interpreter {
                 // Restore parent environment
                 self.env.pop_scope();
             }
-            Stmt::Let { pattern, value, mutable: _, type_annotation: _ } => {
+            Stmt::Let { pattern, value, mutable, type_annotation: _ } => {
                 let val = self.eval_expr(value);
                 self.set_return_if_error(&val);
-                self.bind_pattern(pattern, val);
+                let binding =
+                    if *mutable { BindingKind::Mutable } else { BindingKind::LetImmutable };
+                self.bind_pattern(pattern, val, binding);
             }
             Stmt::Const { name, value, type_annotation: _ } => {
                 let val = self.eval_expr(value);
                 self.set_return_if_error(&val);
-                self.env.define(name.clone(), val);
+                self.env.define_with_kind(name.clone(), val, BindingKind::Const);
             }
             Stmt::Assign { target, value } => {
                 let val = self.eval_expr(value);
@@ -2677,9 +2714,10 @@ impl Interpreter {
                 // Always perform the assignment, even for errors
                 let assignment_result = match target {
                     Expr::Identifier(name) => {
-                        // Simple variable assignment - use set to update in correct scope
-                        self.env.set(name.clone(), val.clone());
-                        Value::Null
+                        match self.env.assign_checked(name.clone(), val.clone()) {
+                            Ok(()) => Value::Null,
+                            Err(error) => Value::Error(error),
+                        }
                     }
                     Expr::IndexAccess { object, index } => {
                         self.assign_index(object.as_ref(), index.as_ref(), &val)

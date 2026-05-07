@@ -6,6 +6,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BytecodeBindingKind {
+    Mutable,
+    LetImmutable,
+    Const,
+}
+
 /// Bytecode instruction opcodes for the Ruff VM
 /// Stack-based virtual machine with separate value and call stacks
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +46,14 @@ pub enum OpCode {
     /// Store top of stack to a global variable
     /// Operand: variable name
     StoreGlobal(String),
+
+    /// Define a global binding with explicit mutability metadata.
+    /// Operand: variable name and binding kind.
+    DefineGlobal(String, BytecodeBindingKind),
+
+    /// Ensure a global binding allows in-place mutation.
+    /// Operand: variable name.
+    EnsureMutableGlobalForMutation(String),
 
     /// Pop top value from stack (discard result)
     Pop,
@@ -224,8 +239,8 @@ pub enum OpCode {
     /// Match a value against a pattern and bind variables
     /// Stack: [value] -> [success: bool]
     /// If match succeeds, variables are bound in current scope
-    /// Operand: pattern index in constant pool
-    MatchPattern(usize),
+    /// Operand: pattern index in constant pool and binding kind for introduced names
+    MatchPattern(usize, BytecodeBindingKind),
 
     /// Match a value against a `match case` pattern string, with optional binding support
     /// Stack: [value] -> [success: bool]
@@ -416,6 +431,9 @@ pub struct BytecodeChunk {
     /// Local variable names by slot index
     pub local_names: Vec<String>,
 
+    /// Local binding kinds by slot index.
+    pub local_binding_kinds: Vec<BytecodeBindingKind>,
+
     /// Number of local slots allocated for this chunk
     pub local_count: usize,
 
@@ -442,6 +460,7 @@ impl BytecodeChunk {
             name: None,
             params: Vec::new(),
             local_names: Vec::new(),
+            local_binding_kinds: Vec::new(),
             local_count: 0,
             exception_handlers: Vec::new(),
             upvalues: Vec::new(),

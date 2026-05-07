@@ -4,7 +4,7 @@
 // Compiles AST nodes into bytecode instructions for the VM.
 
 use crate::ast::{ArrayElement, DictElement, Expr, Pattern, Stmt};
-use crate::bytecode::{BytecodeChunk, Constant, OpCode};
+use crate::bytecode::{BytecodeBindingKind, BytecodeChunk, Constant, OpCode};
 use crate::optimizer::Optimizer;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -50,6 +50,7 @@ struct Local {
     name: String,
     depth: usize,
     slot: usize,
+    binding_kind: BytecodeBindingKind,
 }
 
 #[allow(dead_code)] // Compiler not yet integrated into execution path
@@ -119,15 +120,21 @@ impl Compiler {
         Ok(chunk)
     }
 
-    fn add_local(&mut self, name: &str, depth: usize) -> usize {
+    fn add_local(&mut self, name: &str, depth: usize, binding_kind: BytecodeBindingKind) -> usize {
         let slot = self.next_local_slot;
         self.next_local_slot += 1;
-        self.locals.push(Local { name: name.to_string(), depth, slot });
+        self.locals.push(Local { name: name.to_string(), depth, slot, binding_kind });
 
         if slot == self.chunk.local_names.len() {
             self.chunk.local_names.push(name.to_string());
         } else if slot < self.chunk.local_names.len() {
             self.chunk.local_names[slot] = name.to_string();
+        }
+
+        if slot == self.chunk.local_binding_kinds.len() {
+            self.chunk.local_binding_kinds.push(binding_kind);
+        } else if slot < self.chunk.local_binding_kinds.len() {
+            self.chunk.local_binding_kinds[slot] = binding_kind;
         }
 
         slot
@@ -154,18 +161,17 @@ impl Compiler {
                 Ok(())
             }
 
-            Stmt::Let { pattern, value, .. } => {
-                if let Pattern::Identifier(name) = pattern {
-                    if !self.used_locals.contains(name) && self.expr_is_pure(value) {
-                        return Ok(());
-                    }
-                }
-
+            Stmt::Let { pattern, value, mutable, .. } => {
                 // Compile the value
                 self.compile_expr(value)?;
 
                 // Bind the pattern
-                self.compile_pattern_binding(pattern)?;
+                let binding_kind = if *mutable {
+                    BytecodeBindingKind::Mutable
+                } else {
+                    BytecodeBindingKind::LetImmutable
+                };
+                self.compile_pattern_binding(pattern, binding_kind)?;
 
                 // Pop the value from stack - StoreVar peeks, doesn't pop
                 // This keeps the stack clean between statements
@@ -175,12 +181,6 @@ impl Compiler {
             }
 
             Stmt::Assign { target, value } => {
-                if let Expr::Identifier(name) = target {
-                    if !self.used_locals.contains(name) && self.expr_is_pure(value) {
-                        return Ok(());
-                    }
-                }
-
                 if let (Expr::Identifier(target_name), Expr::BinaryOp { left, op, right }) =
                     (target, value)
                 {
@@ -335,7 +335,7 @@ impl Compiler {
                     && self.scope_depth > 0
                     && !self.is_upvalue(var)
                 {
-                    self.add_local(var, self.scope_depth);
+                    self.add_local(var, self.scope_depth, BytecodeBindingKind::Mutable);
                 }
 
                 // For now, compile as a while loop with an iterator
@@ -453,7 +453,7 @@ impl Compiler {
 
                 // Add parameters as locals
                 for param in params {
-                    func_compiler.add_local(param, 1);
+                    func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                 }
 
                 // Analyze the function body to find free variables (captures)
@@ -505,7 +505,7 @@ impl Compiler {
                         func_compiler.scope_depth = 1;
 
                         for param in params {
-                            func_compiler.add_local(param, 1);
+                            func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                         }
 
                         let free_vars = Self::find_free_variables(body, params, &self.locals);
@@ -706,12 +706,13 @@ impl Compiler {
             }
 
             Stmt::Const { name, value, .. } => {
-                // Constants are like immutable variables at compile time
-                // Evaluate the value
                 self.compile_expr(value)?;
-
-                // Store as global (constants are always global)
-                self.chunk.emit(OpCode::StoreGlobal(name.clone()));
+                if self.scope_depth == 0 {
+                    self.chunk.emit(OpCode::DefineGlobal(name.clone(), BytecodeBindingKind::Const));
+                } else {
+                    let slot = self.add_local(name, self.scope_depth, BytecodeBindingKind::Const);
+                    self.chunk.emit(OpCode::StoreLocal(slot));
+                }
 
                 Ok(())
             }
@@ -1033,7 +1034,7 @@ impl Compiler {
 
                 // Add parameters as locals
                 for param in params {
-                    func_compiler.add_local(param, 1);
+                    func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                 }
 
                 // Analyze the function body to find free variables (captures)
@@ -1267,15 +1268,19 @@ impl Compiler {
     }
 
     /// Compile pattern binding (for let statements)
-    fn compile_pattern_binding(&mut self, pattern: &Pattern) -> Result<(), String> {
+    fn compile_pattern_binding(
+        &mut self,
+        pattern: &Pattern,
+        binding_kind: BytecodeBindingKind,
+    ) -> Result<(), String> {
         match pattern {
             Pattern::Identifier(name) => {
                 if self.scope_depth == 0 {
-                    self.chunk.emit(OpCode::StoreGlobal(name.clone()));
+                    self.chunk.emit(OpCode::DefineGlobal(name.clone(), binding_kind));
                 } else if self.is_upvalue(name) {
                     self.chunk.emit(OpCode::StoreVar(name.clone()));
                 } else {
-                    let slot = self.add_local(name, self.scope_depth);
+                    let slot = self.add_local(name, self.scope_depth, binding_kind);
                     self.chunk.emit(OpCode::StoreLocal(slot));
                 }
                 Ok(())
@@ -1290,7 +1295,7 @@ impl Compiler {
             Pattern::Array { elements: _, rest: _ } => {
                 // Use MatchPattern for complex binding
                 let pattern_index = self.chunk.add_constant(Constant::Pattern(pattern.clone()));
-                self.chunk.emit(OpCode::MatchPattern(pattern_index));
+                self.chunk.emit(OpCode::MatchPattern(pattern_index, binding_kind));
                 self.chunk.emit(OpCode::Pop); // Pop the success bool
                 Ok(())
             }
@@ -1298,7 +1303,7 @@ impl Compiler {
             Pattern::Dict { keys: _, rest: _ } => {
                 // Use MatchPattern for complex binding
                 let pattern_index = self.chunk.add_constant(Constant::Pattern(pattern.clone()));
-                self.chunk.emit(OpCode::MatchPattern(pattern_index));
+                self.chunk.emit(OpCode::MatchPattern(pattern_index, binding_kind));
                 self.chunk.emit(OpCode::Pop); // Pop the success bool
                 Ok(())
             }
@@ -1316,7 +1321,7 @@ impl Compiler {
                 } else if self.scope_depth == 0 {
                     self.chunk.emit(OpCode::StoreGlobal(name.clone()));
                 } else {
-                    let slot = self.add_local(name, self.scope_depth);
+                    let slot = self.add_local(name, self.scope_depth, BytecodeBindingKind::Mutable);
                     self.chunk.emit(OpCode::StoreLocal(slot));
                 }
                 Ok(())
@@ -1330,6 +1335,14 @@ impl Compiler {
                         // Compile index and emit optimized opcode
                         self.compile_expr(index)?;
                         self.chunk.emit(OpCode::IndexSetInPlace(slot));
+                        return Ok(());
+                    } else if self.scope_depth == 0 && !self.is_upvalue(name) {
+                        // Global in-place mutation should preserve mutable-binding checks.
+                        self.chunk.emit(OpCode::EnsureMutableGlobalForMutation(name.clone()));
+                        self.compile_expr(object)?;
+                        self.compile_expr(index)?;
+                        self.chunk.emit(OpCode::IndexSet);
+                        self.chunk.emit(OpCode::StoreGlobal(name.clone()));
                         return Ok(());
                     }
                 }
