@@ -7,7 +7,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run release gate checks
+        env:
+          RUFF_ENABLE_SOCKET_TESTS: "1"
+        run: bash scripts/release_gate.sh
+
   build-release-artifacts:
+    needs: release-gate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
