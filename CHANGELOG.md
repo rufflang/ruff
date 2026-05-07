@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed cooperative VM execution to surface returned runtime error values as execution errors, and gated top-level script JIT away from global/local variable loads until JIT preserves checked undefined-identifier semantics.
 - Changed VM and interpreter map indexing so missing dictionary keys now report deterministic runtime errors (`Missing map key: ...`) instead of falling through to `Null`/`Int(0)` sentinel behavior.
 - Changed VM `IndexGet`/`IndexGetInPlace` map reads to share one centralized lookup helper, keeping normal, in-place, and nested bytecode-call paths aligned for missing keys, invalid key types, and optimized integer-key map storage.
+- Changed runtime invalid-operation handling so interpreter and VM now return structured runtime errors for out-of-bounds array/string indexing, invalid index assignment targets, and unsupported unary/binary operations instead of silently returning sentinel values (`Int(0)`/empty strings) or printing to stderr and continuing.
 - Changed `ruff serve` CLI surface in `src/main.rs` to route through `src/serve_http.rs` and expose universal serve controls (`--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`).
 - Updated `README.md` static server documentation with HTTP/HTTPS examples, option coverage, and hardening behavior details.
 - Changed interpreter import handling in `src/interpreter/mod.rs` to return deterministic runtime errors instead of silently swallowing module and symbol import failures.

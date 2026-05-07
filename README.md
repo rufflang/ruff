@@ -227,6 +227,8 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Arrays and dictionaries with indexing and standard library helpers.
 - Undefined identifiers are runtime errors. Use quoted string literals when a string value is intended.
 - Missing dictionary keys are runtime errors. Use helpers such as `has_key`, `get`, or `get_default` when a fallback value is intended.
+- Out-of-bounds array/string indexing, indexing non-indexable values, and invalid index-assignment targets are runtime errors.
+- Unsupported unary/binary operations are runtime errors (no implicit `Int(0)` or empty-string fallback).
 - Function/method/native call arity is enforced at runtime. Too few or too many arguments return deterministic errors that include callable name plus expected and received counts/ranges.
 - String interpolation with `${...}` inside double-quoted strings.
 - `Result` and `Option` values through `Ok(...)`, `Err(...)`, `Some(...)`, and `None`.

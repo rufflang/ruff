@@ -2,7 +2,7 @@
 
 Status: v1.0.0 baseline draft (active)
 Spec version: 1.0.0-draft
-Last updated: 2026-04-30
+Last updated: 2026-05-06
 
 ## 1. Scope
 
@@ -178,6 +178,9 @@ Notes:
 - Dictionaries preserve key/value associations; merge/spread behavior is right-biased for duplicate keys.
 - Dictionary indexing with a missing key is a runtime error. Programs that need fallback behavior should use explicit dictionary helpers such as `has_key`, `get`, or `get_default`.
 - Dictionary indexing accepts string keys and integer keys. Other key types are invalid index operations.
+- Array/string indexing outside bounds is a runtime error (`Index out of bounds: <index>`), not a sentinel-value fallback.
+- Invalid index assignment targets (for example assigning through index access on non-indexable values) are runtime errors.
+- Unsupported unary/binary operations are runtime errors; Ruff does not silently coerce invalid operations to `Int(0)` or empty-string values.
 - Struct fields are resolved by declared field names.
 - Struct method behavior and runtime-path parity are tracked in `docs/VM_INTERPRETER_PARITY_MATRIX.md`.
 

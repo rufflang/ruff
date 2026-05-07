@@ -263,7 +263,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-RUN-003: Replace silent invalid operation fallbacks with runtime errors
+[x] V1-RUN-003: Replace silent invalid operation fallbacks with runtime errors
     Priority: P0
     Severity: High
     Area: Correctness/Security
@@ -285,7 +285,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Unsupported binary/unary operations fail.
         - VM/interpreter parity tests cover all cases.
     Acceptance criteria: Invalid runtime operations never silently return default values or only print to stderr.
-    Notes: This item should create reusable helpers, not a scattered set of one-off checks.
+    Notes: Completed on 2026-05-06. Added centralized interpreter helpers for `index_value`, `assign_index`, `assign_member`, `binary_op_value`, and `unary_op_value`; replaced assignment-path `eprintln!` continuation behavior with returned runtime errors; and aligned VM binary/unary behavior so unsupported operations return deterministic runtime errors instead of `Int(0)` fallbacks. Added parity regression coverage for out-of-bounds array/string indexing, non-indexable assignment targets, invalid index operations, unsupported unary/binary operations, and valid index-assignment success paths in `tests/vm_interpreter_parity_surfaces.rs`. Verification: `cargo test --test vm_interpreter_parity_surfaces` passed.
 ```
 
 ```text
