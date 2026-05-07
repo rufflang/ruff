@@ -552,7 +552,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-RUN-005: Enforce `let`, `const`, and mutability semantics
+[x] V1-RUN-005: Enforce `let`, `const`, and mutability semantics
     Priority: P1
     Severity: High
     Area: Correctness/Language Semantics
@@ -573,7 +573,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Shadowing behavior is tested separately from reassignment.
         - VM/interpreter parity tests.
     Acceptance criteria: Binding mutability matches the language spec and cannot be bypassed by backend differences.
-    Notes: If current syntax does not include explicit `mut`, document the exact 1.0 choice.
+    Notes: Completed on 2026-05-07. Added binding-kind metadata across runtime surfaces so `let` and `const` bindings are enforced as immutable while `mut` bindings remain mutable. Interpreter environment frames now track binding kinds and return deterministic runtime errors for immutable reassignment/mutation attempts. Compiler/VM paths now preserve binding-kind metadata for globals and local slots, enforce immutable reassignment checks in `StoreVar`/`StoreLocal`/`StoreGlobal` paths, and guard global in-place index mutation with explicit mutability prechecks. Updated language documentation to lock the 1.0 choice that container/object in-place mutation through `let`/`const` bindings is rejected. Added regression coverage in `tests/vm_interpreter_parity_surfaces.rs` for immutable/mutable success and failure paths (including local function scope behavior) plus direct environment mutability contract tests in `tests/interpreter_tests.rs`. Verification: `cargo test --test vm_interpreter_parity_surfaces`, `cargo test test_environment_assign_checked_respects_binding_mutability --test interpreter_tests`, `cargo test test_environment_mutate_checked_respects_binding_mutability --test interpreter_tests`, and `cargo test`.
 ```
 
 ```text

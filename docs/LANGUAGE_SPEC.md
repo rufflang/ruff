@@ -175,8 +175,17 @@ From highest precedence to lowest:
 ### 5.1 Bindings and mutability
 
 - `let` introduces immutable bindings.
+  - Reassignment is rejected (`let x := 1; x := 2` fails).
+  - In-place mutation through that binding is rejected (`let items := [1]; items[0] := 2` fails).
 - `mut` introduces mutable bindings.
-- `const` introduces constant bindings that cannot be reassigned.
+  - Reassignment is allowed.
+  - In-place mutation through the binding is allowed.
+- `const` introduces constant bindings.
+  - Reassignment is rejected.
+  - In-place mutation through that binding is rejected.
+- Assignment without an explicit binding keyword preserves existing Ruff behavior:
+  - `name := value` updates an existing mutable binding when present.
+  - otherwise it creates a new mutable binding in the current scope.
 
 ### 5.2 Scope model
 

@@ -156,6 +156,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
 
+### Mutability checks are semantic effects, not removable store side effects
+- **Problem:** Compiler dead-store/elision passes can accidentally bypass runtime mutability enforcement for `let`/`const`.
+- **Rule:** Once assignment/store opcodes enforce language semantics (for example immutable reassignment/mutation errors), do not optimize them away without proving equivalent checks still run.
+- **Implication:** Mutability work must update both compiler lowering and every VM execution arm (`StoreVar`/`StoreLocal`/`StoreGlobal` and in-place mutation prechecks).
+
+(Discovered during: 2026-05-07_14-13_v1-run-005-mutability-enforcement.md)
+
 ### Logical short-circuit lowering is stack-shape sensitive
 - **Problem:** New `&&`/`||` compiler lowering can cause VM stack underflow or invalid-op failures if branch stack cleanup and bool normalization are not explicit.
 - **Rule:** For short-circuit lowering, keep stack depth balanced on both branch paths and normalize RHS truthiness via bool constants + `And`/`Or` (not `!!`, because `Not` is bool-only in hardened runtime semantics).
