@@ -350,7 +350,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-CI-001: Prevent release with a failing test suite
+[x] V1-CI-001: Prevent release with a failing test suite
     Priority: P0
     Severity: High
     Area: CI/Tests/Release
@@ -366,7 +366,7 @@ If a command is not yet available, create the missing configuration as part of t
         6. Add badges or README notes only after the workflow is green.
     Tests required: CI itself is the test. Locally run `scripts/release_gate.sh` after it exists.
     Acceptance criteria: A failing unit or integration test prevents merge/release.
-    Notes: If there is no `.github/workflows` directory, create it.
+    Notes: Completed on 2026-05-07. Added `scripts/release_gate.sh` and wired it into a new PR/main CI workflow (`.github/workflows/ci-release-gate.yml`) plus release-tag publishing workflow gating in `.github/workflows/release-binaries.yml`. CI now enforces `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and release-gate test execution before merge/release jobs can pass. The release-gate script runs stable test coverage for release-critical surfaces (`cargo test --lib -- --test-threads=1`, integration suite checks, native security boundaries, package workflow, VM/interpreter parity), supports socket-bound integration execution in CI via `RUFF_ENABLE_SOCKET_TESTS=1`, and skips optional `cargo audit`/`cargo deny` when tools are not installed. Verification: `cargo test` and `bash scripts/release_gate.sh` passed locally.
 ```
 
 ### Phase 2: Make Behavior Predictable

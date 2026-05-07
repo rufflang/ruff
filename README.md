@@ -287,6 +287,18 @@ Run the Rust test suite:
 cargo test
 ```
 
+Run the release-gate CI suite locally:
+
+```bash
+bash scripts/release_gate.sh
+```
+
+To include socket-bound static-serve integration tests in local gate runs:
+
+```bash
+RUFF_ENABLE_SOCKET_TESTS=1 bash scripts/release_gate.sh
+```
+
 Run the async runtime concurrency stability regression directly:
 
 ```bash

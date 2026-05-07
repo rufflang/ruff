@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added release-gate CI enforcement for `v1.0.0` readiness via new workflow `.github/workflows/ci-release-gate.yml` (PR/main) and release-tag workflow gating in `.github/workflows/release-binaries.yml`, including required `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `scripts/release_gate.sh` execution.
+- Added `scripts/release_gate.sh` as the shared gate command for release-critical test surfaces, with CI-enabled socket integration coverage via `RUFF_ENABLE_SOCKET_TESTS=1` and optional `cargo audit`/`cargo deny` execution when tools are installed.
 - Added dedicated static server runtime module `src/serve_http.rs` for `ruff serve` with conditional request support (ETag/If-None-Match `304`), single-range byte responses (`206`/`416`), precompressed asset selection (`.br`/`.gz`), and deterministic status mapping for file access errors (`404`/`403`/`500`).
 - Added HTTPS serving support for `ruff serve` via `--tls-cert` and `--tls-key`, including strict pair validation and secure-request-aware header behavior.
 - Added CLI integration tests in `tests/serve_command_integration.rs` that run `ruff serve` as a subprocess and validate `HEAD`, byte ranges, ETag `304` behavior, and `Accept-Encoding` precompressed asset negotiation over live TCP requests.
@@ -31,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed network/socket-bound test behavior to remain deterministic in restricted environments: native network round-trip tests now skip gracefully when the host denies local socket bind permissions, while CI release-gate runs enable full socket integration coverage explicitly.
 - Changed `unzip` native filesystem extraction to enforce secure archive boundaries: path sanitization rejects parent traversal, absolute paths, drive-prefixed paths, null-byte names, and symlink entries; extraction now fails fast on the first unsafe entry and enforces deterministic resource limits (max 1024 entries, max 16 MiB per entry, max 64 MiB total uncompressed bytes).
 - Changed interpreter and VM identifier resolution so missing bindings report `Undefined variable: <name>` instead of allowing the interpreter to coerce unknown identifiers into strings.
 - Changed callable invocation contracts so interpreter and VM now enforce strict arity for user-defined functions, closures, struct methods, async functions, and generator definitions, and added centralized native arity metadata for strict/ranged/variadic native contracts (for example `len`, `input`, `debug`, `print`, and `array`) with consistent `... expects ... arguments, got ...` runtime errors.
