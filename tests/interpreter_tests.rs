@@ -9,7 +9,7 @@
 // - Error handling
 // - Built-in functions
 
-use ruff::interpreter::{Environment, Interpreter, Value};
+use ruff::interpreter::{BindingKind, Environment, Interpreter, Value};
 use ruff::lexer::tokenize;
 use ruff::parser::Parser;
 use std::collections::HashSet;
@@ -972,6 +972,65 @@ fn test_environment_set_across_scopes() {
     } else {
         panic!("x should exist");
     }
+}
+
+#[test]
+fn test_environment_assign_checked_respects_binding_mutability() {
+    let mut env = Environment::new();
+    env.define_with_kind("mutable_value".to_string(), Value::Int(1), BindingKind::Mutable);
+    env.define_with_kind("let_value".to_string(), Value::Int(1), BindingKind::LetImmutable);
+    env.define_with_kind("const_value".to_string(), Value::Int(1), BindingKind::Const);
+
+    assert!(env.assign_checked("mutable_value".to_string(), Value::Int(2)).is_ok());
+    assert!(matches!(env.get("mutable_value"), Some(Value::Int(2))));
+
+    let let_err = env
+        .assign_checked("let_value".to_string(), Value::Int(2))
+        .expect_err("immutable let binding should reject reassignment");
+    assert!(let_err.contains("Cannot reassign immutable let binding: let_value"));
+
+    let const_err = env
+        .assign_checked("const_value".to_string(), Value::Int(2))
+        .expect_err("const binding should reject reassignment");
+    assert!(const_err.contains("Cannot reassign const binding: const_value"));
+}
+
+#[test]
+fn test_environment_mutate_checked_respects_binding_mutability() {
+    let mut env = Environment::new();
+    env.define_with_kind(
+        "mutable_counts".to_string(),
+        Value::Dict(Default::default()),
+        BindingKind::Mutable,
+    );
+    env.define_with_kind(
+        "let_counts".to_string(),
+        Value::Dict(Default::default()),
+        BindingKind::LetImmutable,
+    );
+    env.define_with_kind(
+        "const_counts".to_string(),
+        Value::Dict(Default::default()),
+        BindingKind::Const,
+    );
+
+    assert!(env
+        .mutate_checked("mutable_counts", |value| {
+            if let Value::Dict(dict) = value {
+                std::sync::Arc::make_mut(dict).insert("hits".into(), Value::Int(3));
+            }
+        })
+        .is_ok());
+
+    let let_err = env
+        .mutate_checked("let_counts", |_| {})
+        .expect_err("immutable let binding should reject mutation");
+    assert!(let_err.contains("Cannot mutate immutable let binding: let_counts"));
+
+    let const_err = env
+        .mutate_checked("const_counts", |_| {})
+        .expect_err("const binding should reject mutation");
+    assert!(const_err.contains("Cannot mutate const binding: const_counts"));
 }
 
 // Input and type conversion function tests
@@ -4991,7 +5050,7 @@ fn test_generator_with_state() {
     // Test that generator preserves state between yields
     let code = r#"
         func* sequence() {
-            let x := 5
+            mut x := 5
             yield x
             x := x * 2
             yield x
@@ -5029,7 +5088,7 @@ fn test_generator_break_early() {
     // Test that breaking from generator iteration works
     let code = r#"
         func* infinite() {
-            let i := 0
+            mut i := 0
             loop {
                 yield i
                 i := i + 1

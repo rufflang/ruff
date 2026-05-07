@@ -751,6 +751,92 @@ fn vm_and_interpreter_match_successful_captured_map_update() {
 }
 
 #[test]
+fn vm_and_interpreter_reject_reassignment_of_immutable_let_binding() {
+    let script = r#"
+        let value := 1
+        value := 2
+    "#;
+
+    assert_interpreter_and_vm_error_contains(
+        script,
+        "Cannot reassign immutable let binding: value",
+    );
+}
+
+#[test]
+fn vm_and_interpreter_reject_reassignment_of_const_binding() {
+    let script = r#"
+        const answer := 41
+        answer := 42
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Cannot reassign const binding: answer");
+}
+
+#[test]
+fn vm_and_interpreter_reject_in_place_mutation_of_immutable_binding() {
+    let script = r#"
+        let counts := {"hits": 1}
+        counts["hits"] := counts["hits"] + 1
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Cannot mutate immutable let binding: counts");
+}
+
+#[test]
+fn vm_and_interpreter_reject_in_place_mutation_of_const_binding() {
+    let script = r#"
+        const counts := {"hits": 1}
+        counts["hits"] := counts["hits"] + 1
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Cannot mutate const binding: counts");
+}
+
+#[test]
+fn vm_and_interpreter_allow_mutable_bindings_to_reassign_and_mutate() {
+    let script = r#"
+        mut total := 1
+        total := total + 1
+
+        mut counts := {"hits": 1}
+        counts["hits"] := counts["hits"] + 2
+
+        func mutate_local() {
+            mut local_total := 3
+            local_total := local_total + 4
+
+            mut local_counts := {"hits": 10}
+            local_counts["hits"] := local_counts["hits"] + 5
+
+            return local_total == 7 && local_counts["hits"] == 15
+        }
+
+        mutable_ok := total == 2 && counts["hits"] == 3 && mutate_local()
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "mutable_ok");
+}
+
+#[test]
+fn vm_and_interpreter_reject_local_reassignment_of_immutable_let_binding() {
+    let script = r#"
+        func mutate_local() {
+            let value := 10
+            value := 11
+            return value
+        }
+
+        mutate_local()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(
+        script,
+        "Cannot reassign immutable let binding: value",
+    );
+}
+
+#[test]
 fn vm_and_interpreter_match_truthiness_semantics_across_conditionals() {
     let script = r#"
         falsey_hits := 0
