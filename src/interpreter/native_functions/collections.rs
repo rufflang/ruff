@@ -362,16 +362,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             let mut result = Vec::new();
             for element in array.iter() {
                 let func_result = interp.call_user_function(&func, &[element.clone()]);
-
-                let is_truthy = match func_result {
-                    Value::Bool(b) => b,
-                    Value::Int(n) => n != 0,
-                    Value::Float(n) => n != 0.0,
-                    Value::Str(s) => !s.is_empty(),
-                    _ => false,
-                };
-
-                if is_truthy {
+                if func_result.is_truthy() {
                     result.push(element.clone());
                 }
             }
@@ -434,16 +425,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
             for element in array.iter() {
                 let func_result = interp.call_user_function(&func, &[element.clone()]);
-
-                let is_truthy = match func_result {
-                    Value::Bool(b) => b,
-                    Value::Int(n) => n != 0,
-                    Value::Float(n) => n != 0.0,
-                    Value::Str(s) => !s.is_empty(),
-                    _ => false,
-                };
-
-                if is_truthy {
+                if func_result.is_truthy() {
                     return Some(element.clone());
                 }
             }
@@ -472,16 +454,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
             for element in array.iter() {
                 let func_result = interp.call_user_function(&func, &[element.clone()]);
-
-                let is_truthy = match func_result {
-                    Value::Bool(b) => b,
-                    Value::Int(n) => n != 0,
-                    Value::Float(n) => n != 0.0,
-                    Value::Str(s) => !s.is_empty(),
-                    _ => false,
-                };
-
-                if is_truthy {
+                if func_result.is_truthy() {
                     return Some(Value::Bool(true));
                 }
             }
@@ -510,16 +483,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
 
             for element in array.iter() {
                 let func_result = interp.call_user_function(&func, &[element.clone()]);
-
-                let is_truthy = match func_result {
-                    Value::Bool(b) => b,
-                    Value::Int(n) => n != 0,
-                    Value::Float(n) => n != 0.0,
-                    Value::Str(s) => !s.is_empty(),
-                    _ => false,
-                };
-
-                if !is_truthy {
+                if !func_result.is_truthy() {
                     return Some(Value::Bool(false));
                 }
             }

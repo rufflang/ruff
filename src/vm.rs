@@ -6574,16 +6574,7 @@ impl VM {
 
     /// Check if value is truthy
     fn is_truthy(&self, value: &Value) -> bool {
-        match value {
-            Value::Bool(b) => *b,
-            Value::Null => false,
-            Value::Int(0) => false,
-            Value::Float(f) if *f == 0.0 => false,
-            Value::Str(s) if s.is_empty() => false,
-            Value::Array(arr) if arr.is_empty() => false,
-            Value::Dict(dict) if dict.is_empty() => false,
-            _ => true,
-        }
+        value.is_truthy()
     }
 
     /// Check if two values are equal

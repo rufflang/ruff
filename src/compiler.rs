@@ -38,6 +38,10 @@ pub struct Compiler {
 
     /// Parent compiler (for nested functions/closures)
     parent: Option<Box<Compiler>>,
+
+    /// Tracks whether the chunk uses logical short-circuit lowering patterns that
+    /// current optimizer passes are not yet stack-shape aware for.
+    has_logical_short_circuit: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +65,7 @@ impl Compiler {
             upvalue_names: HashSet::new(),
             used_locals: HashSet::new(),
             parent: None,
+            has_logical_short_circuit: false,
         }
     }
 
@@ -93,7 +98,7 @@ impl Compiler {
             matches!(instr, OpCode::MatchCasePattern(_) | OpCode::BeginCase | OpCode::EndCase)
         });
 
-        if optimize && !has_match_case_flow {
+        if optimize && !has_match_case_flow && !self.has_logical_short_circuit {
             let mut optimizer = Optimizer::new();
             optimizer.optimize(&mut chunk);
 
@@ -806,6 +811,44 @@ impl Compiler {
             }
 
             Expr::BinaryOp { left, op, right } => {
+                if op == "&&" {
+                    self.has_logical_short_circuit = true;
+                    self.compile_expr(left)?;
+                    let false_branch_jump = self.chunk.emit(OpCode::JumpIfFalse(0));
+                    self.chunk.emit(OpCode::Pop);
+                    let true_index = self.chunk.add_constant(Constant::Bool(true));
+                    self.chunk.emit(OpCode::LoadConst(true_index));
+                    self.compile_expr(right)?;
+                    self.chunk.emit(OpCode::And);
+                    let end_jump = self.chunk.emit(OpCode::Jump(0));
+
+                    self.chunk.patch_jump(false_branch_jump);
+                    self.chunk.emit(OpCode::Pop);
+                    let false_index = self.chunk.add_constant(Constant::Bool(false));
+                    self.chunk.emit(OpCode::LoadConst(false_index));
+                    self.chunk.patch_jump(end_jump);
+                    return Ok(());
+                }
+
+                if op == "||" {
+                    self.has_logical_short_circuit = true;
+                    self.compile_expr(left)?;
+                    let true_branch_jump = self.chunk.emit(OpCode::JumpIfTrue(0));
+                    self.chunk.emit(OpCode::Pop);
+                    let false_index = self.chunk.add_constant(Constant::Bool(false));
+                    self.chunk.emit(OpCode::LoadConst(false_index));
+                    self.compile_expr(right)?;
+                    self.chunk.emit(OpCode::Or);
+                    let end_jump = self.chunk.emit(OpCode::Jump(0));
+
+                    self.chunk.patch_jump(true_branch_jump);
+                    self.chunk.emit(OpCode::Pop);
+                    let true_index = self.chunk.add_constant(Constant::Bool(true));
+                    self.chunk.emit(OpCode::LoadConst(true_index));
+                    self.chunk.patch_jump(end_jump);
+                    return Ok(());
+                }
+
                 // Compile operands
                 self.compile_expr(left)?;
                 self.compile_expr(right)?;

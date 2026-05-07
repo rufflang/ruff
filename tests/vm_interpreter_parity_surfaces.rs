@@ -751,6 +751,94 @@ fn vm_and_interpreter_match_successful_captured_map_update() {
 }
 
 #[test]
+fn vm_and_interpreter_match_truthiness_semantics_across_conditionals() {
+    let script = r#"
+        falsey_hits := 0
+        if false { falsey_hits += 1 }
+        if null { falsey_hits += 1 }
+        if 0 { falsey_hits += 1 }
+        if 0.0 { falsey_hits += 1 }
+        if "" { falsey_hits += 1 }
+        if [] { falsey_hits += 1 }
+        if {} { falsey_hits += 1 }
+
+        truthy_hits := 0
+        if true { truthy_hits += 1 }
+        if 1 { truthy_hits += 1 }
+        if -1 { truthy_hits += 1 }
+        if 0.5 { truthy_hits += 1 }
+        if "false" { truthy_hits += 1 }
+        if [0] { truthy_hits += 1 }
+        if {"k": 1} { truthy_hits += 1 }
+
+        func always_ready() {
+            return true
+        }
+        if always_ready { truthy_hits += 1 }
+
+        countdown := 3
+        while_count := 0
+        while countdown {
+            while_count += 1
+            countdown -= 1
+        }
+
+        float_gate := 0.5
+        float_count := 0
+        while float_gate {
+            float_count += 1
+            float_gate -= 0.5
+        }
+
+        string_false_branch := "unset"
+        if "false" {
+            string_false_branch := "truthy"
+        } else {
+            string_false_branch := "falsey"
+        }
+
+        logical_ok := (0 && 1) == false
+            && (1 && 2) == true
+            && (0 || 5) == true
+            && ("" || "") == false
+            && (null || "x") == true
+
+        truthiness_ok := falsey_hits == 0
+            && truthy_hits == 8
+            && while_count == 3
+            && float_count == 1
+            && string_false_branch == "truthy"
+            && logical_ok
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "truthiness_ok");
+}
+
+#[test]
+fn vm_and_interpreter_short_circuit_logical_operators_skip_rhs_when_possible() {
+    let script = r#"
+        and_short := false && missing_and_rhs
+        or_short := true || missing_or_rhs
+        short_circuit_ok := and_short == false && or_short == true
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "short_circuit_ok");
+}
+
+#[test]
+fn vm_and_interpreter_short_circuit_logical_operators_evaluate_rhs_when_required() {
+    let and_rhs_required = r#"
+        return true && missing_rhs_value
+    "#;
+    assert_interpreter_and_vm_error_contains(and_rhs_required, "Undefined variable");
+
+    let or_rhs_required = r#"
+        return 0 || missing_rhs_value
+    "#;
+    assert_interpreter_and_vm_error_contains(or_rhs_required, "Undefined variable");
+}
+
+#[test]
 fn vm_and_interpreter_match_spawn_surface() {
     let spawn_key = unique_spawn_key();
     let script = format!(

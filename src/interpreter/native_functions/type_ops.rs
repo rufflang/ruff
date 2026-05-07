@@ -370,14 +370,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 ));
             }
 
-            let condition = match arg_values.first() {
-                Some(Value::Bool(b)) => *b,
-                Some(Value::Int(n)) => *n != 0,
-                Some(Value::Float(n)) => *n != 0.0,
-                Some(Value::Null) => false,
-                Some(_) => true,
-                None => false,
-            };
+            let condition = arg_values.first().map(Value::is_truthy).unwrap_or(false);
 
             let message = if let Some(Value::Str(msg)) = arg_values.get(1) {
                 Some(msg.as_str())

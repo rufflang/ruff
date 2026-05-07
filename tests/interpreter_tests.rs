@@ -4707,6 +4707,51 @@ fn test_all_empty_array() {
 }
 
 #[test]
+fn test_collection_predicates_use_shared_truthiness_semantics() {
+    let code = r#"
+        nums := [0, 1, 2]
+
+        filtered := filter(nums, func(x) {
+            if x == 1 {
+                return {}
+            }
+            return {"value": x}
+        })
+
+        found := find(nums, func(x) {
+            if x == 0 {
+                return {"first": x}
+            }
+            return {}
+        })
+
+        any_result := any(nums, func(x) {
+            if x == 2 {
+                return [x]
+            }
+            return []
+        })
+
+        all_result := all(nums, func(x) {
+            if x == 1 {
+                return []
+            }
+            return [x]
+        })
+
+        ok := len(filtered) == 2
+            && filtered[0] == 0
+            && filtered[1] == 2
+            && found == 0
+            && any_result == true
+            && all_result == false
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
 fn test_array_utilities_chained() {
     let code = r#"
         nums := [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]

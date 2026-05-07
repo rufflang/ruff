@@ -187,8 +187,9 @@ impl LeakyFunctionBody {
 
 #[cfg(test)]
 mod tests {
-    use super::LeakyFunctionBody;
+    use super::{DictMap, LeakyFunctionBody, Value};
     use crate::ast::Stmt;
+    use std::sync::Arc;
 
     fn deeply_nested_loop_stmt(depth: usize) -> Stmt {
         let mut current = Stmt::Break;
@@ -225,6 +226,37 @@ mod tests {
         let clone = body.clone();
 
         assert_eq!(body.get().len(), clone.get().len());
+    }
+
+    #[test]
+    fn value_truthiness_semantics_match_runtime_contract() {
+        let mut non_empty_dict = DictMap::default();
+        non_empty_dict.insert(Arc::<str>::from("k"), Value::Int(1));
+
+        let falsey_values = vec![
+            Value::Bool(false),
+            Value::Null,
+            Value::Int(0),
+            Value::Float(0.0),
+            Value::Str(Arc::new(String::new())),
+            Value::Array(Arc::new(vec![])),
+            Value::Dict(Arc::new(DictMap::default())),
+        ];
+        for value in falsey_values {
+            assert!(!value.is_truthy(), "expected falsey value, got {:?}", value);
+        }
+
+        let truthy_values = vec![
+            Value::Bool(true),
+            Value::Int(-1),
+            Value::Float(0.5),
+            Value::Str(Arc::new("false".to_string())),
+            Value::Array(Arc::new(vec![Value::Int(1)])),
+            Value::Dict(Arc::new(non_empty_dict)),
+        ];
+        for value in truthy_values {
+            assert!(value.is_truthy(), "expected truthy value, got {:?}", value);
+        }
     }
 }
 
@@ -617,13 +649,7 @@ impl CallableArity {
         min_args: usize,
         parameter_names: Vec<String>,
     ) -> Self {
-        Self {
-            name: name.into(),
-            min_args,
-            max_args: None,
-            variadic: true,
-            parameter_names,
-        }
+        Self { name: name.into(), min_args, max_args: None, variadic: true, parameter_names }
     }
 
     pub fn validate(&self, received_args: usize) -> Result<(), String> {
@@ -826,5 +852,19 @@ impl Value {
     #[allow(dead_code)]
     pub fn dict(map: DictMap) -> Self {
         Value::Dict(Arc::new(map))
+    }
+
+    /// Ruff runtime truthiness contract used by interpreter and VM condition evaluation.
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Value::Bool(value) => *value,
+            Value::Null => false,
+            Value::Int(value) => *value != 0,
+            Value::Float(value) => *value != 0.0,
+            Value::Str(value) => !value.is_empty(),
+            Value::Array(values) => !values.is_empty(),
+            Value::Dict(values) => !values.is_empty(),
+            _ => true,
+        }
     }
 }

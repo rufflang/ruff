@@ -2423,25 +2423,25 @@ mod tests {
             "filter",
             &[base_array.clone(), empty_function.clone()],
         );
-        assert!(matches!(filter_success, Value::Array(values) if values.is_empty()));
+        assert!(matches!(filter_success, Value::Array(values) if values.len() == 3));
 
         let find_success = call_native_function(
             &mut interpreter,
             "find",
             &[base_array.clone(), empty_function.clone()],
         );
-        assert!(matches!(find_success, Value::Int(0)));
+        assert!(matches!(find_success, Value::Int(3)));
 
         let any_success = call_native_function(
             &mut interpreter,
             "any",
             &[base_array.clone(), empty_function.clone()],
         );
-        assert!(matches!(any_success, Value::Bool(false)));
+        assert!(matches!(any_success, Value::Bool(true)));
 
         let all_success =
             call_native_function(&mut interpreter, "all", &[base_array, empty_function]);
-        assert!(matches!(all_success, Value::Bool(false)));
+        assert!(matches!(all_success, Value::Bool(true)));
     }
 
     #[test]

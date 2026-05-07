@@ -2176,6 +2176,13 @@ impl Interpreter {
     }
 
     fn binary_op_value(&self, left: &Value, op: &str, right: &Value) -> Value {
+        if op == "&&" {
+            return Value::Bool(left.is_truthy() && right.is_truthy());
+        }
+        if op == "||" {
+            return Value::Bool(left.is_truthy() || right.is_truthy());
+        }
+
         match (left, right) {
             (Value::Null, Value::Null) => match op {
                 "==" => Value::Bool(true),
@@ -2275,8 +2282,6 @@ impl Interpreter {
             (Value::Bool(a), Value::Bool(b)) => match op {
                 "==" => Value::Bool(a == b),
                 "!=" => Value::Bool(a != b),
-                "&&" => Value::Bool(*a && *b),
-                "||" => Value::Bool(*a || *b),
                 _ => Self::invalid_binary_operation(op, left, right),
             },
             _ => Self::invalid_binary_operation(op, left, right),
@@ -2639,26 +2644,7 @@ impl Interpreter {
                 if self.set_return_if_error(&cond_val) {
                     return;
                 }
-                let is_truthy = match cond_val {
-                    Value::Bool(b) => b,
-                    Value::Int(n) => n != 0,
-                    Value::Float(n) => n != 0.0,
-                    Value::Str(s) => {
-                        // Handle string representations of booleans for backward compatibility
-                        if s.as_ref() == "true" {
-                            true
-                        } else if s.as_ref() == "false" {
-                            false
-                        } else {
-                            !s.is_empty()
-                        }
-                    }
-                    Value::Array(ref arr) => !arr.is_empty(),
-                    Value::Dict(ref dict) => !dict.is_empty(),
-                    _ => true, // Other values are truthy
-                };
-
-                if is_truthy {
+                if cond_val.is_truthy() {
                     self.eval_stmts(then_branch);
                 } else if let Some(else_branch) = else_branch {
                     self.eval_stmts(else_branch);
@@ -2906,7 +2892,7 @@ impl Interpreter {
                         if self.set_return_if_error(&condition_value) {
                             return;
                         }
-                        if !matches!(condition_value, Value::Float(n) if n != 0.0) {
+                        if !condition_value.is_truthy() {
                             break;
                         }
                     }
@@ -3136,25 +3122,7 @@ impl Interpreter {
                     if self.set_return_if_error(&cond_val) {
                         return;
                     }
-                    let is_truthy = match cond_val {
-                        Value::Bool(b) => b,
-                        Value::Int(n) => n != 0,
-                        Value::Float(n) => n != 0.0,
-                        Value::Str(s) => {
-                            if s.as_ref() == "true" {
-                                true
-                            } else if s.as_ref() == "false" {
-                                false
-                            } else {
-                                !s.is_empty()
-                            }
-                        }
-                        Value::Array(ref arr) => !arr.is_empty(),
-                        Value::Dict(ref dict) => !dict.is_empty(),
-                        _ => true,
-                    };
-
-                    if !is_truthy {
+                    if !cond_val.is_truthy() {
                         break;
                     }
 
@@ -3480,6 +3448,36 @@ impl Interpreter {
             Expr::BinaryOp { left, op, right } => {
                 // Handle special operators that need custom evaluation
                 match op.as_str() {
+                    "&&" => {
+                        let l = self.eval_expr(left);
+                        if Self::is_error_value(&l) {
+                            return l;
+                        }
+                        if !l.is_truthy() {
+                            return Value::Bool(false);
+                        }
+
+                        let r = self.eval_expr(right);
+                        if Self::is_error_value(&r) {
+                            return r;
+                        }
+                        return Value::Bool(r.is_truthy());
+                    }
+                    "||" => {
+                        let l = self.eval_expr(left);
+                        if Self::is_error_value(&l) {
+                            return l;
+                        }
+                        if l.is_truthy() {
+                            return Value::Bool(true);
+                        }
+
+                        let r = self.eval_expr(right);
+                        if Self::is_error_value(&r) {
+                            return r;
+                        }
+                        return Value::Bool(r.is_truthy());
+                    }
                     // Null coalescing: return left if not null, otherwise right
                     "??" => {
                         let l = self.eval_expr(left);
