@@ -54,3 +54,4 @@ High-signal session notes:
 - `2026-05-06_17-07_undefined-identifier-runtime-errors.md` — Replaced implicit identifier-to-string fallback with runtime errors, preserved native error-as-value bindings, and gated script JIT off variable loads until undefined-name parity is explicit.
 - `2026-05-06_21-06_v1-run-003-invalid-operation-errors.md` — Replaced invalid-operation sentinel fallbacks with runtime errors, unified assignment/index helper behavior, and captured script-JIT unary parity gating.
 - `2026-05-06_22-19_v1-sec-001-unzip-hardening.md` — Hardened `unzip` against traversal/resource-exhaustion abuse, added fail-fast extraction limits, and documented zip symlink-fixture metadata gotcha.
+- `2026-05-06_22-32_v1-http-001-mime-policy-unification.md` — Unified static-server MIME/active-content fallback behavior in production code, removed duplicate test-only serve policy logic, and added live MIME-policy integration coverage.

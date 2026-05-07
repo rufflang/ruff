@@ -244,6 +244,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_11-06_cli-serve-universal-hardening-followthrough.md)
 
+### Static-serve MIME policy must live in production module code
+- **Problem:** Duplicate `#[cfg(test)]` MIME/security helpers can report safer behavior than the actual `ruff serve` runtime path.
+- **Rule:** Keep static-server MIME and active-content fallback policy centralized in `src/serve_http.rs` and exercise it via production helper tests or subprocess integration tests.
+- **Implication:** Do not maintain separate serve MIME policy logic in `src/main.rs` tests; it causes security drift and false confidence.
+
+(Discovered during: 2026-05-06_22-32_v1-http-001-mime-policy-unification.md)
+
 ---
 
 ## Mental Model Summary
