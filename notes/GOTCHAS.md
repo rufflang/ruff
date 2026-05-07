@@ -138,9 +138,9 @@ If you are new to the project, read this first.
 ### Script JIT can bypass runtime error semantics
 - **Problem:** Top-level script JIT may return a default value for opcodes whose checked VM path would report a runtime error.
 - **Rule:** Do not admit opcodes into script JIT unless the JIT implementation preserves the same error semantics as the bytecode VM.
-- **Implication:** Undefined-name work gates `LoadVar`/`LoadGlobal` out of script JIT until JIT variable lookup has explicit parity tests.
+- **Implication:** Undefined-name work gates `LoadVar`/`LoadGlobal` out of script JIT until JIT variable lookup has explicit parity tests, and strict-unary semantics now gate `Negate`/`Not` admission until JIT parity coverage exists.
 
-(Discovered during: 2026-05-06_17-07_undefined-identifier-runtime-errors.md)
+(Discovered during: 2026-05-06_17-07_undefined-identifier-runtime-errors.md, 2026-05-06_21-06_v1-run-003-invalid-operation-errors.md)
 
 ### Interpreter named nested functions are not closure expressions
 - **Problem:** A nested `func name(...) { ... }` may not capture local variables the way an anonymous `func(...) { ... }` expression does.

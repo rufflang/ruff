@@ -52,3 +52,4 @@ High-signal session notes:
 - `2026-05-06_11-18_field-notes-system-enforcement.md` — Captured policy-enforcement alignment for session-note structure contracts, curated gotcha hygiene, and future CI/template follow-up options.
 - `2026-05-06_11-30_field-notes-ci-guard.md` — Added automated CI enforcement for new field-note filename/template contracts and captured Bash 3 portability constraints for repo shell guards.
 - `2026-05-06_17-07_undefined-identifier-runtime-errors.md` — Replaced implicit identifier-to-string fallback with runtime errors, preserved native error-as-value bindings, and gated script JIT off variable loads until undefined-name parity is explicit.
+- `2026-05-06_21-06_v1-run-003-invalid-operation-errors.md` — Replaced invalid-operation sentinel fallbacks with runtime errors, unified assignment/index helper behavior, and captured script-JIT unary parity gating.
