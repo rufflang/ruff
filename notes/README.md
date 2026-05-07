@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-07_08-12_v1-par-003-precedence-and-compound-assignment.md` — Locked parser precedence/associativity contracts with AST/runtime tests, split equality vs comparison precedence tiers, and added compound-assignment tokenization/parsing with chained-assignment diagnostics.
 - `2026-05-07_07-58_v1-par-002-parser-depth-source-size-limits.md` — Added parser expression/block depth safety limits and CLI source-size parse guards with regression coverage.
 - `2026-01-25_14-30_destructuring-spread-implementation.md` — Pattern binding and spread semantics.
 - `2026-01-25_17-30_result-option-types-COMPLETED.md` — Contextual identifiers for `Ok/Err/Some/None`.

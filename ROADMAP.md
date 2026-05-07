@@ -480,11 +480,11 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-PAR-003: Lock operator precedence and associativity with golden tests
+[x] V1-PAR-003: Lock operator precedence and associativity with golden tests
     Priority: P1
     Severity: Medium
     Area: Correctness/Tests
-    Affected files: src/parser.rs, src/ast.rs, docs/LANGUAGE_SPEC.md, tests/parser_precedence.rs
+    Affected files: src/parser.rs, src/lexer.rs, docs/LANGUAGE_SPEC.md, tests/parser_precedence.rs
     Problem: A language cannot be production-ready if precedence or associativity is implicit, incomplete, or untested.
     Recommendation: Define and test the full operator table.
     Implementation steps:
@@ -503,7 +503,7 @@ If a command is not yet available, create the missing configuration as part of t
         - In-place update behavior.
         - Parenthesized override behavior.
     Acceptance criteria: Precedence behavior is documented and protected by tests.
-    Notes: Use readable AST snapshots rather than brittle debug output if possible.
+    Notes: Completed on 2026-05-07. Split parser precedence tiers so comparison (`<`, `<=`, `>`, `>=`) and equality (`==`, `!=`) are independently ordered, added statement-level compound assignment support (`+=`, `-=`, `*=`, `/=`, `%=`) with deterministic lowering to assignment + binary-op semantics, and added a parser diagnostic for unsupported chained assignments. Added lexer tokenization for compound assignment operators and a dedicated precedence contract suite in `tests/parser_precedence.rs` that locks AST shapes plus runtime checks for arithmetic/comparison/equality/boolean/unary precedence, assignment/in-place update behavior, and parenthesized precedence override behavior. Documented the precedence/associativity table in `docs/LANGUAGE_SPEC.md` and aligned README language-surface notes. Verification: `cargo test --test parser_precedence`, `cargo test tokenizes_compound_assignment_operators --lib`, `cargo test`.
 ```
 
 ```text

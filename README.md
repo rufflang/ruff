@@ -228,6 +228,8 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 
 - Numeric, string, boolean, `null`, array, and dictionary values.
 - `let`, `mut`, and `const` bindings with `:=` assignment syntax.
+- Assignment/update statements support `:=`, `=`, `+=`, `-=`, `*=`, `/=`, and `%=` (chained assignment like `a := b := 1` is rejected).
+- Operator precedence is explicit and documented in `docs/LANGUAGE_SPEC.md` (postfix/unary through multiplicative/additive/comparison/equality/boolean/null-coalescing/pipe).
 - Optional annotations on variables and functions, such as `let x: int := 42` and `func add(a: int, b: int) -> int`.
 - Functions declared with `func`, including anonymous function expressions and `async func`.
 - `if`/`else`, `while`, `loop`, `for ... in`, `break`, and `continue`.

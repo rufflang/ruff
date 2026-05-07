@@ -36,6 +36,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_23-48_v1-par-001-parse-diagnostics.md)
 
+### Precedence-tier refactors require helper-callsite audits
+- **Problem:** Splitting parse stages (for example separating equality from comparison) can accidentally reduce expression support in literals/struct fields if helper parse functions still call old stage boundaries.
+- **Rule:** After precedence changes, audit every `parse_*` helper callsite in array/dict/struct parsing and move to the stage that preserves the intended expression coverage contract.
+- **Why:** These helper paths often avoid full `parse_expr()` recursion and depend on precise stage selection.
+
+(Discovered during: 2026-05-07_08-12_v1-par-003-precedence-and-compound-assignment.md)
+
 ### Multi-character operators require explicit lexer lookahead
 - **Problem:** Operators like `...` fragment into punctuation tokens when lookahead logic is incomplete.
 - **Rule:** Any multi-character operator must have dedicated lookahead path in lexer tokenization.
