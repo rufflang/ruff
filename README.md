@@ -13,6 +13,12 @@ The project is currently at `0.14.0` in `Cargo.toml`, after completing the stabi
 - Optional type annotations are parsed. In the CLI, type-checking warnings are emitted on the interpreter path; VM execution does not currently enforce a static type gate before running.
 - Some advanced language surfaces are experimental or have runtime-mode gaps. See [Known Boundaries](#known-boundaries).
 
+## 1.0 Readiness Status
+
+- Ruff is not yet ready for a `1.0.0` release.
+- [ROADMAP.md](ROADMAP.md) is the single source of truth for release readiness and blocker tracking.
+- Ruff `1.0.0` must not be released until all P0/P1 roadmap items and the final release checklist are complete.
+
 ## Cross-IDE Strategy
 
 Ruff language tooling is being aligned around a universal-first architecture:

@@ -1,9 +1,11 @@
 # Native API Security Posture
 
-Status: v1.0.0 baseline draft (active)
-Last updated: 2026-05-01
+Status: v1.0.0 baseline draft (active, not a release-ready claim)
+Last updated: 2026-05-07
 
 This document defines the security trust model and operational caveats for high-risk native APIs.
+
+This posture document records current trust boundaries only; final 1.0 release readiness is tracked in `ROADMAP.md` and depends on outstanding security/runtime roadmap items.
 
 ## Trust Model
 

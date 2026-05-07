@@ -1,12 +1,14 @@
 # Ruff Language Specification
 
-Status: v1.0.0 baseline draft (active)
+Status: v1.0.0 baseline draft (active, not a release-ready claim)
 Spec version: 1.0.0-draft
 Last updated: 2026-05-06
 
 ## 1. Scope
 
 This document defines the Ruff language and tooling compatibility contract for the active v1.0.0 baseline draft.
+
+This draft status does not imply that Ruff is release-ready; see `ROADMAP.md` for the active 1.0 readiness gate and remaining blockers.
 
 It is normative for:
 

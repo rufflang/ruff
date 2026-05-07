@@ -151,7 +151,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 0: Baseline Reset
 
 ```text
-[ ] V1-BASE-001: Establish the audited baseline as the source of truth
+[x] V1-BASE-001: Establish the audited baseline as the source of truth
     Priority: P0
     Severity: High
     Area: Release/Tests/Docs
@@ -164,7 +164,7 @@ If a command is not yet available, create the missing configuration as part of t
         3. Add a short "1.0 readiness status" section to README.md that points to this roadmap.
     Tests required: Documentation smoke check only. Run `cargo test` to confirm no accidental code changes if files outside docs are touched.
     Acceptance criteria: Public docs do not overstate readiness, and this roadmap is the single 1.0 completion source.
-    Notes: This item is complete for ROADMAP.md once this file lands, but README/spec claims still need inspection.
+    Notes: Completed on 2026-05-07. Audited public readiness language across README/spec/security docs, added an explicit README `1.0 Readiness Status` section that points to `ROADMAP.md` as the single release-gate source, and clarified that `v1.0.0 baseline draft` labels in `docs/LANGUAGE_SPEC.md` and `docs/NATIVE_API_SECURITY_POSTURE.md` do not imply release readiness. Verification: `cargo test` passed.
 ```
 
 ```text
