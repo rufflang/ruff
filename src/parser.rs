@@ -16,7 +16,8 @@
 
 use crate::ast::{Expr, Stmt};
 use crate::errors::{
-    Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, SourceLocation, DIAGNOSTIC_CODE_PARSER,
+    Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, SourceLocation, SourceSpan,
+    DIAGNOSTIC_CODE_PARSER,
 };
 use crate::lexer::{Token, TokenKind};
 use std::fs;
@@ -32,11 +33,17 @@ pub const DEFAULT_MAX_BLOCK_DEPTH: usize = 128;
 pub struct ParseDiagnostic {
     pub line: usize,
     pub column: usize,
+    pub span: SourceSpan,
     pub message: String,
 }
 
 impl ParseDiagnostic {
     pub fn to_diagnostic(&self, file: Option<&str>) -> Diagnostic {
+        let mut location = self.span.start.clone();
+        if let Some(file_name) = file {
+            location.file = Some(file_name.to_string());
+        }
+
         Diagnostic::new(
             DIAGNOSTIC_CODE_PARSER,
             DiagnosticSeverity::Error,
@@ -44,7 +51,7 @@ impl ParseDiagnostic {
             self.message.clone(),
         )
         .with_help("Fix the parse error and rerun Ruff.")
-        .with_location(file.map(|value| value.to_string()), self.line, self.column)
+        .with_location(location.file, location.line, location.column)
     }
 }
 
@@ -52,9 +59,16 @@ pub fn source_size_limit_diagnostic(
     source_bytes: usize,
     max_source_bytes: usize,
 ) -> ParseDiagnostic {
+    let span = SourceSpan {
+        start: SourceLocation::new(1, 1),
+        end: SourceLocation::new(1, 1),
+        start_byte: 0,
+        end_byte: 0,
+    };
     ParseDiagnostic {
         line: 1,
         column: 1,
+        span,
         message: format!(
             "Source size {} bytes exceeds maximum allowed {} bytes",
             source_bytes, max_source_bytes
@@ -75,6 +89,20 @@ pub fn validate_source_size(source: &str, max_source_bytes: usize) -> Result<(),
 pub struct ParseOutput {
     pub stmts: Vec<Stmt>,
     pub diagnostics: Vec<ParseDiagnostic>,
+    #[allow(dead_code)] // Used by parser/LSP contracts and targeted tests; not consumed in every binary flow yet.
+    pub ast_spans: Vec<AstNodeSpan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AstNodeSpanKind {
+    Statement,
+    Expression,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AstNodeSpan {
+    pub kind: AstNodeSpanKind,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -101,6 +129,7 @@ pub struct Parser {
     block_depth: usize,
     max_expression_depth: usize,
     max_block_depth: usize,
+    ast_spans: Vec<AstNodeSpan>,
 }
 
 impl Parser {
@@ -118,6 +147,7 @@ impl Parser {
             block_depth: 0,
             max_expression_depth: limits.max_expression_depth,
             max_block_depth: limits.max_block_depth,
+            ast_spans: Vec::new(),
         }
     }
 
@@ -133,23 +163,79 @@ impl Parser {
         tok
     }
 
-    fn peek_token(&self) -> Option<&Token> {
-        self.tokens.get(self.pos)
-    }
-
-    fn current_line_column(&self) -> (usize, usize) {
-        if let Some(token) = self.peek_token() {
-            (token.line, token.column)
-        } else if let Some(token) = self.tokens.last() {
-            (token.line, token.column)
-        } else {
-            (1, 1)
+    fn token_width_chars(token: &Token) -> usize {
+        match &token.kind {
+            TokenKind::Identifier(value) | TokenKind::Keyword(value) | TokenKind::Operator(value) => {
+                value.chars().count().max(1)
+            }
+            TokenKind::Int(value) => value.to_string().chars().count().max(1),
+            TokenKind::Float(value) => value.to_string().chars().count().max(1),
+            TokenKind::String(value) => value.chars().count().saturating_add(2).max(1),
+            TokenKind::InterpolatedString(_) => 2,
+            TokenKind::Bool(true) => 4,
+            TokenKind::Bool(false) => 5,
+            TokenKind::Punctuation(_) => 1,
+            TokenKind::Eof => 0,
         }
     }
 
+    fn token_span_at(&self, pos: usize) -> SourceSpan {
+        if let Some(token) = self.tokens.get(pos) {
+            let width_chars = Self::token_width_chars(token);
+            let uses_end_column = matches!(
+                token.kind,
+                TokenKind::Identifier(_) | TokenKind::Keyword(_) | TokenKind::Bool(_)
+            );
+            let raw_start_column = if uses_end_column {
+                token.column.saturating_sub(width_chars)
+            } else {
+                token.column
+            };
+            let start_column = raw_start_column.max(1);
+            let start = SourceLocation::new(token.line, start_column);
+            let end = SourceLocation::new(token.line, start_column.saturating_add(width_chars));
+            let start_byte = token.byte_offset;
+            let end_byte = start_byte.saturating_add(width_chars);
+            SourceSpan::new(start, end, start_byte, end_byte)
+        } else if let Some(token) = self.tokens.last() {
+            let loc = SourceLocation::new(token.line, token.column);
+            SourceSpan::new(loc.clone(), loc, token.byte_offset, token.byte_offset)
+        } else {
+            SourceSpan::unknown()
+        }
+    }
+
+    fn current_span(&self) -> SourceSpan {
+        self.token_span_at(self.pos)
+    }
+
+    fn span_between_positions(&self, start_pos: usize, end_pos: usize) -> SourceSpan {
+        let start = self.token_span_at(start_pos);
+        if end_pos <= start_pos {
+            return start;
+        }
+
+        let end_token_index = end_pos.saturating_sub(1);
+        let end = self.token_span_at(end_token_index);
+
+        SourceSpan::new(start.start.clone(), end.end.clone(), start.start_byte, end.end_byte)
+    }
+
+    fn record_ast_span(&mut self, kind: AstNodeSpanKind, start_pos: usize, end_pos: usize) {
+        self.ast_spans.push(AstNodeSpan {
+            kind,
+            span: self.span_between_positions(start_pos, end_pos),
+        });
+    }
+
     fn push_diagnostic(&mut self, message: impl Into<String>) {
-        let (line, column) = self.current_line_column();
-        self.diagnostics.push(ParseDiagnostic { line, column, message: message.into() });
+        let span = self.current_span();
+        self.diagnostics.push(ParseDiagnostic {
+            line: span.start.line,
+            column: span.start.column,
+            span,
+            message: message.into(),
+        });
     }
 
     fn with_expression_depth<T>(
@@ -388,6 +474,7 @@ impl Parser {
     /// Parse the entire token stream into statements and parser diagnostics.
     pub fn parse_with_diagnostics(&mut self) -> ParseOutput {
         self.diagnostics.clear();
+        self.ast_spans.clear();
         let mut stmts = Vec::new();
         while !matches!(self.peek(), TokenKind::Eof) {
             // Skip semicolons between statements
@@ -410,7 +497,11 @@ impl Parser {
                 self.synchronize_statement();
             }
         }
-        ParseOutput { stmts, diagnostics: std::mem::take(&mut self.diagnostics) }
+        ParseOutput {
+            stmts,
+            diagnostics: std::mem::take(&mut self.diagnostics),
+            ast_spans: std::mem::take(&mut self.ast_spans),
+        }
     }
 
     /// Parse the entire token stream and return statements only when no parse diagnostics exist.
@@ -424,6 +515,15 @@ impl Parser {
     }
 
     fn parse_stmt(&mut self) -> Option<Stmt> {
+        let start_pos = self.pos;
+        let parsed = self.parse_stmt_inner();
+        if parsed.is_some() {
+            self.record_ast_span(AstNodeSpanKind::Statement, start_pos, self.pos);
+        }
+        parsed
+    }
+
+    fn parse_stmt_inner(&mut self) -> Option<Stmt> {
         match self.peek() {
             TokenKind::Keyword(k) if k == "let" || k == "mut" => self.parse_let(),
             TokenKind::Keyword(k) if k == "const" => self.parse_const(),
@@ -1246,7 +1346,12 @@ impl Parser {
     }
 
     fn parse_expr(&mut self) -> Option<Expr> {
-        self.with_expression_depth("expression", |parser| parser.parse_expr_inner())
+        let start_pos = self.pos;
+        let parsed = self.with_expression_depth("expression", |parser| parser.parse_expr_inner());
+        if parsed.is_some() {
+            self.record_ast_span(AstNodeSpanKind::Expression, start_pos, self.pos);
+        }
+        parsed
     }
 
     fn parse_expr_inner(&mut self) -> Option<Expr> {

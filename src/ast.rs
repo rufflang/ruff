@@ -7,7 +7,10 @@
 // Expressions (Expr) represent values and computations, while Statements (Stmt)
 // represent actions and control flow.
 
-use crate::errors::SourceLocation;
+use crate::errors::{SourceLocation, SourceSpan};
+
+/// Shared AST span type used across parser, runtime diagnostics, and LSP diagnostics.
+pub type AstSpan = SourceSpan;
 
 /// Special method names for operator overloading
 /// These methods can be defined on structs to customize operator behavior
@@ -225,11 +228,19 @@ pub enum DictElement {
 }
 
 impl Expr {
+    /// Returns a source span for this expression if available.
+    /// The parser still produces unspanned expression nodes in some paths, so unknown is returned
+    /// until spans are carried by every AST node.
+    #[allow(dead_code)]
+    pub fn span(&self) -> AstSpan {
+        AstSpan::unknown()
+    }
+
     /// Returns a source location for this expression if available.
     /// Currently returns unknown location - will be enhanced when parser tracks locations.
     #[allow(dead_code)]
     pub fn location(&self) -> SourceLocation {
-        SourceLocation::unknown()
+        self.span().start
     }
 }
 
@@ -342,10 +353,18 @@ pub enum Stmt {
 }
 
 impl Stmt {
+    /// Returns a source span for this statement if available.
+    /// The parser still produces unspanned statement nodes in some paths, so unknown is returned
+    /// until spans are carried by every AST node.
+    #[allow(dead_code)]
+    pub fn span(&self) -> AstSpan {
+        AstSpan::unknown()
+    }
+
     /// Returns a source location for this statement if available.
     /// Currently returns unknown location - will be enhanced when parser tracks locations.
     #[allow(dead_code)]
     pub fn location(&self) -> SourceLocation {
-        SourceLocation::unknown()
+        self.span().start
     }
 }

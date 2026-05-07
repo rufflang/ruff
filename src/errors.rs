@@ -9,7 +9,7 @@ use serde_json::json;
 use std::fmt;
 
 /// Source location information for tracking where code appears in a file
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceLocation {
     pub line: usize,
     pub column: usize,
@@ -38,6 +38,101 @@ impl fmt::Display for SourceLocation {
         } else {
             write!(f, "{}:{}", self.line, self.column)
         }
+    }
+}
+
+/// Source span with start/end locations and byte offsets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceSpan {
+    pub start: SourceLocation,
+    pub end: SourceLocation,
+    pub start_byte: usize,
+    pub end_byte: usize,
+}
+
+impl SourceSpan {
+    pub fn new(
+        start: SourceLocation,
+        end: SourceLocation,
+        start_byte: usize,
+        end_byte: usize,
+    ) -> Self {
+        Self { start, end, start_byte, end_byte }
+    }
+
+    pub fn unknown() -> Self {
+        Self {
+            start: SourceLocation::unknown(),
+            end: SourceLocation::unknown(),
+            start_byte: 0,
+            end_byte: 0,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_start_and_len(
+        source: &str,
+        start_byte: usize,
+        len_bytes: usize,
+        file: Option<String>,
+    ) -> Self {
+        let end_byte = start_byte.saturating_add(len_bytes).min(source.len());
+        let (start_line, start_column) = line_column_from_byte_offset(source, start_byte);
+        let (end_line, end_column) = line_column_from_byte_offset(source, end_byte);
+
+        let start = SourceLocation { line: start_line, column: start_column, file: file.clone() };
+        let end = SourceLocation { line: end_line, column: end_column, file };
+
+        Self { start, end, start_byte, end_byte }
+    }
+}
+
+/// Convert a byte offset in `source` into 1-based line/column.
+#[allow(dead_code)]
+pub fn line_column_from_byte_offset(source: &str, byte_offset: usize) -> (usize, usize) {
+    let clamped = byte_offset.min(source.len());
+    let mut line = 1usize;
+    let mut column = 1usize;
+    let mut offset = 0usize;
+
+    for ch in source.chars() {
+        if offset >= clamped {
+            break;
+        }
+
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+
+        offset += ch.len_utf8();
+    }
+
+    (line, column)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{line_column_from_byte_offset, SourceSpan};
+
+    #[test]
+    fn line_column_conversion_handles_multiline_utf8() {
+        let source = "a\nb\u{00E9}\nc";
+        assert_eq!(line_column_from_byte_offset(source, 0), (1, 1));
+        assert_eq!(line_column_from_byte_offset(source, 2), (2, 1));
+        assert_eq!(line_column_from_byte_offset(source, source.len()), (3, 2));
+    }
+
+    #[test]
+    fn source_span_from_start_and_len_tracks_byte_bounds() {
+        let source = "let value := 1\n";
+        let span = SourceSpan::from_start_and_len(source, 4, 5, None);
+        assert_eq!(span.start.line, 1);
+        assert_eq!(span.start.column, 5);
+        assert_eq!(span.start_byte, 4);
+        assert_eq!(span.end_byte, 9);
     }
 }
 

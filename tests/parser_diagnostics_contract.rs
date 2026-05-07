@@ -68,6 +68,19 @@ fn parser_accepts_valid_program_without_diagnostics() {
     let output = parse_output("let value := 1\nprint(value)\n");
     assert!(output.diagnostics.is_empty());
     assert_eq!(output.stmts.len(), 2);
+    assert!(!output.ast_spans.is_empty(), "expected parser to record AST spans");
+    assert!(output
+        .ast_spans
+        .iter()
+        .all(|node| node.span.end_byte >= node.span.start_byte));
+    assert!(output
+        .ast_spans
+        .iter()
+        .any(|node| matches!(node.kind, ruff::parser::AstNodeSpanKind::Statement)));
+    assert!(output
+        .ast_spans
+        .iter()
+        .any(|node| matches!(node.kind, ruff::parser::AstNodeSpanKind::Expression)));
 }
 
 #[test]
@@ -77,6 +90,20 @@ fn parser_reports_missing_closing_parenthesis() {
         .diagnostics
         .iter()
         .any(|diagnostic| diagnostic.message.contains("Expected ')'")));
+}
+
+#[test]
+fn parser_diagnostic_span_matches_legacy_location_fields() {
+    let output = parse_output("print((1 + 2)\n");
+    let diagnostic = output
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.message.contains("Expected ')'"))
+        .expect("expected missing parenthesis diagnostic");
+
+    assert_eq!(diagnostic.line, diagnostic.span.start.line);
+    assert_eq!(diagnostic.column, diagnostic.span.start.column);
+    assert!(diagnostic.span.end_byte >= diagnostic.span.start_byte);
 }
 
 #[test]
@@ -124,6 +151,10 @@ fn parser_recovery_reports_multiple_independent_errors() {
     assert!(messages.iter().any(|message| message.contains("Expected ')'")));
     assert!(messages.iter().any(|message| message.contains("Expected ']'")));
     assert!(output.stmts.iter().any(|stmt| matches!(stmt, ruff::ast::Stmt::Assign { .. })));
+    assert!(output
+        .diagnostics
+        .iter()
+        .all(|diagnostic| diagnostic.span.end_byte >= diagnostic.span.start_byte));
 }
 
 #[test]

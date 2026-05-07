@@ -243,7 +243,7 @@ fn identifier_definition(
     kind: DefinitionKind,
 ) -> Option<DefinitionLocation> {
     match tokens.get(token_index) {
-        Some(Token { kind: TokenKind::Identifier(name), line, column }) => {
+        Some(Token { kind: TokenKind::Identifier(name), line, column, .. }) => {
             Some(DefinitionLocation {
                 name: name.clone(),
                 line: *line,

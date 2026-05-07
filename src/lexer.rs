@@ -38,6 +38,8 @@ pub struct Token {
     pub line: usize,
     #[allow(dead_code)]
     pub column: usize,
+    #[allow(dead_code)]
+    pub byte_offset: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -166,6 +168,16 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
             byte_offset,
             file: file.map(|value| value.to_string()),
         });
+    }
+
+    fn push_token(
+        tokens: &mut Vec<Token>,
+        kind: TokenKind,
+        line: usize,
+        column: usize,
+        byte_offset: usize,
+    ) {
+        tokens.push(Token { kind, line, column, byte_offset });
     }
 
     fn bump(chars: &[char], idx: &mut usize) -> Option<char> {
@@ -406,21 +418,25 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
 
                 if !string_error {
                     if has_interpolation {
-                        tokens.push(Token {
-                            kind: TokenKind::InterpolatedString(parts),
-                            line: start_line,
-                            column: start_col,
-                        });
+                        push_token(
+                            &mut tokens,
+                            TokenKind::InterpolatedString(parts),
+                            start_line,
+                            start_col,
+                            start_offset,
+                        );
                     } else {
                         let text = match parts.first() {
                             Some(InterpolatedPart::Text(value)) => value.clone(),
                             _ => String::new(),
                         };
-                        tokens.push(Token {
-                            kind: TokenKind::String(text),
-                            line: start_line,
-                            column: start_col,
-                        });
+                        push_token(
+                            &mut tokens,
+                            TokenKind::String(text),
+                            start_line,
+                            start_col,
+                            start_offset,
+                        );
                     }
                 }
             }
@@ -491,11 +507,15 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
 
                 if has_decimal {
                     match num.parse::<f64>() {
-                        Ok(parsed) if parsed.is_finite() => tokens.push(Token {
-                            kind: TokenKind::Float(parsed),
-                            line: start_line,
-                            column: start_col,
-                        }),
+                        Ok(parsed) if parsed.is_finite() => {
+                            push_token(
+                                &mut tokens,
+                                TokenKind::Float(parsed),
+                                start_line,
+                                start_col,
+                                start_offset,
+                            )
+                        }
                         Ok(_) => push_diag(
                             &mut diagnostics,
                             LexerDiagnosticKind::NumericLiteralOverflow,
@@ -527,11 +547,13 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                     }
                 } else {
                     match num.parse::<i64>() {
-                        Ok(parsed) => tokens.push(Token {
-                            kind: TokenKind::Int(parsed),
-                            line: start_line,
-                            column: start_col,
-                        }),
+                        Ok(parsed) => push_token(
+                            &mut tokens,
+                            TokenKind::Int(parsed),
+                            start_line,
+                            start_col,
+                            start_offset,
+                        ),
                         Err(error) => {
                             let kind = match error.kind() {
                                 IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
@@ -601,126 +623,158 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                     _ => TokenKind::Identifier(ident),
                 };
 
-                tokens.push(Token { kind, line: start_line, column: col });
+                // Preserve legacy column semantics for identifier-like tokens:
+                // column points to the character after the token so LSP symbol helpers that
+                // compute `start = column - name_len` remain stable.
+                push_token(&mut tokens, kind, start_line, col, start_offset);
             }
             ':' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 bump(&chars, &mut idx);
                 advance_position(':', &mut line, &mut col);
                 if peek(&chars, idx) == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator(":=".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator(":=".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if peek(&chars, idx) == Some(':') {
                     bump(&chars, &mut idx);
                     advance_position(':', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("::".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("::".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Punctuation(':'),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Punctuation(':'),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '=' | '+' | '-' | '*' | '<' | '>' | '!' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 let op = bump(&chars, &mut idx).expect("peeked char should exist");
                 advance_position(op, &mut line, &mut col);
                 let maybe_next = peek(&chars, idx);
                 if op == '=' && maybe_next == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("==".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("==".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if op == '!' && maybe_next == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("!=".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("!=".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if op == '>' && maybe_next == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator(">=".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator(">=".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if op == '<' && maybe_next == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("<=".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("<=".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if matches!(op, '+' | '-' | '*') && maybe_next == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator(format!("{}=", op)),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator(format!("{}=", op)),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if op == '-' && maybe_next == Some('>') {
                     bump(&chars, &mut idx);
                     advance_position('>', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("->".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("->".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Operator(op.to_string()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator(op.to_string()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '?' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 bump(&chars, &mut idx);
                 advance_position('?', &mut line, &mut col);
                 if peek(&chars, idx) == Some('?') {
                     bump(&chars, &mut idx);
                     advance_position('?', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("??".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("??".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if peek(&chars, idx) == Some('.') {
                     bump(&chars, &mut idx);
                     advance_position('.', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("?.".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("?.".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("?".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("?".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '/' => {
@@ -733,11 +787,13 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                 if peek(&chars, idx) == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("/=".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("/=".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if peek(&chars, idx) == Some('*') {
                     bump(&chars, &mut idx);
                     advance_position('*', &mut line, &mut col);
@@ -784,87 +840,107 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                         }
                     }
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("/".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("/".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '%' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 bump(&chars, &mut idx);
                 advance_position('%', &mut line, &mut col);
                 if peek(&chars, idx) == Some('=') {
                     bump(&chars, &mut idx);
                     advance_position('=', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("%=".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("%=".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("%".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("%".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '|' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 bump(&chars, &mut idx);
                 advance_position('|', &mut line, &mut col);
                 if peek(&chars, idx) == Some('|') {
                     bump(&chars, &mut idx);
                     advance_position('|', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("||".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("||".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else if peek(&chars, idx) == Some('>') {
                     bump(&chars, &mut idx);
                     advance_position('>', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("|>".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("|>".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("|".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("|".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '&' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 bump(&chars, &mut idx);
                 advance_position('&', &mut line, &mut col);
                 if peek(&chars, idx) == Some('&') {
                     bump(&chars, &mut idx);
                     advance_position('&', &mut line, &mut col);
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("&&".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("&&".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Operator("&".into()),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Operator("&".into()),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '.' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 bump(&chars, &mut idx);
                 advance_position('.', &mut line, &mut col);
                 if peek(&chars, idx) == Some('.') {
@@ -873,41 +949,52 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                     if peek(&chars, idx) == Some('.') {
                         bump(&chars, &mut idx);
                         advance_position('.', &mut line, &mut col);
-                        tokens.push(Token {
-                            kind: TokenKind::Operator("...".into()),
-                            line: start_line,
-                            column: start_col,
-                        });
+                        push_token(
+                            &mut tokens,
+                            TokenKind::Operator("...".into()),
+                            start_line,
+                            start_col,
+                            start_offset,
+                        );
                     } else {
-                        tokens.push(Token {
-                            kind: TokenKind::Punctuation('.'),
-                            line: start_line,
-                            column: start_col,
-                        });
-                        tokens.push(Token {
-                            kind: TokenKind::Punctuation('.'),
-                            line: start_line,
-                            column: start_col + 1,
-                        });
+                        push_token(
+                            &mut tokens,
+                            TokenKind::Punctuation('.'),
+                            start_line,
+                            start_col,
+                            start_offset,
+                        );
+                        push_token(
+                            &mut tokens,
+                            TokenKind::Punctuation('.'),
+                            start_line,
+                            start_col + 1,
+                            start_offset.saturating_add(1),
+                        );
                     }
                 } else {
-                    tokens.push(Token {
-                        kind: TokenKind::Punctuation('.'),
-                        line: start_line,
-                        column: start_col,
-                    });
+                    push_token(
+                        &mut tokens,
+                        TokenKind::Punctuation('.'),
+                        start_line,
+                        start_col,
+                        start_offset,
+                    );
                 }
             }
             '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' => {
                 let start_line = line;
                 let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 let ch = bump(&chars, &mut idx).expect("peeked char should exist");
                 advance_position(ch, &mut line, &mut col);
-                tokens.push(Token {
-                    kind: TokenKind::Punctuation(ch),
-                    line: start_line,
-                    column: start_col,
-                });
+                push_token(
+                    &mut tokens,
+                    TokenKind::Punctuation(ch),
+                    start_line,
+                    start_col,
+                    start_offset,
+                );
             }
             _ => {
                 let diagnostic_line = line;
@@ -928,7 +1015,7 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
         }
     }
 
-    tokens.push(Token { kind: TokenKind::Eof, line, column: col });
+    push_token(&mut tokens, TokenKind::Eof, line, col, source.len());
 
     LexOutput { tokens, diagnostics }
 }
@@ -1061,5 +1148,13 @@ mod tests {
         assert!(operators.contains(&"*="));
         assert!(operators.contains(&"/="));
         assert!(operators.contains(&"%="));
+    }
+
+    #[test]
+    fn token_byte_offsets_are_monotonic() {
+        let tokens = tokenize("let value := 42\nprint(value)\n").expect("source should tokenize");
+        for pair in tokens.windows(2) {
+            assert!(pair[1].byte_offset >= pair[0].byte_offset);
+        }
     }
 }

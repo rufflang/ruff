@@ -314,7 +314,7 @@ fn declaration_from_token(
     scope_path: Vec<usize>,
 ) -> Option<SymbolDeclaration> {
     match tokens.get(token_index) {
-        Some(Token { kind: TokenKind::Identifier(name), line, column }) => {
+        Some(Token { kind: TokenKind::Identifier(name), line, column, .. }) => {
             Some(SymbolDeclaration {
                 name: name.clone(),
                 line: *line,
