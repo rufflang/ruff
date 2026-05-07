@@ -507,7 +507,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-PAR-004: Make AST spans complete and consistent
+[x] V1-PAR-004: Make AST spans complete and consistent
     Priority: P1
     Severity: Medium
     Area: Diagnostics/Architecture
@@ -525,7 +525,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Runtime error location tests.
         - Parser error location tests.
     Acceptance criteria: User-facing diagnostics point to the correct source range for all common syntax and runtime failures.
-    Notes: Keep AST changes mechanical and covered by compiler errors.
+    Notes: Completed on 2026-05-07. Added a shared `SourceSpan` model in `src/errors.rs` with byte-offset + line/column conversion helpers, extended lexer tokens (`src/lexer.rs`) to carry deterministic `byte_offset` metadata, and updated parser diagnostics (`src/parser.rs`) to include span payloads while preserving stable `line`/`column` contract fields. Parser outputs now publish `ast_spans` entries for statement/expression nodes so tooling surfaces can consume one consistent span stream, and parser-to-LSP diagnostic conversion now uses the same span-backed location source. Added regression coverage in `tests/parser_diagnostics_contract.rs` plus new lexer/errors span tests (`src/lexer.rs`, `src/errors.rs`) to lock monotonic token offsets, parser diagnostic span integrity, and parser AST span publication. Verification: `cargo test --test parser_diagnostics_contract`, `cargo test --test diagnostics_contract`, `cargo test token_byte_offsets_are_monotonic --lib`, `cargo test line_column_conversion_handles_multiline_utf8 --lib`, `cargo test`.
 ```
 
 ### Phase 3: Runtime, VM, And Language Semantics

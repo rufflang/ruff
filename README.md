@@ -249,7 +249,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - `test`, `test_setup`, `test_teardown`, and `test_group` declarations for the test runner.
 - `#`, `//`, `/* ... */`, and `///` comments.
 - Lexing malformed source now fails with structured diagnostics (line/column anchored) instead of silently skipping invalid characters or coercing malformed numeric literals.
-- Parsing malformed source now returns structured parser diagnostics (line/column anchored), including delimiter/EOF errors and invalid assignment targets; CLI parse failures exit non-zero before runtime execution.
+- Parsing malformed source now returns structured parser diagnostics with consistent source spans (start/end line+column and byte-offset bounds), including delimiter/EOF errors and invalid assignment targets; CLI parse failures exit non-zero before runtime execution.
 - Parser safety limits are enforced for CLI parse entrypoints: source files over `1,048,576` bytes, expression nesting deeper than `256`, or statement-block nesting deeper than `128` fail with structured parse diagnostics.
 
 A small async example:
