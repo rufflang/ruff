@@ -2920,7 +2920,17 @@ mod tests {
 
         let mut temp_dir = cwd_before.clone();
         temp_dir.push("tmp");
-        temp_dir.push("release_hardening_os_path_contract");
+        temp_dir.push(format!(
+            "release_hardening_os_path_contract_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after unix epoch")
+                .as_nanos()
+        ));
+        if temp_dir.exists() {
+            std::fs::remove_dir_all(&temp_dir).expect("stale temp hardening dir should be removable");
+        }
         std::fs::create_dir_all(&temp_dir).expect("temp hardening dir should be created");
         let temp_dir_string = temp_dir.to_string_lossy().to_string();
 
