@@ -517,48 +517,47 @@ fn guess_content_type(path: &Path, file_bytes: &[u8]) -> String {
 		.map(|ext| ext.to_ascii_lowercase());
 
 	if let Some(ext) = extension.as_deref() {
-		match ext {
-			"html" | "htm" => return "text/html; charset=utf-8".to_string(),
-			"css" => return "text/css; charset=utf-8".to_string(),
-			"js" | "mjs" | "cjs" => return "application/javascript; charset=utf-8".to_string(),
-			"json" | "map" => return "application/json; charset=utf-8".to_string(),
-			"xml" => return "application/xml; charset=utf-8".to_string(),
-			"txt" | "text" | "md" | "csv" => return "text/plain; charset=utf-8".to_string(),
-			"wasm" => return "application/wasm".to_string(),
-			"pdf" => return "application/pdf".to_string(),
-			"svg" => return "image/svg+xml".to_string(),
-			"png" => return "image/png".to_string(),
-			"jpg" | "jpeg" => return "image/jpeg".to_string(),
-			"gif" => return "image/gif".to_string(),
-			"webp" => return "image/webp".to_string(),
-			"avif" => return "image/avif".to_string(),
-			"ico" => return "image/x-icon".to_string(),
-			"bmp" => return "image/bmp".to_string(),
-			"woff" => return "font/woff".to_string(),
-			"woff2" => return "font/woff2".to_string(),
-			"ttf" => return "font/ttf".to_string(),
-			"otf" => return "font/otf".to_string(),
-			"mp3" => return "audio/mpeg".to_string(),
-			"wav" => return "audio/wav".to_string(),
-			"ogg" => return "audio/ogg".to_string(),
-			"mp4" => return "video/mp4".to_string(),
-			"webm" => return "video/webm".to_string(),
-			_ => {}
+		if let Some(known_mime) = known_mime_for_extension(ext) {
+			return known_mime.to_string();
 		}
+		// Unknown extensions are served as download-only bytes to avoid active-content sniffing.
+		return "application/octet-stream".to_string();
 	}
 
-	if let Some(guessed) = mime_guess::from_path(path).first_raw() {
-		if guessed.starts_with("text/") {
-			return format!("{}; charset=utf-8", guessed);
-		}
-		return guessed.to_string();
-	}
-
-	if let Some(inferred) = infer::get(file_bytes) {
-		return inferred.mime_type().to_string();
-	}
-
+	let _ = file_bytes;
+	// Extensionless files intentionally use octet-stream fallback.
 	"application/octet-stream".to_string()
+}
+
+fn known_mime_for_extension(ext: &str) -> Option<&'static str> {
+	match ext {
+		"html" | "htm" => Some("text/html; charset=utf-8"),
+		"css" => Some("text/css; charset=utf-8"),
+		"js" | "mjs" | "cjs" => Some("application/javascript; charset=utf-8"),
+		"json" | "map" => Some("application/json; charset=utf-8"),
+		"xml" => Some("application/xml; charset=utf-8"),
+		"txt" | "text" | "md" | "csv" => Some("text/plain; charset=utf-8"),
+		"wasm" => Some("application/wasm"),
+		"pdf" => Some("application/pdf"),
+		"svg" => Some("image/svg+xml"),
+		"png" => Some("image/png"),
+		"jpg" | "jpeg" => Some("image/jpeg"),
+		"gif" => Some("image/gif"),
+		"webp" => Some("image/webp"),
+		"avif" => Some("image/avif"),
+		"ico" => Some("image/x-icon"),
+		"bmp" => Some("image/bmp"),
+		"woff" => Some("font/woff"),
+		"woff2" => Some("font/woff2"),
+		"ttf" => Some("font/ttf"),
+		"otf" => Some("font/otf"),
+		"mp3" => Some("audio/mpeg"),
+		"wav" => Some("audio/wav"),
+		"ogg" => Some("audio/ogg"),
+		"mp4" => Some("video/mp4"),
+		"webm" => Some("video/webm"),
+		_ => None,
+	}
 }
 
 fn log_access(
@@ -614,5 +613,97 @@ mod tests {
 		assert!(if_none_match_matches("W/\"a-b\"", "W/\"a-b\""));
 		assert!(if_none_match_matches("W/\"x-y\", W/\"a-b\"", "W/\"a-b\""));
 		assert!(!if_none_match_matches("W/\"x-y\"", "W/\"a-b\""));
+	}
+
+	#[test]
+	fn guess_content_type_is_case_insensitive_for_known_extensions() {
+		assert_eq!(
+			guess_content_type(Path::new("INDEX.HTML"), b""),
+			"text/html; charset=utf-8"
+		);
+		assert_eq!(guess_content_type(Path::new("asset.SVG"), b""), "image/svg+xml");
+		assert_eq!(guess_content_type(Path::new("font.WOFF2"), b""), "font/woff2");
+	}
+
+	#[test]
+	fn guess_content_type_covers_required_web_asset_mappings() {
+		assert_eq!(
+			guess_content_type(Path::new("index.html"), b""),
+			"text/html; charset=utf-8"
+		);
+		assert_eq!(
+			guess_content_type(Path::new("styles.css"), b""),
+			"text/css; charset=utf-8"
+		);
+		assert_eq!(
+			guess_content_type(Path::new("app.js"), b""),
+			"application/javascript; charset=utf-8"
+		);
+		assert_eq!(
+			guess_content_type(Path::new("data.json"), b""),
+			"application/json; charset=utf-8"
+		);
+		assert_eq!(guess_content_type(Path::new("image.png"), b""), "image/png");
+		assert_eq!(guess_content_type(Path::new("image.jpg"), b""), "image/jpeg");
+		assert_eq!(guess_content_type(Path::new("vector.svg"), b""), "image/svg+xml");
+		assert_eq!(guess_content_type(Path::new("app.wasm"), b""), "application/wasm");
+		assert_eq!(guess_content_type(Path::new("font.woff2"), b""), "font/woff2");
+		assert_eq!(guess_content_type(Path::new("manual.pdf"), b""), "application/pdf");
+		assert_eq!(
+			guess_content_type(Path::new("notes.txt"), b""),
+			"text/plain; charset=utf-8"
+		);
+	}
+
+	#[test]
+	fn guess_content_type_uses_octet_stream_for_unknown_extension() {
+		assert_eq!(
+			guess_content_type(Path::new("payload.unknown"), b"not-a-known-format"),
+			"application/octet-stream"
+		);
+	}
+
+	#[test]
+	fn guess_content_type_uses_octet_stream_for_extensionless_files() {
+		assert_eq!(
+			guess_content_type(Path::new("LICENSE"), b"plain text"),
+			"application/octet-stream"
+		);
+	}
+
+	#[test]
+	fn guess_content_type_blocks_inferred_active_content_for_unknown_extension() {
+		let html_bytes = b"<!DOCTYPE html><html><body>hello</body></html>";
+		assert_eq!(
+			guess_content_type(Path::new("payload.unknown"), html_bytes),
+			"application/octet-stream"
+		);
+	}
+
+	#[test]
+	fn add_common_success_headers_sets_nosniff_for_file_responses() {
+		let options = ServeServerOptions {
+			index: "index.html".to_string(),
+			hardened: false,
+			cache_max_age: Some(300),
+			access_log: false,
+			tls_cert: None,
+			tls_key: None,
+		};
+		let mut headers = Vec::new();
+		add_common_success_headers(
+			&mut headers,
+			Path::new("index.html"),
+			b"<html></html>",
+			Some("W/\"b-1\""),
+			&options,
+			false,
+		);
+
+		let nosniff = headers
+			.iter()
+			.find(|(name, _)| name.eq_ignore_ascii_case("x-content-type-options"))
+			.map(|(_, value)| value.as_str());
+		assert_eq!(nosniff, Some("nosniff"));
 	}
 }

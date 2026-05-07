@@ -70,7 +70,7 @@ fn spawn_serve_process(root: &Path) -> ServeProcess {
 		.spawn()
 		.expect("failed to spawn ruff serve process");
 
-	for _ in 0..40 {
+	for _ in 0..100 {
 		if TcpStream::connect((TEST_HOST, port)).is_ok() {
 			return ServeProcess { child, port };
 		}
@@ -260,6 +260,69 @@ fn serve_accept_encoding_prefers_gzip_sibling_asset() {
 			.expect("expected Content-Encoding header")
 	);
 	assert_eq!(gzip_bytes, response.body);
+
+	drop(server);
+	let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_mime_policy_covers_known_unknown_and_extensionless_assets() {
+	let root = unique_temp_dir("serve_mime_policy");
+	fs::write(root.join("index.html"), "<h1>home</h1>").expect("failed to write html");
+	fs::write(root.join("styles.css"), "body { color: black; }").expect("failed to write css");
+	fs::write(root.join("app.js"), "console.log('ruff');").expect("failed to write js");
+	fs::write(root.join("data.json"), "{\"ok\":true}").expect("failed to write json");
+	fs::write(root.join("image.png"), [137, 80, 78, 71, 13, 10, 26, 10]).expect("failed to write png");
+	fs::write(root.join("photo.jpg"), [0xff, 0xd8, 0xff, 0xd9]).expect("failed to write jpg");
+	fs::write(root.join("vector.SVG"), "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>")
+		.expect("failed to write svg");
+	fs::write(root.join("mod.wasm"), [0x00, 0x61, 0x73, 0x6d]).expect("failed to write wasm");
+	fs::write(root.join("font.woff2"), [0x77, 0x4f, 0x46, 0x32]).expect("failed to write woff2");
+	fs::write(root.join("doc.pdf"), b"%PDF-1.4").expect("failed to write pdf");
+	fs::write(root.join("notes.txt"), "hello").expect("failed to write txt");
+	fs::write(root.join("payload.unknown"), "<!DOCTYPE html><script>alert(1)</script>")
+		.expect("failed to write unknown");
+	fs::write(root.join("LICENSE"), "license text").expect("failed to write extensionless file");
+
+	let server = spawn_serve_process(&root);
+	let cases = vec![
+		("/index.html", "text/html; charset=utf-8"),
+		("/styles.css", "text/css; charset=utf-8"),
+		("/app.js", "application/javascript; charset=utf-8"),
+		("/data.json", "application/json; charset=utf-8"),
+		("/image.png", "image/png"),
+		("/photo.jpg", "image/jpeg"),
+		("/vector.SVG", "image/svg+xml"),
+		("/mod.wasm", "application/wasm"),
+		("/font.woff2", "font/woff2"),
+		("/doc.pdf", "application/pdf"),
+		("/notes.txt", "text/plain; charset=utf-8"),
+		("/payload.unknown", "application/octet-stream"),
+		("/LICENSE", "application/octet-stream"),
+	];
+
+	for (path, expected_content_type) in cases {
+		let request = format!(
+			"GET {} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+			path
+		);
+		let response = send_http_request(server.port, &request);
+		assert_eq!(200, response.status_code, "unexpected status for {}", path);
+		assert_eq!(
+			expected_content_type,
+			response
+				.headers
+				.get("content-type")
+				.unwrap_or_else(|| panic!("expected Content-Type for {}", path))
+		);
+		assert_eq!(
+			"nosniff",
+			response
+				.headers
+				.get("x-content-type-options")
+				.unwrap_or_else(|| panic!("expected nosniff header for {}", path))
+		);
+	}
 
 	drop(server);
 	let _ = fs::remove_dir_all(root);
