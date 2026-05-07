@@ -1,6 +1,5 @@
 use crate::lexer::{self, LexerDiagnostic, LexerDiagnosticKind, Token, TokenKind};
 use crate::parser;
-use std::panic::{self, AssertUnwindSafe};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
@@ -26,12 +25,14 @@ pub struct Diagnostic {
 pub fn diagnose(source: &str) -> Vec<Diagnostic> {
     let lexed = lexer::tokenize_with_diagnostics(source);
     let tokens = lexed.tokens;
+    let mut parser = parser::Parser::new(tokens.clone());
+    let parse_output = parser.parse_with_diagnostics();
     let mut diagnostics = Vec::new();
 
     diagnostics.extend(lexed.diagnostics.iter().map(to_lsp_diagnostic));
+    diagnostics.extend(parse_output.diagnostics.iter().map(to_lsp_parse_diagnostic));
     diagnostics.extend(check_delimiter_balance(&tokens));
     diagnostics.extend(check_type_annotation_syntax(&tokens));
-    diagnostics.extend(check_parser_panics(&tokens));
 
     diagnostics.sort_by_key(|diagnostic| (diagnostic.line, diagnostic.column));
     diagnostics
@@ -56,6 +57,15 @@ fn to_lsp_diagnostic(diagnostic: &LexerDiagnostic) -> Diagnostic {
         column: diagnostic.column,
         severity: DiagnosticSeverity::Error,
         message: format!("{}: {}", kind, diagnostic.message),
+    }
+}
+
+fn to_lsp_parse_diagnostic(diagnostic: &parser::ParseDiagnostic) -> Diagnostic {
+    Diagnostic {
+        line: diagnostic.line,
+        column: diagnostic.column,
+        severity: DiagnosticSeverity::Error,
+        message: diagnostic.message.clone(),
     }
 }
 
@@ -193,30 +203,6 @@ fn is_symbol(token: &Token, name: &str) -> bool {
     matches!(&token.kind, TokenKind::Identifier(value) | TokenKind::Keyword(value) if value == name)
 }
 
-fn check_parser_panics(tokens: &[Token]) -> Vec<Diagnostic> {
-    let mut parser = parser::Parser::new(tokens.to_vec());
-    let previous_hook = panic::take_hook();
-    panic::set_hook(Box::new(|_| {}));
-
-    let parse_result = panic::catch_unwind(AssertUnwindSafe(|| parser.parse()));
-    panic::set_hook(previous_hook);
-
-    match parse_result {
-        Ok(_) => Vec::new(),
-        Err(payload) => {
-            let message = if let Some(message) = payload.downcast_ref::<String>() {
-                message.clone()
-            } else if let Some(message) = payload.downcast_ref::<&str>() {
-                message.to_string()
-            } else {
-                "Parser panic while producing diagnostics".to_string()
-            };
-
-            vec![Diagnostic { line: 1, column: 1, severity: DiagnosticSeverity::Error, message }]
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{diagnose, DiagnosticSeverity};
@@ -258,11 +244,11 @@ mod tests {
     }
 
     #[test]
-    fn diagnostics_capture_parser_panic_message() {
-        let diagnostics = diagnose("let result: Result<int := 1\n");
+    fn diagnostics_capture_parser_messages() {
+        let diagnostics = diagnose("print((1 + 2\n");
         assert!(diagnostics.iter().any(|diagnostic| {
             DiagnosticSeverity::Error == diagnostic.severity
-                && diagnostic.message.contains("Expected ',' in Result<T, E> type")
+                && diagnostic.message.contains("Expected ')'")
         }));
     }
 }

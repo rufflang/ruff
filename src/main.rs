@@ -505,6 +505,19 @@ fn report_lexer_diagnostics_and_exit(
     std::process::exit(1);
 }
 
+fn report_parser_diagnostics_and_exit(
+    file_label: &str,
+    diagnostics: &[parser::ParseDiagnostic],
+) -> ! {
+    for diagnostic in diagnostics {
+        eprintln!(
+            "{}:{}:{}: {}",
+            file_label, diagnostic.line, diagnostic.column, diagnostic.message
+        );
+    }
+    std::process::exit(1);
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -540,7 +553,11 @@ async fn main() {
                 Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
             };
             let mut parser = parser::Parser::new(tokens);
-            let stmts = parser.parse();
+            let parse_output = parser.parse_with_diagnostics();
+            if !parse_output.diagnostics.is_empty() {
+                report_parser_diagnostics_and_exit(&filename, &parse_output.diagnostics);
+            }
+            let stmts = parse_output.stmts;
 
             // Debug: print AST for inspection
             if !interpreter && std::env::var("DEBUG_AST").is_ok() {
@@ -734,7 +751,11 @@ async fn main() {
                 Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
             };
             let mut parser = parser::Parser::new(tokens);
-            let stmts = parser.parse();
+            let parse_output = parser.parse_with_diagnostics();
+            if !parse_output.diagnostics.is_empty() {
+                report_parser_diagnostics_and_exit(&filename, &parse_output.diagnostics);
+            }
+            let stmts = parse_output.stmts;
 
             // Create base interpreter with standard library loaded
             let base_interp = interpreter::Interpreter::new();
@@ -1523,7 +1544,11 @@ async fn main() {
                 Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
             };
             let mut parser = parser::Parser::new(tokens);
-            let stmts = parser.parse();
+            let parse_output = parser.parse_with_diagnostics();
+            if !parse_output.diagnostics.is_empty() {
+                report_parser_diagnostics_and_exit(&filename, &parse_output.diagnostics);
+            }
+            let stmts = parse_output.stmts;
 
             let mut interp = interpreter::Interpreter::new();
             interp.set_source(filename, &code);

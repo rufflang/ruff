@@ -79,7 +79,7 @@ fn collect_user_symbols(source: &str) -> (BTreeSet<String>, BTreeSet<String>) {
         Err(_) => return (BTreeSet::new(), BTreeSet::new()),
     };
     let mut parser = parser::Parser::new(tokens);
-    let stmts = parser.parse();
+    let stmts = parser.parse_with_diagnostics().stmts;
 
     let mut function_symbols = BTreeSet::new();
     let mut variable_symbols = BTreeSet::new();

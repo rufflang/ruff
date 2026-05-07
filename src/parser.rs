@@ -22,16 +22,30 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseDiagnostic {
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParseOutput {
+    pub stmts: Vec<Stmt>,
+    pub diagnostics: Vec<ParseDiagnostic>,
+}
+
 /// Parser maintains position in token stream and provides methods to parse statements and expressions
 pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
+    diagnostics: Vec<ParseDiagnostic>,
 }
 
 impl Parser {
     /// Creates a new parser from a vector of tokens
     pub fn new(tokens: Vec<Token>) -> Self {
-        Parser { tokens, pos: 0 }
+        Parser { tokens, pos: 0, diagnostics: Vec::new() }
     }
 
     /// Peek at the current token without consuming it
@@ -44,6 +58,135 @@ impl Parser {
         let tok = self.tokens.get(self.pos).map(|t| &t.kind).unwrap_or(&TokenKind::Eof);
         self.pos += 1;
         tok
+    }
+
+    fn peek_token(&self) -> Option<&Token> {
+        self.tokens.get(self.pos)
+    }
+
+    fn current_line_column(&self) -> (usize, usize) {
+        if let Some(token) = self.peek_token() {
+            (token.line, token.column)
+        } else if let Some(token) = self.tokens.last() {
+            (token.line, token.column)
+        } else {
+            (1, 1)
+        }
+    }
+
+    fn push_diagnostic(&mut self, message: impl Into<String>) {
+        let (line, column) = self.current_line_column();
+        self.diagnostics.push(ParseDiagnostic { line, column, message: message.into() });
+    }
+
+    fn expect_punctuation(&mut self, ch: char, context: &str) -> bool {
+        if matches!(self.peek(), TokenKind::Punctuation(found) if *found == ch) {
+            self.advance();
+            true
+        } else {
+            let found = format!("{:?}", self.peek());
+            self.push_diagnostic(format!(
+                "Expected '{}' {} but found {}",
+                ch, context, found
+            ));
+            false
+        }
+    }
+
+    fn is_assignment_operator(&self) -> bool {
+        matches!(self.peek(), TokenKind::Operator(op) if op == ":=" || op == "=")
+    }
+
+    fn consume_assignment_operator(&mut self, context: &str) -> bool {
+        if self.is_assignment_operator() {
+            self.advance();
+            true
+        } else {
+            let found = format!("{:?}", self.peek());
+            self.push_diagnostic(format!(
+                "Expected assignment operator (':=' or '=') {} but found {}",
+                context, found
+            ));
+            false
+        }
+    }
+
+    fn expect_keyword(&mut self, expected: &str, context: &str) -> bool {
+        if matches!(self.peek(), TokenKind::Keyword(found) if found == expected) {
+            self.advance();
+            true
+        } else {
+            let found = format!("{:?}", self.peek());
+            self.push_diagnostic(format!(
+                "Expected '{}' {} but found {}",
+                expected, context, found
+            ));
+            false
+        }
+    }
+
+    fn synchronize_statement(&mut self) {
+        while !matches!(self.peek(), TokenKind::Eof) {
+            if matches!(self.peek(), TokenKind::Punctuation(';')) {
+                self.advance();
+                return;
+            }
+
+            if matches!(self.peek(), TokenKind::Punctuation('}')) {
+                return;
+            }
+
+            if matches!(
+                self.peek(),
+                TokenKind::Identifier(_)
+                    | TokenKind::Int(_)
+                    | TokenKind::Float(_)
+                    | TokenKind::String(_)
+                    | TokenKind::Bool(_)
+                    | TokenKind::InterpolatedString(_)
+                    | TokenKind::Punctuation('[')
+                    | TokenKind::Punctuation('{')
+                    | TokenKind::Punctuation('(')
+            ) {
+                return;
+            }
+
+            if matches!(self.peek(), TokenKind::Keyword(keyword) if matches!(
+                keyword.as_str(),
+                "let"
+                    | "mut"
+                    | "const"
+                    | "func"
+                    | "async"
+                    | "if"
+                    | "for"
+                    | "while"
+                    | "loop"
+                    | "match"
+                    | "return"
+                    | "break"
+                    | "continue"
+                    | "try"
+                    | "test"
+                    | "test_setup"
+                    | "test_teardown"
+                    | "test_group"
+                    | "import"
+                    | "from"
+                    | "export"
+            )) {
+                return;
+            }
+
+            self.advance();
+        }
+    }
+
+    fn is_valid_assignment_target(expr: &Expr) -> bool {
+        matches!(
+            expr,
+            Expr::Identifier(_) | Expr::FieldAccess { .. } | Expr::IndexAccess { .. }
+        )
     }
 
     /// Get the source location of the current token
@@ -68,8 +211,9 @@ impl Parser {
         }
     }
 
-    /// Parse the entire token stream into a vector of statements
-    pub fn parse(&mut self) -> Vec<Stmt> {
+    /// Parse the entire token stream into statements and parser diagnostics.
+    pub fn parse_with_diagnostics(&mut self) -> ParseOutput {
+        self.diagnostics.clear();
         let mut stmts = Vec::new();
         while !matches!(self.peek(), TokenKind::Eof) {
             // Skip semicolons between statements
@@ -78,13 +222,31 @@ impl Parser {
                 continue;
             }
 
+            let diagnostics_before = self.diagnostics.len();
+            let pos_before = self.pos;
             if let Some(stmt) = self.parse_stmt() {
                 stmts.push(stmt);
             } else {
-                break;
+                if self.diagnostics.len() == diagnostics_before {
+                    self.push_diagnostic("Invalid statement");
+                }
+                if self.pos == pos_before {
+                    self.advance();
+                }
+                self.synchronize_statement();
             }
         }
-        stmts
+        ParseOutput { stmts, diagnostics: std::mem::take(&mut self.diagnostics) }
+    }
+
+    /// Parse the entire token stream and return statements only when no parse diagnostics exist.
+    pub fn parse(&mut self) -> Vec<Stmt> {
+        let output = self.parse_with_diagnostics();
+        if output.diagnostics.is_empty() {
+            output.stmts
+        } else {
+            Vec::new()
+        }
     }
 
     fn parse_stmt(&mut self) -> Option<Stmt> {
@@ -97,7 +259,7 @@ impl Parser {
                 if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
                     self.parse_func_with_async(true)
                 } else {
-                    // Error: async must be followed by func
+                    self.push_diagnostic("Expected 'func' after 'async'");
                     None
                 }
             }
@@ -140,7 +302,7 @@ impl Parser {
                 // Try to parse as destructuring pattern
                 if let Some(pattern) = self.parse_pattern() {
                     // Check if next token is :=
-                    if matches!(self.peek(), TokenKind::Operator(op) if op == ":=") {
+                    if self.is_assignment_operator() {
                         self.advance(); // consume :=
                         let value = self.parse_expr()?;
                         return Some(Stmt::Let {
@@ -161,13 +323,18 @@ impl Parser {
                 let saved_pos = self.pos;
                 if let Some(expr) = self.parse_expr() {
                     // Check if next token is :=
-                    if matches!(self.peek(), TokenKind::Operator(op) if op == ":=") {
+                    if self.is_assignment_operator() {
                         self.advance(); // consume :=
 
                         // Parse := as assignment (create or update)
                         // The interpreter will decide whether to create new or update existing
                         let value = self.parse_expr()?;
-                        Some(Stmt::Assign { target: expr, value })
+                        if Self::is_valid_assignment_target(&expr) {
+                            Some(Stmt::Assign { target: expr, value })
+                        } else {
+                            self.push_diagnostic("Invalid assignment target");
+                            None
+                        }
                     } else {
                         // Not an assignment, restore position and parse as expression statement
                         self.pos = saved_pos;
@@ -185,9 +352,14 @@ impl Parser {
         self.advance(); // enum
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected enum name after 'enum'");
+                return None;
+            }
         };
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start enum body") {
+            return None;
+        }
         let mut variants = Vec::new();
         while let TokenKind::Identifier(v) = self.peek() {
             variants.push(v.clone());
@@ -198,7 +370,9 @@ impl Parser {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close enum body") {
+            return None;
+        }
         Some(Stmt::EnumDef { name, variants })
     }
 
@@ -206,10 +380,15 @@ impl Parser {
         self.advance(); // struct
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected struct name after 'struct'");
+                return None;
+            }
         };
 
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start struct body") {
+            return None;
+        }
         let mut fields = Vec::new();
         let mut methods = Vec::new();
 
@@ -247,7 +426,9 @@ impl Parser {
             }
         }
 
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close struct body") {
+            return None;
+        }
         Some(Stmt::StructDef { name, fields, methods })
     }
 
@@ -271,7 +452,9 @@ impl Parser {
         // Parse optional type annotation (: type)
         let type_annotation = self.parse_type_annotation();
 
-        self.advance(); // :=
+        if !self.consume_assignment_operator("in let declaration") {
+            return None;
+        }
         let value = self.parse_expr()?;
         Some(Stmt::Let { pattern, value, mutable: is_mut, type_annotation })
     }
@@ -397,13 +580,18 @@ impl Parser {
         self.advance(); // const
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected constant name after 'const'");
+                return None;
+            }
         };
 
         // Parse optional type annotation (: type)
         let type_annotation = self.parse_type_annotation();
 
-        self.advance(); // :=
+        if !self.consume_assignment_operator("in const declaration") {
+            return None;
+        }
         let value = self.parse_expr()?;
         Some(Stmt::Const { name, value, type_annotation })
     }
@@ -421,9 +609,14 @@ impl Parser {
 
         let name = match self.advance() {
             TokenKind::Identifier(n) => n.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected function name after 'func'");
+                return None;
+            }
         };
-        self.advance(); // (
+        if !self.expect_punctuation('(', "after function name") {
+            return None;
+        }
         let mut params = Vec::new();
         let mut param_types = Vec::new();
 
@@ -451,7 +644,9 @@ impl Parser {
                 break;
             }
         }
-        self.advance(); // )
+        if !self.expect_punctuation(')', "to close function parameter list") {
+            return None;
+        }
 
         // Parse optional return type annotation (-> type)
         let return_type = if matches!(self.peek(), TokenKind::Operator(op) if op == "->") {
@@ -479,9 +674,13 @@ impl Parser {
             None
         };
 
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start function body") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             // Skip semicolons between statements
             if matches!(self.peek(), TokenKind::Punctuation(';')) {
                 self.advance();
@@ -494,7 +693,9 @@ impl Parser {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close function body") {
+            return None;
+        }
         Some(Stmt::FuncDef { name, param_types, return_type, params, body, is_generator, is_async })
     }
 
@@ -510,7 +711,9 @@ impl Parser {
             false
         };
 
-        self.advance(); // (
+        if !self.expect_punctuation('(', "after 'func' in function expression") {
+            return None;
+        }
         let mut params = Vec::new();
         let mut param_types = Vec::new();
 
@@ -528,7 +731,9 @@ impl Parser {
                 break;
             }
         }
-        self.advance(); // )
+        if !self.expect_punctuation(')', "to close function expression parameter list") {
+            return None;
+        }
 
         // Parse optional return type annotation (-> type)
         let return_type = if matches!(self.peek(), TokenKind::Operator(op) if op == "->") {
@@ -556,16 +761,22 @@ impl Parser {
             None
         };
 
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start function expression body") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close function expression body") {
+            return None;
+        }
         Some(Expr::Function { params, param_types, return_type, body, is_generator, is_async })
     }
 
@@ -669,32 +880,44 @@ impl Parser {
         } else {
             None
         };
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start loop body") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close loop body") {
+            return None;
+        }
         Some(Stmt::Loop { condition, body })
     }
 
     fn parse_while(&mut self) -> Option<Stmt> {
         self.advance(); // while
         let condition = self.parse_expr()?;
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start while body") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close while body") {
+            return None;
+        }
         Some(Stmt::While { condition, body })
     }
 
@@ -702,38 +925,55 @@ impl Parser {
         self.advance(); // for
         let var = match self.advance() {
             TokenKind::Identifier(v) => v.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected loop variable name after 'for'");
+                return None;
+            }
         };
-        self.advance(); // in
+        if !self.expect_keyword("in", "in for loop") {
+            return None;
+        }
                         // Use parse_call to parse the iterable expression
                         // This allows function calls like: for x in generator_func() { ... }
                         // but avoids struct instantiation syntax
         let iterable = self.parse_call()?;
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start for loop body") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close for loop body") {
+            return None;
+        }
         Some(Stmt::For { var, iterable, body })
     }
 
     fn parse_spawn(&mut self) -> Option<Stmt> {
         self.advance(); // spawn
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start spawn block") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close spawn block") {
+            return None;
+        }
         Some(Stmt::Spawn { body })
     }
 
@@ -742,48 +982,69 @@ impl Parser {
                         // Expect string literal for test name
         let name = match self.advance() {
             TokenKind::String(s) => s.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected test name string after 'test'");
+                return None;
+            }
         };
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start test body") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close test body") {
+            return None;
+        }
         Some(Stmt::Test { name, body })
     }
 
     fn parse_test_setup(&mut self) -> Option<Stmt> {
         self.advance(); // test_setup
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start test_setup block") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close test_setup block") {
+            return None;
+        }
         Some(Stmt::TestSetup { body })
     }
 
     fn parse_test_teardown(&mut self) -> Option<Stmt> {
         self.advance(); // test_teardown
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start test_teardown block") {
+            return None;
+        }
         let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 body.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close test_teardown block") {
+            return None;
+        }
         Some(Stmt::TestTeardown { body })
     }
 
@@ -792,48 +1053,74 @@ impl Parser {
                         // Expect string literal for group name
         let name = match self.advance() {
             TokenKind::String(s) => s.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected group name string after 'test_group'");
+                return None;
+            }
         };
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start test_group body") {
+            return None;
+        }
         let mut tests = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 tests.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close test_group body") {
+            return None;
+        }
         Some(Stmt::TestGroup { name, tests })
     }
 
     fn parse_try_except(&mut self) -> Option<Stmt> {
         self.advance(); // try
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start try block") {
+            return None;
+        }
         let mut try_block = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 try_block.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
-        self.advance(); // except
+        if !self.expect_punctuation('}', "to close try block") {
+            return None;
+        }
+        if !self.expect_keyword("except", "after try block") {
+            return None;
+        }
         let except_var = match self.advance() {
             TokenKind::Identifier(v) => v.clone(),
-            _ => return None,
+            _ => {
+                self.push_diagnostic("Expected exception variable after 'except'");
+                return None;
+            }
         };
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start except block") {
+            return None;
+        }
         let mut except_block = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 except_block.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close except block") {
+            return None;
+        }
         Some(Stmt::TryExcept { try_block, except_var, except_block })
     }
 
@@ -849,21 +1136,26 @@ impl Parser {
             // from module import ...
             let module = match self.advance() {
                 TokenKind::Identifier(m) => m.clone(),
-                _ => return None,
+                _ => {
+                    self.push_diagnostic("Expected module name after 'from'");
+                    return None;
+                }
             };
 
             // expect 'import' keyword
-            if !matches!(self.peek(), TokenKind::Keyword(k) if k == "import") {
+            if !self.expect_keyword("import", "after module name in from-import statement") {
                 return None;
             }
-            self.advance(); // import
 
             // Parse symbol list
             let mut symbols = Vec::new();
             loop {
                 match self.advance() {
                     TokenKind::Identifier(s) => symbols.push(s.clone()),
-                    _ => return None,
+                    _ => {
+                        self.push_diagnostic("Expected imported symbol name");
+                        return None;
+                    }
                 }
 
                 if matches!(self.peek(), TokenKind::Punctuation(',')) {
@@ -878,7 +1170,10 @@ impl Parser {
             // import module
             let module = match self.advance() {
                 TokenKind::Identifier(m) => m.clone(),
-                _ => return None,
+                _ => {
+                    self.push_diagnostic("Expected module name after 'import'");
+                    return None;
+                }
             };
 
             Some(Stmt::Import { module, symbols: None })
@@ -897,30 +1192,47 @@ impl Parser {
     fn parse_if(&mut self) -> Option<Stmt> {
         self.advance(); // if
         let condition = self.parse_expr()?;
-        self.advance(); // {
+        if !self.expect_punctuation('{', "to start if block") {
+            return None;
+        }
         let mut then_branch = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}')) {
+        while !matches!(self.peek(), TokenKind::Punctuation('}'))
+            && !matches!(self.peek(), TokenKind::Eof)
+        {
             if let Some(stmt) = self.parse_stmt() {
                 then_branch.push(stmt);
             } else {
                 break;
             }
         }
-        self.advance(); // }
+        if !self.expect_punctuation('}', "to close if block") {
+            return None;
+        }
 
         let else_branch = if matches!(self.peek(), TokenKind::Keyword(k) if k == "else") {
             self.advance(); // else
-            self.advance(); // {
-            let mut else_stmts = Vec::new();
-            while !matches!(self.peek(), TokenKind::Punctuation('}')) {
-                if let Some(stmt) = self.parse_stmt() {
-                    else_stmts.push(stmt);
-                } else {
-                    break;
+            if matches!(self.peek(), TokenKind::Keyword(k) if k == "if") {
+                let nested_if = self.parse_if()?;
+                Some(vec![nested_if])
+            } else {
+                if !self.expect_punctuation('{', "to start else block") {
+                    return None;
                 }
+                let mut else_stmts = Vec::new();
+                while !matches!(self.peek(), TokenKind::Punctuation('}'))
+                    && !matches!(self.peek(), TokenKind::Eof)
+                {
+                    if let Some(stmt) = self.parse_stmt() {
+                        else_stmts.push(stmt);
+                    } else {
+                        break;
+                    }
+                }
+                if !self.expect_punctuation('}', "to close else block") {
+                    return None;
+                }
+                Some(else_stmts)
             }
-            self.advance(); // }
-            Some(else_stmts)
         } else {
             None
         };
@@ -944,7 +1256,9 @@ impl Parser {
                 let mut args = Vec::new();
                 if matches!(self.peek(), TokenKind::Punctuation('(')) {
                     self.advance();
-                    while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                    while !matches!(self.peek(), TokenKind::Punctuation(')'))
+                        && !matches!(self.peek(), TokenKind::Eof)
+                    {
                         if let Some(arg) = self.parse_expr() {
                             args.push(arg);
                         }
@@ -954,7 +1268,9 @@ impl Parser {
                             break;
                         }
                     }
-                    self.advance();
+                    if !self.expect_punctuation(')', "to close tag expression arguments") {
+                        return None;
+                    }
                 }
                 return Some(Expr::Tag(format!("{}::{}", base, variant), args));
             }
@@ -970,7 +1286,9 @@ impl Parser {
                 self.advance(); // name
                 self.advance(); // (
                 let mut args = Vec::new();
-                while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                while !matches!(self.peek(), TokenKind::Punctuation(')'))
+                    && !matches!(self.peek(), TokenKind::Eof)
+                {
                     if let Some(arg) = self.parse_expr() {
                         args.push(arg);
                     }
@@ -980,7 +1298,9 @@ impl Parser {
                         break;
                     }
                 }
-                self.advance(); // )
+                if !self.expect_punctuation(')', "to close throw(...) arguments") {
+                    return None;
+                }
                 return Some(Expr::Tag(name_clone, args));
             }
         }
@@ -1119,7 +1439,9 @@ impl Parser {
                 TokenKind::Punctuation('(') => {
                     self.advance(); // (
                     let mut args = Vec::new();
-                    while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                    while !matches!(self.peek(), TokenKind::Punctuation(')'))
+                        && !matches!(self.peek(), TokenKind::Eof)
+                    {
                         if let Some(arg) = self.parse_expr() {
                             args.push(arg);
                         }
@@ -1129,7 +1451,9 @@ impl Parser {
                             break;
                         }
                     }
-                    self.advance(); // )
+                    if !self.expect_punctuation(')', "to close function call arguments") {
+                        return None;
+                    }
                     expr = Expr::Call { function: Box::new(expr), args };
                 }
                 // Handle field access and method calls
@@ -1143,7 +1467,9 @@ impl Parser {
                         if matches!(self.peek(), TokenKind::Punctuation('(')) {
                             self.advance(); // (
                             let mut args = Vec::new();
-                            while !matches!(self.peek(), TokenKind::Punctuation(')')) {
+                            while !matches!(self.peek(), TokenKind::Punctuation(')'))
+                                && !matches!(self.peek(), TokenKind::Eof)
+                            {
                                 if let Some(arg) = self.parse_expr() {
                                     args.push(arg);
                                 }
@@ -1153,7 +1479,9 @@ impl Parser {
                                     break;
                                 }
                             }
-                            self.advance(); // )
+                            if !self.expect_punctuation(')', "to close method call arguments") {
+                                return None;
+                            }
                             expr = Expr::MethodCall {
                                 object: Box::new(expr),
                                 method: field_name,
@@ -1192,19 +1520,11 @@ impl Parser {
                 // Handle index access: arr[index]
                 TokenKind::Punctuation('[') => {
                     self.advance(); // [
-                    if let Some(index) = self.parse_expr() {
-                        if matches!(self.peek(), TokenKind::Punctuation(']')) {
-                            self.advance(); // ]
-                            expr = Expr::IndexAccess {
-                                object: Box::new(expr),
-                                index: Box::new(index),
-                            };
-                        } else {
-                            break;
-                        }
-                    } else {
-                        break;
+                    let index = self.parse_expr()?;
+                    if !self.expect_punctuation(']', "to close index expression") {
+                        return None;
                     }
+                    expr = Expr::IndexAccess { object: Box::new(expr), index: Box::new(index) };
                 }
                 // Handle struct instantiation: Struct { field1: val1, field2: val2 }
                 TokenKind::Punctuation('{') if matches!(expr, Expr::Identifier(_)) => {
@@ -1270,7 +1590,9 @@ impl Parser {
                             }
                         }
 
-                        self.advance(); // consume }
+                        if !self.expect_punctuation('}', "to close struct literal") {
+                            return None;
+                        }
                         expr = Expr::StructInstance { name, fields };
                     }
                     break;
@@ -1292,6 +1614,7 @@ impl Parser {
                 if matches!(self.peek(), TokenKind::Keyword(k) if k == "func") {
                     self.parse_func_expr_with_async(true)
                 } else {
+                    self.push_diagnostic("Expected 'func' after 'async'");
                     None
                 }
             }
@@ -1335,11 +1658,12 @@ impl Parser {
                 if matches!(self.peek(), TokenKind::Punctuation('(')) {
                     self.advance(); // consume (
                     let value = self.parse_expr()?;
-                    if matches!(self.peek(), TokenKind::Punctuation(')')) {
-                        self.advance(); // consume )
+                    if !self.expect_punctuation(')', "to close Ok(...)") {
+                        return None;
                     }
                     Some(Expr::Ok(Box::new(value)))
                 } else {
+                    self.push_diagnostic("Expected '(' after 'Ok'");
                     None
                 }
             }
@@ -1349,11 +1673,12 @@ impl Parser {
                 if matches!(self.peek(), TokenKind::Punctuation('(')) {
                     self.advance(); // consume (
                     let error = self.parse_expr()?;
-                    if matches!(self.peek(), TokenKind::Punctuation(')')) {
-                        self.advance(); // consume )
+                    if !self.expect_punctuation(')', "to close Err(...)") {
+                        return None;
                     }
                     Some(Expr::Err(Box::new(error)))
                 } else {
+                    self.push_diagnostic("Expected '(' after 'Err'");
                     None
                 }
             }
@@ -1363,11 +1688,12 @@ impl Parser {
                 if matches!(self.peek(), TokenKind::Punctuation('(')) {
                     self.advance(); // consume (
                     let value = self.parse_expr()?;
-                    if matches!(self.peek(), TokenKind::Punctuation(')')) {
-                        self.advance(); // consume )
+                    if !self.expect_punctuation(')', "to close Some(...)") {
+                        return None;
                     }
                     Some(Expr::Some(Box::new(value)))
                 } else {
+                    self.push_diagnostic("Expected '(' after 'Some'");
                     None
                 }
             }
@@ -1375,8 +1701,8 @@ impl Parser {
                 // Handle parenthesized expressions for grouping
                 self.advance(); // consume (
                 let expr = self.parse_expr();
-                if matches!(self.peek(), TokenKind::Punctuation(')')) {
-                    self.advance(); // consume )
+                if !self.expect_punctuation(')', "to close parenthesized expression") {
+                    return None;
                 }
                 expr
             }
@@ -1398,7 +1724,10 @@ impl Parser {
                     TokenKind::Float(n) => Some(Expr::Float(*n)),
                     TokenKind::String(s) => Some(Expr::String(s.clone())),
                     TokenKind::Bool(b) => Some(Expr::Bool(*b)),
-                    _ => None,
+                    _ => {
+                        self.push_diagnostic("Expected expression");
+                        None
+                    }
                 }
             }
         }
@@ -1428,8 +1757,8 @@ impl Parser {
             }
         }
 
-        if matches!(self.peek(), TokenKind::Punctuation(']')) {
-            self.advance(); // consume ]
+        if !self.expect_punctuation(']', "to close array literal") {
+            return None;
         }
 
         Some(Expr::ArrayLiteral(elements))
@@ -1461,6 +1790,7 @@ impl Parser {
 
             // Expect colon
             if !matches!(self.peek(), TokenKind::Punctuation(':')) {
+                self.push_diagnostic("Expected ':' in dictionary literal");
                 break;
             }
             self.advance(); // consume :
@@ -1476,8 +1806,8 @@ impl Parser {
             }
         }
 
-        if matches!(self.peek(), TokenKind::Punctuation('}')) {
-            self.advance(); // consume }
+        if !self.expect_punctuation('}', "to close dictionary literal") {
+            return None;
         }
 
         Some(Expr::DictLiteral(pairs))
@@ -1578,6 +1908,7 @@ impl Parser {
         self.advance(); // consume Result
                         // Expect Result<T, E> syntax
         if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+            self.push_diagnostic("Expected '<' in Result<T, E> type annotation");
             return None;
         }
         self.advance(); // consume <
@@ -1585,6 +1916,7 @@ impl Parser {
         let ok_type = self.parse_type_annotation_inner()?;
 
         if !matches!(self.peek(), TokenKind::Punctuation(',')) {
+            self.push_diagnostic("Expected ',' in Result<T, E> type annotation");
             return None;
         }
         self.advance(); // consume ,
@@ -1592,6 +1924,7 @@ impl Parser {
         let err_type = self.parse_type_annotation_inner()?;
 
         if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+            self.push_diagnostic("Expected '>' in Result<T, E> type annotation");
             return None;
         }
         self.advance(); // consume >
@@ -1605,6 +1938,7 @@ impl Parser {
         self.advance(); // consume Option
                         // Expect Option<T> syntax
         if !matches!(self.peek(), TokenKind::Operator(op) if op == "<") {
+            self.push_diagnostic("Expected '<' in Option<T> type annotation");
             return None;
         }
         self.advance(); // consume <
@@ -1612,6 +1946,7 @@ impl Parser {
         let inner_type = self.parse_type_annotation_inner()?;
 
         if !matches!(self.peek(), TokenKind::Operator(op) if op == ">") {
+            self.push_diagnostic("Expected '>' in Option<T> type annotation");
             return None;
         }
         self.advance(); // consume >
@@ -1680,7 +2015,18 @@ impl Parser {
                     }
                 };
                 let mut parser = crate::parser::Parser::new(tokens);
-                let ast = parser.parse();
+                let parse_output = parser.parse_with_diagnostics();
+                if !parse_output.diagnostics.is_empty() {
+                    println!("[✗] {}", path.display());
+                    for diagnostic in parse_output.diagnostics {
+                        println!(
+                            "Parser error at {}:{}: {}",
+                            diagnostic.line, diagnostic.column, diagnostic.message
+                        );
+                    }
+                    continue;
+                }
+                let ast = parse_output.stmts;
                 let mut interp = crate::interpreter::Interpreter::new();
                 interp.set_source(path.to_string_lossy().to_string(), &content);
 

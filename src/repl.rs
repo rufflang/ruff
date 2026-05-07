@@ -360,12 +360,22 @@ impl Repl {
         };
         let mut parser = parser::Parser::new(tokens);
 
-        // Try to parse as expression first (for REPL convenience)
-        // If that fails, try as statement
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| parser.parse()));
+        let parse_output = parser.parse_with_diagnostics();
+        if !parse_output.diagnostics.is_empty() {
+            for diagnostic in parse_output.diagnostics {
+                println!(
+                    "{} {}:{} {}",
+                    "Error:".bright_red(),
+                    diagnostic.line,
+                    diagnostic.column,
+                    diagnostic.message
+                );
+            }
+            return;
+        }
 
-        match result {
-            Ok(stmts) if !stmts.is_empty() => {
+        match parse_output.stmts {
+            stmts if !stmts.is_empty() => {
                 // Execute statements
                 for stmt in &stmts {
                     match stmt {
@@ -387,11 +397,8 @@ impl Repl {
                     }
                 }
             }
-            Ok(_) => {
+            _ => {
                 // Empty parse result
-            }
-            Err(_) => {
-                println!("{} Failed to parse input", "Error:".bright_red());
             }
         }
     }

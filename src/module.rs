@@ -206,7 +206,24 @@ impl ModuleLoader {
                     ))
                 })?;
             let mut parser = Parser::new(tokens);
-            let program = parser.parse();
+            let parse_output = parser.parse_with_diagnostics();
+            if !parse_output.diagnostics.is_empty() {
+                let first = parse_output
+                    .diagnostics
+                    .first()
+                    .map(|diagnostic| {
+                        format!(
+                            "{}:{}: {}",
+                            diagnostic.line, diagnostic.column, diagnostic.message
+                        )
+                    })
+                    .unwrap_or_else(|| "unknown parser error".to_string());
+                return Err(Self::runtime_error(format!(
+                    "Failed to parse module '{}': {}",
+                    module_name, first
+                )));
+            }
+            let program = parse_output.stmts;
             let export_names = Self::collect_exported_symbol_names(&program);
 
             let mut interpreter = Interpreter::new();
