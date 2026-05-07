@@ -108,6 +108,24 @@ impl Environment {
         }
     }
 
+    pub fn define_with_kind_checked(
+        &mut self,
+        name: String,
+        value: Value,
+        kind: BindingKind,
+    ) -> Result<(), String> {
+        if self.current_scope_contains(name.as_str()) {
+            return Err(format!("Duplicate declaration in the same scope: {}", name));
+        }
+
+        self.define_with_kind(name, value, kind);
+        Ok(())
+    }
+
+    fn current_scope_contains(&self, name: &str) -> bool {
+        self.scopes.last().map(|scope| scope.contains_key(name)).unwrap_or(false)
+    }
+
     /// Set an existing variable, searching from inner to outer scopes
     /// If not found, creates it in the current scope
     pub fn set(&mut self, name: String, value: Value) {

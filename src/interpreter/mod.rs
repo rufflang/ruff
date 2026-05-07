@@ -2390,12 +2390,17 @@ impl Interpreter {
     }
 
     /// Binds a pattern to a value, defining variables as needed
-    fn bind_pattern(&mut self, pattern: &crate::ast::Pattern, value: Value, binding: BindingKind) {
+    fn bind_pattern(
+        &mut self,
+        pattern: &crate::ast::Pattern,
+        value: Value,
+        binding: BindingKind,
+    ) -> Result<(), String> {
         use crate::ast::Pattern;
 
         match pattern {
             Pattern::Identifier(name) => {
-                self.env.define_with_kind(name.clone(), value, binding);
+                self.env.define_with_kind_checked(name.clone(), value, binding)?;
             }
             Pattern::Ignore => {
                 // Do nothing - value is discarded
@@ -2409,11 +2414,11 @@ impl Interpreter {
                     // Bind each pattern element
                     for pattern_elem in elements {
                         if i < arr_len {
-                            self.bind_pattern(pattern_elem, arr[i].clone(), binding);
+                            self.bind_pattern(pattern_elem, arr[i].clone(), binding)?;
                             i += 1;
                         } else {
                             // Not enough elements - bind to null
-                            self.bind_pattern(pattern_elem, Value::Null, binding);
+                            self.bind_pattern(pattern_elem, Value::Null, binding)?;
                         }
                     }
 
@@ -2421,23 +2426,23 @@ impl Interpreter {
                     if let Some(rest_name) = rest {
                         let rest_values: Vec<Value> =
                             if i < arr_len { arr[i..].to_vec() } else { vec![] };
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Array(Arc::new(rest_values)),
                             binding,
-                        );
+                        )?;
                     }
                 } else {
                     // Not an array - bind all patterns to null
                     for pattern_elem in elements {
-                        self.bind_pattern(pattern_elem, Value::Null, binding);
+                        self.bind_pattern(pattern_elem, Value::Null, binding)?;
                     }
                     if let Some(rest_name) = rest {
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Array(Arc::new(vec![])),
                             binding,
-                        );
+                        )?;
                     }
                 }
             }
@@ -2447,7 +2452,7 @@ impl Interpreter {
                     // Bind each key
                     for key in keys {
                         let val = dict.get(key.as_str()).cloned().unwrap_or(Value::Null);
-                        self.env.define_with_kind(key.clone(), val, binding);
+                        self.env.define_with_kind_checked(key.clone(), val, binding)?;
                     }
 
                     // Bind rest elements if present
@@ -2458,17 +2463,17 @@ impl Interpreter {
                                 rest_dict.insert(k.clone(), v.clone());
                             }
                         }
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Dict(Arc::new(rest_dict)),
                             binding,
-                        );
+                        )?;
                     }
                 } else if let Value::FixedDict { keys: dict_keys, values } = value {
                     for key in keys {
                         let idx = dict_keys.iter().position(|k| k.as_ref() == key.as_str());
                         let val = idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null);
-                        self.env.define_with_kind(key.clone(), val, binding);
+                        self.env.define_with_kind_checked(key.clone(), val, binding)?;
                     }
 
                     if let Some(rest_name) = rest {
@@ -2478,11 +2483,11 @@ impl Interpreter {
                                 rest_dict.insert(k, v);
                             }
                         }
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Dict(Arc::new(rest_dict)),
                             binding,
-                        );
+                        )?;
                     }
                 } else if let Value::DenseIntDict(values) = value {
                     for key in keys {
@@ -2496,7 +2501,7 @@ impl Interpreter {
                             }
                             Err(_) => Value::Null,
                         };
-                        self.env.define_with_kind(key.clone(), val, binding);
+                        self.env.define_with_kind_checked(key.clone(), val, binding)?;
                     }
 
                     if let Some(rest_name) = rest {
@@ -2507,11 +2512,11 @@ impl Interpreter {
                                 rest_dict.insert(Arc::from(key.as_str()), value.clone());
                             }
                         }
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Dict(Arc::new(rest_dict)),
                             binding,
-                        );
+                        )?;
                     }
                 } else if let Value::DenseIntDictInt(values) = value {
                     for key in keys {
@@ -2530,7 +2535,7 @@ impl Interpreter {
                             }
                             Err(_) => Value::Null,
                         };
-                        self.env.define_with_kind(key.clone(), val, binding);
+                        self.env.define_with_kind_checked(key.clone(), val, binding)?;
                     }
 
                     if let Some(rest_name) = rest {
@@ -2544,11 +2549,11 @@ impl Interpreter {
                                 );
                             }
                         }
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Dict(Arc::new(rest_dict)),
                             binding,
-                        );
+                        )?;
                     }
                 } else if let Value::DenseIntDictIntFull(values) = value {
                     for key in keys {
@@ -2565,7 +2570,7 @@ impl Interpreter {
                             }
                             Err(_) => Value::Null,
                         };
-                        self.env.define_with_kind(key.clone(), val, binding);
+                        self.env.define_with_kind_checked(key.clone(), val, binding)?;
                     }
 
                     if let Some(rest_name) = rest {
@@ -2576,27 +2581,29 @@ impl Interpreter {
                                 rest_dict.insert(Arc::from(key.as_str()), Value::Int(*value));
                             }
                         }
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Dict(Arc::new(rest_dict)),
                             binding,
-                        );
+                        )?;
                     }
                 } else {
                     // Not a dict - bind all to null
                     for key in keys {
-                        self.env.define_with_kind(key.clone(), Value::Null, binding);
+                        self.env.define_with_kind_checked(key.clone(), Value::Null, binding)?;
                     }
                     if let Some(rest_name) = rest {
-                        self.env.define_with_kind(
+                        self.env.define_with_kind_checked(
                             rest_name.clone(),
                             Value::Dict(Arc::new(DictMap::default())),
                             binding,
-                        );
+                        )?;
                     }
                 }
             }
         }
+
+        Ok(())
     }
 
     /// Evaluates a list of statements sequentially, stopping on return/error
@@ -2607,6 +2614,12 @@ impl Interpreter {
                 break;
             }
         }
+    }
+
+    fn eval_scoped_stmts(&mut self, stmts: &[Stmt]) {
+        self.env.push_scope();
+        self.eval_stmts(stmts);
+        self.env.pop_scope();
     }
 
     /// Public wrapper for evaluating a single statement (for REPL use)
@@ -2680,9 +2693,9 @@ impl Interpreter {
                     return;
                 }
                 if cond_val.is_truthy() {
-                    self.eval_stmts(then_branch);
+                    self.eval_scoped_stmts(then_branch);
                 } else if let Some(else_branch) = else_branch {
-                    self.eval_stmts(else_branch);
+                    self.eval_scoped_stmts(else_branch);
                 }
             }
             Stmt::Block(stmts) => {
@@ -2700,12 +2713,20 @@ impl Interpreter {
                 self.set_return_if_error(&val);
                 let binding =
                     if *mutable { BindingKind::Mutable } else { BindingKind::LetImmutable };
-                self.bind_pattern(pattern, val, binding);
+                if let Err(error) = self.bind_pattern(pattern, val, binding) {
+                    self.return_value = Some(Value::Error(error));
+                    return;
+                }
             }
             Stmt::Const { name, value, type_annotation: _ } => {
                 let val = self.eval_expr(value);
                 self.set_return_if_error(&val);
-                self.env.define_with_kind(name.clone(), val, BindingKind::Const);
+                if let Err(error) =
+                    self.env.define_with_kind_checked(name.clone(), val, BindingKind::Const)
+                {
+                    self.return_value = Some(Value::Error(error));
+                    return;
+                }
             }
             Stmt::Assign { target, value } => {
                 let val = self.eval_expr(value);
@@ -2935,7 +2956,7 @@ impl Interpreter {
                         }
                     }
 
-                    self.eval_stmts(body);
+                    self.eval_scoped_stmts(body);
 
                     // Handle control flow
                     if self.control_flow == ControlFlow::Break {
@@ -3164,7 +3185,7 @@ impl Interpreter {
                         break;
                     }
 
-                    self.eval_stmts(body);
+                    self.eval_scoped_stmts(body);
 
                     // Handle control flow
                     if self.control_flow == ControlFlow::Break {

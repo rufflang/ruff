@@ -837,6 +837,101 @@ fn vm_and_interpreter_reject_local_reassignment_of_immutable_let_binding() {
 }
 
 #[test]
+fn vm_and_interpreter_allow_inner_scope_shadowing_without_leaking() {
+    let script = r#"
+        func check_shadowing() {
+            let value := 10
+            inner_seen := 0
+
+            if true {
+                let value := 25
+                inner_seen := value
+            }
+
+            return value == 10 && inner_seen == 25
+        }
+
+        shadowing_ok := check_shadowing()
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "shadowing_ok");
+}
+
+#[test]
+fn vm_and_interpreter_reject_duplicate_let_declaration_in_same_scope() {
+    let script = r#"
+        let score := 1
+        let score := 2
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Duplicate declaration in the same scope");
+}
+
+#[test]
+fn vm_and_interpreter_reject_duplicate_const_declaration_in_same_scope() {
+    let script = r#"
+        const answer := 41
+        const answer := 42
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Duplicate declaration in the same scope");
+}
+
+#[test]
+fn vm_and_interpreter_reject_block_variable_leakage() {
+    let script = r#"
+        func leak_test() {
+            if true {
+                let inside := 1
+            }
+
+            return inside
+        }
+
+        leak_test()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: inside");
+}
+
+#[test]
+fn vm_and_interpreter_reject_loop_variable_leakage() {
+    let script = r#"
+        func leak_test() {
+            total := 0
+            for item in [1, 2, 3] {
+                total := total + item
+            }
+
+            return item
+        }
+
+        leak_test()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Undefined variable: item");
+}
+
+#[test]
+fn vm_and_interpreter_closure_captures_nearest_lexical_binding() {
+    let script = r#"
+        value := 5
+
+        func make_reader() {
+            let value := 9
+            return func() {
+                return value
+            }
+        }
+
+        reader := make_reader()
+        captured_ok := reader() == 9 && value == 5
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "captured_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_truthiness_semantics_across_conditionals() {
     let script = r#"
         falsey_hits := 0

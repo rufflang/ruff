@@ -42,6 +42,10 @@ pub struct Compiler {
     /// Tracks whether the chunk uses logical short-circuit lowering patterns that
     /// current optimizer passes are not yet stack-shape aware for.
     has_logical_short_circuit: bool,
+
+    /// Whether this compiler instance can use local slots (function/method/lambda bodies).
+    /// The root script compiler keeps declarations in the runtime environment instead.
+    uses_local_slots: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +71,7 @@ impl Compiler {
             used_locals: HashSet::new(),
             parent: None,
             has_logical_short_circuit: false,
+            uses_local_slots: false,
         }
     }
 
@@ -141,11 +146,34 @@ impl Compiler {
     }
 
     fn resolve_local_slot(&self, name: &str) -> Option<usize> {
+        if !self.uses_local_slots {
+            return None;
+        }
+
         self.locals
             .iter()
             .rev()
             .find(|local| local.name == name && local.depth <= self.scope_depth)
             .map(|local| local.slot)
+    }
+
+    fn has_local_in_current_scope(&self, name: &str) -> bool {
+        self.locals
+            .iter()
+            .rev()
+            .any(|local| local.depth == self.scope_depth && local.name == name)
+    }
+
+    fn declare_local(
+        &mut self,
+        name: &str,
+        binding_kind: BytecodeBindingKind,
+    ) -> Result<usize, String> {
+        if self.has_local_in_current_scope(name) {
+            return Err(format!("Duplicate declaration in the same scope: {}", name));
+        }
+
+        Ok(self.add_local(name, self.scope_depth, binding_kind))
     }
 
     fn is_upvalue(&self, name: &str) -> bool {
@@ -241,9 +269,11 @@ impl Compiler {
                 self.chunk.emit(OpCode::Pop); // Pop condition
 
                 // Compile then block
+                self.scope_depth += 1;
                 for stmt in then_branch {
                     self.compile_stmt(stmt)?;
                 }
+                self.scope_depth -= 1;
 
                 // Jump over else block
                 let end_jump = self.chunk.emit(OpCode::Jump(0));
@@ -254,9 +284,11 @@ impl Compiler {
 
                 // Compile else block if present
                 if let Some(else_stmts) = else_branch {
+                    self.scope_depth += 1;
                     for stmt in else_stmts {
                         self.compile_stmt(stmt)?;
                     }
+                    self.scope_depth -= 1;
                 }
 
                 // Patch end jump
@@ -308,9 +340,11 @@ impl Compiler {
                 self.chunk.emit(OpCode::Pop); // Pop condition
 
                 // Compile body
+                self.scope_depth += 1;
                 for stmt in body {
                     self.compile_stmt(stmt)?;
                 }
+                self.scope_depth -= 1;
 
                 // Jump back to condition
                 self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -331,39 +365,70 @@ impl Compiler {
             }
 
             Stmt::For { var, iterable, body } => {
-                if self.resolve_local_slot(var).is_none()
-                    && self.scope_depth > 0
-                    && !self.is_upvalue(var)
-                {
-                    self.add_local(var, self.scope_depth, BytecodeBindingKind::Mutable);
-                }
-
                 // For now, compile as a while loop with an iterator
                 // This is a simplified implementation
+                self.scope_depth += 1;
+
+                let loop_var_slot = if self.uses_local_slots && !self.is_upvalue(var) {
+                    Some(self.declare_local(var, BytecodeBindingKind::Mutable)?)
+                } else {
+                    None
+                };
+
+                let iter_var = format!("__iter_{}", self.scope_depth);
+                let index_var = format!("__index_{}", self.scope_depth);
+                let iter_slot = if self.uses_local_slots {
+                    Some(self.declare_local(iter_var.as_str(), BytecodeBindingKind::Mutable)?)
+                } else {
+                    None
+                };
+                let index_slot = if self.uses_local_slots {
+                    Some(self.declare_local(index_var.as_str(), BytecodeBindingKind::Mutable)?)
+                } else {
+                    None
+                };
 
                 // Evaluate the iterable
                 self.compile_expr(iterable)?;
 
                 // Store in a temporary variable for iteration
-                let iter_var = format!("__iter_{}", self.scope_depth);
-                self.chunk.emit(OpCode::StoreVar(iter_var.clone()));
+                if let Some(slot) = iter_slot {
+                    self.chunk.emit(OpCode::StoreLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::StoreVar(iter_var.clone()));
+                }
 
                 // Create index variable
-                let index_var = format!("__index_{}", self.scope_depth);
                 let zero_index = self.chunk.add_constant(Constant::Int(0));
                 self.chunk.emit(OpCode::LoadConst(zero_index));
-                self.chunk.emit(OpCode::StoreVar(index_var.clone()));
+                if let Some(slot) = index_slot {
+                    self.chunk.emit(OpCode::StoreLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::StoreVar(index_var.clone()));
+                }
 
                 let loop_start = self.chunk.instructions.len();
                 self.loop_starts.push(loop_start);
                 self.loop_ends.push(Vec::new());
 
                 // Load iterator and index
-                self.chunk.emit(OpCode::LoadVar(iter_var.clone()));
-                self.chunk.emit(OpCode::LoadVar(index_var.clone()));
+                if let Some(slot) = iter_slot {
+                    self.chunk.emit(OpCode::LoadLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::LoadVar(iter_var.clone()));
+                }
+                if let Some(slot) = index_slot {
+                    self.chunk.emit(OpCode::LoadLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::LoadVar(index_var.clone()));
+                }
 
                 // Check if index < len(iterable) - using built-in len
-                self.chunk.emit(OpCode::LoadVar(iter_var.clone()));
+                if let Some(slot) = iter_slot {
+                    self.chunk.emit(OpCode::LoadLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::LoadVar(iter_var.clone()));
+                }
                 self.chunk.emit(OpCode::LoadGlobal("len".to_string()));
                 self.chunk.emit(OpCode::Call(1));
                 self.chunk.emit(OpCode::LessThan);
@@ -373,12 +438,20 @@ impl Compiler {
                 self.chunk.emit(OpCode::Pop);
 
                 // Get current element: iterable[index]
-                self.chunk.emit(OpCode::LoadVar(iter_var.clone()));
-                self.chunk.emit(OpCode::LoadVar(index_var.clone()));
+                if let Some(slot) = iter_slot {
+                    self.chunk.emit(OpCode::LoadLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::LoadVar(iter_var.clone()));
+                }
+                if let Some(slot) = index_slot {
+                    self.chunk.emit(OpCode::LoadLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::LoadVar(index_var.clone()));
+                }
                 self.chunk.emit(OpCode::IndexGet);
 
                 // Store in loop variable
-                if let Some(slot) = self.resolve_local_slot(var) {
+                if let Some(slot) = loop_var_slot {
                     self.chunk.emit(OpCode::StoreLocal(slot));
                 } else {
                     self.chunk.emit(OpCode::StoreVar(var.clone()));
@@ -390,11 +463,19 @@ impl Compiler {
                 }
 
                 // Increment index
-                self.chunk.emit(OpCode::LoadVar(index_var.clone()));
+                if let Some(slot) = index_slot {
+                    self.chunk.emit(OpCode::LoadLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::LoadVar(index_var.clone()));
+                }
                 let one_index = self.chunk.add_constant(Constant::Int(1));
                 self.chunk.emit(OpCode::LoadConst(one_index));
                 self.chunk.emit(OpCode::Add);
-                self.chunk.emit(OpCode::StoreVar(index_var.clone()));
+                if let Some(slot) = index_slot {
+                    self.chunk.emit(OpCode::StoreLocal(slot));
+                } else {
+                    self.chunk.emit(OpCode::StoreVar(index_var.clone()));
+                }
 
                 // Jump back to start
                 self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -410,6 +491,7 @@ impl Compiler {
                     }
                 }
                 self.loop_starts.pop();
+                self.scope_depth -= 1;
 
                 Ok(())
             }
@@ -450,9 +532,16 @@ impl Compiler {
                 func_compiler.chunk.is_async = *is_async;
                 func_compiler.chunk.is_generator = *is_generator;
                 func_compiler.scope_depth = 1; // Functions create a new scope (not global)
+                func_compiler.uses_local_slots = true;
 
                 // Add parameters as locals
                 for param in params {
+                    if func_compiler.has_local_in_current_scope(param) {
+                        return Err(format!(
+                            "Duplicate declaration in the same scope: {}",
+                            param
+                        ));
+                    }
                     func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                 }
 
@@ -503,8 +592,15 @@ impl Compiler {
                         func_compiler.chunk.is_async = *is_async;
                         func_compiler.chunk.is_generator = *is_generator;
                         func_compiler.scope_depth = 1;
+                        func_compiler.uses_local_slots = true;
 
                         for param in params {
+                            if func_compiler.has_local_in_current_scope(param) {
+                                return Err(format!(
+                                    "Duplicate declaration in the same scope: {}",
+                                    param
+                                ));
+                            }
                             func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                         }
 
@@ -607,9 +703,11 @@ impl Compiler {
                     self.chunk.emit(OpCode::Pop); // Pop condition
 
                     // Compile body
+                    self.scope_depth += 1;
                     for stmt in body {
                         self.compile_stmt(stmt)?;
                     }
+                    self.scope_depth -= 1;
 
                     // Jump back to start
                     self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -619,9 +717,11 @@ impl Compiler {
                     self.chunk.emit(OpCode::Pop); // Pop condition
                 } else {
                     // Unconditional loop
+                    self.scope_depth += 1;
                     for stmt in body {
                         self.compile_stmt(stmt)?;
                     }
+                    self.scope_depth -= 1;
 
                     // Jump back to start
                     self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -707,10 +807,10 @@ impl Compiler {
 
             Stmt::Const { name, value, .. } => {
                 self.compile_expr(value)?;
-                if self.scope_depth == 0 {
+                if !self.uses_local_slots || self.scope_depth == 0 {
                     self.chunk.emit(OpCode::DefineGlobal(name.clone(), BytecodeBindingKind::Const));
                 } else {
-                    let slot = self.add_local(name, self.scope_depth, BytecodeBindingKind::Const);
+                    let slot = self.declare_local(name, BytecodeBindingKind::Const)?;
                     self.chunk.emit(OpCode::StoreLocal(slot));
                 }
 
@@ -1031,9 +1131,16 @@ impl Compiler {
                 func_compiler.chunk.name = Some("<lambda>".to_string());
                 func_compiler.chunk.params = params.clone();
                 func_compiler.scope_depth = 1; // Functions create a new scope (not global)
+                func_compiler.uses_local_slots = true;
 
                 // Add parameters as locals
                 for param in params {
+                    if func_compiler.has_local_in_current_scope(param) {
+                        return Err(format!(
+                            "Duplicate declaration in the same scope: {}",
+                            param
+                        ));
+                    }
                     func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                 }
 
@@ -1275,12 +1382,12 @@ impl Compiler {
     ) -> Result<(), String> {
         match pattern {
             Pattern::Identifier(name) => {
-                if self.scope_depth == 0 {
+                if !self.uses_local_slots || self.scope_depth == 0 {
                     self.chunk.emit(OpCode::DefineGlobal(name.clone(), binding_kind));
                 } else if self.is_upvalue(name) {
                     self.chunk.emit(OpCode::StoreVar(name.clone()));
                 } else {
-                    let slot = self.add_local(name, self.scope_depth, binding_kind);
+                    let slot = self.declare_local(name, binding_kind)?;
                     self.chunk.emit(OpCode::StoreLocal(slot));
                 }
                 Ok(())
@@ -1318,11 +1425,13 @@ impl Compiler {
                     self.chunk.emit(OpCode::StoreVar(name.clone()));
                 } else if let Some(slot) = self.resolve_local_slot(name) {
                     self.chunk.emit(OpCode::StoreLocal(slot));
+                } else if self.uses_local_slots && self.scope_depth > 0 {
+                    let slot = self.declare_local(name, BytecodeBindingKind::Mutable)?;
+                    self.chunk.emit(OpCode::StoreLocal(slot));
                 } else if self.scope_depth == 0 {
                     self.chunk.emit(OpCode::StoreGlobal(name.clone()));
                 } else {
-                    let slot = self.add_local(name, self.scope_depth, BytecodeBindingKind::Mutable);
-                    self.chunk.emit(OpCode::StoreLocal(slot));
+                    self.chunk.emit(OpCode::StoreVar(name.clone()));
                 }
                 Ok(())
             }

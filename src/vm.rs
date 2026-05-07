@@ -1700,11 +1700,11 @@ impl VM {
 
                 OpCode::DefineGlobal(name, kind) => {
                     let value = self.stack.last().ok_or("Stack underflow")?.clone();
-                    self.globals.lock().unwrap().define_with_kind(
+                    self.globals.lock().unwrap().define_with_kind_checked(
                         name,
                         value,
                         Self::env_binding_kind(kind),
-                    );
+                    )?;
                 }
 
                 OpCode::EnsureMutableGlobalForMutation(name) => {
@@ -6282,11 +6282,11 @@ impl VM {
 
                         OpCode::DefineGlobal(name, kind) => {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
-                            self.globals.lock().unwrap().define_with_kind(
+                            self.globals.lock().unwrap().define_with_kind_checked(
                                 name,
                                 value,
                                 Self::env_binding_kind(kind),
-                            );
+                            )?;
                         }
 
                         OpCode::EnsureMutableGlobalForMutation(name) => {
