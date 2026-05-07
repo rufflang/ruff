@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 fn run_interpreter(code: &str) -> Interpreter {
-    let tokens = tokenize(code);
+    let tokens = tokenize(code).expect("test source should tokenize");
     let mut parser = Parser::new(tokens);
     let program = parser.parse();
     let mut interp = Interpreter::new();
@@ -28,7 +28,12 @@ fn interpreter_error(code: &str) -> Option<String> {
 }
 
 fn run_vm(code: &str, env: Arc<Mutex<Environment>>) -> Result<(), String> {
-    let tokens = tokenize(code);
+    let tokens = tokenize(code).map_err(|diagnostics| {
+        diagnostics
+            .first()
+            .map(|diagnostic| diagnostic.message.clone())
+            .unwrap_or_else(|| "unknown lexer error".to_string())
+    })?;
     let mut parser = Parser::new(tokens);
     let program = parser.parse();
 

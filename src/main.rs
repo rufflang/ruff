@@ -16,14 +16,14 @@ mod interpreter;
 mod jit;
 mod lexer;
 mod linter;
-mod lsp_completion;
 mod lsp_code_actions;
+mod lsp_completion;
 mod lsp_definition;
 mod lsp_diagnostics;
 mod lsp_hover;
-mod lsp_server;
-mod lsp_rename;
 mod lsp_references;
+mod lsp_rename;
+mod lsp_server;
 mod module;
 mod optimizer;
 mod package_workflow;
@@ -204,7 +204,7 @@ enum Commands {
         name: String,
 
         /// Dependency version requirement
-        #[arg(long, default_value = "*" )]
+        #[arg(long, default_value = "*")]
         version: String,
 
         /// Path to ruff.toml (defaults to ./ruff.toml)
@@ -492,6 +492,19 @@ fn cooperative_scheduler_timeout(
     }
 }
 
+fn report_lexer_diagnostics_and_exit(
+    file_label: &str,
+    diagnostics: &[lexer::LexerDiagnostic],
+) -> ! {
+    for diagnostic in diagnostics {
+        eprintln!(
+            "{}:{}:{}: {}",
+            file_label, diagnostic.line, diagnostic.column, diagnostic.message
+        );
+    }
+    std::process::exit(1);
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -522,7 +535,10 @@ async fn main() {
 
             let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
             let filename = file.to_string_lossy().to_string();
-            let tokens = lexer::tokenize(&code);
+            let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
+                Ok(tokens) => tokens,
+                Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
+            };
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
 
@@ -567,8 +583,10 @@ async fn main() {
                                     "PI".to_string(),
                                     interpreter::Value::Float(std::f64::consts::PI),
                                 );
-                                env_lock
-                                    .set("E".to_string(), interpreter::Value::Float(std::f64::consts::E));
+                                env_lock.set(
+                                    "E".to_string(),
+                                    interpreter::Value::Float(std::f64::consts::E),
+                                );
                                 env_lock.set("null".to_string(), interpreter::Value::Null);
                             }
 
@@ -710,7 +728,11 @@ async fn main() {
 
         Commands::TestRun { file, verbose } => {
             let code = fs::read_to_string(&file).expect("Failed to read test file");
-            let tokens = lexer::tokenize(&code);
+            let filename = file.to_string_lossy().to_string();
+            let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
+                Ok(tokens) => tokens,
+                Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
+            };
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
 
@@ -781,15 +803,7 @@ async fn main() {
             Reporter::print_summary(&results);
         }
 
-        Commands::Format {
-            file,
-            indent,
-            line_length,
-            no_sort_imports,
-            check,
-            write,
-            json,
-        } => {
+        Commands::Format { file, indent, line_length, no_sort_imports, check, write, json } => {
             let source = match fs::read_to_string(&file) {
                 Ok(content) => content,
                 Err(err) => {
@@ -965,11 +979,7 @@ async fn main() {
             println!("initialized project at {}", project_dir.display());
         }
 
-        Commands::PackageAdd {
-            name,
-            version,
-            manifest,
-        } => {
+        Commands::PackageAdd { name, version, manifest } => {
             let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
             let content = fs::read_to_string(&manifest_path).expect("Failed to read ruff.toml");
             let updated = match package_workflow::add_dependency(&content, &name, &version) {
@@ -1016,10 +1026,7 @@ async fn main() {
             };
 
             if publish {
-                println!(
-                    "published\t{}\t{}",
-                    parsed.package.name, parsed.package.version
-                );
+                println!("published\t{}\t{}", parsed.package.name, parsed.package.version);
             } else {
                 println!(
                     "publish preview\t{}\t{}\tdependencies={}",
@@ -1030,24 +1037,16 @@ async fn main() {
             }
         }
 
-        Commands::Docgen {
-            file,
-            out_dir,
-            no_builtins,
-            json,
-        } => {
+        Commands::Docgen { file, out_dir, no_builtins, json } => {
             let output_dir = out_dir.unwrap_or_else(|| PathBuf::from("docs/generated"));
-            let summary = match doc_generator::generate_docs_for_file(
-                &file,
-                &output_dir,
-                !no_builtins,
-            ) {
-                Ok(result) => result,
-                Err(message) => {
-                    eprintln!("{}", message);
-                    std::process::exit(1);
-                }
-            };
+            let summary =
+                match doc_generator::generate_docs_for_file(&file, &output_dir, !no_builtins) {
+                    Ok(result) => result,
+                    Err(message) => {
+                        eprintln!("{}", message);
+                        std::process::exit(1);
+                    }
+                };
 
             if json {
                 let output = serde_json::json!({
@@ -1519,7 +1518,10 @@ async fn main() {
             profiler.start();
 
             // Execute the code
-            let tokens = lexer::tokenize(&code);
+            let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
+                Ok(tokens) => tokens,
+                Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
+            };
             let mut parser = parser::Parser::new(tokens);
             let stmts = parser.parse();
 
@@ -1621,13 +1623,7 @@ async fn main() {
             }
         }
 
-        Commands::LspReferences {
-            file,
-            line,
-            column,
-            include_definition,
-            json,
-        } => {
+        Commands::LspReferences { file, line, column, include_definition, json } => {
             let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
             let references =
                 lsp_references::find_references(&code, line, column, include_definition);
@@ -1653,11 +1649,7 @@ async fn main() {
                 }
             } else {
                 for reference in references {
-                    let role = if reference.is_definition {
-                        "definition"
-                    } else {
-                        "reference"
-                    };
+                    let role = if reference.is_definition { "definition" } else { "reference" };
 
                     println!(
                         "{}\t{}:{}:{}",
@@ -1750,13 +1742,7 @@ async fn main() {
             }
         }
 
-        Commands::LspRename {
-            file,
-            line,
-            column,
-            new_name,
-            json,
-        } => {
+        Commands::LspRename { file, line, column, new_name, json } => {
             let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
             let rename_result = match lsp_rename::rename_symbol(&code, line, column, &new_name) {
                 Ok(result) => result,

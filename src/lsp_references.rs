@@ -22,9 +22,13 @@ pub fn find_references(
     column: usize,
     include_definition: bool,
 ) -> Vec<ReferenceLocation> {
-    let tokens = lexer::tokenize(source);
+    let tokens = match lexer::tokenize(source) {
+        Ok(tokens) => tokens,
+        Err(_) => return Vec::new(),
+    };
     let (scope_before_token, scope_after_token) = collect_scope_paths(&tokens);
-    let declarations = collect_symbol_declarations(&tokens, &scope_before_token, &scope_after_token);
+    let declarations =
+        collect_symbol_declarations(&tokens, &scope_before_token, &scope_after_token);
 
     let target_token_index = match identifier_token_index_at_cursor(&tokens, line, column) {
         Some(index) => index,
@@ -71,8 +75,8 @@ pub fn find_references(
             continue;
         }
 
-        let is_definition = token.line == target_definition.line
-            && token_start_column == target_definition.column;
+        let is_definition =
+            token.line == target_definition.line && token_start_column == target_definition.column;
 
         if !include_definition && is_definition {
             continue;
@@ -244,9 +248,7 @@ fn collect_function_declarations(
                     expects_parameter_name = true;
                 }
             }
-            TokenKind::Identifier(_)
-                if paren_depth == 1 && expects_parameter_name =>
-            {
+            TokenKind::Identifier(_) if paren_depth == 1 && expects_parameter_name => {
                 parameter_token_indexes.push(token_index);
                 expects_parameter_name = false;
             }
@@ -262,11 +264,9 @@ fn collect_function_declarations(
 
     if let Some(parameter_scope) = function_body_scope {
         for parameter_index in parameter_token_indexes {
-            if let Some(declaration) = declaration_from_token(
-                tokens,
-                parameter_index,
-                parameter_scope.clone(),
-            ) {
+            if let Some(declaration) =
+                declaration_from_token(tokens, parameter_index, parameter_scope.clone())
+            {
                 declarations.push(declaration);
             }
         }
@@ -314,17 +314,15 @@ fn declaration_from_token(
     scope_path: Vec<usize>,
 ) -> Option<SymbolDeclaration> {
     match tokens.get(token_index) {
-        Some(Token {
-            kind: TokenKind::Identifier(name),
-            line,
-            column,
-        }) => Some(SymbolDeclaration {
-            name: name.clone(),
-            line: *line,
-            column: column.saturating_sub(name.chars().count()),
-            token_index,
-            scope_path,
-        }),
+        Some(Token { kind: TokenKind::Identifier(name), line, column }) => {
+            Some(SymbolDeclaration {
+                name: name.clone(),
+                line: *line,
+                column: column.saturating_sub(name.chars().count()),
+                token_index,
+                scope_path,
+            })
+        }
         _ => None,
     }
 }
@@ -383,10 +381,7 @@ fn resolve_declaration_for_token(
 
 fn is_scope_visible(declaration_scope: &[usize], usage_scope: &[usize]) -> bool {
     declaration_scope.len() <= usage_scope.len()
-        && declaration_scope
-            .iter()
-            .zip(usage_scope.iter())
-            .all(|(left, right)| left == right)
+        && declaration_scope.iter().zip(usage_scope.iter()).all(|(left, right)| left == right)
 }
 
 fn is_same_declaration(left: &SymbolDeclaration, right: &SymbolDeclaration) -> bool {
@@ -398,10 +393,7 @@ fn is_same_declaration(left: &SymbolDeclaration, right: &SymbolDeclaration) -> b
 
 fn is_keyword(tokens: &[Token], token_index: usize, keyword: &str) -> bool {
     match tokens.get(token_index) {
-        Some(Token {
-            kind: TokenKind::Keyword(current_keyword),
-            ..
-        }) => current_keyword == keyword,
+        Some(Token { kind: TokenKind::Keyword(current_keyword), .. }) => current_keyword == keyword,
         _ => false,
     }
 }
@@ -427,10 +419,7 @@ mod tests {
             .map(|location| (location.line, location.column, location.is_definition))
             .collect();
 
-        assert_eq!(
-            positions,
-            vec![(1, 6, true), (4, 14, false), (5, 15, false)]
-        );
+        assert_eq!(positions, vec![(1, 6, true), (4, 14, false), (5, 15, false)]);
     }
 
     #[test]

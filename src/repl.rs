@@ -13,7 +13,6 @@ use crate::ast::Stmt;
 use crate::interpreter::{Interpreter, Value};
 use crate::lexer;
 use crate::parser;
-use std::borrow::Cow;
 use colored::Colorize;
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
@@ -22,6 +21,7 @@ use rustyline::hint::Hinter;
 use rustyline::history::DefaultHistory;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
 use rustyline::{Context, Editor, Helper};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -40,7 +40,8 @@ impl ReplHelper {
             ".help".to_string(),
         ];
 
-        completion_items.extend(Interpreter::get_builtin_names().into_iter().map(|name| name.to_string()));
+        completion_items
+            .extend(Interpreter::get_builtin_names().into_iter().map(|name| name.to_string()));
         completion_items.sort();
         completion_items.dedup();
 
@@ -74,10 +75,7 @@ impl Completer for ReplHelper {
             .completion_items
             .iter()
             .filter(|item| item.starts_with(needle))
-            .map(|item| Pair {
-                display: item.clone(),
-                replacement: item.clone(),
-            })
+            .map(|item| Pair { display: item.clone(), replacement: item.clone() })
             .collect();
 
         Ok((start, candidates))
@@ -301,7 +299,9 @@ impl Repl {
             "len" => "len(value) -> Returns length for strings, arrays, and dictionaries.",
             "range" => "range(start?, end, step?) -> Produces an integer sequence.",
             "read_file" => "read_file(path) -> Reads a UTF-8 file and returns content.",
-            "http_get" => "http_get(url) -> Performs an HTTP GET request and returns response data.",
+            "http_get" => {
+                "http_get(url) -> Performs an HTTP GET request and returns response data."
+            }
             _ => "No dedicated help text yet for this function.",
         };
 
@@ -343,7 +343,21 @@ impl Repl {
         }
 
         // Tokenize and parse
-        let tokens = lexer::tokenize(input);
+        let tokens = match lexer::tokenize(input) {
+            Ok(tokens) => tokens,
+            Err(diagnostics) => {
+                for diagnostic in diagnostics {
+                    println!(
+                        "{} {}:{} {}",
+                        "Error:".bright_red(),
+                        diagnostic.line,
+                        diagnostic.column,
+                        diagnostic.message
+                    );
+                }
+                return;
+            }
+        };
         let mut parser = parser::Parser::new(tokens);
 
         // Try to parse as expression first (for REPL convenience)

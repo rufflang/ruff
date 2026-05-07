@@ -10618,7 +10618,7 @@ mod tests {
     use crate::parser::Parser;
 
     fn run_code(code: &str) -> Interpreter {
-        let tokens = tokenize(code);
+        let tokens = tokenize(code).expect("test source should tokenize");
         let mut parser = Parser::new(tokens);
         let program = parser.parse();
         let mut interp = Interpreter::new();

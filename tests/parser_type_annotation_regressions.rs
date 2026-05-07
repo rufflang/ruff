@@ -5,7 +5,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 
 fn parse_without_panic(source: &str) {
     let parse_result = catch_unwind(AssertUnwindSafe(|| {
-        let tokens = tokenize(source);
+        let tokens = tokenize(source).expect("regression source should tokenize");
         let mut parser = Parser::new(tokens);
         parser.parse()
     }));
@@ -34,7 +34,7 @@ fn malformed_option_type_annotation_missing_closer_does_not_panic() {
 #[test]
 fn result_and_option_type_annotations_parse_as_identifier_tokens() {
     let source = "func typed(value: Result<int, string>, maybe: Option<int>) { return value }";
-    let tokens = tokenize(source);
+    let tokens = tokenize(source).expect("test source should tokenize");
     let mut parser = Parser::new(tokens);
     let program = parser.parse();
 

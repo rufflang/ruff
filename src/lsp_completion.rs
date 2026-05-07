@@ -40,11 +40,7 @@ pub fn complete(source: &str, line: usize, column: usize) -> Vec<CompletionItem>
     let mut by_label: BTreeMap<String, CompletionItemKind> = BTreeMap::new();
 
     for builtin in Interpreter::get_builtin_names() {
-        upsert_completion_item(
-            &mut by_label,
-            builtin.to_string(),
-            CompletionItemKind::Builtin,
-        );
+        upsert_completion_item(&mut by_label, builtin.to_string(), CompletionItemKind::Builtin);
     }
 
     let (function_symbols, variable_symbols) = collect_user_symbols(source);
@@ -78,7 +74,10 @@ fn upsert_completion_item(
 }
 
 fn collect_user_symbols(source: &str) -> (BTreeSet<String>, BTreeSet<String>) {
-    let tokens = lexer::tokenize(source);
+    let tokens = match lexer::tokenize(source) {
+        Ok(tokens) => tokens,
+        Err(_) => return (BTreeSet::new(), BTreeSet::new()),
+    };
     let mut parser = parser::Parser::new(tokens);
     let stmts = parser.parse();
 
@@ -250,18 +249,13 @@ mod tests {
         .join("\n");
 
         let completions = complete(&source, 6, 3);
-        let completion_pairs: Vec<(String, CompletionItemKind)> = completions
-            .iter()
-            .map(|item| (item.label.clone(), item.kind.clone()))
-            .collect();
+        let completion_pairs: Vec<(String, CompletionItemKind)> =
+            completions.iter().map(|item| (item.label.clone(), item.kind.clone())).collect();
 
         assert!(completion_pairs.contains(&("print".to_string(), CompletionItemKind::Builtin)));
+        assert!(completion_pairs.contains(&("printer".to_string(), CompletionItemKind::Variable)));
         assert!(
-            completion_pairs.contains(&("printer".to_string(), CompletionItemKind::Variable))
-        );
-        assert!(
-            completion_pairs
-                .contains(&("project_name".to_string(), CompletionItemKind::Variable))
+            completion_pairs.contains(&("project_name".to_string(), CompletionItemKind::Variable))
         );
 
         let function_completions = complete(&source, 6, 3);

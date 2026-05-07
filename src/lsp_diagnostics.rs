@@ -1,4 +1,4 @@
-use crate::lexer::{self, Token, TokenKind};
+use crate::lexer::{self, LexerDiagnostic, LexerDiagnosticKind, Token, TokenKind};
 use crate::parser;
 use std::panic::{self, AssertUnwindSafe};
 
@@ -24,15 +24,39 @@ pub struct Diagnostic {
 }
 
 pub fn diagnose(source: &str) -> Vec<Diagnostic> {
-    let tokens = lexer::tokenize(source);
+    let lexed = lexer::tokenize_with_diagnostics(source);
+    let tokens = lexed.tokens;
     let mut diagnostics = Vec::new();
 
+    diagnostics.extend(lexed.diagnostics.iter().map(to_lsp_diagnostic));
     diagnostics.extend(check_delimiter_balance(&tokens));
     diagnostics.extend(check_type_annotation_syntax(&tokens));
     diagnostics.extend(check_parser_panics(&tokens));
 
     diagnostics.sort_by_key(|diagnostic| (diagnostic.line, diagnostic.column));
     diagnostics
+}
+
+fn to_lsp_diagnostic(diagnostic: &LexerDiagnostic) -> Diagnostic {
+    let kind = match diagnostic.kind {
+        LexerDiagnosticKind::InvalidCharacter => "Invalid character",
+        LexerDiagnosticKind::NullByte => "Null byte",
+        LexerDiagnosticKind::UnterminatedString => "Unterminated string",
+        LexerDiagnosticKind::UnterminatedComment => "Unterminated comment",
+        LexerDiagnosticKind::InvalidEscape => "Invalid escape sequence",
+        LexerDiagnosticKind::NumericLiteralOverflow => "Numeric literal overflow",
+        LexerDiagnosticKind::MalformedNumericLiteral => "Malformed numeric literal",
+        LexerDiagnosticKind::IdentifierTooLong => "Identifier too long",
+        LexerDiagnosticKind::StringLiteralTooLong => "String literal too long",
+        LexerDiagnosticKind::NumericLiteralTooLong => "Numeric literal too long",
+    };
+
+    Diagnostic {
+        line: diagnostic.line,
+        column: diagnostic.column,
+        severity: DiagnosticSeverity::Error,
+        message: format!("{}: {}", kind, diagnostic.message),
+    }
 }
 
 fn check_delimiter_balance(tokens: &[Token]) -> Vec<Diagnostic> {
@@ -221,6 +245,15 @@ mod tests {
         assert!(diagnostics.iter().any(|diagnostic| {
             DiagnosticSeverity::Error == diagnostic.severity
                 && diagnostic.message.contains("Unclosed opening parenthesis")
+        }));
+    }
+
+    #[test]
+    fn diagnostics_include_lexer_failures() {
+        let diagnostics = diagnose("let value := @\n");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            DiagnosticSeverity::Error == diagnostic.severity
+                && diagnostic.message.contains("Invalid character")
         }));
     }
 

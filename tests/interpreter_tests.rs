@@ -26,7 +26,7 @@ fn unique_module_name(prefix: &str) -> String {
 }
 
 fn run_code(code: &str) -> Interpreter {
-    let tokens = tokenize(code);
+    let tokens = tokenize(code).expect("test source should tokenize");
     let mut parser = Parser::new(tokens);
     let program = parser.parse();
     let mut interp = Interpreter::new();

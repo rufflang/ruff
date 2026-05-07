@@ -12,7 +12,7 @@ pub struct HoverInfo {
 }
 
 pub fn hover(source: &str, line: usize, column: usize) -> Option<HoverInfo> {
-    let tokens = lexer::tokenize(source);
+    let tokens = lexer::tokenize(source).ok()?;
     let token = identifier_token_at_cursor(&tokens, line, column)?;
     let symbol = match &token.kind {
         TokenKind::Identifier(name) => name.clone(),
@@ -24,7 +24,13 @@ pub fn hover(source: &str, line: usize, column: usize) -> Option<HoverInfo> {
     }
 
     if let Some(definition) = lsp_definition::find_definition(source, line, start_column) {
-        return Some(build_user_symbol_hover(source, &definition.name, definition.kind, definition.line, definition.column));
+        return Some(build_user_symbol_hover(
+            source,
+            &definition.name,
+            definition.kind,
+            definition.line,
+            definition.column,
+        ));
     }
 
     if Interpreter::get_builtin_names().iter().any(|name| *name == symbol) {
@@ -60,16 +66,14 @@ fn build_user_symbol_hover(
         DefinitionKind::Parameter => format!("Function parameter: {}", symbol),
     };
 
-    HoverInfo {
-        symbol: symbol.to_string(),
-        kind: kind.as_str().to_string(),
-        detail,
-        line,
-        column,
-    }
+    HoverInfo { symbol: symbol.to_string(), kind: kind.as_str().to_string(), detail, line, column }
 }
 
-fn identifier_token_at_cursor<'a>(tokens: &'a [Token], line: usize, column: usize) -> Option<&'a Token> {
+fn identifier_token_at_cursor<'a>(
+    tokens: &'a [Token],
+    line: usize,
+    column: usize,
+) -> Option<&'a Token> {
     for token in tokens.iter() {
         if token.line != line {
             continue;
@@ -86,7 +90,9 @@ fn identifier_token_at_cursor<'a>(tokens: &'a [Token], line: usize, column: usiz
         }
 
         let end_column = token.column.saturating_sub(1);
-        if (start_column..=token.column).contains(&column) || (start_column..=end_column).contains(&column) {
+        if (start_column..=token.column).contains(&column)
+            || (start_column..=end_column).contains(&column)
+        {
             return Some(token);
         }
     }
@@ -100,13 +106,9 @@ mod tests {
 
     #[test]
     fn hover_returns_function_details_for_user_function() {
-        let source = [
-            "func greet(name) {",
-            "    return name",
-            "}",
-            "let result := greet(\"ruff\")",
-        ]
-        .join("\n");
+        let source =
+            ["func greet(name) {", "    return name", "}", "let result := greet(\"ruff\")"]
+                .join("\n");
 
         let info = hover(&source, 4, 16).expect("expected hover info");
         assert_eq!(info.symbol, "greet");

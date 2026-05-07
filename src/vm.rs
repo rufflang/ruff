@@ -7022,7 +7022,12 @@ mod tests {
 
     /// Helper to compile and run Ruff code through the VM
     fn run_vm_code(code: &str) -> Result<Value, String> {
-        let tokens = lexer::tokenize(code);
+        let tokens = lexer::tokenize(code).map_err(|diagnostics| {
+            diagnostics
+                .first()
+                .map(|diagnostic| diagnostic.message.clone())
+                .unwrap_or_else(|| "unknown lexer error".to_string())
+        })?;
         let mut parser = Parser::new(tokens);
         let ast = parser.parse();
 
@@ -7034,7 +7039,12 @@ mod tests {
     }
 
     fn run_vm_code_with_natives(code: &str, native_names: &[&str]) -> Result<Value, String> {
-        let tokens = lexer::tokenize(code);
+        let tokens = lexer::tokenize(code).map_err(|diagnostics| {
+            diagnostics
+                .first()
+                .map(|diagnostic| diagnostic.message.clone())
+                .unwrap_or_else(|| "unknown lexer error".to_string())
+        })?;
         let mut parser = Parser::new(tokens);
         let ast = parser.parse();
 
@@ -7056,7 +7066,7 @@ mod tests {
     }
 
     fn compile_chunk(code: &str) -> BytecodeChunk {
-        let tokens = lexer::tokenize(code);
+        let tokens = lexer::tokenize(code).expect("test source should tokenize");
         let mut parser = Parser::new(tokens);
         let ast = parser.parse();
         let mut compiler = Compiler::new();

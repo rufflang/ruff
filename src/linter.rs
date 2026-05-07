@@ -69,7 +69,22 @@ pub fn apply_safe_fixes(source: &str, issues: &[LintIssue]) -> String {
 }
 
 fn check_unused_variables(source: &str) -> Vec<LintIssue> {
-    let tokens = lexer::tokenize(source);
+    let tokens = match lexer::tokenize(source) {
+        Ok(tokens) => tokens,
+        Err(diagnostics) => {
+            return diagnostics
+                .into_iter()
+                .map(|diagnostic| LintIssue {
+                    rule_id: "lexer-error".to_string(),
+                    line: diagnostic.line,
+                    column: diagnostic.column,
+                    severity: LintSeverity::Error,
+                    message: diagnostic.message,
+                    fix: None,
+                })
+                .collect()
+        }
+    };
     let source_lines: Vec<&str> = source.lines().collect();
 
     let mut usage_counts: HashMap<String, usize> = HashMap::new();
@@ -85,18 +100,27 @@ fn check_unused_variables(source: &str) -> Vec<LintIssue> {
     while index < tokens.len() {
         if matches!(&tokens[index].kind, TokenKind::Keyword(k) if k == "let") {
             let mut decl_index = index + 1;
-            if matches!(tokens.get(decl_index).map(|t| &t.kind), Some(TokenKind::Keyword(k)) if k == "mut") {
+            if matches!(tokens.get(decl_index).map(|t| &t.kind), Some(TokenKind::Keyword(k)) if k == "mut")
+            {
                 decl_index += 1;
             }
             if let Some(token) = tokens.get(decl_index) {
                 if let TokenKind::Identifier(name) = &token.kind {
-                    declarations.push((name.clone(), token.line, token.column.saturating_sub(name.chars().count())));
+                    declarations.push((
+                        name.clone(),
+                        token.line,
+                        token.column.saturating_sub(name.chars().count()),
+                    ));
                 }
             }
         } else if matches!(&tokens[index].kind, TokenKind::Keyword(k) if k == "const") {
             if let Some(token) = tokens.get(index + 1) {
                 if let TokenKind::Identifier(name) = &token.kind {
-                    declarations.push((name.clone(), token.line, token.column.saturating_sub(name.chars().count())));
+                    declarations.push((
+                        name.clone(),
+                        token.line,
+                        token.column.saturating_sub(name.chars().count()),
+                    ));
                 }
             }
         }
@@ -130,7 +154,8 @@ fn check_unused_variables(source: &str) -> Vec<LintIssue> {
                 message: format!("Variable '{}' is declared but never used", name),
                 fix: Some(LintFix {
                     replacement_line,
-                    description: "Prefix unused variable with '_' to mark as intentional".to_string(),
+                    description: "Prefix unused variable with '_' to mark as intentional"
+                        .to_string(),
                 }),
             });
         }
@@ -165,7 +190,10 @@ fn check_unreachable_code(source: &str) -> Vec<LintIssue> {
             });
         }
 
-        if trimmed.starts_with("return") || trimmed.starts_with("break") || trimmed.starts_with("continue") {
+        if trimmed.starts_with("return")
+            || trimmed.starts_with("break")
+            || trimmed.starts_with("continue")
+        {
             in_unreachable_region = true;
             brace_balance = opening - closing;
             continue;
@@ -200,7 +228,8 @@ fn check_obvious_type_mismatches(source: &str) -> Vec<LintIssue> {
                 line: line_number,
                 column: 1,
                 severity: LintSeverity::Error,
-                message: "Obvious type mismatch: int annotation assigned a string literal".to_string(),
+                message: "Obvious type mismatch: int annotation assigned a string literal"
+                    .to_string(),
                 fix: None,
             });
         }
@@ -210,7 +239,8 @@ fn check_obvious_type_mismatches(source: &str) -> Vec<LintIssue> {
                 line: line_number,
                 column: 1,
                 severity: LintSeverity::Error,
-                message: "Obvious type mismatch: float annotation assigned a string literal".to_string(),
+                message: "Obvious type mismatch: float annotation assigned a string literal"
+                    .to_string(),
                 fix: None,
             });
         }
@@ -220,7 +250,8 @@ fn check_obvious_type_mismatches(source: &str) -> Vec<LintIssue> {
                 line: line_number,
                 column: 1,
                 severity: LintSeverity::Error,
-                message: "Obvious type mismatch: bool annotation assigned numeric literal".to_string(),
+                message: "Obvious type mismatch: bool annotation assigned numeric literal"
+                    .to_string(),
                 fix: None,
             });
         }
@@ -243,7 +274,8 @@ fn check_missing_error_handling_patterns(source: &str) -> Vec<LintIssue> {
             continue;
         }
 
-        let handled_inline = trimmed.starts_with("try") || trimmed.contains("?") || trimmed.contains("except");
+        let handled_inline =
+            trimmed.starts_with("try") || trimmed.contains("?") || trimmed.contains("except");
         if handled_inline {
             continue;
         }
@@ -263,7 +295,8 @@ fn check_missing_error_handling_patterns(source: &str) -> Vec<LintIssue> {
             line: line_number,
             column: 1,
             severity: LintSeverity::Warning,
-            message: "Potentially fallible call without explicit error-handling pattern".to_string(),
+            message: "Potentially fallible call without explicit error-handling pattern"
+                .to_string(),
             fix: None,
         });
     }
@@ -287,13 +320,7 @@ mod tests {
 
     #[test]
     fn lint_reports_unreachable_code() {
-        let source = [
-            "func test() {",
-            "    return 1",
-            "    print(2)",
-            "}",
-        ]
-        .join("\n");
+        let source = ["func test() {", "    return 1", "    print(2)", "}"].join("\n");
         let issues = lint_source(&source);
         assert!(issues.iter().any(|issue| issue.rule_id == "unreachable-code"));
     }
@@ -302,17 +329,13 @@ mod tests {
     fn lint_reports_obvious_type_mismatch() {
         let source = "let count: int := \"oops\"\n";
         let issues = lint_source(source);
-        assert!(issues
-            .iter()
-            .any(|issue| issue.rule_id == "obvious-type-mismatch"));
+        assert!(issues.iter().any(|issue| issue.rule_id == "obvious-type-mismatch"));
     }
 
     #[test]
     fn lint_reports_missing_error_handling_pattern() {
         let source = "let content := read_file(\"missing.txt\")\n";
         let issues = lint_source(source);
-        assert!(issues
-            .iter()
-            .any(|issue| issue.rule_id == "missing-error-handling-pattern"));
+        assert!(issues.iter().any(|issue| issue.rule_id == "missing-error-handling-pattern"));
     }
 }

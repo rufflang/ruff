@@ -30,7 +30,7 @@ pub fn find_definition(source: &str, line: usize, column: usize) -> Option<Defin
         return None;
     }
 
-    let tokens = lexer::tokenize(source);
+    let tokens = lexer::tokenize(source).ok()?;
     let identifier = identifier_at_cursor(&tokens, line, column)?;
     let definitions = collect_definitions(&tokens);
 
@@ -141,7 +141,8 @@ fn collect_function_definition(
     definitions: &mut Vec<DefinitionLocation>,
 ) {
     let name_token_index = func_keyword_index + 1;
-    if let Some(location) = identifier_definition(tokens, name_token_index, DefinitionKind::Function)
+    if let Some(location) =
+        identifier_definition(tokens, name_token_index, DefinitionKind::Function)
     {
         definitions.push(location);
     }
@@ -185,7 +186,11 @@ fn collect_function_definition(
     }
 }
 
-fn collect_let_definition(tokens: &[Token], let_keyword_index: usize, definitions: &mut Vec<DefinitionLocation>) {
+fn collect_let_definition(
+    tokens: &[Token],
+    let_keyword_index: usize,
+    definitions: &mut Vec<DefinitionLocation>,
+) {
     let mut next_index = let_keyword_index + 1;
     if is_keyword(tokens, next_index, "mut") {
         next_index += 1;
@@ -208,8 +213,13 @@ fn collect_const_definition(
     }
 }
 
-fn collect_for_definition(tokens: &[Token], for_keyword_index: usize, definitions: &mut Vec<DefinitionLocation>) {
-    if let Some(location) = identifier_definition(tokens, for_keyword_index + 1, DefinitionKind::Variable)
+fn collect_for_definition(
+    tokens: &[Token],
+    for_keyword_index: usize,
+    definitions: &mut Vec<DefinitionLocation>,
+) {
+    if let Some(location) =
+        identifier_definition(tokens, for_keyword_index + 1, DefinitionKind::Variable)
     {
         definitions.push(location);
     }
@@ -233,12 +243,14 @@ fn identifier_definition(
     kind: DefinitionKind,
 ) -> Option<DefinitionLocation> {
     match tokens.get(token_index) {
-        Some(Token { kind: TokenKind::Identifier(name), line, column }) => Some(DefinitionLocation {
-            name: name.clone(),
-            line: *line,
-            column: column.saturating_sub(name.chars().count()),
-            kind,
-        }),
+        Some(Token { kind: TokenKind::Identifier(name), line, column }) => {
+            Some(DefinitionLocation {
+                name: name.clone(),
+                line: *line,
+                column: column.saturating_sub(name.chars().count()),
+                kind,
+            })
+        }
         _ => None,
     }
 }
@@ -256,13 +268,9 @@ mod tests {
 
     #[test]
     fn finds_function_definition_for_call_site() {
-        let source = [
-            "func greet(name) {",
-            "    return name",
-            "}",
-            "let result := greet(\"ruff\")",
-        ]
-        .join("\n");
+        let source =
+            ["func greet(name) {", "    return name", "}", "let result := greet(\"ruff\")"]
+                .join("\n");
 
         let definition = find_definition(&source, 4, 19).expect("expected function definition");
         assert_eq!(definition.name, "greet");
@@ -273,14 +281,9 @@ mod tests {
 
     #[test]
     fn prefers_nearest_previous_definition_for_shadowed_variables() {
-        let source = [
-            "let value := 1",
-            "func demo() {",
-            "    let value := 2",
-            "    print(value)",
-            "}",
-        ]
-        .join("\n");
+        let source =
+            ["let value := 1", "func demo() {", "    let value := 2", "    print(value)", "}"]
+                .join("\n");
 
         let definition =
             find_definition(&source, 4, 14).expect("expected nearest variable definition");

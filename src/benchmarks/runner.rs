@@ -122,7 +122,12 @@ impl BenchmarkRunner {
 
     /// Execute code in interpreter mode
     fn execute_interpreter(&self, code: &str) -> Result<(), String> {
-        let tokens = lexer::tokenize(code);
+        let tokens = lexer::tokenize(code).map_err(|diagnostics| {
+            format!(
+                "Lexing error: {}",
+                diagnostics.first().map(|d| d.message.as_str()).unwrap_or("unknown error")
+            )
+        })?;
         let mut parser = Parser::new(tokens);
         let ast = parser.parse();
 
@@ -134,7 +139,12 @@ impl BenchmarkRunner {
 
     /// Execute code in VM mode
     fn execute_vm(&self, code: &str) -> Result<(), String> {
-        let tokens = lexer::tokenize(code);
+        let tokens = lexer::tokenize(code).map_err(|diagnostics| {
+            format!(
+                "Lexing error: {}",
+                diagnostics.first().map(|d| d.message.as_str()).unwrap_or("unknown error")
+            )
+        })?;
         let mut parser = Parser::new(tokens);
         let ast = parser.parse();
 
@@ -155,7 +165,12 @@ impl BenchmarkRunner {
 
     /// Execute code in JIT mode
     fn execute_jit(&self, code: &str) -> Result<(), String> {
-        let tokens = lexer::tokenize(code);
+        let tokens = lexer::tokenize(code).map_err(|diagnostics| {
+            format!(
+                "Lexing error: {}",
+                diagnostics.first().map(|d| d.message.as_str()).unwrap_or("unknown error")
+            )
+        })?;
         let mut parser = Parser::new(tokens);
         let ast = parser.parse();
 

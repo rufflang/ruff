@@ -1,3 +1,5 @@
+use crate::formatter::{self, FormatterOptions};
+use crate::lexer::{self, TokenKind};
 use crate::lsp_code_actions;
 use crate::lsp_completion::{self, CompletionItemKind};
 use crate::lsp_definition;
@@ -5,8 +7,6 @@ use crate::lsp_diagnostics;
 use crate::lsp_hover;
 use crate::lsp_references;
 use crate::lsp_rename;
-use crate::formatter::{self, FormatterOptions};
-use crate::lexer::{self, TokenKind};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -22,10 +22,7 @@ pub struct LspServerConfig {
 
 impl Default for LspServerConfig {
     fn default() -> Self {
-        Self {
-            deterministic_logging: false,
-            request_timeout_ms: 5000,
-        }
+        Self { deterministic_logging: false, request_timeout_ms: 5000 }
     }
 }
 
@@ -295,29 +292,25 @@ impl LspServer {
                     }
                 };
 
-                let references = lsp_references::find_references(
-                    &source,
-                    line,
-                    column,
-                    include_definition,
-                )
-                .into_iter()
-                .map(|reference| {
-                    json!({
-                        "uri": uri,
-                        "range": {
-                            "start": {
-                                "line": zero_based(reference.line),
-                                "character": zero_based(reference.column),
-                            },
-                            "end": {
-                                "line": zero_based(reference.line),
-                                "character": zero_based(reference.column + 1),
-                            }
-                        }
-                    })
-                })
-                .collect::<Vec<Value>>();
+                let references =
+                    lsp_references::find_references(&source, line, column, include_definition)
+                        .into_iter()
+                        .map(|reference| {
+                            json!({
+                                "uri": uri,
+                                "range": {
+                                    "start": {
+                                        "line": zero_based(reference.line),
+                                        "character": zero_based(reference.column),
+                                    },
+                                    "end": {
+                                        "line": zero_based(reference.line),
+                                        "character": zero_based(reference.column + 1),
+                                    }
+                                }
+                            })
+                        })
+                        .collect::<Vec<Value>>();
 
                 json!({
                     "jsonrpc": "2.0",
@@ -338,15 +331,13 @@ impl LspServer {
                         return invalid_params_response(id, "Missing position");
                     }
                 };
-                let new_name = match params
-                    .and_then(|value| value.get("newName"))
-                    .and_then(Value::as_str)
-                {
-                    Some(value) => value,
-                    None => {
-                        return invalid_params_response(id, "Missing newName");
-                    }
-                };
+                let new_name =
+                    match params.and_then(|value| value.get("newName")).and_then(Value::as_str) {
+                        Some(value) => value,
+                        None => {
+                            return invalid_params_response(id, "Missing newName");
+                        }
+                    };
 
                 let source = match self.resolve_document_source(&uri) {
                     Ok(content) => content,
@@ -686,11 +677,7 @@ impl LspServer {
     }
 
     fn publish_diagnostics_notification(&self, uri: &str) -> Value {
-        let source = self
-            .documents
-            .get(uri)
-            .cloned()
-            .unwrap_or_else(String::new);
+        let source = self.documents.get(uri).cloned().unwrap_or_else(String::new);
         let diagnostics = lsp_diagnostics::diagnose(&source)
             .into_iter()
             .map(|diagnostic| {
@@ -914,11 +901,7 @@ fn formatter_options_from_lsp_params(params: Option<&Value>) -> FormatterOptions
         .map(|value| value as usize)
         .unwrap_or(4);
 
-    FormatterOptions {
-        indent_width: tab_size.max(1),
-        line_length: 100,
-        sort_imports: true,
-    }
+    FormatterOptions { indent_width: tab_size.max(1), line_length: 100, sort_imports: true }
 }
 
 fn full_document_text_edit(source: &str, new_text: String) -> Value {
@@ -955,7 +938,10 @@ fn source_end_position(source: &str) -> (usize, usize) {
 
 fn collect_document_symbols(source: &str) -> Vec<SymbolEntry> {
     let mut symbols = Vec::new();
-    let tokens = lexer::tokenize(source);
+    let tokens = match lexer::tokenize(source) {
+        Ok(tokens) => tokens,
+        Err(_) => return symbols,
+    };
     let mut index = 0;
 
     while index < tokens.len() {
@@ -1184,12 +1170,12 @@ mod tests {
             .cloned()
             .unwrap_or_default();
 
-        assert!(items.iter().any(|item| {
-            item.get("label").and_then(|value| value.as_str()) == Some("print")
-        }));
-        assert!(items.iter().any(|item| {
-            item.get("label").and_then(|value| value.as_str()) == Some("printer")
-        }));
+        assert!(items
+            .iter()
+            .any(|item| { item.get("label").and_then(|value| value.as_str()) == Some("print") }));
+        assert!(items
+            .iter()
+            .any(|item| { item.get("label").and_then(|value| value.as_str()) == Some("printer") }));
     }
 
     #[test]
@@ -1222,11 +1208,8 @@ mod tests {
             }
         }));
 
-        let edits = response[0]
-            .get("result")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
+        let edits =
+            response[0].get("result").and_then(Value::as_array).cloned().unwrap_or_default();
 
         assert_eq!(edits.len(), 1);
         assert!(edits[0]
@@ -1262,18 +1245,15 @@ mod tests {
             }
         }));
 
-        let symbols = response[0]
-            .get("result")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
+        let symbols =
+            response[0].get("result").and_then(Value::as_array).cloned().unwrap_or_default();
 
-        assert!(symbols.iter().any(|symbol| {
-            symbol.get("name").and_then(Value::as_str) == Some("greet")
-        }));
-        assert!(symbols.iter().any(|symbol| {
-            symbol.get("name").and_then(Value::as_str) == Some("value")
-        }));
+        assert!(symbols
+            .iter()
+            .any(|symbol| { symbol.get("name").and_then(Value::as_str) == Some("greet") }));
+        assert!(symbols
+            .iter()
+            .any(|symbol| { symbol.get("name").and_then(Value::as_str) == Some("value") }));
     }
 
     #[test]
@@ -1300,18 +1280,15 @@ mod tests {
             }
         }));
 
-        let symbols = response[0]
-            .get("result")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
+        let symbols =
+            response[0].get("result").and_then(Value::as_array).cloned().unwrap_or_default();
 
-        assert!(symbols.iter().any(|symbol| {
-            symbol.get("name").and_then(Value::as_str) == Some("render_page")
-        }));
-        assert!(!symbols.iter().any(|symbol| {
-            symbol.get("name").and_then(Value::as_str) == Some("build_site")
-        }));
+        assert!(symbols
+            .iter()
+            .any(|symbol| { symbol.get("name").and_then(Value::as_str) == Some("render_page") }));
+        assert!(!symbols
+            .iter()
+            .any(|symbol| { symbol.get("name").and_then(Value::as_str) == Some("build_site") }));
     }
 
     #[test]
@@ -1339,10 +1316,8 @@ mod tests {
 
     #[test]
     fn timeout_returns_timeout_error_shape() {
-        let mut server = LspServer::new(LspServerConfig {
-            deterministic_logging: false,
-            request_timeout_ms: 1,
-        });
+        let mut server =
+            LspServer::new(LspServerConfig { deterministic_logging: false, request_timeout_ms: 1 });
 
         let large_source = (0..50_000)
             .map(|index| format!("let value_{} := {}", index, index))
@@ -1396,8 +1371,12 @@ mod tests {
                 1 => json!([1, 2, 3, {"unexpected": true}]),
                 2 => json!({"jsonrpc": "2.0"}),
                 3 => json!({"jsonrpc": "2.0", "method": 42, "params": true}),
-                4 => json!({"jsonrpc": "2.0", "id": {"bad": "shape"}, "method": "textDocument/hover", "params": {}}),
-                _ => json!({"jsonrpc": "2.0", "id": rng.gen_range(1..1000), "method": "workspace/unknown", "params": {"junk": rng.gen_range(0..100)}}),
+                4 => {
+                    json!({"jsonrpc": "2.0", "id": {"bad": "shape"}, "method": "textDocument/hover", "params": {}})
+                }
+                _ => {
+                    json!({"jsonrpc": "2.0", "id": rng.gen_range(1..1000), "method": "workspace/unknown", "params": {"junk": rng.gen_range(0..100)}})
+                }
             };
 
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

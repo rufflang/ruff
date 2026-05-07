@@ -1499,13 +1499,19 @@ impl Parser {
                 }
                 LexerPart::Expression(expr_str) => {
                     // Parse the expression string
-                    let tokens = crate::lexer::tokenize(&expr_str);
-                    let mut parser = Parser::new(tokens);
-                    if let Some(expr) = parser.parse_expr() {
-                        ast_parts.push(InterpolatedStringPart::Expr(Box::new(expr)));
-                    } else {
-                        // Failed to parse expression, treat as empty string
-                        ast_parts.push(InterpolatedStringPart::Text(String::new()));
+                    match crate::lexer::tokenize(&expr_str) {
+                        Ok(tokens) => {
+                            let mut parser = Parser::new(tokens);
+                            if let Some(expr) = parser.parse_expr() {
+                                ast_parts.push(InterpolatedStringPart::Expr(Box::new(expr)));
+                            } else {
+                                // Failed to parse expression, treat as empty string
+                                ast_parts.push(InterpolatedStringPart::Text(String::new()));
+                            }
+                        }
+                        Err(_) => {
+                            ast_parts.push(InterpolatedStringPart::Text(String::new()));
+                        }
                     }
                 }
             }
@@ -1660,7 +1666,19 @@ impl Parser {
                 let content = fs::read_to_string(&path).unwrap_or_default();
                 let expected_path = path.with_extension("out");
 
-                let tokens = crate::lexer::tokenize(&content);
+                let tokens = match crate::lexer::tokenize(&content) {
+                    Ok(tokens) => tokens,
+                    Err(diagnostics) => {
+                        println!("[✗] {}", path.display());
+                        for diagnostic in diagnostics {
+                            println!(
+                                "Lexer error at {}:{}: {}",
+                                diagnostic.line, diagnostic.column, diagnostic.message
+                            );
+                        }
+                        continue;
+                    }
+                };
                 let mut parser = crate::parser::Parser::new(tokens);
                 let ast = parser.parse();
                 let mut interp = crate::interpreter::Interpreter::new();

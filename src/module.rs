@@ -1,7 +1,7 @@
-use crate::errors::{ErrorKind, RuffError};
 use crate::ast::{Expr, Pattern, Stmt};
+use crate::errors::{ErrorKind, RuffError};
 use crate::interpreter::{Environment, Interpreter, Value};
-use crate::lexer::tokenize;
+use crate::lexer::tokenize_with_file;
 use crate::parser::Parser;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -189,7 +189,22 @@ impl ModuleLoader {
                 Self::runtime_error(format!("Failed to read module {}: {}", module_name, e))
             })?;
 
-            let tokens = tokenize(&source);
+            let tokens = tokenize_with_file(&source, Some(&module_path.to_string_lossy()))
+                .map_err(|diagnostics| {
+                    let first = diagnostics
+                        .first()
+                        .map(|diagnostic| {
+                            format!(
+                                "{}:{}: {}",
+                                diagnostic.line, diagnostic.column, diagnostic.message
+                            )
+                        })
+                        .unwrap_or_else(|| "unknown lexer error".to_string());
+                    Self::runtime_error(format!(
+                        "Failed to tokenize module '{}': {}",
+                        module_name, first
+                    ))
+                })?;
             let mut parser = Parser::new(tokens);
             let program = parser.parse();
             let export_names = Self::collect_exported_symbol_names(&program);
@@ -303,17 +318,13 @@ mod tests {
 
         let module_name = unique_name("math_mod");
         let module_path = temp_root.join(format!("{}.ruff", module_name));
-        fs::write(
-            &module_path,
-            "helper := 10\nexport visible := helper + 5\nhidden := 99\n",
-        )
-        .expect("failed to write module source");
+        fs::write(&module_path, "helper := 10\nexport visible := helper + 5\nhidden := 99\n")
+            .expect("failed to write module source");
 
         loader.add_search_path(&temp_root);
 
-        let exports = loader
-            .get_all_exports(&module_name)
-            .expect("module should load and return exports");
+        let exports =
+            loader.get_all_exports(&module_name).expect("module should load and return exports");
 
         assert!(matches!(exports.get("visible"), Some(Value::Int(15))));
         assert!(exports.get("helper").is_none());
@@ -335,14 +346,12 @@ mod tests {
 
         loader.add_search_path(&temp_root);
 
-        let err = loader
-            .get_symbol(&module_name, "absent")
-            .expect_err("expected missing symbol error");
+        let err =
+            loader.get_symbol(&module_name, "absent").expect_err("expected missing symbol error");
 
-        assert!(err.message.contains(&format!(
-            "Symbol 'absent' not found in module '{}'",
-            module_name
-        )));
+        assert!(err
+            .message
+            .contains(&format!("Symbol 'absent' not found in module '{}'", module_name)));
 
         fs::remove_file(&module_path).expect("failed to clean up module file");
         fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
@@ -366,9 +375,7 @@ mod tests {
 
         loader.add_search_path(&temp_root);
 
-        let err = loader
-            .get_all_exports(&module_a)
-            .expect_err("expected circular import failure");
+        let err = loader.get_all_exports(&module_a).expect_err("expected circular import failure");
 
         assert!(err.message.contains("Circular import detected"));
 

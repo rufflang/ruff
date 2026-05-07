@@ -27,10 +27,7 @@ pub fn rename_symbol(
         .ok_or_else(|| "No identifier found at cursor location".to_string())?;
 
     if old_name == new_name {
-        return Ok(RenameResult {
-            edits: Vec::new(),
-            updated_source: source.to_string(),
-        });
+        return Ok(RenameResult { edits: Vec::new(), updated_source: source.to_string() });
     }
 
     let references = lsp_references::find_references(source, line, column, true);
@@ -49,14 +46,11 @@ pub fn rename_symbol(
         .collect();
 
     let updated_source = apply_rename_edits(source, &edits)?;
-    Ok(RenameResult {
-        edits,
-        updated_source,
-    })
+    Ok(RenameResult { edits, updated_source })
 }
 
 fn identifier_at_cursor(source: &str, line: usize, column: usize) -> Option<String> {
-    let tokens = lexer::tokenize(source);
+    let tokens = lexer::tokenize(source).ok()?;
 
     for token in tokens.iter() {
         if token.line != line {
@@ -97,7 +91,9 @@ fn validate_identifier(name: &str) -> Result<(), String> {
     }
 
     if chars.any(|ch| !(ch.is_ascii_alphanumeric() || ch == '_')) {
-        return Err("New symbol name must contain only letters, numbers, or underscores".to_string());
+        return Err(
+            "New symbol name must contain only letters, numbers, or underscores".to_string()
+        );
     }
 
     Ok(())
@@ -218,7 +214,8 @@ mod tests {
     #[test]
     fn returns_error_when_cursor_not_on_identifier() {
         let source = "let value := 1\nprint(value)\n";
-        let error = rename_symbol(source, 1, 11, "renamed").expect_err("expected missing symbol error");
+        let error =
+            rename_symbol(source, 1, 11, "renamed").expect_err("expected missing symbol error");
         assert!(error.contains("No identifier found"));
     }
 }

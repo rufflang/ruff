@@ -2,24 +2,20 @@
 //
 // Lexical analyzer (tokenizer) for the Ruff programming language.
 // Converts source code text into a stream of tokens for parsing.
-//
-// Supports:
-// - Keywords: let, mut, const, func, return, enum, match, case, if, else, loop, for, try, except, int, float, string, bool, import, export, from, spawn, test, test_setup, test_teardown, test_group, yield, async, await
-// - Identifiers and numbers
-// - String literals with escape sequences
-// - Operators: +, -, *, /, =, ==, <, >, <=, >=, ->, :=, ::
-// - Punctuation: ( ) { } , ; :
-// - Single-line comments starting with #
-// - Multi-line comments /* ... */
-// - Doc comments starting with ///
 
-#[derive(Debug, Clone, PartialEq)] // Added PartialEq here
+use std::num::IntErrorKind;
+
+pub const MAX_IDENTIFIER_LENGTH: usize = 256;
+pub const MAX_STRING_LITERAL_LENGTH: usize = 8192;
+pub const MAX_NUMERIC_LITERAL_LENGTH: usize = 512;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     Identifier(String),
-    Int(i64),   // Integer literals like 42
-    Float(f64), // Float literals like 3.14
+    Int(i64),
+    Float(f64),
     String(String),
-    InterpolatedString(Vec<InterpolatedPart>), // String with ${} expressions
+    InterpolatedString(Vec<InterpolatedPart>),
     Bool(bool),
     Operator(String),
     Punctuation(char),
@@ -30,8 +26,8 @@ pub enum TokenKind {
 /// Represents parts of an interpolated string
 #[derive(Debug, Clone, PartialEq)]
 pub enum InterpolatedPart {
-    Text(String),       // Regular text
-    Expression(String), // Expression inside ${}
+    Text(String),
+    Expression(String),
 }
 
 #[derive(Debug, Clone)]
@@ -43,167 +39,374 @@ pub struct Token {
     pub column: usize,
 }
 
-/// Tokenizes Ruff source code into a vector of tokens.
-///
-/// Processes the input character by character, recognizing keywords, identifiers,
-/// numbers, strings, operators, and punctuation. Comments starting with # are
-/// skipped until end of line.
-///
-/// # Arguments
-/// * `source` - The Ruff source code as a string
-///
-/// # Returns
-/// A vector of Token structs representing the tokenized source code
-pub fn tokenize(source: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
-    let mut chars = source.chars().peekable();
-    let mut line = 1;
-    let mut col = 1;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LexerDiagnosticKind {
+    InvalidCharacter,
+    NullByte,
+    UnterminatedString,
+    UnterminatedComment,
+    InvalidEscape,
+    NumericLiteralOverflow,
+    MalformedNumericLiteral,
+    IdentifierTooLong,
+    StringLiteralTooLong,
+    NumericLiteralTooLong,
+}
 
-    while let Some(&c) = chars.peek() {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LexerDiagnostic {
+    pub kind: LexerDiagnosticKind,
+    pub message: String,
+    pub line: usize,
+    pub column: usize,
+    pub byte_offset: usize,
+    pub file: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LexOutput {
+    pub tokens: Vec<Token>,
+    pub diagnostics: Vec<LexerDiagnostic>,
+}
+
+impl LexOutput {
+    fn into_result(self) -> Result<Vec<Token>, Vec<LexerDiagnostic>> {
+        if self.diagnostics.is_empty() {
+            Ok(self.tokens)
+        } else {
+            Err(self.diagnostics)
+        }
+    }
+}
+
+pub fn tokenize(source: &str) -> Result<Vec<Token>, Vec<LexerDiagnostic>> {
+    tokenize_with_file(source, None)
+}
+
+pub fn tokenize_with_file(
+    source: &str,
+    file: Option<&str>,
+) -> Result<Vec<Token>, Vec<LexerDiagnostic>> {
+    tokenize_with_diagnostics_and_file(source, file).into_result()
+}
+
+pub fn tokenize_with_diagnostics(source: &str) -> LexOutput {
+    tokenize_with_diagnostics_and_file(source, None)
+}
+
+fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOutput {
+    let chars: Vec<char> = source.chars().collect();
+    let mut offsets = Vec::with_capacity(chars.len());
+    let mut byte_offset = 0usize;
+    for ch in &chars {
+        offsets.push(byte_offset);
+        byte_offset += ch.len_utf8();
+    }
+
+    let mut tokens = Vec::new();
+    let mut diagnostics = Vec::new();
+    let mut idx = 0usize;
+    let mut line = 1usize;
+    let mut col = 1usize;
+
+    fn current_offset(offsets: &[usize], idx: usize, source_len: usize) -> usize {
+        offsets.get(idx).copied().unwrap_or(source_len)
+    }
+
+    fn push_diag(
+        diagnostics: &mut Vec<LexerDiagnostic>,
+        kind: LexerDiagnosticKind,
+        message: String,
+        line: usize,
+        column: usize,
+        byte_offset: usize,
+        file: Option<&str>,
+    ) {
+        diagnostics.push(LexerDiagnostic {
+            kind,
+            message,
+            line,
+            column,
+            byte_offset,
+            file: file.map(|value| value.to_string()),
+        });
+    }
+
+    fn bump(chars: &[char], idx: &mut usize) -> Option<char> {
+        let ch = chars.get(*idx).copied()?;
+        *idx += 1;
+        Some(ch)
+    }
+
+    fn peek(chars: &[char], idx: usize) -> Option<char> {
+        chars.get(idx).copied()
+    }
+
+    fn advance_position(ch: char, line: &mut usize, col: &mut usize) {
+        if ch == '\n' || ch == '\r' {
+            *line += 1;
+            *col = 1;
+        } else {
+            *col += 1;
+        }
+    }
+
+    while let Some(c) = peek(&chars, idx) {
         match c {
             ' ' | '\t' => {
-                chars.next();
-                col += 1;
+                let ch = bump(&chars, &mut idx).expect("peeked char should exist");
+                advance_position(ch, &mut line, &mut col);
             }
             '\n' => {
-                chars.next();
-                line += 1;
-                col = 1;
+                let ch = bump(&chars, &mut idx).expect("peeked char should exist");
+                advance_position(ch, &mut line, &mut col);
+            }
+            '\r' => {
+                let ch = bump(&chars, &mut idx).expect("peeked char should exist");
+                advance_position(ch, &mut line, &mut col);
+                if peek(&chars, idx) == Some('\n') {
+                    // Treat CRLF as a single newline.
+                    bump(&chars, &mut idx);
+                }
+            }
+            '\0' => {
+                let diagnostic_line = line;
+                let diagnostic_col = col;
+                let offset = current_offset(&offsets, idx, source.len());
+                bump(&chars, &mut idx);
+                advance_position('\0', &mut line, &mut col);
+                push_diag(
+                    &mut diagnostics,
+                    LexerDiagnosticKind::NullByte,
+                    "Null byte is not allowed in source".to_string(),
+                    diagnostic_line,
+                    diagnostic_col,
+                    offset,
+                    file,
+                );
             }
             '#' => {
-                chars.next(); // consume #
-                col += 1;
-
-                // Regular single-line comment
-                while let Some(&ch) = chars.peek() {
-                    chars.next();
-                    if ch == '\n' {
-                        line += 1;
-                        col = 1;
+                while let Some(ch) = peek(&chars, idx) {
+                    bump(&chars, &mut idx);
+                    advance_position(ch, &mut line, &mut col);
+                    if ch == '\n' || ch == '\r' {
+                        if ch == '\r' && peek(&chars, idx) == Some('\n') {
+                            bump(&chars, &mut idx);
+                        }
                         break;
                     }
-                    col += 1;
                 }
             }
             '"' => {
-                chars.next(); // skip opening quote
+                let start_line = line;
+                let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
+                bump(&chars, &mut idx);
+                advance_position('"', &mut line, &mut col);
+
                 let mut parts = Vec::new();
                 let mut current_text = String::new();
                 let mut has_interpolation = false;
+                let mut terminated = false;
+                let mut string_error = false;
+                let mut string_too_long_reported = false;
 
-                while let Some(&ch) = chars.peek() {
+                while let Some(ch) = peek(&chars, idx) {
                     if ch == '"' {
-                        chars.next();
+                        bump(&chars, &mut idx);
+                        advance_position(ch, &mut line, &mut col);
+                        terminated = true;
                         break;
                     }
 
                     if ch == '\\' {
-                        chars.next();
-                        if let Some(&esc) = chars.peek() {
-                            chars.next();
+                        bump(&chars, &mut idx);
+                        advance_position('\\', &mut line, &mut col);
+                        let escape_line = line;
+                        let escape_col = col;
+                        let escape_offset = current_offset(&offsets, idx, source.len());
+                        if let Some(esc) = peek(&chars, idx) {
+                            bump(&chars, &mut idx);
+                            advance_position(esc, &mut line, &mut col);
                             match esc {
                                 'n' => current_text.push('\n'),
                                 't' => current_text.push('\t'),
+                                'r' => current_text.push('\r'),
                                 '\\' => current_text.push('\\'),
                                 '"' => current_text.push('"'),
-                                _ => current_text.push(esc),
-                            }
-                        }
-                    } else if ch == '$' {
-                        chars.next();
-                        if chars.peek() == Some(&'{') {
-                            // Found interpolation start
-                            has_interpolation = true;
-                            chars.next(); // skip {
-
-                            // Save current text as a part
-                            if !current_text.is_empty() {
-                                parts.push(InterpolatedPart::Text(current_text.clone()));
-                                current_text.clear();
-                            }
-
-                            // Collect expression until }
-                            let mut expr = String::new();
-                            let mut brace_depth = 1;
-                            while let Some(&ch) = chars.peek() {
-                                chars.next();
-                                if ch == '{' {
-                                    brace_depth += 1;
-                                    expr.push(ch);
-                                } else if ch == '}' {
-                                    brace_depth -= 1;
-                                    if brace_depth == 0 {
-                                        break;
-                                    }
-                                    expr.push(ch);
-                                } else {
-                                    expr.push(ch);
+                                '$' => current_text.push('$'),
+                                _ => {
+                                    string_error = true;
+                                    push_diag(
+                                        &mut diagnostics,
+                                        LexerDiagnosticKind::InvalidEscape,
+                                        format!("Invalid escape sequence: \\\\{}", esc),
+                                        escape_line,
+                                        escape_col,
+                                        escape_offset,
+                                        file,
+                                    );
                                 }
                             }
-
-                            parts.push(InterpolatedPart::Expression(expr));
                         } else {
-                            // Just a $ without {, treat as normal text
-                            current_text.push('$');
+                            string_error = true;
+                            push_diag(
+                                &mut diagnostics,
+                                LexerDiagnosticKind::UnterminatedString,
+                                "Unterminated string literal".to_string(),
+                                start_line,
+                                start_col,
+                                start_offset,
+                                file,
+                            );
+                            break;
                         }
+                    } else if ch == '$' && peek(&chars, idx + 1) == Some('{') {
+                        has_interpolation = true;
+                        bump(&chars, &mut idx);
+                        advance_position('$', &mut line, &mut col);
+                        bump(&chars, &mut idx);
+                        advance_position('{', &mut line, &mut col);
+
+                        if !current_text.is_empty() {
+                            parts.push(InterpolatedPart::Text(std::mem::take(&mut current_text)));
+                        }
+
+                        let mut expr = String::new();
+                        let mut brace_depth = 1usize;
+                        let mut interpolation_closed = false;
+                        while let Some(inner) = peek(&chars, idx) {
+                            bump(&chars, &mut idx);
+                            advance_position(inner, &mut line, &mut col);
+                            if inner == '{' {
+                                brace_depth += 1;
+                                expr.push(inner);
+                            } else if inner == '}' {
+                                brace_depth -= 1;
+                                if brace_depth == 0 {
+                                    interpolation_closed = true;
+                                    break;
+                                }
+                                expr.push(inner);
+                            } else {
+                                expr.push(inner);
+                            }
+                        }
+
+                        if !interpolation_closed {
+                            string_error = true;
+                            push_diag(
+                                &mut diagnostics,
+                                LexerDiagnosticKind::UnterminatedString,
+                                "Unterminated interpolated string expression".to_string(),
+                                start_line,
+                                start_col,
+                                start_offset,
+                                file,
+                            );
+                            break;
+                        }
+
+                        parts.push(InterpolatedPart::Expression(expr));
+                    } else if ch == '\n' || ch == '\r' {
+                        string_error = true;
+                        push_diag(
+                            &mut diagnostics,
+                            LexerDiagnosticKind::UnterminatedString,
+                            "Unterminated string literal".to_string(),
+                            start_line,
+                            start_col,
+                            start_offset,
+                            file,
+                        );
+                        break;
                     } else {
-                        chars.next();
+                        bump(&chars, &mut idx);
+                        advance_position(ch, &mut line, &mut col);
                         current_text.push(ch);
+
+                        if current_text.chars().count() > MAX_STRING_LITERAL_LENGTH
+                            && !string_too_long_reported
+                        {
+                            string_too_long_reported = true;
+                            string_error = true;
+                            push_diag(
+                                &mut diagnostics,
+                                LexerDiagnosticKind::StringLiteralTooLong,
+                                format!(
+                                    "String literal exceeds max length of {} characters",
+                                    MAX_STRING_LITERAL_LENGTH
+                                ),
+                                start_line,
+                                start_col,
+                                start_offset,
+                                file,
+                            );
+                            // Continue consuming until closing quote for recovery.
+                        }
                     }
                 }
 
-                // Add remaining text
+                if !terminated {
+                    string_error = true;
+                    if diagnostics.last().map(|d| &d.kind)
+                        != Some(&LexerDiagnosticKind::UnterminatedString)
+                    {
+                        push_diag(
+                            &mut diagnostics,
+                            LexerDiagnosticKind::UnterminatedString,
+                            "Unterminated string literal".to_string(),
+                            start_line,
+                            start_col,
+                            start_offset,
+                            file,
+                        );
+                    }
+                }
+
                 if !current_text.is_empty() {
                     parts.push(InterpolatedPart::Text(current_text));
                 }
 
-                // Create appropriate token
-                if has_interpolation {
-                    tokens.push(Token {
-                        kind: TokenKind::InterpolatedString(parts),
-                        line,
-                        column: col,
-                    });
-                } else {
-                    // No interpolation, use regular string
-                    let text = if parts.is_empty() {
-                        String::new()
-                    } else if let InterpolatedPart::Text(s) = &parts[0] {
-                        s.clone()
+                if !string_error {
+                    if has_interpolation {
+                        tokens.push(Token {
+                            kind: TokenKind::InterpolatedString(parts),
+                            line: start_line,
+                            column: start_col,
+                        });
                     } else {
-                        String::new()
-                    };
-                    tokens.push(Token { kind: TokenKind::String(text), line, column: col });
+                        let text = match parts.first() {
+                            Some(InterpolatedPart::Text(value)) => value.clone(),
+                            _ => String::new(),
+                        };
+                        tokens.push(Token {
+                            kind: TokenKind::String(text),
+                            line: start_line,
+                            column: start_col,
+                        });
+                    }
                 }
-                col += 1;
             }
             '0'..='9' => {
+                let start_line = line;
+                let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 let mut num = String::new();
                 let mut has_decimal = false;
 
-                while let Some(&ch) = chars.peek() {
+                while let Some(ch) = peek(&chars, idx) {
                     if ch.is_ascii_digit() {
+                        bump(&chars, &mut idx);
+                        advance_position(ch, &mut line, &mut col);
                         num.push(ch);
-                        chars.next();
-                        col += 1;
                     } else if ch == '.' && !has_decimal {
-                        // Peek ahead to ensure it's not a method call (e.g., 5.abs())
-                        let mut temp_chars = chars.clone();
-                        temp_chars.next(); // Skip the '.'
-                        if let Some(&next_ch) = temp_chars.peek() {
-                            if next_ch.is_ascii_digit() {
-                                // It's a decimal point in a number
-                                has_decimal = true;
-                                num.push(ch);
-                                chars.next();
-                                col += 1;
-                            } else {
-                                // It's a method call, stop parsing the number
-                                break;
-                            }
+                        if matches!(peek(&chars, idx + 1), Some(next) if next.is_ascii_digit()) {
+                            bump(&chars, &mut idx);
+                            advance_position(ch, &mut line, &mut col);
+                            num.push(ch);
+                            has_decimal = true;
                         } else {
-                            // End of input after '.', stop
                             break;
                         }
                     } else {
@@ -211,25 +414,143 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     }
                 }
 
-                // Create Int or Float token based on presence of decimal point
+                if num.chars().count() > MAX_NUMERIC_LITERAL_LENGTH {
+                    push_diag(
+                        &mut diagnostics,
+                        LexerDiagnosticKind::NumericLiteralTooLong,
+                        format!(
+                            "Numeric literal exceeds max length of {} characters",
+                            MAX_NUMERIC_LITERAL_LENGTH
+                        ),
+                        start_line,
+                        start_col,
+                        start_offset,
+                        file,
+                    );
+                    continue;
+                }
+
+                if matches!(peek(&chars, idx), Some(ch) if ch.is_alphabetic() || ch == '_') {
+                    let mut suffix = String::new();
+                    while let Some(ch) = peek(&chars, idx) {
+                        if ch.is_alphanumeric() || ch == '_' {
+                            bump(&chars, &mut idx);
+                            advance_position(ch, &mut line, &mut col);
+                            suffix.push(ch);
+                        } else {
+                            break;
+                        }
+                    }
+                    push_diag(
+                        &mut diagnostics,
+                        LexerDiagnosticKind::MalformedNumericLiteral,
+                        format!("Malformed numeric literal: {}{}", num, suffix),
+                        start_line,
+                        start_col,
+                        start_offset,
+                        file,
+                    );
+                    continue;
+                }
+
                 if has_decimal {
-                    let parsed = num.parse().unwrap_or(0.0);
-                    tokens.push(Token { kind: TokenKind::Float(parsed), line, column: col });
+                    match num.parse::<f64>() {
+                        Ok(parsed) if parsed.is_finite() => tokens.push(Token {
+                            kind: TokenKind::Float(parsed),
+                            line: start_line,
+                            column: start_col,
+                        }),
+                        Ok(_) => push_diag(
+                            &mut diagnostics,
+                            LexerDiagnosticKind::NumericLiteralOverflow,
+                            format!("Numeric literal overflow: {}", num),
+                            start_line,
+                            start_col,
+                            start_offset,
+                            file,
+                        ),
+                        Err(error) => {
+                            let message = error.to_string();
+                            let kind = if message.contains("too large")
+                                || message.contains("out of range")
+                            {
+                                LexerDiagnosticKind::NumericLiteralOverflow
+                            } else {
+                                LexerDiagnosticKind::MalformedNumericLiteral
+                            };
+                            push_diag(
+                                &mut diagnostics,
+                                kind,
+                                format!("Malformed numeric literal: {}", num),
+                                start_line,
+                                start_col,
+                                start_offset,
+                                file,
+                            );
+                        }
+                    }
                 } else {
-                    let parsed = num.parse().unwrap_or(0);
-                    tokens.push(Token { kind: TokenKind::Int(parsed), line, column: col });
+                    match num.parse::<i64>() {
+                        Ok(parsed) => tokens.push(Token {
+                            kind: TokenKind::Int(parsed),
+                            line: start_line,
+                            column: start_col,
+                        }),
+                        Err(error) => {
+                            let kind = match error.kind() {
+                                IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
+                                    LexerDiagnosticKind::NumericLiteralOverflow
+                                }
+                                _ => LexerDiagnosticKind::MalformedNumericLiteral,
+                            };
+                            let message = match kind {
+                                LexerDiagnosticKind::NumericLiteralOverflow => {
+                                    format!("Numeric literal overflow: {}", num)
+                                }
+                                _ => format!("Malformed numeric literal: {}", num),
+                            };
+                            push_diag(
+                                &mut diagnostics,
+                                kind,
+                                message,
+                                start_line,
+                                start_col,
+                                start_offset,
+                                file,
+                            );
+                        }
+                    }
                 }
             }
             'a'..='z' | 'A'..='Z' | '_' => {
+                let start_line = line;
+                let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
                 let mut ident = String::new();
-                while let Some(&ch) = chars.peek() {
+                while let Some(ch) = peek(&chars, idx) {
                     if ch.is_alphanumeric() || ch == '_' {
+                        bump(&chars, &mut idx);
+                        advance_position(ch, &mut line, &mut col);
                         ident.push(ch);
-                        chars.next();
-                        col += 1;
                     } else {
                         break;
                     }
+                }
+
+                if ident.chars().count() > MAX_IDENTIFIER_LENGTH {
+                    push_diag(
+                        &mut diagnostics,
+                        LexerDiagnosticKind::IdentifierTooLong,
+                        format!(
+                            "Identifier exceeds max length of {} characters",
+                            MAX_IDENTIFIER_LENGTH
+                        ),
+                        start_line,
+                        start_col,
+                        start_offset,
+                        file,
+                    );
+                    continue;
                 }
 
                 let kind = match ident.as_str() {
@@ -241,268 +562,423 @@ pub fn tokenize(source: &str) -> Vec<Token> {
                     | "yield" | "async" | "await" => TokenKind::Keyword(ident),
                     "true" => TokenKind::Bool(true),
                     "false" => TokenKind::Bool(false),
-                    // Ok, Err, Some, None are not keywords - they're just identifiers with special meaning in expressions
                     _ => TokenKind::Identifier(ident),
                 };
 
-                tokens.push(Token { kind, line, column: col });
+                tokens.push(Token { kind, line: start_line, column: col });
             }
             ':' => {
-                chars.next();
-                col += 1;
-                if chars.peek() == Some(&'=') {
-                    chars.next();
-                    col += 1;
+                let start_line = line;
+                let start_col = col;
+                bump(&chars, &mut idx);
+                advance_position(':', &mut line, &mut col);
+                if peek(&chars, idx) == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator(":=".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
-                } else if chars.peek() == Some(&':') {
-                    chars.next();
-                    col += 1;
+                } else if peek(&chars, idx) == Some(':') {
+                    bump(&chars, &mut idx);
+                    advance_position(':', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("::".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
                 } else {
-                    tokens.push(Token { kind: TokenKind::Punctuation(':'), line, column: col });
+                    tokens.push(Token {
+                        kind: TokenKind::Punctuation(':'),
+                        line: start_line,
+                        column: start_col,
+                    });
                 }
             }
             '=' | '+' | '-' | '*' | '<' | '>' | '!' => {
-                let op = chars.next().unwrap();
-                col += 1;
-                // Check for == >= <= -> !=
-                if op == '=' && chars.peek() == Some(&'=') {
-                    chars.next();
-                    col += 1;
+                let start_line = line;
+                let start_col = col;
+                let op = bump(&chars, &mut idx).expect("peeked char should exist");
+                advance_position(op, &mut line, &mut col);
+                let maybe_next = peek(&chars, idx);
+                if op == '=' && maybe_next == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("==".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
-                } else if op == '!' && chars.peek() == Some(&'=') {
-                    chars.next();
-                    col += 1;
+                } else if op == '!' && maybe_next == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("!=".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
-                } else if op == '>' && chars.peek() == Some(&'=') {
-                    chars.next();
-                    col += 1;
+                } else if op == '>' && maybe_next == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator(">=".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
-                } else if op == '<' && chars.peek() == Some(&'=') {
-                    chars.next();
-                    col += 1;
+                } else if op == '<' && maybe_next == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("<=".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
-                } else if op == '-' && chars.peek() == Some(&'>') {
-                    chars.next();
-                    col += 1;
+                } else if op == '-' && maybe_next == Some('>') {
+                    bump(&chars, &mut idx);
+                    advance_position('>', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("->".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
                 } else {
                     tokens.push(Token {
                         kind: TokenKind::Operator(op.to_string()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
                 }
             }
             '?' => {
-                chars.next();
-                col += 1;
-                // Check for ?? (null coalescing) or ?. (optional chaining)
-                if chars.peek() == Some(&'?') {
-                    chars.next();
-                    col += 1;
+                let start_line = line;
+                let start_col = col;
+                bump(&chars, &mut idx);
+                advance_position('?', &mut line, &mut col);
+                if peek(&chars, idx) == Some('?') {
+                    bump(&chars, &mut idx);
+                    advance_position('?', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("??".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
-                } else if chars.peek() == Some(&'.') {
-                    chars.next();
-                    col += 1;
+                } else if peek(&chars, idx) == Some('.') {
+                    bump(&chars, &mut idx);
+                    advance_position('.', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("?.".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
                 } else {
-                    // Single ? might be used for ternary later, for now treat as unknown
-                    tokens.push(Token { kind: TokenKind::Operator("?".into()), line, column: col });
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("?".into()),
+                        line: start_line,
+                        column: start_col,
+                    });
                 }
             }
             '/' => {
-                chars.next(); // consume /
-                col += 1;
+                let start_line = line;
+                let start_col = col;
+                let start_offset = current_offset(&offsets, idx, source.len());
+                bump(&chars, &mut idx);
+                advance_position('/', &mut line, &mut col);
 
-                // Check for multi-line comment /* */
-                if chars.peek() == Some(&'*') {
-                    chars.next(); // consume *
-                    col += 1;
+                if peek(&chars, idx) == Some('*') {
+                    bump(&chars, &mut idx);
+                    advance_position('*', &mut line, &mut col);
 
-                    // Multi-line comment - scan until */
                     let mut found_end = false;
-                    while let Some(&ch) = chars.peek() {
-                        chars.next();
-                        if ch == '\n' {
-                            line += 1;
-                            col = 1;
-                        } else {
-                            col += 1;
-                        }
+                    while let Some(ch) = peek(&chars, idx) {
+                        bump(&chars, &mut idx);
+                        advance_position(ch, &mut line, &mut col);
 
-                        if ch == '*' && chars.peek() == Some(&'/') {
-                            chars.next(); // consume /
-                            col += 1;
+                        if ch == '*' && peek(&chars, idx) == Some('/') {
+                            bump(&chars, &mut idx);
+                            advance_position('/', &mut line, &mut col);
                             found_end = true;
                             break;
                         }
-                    }
 
-                    // If we didn't find closing */, that's a syntax error but we'll continue
-                    // The parser/interpreter can handle this gracefully
-                    if !found_end {
-                        // Unterminated multi-line comment
-                        // Continue processing but note this could be an error
-                    }
-                } else if chars.peek() == Some(&'/') {
-                    chars.next(); // consume second /
-                    col += 1;
-
-                    // Check for doc comment (///)
-                    if chars.peek() == Some(&'/') {
-                        chars.next(); // consume third /
-                        col += 1;
-
-                        // Doc comment - consume until end of line
-                        while let Some(&ch) = chars.peek() {
-                            chars.next();
-                            if ch == '\n' {
-                                line += 1;
-                                col = 1;
-                                break;
-                            }
-                            col += 1;
+                        if ch == '\r' && peek(&chars, idx) == Some('\n') {
+                            bump(&chars, &mut idx);
                         }
-                    } else {
-                        // Regular // comment (not standard Ruff, but let's support it)
-                        while let Some(&ch) = chars.peek() {
-                            chars.next();
-                            if ch == '\n' {
-                                line += 1;
-                                col = 1;
-                                break;
+                    }
+
+                    if !found_end {
+                        push_diag(
+                            &mut diagnostics,
+                            LexerDiagnosticKind::UnterminatedComment,
+                            "Unterminated block comment".to_string(),
+                            start_line,
+                            start_col,
+                            start_offset,
+                            file,
+                        );
+                    }
+                } else if peek(&chars, idx) == Some('/') {
+                    bump(&chars, &mut idx);
+                    advance_position('/', &mut line, &mut col);
+                    while let Some(ch) = peek(&chars, idx) {
+                        bump(&chars, &mut idx);
+                        advance_position(ch, &mut line, &mut col);
+                        if ch == '\n' || ch == '\r' {
+                            if ch == '\r' && peek(&chars, idx) == Some('\n') {
+                                bump(&chars, &mut idx);
                             }
-                            col += 1;
+                            break;
                         }
                     }
                 } else {
-                    // Regular division operator
-                    tokens.push(Token { kind: TokenKind::Operator("/".into()), line, column: col });
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("/".into()),
+                        line: start_line,
+                        column: start_col,
+                    });
                 }
             }
             '%' => {
-                chars.next();
-                col += 1;
-                tokens.push(Token { kind: TokenKind::Operator("%".into()), line, column: col });
+                let start_line = line;
+                let start_col = col;
+                bump(&chars, &mut idx);
+                advance_position('%', &mut line, &mut col);
+                tokens.push(Token {
+                    kind: TokenKind::Operator("%".into()),
+                    line: start_line,
+                    column: start_col,
+                });
             }
             '|' => {
-                chars.next();
-                col += 1;
-                if chars.peek() == Some(&'|') {
-                    chars.next();
-                    col += 1;
+                let start_line = line;
+                let start_col = col;
+                bump(&chars, &mut idx);
+                advance_position('|', &mut line, &mut col);
+                if peek(&chars, idx) == Some('|') {
+                    bump(&chars, &mut idx);
+                    advance_position('|', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("||".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
-                } else if chars.peek() == Some(&'>') {
-                    chars.next();
-                    col += 1;
+                } else if peek(&chars, idx) == Some('>') {
+                    bump(&chars, &mut idx);
+                    advance_position('>', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("|>".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
                 } else {
-                    // Single | is not a valid operator in Ruff yet
-                    tokens.push(Token { kind: TokenKind::Operator("|".into()), line, column: col });
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("|".into()),
+                        line: start_line,
+                        column: start_col,
+                    });
                 }
             }
             '&' => {
-                chars.next();
-                col += 1;
-                if chars.peek() == Some(&'&') {
-                    chars.next();
-                    col += 1;
+                let start_line = line;
+                let start_col = col;
+                bump(&chars, &mut idx);
+                advance_position('&', &mut line, &mut col);
+                if peek(&chars, idx) == Some('&') {
+                    bump(&chars, &mut idx);
+                    advance_position('&', &mut line, &mut col);
                     tokens.push(Token {
                         kind: TokenKind::Operator("&&".into()),
-                        line,
-                        column: col,
+                        line: start_line,
+                        column: start_col,
                     });
                 } else {
-                    // Single & is not a valid operator in Ruff yet
-                    tokens.push(Token { kind: TokenKind::Operator("&".into()), line, column: col });
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("&".into()),
+                        line: start_line,
+                        column: start_col,
+                    });
                 }
             }
             '.' => {
-                chars.next();
-                col += 1;
-                // Check for ... (spread operator)
-                if chars.peek() == Some(&'.') {
-                    chars.next();
-                    col += 1;
-                    if chars.peek() == Some(&'.') {
-                        chars.next();
-                        col += 1;
+                let start_line = line;
+                let start_col = col;
+                bump(&chars, &mut idx);
+                advance_position('.', &mut line, &mut col);
+                if peek(&chars, idx) == Some('.') {
+                    bump(&chars, &mut idx);
+                    advance_position('.', &mut line, &mut col);
+                    if peek(&chars, idx) == Some('.') {
+                        bump(&chars, &mut idx);
+                        advance_position('.', &mut line, &mut col);
                         tokens.push(Token {
                             kind: TokenKind::Operator("...".into()),
-                            line,
-                            column: col,
+                            line: start_line,
+                            column: start_col,
                         });
                     } else {
-                        // Two dots (..) - treat as two separate dots for now
                         tokens.push(Token {
                             kind: TokenKind::Punctuation('.'),
-                            line,
-                            column: col - 1,
+                            line: start_line,
+                            column: start_col,
                         });
-                        tokens.push(Token { kind: TokenKind::Punctuation('.'), line, column: col });
+                        tokens.push(Token {
+                            kind: TokenKind::Punctuation('.'),
+                            line: start_line,
+                            column: start_col + 1,
+                        });
                     }
                 } else {
-                    tokens.push(Token { kind: TokenKind::Punctuation('.'), line, column: col });
+                    tokens.push(Token {
+                        kind: TokenKind::Punctuation('.'),
+                        line: start_line,
+                        column: start_col,
+                    });
                 }
             }
             '(' | ')' | '{' | '}' | '[' | ']' | ',' | ';' => {
-                tokens.push(Token { kind: TokenKind::Punctuation(c), line, column: col });
-                chars.next();
-                col += 1;
+                let start_line = line;
+                let start_col = col;
+                let ch = bump(&chars, &mut idx).expect("peeked char should exist");
+                advance_position(ch, &mut line, &mut col);
+                tokens.push(Token {
+                    kind: TokenKind::Punctuation(ch),
+                    line: start_line,
+                    column: start_col,
+                });
             }
             _ => {
-                chars.next();
-                col += 1;
+                let diagnostic_line = line;
+                let diagnostic_col = col;
+                let offset = current_offset(&offsets, idx, source.len());
+                let ch = bump(&chars, &mut idx).expect("peeked char should exist");
+                advance_position(ch, &mut line, &mut col);
+                push_diag(
+                    &mut diagnostics,
+                    LexerDiagnosticKind::InvalidCharacter,
+                    format!("Invalid character: '{}'", ch),
+                    diagnostic_line,
+                    diagnostic_col,
+                    offset,
+                    file,
+                );
             }
         }
     }
 
     tokens.push(Token { kind: TokenKind::Eof, line, column: col });
 
-    tokens
+    LexOutput { tokens, diagnostics }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        tokenize, tokenize_with_diagnostics, tokenize_with_file, LexerDiagnosticKind, TokenKind,
+        MAX_IDENTIFIER_LENGTH, MAX_NUMERIC_LITERAL_LENGTH, MAX_STRING_LITERAL_LENGTH,
+    };
+
+    #[test]
+    fn invalid_character_reports_diagnostic() {
+        let result = tokenize("let x := @");
+        let diagnostics = result.expect_err("expected lexical diagnostics");
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.kind == LexerDiagnosticKind::InvalidCharacter && d.message.contains("@")));
+    }
+
+    #[test]
+    fn unterminated_string_reports_diagnostic() {
+        let result = tokenize("let x := \"hello");
+        let diagnostics = result.expect_err("expected unterminated string diagnostic");
+        assert!(diagnostics.iter().any(|d| d.kind == LexerDiagnosticKind::UnterminatedString));
+    }
+
+    #[test]
+    fn unterminated_block_comment_reports_diagnostic() {
+        let result = tokenize("/* comment");
+        let diagnostics = result.expect_err("expected unterminated comment diagnostic");
+        assert!(diagnostics.iter().any(|d| d.kind == LexerDiagnosticKind::UnterminatedComment));
+    }
+
+    #[test]
+    fn invalid_escape_reports_diagnostic() {
+        let result = tokenize("let x := \"bad\\q\"");
+        let diagnostics = result.expect_err("expected invalid escape diagnostic");
+        assert!(diagnostics.iter().any(|d| d.kind == LexerDiagnosticKind::InvalidEscape));
+    }
+
+    #[test]
+    fn huge_integer_reports_overflow_diagnostic() {
+        let huge = "9".repeat(MAX_NUMERIC_LITERAL_LENGTH + 1);
+        let result = tokenize(&huge);
+        let diagnostics = result.expect_err("expected numeric diagnostic");
+        assert!(diagnostics.iter().any(|d| {
+            d.kind == LexerDiagnosticKind::NumericLiteralTooLong
+                || d.kind == LexerDiagnosticKind::NumericLiteralOverflow
+        }));
+    }
+
+    #[test]
+    fn huge_float_reports_overflow_diagnostic() {
+        let huge = format!("{}.{}", "9".repeat(400), "9".repeat(400));
+        let result = tokenize(&huge);
+        let diagnostics = result.expect_err("expected float diagnostic");
+        assert!(diagnostics.iter().any(|d| {
+            d.kind == LexerDiagnosticKind::NumericLiteralTooLong
+                || d.kind == LexerDiagnosticKind::NumericLiteralOverflow
+                || d.kind == LexerDiagnosticKind::MalformedNumericLiteral
+        }));
+    }
+
+    #[test]
+    fn null_byte_reports_diagnostic() {
+        let result = tokenize("let x := \0");
+        let diagnostics = result.expect_err("expected null byte diagnostic");
+        assert!(diagnostics.iter().any(|d| d.kind == LexerDiagnosticKind::NullByte));
+    }
+
+    #[test]
+    fn mixed_line_endings_preserve_line_column() {
+        let output = tokenize_with_diagnostics("ok\r\n@\rnext\n@");
+        let invalids: Vec<_> = output
+            .diagnostics
+            .iter()
+            .filter(|d| d.kind == LexerDiagnosticKind::InvalidCharacter)
+            .collect();
+        assert_eq!(invalids.len(), 2);
+        assert_eq!((invalids[0].line, invalids[0].column), (2, 1));
+        assert_eq!((invalids[1].line, invalids[1].column), (4, 1));
+    }
+
+    #[test]
+    fn long_identifier_reports_limit_diagnostic() {
+        let ident = "a".repeat(MAX_IDENTIFIER_LENGTH + 1);
+        let result = tokenize(&ident);
+        let diagnostics = result.expect_err("expected identifier limit diagnostic");
+        assert!(diagnostics.iter().any(|d| d.kind == LexerDiagnosticKind::IdentifierTooLong));
+    }
+
+    #[test]
+    fn long_string_reports_limit_diagnostic() {
+        let content = "a".repeat(MAX_STRING_LITERAL_LENGTH + 1);
+        let source = format!("\"{}\"", content);
+        let result = tokenize(&source);
+        let diagnostics = result.expect_err("expected string limit diagnostic");
+        assert!(diagnostics.iter().any(|d| d.kind == LexerDiagnosticKind::StringLiteralTooLong));
+    }
+
+    #[test]
+    fn valid_program_still_tokenizes() {
+        let tokens = tokenize("let x := 42\nprint(x)").expect("valid source should tokenize");
+        assert!(tokens.iter().any(|token| matches!(token.kind, TokenKind::Int(42))));
+        assert!(matches!(tokens.last().map(|token| &token.kind), Some(TokenKind::Eof)));
+    }
+
+    #[test]
+    fn tokenize_with_file_attaches_file_path() {
+        let diagnostics = tokenize_with_file("let x := @", Some("example.ruff"))
+            .expect_err("expected diagnostic");
+        assert_eq!(diagnostics[0].file.as_deref(), Some("example.ruff"));
+    }
 }
