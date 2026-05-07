@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed lexer behavior to return structured diagnostics (`Result<Vec<Token>, Vec<LexerDiagnostic>>`) for malformed source instead of silently skipping or coercing invalid input; Ruff now reports invalid characters, null bytes, invalid escapes, unterminated strings/comments, malformed/overflowing numerics, and identifier/string/numeric token-length limit violations with precise line/column/byte-offset metadata.
+- Changed CLI/module/REPL/LSP tokenization call paths to surface lexer failures explicitly (including file-aware diagnostics where available), and updated LSP diagnostics to include lexer-originated errors alongside delimiter and parser checks.
 - Clarified pre-1.0 readiness messaging for `V1-BASE-001`: added a dedicated README `1.0 Readiness Status` section that points to `ROADMAP.md` as the single release gate, and updated draft-status wording in `docs/LANGUAGE_SPEC.md` and `docs/NATIVE_API_SECURITY_POSTURE.md` so baseline-draft labels are not misread as release-ready claims.
 - Changed network/socket-bound test behavior to remain deterministic in restricted environments: native network round-trip tests now skip gracefully when the host denies local socket bind permissions, while CI release-gate runs enable full socket integration coverage explicitly.
 - Changed `unzip` native filesystem extraction to enforce secure archive boundaries: path sanitization rejects parent traversal, absolute paths, drive-prefixed paths, null-byte names, and symlink entries; extraction now fails fast on the first unsafe entry and enforces deterministic resource limits (max 1024 entries, max 16 MiB per entry, max 64 MiB total uncompressed bytes).

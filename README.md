@@ -123,7 +123,7 @@ The current CLI exposes these subcommands:
 | `ruff lsp-definition <file> --line <N> --column <N>` | Return the go-to-definition location for the identifier under the cursor; add `--json` for structured output. |
 | `ruff lsp-references <file> --line <N> --column <N>` | Return all references for the identifier under the cursor; add `--include-definition false` to exclude declarations and `--json` for structured output. |
 | `ruff lsp-hover <file> --line <N> --column <N>` | Return hover details for the identifier under the cursor (kind, detail text, definition location when applicable); add `--json` for structured output. |
-| `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (delimiter mismatches and parser panic-derived syntax errors); add `--json` for structured output. |
+| `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (lexer failures, delimiter mismatches, and parser panic-derived syntax errors); add `--json` for structured output. |
 | `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME>` | Return rename edits for the symbol under the cursor and the updated source text; add `--json` for structured output. |
 | `ruff lsp-code-actions <file>` | Return syntax quick-fix actions derived from diagnostics (for example unmatched/unclosed delimiters); add `--json` for structured output. |
 
@@ -246,6 +246,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - `struct` declarations, field access, and struct instance literals.
 - `test`, `test_setup`, `test_teardown`, and `test_group` declarations for the test runner.
 - `#`, `//`, `/* ... */`, and `///` comments.
+- Lexing malformed source now fails with structured diagnostics (line/column anchored) instead of silently skipping invalid characters or coercing malformed numeric literals.
 
 A small async example:
 

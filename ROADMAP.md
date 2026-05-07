@@ -372,7 +372,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 2: Make Behavior Predictable
 
 ```text
-[ ] V1-LEX-001: Convert lexer failures into structured diagnostics
+[x] V1-LEX-001: Convert lexer failures into structured diagnostics
     Priority: P0
     Severity: High
     Area: Parser/Diagnostics/Correctness
@@ -398,7 +398,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Mixed line endings preserve correct line/column.
         - Long identifier and long string limit tests.
     Acceptance criteria: Lexing malformed source always produces a diagnostic and never fabricates valid tokens without reporting the problem.
-    Notes: This item is a dependency for robust parser diagnostics.
+    Notes: Completed on 2026-05-07. `src/lexer.rs` now returns structured lexer diagnostics (`Result<Vec<Token>, Vec<LexerDiagnostic>>`) and exposes recovery-aware tokenization for diagnostic consumers. Added explicit diagnostic kinds for invalid characters, null bytes, unterminated strings/comments, invalid escapes, malformed/overflowing numerics, and token-length limits (identifier/string/numeric), with line/column/byte-offset and optional file-path metadata. Replaced numeric `unwrap_or` fallbacks with diagnostics, added CRLF-aware mixed-line-ending tracking, and wired lexer-error propagation through CLI/module/REPL/benchmark/LSP/linter call paths so malformed source is reported instead of silently dropped. Added regression coverage in `src/lexer.rs` tests plus LSP diagnostic bridging coverage in `src/lsp_diagnostics.rs`. Verification: `cargo test lexer::tests --lib`, `cargo test lsp_diagnostics::tests --lib`, and `cargo test` passed.
 ```
 
 ```text

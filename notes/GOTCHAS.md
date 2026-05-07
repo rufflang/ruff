@@ -36,6 +36,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-25_14-30_destructuring-spread-implementation.md)
 
+### Identifier token column semantics are an editor-contract surface
+- **Problem:** LSP definition/hover/references/rename lookups can break after lexer refactors even when token kinds remain correct.
+- **Rule:** Preserve legacy identifier `Token.column` semantics (used by downstream `column - name_len` start-column math) unless all LSP symbol helpers are migrated together.
+- **Why:** Existing LSP symbol tooling derives cursor containment from identifier token columns, so location-field drift causes false misses.
+
+(Discovered during: 2026-05-06_23-22_v1-lex-001-structured-lexer-diagnostics.md)
+
 ---
 
 ## Runtime / Evaluator

@@ -2,7 +2,7 @@
 
 Status: v1.0.0 baseline draft (active, not a release-ready claim)
 Spec version: 1.0.0-draft
-Last updated: 2026-05-06
+Last updated: 2026-05-07
 
 ## 1. Scope
 
@@ -39,6 +39,10 @@ The lexer tokenizes source into:
 - comments (`#`, `//`, `/* ... */`, `///`)
 
 Contextual constructors `Ok`, `Err`, `Some`, and `None` are identifiers in tokenization and parser flow (not lexer keywords).
+
+Lexing failures are reported as structured diagnostics with source location metadata.
+Malformed source must not be silently accepted as valid tokens.
+Current lexer diagnostics include invalid character, null byte, unterminated string, unterminated block comment, invalid escape, malformed numeric literal, numeric overflow, and identifier/string/numeric token-length limit violations.
 
 ## 4. Core Grammar Baseline (v0.14.0)
 
