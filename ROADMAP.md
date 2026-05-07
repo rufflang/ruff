@@ -320,7 +320,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-HTTP-001: Unify static server MIME and active-content policy
+[x] V1-HTTP-001: Unify static server MIME and active-content policy
     Priority: P0
     Severity: High
     Area: Security/HTTP
@@ -346,7 +346,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Unknown active-content extension blocked or forced-download according to policy.
         - Tests import and exercise production helpers, not duplicate test helpers.
     Acceptance criteria: There is exactly one MIME/security policy implementation used by production server code and tests.
-    Notes: This item should be done before expanding static server behavior.
+    Notes: Completed on 2026-05-06. Static serving MIME/security behavior is now centralized in `src/serve_http.rs` with one case-insensitive extension registry and explicit fallback policy: known extensions use configured MIME, unknown extensions and extensionless files serve as `application/octet-stream`, and unknown active-content payloads are forced to safe octet-stream responses instead of content-sniff promotion. Duplicate `#[cfg(test)]` serve MIME/security helpers were removed from `src/main.rs`, and coverage now exercises production paths via `src/serve_http.rs` unit tests plus live subprocess checks in `tests/serve_command_integration.rs` (including required HTML/CSS/JS/JSON/PNG/JPG/SVG/WASM/font/PDF/text mappings, unknown fallback, extensionless fallback, unknown active-content fallback, case-insensitive extensions, and `X-Content-Type-Options: nosniff`). Verification: `cargo test serve_http::tests`, `cargo test --test serve_command_integration`, and `cargo test` passed.
 ```
 
 ```text

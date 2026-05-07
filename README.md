@@ -146,7 +146,8 @@ Behavior highlights:
 - Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
 - Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).
 - Detects and serves precompressed sibling assets (`.br`, `.gz`) when accepted.
-- Applies MIME guessing with conservative handling for unknown potentially active content.
+- Uses one centralized, case-insensitive MIME extension registry for known asset types.
+- Serves unknown-extension and extensionless files as `application/octet-stream` (including unknown active-content payloads).
 - Adds baseline hardening headers (`X-Content-Type-Options`) and stricter security headers in hardened mode.
 - Adds `Strict-Transport-Security` only for secure (TLS) requests.
 

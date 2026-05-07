@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed LSP diagnostics to report malformed `Result<T, E>` / `Option<T>` annotations without depending on parser panic behavior.
 - Changed native API security boundary test temp roots to include process/counter entropy so parallel tests cannot collide on the same script file.
 - Updated parity coverage/docs (`tests/vm_interpreter_parity_surfaces.rs`, `docs/VM_INTERPRETER_PARITY_MATRIX.md`, and roadmap/readme status markers) to mark tag-style match-binding capability as closed.
+- Changed static serve MIME policy to use one production `src/serve_http.rs` registry with case-insensitive extension matching, `application/octet-stream` fallback for unknown/extensionless files, and forced safe fallback for unknown active-content payloads instead of content-sniff-driven type promotion.
+- Removed duplicate serve MIME/security test-only helpers from `src/main.rs` and moved MIME policy assertions to production-path coverage (`src/serve_http.rs` tests + `tests/serve_command_integration.rs` live-server checks).
 
 ## [0.14.0] - 2026-04-30
 
