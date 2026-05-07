@@ -505,10 +505,8 @@ fn report_parser_diagnostics_and_exit(
     file_label: &str,
     diagnostics: &[parser::ParseDiagnostic],
 ) -> ! {
-    let converted: Vec<errors::Diagnostic> = diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.to_diagnostic(Some(file_label)))
-        .collect();
+    let converted: Vec<errors::Diagnostic> =
+        diagnostics.iter().map(|diagnostic| diagnostic.to_diagnostic(Some(file_label))).collect();
     report_diagnostics_and_exit(&converted);
 }
 
@@ -1759,10 +1757,8 @@ async fn main() {
             let diagnostics = lsp_diagnostics::diagnose(&code);
 
             if json {
-                let json_items: Vec<serde_json::Value> = diagnostics
-                    .iter()
-                    .map(|diagnostic| diagnostic.to_json_value())
-                    .collect();
+                let json_items: Vec<serde_json::Value> =
+                    diagnostics.iter().map(|diagnostic| diagnostic.to_json_value()).collect();
 
                 match serde_json::to_string_pretty(&json_items) {
                     Ok(serialized) => println!("{}", serialized),

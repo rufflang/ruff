@@ -71,14 +71,11 @@ fn lexer_diagnostic_converts_to_stable_code() {
 
 #[test]
 fn parser_diagnostic_converts_to_stable_code() {
-    let tokens = tokenize_with_file("print((1 + 2", Some("broken.ruff"))
-        .expect("source should tokenize");
+    let tokens =
+        tokenize_with_file("print((1 + 2", Some("broken.ruff")).expect("source should tokenize");
     let mut parser = Parser::new(tokens);
     let parse_output = parser.parse_with_diagnostics();
-    let first = parse_output
-        .diagnostics
-        .first()
-        .expect("parse diagnostics should not be empty");
+    let first = parse_output.diagnostics.first().expect("parse diagnostics should not be empty");
     let converted = first.to_diagnostic(Some("broken.ruff"));
 
     assert_eq!(converted.code, DIAGNOSTIC_CODE_PARSER);

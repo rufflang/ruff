@@ -100,10 +100,7 @@ impl Parser {
             true
         } else {
             let found = format!("{:?}", self.peek());
-            self.push_diagnostic(format!(
-                "Expected '{}' {} but found {}",
-                ch, context, found
-            ));
+            self.push_diagnostic(format!("Expected '{}' {} but found {}", ch, context, found));
             false
         }
     }
@@ -198,10 +195,7 @@ impl Parser {
     }
 
     fn is_valid_assignment_target(expr: &Expr) -> bool {
-        matches!(
-            expr,
-            Expr::Identifier(_) | Expr::FieldAccess { .. } | Expr::IndexAccess { .. }
-        )
+        matches!(expr, Expr::Identifier(_) | Expr::FieldAccess { .. } | Expr::IndexAccess { .. })
     }
 
     /// Get the source location of the current token
@@ -948,9 +942,9 @@ impl Parser {
         if !self.expect_keyword("in", "in for loop") {
             return None;
         }
-                        // Use parse_call to parse the iterable expression
-                        // This allows function calls like: for x in generator_func() { ... }
-                        // but avoids struct instantiation syntax
+        // Use parse_call to parse the iterable expression
+        // This allows function calls like: for x in generator_func() { ... }
+        // but avoids struct instantiation syntax
         let iterable = self.parse_call()?;
         if !self.expect_punctuation('{', "to start for loop body") {
             return None;

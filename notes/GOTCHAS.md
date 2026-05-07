@@ -237,6 +237,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-05_10-29_vm-example-compatibility-followthrough.md)
 
+### Shared diagnostic line/column fields are an LSP/code-action contract
+- **Problem:** Changing shared diagnostics to optional coordinates can break compilation or behavior in LSP code actions and server range construction.
+- **Rule:** Keep shared diagnostic `line`/`column` fields numeric for downstream LSP helpers; use sentinel `0` when location is unavailable instead of changing the field shape.
+- **Implication:** Any diagnostics-structure refactor must audit `src/lsp_code_actions.rs`, `src/lsp_server.rs`, and CLI JSON diagnostic serialization together.
+
+(Discovered during: 2026-05-07_07-22_v1-err-001-diagnostic-unification.md)
+
 ### Animated GIF to WebP conversion depends on external `gif2webp`
 - **Problem:** Animated conversion may fail at runtime despite valid Ruff arguments.
 - **Rule:** `gif_to_webp(...)` requires the `gif2webp` CLI tool to be installed and available in `PATH`.

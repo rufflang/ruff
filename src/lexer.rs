@@ -3,9 +3,7 @@
 // Lexical analyzer (tokenizer) for the Ruff programming language.
 // Converts source code text into a stream of tokens for parsing.
 
-use crate::errors::{
-    Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, DIAGNOSTIC_CODE_LEXER,
-};
+use crate::errors::{Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, DIAGNOSTIC_CODE_LEXER};
 use std::num::IntErrorKind;
 
 pub const MAX_IDENTIFIER_LENGTH: usize = 256;

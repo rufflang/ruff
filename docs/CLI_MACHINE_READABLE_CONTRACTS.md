@@ -2,7 +2,7 @@
 
 Status: v1.0.0 baseline draft (active)
 Contract version: `1.0.0-draft`
-Last updated: 2026-04-30
+Last updated: 2026-05-07
 
 This document defines automation-facing contracts for Ruff CLI JSON outputs and exit behavior.
 
@@ -88,6 +88,17 @@ Covered commands:
 - `lsp-code-actions`
 
 Each command has a stable top-level payload kind (array/object/null as applicable) with required field assertions in `tests/cli_json_contracts.rs`.
+
+`ruff lsp-diagnostics --json` item fields:
+
+- `code` (string, stable diagnostic code such as `RUFLEX001` or `RUFPARSE001`)
+- `severity` (string, currently `"error"`)
+- `subsystem` (string, one of `lexer`, `parser`, `lsp`)
+- `message` (string)
+- `line` (number)
+- `column` (number)
+- `file` (string or null)
+- `help` (string or null)
 
 ## Contract Change Rules
 

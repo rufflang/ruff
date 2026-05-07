@@ -19,10 +19,7 @@ fn ruff_binary() -> String {
 }
 
 fn run_ruff(args: &[&str]) -> std::process::Output {
-    Command::new(ruff_binary())
-        .args(args)
-        .output()
-        .expect("failed to execute ruff binary")
+    Command::new(ruff_binary()).args(args).output().expect("failed to execute ruff binary")
 }
 
 fn parse_stdout_json(output: &std::process::Output) -> Value {
@@ -40,11 +37,7 @@ fn format_json_contract_is_stable() {
     let file = dir.join("format_input.ruff");
     write_fixture(&file, "let value:=1\n");
 
-    let output = run_ruff(&[
-        "format",
-        file.to_str().expect("path should be utf-8"),
-        "--json",
-    ]);
+    let output = run_ruff(&["format", file.to_str().expect("path should be utf-8"), "--json"]);
 
     assert!(output.status.success(), "format --json should succeed");
     let body = parse_stdout_json(&output);
@@ -63,11 +56,7 @@ fn lint_json_contract_is_stable() {
     let file = dir.join("lint_input.ruff");
     write_fixture(&file, "let unused_value := 42\n");
 
-    let output = run_ruff(&[
-        "lint",
-        file.to_str().expect("path should be utf-8"),
-        "--json",
-    ]);
+    let output = run_ruff(&["lint", file.to_str().expect("path should be utf-8"), "--json"]);
 
     assert!(output.status.success(), "lint --json should succeed for warning-only input");
     let body = parse_stdout_json(&output);
@@ -91,10 +80,7 @@ fn docgen_json_contract_is_stable() {
     let dir = unique_temp_dir("docgen_json_contract");
     let file = dir.join("docgen_input.ruff");
     let out_dir = dir.join("docs_out");
-    write_fixture(
-        &file,
-        "/// Adds one\nfunc add_one(value) {\n    return value + 1\n}\n",
-    );
+    write_fixture(&file, "/// Adds one\nfunc add_one(value) {\n    return value + 1\n}\n");
 
     let output = run_ruff(&[
         "docgen",
@@ -119,61 +105,28 @@ fn docgen_json_contract_is_stable() {
 fn lsp_cli_json_contracts_are_stable() {
     let dir = unique_temp_dir("lsp_json_contract");
     let file = dir.join("lsp_input.ruff");
-    write_fixture(
-        &file,
-        "func greet(name) {\n    return name\n}\nlet value := greet(\"ruff\")\n",
-    );
+    write_fixture(&file, "func greet(name) {\n    return name\n}\nlet value := greet(\"ruff\")\n");
 
     let file_str = file.to_str().expect("path should be utf-8");
 
-    let complete = run_ruff(&[
-        "lsp-complete",
-        file_str,
-        "--line",
-        "4",
-        "--column",
-        "18",
-        "--json",
-    ]);
+    let complete = run_ruff(&["lsp-complete", file_str, "--line", "4", "--column", "18", "--json"]);
     assert!(complete.status.success());
     let complete_body = parse_stdout_json(&complete);
     assert!(complete_body.is_array());
 
-    let definition = run_ruff(&[
-        "lsp-definition",
-        file_str,
-        "--line",
-        "4",
-        "--column",
-        "14",
-        "--json",
-    ]);
+    let definition =
+        run_ruff(&["lsp-definition", file_str, "--line", "4", "--column", "14", "--json"]);
     assert!(definition.status.success());
     let definition_body = parse_stdout_json(&definition);
     assert!(definition_body.is_object() || definition_body.is_null());
 
-    let references = run_ruff(&[
-        "lsp-references",
-        file_str,
-        "--line",
-        "4",
-        "--column",
-        "14",
-        "--json",
-    ]);
+    let references =
+        run_ruff(&["lsp-references", file_str, "--line", "4", "--column", "14", "--json"]);
     assert!(references.status.success());
     let references_body = parse_stdout_json(&references);
     assert!(references_body.is_array());
 
-    let hover = run_ruff(&[
-        "lsp-hover",
-        file_str,
-        "--line",
-        "4",
-        "--column",
-        "14",
-        "--json",
-    ]);
+    let hover = run_ruff(&["lsp-hover", file_str, "--line", "4", "--column", "14", "--json"]);
     assert!(hover.status.success());
     let hover_body = parse_stdout_json(&hover);
     assert!(hover_body.is_object() || hover_body.is_null());
@@ -230,10 +183,7 @@ fn lsp_cli_json_contracts_are_stable() {
 fn cli_json_negative_paths_have_stable_failure_signals() {
     let dir = unique_temp_dir("cli_json_negative_paths");
     let file = dir.join("negative_input.ruff");
-    write_fixture(
-        &file,
-        "func greet(name) {\n    return name\n}\nlet value := greet(\"ruff\")\n",
-    );
+    write_fixture(&file, "func greet(name) {\n    return name\n}\nlet value := greet(\"ruff\")\n");
 
     let missing_file = dir.join("missing.ruff");
     let missing_file_str = missing_file.to_str().expect("path should be utf-8");

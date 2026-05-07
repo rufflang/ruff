@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed diagnostics architecture to use a shared `src/errors.rs` diagnostic model across lexer, parser, runtime, VM, CLI, and LSP surfaces with stable subsystem codes (`RUFLEX*`, `RUFPARSE001`, `RUFRUN001`, `RUFVM001`, `RUFCLI001`, `RUFLSP001`), shared human rendering, and shared JSON rendering (`code`, `severity`, `subsystem`, `message`, `line`, `column`, `file`, `help`).
 - Changed parser execution to emit structured parse diagnostics via `Parser::parse_with_diagnostics()` instead of relying on `Option` fallthroughs and unchecked delimiter consumption in core statement/expression paths; missing `)`, `]`, `}`, invalid assignment targets, and EOF-truncated blocks now report explicit line/column parse errors with statement-level recovery support.
 - Changed CLI/runtime parse entrypoints (`ruff run`, `ruff test-run`, `ruff profile`, module loading, and REPL) to surface parser diagnostics and stop execution on parse failures instead of silently accepting partial ASTs.
 - Changed LSP diagnostics to consume parser diagnostics directly (rather than parser-panic probing), preserving parser message text and source coordinates in editor-facing error output.

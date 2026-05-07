@@ -120,12 +120,7 @@ impl Diagnostic {
         self
     }
 
-    pub fn with_location(
-        mut self,
-        file: Option<String>,
-        line: usize,
-        column: usize,
-    ) -> Self {
+    pub fn with_location(mut self, file: Option<String>, line: usize, column: usize) -> Self {
         self.file = file;
         self.line = line;
         self.column = column;
@@ -336,7 +331,14 @@ impl fmt::Display for RuffError {
         let kind_str = format!("{}", self.kind);
         let code_str = format!("[{}]", self.diagnostic_code).bright_magenta().bold();
         let subsystem = format!("[{}]", self.subsystem.as_str()).bright_cyan();
-        writeln!(f, "{} {} {}: {}", code_str, subsystem, kind_str.red().bold(), self.message.bold())?;
+        writeln!(
+            f,
+            "{} {} {}: {}",
+            code_str,
+            subsystem,
+            kind_str.red().bold(),
+            self.message.bold()
+        )?;
 
         // Location arrow
         let location_str = format!("  --> {}", self.location);

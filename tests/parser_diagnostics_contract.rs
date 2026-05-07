@@ -88,7 +88,8 @@ fn parser_reports_unexpected_eof_in_function_body() {
 fn parser_recovery_reports_multiple_independent_errors() {
     let output = parse_output("print((1 + 2\nvalues := [1, 2\nok := 1\n");
 
-    let messages: Vec<&str> = output.diagnostics.iter().map(|diagnostic| diagnostic.message.as_str()).collect();
+    let messages: Vec<&str> =
+        output.diagnostics.iter().map(|diagnostic| diagnostic.message.as_str()).collect();
     assert!(messages.iter().any(|message| message.contains("Expected ')'")));
     assert!(messages.iter().any(|message| message.contains("Expected ']'")));
     assert!(output.stmts.iter().any(|stmt| matches!(stmt, ruff::ast::Stmt::Assign { .. })));

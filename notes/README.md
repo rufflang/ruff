@@ -58,3 +58,4 @@ High-signal session notes:
 - `2026-05-06_23-02_v1-ci-001-release-gate-enforcement.md` — Added release-gate CI enforcement/workflow wiring, stabilized socket-bound test behavior under restricted environments, and documented CI-vs-local socket test policy.
 - `2026-05-06_23-22_v1-lex-001-structured-lexer-diagnostics.md` — Added structured lexer diagnostics (`Result` + recovery mode), strict lexical error propagation, and token-column compatibility follow-through for LSP symbol tooling.
 - `2026-05-06_23-48_v1-par-001-parse-diagnostics.md` — Structured parser diagnostics, delimiter/EOF recovery, and compatibility gotchas (`=` declarations, `else if`).
+- `2026-05-07_07-22_v1-err-001-diagnostic-unification.md` — Shared diagnostics model with stable subsystem codes, JSON/human rendering unification, and LSP location-shape compatibility gotcha.

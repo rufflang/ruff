@@ -430,7 +430,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-ERR-001: Centralize diagnostics across lexer, parser, runtime, VM, CLI, and LSP
+[x] V1-ERR-001: Centralize diagnostics across lexer, parser, runtime, VM, CLI, and LSP
     Priority: P1
     Severity: High
     Area: Diagnostics/Architecture
@@ -451,7 +451,7 @@ If a command is not yet available, create the missing configuration as part of t
         - CLI exit-code tests.
         - Runtime error includes file/line/column when available.
     Acceptance criteria: Each user-visible failure has a stable code, precise location when possible, and consistent rendering.
-    Notes: Add this before large documentation updates so docs can cite real diagnostic codes.
+    Notes: Completed on 2026-05-07. Added a shared diagnostic model in `src/errors.rs` with stable codes, severity/subsystem metadata, human rendering, and machine-readable JSON rendering. Routed lexer (`LexerDiagnostic::to_diagnostic`), parser (`ParseDiagnostic::to_diagnostic`), LSP diagnostics (`src/lsp_diagnostics.rs`), and CLI reporting (`src/main.rs`) through the unified model, including VM/runtime/CLI code tags (`RUFVM001`, `RUFRUN001`, `RUFCLI001`) in user-visible failures. Expanded regression coverage with `tests/diagnostics_contract.rs` plus JSON and parse-contract updates in `tests/cli_json_contracts.rs` and `tests/parser_diagnostics_contract.rs`, and documented the new `lsp-diagnostics --json` schema in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`. Verification: `cargo test --test diagnostics_contract`, `cargo test --test parser_diagnostics_contract`, `cargo test --test cli_json_contracts`, `cargo test lsp_diagnostics::tests --lib`, and `cargo test` passed.
 ```
 
 ```text

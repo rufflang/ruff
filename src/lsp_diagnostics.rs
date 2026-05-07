@@ -1,6 +1,4 @@
-use crate::errors::{
-    Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, DIAGNOSTIC_CODE_LSP,
-};
+use crate::errors::{Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, DIAGNOSTIC_CODE_LSP};
 use crate::lexer::{self, LexerDiagnostic, LexerDiagnosticKind, Token, TokenKind};
 use crate::parser;
 
