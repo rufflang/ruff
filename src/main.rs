@@ -35,7 +35,7 @@ mod vm;
 
 use clap::{Parser as ClapParser, Subcommand};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(ClapParser)]
 #[command(
@@ -527,6 +527,36 @@ fn report_cli_error_and_exit(message: impl Into<String>) -> ! {
     report_diagnostics_and_exit(&[diagnostic]);
 }
 
+fn read_ruff_source_for_parse(file: &Path) -> String {
+    let max_source_bytes = parser::DEFAULT_MAX_SOURCE_BYTES;
+    let file_label = file.to_string_lossy().to_string();
+
+    if let Ok(metadata) = fs::metadata(file) {
+        if metadata.is_file() && metadata.len() > max_source_bytes as u64 {
+            let diagnostic =
+                parser::source_size_limit_diagnostic(metadata.len() as usize, max_source_bytes);
+            report_parser_diagnostics_and_exit(&file_label, &[diagnostic]);
+        }
+    }
+
+    let code = match fs::read_to_string(file) {
+        Ok(content) => content,
+        Err(err) => {
+            report_cli_error_and_exit(format!(
+                "Failed to read .ruff file '{}': {}",
+                file.display(),
+                err
+            ));
+        }
+    };
+
+    if let Err(diagnostic) = parser::validate_source_size(&code, max_source_bytes) {
+        report_parser_diagnostics_and_exit(&file_label, &[diagnostic]);
+    }
+
+    code
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -554,7 +584,7 @@ async fn main() {
                 // Use unit separator
             }
 
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let filename = file.to_string_lossy().to_string();
             let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
                 Ok(tokens) => tokens,
@@ -767,7 +797,7 @@ async fn main() {
         }
 
         Commands::TestRun { file, verbose } => {
-            let code = fs::read_to_string(&file).expect("Failed to read test file");
+            let code = read_ruff_source_for_parse(&file);
             let filename = file.to_string_lossy().to_string();
             let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
                 Ok(tokens) => tokens,
@@ -1547,7 +1577,7 @@ async fn main() {
             };
 
             // Read and parse the file
-            let code = fs::read_to_string(&file).expect("Failed to read file");
+            let code = read_ruff_source_for_parse(&file);
             let filename = file.to_string_lossy().to_string();
 
             // Create profile configuration
@@ -1603,7 +1633,7 @@ async fn main() {
         }
 
         Commands::LspComplete { file, line, column, json } => {
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let completion_items = lsp_completion::complete(&code, line, column);
 
             if json {
@@ -1632,7 +1662,7 @@ async fn main() {
         }
 
         Commands::LspDefinition { file, line, column, json } => {
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let definition = lsp_definition::find_definition(&code, line, column);
 
             if json {
@@ -1672,7 +1702,7 @@ async fn main() {
         }
 
         Commands::LspReferences { file, line, column, include_definition, json } => {
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let references =
                 lsp_references::find_references(&code, line, column, include_definition);
 
@@ -1711,7 +1741,7 @@ async fn main() {
         }
 
         Commands::LspHover { file, line, column, json } => {
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let hover_info = lsp_hover::hover(&code, line, column);
 
             if json {
@@ -1753,7 +1783,7 @@ async fn main() {
         }
 
         Commands::LspDiagnostics { file, json } => {
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let diagnostics = lsp_diagnostics::diagnose(&code);
 
             if json {
@@ -1784,7 +1814,7 @@ async fn main() {
         }
 
         Commands::LspRename { file, line, column, new_name, json } => {
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let rename_result = match lsp_rename::rename_symbol(&code, line, column, &new_name) {
                 Ok(result) => result,
                 Err(message) => {
@@ -1836,7 +1866,7 @@ async fn main() {
         }
 
         Commands::LspCodeActions { file, json } => {
-            let code = fs::read_to_string(&file).expect("Failed to read .ruff file");
+            let code = read_ruff_source_for_parse(&file);
             let actions = lsp_code_actions::code_actions(&code);
 
             if json {

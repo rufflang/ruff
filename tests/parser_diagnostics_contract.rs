@@ -1,5 +1,5 @@
 use ruff::lexer::tokenize;
-use ruff::parser::{ParseOutput, Parser};
+use ruff::parser::{ParseOutput, Parser, ParserLimits, DEFAULT_MAX_SOURCE_BYTES};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -8,6 +8,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 fn parse_output(source: &str) -> ParseOutput {
     let tokens = tokenize(source).expect("test source should tokenize");
     let mut parser = Parser::new(tokens);
+    parser.parse_with_diagnostics()
+}
+
+fn parse_output_with_limits(source: &str, limits: ParserLimits) -> ParseOutput {
+    let tokens = tokenize(source).expect("test source should tokenize");
+    let mut parser = Parser::new_with_limits(tokens, limits);
     parser.parse_with_diagnostics()
 }
 
@@ -30,6 +36,31 @@ fn run_ruff(args: &[&str]) -> std::process::Output {
         .args(args)
         .output()
         .expect("failed to execute ruff binary")
+}
+
+fn nested_parenthesized_expression(depth: usize) -> String {
+    format!("value := {}1{}\n", "(".repeat(depth), ")".repeat(depth))
+}
+
+fn nested_array_literal(depth: usize) -> String {
+    let mut source = String::from("value := ");
+    source.push_str(&"[".repeat(depth));
+    source.push('1');
+    source.push_str(&"]".repeat(depth));
+    source.push('\n');
+    source
+}
+
+fn nested_if_blocks(depth: usize) -> String {
+    let mut source = String::new();
+    for _ in 0..depth {
+        source.push_str("if true {\n");
+    }
+    source.push_str("value := 1\n");
+    for _ in 0..depth {
+        source.push_str("}\n");
+    }
+    source
 }
 
 #[test]
@@ -96,6 +127,44 @@ fn parser_recovery_reports_multiple_independent_errors() {
 }
 
 #[test]
+fn parser_reports_expression_depth_limit_for_parenthesized_expressions() {
+    let limits = ParserLimits { max_expression_depth: 8, max_block_depth: 64 };
+    let output = parse_output_with_limits(&nested_parenthesized_expression(16), limits);
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Maximum expression nesting depth of 8 exceeded")));
+}
+
+#[test]
+fn parser_reports_expression_depth_limit_for_nested_array_literals() {
+    let limits = ParserLimits { max_expression_depth: 6, max_block_depth: 64 };
+    let output = parse_output_with_limits(&nested_array_literal(12), limits);
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Maximum expression nesting depth of 6 exceeded")));
+}
+
+#[test]
+fn parser_reports_block_depth_limit_for_nested_if_blocks() {
+    let limits = ParserLimits { max_expression_depth: 64, max_block_depth: 4 };
+    let output = parse_output_with_limits(&nested_if_blocks(8), limits);
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Maximum block nesting depth of 4 exceeded")));
+}
+
+#[test]
+fn parser_accepts_expression_depth_at_limit_boundary() {
+    let limits = ParserLimits { max_expression_depth: 16, max_block_depth: 64 };
+    let output = parse_output_with_limits(&nested_parenthesized_expression(6), limits);
+    assert!(
+        output.diagnostics.is_empty(),
+        "expected no diagnostics at boundary-safe expression depth, got {:?}",
+        output.diagnostics
+    );
+}
+
+#[test]
 fn cli_run_exits_non_zero_on_parse_diagnostics() {
     let dir = unique_temp_dir("cli_run_parse_error");
     let file = dir.join("broken.ruff");
@@ -121,4 +190,36 @@ fn cli_test_run_exits_non_zero_on_parse_diagnostics() {
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("[RUFPARSE001]"));
     assert!(stderr.contains("Expected ')'"));
+}
+
+#[test]
+fn cli_run_exits_non_zero_when_source_exceeds_max_size() {
+    let dir = unique_temp_dir("cli_run_source_size_limit");
+    let file = dir.join("oversized.ruff");
+    let oversized = " ".repeat(DEFAULT_MAX_SOURCE_BYTES + 1);
+    write_fixture(&file, &oversized);
+
+    let output = run_ruff(&["run", file.to_str().expect("path should be utf-8")]);
+    assert_eq!(output.status.code(), Some(1));
+
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("[RUFPARSE001]"));
+    assert!(stderr.contains("Source size"));
+    assert!(stderr.contains("exceeds maximum"));
+}
+
+#[test]
+fn cli_run_accepts_source_at_max_size_boundary() {
+    let dir = unique_temp_dir("cli_run_source_size_boundary");
+    let file = dir.join("boundary.ruff");
+    let boundary = " ".repeat(DEFAULT_MAX_SOURCE_BYTES);
+    write_fixture(&file, &boundary);
+
+    let output = run_ruff(&["run", file.to_str().expect("path should be utf-8")]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected success for source at byte boundary, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

@@ -24,6 +24,10 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+pub const DEFAULT_MAX_SOURCE_BYTES: usize = 1_048_576;
+pub const DEFAULT_MAX_EXPRESSION_DEPTH: usize = 256;
+pub const DEFAULT_MAX_BLOCK_DEPTH: usize = 128;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseDiagnostic {
     pub line: usize,
@@ -44,10 +48,48 @@ impl ParseDiagnostic {
     }
 }
 
+pub fn source_size_limit_diagnostic(
+    source_bytes: usize,
+    max_source_bytes: usize,
+) -> ParseDiagnostic {
+    ParseDiagnostic {
+        line: 1,
+        column: 1,
+        message: format!(
+            "Source size {} bytes exceeds maximum allowed {} bytes",
+            source_bytes, max_source_bytes
+        ),
+    }
+}
+
+pub fn validate_source_size(source: &str, max_source_bytes: usize) -> Result<(), ParseDiagnostic> {
+    let source_bytes = source.len();
+    if source_bytes > max_source_bytes {
+        Err(source_size_limit_diagnostic(source_bytes, max_source_bytes))
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ParseOutput {
     pub stmts: Vec<Stmt>,
     pub diagnostics: Vec<ParseDiagnostic>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParserLimits {
+    pub max_expression_depth: usize,
+    pub max_block_depth: usize,
+}
+
+impl Default for ParserLimits {
+    fn default() -> Self {
+        Self {
+            max_expression_depth: DEFAULT_MAX_EXPRESSION_DEPTH,
+            max_block_depth: DEFAULT_MAX_BLOCK_DEPTH,
+        }
+    }
 }
 
 /// Parser maintains position in token stream and provides methods to parse statements and expressions
@@ -55,12 +97,28 @@ pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     diagnostics: Vec<ParseDiagnostic>,
+    expression_depth: usize,
+    block_depth: usize,
+    max_expression_depth: usize,
+    max_block_depth: usize,
 }
 
 impl Parser {
     /// Creates a new parser from a vector of tokens
     pub fn new(tokens: Vec<Token>) -> Self {
-        Parser { tokens, pos: 0, diagnostics: Vec::new() }
+        Self::new_with_limits(tokens, ParserLimits::default())
+    }
+
+    pub fn new_with_limits(tokens: Vec<Token>, limits: ParserLimits) -> Self {
+        Parser {
+            tokens,
+            pos: 0,
+            diagnostics: Vec::new(),
+            expression_depth: 0,
+            block_depth: 0,
+            max_expression_depth: limits.max_expression_depth,
+            max_block_depth: limits.max_block_depth,
+        }
     }
 
     /// Peek at the current token without consuming it
@@ -92,6 +150,81 @@ impl Parser {
     fn push_diagnostic(&mut self, message: impl Into<String>) {
         let (line, column) = self.current_line_column();
         self.diagnostics.push(ParseDiagnostic { line, column, message: message.into() });
+    }
+
+    fn with_expression_depth<T>(
+        &mut self,
+        context: &str,
+        parse: impl FnOnce(&mut Self) -> Option<T>,
+    ) -> Option<T> {
+        self.expression_depth += 1;
+        if self.expression_depth > self.max_expression_depth {
+            self.push_diagnostic(format!(
+                "Maximum expression nesting depth of {} exceeded while parsing {}",
+                self.max_expression_depth, context
+            ));
+            self.expression_depth = self.expression_depth.saturating_sub(1);
+            return None;
+        }
+
+        let result = parse(self);
+        self.expression_depth = self.expression_depth.saturating_sub(1);
+        result
+    }
+
+    fn with_block_depth<T>(
+        &mut self,
+        context: &str,
+        parse: impl FnOnce(&mut Self) -> Option<T>,
+    ) -> Option<T> {
+        self.block_depth += 1;
+        if self.block_depth > self.max_block_depth {
+            self.push_diagnostic(format!(
+                "Maximum block nesting depth of {} exceeded while parsing {}",
+                self.max_block_depth, context
+            ));
+            self.block_depth = self.block_depth.saturating_sub(1);
+            return None;
+        }
+
+        let result = parse(self);
+        self.block_depth = self.block_depth.saturating_sub(1);
+        result
+    }
+
+    fn parse_statement_block(
+        &mut self,
+        open_context: &str,
+        close_context: &str,
+        depth_context: &str,
+    ) -> Option<Vec<Stmt>> {
+        if !self.expect_punctuation('{', open_context) {
+            return None;
+        }
+
+        self.with_block_depth(depth_context, |parser| {
+            let mut body = Vec::new();
+            while !matches!(parser.peek(), TokenKind::Punctuation('}'))
+                && !matches!(parser.peek(), TokenKind::Eof)
+            {
+                if matches!(parser.peek(), TokenKind::Punctuation(';')) {
+                    parser.advance();
+                    continue;
+                }
+
+                if let Some(stmt) = parser.parse_stmt() {
+                    body.push(stmt);
+                } else {
+                    break;
+                }
+            }
+
+            if !parser.expect_punctuation('}', close_context) {
+                return None;
+            }
+
+            Some(body)
+        })
     }
 
     fn expect_punctuation(&mut self, ch: char, context: &str) -> bool {
@@ -683,28 +816,11 @@ impl Parser {
             None
         };
 
-        if !self.expect_punctuation('{', "to start function body") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            // Skip semicolons between statements
-            if matches!(self.peek(), TokenKind::Punctuation(';')) {
-                self.advance();
-                continue;
-            }
-
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close function body") {
-            return None;
-        }
+        let body = self.parse_statement_block(
+            "to start function body",
+            "to close function body",
+            "function body",
+        )?;
         Some(Stmt::FuncDef { name, param_types, return_type, params, body, is_generator, is_async })
     }
 
@@ -770,22 +886,11 @@ impl Parser {
             None
         };
 
-        if !self.expect_punctuation('{', "to start function expression body") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close function expression body") {
-            return None;
-        }
+        let body = self.parse_statement_block(
+            "to start function expression body",
+            "to close function expression body",
+            "function expression body",
+        )?;
         Some(Expr::Function { params, param_types, return_type, body, is_generator, is_async })
     }
 
@@ -846,32 +951,21 @@ impl Parser {
                     };
 
                     self.advance(); // :
-                    self.advance(); // {
-                    let mut body = Vec::new();
-                    while !matches!(self.peek(), TokenKind::Punctuation('}')) {
-                        if let Some(stmt) = self.parse_stmt() {
-                            body.push(stmt);
-                        } else {
-                            break;
-                        }
-                    }
-                    self.advance(); // }
+                    let body = self.parse_statement_block(
+                        "to start match case block",
+                        "to close match case block",
+                        "match case block",
+                    )?;
                     cases.push((pat_str, body));
                 }
                 TokenKind::Keyword(k) if k == "default" => {
                     self.advance(); // default
                     self.advance(); // :
-                    self.advance(); // {
-                    let mut body = Vec::new();
-                    while !matches!(self.peek(), TokenKind::Punctuation('}')) {
-                        if let Some(stmt) = self.parse_stmt() {
-                            body.push(stmt);
-                        } else {
-                            break;
-                        }
-                    }
-                    self.advance(); // }
-                    default = Some(body);
+                    default = Some(self.parse_statement_block(
+                        "to start match default block",
+                        "to close match default block",
+                        "match default block",
+                    )?);
                 }
                 _ => break,
             }
@@ -889,44 +983,16 @@ impl Parser {
         } else {
             None
         };
-        if !self.expect_punctuation('{', "to start loop body") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close loop body") {
-            return None;
-        }
+        let body =
+            self.parse_statement_block("to start loop body", "to close loop body", "loop body")?;
         Some(Stmt::Loop { condition, body })
     }
 
     fn parse_while(&mut self) -> Option<Stmt> {
         self.advance(); // while
         let condition = self.parse_expr()?;
-        if !self.expect_punctuation('{', "to start while body") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close while body") {
-            return None;
-        }
+        let body =
+            self.parse_statement_block("to start while body", "to close while body", "while body")?;
         Some(Stmt::While { condition, body })
     }
 
@@ -946,43 +1012,21 @@ impl Parser {
         // This allows function calls like: for x in generator_func() { ... }
         // but avoids struct instantiation syntax
         let iterable = self.parse_call()?;
-        if !self.expect_punctuation('{', "to start for loop body") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close for loop body") {
-            return None;
-        }
+        let body = self.parse_statement_block(
+            "to start for loop body",
+            "to close for loop body",
+            "for loop body",
+        )?;
         Some(Stmt::For { var, iterable, body })
     }
 
     fn parse_spawn(&mut self) -> Option<Stmt> {
         self.advance(); // spawn
-        if !self.expect_punctuation('{', "to start spawn block") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close spawn block") {
-            return None;
-        }
+        let body = self.parse_statement_block(
+            "to start spawn block",
+            "to close spawn block",
+            "spawn block",
+        )?;
         Some(Stmt::Spawn { body })
     }
 
@@ -996,64 +1040,28 @@ impl Parser {
                 return None;
             }
         };
-        if !self.expect_punctuation('{', "to start test body") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close test body") {
-            return None;
-        }
+        let body =
+            self.parse_statement_block("to start test body", "to close test body", "test body")?;
         Some(Stmt::Test { name, body })
     }
 
     fn parse_test_setup(&mut self) -> Option<Stmt> {
         self.advance(); // test_setup
-        if !self.expect_punctuation('{', "to start test_setup block") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close test_setup block") {
-            return None;
-        }
+        let body = self.parse_statement_block(
+            "to start test_setup block",
+            "to close test_setup block",
+            "test_setup block",
+        )?;
         Some(Stmt::TestSetup { body })
     }
 
     fn parse_test_teardown(&mut self) -> Option<Stmt> {
         self.advance(); // test_teardown
-        if !self.expect_punctuation('{', "to start test_teardown block") {
-            return None;
-        }
-        let mut body = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                body.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close test_teardown block") {
-            return None;
-        }
+        let body = self.parse_statement_block(
+            "to start test_teardown block",
+            "to close test_teardown block",
+            "test_teardown block",
+        )?;
         Some(Stmt::TestTeardown { body })
     }
 
@@ -1067,43 +1075,18 @@ impl Parser {
                 return None;
             }
         };
-        if !self.expect_punctuation('{', "to start test_group body") {
-            return None;
-        }
-        let mut tests = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                tests.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close test_group body") {
-            return None;
-        }
+        let tests = self.parse_statement_block(
+            "to start test_group body",
+            "to close test_group body",
+            "test_group body",
+        )?;
         Some(Stmt::TestGroup { name, tests })
     }
 
     fn parse_try_except(&mut self) -> Option<Stmt> {
         self.advance(); // try
-        if !self.expect_punctuation('{', "to start try block") {
-            return None;
-        }
-        let mut try_block = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                try_block.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close try block") {
-            return None;
-        }
+        let try_block =
+            self.parse_statement_block("to start try block", "to close try block", "try block")?;
         if !self.expect_keyword("except", "after try block") {
             return None;
         }
@@ -1114,22 +1097,11 @@ impl Parser {
                 return None;
             }
         };
-        if !self.expect_punctuation('{', "to start except block") {
-            return None;
-        }
-        let mut except_block = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                except_block.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close except block") {
-            return None;
-        }
+        let except_block = self.parse_statement_block(
+            "to start except block",
+            "to close except block",
+            "except block",
+        )?;
         Some(Stmt::TryExcept { try_block, except_var, except_block })
     }
 
@@ -1201,22 +1173,8 @@ impl Parser {
     fn parse_if(&mut self) -> Option<Stmt> {
         self.advance(); // if
         let condition = self.parse_expr()?;
-        if !self.expect_punctuation('{', "to start if block") {
-            return None;
-        }
-        let mut then_branch = Vec::new();
-        while !matches!(self.peek(), TokenKind::Punctuation('}'))
-            && !matches!(self.peek(), TokenKind::Eof)
-        {
-            if let Some(stmt) = self.parse_stmt() {
-                then_branch.push(stmt);
-            } else {
-                break;
-            }
-        }
-        if !self.expect_punctuation('}', "to close if block") {
-            return None;
-        }
+        let then_branch =
+            self.parse_statement_block("to start if block", "to close if block", "if block")?;
 
         let else_branch = if matches!(self.peek(), TokenKind::Keyword(k) if k == "else") {
             self.advance(); // else
@@ -1224,23 +1182,11 @@ impl Parser {
                 let nested_if = self.parse_if()?;
                 Some(vec![nested_if])
             } else {
-                if !self.expect_punctuation('{', "to start else block") {
-                    return None;
-                }
-                let mut else_stmts = Vec::new();
-                while !matches!(self.peek(), TokenKind::Punctuation('}'))
-                    && !matches!(self.peek(), TokenKind::Eof)
-                {
-                    if let Some(stmt) = self.parse_stmt() {
-                        else_stmts.push(stmt);
-                    } else {
-                        break;
-                    }
-                }
-                if !self.expect_punctuation('}', "to close else block") {
-                    return None;
-                }
-                Some(else_stmts)
+                self.parse_statement_block(
+                    "to start else block",
+                    "to close else block",
+                    "else block",
+                )
             }
         } else {
             None
@@ -1250,6 +1196,10 @@ impl Parser {
     }
 
     fn parse_expr(&mut self) -> Option<Expr> {
+        self.with_expression_depth("expression", |parser| parser.parse_expr_inner())
+    }
+
+    fn parse_expr_inner(&mut self) -> Option<Expr> {
         // Check for enum tag (e.g., Result::Ok(...))
         if let TokenKind::Identifier(a) = self.peek() {
             if self.tokens.get(self.pos + 1).map(|t| &t.kind)
@@ -1431,7 +1381,8 @@ impl Parser {
                 TokenKind::Operator(o) => o.clone(),
                 _ => return None,
             };
-            let operand = self.parse_unary()?; // Recursive for nested unary ops like --x
+            let operand =
+                self.with_expression_depth("unary expression", |parser| parser.parse_unary())?; // Recursive for nested unary ops like --x
             return Some(Expr::UnaryOp { op, operand: Box::new(operand) });
         }
 
@@ -1743,6 +1694,10 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Option<Expr> {
+        self.with_expression_depth("array literal", |parser| parser.parse_array_literal_inner())
+    }
+
+    fn parse_array_literal_inner(&mut self) -> Option<Expr> {
         self.advance(); // consume [
         let mut elements = Vec::new();
 
@@ -1774,6 +1729,10 @@ impl Parser {
     }
 
     fn parse_dict_literal(&mut self) -> Option<Expr> {
+        self.with_expression_depth("dictionary literal", |parser| parser.parse_dict_literal_inner())
+    }
+
+    fn parse_dict_literal_inner(&mut self) -> Option<Expr> {
         self.advance(); // consume {
         let mut pairs = Vec::new();
 
