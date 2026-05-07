@@ -1,6 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+mode="${RUFF_RELEASE_GATE_MODE:-full}"
+
+usage() {
+  cat <<'EOF'
+Usage: bash scripts/release_gate.sh [--full|--minimal]
+
+Modes:
+  --full     Run the complete release gate (default).
+  --minimal  Run a fast smoke gate suitable for quick CI/local validation.
+
+Environment:
+  RUFF_ENABLE_SOCKET_TESTS=1        Include socket-bound serve integration tests.
+  RUFF_RELEASE_GATE_RUN_BENCH=1     Run benchmark smoke command in full mode.
+  RUFF_RELEASE_GATE_MODE=full|minimal
+EOF
+}
+
+if [[ "$#" -gt 1 ]]; then
+  usage
+  exit 2
+fi
+
+if [[ "$#" -eq 1 ]]; then
+  case "$1" in
+    --full)
+      mode="full"
+      ;;
+    --minimal)
+      mode="minimal"
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+fi
+
 run_cmd() {
   echo ""
   echo "+ $*"
@@ -19,28 +61,36 @@ run_optional_cmd() {
   fi
 }
 
-run_cmd cargo test --lib -- --test-threads=1
+echo "Release gate mode: ${mode}"
 
-if [[ "${RUFF_ENABLE_SOCKET_TESTS:-0}" == "1" ]]; then
-  run_cmd cargo test --tests
+if [[ "${mode}" == "full" ]]; then
+  run_cmd cargo fmt --check
+  run_cmd cargo clippy --all-targets --all-features -- -D warnings
+  run_cmd cargo test
+  run_cmd cargo test --test native_api_security_boundaries
+  run_cmd cargo test --test package_module_workflow_integration
+  run_cmd cargo test --test vm_interpreter_parity_surfaces
+
+  if [[ "${RUFF_ENABLE_SOCKET_TESTS:-0}" == "1" ]]; then
+    run_cmd cargo test --test serve_command_integration
+  else
+    echo ""
+    echo "- Skipping socket-bound serve integration tests (set RUFF_ENABLE_SOCKET_TESTS=1 to enable)"
+  fi
+
+  run_cmd cargo run -- test
+
+  if [[ "${RUFF_RELEASE_GATE_RUN_BENCH:-0}" == "1" ]]; then
+    run_cmd cargo run -- bench examples/benchmarks
+  else
+    echo ""
+    echo "- Skipping benchmark smoke (set RUFF_RELEASE_GATE_RUN_BENCH=1 to enable)"
+  fi
+
+  run_optional_cmd cargo-audit cargo audit
+  run_optional_cmd cargo-deny cargo deny check
 else
-  echo ""
-  echo "- Skipping socket-bound serve integration tests (set RUFF_ENABLE_SOCKET_TESTS=1 to enable)"
-  run_cmd cargo test --tests -- \
-    --skip serve_head_returns_headers_without_body \
-    --skip serve_range_returns_partial_content_and_content_range_header \
-    --skip serve_if_none_match_returns_304_for_matching_etag \
-    --skip serve_accept_encoding_prefers_gzip_sibling_asset \
-    --skip serve_mime_policy_covers_known_unknown_and_extensionless_assets
+  run_cmd cargo test --lib -- --test-threads=1
+  run_cmd cargo test --test vm_interpreter_parity_surfaces
+  run_cmd cargo run -- test --help
 fi
-
-run_cmd cargo test --test native_api_security_boundaries
-run_cmd cargo test --test package_module_workflow_integration
-run_cmd cargo test --test vm_interpreter_parity_surfaces
-
-if [[ "${RUFF_ENABLE_SOCKET_TESTS:-0}" == "1" ]]; then
-  run_cmd cargo test --test serve_command_integration
-fi
-
-run_optional_cmd cargo-audit cargo audit
-run_optional_cmd cargo-deny cargo deny check

@@ -301,11 +301,26 @@ Run the release-gate CI suite locally:
 bash scripts/release_gate.sh
 ```
 
+Fast smoke mode (useful before pushing, and the mode CI uses for lightweight script-validation):
+
+```bash
+bash scripts/release_gate.sh --minimal
+```
+
 To include socket-bound static-serve integration tests in local gate runs:
 
 ```bash
 RUFF_ENABLE_SOCKET_TESTS=1 bash scripts/release_gate.sh
 ```
+
+Release-gate prerequisites and runtime profile:
+
+- Requires Rust toolchain with `cargo fmt`, `cargo clippy`, and `cargo test` available.
+- Optionally runs `cargo audit` and `cargo deny check` in full mode when those tools are installed.
+- Optional benchmark smoke can be enabled in full mode with `RUFF_RELEASE_GATE_RUN_BENCH=1`.
+- Typical runtime:
+  - `--minimal`: usually under a few minutes.
+  - full mode: usually several minutes and longer on busy machines.
 
 Run the async runtime concurrency stability regression directly:
 

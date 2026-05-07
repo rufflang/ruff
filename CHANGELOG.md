@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `scripts/release_gate.sh` to provide explicit `--full` and `--minimal` modes: full mode now enforces release-gate command ordering (`fmt` check, clippy, `cargo test`, selected integration tests, Ruff self-test command, optional `cargo audit`/`cargo deny`), while minimal mode provides a lightweight script-execution smoke path for CI/local validation.
+- Updated release-gate documentation in `README.md` and `docs/RELEASE_PROCESS.md` with mode selection, prerequisites, optional benchmark/socket toggles, and expected runtime guidance.
 - Changed diagnostics architecture to use a shared `src/errors.rs` diagnostic model across lexer, parser, runtime, VM, CLI, and LSP surfaces with stable subsystem codes (`RUFLEX*`, `RUFPARSE001`, `RUFRUN001`, `RUFVM001`, `RUFCLI001`, `RUFLSP001`), shared human rendering, and shared JSON rendering (`code`, `severity`, `subsystem`, `message`, `line`, `column`, `file`, `help`).
 - Changed parser execution to emit structured parse diagnostics via `Parser::parse_with_diagnostics()` instead of relying on `Option` fallthroughs and unchecked delimiter consumption in core statement/expression paths; missing `)`, `]`, `}`, invalid assignment targets, and EOF-truncated blocks now report explicit line/column parse errors with statement-level recovery support.
 - Changed CLI/runtime parse entrypoints (`ruff run`, `ruff test-run`, `ruff profile`, module loading, and REPL) to surface parser diagnostics and stop execution on parse failures instead of silently accepting partial ASTs.

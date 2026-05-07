@@ -48,16 +48,19 @@ git status --short
 git branch --show-current
 ```
 
-2. Validate release-critical test suites.
+2. Run the canonical release gate command.
 
 ```bash
-cargo test --test cli_json_contracts
-cargo test --test lsp_conformance_harness
-cargo test --test lsp_external_clients_smoke
-cargo test --test lsp_latency_guardrails
-cargo test --test editor_adapter_contracts
-cargo test --test tree_sitter_ruff_assets
+bash scripts/release_gate.sh
 ```
+
+Release-gate notes:
+
+- `scripts/release_gate.sh` runs full gate checks in this order: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`, selected integration suites, Ruff self-test (`cargo run -- test`), and optional `cargo audit`/`cargo deny check` when installed.
+- Enable socket-bound serve integration checks with `RUFF_ENABLE_SOCKET_TESTS=1`.
+- Enable optional benchmark smoke with `RUFF_RELEASE_GATE_RUN_BENCH=1`.
+- Use `bash scripts/release_gate.sh --minimal` for a lightweight smoke run (used by CI to validate script wiring quickly).
+- Expected runtime: minimal mode is typically a few minutes; full mode is typically several minutes and may run longer on busy machines.
 
 3. Validate extension/editor baseline when relevant to cycle scope.
 
