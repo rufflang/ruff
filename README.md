@@ -101,7 +101,7 @@ The current CLI exposes these subcommands:
 
 | Command | Purpose |
 | --- | --- |
-| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics exit non-zero before execution. |
+| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
@@ -248,6 +248,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - `#`, `//`, `/* ... */`, and `///` comments.
 - Lexing malformed source now fails with structured diagnostics (line/column anchored) instead of silently skipping invalid characters or coercing malformed numeric literals.
 - Parsing malformed source now returns structured parser diagnostics (line/column anchored), including delimiter/EOF errors and invalid assignment targets; CLI parse failures exit non-zero before runtime execution.
+- Parser safety limits are enforced for CLI parse entrypoints: source files over `1,048,576` bytes, expression nesting deeper than `256`, or statement-block nesting deeper than `128` fail with structured parse diagnostics.
 
 A small async example:
 

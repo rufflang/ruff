@@ -27,6 +27,7 @@ Repository tests and fixtures remain the executable source of truth for implemen
 - Ruff source files use the `.ruff` extension.
 - Source text is UTF-8.
 - Line endings `\n` and `\r\n` are accepted by parser/lexer pathways.
+- CLI parse entrypoints reject source files larger than `1,048,576` bytes with a parser diagnostic (`RUFPARSE001`).
 
 ## 3. Lexical Model
 
@@ -144,6 +145,7 @@ Notes:
 
 - Spread (`...`) is valid in array/dictionary literal element positions.
 - `Ok/Err/Some/None` pattern matching remains contextual and parser-driven.
+- Parser safety limits: expression nesting depth is capped at `256` and statement-block nesting depth is capped at `128`. Inputs beyond either limit fail with parser diagnostics instead of recursing indefinitely.
 
 ## 5. Runtime Semantics Baseline
 

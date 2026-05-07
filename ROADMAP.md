@@ -455,7 +455,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-PAR-002: Add parser depth and source size safety limits
+[x] V1-PAR-002: Add parser depth and source size safety limits
     Priority: P1
     Severity: High
     Area: Security/Parser/Performance
@@ -476,7 +476,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Large source file over limit fails before parsing.
         - Boundary-at-limit input succeeds.
     Acceptance criteria: Malicious deep or huge source cannot crash the process through parser recursion or unbounded allocation.
-    Notes: If limits are configurable, unsafe large values must be clearly opt-in.
+    Notes: Completed on 2026-05-07. Added explicit parser safety constants and limit enforcement (`DEFAULT_MAX_SOURCE_BYTES=1,048,576`, `DEFAULT_MAX_EXPRESSION_DEPTH=256`, `DEFAULT_MAX_BLOCK_DEPTH=128`) plus centralized parser helpers for expression/block depth checks with structured parser diagnostics when limits are exceeded. Added CLI pre-parse source-size validation for parse entrypoints (`run`, `test-run`, `profile`, and `lsp-*` helper commands) so oversized source fails deterministically with `RUFPARSE001` before tokenization/parsing. Added regression coverage in `tests/parser_diagnostics_contract.rs` for deep parenthesized expressions, deep nested array literals, deep nested `if` blocks, source-size over-limit failure, and source-size boundary success. Verification: `cargo test --test parser_diagnostics_contract`, `cargo test`.
 ```
 
 ```text

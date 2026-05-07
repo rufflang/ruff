@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-07_07-58_v1-par-002-parser-depth-source-size-limits.md` — Added parser expression/block depth safety limits and CLI source-size parse guards with regression coverage.
 - `2026-01-25_14-30_destructuring-spread-implementation.md` — Pattern binding and spread semantics.
 - `2026-01-25_17-30_result-option-types-COMPLETED.md` — Contextual identifiers for `Ok/Err/Some/None`.
 - `2026-01-27_07-46_phase2-vm-optimizations.md` — VM optimizer invariants and stack behavior.
