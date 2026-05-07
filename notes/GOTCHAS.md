@@ -216,6 +216,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_23-02_v1-ci-001-release-gate-enforcement.md)
 
+### Native-function tests should avoid fixed temp directories
+- **Problem:** Reusing a fixed temp path can make cleanup assertions fail due to stale nested state from earlier runs.
+- **Rule:** Build per-run temp directory names (for example PID + timestamp) and pre-clean if the path already exists.
+- **Implication:** Filesystem/native API tests remain deterministic across repeated local and CI runs.
+
+(Discovered during: 2026-05-07_07-36_v1-base-002-release-gate-script-followthrough.md)
+
 ### Benchmark harness paths are sensitive to working directory
 - **Problem:** Running bench commands outside repo-root can resolve fixtures/scripts incorrectly.
 - **Rule:** Normalize CWD assumptions and prefer explicit tmp/artifact roots for harnesses.

@@ -168,7 +168,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-BASE-002: Create a release-gate checklist script
+[x] V1-BASE-002: Create a release-gate checklist script
     Priority: P1
     Severity: Medium
     Area: DX/Tests/Release
@@ -183,7 +183,7 @@ If a command is not yet available, create the missing configuration as part of t
         5. Document prerequisites and expected runtime.
     Tests required: Add a lightweight CI job or local test that executes the script in a minimal mode if full mode is too expensive.
     Acceptance criteria: A contributor can run one command and get the same required gate used for 1.0 readiness.
-    Notes: Do not hide failing commands with `|| true`.
+    Notes: Completed on 2026-05-07. `scripts/release_gate.sh` now exposes explicit `--full` and `--minimal` modes. Full mode runs the required command order (`cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`, selected integration tests, Ruff self-test command, optional `cargo audit`/`cargo deny` when installed) with fail-fast behavior and printed command traces. Minimal mode provides lightweight smoke execution for CI/local validation. Added CI smoke coverage in `.github/workflows/ci-release-gate.yml` (`release-gate-minimal-smoke`) plus documentation updates in `README.md` and `docs/RELEASE_PROCESS.md` covering prerequisites, runtime expectations, and mode/environment toggles. Verification: `bash scripts/release_gate.sh --minimal`, `cargo test`.
 ```
 
 ### Phase 1: Stop The Bleeding
