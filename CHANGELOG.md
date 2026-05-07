@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed runtime truthiness semantics to use one shared `Value::is_truthy()` contract across interpreter conditionals, VM conditional jumps/logical opcodes, and native collection/assert predicates: `false`, `null`, `0`, `0.0`, empty string, empty array, and empty dictionary are falsey; other values are truthy.
+- Changed logical `&&` / `||` evaluation to short-circuit in compiler/interpreter execution paths so RHS expressions are evaluated only when required, with deterministic boolean result values.
 - Changed parser precedence handling to split comparison (`<`, `<=`, `>`, `>=`) and equality (`==`, `!=`) into distinct precedence tiers, locking canonical AST shapes and runtime behavior for mixed comparison/equality expressions.
 - Changed parser assignment handling to support compound assignment statements (`+=`, `-=`, `*=`, `/=`, `%=`) via deterministic lowering to regular assignment plus binary operations, and to reject chained assignment statements with a structured parse diagnostic.
 - Changed lexer operator tokenization to recognize compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`) directly instead of splitting them into multiple tokens.

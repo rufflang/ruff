@@ -197,6 +197,18 @@ From highest precedence to lowest:
 - `for ... in` iterates over iterable runtime values.
 - `break` and `continue` are valid only within loop contexts.
 
+Truthiness rules are centralized across interpreter and VM:
+
+- Falsey values: `false`, `null`, integer `0`, float `0.0`, empty string `""`, empty array `[]`, empty dictionary `{}`.
+- Truthy values: every other runtime value, including non-empty strings/arrays/dictionaries, functions, structs/objects, and native handles.
+- String values are not parsed as boolean keywords in truthiness checks (`"false"` is a non-empty string and therefore truthy).
+
+Logical operators use these same rules:
+
+- `a && b` short-circuits when `a` is falsey; `b` is evaluated only when `a` is truthy.
+- `a || b` short-circuits when `a` is truthy; `b` is evaluated only when `a` is falsey.
+- Both operators return boolean results (`true`/`false`), not the original operand values.
+
 ### 5.5 Error flow
 
 - `throw(value)` signals runtime exceptions.

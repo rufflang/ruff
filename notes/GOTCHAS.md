@@ -156,6 +156,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
 
+### Logical short-circuit lowering is stack-shape sensitive
+- **Problem:** New `&&`/`||` compiler lowering can cause VM stack underflow or invalid-op failures if branch stack cleanup and bool normalization are not explicit.
+- **Rule:** For short-circuit lowering, keep stack depth balanced on both branch paths and normalize RHS truthiness via bool constants + `And`/`Or` (not `!!`, because `Not` is bool-only in hardened runtime semantics).
+- **Implication:** When touching compiler logical lowering, run VM/interpreter parity tests and confirm optimizer compatibility (or gate optimizer for unsupported lowering shapes).
+
+(Discovered during: 2026-05-07_13-03_v1-run-004-truthiness-centralization.md)
+
 ### Script JIT can bypass runtime error semantics
 - **Problem:** Top-level script JIT may return a default value for opcodes whose checked VM path would report a runtime error.
 - **Rule:** Do not admit opcodes into script JIT unless the JIT implementation preserves the same error semantics as the bytecode VM.

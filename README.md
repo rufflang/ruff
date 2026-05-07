@@ -233,6 +233,8 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Optional annotations on variables and functions, such as `let x: int := 42` and `func add(a: int, b: int) -> int`.
 - Functions declared with `func`, including anonymous function expressions and `async func`.
 - `if`/`else`, `while`, `loop`, `for ... in`, `break`, and `continue`.
+- Shared truthiness semantics across interpreter/VM/native predicates: `false`, `null`, `0`, `0.0`, empty string, empty array, and empty dictionary are falsey; all other values are truthy.
+- Logical `&&` and `||` use truthiness and short-circuit (RHS is evaluated only when required), returning boolean results.
 - Arrays and dictionaries with indexing and standard library helpers.
 - Undefined identifiers are runtime errors. Use quoted string literals when a string value is intended.
 - Missing dictionary keys are runtime errors. Use helpers such as `has_key`, `get`, or `get_default` when a fallback value is intended.

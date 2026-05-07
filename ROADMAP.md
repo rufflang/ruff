@@ -531,7 +531,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 3: Runtime, VM, And Language Semantics
 
 ```text
-[ ] V1-RUN-004: Centralize truthiness semantics
+[x] V1-RUN-004: Centralize truthiness semantics
     Priority: P1
     Severity: Medium
     Area: Correctness/Language Semantics
@@ -548,7 +548,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Interpreter and VM parity tests.
         - Logical `and`/`or` short-circuit tests.
     Acceptance criteria: Truthiness is deterministic, documented, and identical across execution backends.
-    Notes: Do not inherit Python truthiness accidentally unless explicitly chosen.
+    Notes: Completed on 2026-05-07. Added centralized `Value::is_truthy()` semantics in `src/interpreter/value.rs` and routed interpreter control-flow (`if`, `while`, `loop`), VM condition/logical paths, and native predicate surfaces (`filter`, `find`, `any`, `all`, `assert`) through the shared helper so truthiness cannot drift by subsystem. Aligned logical operators with short-circuit execution in interpreter expression evaluation and compiler lowering so VM execution also skips unreachable RHS evaluation while preserving boolean result semantics. Added regression coverage for shared truthiness table behavior and short-circuit parity in `tests/vm_interpreter_parity_surfaces.rs`, plus interpreter-native collection predicate truthiness coverage in `tests/interpreter_tests.rs` and helper-table tests in `src/interpreter/value.rs`. Verification: `cargo test --test vm_interpreter_parity_surfaces`, `cargo test test_collection_predicates_use_shared_truthiness_semantics`, `cargo test value_truthiness_semantics_match_runtime_contract`, and `cargo test`.
 ```
 
 ```text
