@@ -195,6 +195,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_11-30_field-notes-ci-guard.md)
 
+### Socket-bound test gates need explicit environment policy
+- **Problem:** Full test/gate runs can fail in restricted sandboxes with `PermissionDenied` when binding ephemeral TCP/UDP ports.
+- **Rule:** Keep socket-heavy integration tests explicitly gated by environment intent (for example `RUFF_ENABLE_SOCKET_TESTS=1` in CI) and make unit tests skip gracefully when bind permissions are denied.
+- **Implication:** Separate correctness failures from environment policy failures so release gates stay meaningful and reproducible.
+
+(Discovered during: 2026-05-06_23-02_v1-ci-001-release-gate-enforcement.md)
+
 ### Benchmark harness paths are sensitive to working directory
 - **Problem:** Running bench commands outside repo-root can resolve fixtures/scripts incorrectly.
 - **Rule:** Normalize CWD assumptions and prefer explicit tmp/artifact roots for harnesses.
