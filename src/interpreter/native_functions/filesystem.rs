@@ -6,10 +6,28 @@ use crate::interpreter::{AsyncRuntime, Interpreter, Value};
 use crate::{builtins, interpreter::DictMap};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
+
+const ZIP_UNIX_FILE_TYPE_MASK: u32 = 0o170000;
+const ZIP_UNIX_SYMLINK_FILE_TYPE: u32 = 0o120000;
+
+#[derive(Clone, Copy)]
+struct ZipExtractionLimits {
+    max_entries: usize,
+    max_total_uncompressed_bytes: u64,
+    max_single_entry_uncompressed_bytes: u64,
+}
+
+impl ZipExtractionLimits {
+    const DEFAULT: Self = Self {
+        max_entries: 1024,
+        max_total_uncompressed_bytes: 64 * 1024 * 1024,
+        max_single_entry_uncompressed_bytes: 16 * 1024 * 1024,
+    };
+}
 
 fn zip_add_dir_recursive(
     zip_writer: &mut ZipWriter<File>,
@@ -51,6 +69,263 @@ fn zip_add_dir_recursive(
     }
 
     Ok(())
+}
+
+fn is_windows_drive_prefixed(component: &str) -> bool {
+    let bytes = component.as_bytes();
+    bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic()
+}
+
+fn sanitize_archive_entry_path(raw_name: &str) -> Result<PathBuf, String> {
+    if raw_name.is_empty() {
+        return Err("Unsafe archive entry: empty path is not allowed".to_string());
+    }
+
+    if raw_name.contains('\0') {
+        return Err(format!(
+            "Unsafe archive entry '{}': null byte is not allowed",
+            raw_name
+        ));
+    }
+
+    let normalized = raw_name.replace('\\', "/");
+    if normalized.starts_with('/') {
+        return Err(format!(
+            "Unsafe archive entry '{}': absolute path is not allowed",
+            raw_name
+        ));
+    }
+
+    let mut sanitized = PathBuf::new();
+
+    for component in Path::new(&normalized).components() {
+        match component {
+            Component::Prefix(_) => {
+                return Err(format!(
+                    "Unsafe archive entry '{}': drive-prefixed path is not allowed",
+                    raw_name
+                ));
+            }
+            Component::RootDir => {
+                return Err(format!(
+                    "Unsafe archive entry '{}': absolute path is not allowed",
+                    raw_name
+                ));
+            }
+            Component::ParentDir => {
+                return Err(format!(
+                    "Unsafe archive entry '{}': parent directory traversal component is not allowed",
+                    raw_name
+                ));
+            }
+            Component::CurDir => {}
+            Component::Normal(segment) => {
+                let segment_text = segment.to_string_lossy();
+                if is_windows_drive_prefixed(&segment_text) {
+                    return Err(format!(
+                        "Unsafe archive entry '{}': drive-prefixed path is not allowed",
+                        raw_name
+                    ));
+                }
+                sanitized.push(segment);
+            }
+        }
+    }
+
+    if sanitized.as_os_str().is_empty() {
+        return Err(format!(
+            "Unsafe archive entry '{}': empty normalized path is not allowed",
+            raw_name
+        ));
+    }
+
+    Ok(sanitized)
+}
+
+fn archive_entry_is_symlink(entry: &zip::read::ZipFile<'_>) -> bool {
+    entry
+        .unix_mode()
+        .map(|mode| (mode & ZIP_UNIX_FILE_TYPE_MASK) == ZIP_UNIX_SYMLINK_FILE_TYPE)
+        .unwrap_or(false)
+}
+
+fn resolve_extraction_output_path(
+    output_root: &Path,
+    relative_entry_path: &Path,
+    entry_name: &str,
+) -> Result<PathBuf, String> {
+    if relative_entry_path.is_absolute() {
+        return Err(format!(
+            "Unsafe archive entry '{}': absolute output path is not allowed",
+            entry_name
+        ));
+    }
+
+    let output_path = output_root.join(relative_entry_path);
+    if !output_path.starts_with(output_root) {
+        return Err(format!(
+            "Unsafe archive entry '{}': extraction path escapes output directory",
+            entry_name
+        ));
+    }
+
+    Ok(output_path)
+}
+
+fn ensure_canonical_path_within_root(
+    path: &Path,
+    canonical_output_root: &Path,
+    entry_name: &str,
+) -> Result<(), String> {
+    let canonical_path = std::fs::canonicalize(path).map_err(|error| {
+        format!(
+            "Failed to resolve extraction path for '{}': {}",
+            entry_name, error
+        )
+    })?;
+
+    if !canonical_path.starts_with(canonical_output_root) {
+        return Err(format!(
+            "Unsafe archive entry '{}': extraction path escapes output directory",
+            entry_name
+        ));
+    }
+
+    Ok(())
+}
+
+fn reject_symlink_target_path(path: &Path, entry_name: &str) -> Result<(), String> {
+    if let Ok(metadata) = std::fs::symlink_metadata(path) {
+        if metadata.file_type().is_symlink() {
+            return Err(format!(
+                "Unsafe archive entry '{}': symbolic link target path '{}' is not allowed",
+                entry_name,
+                path.display()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn extract_zip_archive_with_limits(
+    archive: &mut ZipArchive<File>,
+    output_root: &Path,
+    limits: ZipExtractionLimits,
+) -> Result<Vec<Value>, String> {
+    if archive.len() > limits.max_entries {
+        return Err(format!(
+            "Archive contains {} entries which exceeds maximum entry count ({})",
+            archive.len(),
+            limits.max_entries
+        ));
+    }
+
+    std::fs::create_dir_all(output_root).map_err(|error| {
+        format!(
+            "Failed to create output directory '{}': {}",
+            output_root.display(),
+            error
+        )
+    })?;
+
+    let canonical_output_root = std::fs::canonicalize(output_root).map_err(|error| {
+        format!(
+            "Failed to resolve output directory '{}': {}",
+            output_root.display(),
+            error
+        )
+    })?;
+
+    let mut extracted_files = Vec::new();
+    let mut total_uncompressed_bytes = 0_u64;
+
+    for entry_index in 0..archive.len() {
+        let mut archive_file = archive
+            .by_index(entry_index)
+            .map_err(|error| format!("Failed to read zip entry {}: {}", entry_index, error))?;
+        let entry_name = archive_file.name().to_string();
+
+        if archive_entry_is_symlink(&archive_file) {
+            return Err(format!(
+                "Unsafe archive entry '{}': symbolic links are not allowed",
+                entry_name
+            ));
+        }
+
+        let relative_entry_path = sanitize_archive_entry_path(&entry_name)?;
+        let entry_size = archive_file.size();
+
+        if entry_size > limits.max_single_entry_uncompressed_bytes {
+            return Err(format!(
+                "Archive entry '{}' exceeds maximum per-entry size ({} bytes > {} bytes)",
+                entry_name, entry_size, limits.max_single_entry_uncompressed_bytes
+            ));
+        }
+
+        total_uncompressed_bytes = total_uncompressed_bytes.checked_add(entry_size).ok_or_else(|| {
+            format!(
+                "Archive extraction size overflow while processing entry '{}'",
+                entry_name
+            )
+        })?;
+
+        if total_uncompressed_bytes > limits.max_total_uncompressed_bytes {
+            return Err(format!(
+                "Archive extraction exceeds maximum total extraction size ({} bytes > {} bytes)",
+                total_uncompressed_bytes, limits.max_total_uncompressed_bytes
+            ));
+        }
+
+        let output_path =
+            resolve_extraction_output_path(output_root, &relative_entry_path, &entry_name)?;
+
+        if archive_file.is_dir() {
+            reject_symlink_target_path(&output_path, &entry_name)?;
+            std::fs::create_dir_all(&output_path).map_err(|error| {
+                format!(
+                    "Failed to create directory '{}': {}",
+                    output_path.display(),
+                    error
+                )
+            })?;
+            ensure_canonical_path_within_root(
+                &output_path,
+                &canonical_output_root,
+                &entry_name,
+            )?;
+            continue;
+        }
+
+        if let Some(parent) = output_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| {
+                format!(
+                    "Failed to create parent directory for '{}': {}",
+                    output_path.display(),
+                    error
+                )
+            })?;
+            ensure_canonical_path_within_root(parent, &canonical_output_root, &entry_name)?;
+        }
+
+        reject_symlink_target_path(&output_path, &entry_name)?;
+
+        let mut output_file = File::create(&output_path).map_err(|error| {
+            format!(
+                "Failed to create output file '{}': {}",
+                output_path.display(),
+                error
+            )
+        })?;
+
+        std::io::copy(&mut archive_file, &mut output_file)
+            .map_err(|error| format!("Failed to extract file '{}': {}", entry_name, error))?;
+
+        ensure_canonical_path_within_root(&output_path, &canonical_output_root, &entry_name)?;
+        extracted_files.push(Value::Str(Arc::new(output_path.to_string_lossy().to_string())));
+    }
+
+    Ok(extracted_files)
 }
 
 pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
@@ -587,115 +862,19 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 (Some(Value::Str(zip_path)), Some(Value::Str(output_dir))) => {
                     match File::open(zip_path.as_ref()) {
                         Ok(file) => match ZipArchive::new(file) {
-                            Ok(mut archive) => {
-                                if let Err(error) = std::fs::create_dir_all(output_dir.as_ref()) {
-                                    return Some(Value::ErrorObject {
-                                        message: format!(
-                                            "Failed to create output directory '{}': {}",
-                                            output_dir.as_ref(),
-                                            error
-                                        ),
-                                        stack: Vec::new(),
-                                        line: None,
-                                        cause: None,
-                                    });
-                                }
-
-                                let mut extracted_files = Vec::new();
-
-                                for entry_index in 0..archive.len() {
-                                    match archive.by_index(entry_index) {
-                                        Ok(mut archive_file) => {
-                                            let output_path = Path::new(output_dir.as_ref())
-                                                .join(archive_file.name());
-
-                                            if archive_file.is_dir() {
-                                                if let Err(error) =
-                                                    std::fs::create_dir_all(&output_path)
-                                                {
-                                                    return Some(Value::ErrorObject {
-                                                        message: format!(
-                                                            "Failed to create directory '{}': {}",
-                                                            output_path.display(),
-                                                            error
-                                                        ),
-                                                        stack: Vec::new(),
-                                                        line: None,
-                                                        cause: None,
-                                                    });
-                                                }
-                                            } else {
-                                                if let Some(parent) = output_path.parent() {
-                                                    if let Err(error) =
-                                                        std::fs::create_dir_all(parent)
-                                                    {
-                                                        return Some(Value::ErrorObject {
-                                                            message: format!(
-                                                                "Failed to create parent directory for '{}': {}",
-                                                                output_path.display(),
-                                                                error
-                                                            ),
-                                                            stack: Vec::new(),
-                                                            line: None,
-                                                            cause: None,
-                                                        });
-                                                    }
-                                                }
-
-                                                match File::create(&output_path) {
-                                                    Ok(mut output_file) => {
-                                                        if let Err(error) = std::io::copy(
-                                                            &mut archive_file,
-                                                            &mut output_file,
-                                                        ) {
-                                                            return Some(Value::ErrorObject {
-                                                                message: format!(
-                                                                "Failed to extract file '{}': {}",
-                                                                archive_file.name(),
-                                                                error
-                                                            ),
-                                                                stack: Vec::new(),
-                                                                line: None,
-                                                                cause: None,
-                                                            });
-                                                        }
-                                                        extracted_files.push(Value::Str(Arc::new(
-                                                            output_path
-                                                                .to_string_lossy()
-                                                                .to_string(),
-                                                        )));
-                                                    }
-                                                    Err(error) => {
-                                                        return Some(Value::ErrorObject {
-                                                            message: format!(
-                                                            "Failed to create output file '{}': {}",
-                                                            output_path.display(),
-                                                            error
-                                                        ),
-                                                            stack: Vec::new(),
-                                                            line: None,
-                                                            cause: None,
-                                                        });
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Err(error) => {
-                                            return Some(Value::ErrorObject {
-                                                message: format!(
-                                                    "Failed to read zip entry {}: {}",
-                                                    entry_index, error
-                                                ),
-                                                stack: Vec::new(),
-                                                line: None,
-                                                cause: None,
-                                            });
-                                        }
-                                    }
-                                }
-
-                                Value::Array(Arc::new(extracted_files))
-                            }
+                            Ok(mut archive) => match extract_zip_archive_with_limits(
+                                &mut archive,
+                                Path::new(output_dir.as_ref()),
+                                ZipExtractionLimits::DEFAULT,
+                            ) {
+                                Ok(extracted_files) => Value::Array(Arc::new(extracted_files)),
+                                Err(message) => Value::ErrorObject {
+                                    message,
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            },
                             Err(error) => Value::ErrorObject {
                                 message: format!(
                                     "Failed to open zip archive '{}': {}",
