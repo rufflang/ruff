@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed parser execution to emit structured parse diagnostics via `Parser::parse_with_diagnostics()` instead of relying on `Option` fallthroughs and unchecked delimiter consumption in core statement/expression paths; missing `)`, `]`, `}`, invalid assignment targets, and EOF-truncated blocks now report explicit line/column parse errors with statement-level recovery support.
+- Changed CLI/runtime parse entrypoints (`ruff run`, `ruff test-run`, `ruff profile`, module loading, and REPL) to surface parser diagnostics and stop execution on parse failures instead of silently accepting partial ASTs.
+- Changed LSP diagnostics to consume parser diagnostics directly (rather than parser-panic probing), preserving parser message text and source coordinates in editor-facing error output.
 - Changed lexer behavior to return structured diagnostics (`Result<Vec<Token>, Vec<LexerDiagnostic>>`) for malformed source instead of silently skipping or coercing invalid input; Ruff now reports invalid characters, null bytes, invalid escapes, unterminated strings/comments, malformed/overflowing numerics, and identifier/string/numeric token-length limit violations with precise line/column/byte-offset metadata.
 - Changed CLI/module/REPL/LSP tokenization call paths to surface lexer failures explicitly (including file-aware diagnostics where available), and updated LSP diagnostics to include lexer-originated errors alongside delimiter and parser checks.
 - Clarified pre-1.0 readiness messaging for `V1-BASE-001`: added a dedicated README `1.0 Readiness Status` section that points to `ROADMAP.md` as the single release gate, and updated draft-status wording in `docs/LANGUAGE_SPEC.md` and `docs/NATIVE_API_SECURITY_POSTURE.md` so baseline-draft labels are not misread as release-ready claims.

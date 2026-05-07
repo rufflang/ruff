@@ -402,7 +402,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-PAR-001: Replace `Option` parser failures with structured parse results
+[x] V1-PAR-001: Replace `Option` parser failures with structured parse results
     Priority: P0
     Severity: High
     Area: Parser/Diagnostics
@@ -426,7 +426,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Parser recovery reports multiple independent errors without infinite loop.
         - CLI exits non-zero for parse errors.
     Acceptance criteria: Parser never silently accepts malformed syntax as a valid partial program.
-    Notes: Do this with incremental helpers to avoid a risky full parser rewrite.
+    Notes: Completed on 2026-05-07. Added structured parser output in `src/parser.rs` (`ParseOutput` + `ParseDiagnostic`) with statement-level recovery and explicit `expect_*` delimiter/keyword/operator helpers for core parser surfaces. Missing `)`, `]`, `}`, invalid assignment targets, and EOF-truncated blocks now emit line/column diagnostics instead of silently yielding partial ASTs. CLI parse entrypoints (`ruff run`, `ruff test-run`, `ruff profile`) now exit non-zero on parser diagnostics, module loading reports parser failures, REPL surfaces parser diagnostics, and `src/lsp_diagnostics.rs` now consumes parser diagnostics directly instead of parser-panic probing. Added regression coverage in `tests/parser_diagnostics_contract.rs` for success/failure/edge/recovery/CLI exit behavior and updated parser-diagnostic LSP unit coverage. Verification: `cargo test --test parser_diagnostics_contract`, `cargo test lsp_diagnostics::tests --lib`, and `cargo test` passed.
 ```
 
 ```text

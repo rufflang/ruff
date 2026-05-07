@@ -101,7 +101,7 @@ The current CLI exposes these subcommands:
 
 | Command | Purpose |
 | --- | --- |
-| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout). |
+| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics exit non-zero before execution. |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
@@ -114,7 +114,7 @@ The current CLI exposes these subcommands:
 | `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`, `--json`). |
 | `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing). |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
-| `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax. |
+| `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax; parse diagnostics exit non-zero before test collection. |
 | `ruff bench [path]` | Run benchmark scripts. |
 | `ruff bench-cross` | Compare Ruff `parallel_map` against a Python `ProcessPoolExecutor` benchmark. |
 | `ruff bench-ssg` | Run the async SSG benchmark, with optional Python comparison and measurement controls. |
@@ -123,7 +123,7 @@ The current CLI exposes these subcommands:
 | `ruff lsp-definition <file> --line <N> --column <N>` | Return the go-to-definition location for the identifier under the cursor; add `--json` for structured output. |
 | `ruff lsp-references <file> --line <N> --column <N>` | Return all references for the identifier under the cursor; add `--include-definition false` to exclude declarations and `--json` for structured output. |
 | `ruff lsp-hover <file> --line <N> --column <N>` | Return hover details for the identifier under the cursor (kind, detail text, definition location when applicable); add `--json` for structured output. |
-| `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (lexer failures, delimiter mismatches, and parser panic-derived syntax errors); add `--json` for structured output. |
+| `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (lexer failures, delimiter mismatches, and parser diagnostics); add `--json` for structured output. |
 | `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME>` | Return rename edits for the symbol under the cursor and the updated source text; add `--json` for structured output. |
 | `ruff lsp-code-actions <file>` | Return syntax quick-fix actions derived from diagnostics (for example unmatched/unclosed delimiters); add `--json` for structured output. |
 
@@ -247,6 +247,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - `test`, `test_setup`, `test_teardown`, and `test_group` declarations for the test runner.
 - `#`, `//`, `/* ... */`, and `///` comments.
 - Lexing malformed source now fails with structured diagnostics (line/column anchored) instead of silently skipping invalid characters or coercing malformed numeric literals.
+- Parsing malformed source now returns structured parser diagnostics (line/column anchored), including delimiter/EOF errors and invalid assignment targets; CLI parse failures exit non-zero before runtime execution.
 
 A small async example:
 

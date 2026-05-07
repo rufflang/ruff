@@ -29,6 +29,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-25_17-30_result-option-types-COMPLETED.md)
 
+### Parser hardening must preserve accepted compatibility syntax unless intentionally deprecated
+- **Problem:** Replacing permissive `advance()` parsing with strict `expect_*` checks can silently regress accepted syntax (for example `let x = 1` or `else if ...` chains).
+- **Rule:** When tightening parser diagnostics, explicitly preserve legacy-accepted forms or document and test intentional deprecations before changing behavior.
+- **Why:** Compatibility regressions can surface as runtime-level failures (empty/partial AST execution) far from the parser change point.
+
+(Discovered during: 2026-05-06_23-48_v1-par-001-parse-diagnostics.md)
+
 ### Multi-character operators require explicit lexer lookahead
 - **Problem:** Operators like `...` fragment into punctuation tokens when lookahead logic is incomplete.
 - **Rule:** Any multi-character operator must have dedicated lookahead path in lexer tokenization.

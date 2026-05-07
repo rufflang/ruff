@@ -57,3 +57,4 @@ High-signal session notes:
 - `2026-05-06_22-32_v1-http-001-mime-policy-unification.md` — Unified static-server MIME/active-content fallback behavior in production code, removed duplicate test-only serve policy logic, and added live MIME-policy integration coverage.
 - `2026-05-06_23-02_v1-ci-001-release-gate-enforcement.md` — Added release-gate CI enforcement/workflow wiring, stabilized socket-bound test behavior under restricted environments, and documented CI-vs-local socket test policy.
 - `2026-05-06_23-22_v1-lex-001-structured-lexer-diagnostics.md` — Added structured lexer diagnostics (`Result` + recovery mode), strict lexical error propagation, and token-column compatibility follow-through for LSP symbol tooling.
+- `2026-05-06_23-48_v1-par-001-parse-diagnostics.md` — Structured parser diagnostics, delimiter/EOF recovery, and compatibility gotchas (`=` declarations, `else if`).
