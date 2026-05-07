@@ -56,6 +56,7 @@ declaration_or_statement
                   = function_decl
                   | struct_decl
                   | binding_stmt
+                  | assignment_stmt
                   | control_stmt
                   | test_decl
                   | expression_stmt ;
@@ -93,14 +94,17 @@ test_decl         = "test" string_literal block
                     | "test_setup" block
                     | "test_teardown" block ;
 
+assignment_stmt   = assign_target assignment_op expression ;
+assign_target     = identifier | field | index ;
 expression_stmt   = expression ;
 
-expression        = assignment ;
-assignment        = logical_or [ assignment_op assignment ] ;
+expression        = pipe_expr ;
 assignment_op     = ":=" | "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
 
-logical_or        = logical_and { "or" logical_and } ;
-logical_and       = equality { "and" equality } ;
+pipe_expr         = null_coalescing { "|>" null_coalescing } ;
+null_coalescing   = logical_or { "??" logical_or } ;
+logical_or        = logical_and { "||" logical_and } ;
+logical_and       = equality { "&&" equality } ;
 equality          = comparison { ( "==" | "!=" ) comparison } ;
 comparison        = term { ( "<" | "<=" | ">" | ">=" ) term } ;
 term              = factor { ( "+" | "-" ) factor } ;
@@ -146,6 +150,25 @@ Notes:
 - Spread (`...`) is valid in array/dictionary literal element positions.
 - `Ok/Err/Some/None` pattern matching remains contextual and parser-driven.
 - Parser safety limits: expression nesting depth is capped at `256` and statement-block nesting depth is capped at `128`. Inputs beyond either limit fail with parser diagnostics instead of recursing indefinitely.
+- Assignment operators (`:=`, `=`, `+=`, `-=`, `*=`, `/=`, `%=`) are statement-level only. Chained assignments (for example `a := b := 1`) are rejected with parser diagnostics.
+
+### 4.1 Operator Precedence And Associativity
+
+From highest precedence to lowest:
+
+| Level | Operators | Associativity |
+| --- | --- | --- |
+| Postfix | `()`, `[]`, `.`, method call `.` + `()` | Left |
+| Unary | `!`, unary `-` | Right |
+| Multiplicative | `*`, `/`, `%` | Left |
+| Additive | `+`, `-` | Left |
+| Comparison | `<`, `<=`, `>`, `>=` | Left |
+| Equality | `==`, `!=` | Left |
+| Logical AND | `&&` | Left |
+| Logical OR | `||` | Left |
+| Null coalescing | `??` | Left |
+| Pipe | `|>` | Left |
+| Assignment statements | `:=`, `=`, `+=`, `-=`, `*=`, `/=`, `%=` | Non-associative (chaining rejected) |
 
 ## 5. Runtime Semantics Baseline
 

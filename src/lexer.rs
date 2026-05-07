@@ -670,6 +670,14 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                         line: start_line,
                         column: start_col,
                     });
+                } else if matches!(op, '+' | '-' | '*') && maybe_next == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
+                    tokens.push(Token {
+                        kind: TokenKind::Operator(format!("{}=", op)),
+                        line: start_line,
+                        column: start_col,
+                    });
                 } else if op == '-' && maybe_next == Some('>') {
                     bump(&chars, &mut idx);
                     advance_position('>', &mut line, &mut col);
@@ -722,7 +730,15 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                 bump(&chars, &mut idx);
                 advance_position('/', &mut line, &mut col);
 
-                if peek(&chars, idx) == Some('*') {
+                if peek(&chars, idx) == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("/=".into()),
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else if peek(&chars, idx) == Some('*') {
                     bump(&chars, &mut idx);
                     advance_position('*', &mut line, &mut col);
 
@@ -780,11 +796,21 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
                 let start_col = col;
                 bump(&chars, &mut idx);
                 advance_position('%', &mut line, &mut col);
-                tokens.push(Token {
-                    kind: TokenKind::Operator("%".into()),
-                    line: start_line,
-                    column: start_col,
-                });
+                if peek(&chars, idx) == Some('=') {
+                    bump(&chars, &mut idx);
+                    advance_position('=', &mut line, &mut col);
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("%=".into()),
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else {
+                    tokens.push(Token {
+                        kind: TokenKind::Operator("%".into()),
+                        line: start_line,
+                        column: start_col,
+                    });
+                }
             }
             '|' => {
                 let start_line = line;
@@ -1016,5 +1042,24 @@ mod tests {
         let diagnostics = tokenize_with_file("let x := @", Some("example.ruff"))
             .expect_err("expected diagnostic");
         assert_eq!(diagnostics[0].file.as_deref(), Some("example.ruff"));
+    }
+
+    #[test]
+    fn tokenizes_compound_assignment_operators() {
+        let tokens = tokenize("a += 1\nb -= 2\nc *= 3\nd /= 4\ne %= 5")
+            .expect("compound assignment source should tokenize");
+        let operators: Vec<&str> = tokens
+            .iter()
+            .filter_map(|token| match &token.kind {
+                TokenKind::Operator(operator) => Some(operator.as_str()),
+                _ => None,
+            })
+            .collect();
+
+        assert!(operators.contains(&"+="));
+        assert!(operators.contains(&"-="));
+        assert!(operators.contains(&"*="));
+        assert!(operators.contains(&"/="));
+        assert!(operators.contains(&"%="));
     }
 }

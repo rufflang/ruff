@@ -238,12 +238,27 @@ impl Parser {
         }
     }
 
+    fn assignment_operator(&self) -> Option<&str> {
+        match self.peek() {
+            TokenKind::Operator(op)
+                if matches!(op.as_str(), ":=" | "=" | "+=" | "-=" | "*=" | "/=" | "%=") =>
+            {
+                Some(op.as_str())
+            }
+            _ => None,
+        }
+    }
+
     fn is_assignment_operator(&self) -> bool {
+        self.assignment_operator().is_some()
+    }
+
+    fn is_simple_assignment_operator(&self) -> bool {
         matches!(self.peek(), TokenKind::Operator(op) if op == ":=" || op == "=")
     }
 
     fn consume_assignment_operator(&mut self, context: &str) -> bool {
-        if self.is_assignment_operator() {
+        if self.is_simple_assignment_operator() {
             self.advance();
             true
         } else {
@@ -253,6 +268,23 @@ impl Parser {
                 context, found
             ));
             false
+        }
+    }
+
+    fn consume_statement_assignment_operator(&mut self) -> Option<String> {
+        let operator = self.assignment_operator()?.to_string();
+        self.advance();
+        Some(operator)
+    }
+
+    fn compound_assignment_binary_operator(operator: &str) -> Option<&'static str> {
+        match operator {
+            "+=" => Some("+"),
+            "-=" => Some("-"),
+            "*=" => Some("*"),
+            "/=" => Some("/"),
+            "%=" => Some("%"),
+            _ => None,
         }
     }
 
@@ -444,7 +476,7 @@ impl Parser {
                 // Try to parse as destructuring pattern
                 if let Some(pattern) = self.parse_pattern() {
                     // Check if next token is :=
-                    if self.is_assignment_operator() {
+                    if self.is_simple_assignment_operator() {
                         self.advance(); // consume :=
                         let value = self.parse_expr()?;
                         return Some(Stmt::Let {
@@ -464,21 +496,39 @@ impl Parser {
                 // We need to look ahead and parse an expression to see if it's followed by :=
                 let saved_pos = self.pos;
                 if let Some(expr) = self.parse_expr() {
-                    // Check if next token is :=
-                    if self.is_assignment_operator() {
-                        self.advance(); // consume :=
-
-                        // Parse := as assignment (create or update)
-                        // The interpreter will decide whether to create new or update existing
-                        let value = self.parse_expr()?;
-                        if Self::is_valid_assignment_target(&expr) {
-                            Some(Stmt::Assign { target: expr, value })
-                        } else {
+                    // Check if next token is an assignment operator.
+                    if let Some(operator) = self.consume_statement_assignment_operator() {
+                        let target = expr;
+                        if !Self::is_valid_assignment_target(&target) {
                             self.push_diagnostic("Invalid assignment target");
-                            None
+                            return None;
                         }
+
+                        let rhs = self.parse_expr()?;
+                        if self.is_assignment_operator() {
+                            self.push_diagnostic(
+                                "Chained assignment is not supported; split the assignment into separate statements",
+                            );
+                            return None;
+                        }
+
+                        // Lower compound assignments into regular assignment + binary operation.
+                        // Example: `x += y` -> `x := x + y`
+                        let value = if let Some(binary_op) =
+                            Self::compound_assignment_binary_operator(operator.as_str())
+                        {
+                            Expr::BinaryOp {
+                                left: Box::new(target.clone()),
+                                op: binary_op.to_string(),
+                                right: Box::new(rhs),
+                            }
+                        } else {
+                            rhs
+                        };
+
+                        Some(Stmt::Assign { target, value })
                     } else {
-                        // Not an assignment, restore position and parse as expression statement
+                        // Not an assignment, restore position and parse as expression statement.
                         self.pos = saved_pos;
                         self.parse_expr().map(Stmt::ExprStmt)
                     }
@@ -1313,9 +1363,24 @@ impl Parser {
     }
 
     fn parse_and(&mut self) -> Option<Expr> {
-        let mut left = self.parse_comparison()?;
+        let mut left = self.parse_equality()?;
 
         while matches!(self.peek(), TokenKind::Operator(op) if op == "&&") {
+            let op = match self.advance() {
+                TokenKind::Operator(o) => o.clone(),
+                _ => break,
+            };
+            let right = self.parse_equality()?;
+            left = Expr::BinaryOp { left: Box::new(left), op, right: Box::new(right) };
+        }
+
+        Some(left)
+    }
+
+    fn parse_equality(&mut self) -> Option<Expr> {
+        let mut left = self.parse_comparison()?;
+
+        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "==" | "!=")) {
             let op = match self.advance() {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,
@@ -1330,8 +1395,10 @@ impl Parser {
     fn parse_comparison(&mut self) -> Option<Expr> {
         let mut left = self.parse_additive()?;
 
-        while matches!(self.peek(), TokenKind::Operator(op) if matches!(op.as_str(), "==" | "!=" | ">" | "<" | ">=" | "<="))
-        {
+        while matches!(
+            self.peek(),
+            TokenKind::Operator(op) if matches!(op.as_str(), ">" | "<" | ">=" | "<=")
+        ) {
             let op = match self.advance() {
                 TokenKind::Operator(o) => o.clone(),
                 _ => break,
@@ -1530,9 +1597,9 @@ impl Parser {
                                 }
                                 self.advance(); // consume :
 
-                                // Parse field value - use parse_comparison to avoid infinite recursion
+                                // Parse field value - use parse_equality to avoid infinite recursion
                                 // while still supporting expressions like x + y, x * 2, etc.
-                                if let Some(value) = self.parse_comparison() {
+                                if let Some(value) = self.parse_equality() {
                                     fields.push((field_name, value));
                                 }
 
@@ -1707,10 +1774,10 @@ impl Parser {
             // Check for spread operator: ...expr
             if matches!(self.peek(), TokenKind::Operator(op) if op == "...") {
                 self.advance(); // consume ...
-                if let Some(expr) = self.parse_comparison() {
+                if let Some(expr) = self.parse_equality() {
                     elements.push(crate::ast::ArrayElement::Spread(expr));
                 }
-            } else if let Some(elem) = self.parse_comparison() {
+            } else if let Some(elem) = self.parse_equality() {
                 elements.push(crate::ast::ArrayElement::Single(elem));
             }
 
@@ -1742,7 +1809,7 @@ impl Parser {
             // Check for spread operator: ...expr
             if matches!(self.peek(), TokenKind::Operator(op) if op == "...") {
                 self.advance(); // consume ...
-                if let Some(expr) = self.parse_comparison() {
+                if let Some(expr) = self.parse_equality() {
                     pairs.push(crate::ast::DictElement::Spread(expr));
                 }
 
@@ -1753,8 +1820,8 @@ impl Parser {
                 }
                 continue;
             }
-            // Parse key - use parse_comparison to avoid recursion
-            let key = self.parse_comparison()?;
+            // Parse key - use parse_equality to avoid recursion
+            let key = self.parse_equality()?;
 
             // Expect colon
             if !matches!(self.peek(), TokenKind::Punctuation(':')) {
@@ -1763,8 +1830,8 @@ impl Parser {
             }
             self.advance(); // consume :
 
-            // Parse value - use parse_comparison to avoid recursion
-            let value = self.parse_comparison()?;
+            // Parse value - use parse_equality to avoid recursion
+            let value = self.parse_equality()?;
             pairs.push(crate::ast::DictElement::Pair(key, value));
 
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
