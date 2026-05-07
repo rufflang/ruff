@@ -289,7 +289,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-SEC-001: Make archive extraction safe against Zip Slip and resource exhaustion
+[x] V1-SEC-001: Make archive extraction safe against Zip Slip and resource exhaustion
     Priority: P0
     Severity: Critical
     Area: Security/FileSystem
@@ -316,7 +316,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Oversized single file is rejected.
         - Safe nested extraction succeeds.
     Acceptance criteria: No archive entry can write outside the requested output directory, and extraction cannot consume unbounded disk space.
-    Notes: Reuse the same containment helper required by `V1-FS-001`.
+    Notes: Completed on 2026-05-06. `unzip` now routes through centralized extraction helpers in `src/interpreter/native_functions/filesystem.rs` that sanitize archive entry paths, reject absolute/parent-traversal/drive-prefixed/null-byte/empty-normalized paths, block symlink entries, and enforce deterministic limits (1024 entries, 16 MiB per entry, 64 MiB total uncompressed bytes) while failing fast on the first unsafe entry. Added integration security regressions in `tests/native_api_security_boundaries.rs` for traversal, absolute path, drive prefix, null-byte name, symlink metadata, single-entry and total-size exhaustion, entry-count exhaustion, and safe nested extraction success. Updated runtime policy docs in `docs/NATIVE_API_SECURITY_POSTURE.md`, `README.md`, and `CHANGELOG.md`. Verification: `cargo test --test native_api_security_boundaries` and `cargo test -q` passed.
 ```
 
 ```text
@@ -1482,7 +1482,7 @@ If a command is not yet available, create the missing configuration as part of t
 
 Immediate risks:
 
-1. Archive extraction can write outside output directories unless fixed by `V1-SEC-001`.
+1. Archive extraction path-traversal and extraction-exhaustion risks are now bounded by `V1-SEC-001`; continue reusing centralized containment helpers for future filesystem/import/server surfaces.
 2. Undefined identifiers and sentinel fallbacks can bypass intended runtime checks unless fixed by `V1-RUN-001` and `V1-RUN-003`.
 3. Native host APIs can perform filesystem, process, environment, and network effects without explicit capabilities unless fixed by `V1-SEC-002`.
 4. Shell execution can interpret untrusted strings unless fixed by `V1-SEC-003`.

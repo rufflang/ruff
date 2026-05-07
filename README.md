@@ -274,6 +274,7 @@ Native functions are registered in `src/interpreter/mod.rs` and dispatched throu
 The standard library is broad, but not all functions have polished reference documentation yet. When adding user-facing docs for a specific API, verify the handler contract in `src/interpreter/native_functions/` and the corresponding regression tests.
 
 High-risk native APIs (process/network/filesystem/crypto/database) are powerful and unsandboxed by default. Review `docs/NATIVE_API_SECURITY_POSTURE.md` before running untrusted scripts or deploying automation in shared environments.
+For archive extraction, `unzip(...)` now rejects unsafe entry paths (absolute paths, `..` traversal components, drive-prefixed names, null-byte names, and symlink entries) and enforces extraction limits (1024 entries, 16 MiB per entry, 64 MiB total uncompressed size).
 
 ## Testing
 

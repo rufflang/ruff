@@ -55,12 +55,18 @@ Relevant builtins: file read/write/delete, directory operations, archive helpers
 Risk profile:
 
 - arbitrary file read/write/delete within process permissions
-- archive extraction risks (resource exhaustion, path traversal if caller trusts untrusted archives)
+- archive extraction remains a high-impact host-write surface even with built-in hardening
+
+Current archive-extraction guardrails (`unzip`):
+
+- rejects unsafe entry names: absolute paths, parent traversal (`..`), drive-prefixed segments, null-byte names, and symlink entries
+- fails the extraction on the first unsafe entry
+- enforces extraction limits: max 1024 entries, max 16 MiB per entry (uncompressed), max 64 MiB total uncompressed bytes
 
 Operational guidance:
 
 - run with least-privilege filesystem permissions
-- avoid operating on attacker-controlled archive inputs without pre-validation
+- avoid operating on attacker-controlled archive inputs without pre-validation, especially when expected payloads may exceed the built-in extraction limits
 - constrain working directories in production jobs
 
 ### Crypto APIs

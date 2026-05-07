@@ -181,6 +181,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-17_18-48_io-strict-arity-hardening.md)
 
+### `zip = 0.5` unix permission helpers do not encode symlink file type bits
+- **Problem:** Tests that create zip entries with `FileOptions::unix_permissions(0o120777)` may still produce normal files, causing symlink-policy regressions to be untested.
+- **Rule:** For symlink-metadata tests, verify `ZipFile::unix_mode()` in the fixture or patch central-directory metadata (`version_made_by` host + external attributes) explicitly.
+- **Implication:** Do not assume unix permission setters alone can generate true symlink zip entries under `zip = 0.5`.
+
+(Discovered during: 2026-05-06_22-19_v1-sec-001-unzip-hardening.md)
+
 ### Repository shell guards should remain Bash 3 compatible for local macOS runs
 - **Problem:** CI/helper scripts can work in GitHub Actions but fail locally with `mapfile: command not found`.
 - **Rule:** Prefer portable `while read` loops over Bash-4-only helpers (for example `mapfile`) in repo-level scripts.

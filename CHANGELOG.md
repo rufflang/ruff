@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `unzip` native filesystem extraction to enforce secure archive boundaries: path sanitization rejects parent traversal, absolute paths, drive-prefixed paths, null-byte names, and symlink entries; extraction now fails fast on the first unsafe entry and enforces deterministic resource limits (max 1024 entries, max 16 MiB per entry, max 64 MiB total uncompressed bytes).
 - Changed interpreter and VM identifier resolution so missing bindings report `Undefined variable: <name>` instead of allowing the interpreter to coerce unknown identifiers into strings.
 - Changed callable invocation contracts so interpreter and VM now enforce strict arity for user-defined functions, closures, struct methods, async functions, and generator definitions, and added centralized native arity metadata for strict/ranged/variadic native contracts (for example `len`, `input`, `debug`, `print`, and `array`) with consistent `... expects ... arguments, got ...` runtime errors.
 - Changed cooperative VM execution to surface returned runtime error values as execution errors, and gated top-level script JIT away from global/local variable loads until JIT preserves checked undefined-identifier semantics.
