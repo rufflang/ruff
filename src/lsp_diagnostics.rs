@@ -1,26 +1,8 @@
+use crate::errors::{
+    Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, DIAGNOSTIC_CODE_LSP,
+};
 use crate::lexer::{self, LexerDiagnostic, LexerDiagnosticKind, Token, TokenKind};
 use crate::parser;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DiagnosticSeverity {
-    Error,
-}
-
-impl DiagnosticSeverity {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            DiagnosticSeverity::Error => "error",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Diagnostic {
-    pub line: usize,
-    pub column: usize,
-    pub severity: DiagnosticSeverity,
-    pub message: String,
-}
 
 pub fn diagnose(source: &str) -> Vec<Diagnostic> {
     let lexed = lexer::tokenize_with_diagnostics(source);
@@ -52,21 +34,17 @@ fn to_lsp_diagnostic(diagnostic: &LexerDiagnostic) -> Diagnostic {
         LexerDiagnosticKind::NumericLiteralTooLong => "Numeric literal too long",
     };
 
-    Diagnostic {
-        line: diagnostic.line,
-        column: diagnostic.column,
-        severity: DiagnosticSeverity::Error,
-        message: format!("{}: {}", kind, diagnostic.message),
-    }
+    Diagnostic::new(
+        diagnostic.diagnostic_code(),
+        DiagnosticSeverity::Error,
+        DiagnosticSubsystem::Lexer,
+        format!("{}: {}", kind, diagnostic.message),
+    )
+    .with_location(diagnostic.file.clone(), diagnostic.line, diagnostic.column)
 }
 
 fn to_lsp_parse_diagnostic(diagnostic: &parser::ParseDiagnostic) -> Diagnostic {
-    Diagnostic {
-        line: diagnostic.line,
-        column: diagnostic.column,
-        severity: DiagnosticSeverity::Error,
-        message: diagnostic.message.clone(),
-    }
+    diagnostic.to_diagnostic(None)
 }
 
 fn check_delimiter_balance(tokens: &[Token]) -> Vec<Diagnostic> {
@@ -80,34 +58,43 @@ fn check_delimiter_balance(tokens: &[Token]) -> Vec<Diagnostic> {
             TokenKind::Punctuation('{') => brace_stack.push((token.line, token.column)),
             TokenKind::Punctuation('}') => {
                 if brace_stack.pop().is_none() {
-                    diagnostics.push(Diagnostic {
-                        line: token.line,
-                        column: token.column,
-                        severity: DiagnosticSeverity::Error,
-                        message: "Unmatched closing brace '}'".to_string(),
-                    });
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DIAGNOSTIC_CODE_LSP,
+                            DiagnosticSeverity::Error,
+                            DiagnosticSubsystem::Lsp,
+                            "Unmatched closing brace '}'",
+                        )
+                        .with_location(None, token.line, token.column),
+                    );
                 }
             }
             TokenKind::Punctuation('(') => paren_stack.push((token.line, token.column)),
             TokenKind::Punctuation(')') => {
                 if paren_stack.pop().is_none() {
-                    diagnostics.push(Diagnostic {
-                        line: token.line,
-                        column: token.column,
-                        severity: DiagnosticSeverity::Error,
-                        message: "Unmatched closing parenthesis ')'".to_string(),
-                    });
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DIAGNOSTIC_CODE_LSP,
+                            DiagnosticSeverity::Error,
+                            DiagnosticSubsystem::Lsp,
+                            "Unmatched closing parenthesis ')'",
+                        )
+                        .with_location(None, token.line, token.column),
+                    );
                 }
             }
             TokenKind::Punctuation('[') => bracket_stack.push((token.line, token.column)),
             TokenKind::Punctuation(']') => {
                 if bracket_stack.pop().is_none() {
-                    diagnostics.push(Diagnostic {
-                        line: token.line,
-                        column: token.column,
-                        severity: DiagnosticSeverity::Error,
-                        message: "Unmatched closing bracket ']'".to_string(),
-                    });
+                    diagnostics.push(
+                        Diagnostic::new(
+                            DIAGNOSTIC_CODE_LSP,
+                            DiagnosticSeverity::Error,
+                            DiagnosticSubsystem::Lsp,
+                            "Unmatched closing bracket ']'",
+                        )
+                        .with_location(None, token.line, token.column),
+                    );
                 }
             }
             _ => {}
@@ -115,28 +102,37 @@ fn check_delimiter_balance(tokens: &[Token]) -> Vec<Diagnostic> {
     }
 
     for (line, column) in brace_stack.into_iter() {
-        diagnostics.push(Diagnostic {
-            line,
-            column,
-            severity: DiagnosticSeverity::Error,
-            message: "Unclosed opening brace '{'".to_string(),
-        });
+        diagnostics.push(
+            Diagnostic::new(
+                DIAGNOSTIC_CODE_LSP,
+                DiagnosticSeverity::Error,
+                DiagnosticSubsystem::Lsp,
+                "Unclosed opening brace '{'",
+            )
+            .with_location(None, line, column),
+        );
     }
     for (line, column) in paren_stack.into_iter() {
-        diagnostics.push(Diagnostic {
-            line,
-            column,
-            severity: DiagnosticSeverity::Error,
-            message: "Unclosed opening parenthesis '('".to_string(),
-        });
+        diagnostics.push(
+            Diagnostic::new(
+                DIAGNOSTIC_CODE_LSP,
+                DiagnosticSeverity::Error,
+                DiagnosticSubsystem::Lsp,
+                "Unclosed opening parenthesis '('",
+            )
+            .with_location(None, line, column),
+        );
     }
     for (line, column) in bracket_stack.into_iter() {
-        diagnostics.push(Diagnostic {
-            line,
-            column,
-            severity: DiagnosticSeverity::Error,
-            message: "Unclosed opening bracket '['".to_string(),
-        });
+        diagnostics.push(
+            Diagnostic::new(
+                DIAGNOSTIC_CODE_LSP,
+                DiagnosticSeverity::Error,
+                DiagnosticSubsystem::Lsp,
+                "Unclosed opening bracket '['",
+            )
+            .with_location(None, line, column),
+        );
     }
 
     diagnostics
@@ -179,20 +175,26 @@ fn check_type_annotation_syntax(tokens: &[Token]) -> Vec<Diagnostic> {
         }
 
         if is_symbol(token, "Result") && !saw_top_level_comma {
-            diagnostics.push(Diagnostic {
-                line: token.line,
-                column: token.column,
-                severity: DiagnosticSeverity::Error,
-                message: "Expected ',' in Result<T, E> type".to_string(),
-            });
+            diagnostics.push(
+                Diagnostic::new(
+                    DIAGNOSTIC_CODE_LSP,
+                    DiagnosticSeverity::Error,
+                    DiagnosticSubsystem::Lsp,
+                    "Expected ',' in Result<T, E> type",
+                )
+                .with_location(None, token.line, token.column),
+            );
         } else if !closed {
             let type_name = if is_symbol(token, "Result") { "Result<T, E>" } else { "Option<T>" };
-            diagnostics.push(Diagnostic {
-                line: token.line,
-                column: token.column,
-                severity: DiagnosticSeverity::Error,
-                message: format!("Expected '>' in {} type", type_name),
-            });
+            diagnostics.push(
+                Diagnostic::new(
+                    DIAGNOSTIC_CODE_LSP,
+                    DiagnosticSeverity::Error,
+                    DiagnosticSubsystem::Lsp,
+                    format!("Expected '>' in {} type", type_name),
+                )
+                .with_location(None, token.line, token.column),
+            );
         }
     }
 
@@ -205,7 +207,8 @@ fn is_symbol(token: &Token, name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{diagnose, DiagnosticSeverity};
+    use super::diagnose;
+    use crate::errors::DiagnosticSeverity;
 
     #[test]
     fn diagnostics_empty_for_valid_program() {
@@ -240,6 +243,7 @@ mod tests {
         assert!(diagnostics.iter().any(|diagnostic| {
             DiagnosticSeverity::Error == diagnostic.severity
                 && diagnostic.message.contains("Invalid character")
+                && diagnostic.code.starts_with("RUFLEX")
         }));
     }
 
@@ -249,6 +253,7 @@ mod tests {
         assert!(diagnostics.iter().any(|diagnostic| {
             DiagnosticSeverity::Error == diagnostic.severity
                 && diagnostic.message.contains("Expected ')'")
+                && diagnostic.code == "RUFPARSE001"
         }));
     }
 }

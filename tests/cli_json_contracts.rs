@@ -188,6 +188,16 @@ fn lsp_cli_json_contracts_are_stable() {
     assert!(diagnostics.status.success());
     let diagnostics_body = parse_stdout_json(&diagnostics);
     assert!(diagnostics_body.is_array());
+    let first_diagnostic = diagnostics_body
+        .as_array()
+        .and_then(|items| items.first())
+        .expect("lsp-diagnostics should emit at least one diagnostic item");
+    assert!(first_diagnostic["line"].is_number());
+    assert!(first_diagnostic["column"].is_number());
+    assert!(first_diagnostic["severity"].is_string());
+    assert!(first_diagnostic["message"].is_string());
+    assert!(first_diagnostic["code"].is_string());
+    assert!(first_diagnostic["subsystem"].is_string());
 
     let rename = run_ruff(&[
         "lsp-rename",

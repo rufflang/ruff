@@ -104,6 +104,7 @@ fn cli_run_exits_non_zero_on_parse_diagnostics() {
     assert_eq!(output.status.code(), Some(1));
 
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("[RUFPARSE001]"));
     assert!(stderr.contains("Expected ')'"));
 }
 
@@ -117,5 +118,6 @@ fn cli_test_run_exits_non_zero_on_parse_diagnostics() {
     assert_eq!(output.status.code(), Some(1));
 
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("[RUFPARSE001]"));
     assert!(stderr.contains("Expected ')'"));
 }

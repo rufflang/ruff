@@ -493,29 +493,40 @@ fn cooperative_scheduler_timeout(
 }
 
 fn report_lexer_diagnostics_and_exit(
-    file_label: &str,
+    _file_label: &str,
     diagnostics: &[lexer::LexerDiagnostic],
 ) -> ! {
-    for diagnostic in diagnostics {
-        eprintln!(
-            "{}:{}:{}: {}",
-            file_label, diagnostic.line, diagnostic.column, diagnostic.message
-        );
-    }
-    std::process::exit(1);
+    let converted: Vec<errors::Diagnostic> =
+        diagnostics.iter().map(|diagnostic| diagnostic.to_diagnostic()).collect();
+    report_diagnostics_and_exit(&converted);
 }
 
 fn report_parser_diagnostics_and_exit(
     file_label: &str,
     diagnostics: &[parser::ParseDiagnostic],
 ) -> ! {
+    let converted: Vec<errors::Diagnostic> = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.to_diagnostic(Some(file_label)))
+        .collect();
+    report_diagnostics_and_exit(&converted);
+}
+
+fn report_diagnostics_and_exit(diagnostics: &[errors::Diagnostic]) -> ! {
     for diagnostic in diagnostics {
-        eprintln!(
-            "{}:{}:{}: {}",
-            file_label, diagnostic.line, diagnostic.column, diagnostic.message
-        );
+        eprintln!("{}", diagnostic.render_human());
     }
     std::process::exit(1);
+}
+
+fn report_cli_error_and_exit(message: impl Into<String>) -> ! {
+    let diagnostic = errors::Diagnostic::new(
+        errors::DIAGNOSTIC_CODE_CLI,
+        errors::DiagnosticSeverity::Error,
+        errors::DiagnosticSubsystem::Cli,
+        message.into(),
+    );
+    report_diagnostics_and_exit(&[diagnostic]);
 }
 
 #[tokio::main]
@@ -527,8 +538,7 @@ async fn main() {
             let scheduler_timeout = match cooperative_scheduler_timeout(scheduler_timeout_ms) {
                 Ok(timeout) => timeout,
                 Err(error_message) => {
-                    eprintln!("{}", error_message);
-                    std::process::exit(1);
+                    report_cli_error_and_exit(error_message);
                 }
             };
 
@@ -632,22 +642,37 @@ async fn main() {
                             }
                             Ok((Err(e), call_stack)) => {
                                 // Create a proper error with call stack
-                                use crate::errors::{RuffError, SourceLocation};
+                                use crate::errors::{
+                                    DiagnosticSubsystem, RuffError, SourceLocation,
+                                    DIAGNOSTIC_CODE_VM,
+                                };
                                 let error = RuffError::runtime_error(e, SourceLocation::unknown())
+                                    .with_diagnostic_code(DIAGNOSTIC_CODE_VM)
+                                    .with_subsystem(DiagnosticSubsystem::Vm)
                                     .with_call_stack(call_stack);
 
                                 eprintln!("{}", error);
                                 std::process::exit(1);
                             }
                             Err(e) => {
-                                eprintln!("VM execution panicked: {}", e);
-                                std::process::exit(1);
+                                let diagnostic = errors::Diagnostic::new(
+                                    errors::DIAGNOSTIC_CODE_VM,
+                                    errors::DiagnosticSeverity::Error,
+                                    errors::DiagnosticSubsystem::Vm,
+                                    format!("VM execution panicked: {}", e),
+                                );
+                                report_diagnostics_and_exit(&[diagnostic]);
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Compilation error: {}", e);
-                        std::process::exit(1);
+                        let diagnostic = errors::Diagnostic::new(
+                            errors::DIAGNOSTIC_CODE_VM,
+                            errors::DiagnosticSeverity::Error,
+                            errors::DiagnosticSubsystem::Vm,
+                            format!("Compilation error: {}", e),
+                        );
+                        report_diagnostics_and_exit(&[diagnostic]);
                     }
                 }
             } else {
@@ -1736,14 +1761,7 @@ async fn main() {
             if json {
                 let json_items: Vec<serde_json::Value> = diagnostics
                     .iter()
-                    .map(|diagnostic| {
-                        serde_json::json!({
-                            "line": diagnostic.line,
-                            "column": diagnostic.column,
-                            "severity": diagnostic.severity.as_str(),
-                            "message": diagnostic.message,
-                        })
-                    })
+                    .map(|diagnostic| diagnostic.to_json_value())
                     .collect();
 
                 match serde_json::to_string_pretty(&json_items) {
@@ -1756,11 +1774,13 @@ async fn main() {
             } else {
                 for diagnostic in diagnostics {
                     println!(
-                        "{}\t{}:{}:{}\t{}",
+                        "{}\t{}:{}:{}\t[{}] [{}] {}",
                         diagnostic.severity.as_str(),
                         file.display(),
                         diagnostic.line,
                         diagnostic.column,
+                        diagnostic.code,
+                        diagnostic.subsystem.as_str(),
                         diagnostic.message
                     );
                 }

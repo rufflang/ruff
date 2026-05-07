@@ -5,6 +5,7 @@
 // and pretty-printed error messages.
 
 use colored::Colorize;
+use serde_json::json;
 use std::fmt;
 
 /// Source location information for tracking where code appears in a file
@@ -40,6 +41,137 @@ impl fmt::Display for SourceLocation {
     }
 }
 
+pub const DIAGNOSTIC_CODE_LEXER: &str = "RUFLEX001";
+pub const DIAGNOSTIC_CODE_PARSER: &str = "RUFPARSE001";
+pub const DIAGNOSTIC_CODE_RUNTIME: &str = "RUFRUN001";
+pub const DIAGNOSTIC_CODE_VM: &str = "RUFVM001";
+pub const DIAGNOSTIC_CODE_CLI: &str = "RUFCLI001";
+pub const DIAGNOSTIC_CODE_LSP: &str = "RUFLSP001";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticSeverity {
+    Error,
+}
+
+impl DiagnosticSeverity {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DiagnosticSeverity::Error => "error",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiagnosticSubsystem {
+    Lexer,
+    Parser,
+    Runtime,
+    Vm,
+    Cli,
+    Lsp,
+}
+
+impl DiagnosticSubsystem {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DiagnosticSubsystem::Lexer => "lexer",
+            DiagnosticSubsystem::Parser => "parser",
+            DiagnosticSubsystem::Runtime => "runtime",
+            DiagnosticSubsystem::Vm => "vm",
+            DiagnosticSubsystem::Cli => "cli",
+            DiagnosticSubsystem::Lsp => "lsp",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Diagnostic {
+    pub code: String,
+    pub severity: DiagnosticSeverity,
+    pub subsystem: DiagnosticSubsystem,
+    pub message: String,
+    pub help: Option<String>,
+    pub file: Option<String>,
+    pub line: usize,
+    pub column: usize,
+}
+
+impl Diagnostic {
+    pub fn new(
+        code: impl Into<String>,
+        severity: DiagnosticSeverity,
+        subsystem: DiagnosticSubsystem,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            severity,
+            subsystem,
+            message: message.into(),
+            help: None,
+            file: None,
+            line: 0,
+            column: 0,
+        }
+    }
+
+    pub fn with_help(mut self, help: impl Into<String>) -> Self {
+        self.help = Some(help.into());
+        self
+    }
+
+    pub fn with_location(
+        mut self,
+        file: Option<String>,
+        line: usize,
+        column: usize,
+    ) -> Self {
+        self.file = file;
+        self.line = line;
+        self.column = column;
+        self
+    }
+
+    pub fn render_human(&self) -> String {
+        let mut lines = Vec::new();
+        lines.push(format!(
+            "[{}] [{}] {}: {}",
+            self.code,
+            self.subsystem.as_str(),
+            self.severity.as_str(),
+            self.message
+        ));
+
+        if self.line > 0 && self.column > 0 {
+            let location = if let Some(file) = &self.file {
+                format!("{}:{}:{}", file, self.line, self.column)
+            } else {
+                format!("{}:{}", self.line, self.column)
+            };
+            lines.push(format!("  --> {}", location));
+        }
+
+        if let Some(help) = &self.help {
+            lines.push(format!("  = help: {}", help));
+        }
+
+        lines.join("\n")
+    }
+
+    pub fn to_json_value(&self) -> serde_json::Value {
+        json!({
+            "code": self.code,
+            "severity": self.severity.as_str(),
+            "subsystem": self.subsystem.as_str(),
+            "message": self.message,
+            "help": self.help,
+            "file": self.file,
+            "line": self.line,
+            "column": self.column,
+        })
+    }
+}
+
 /// Types of errors that can occur in Ruff
 #[derive(Debug, Clone, PartialEq)]
 #[allow(dead_code)]
@@ -71,6 +203,8 @@ impl fmt::Display for ErrorKind {
 #[derive(Debug, Clone)]
 pub struct RuffError {
     pub kind: ErrorKind,
+    pub diagnostic_code: String,
+    pub subsystem: DiagnosticSubsystem,
     pub message: String,
     pub location: SourceLocation,
     pub source_line: Option<String>,
@@ -82,9 +216,26 @@ pub struct RuffError {
 
 #[allow(dead_code)]
 impl RuffError {
+    fn default_diagnostic_for_kind(kind: &ErrorKind) -> (&'static str, DiagnosticSubsystem) {
+        match kind {
+            ErrorKind::ParseError => (DIAGNOSTIC_CODE_PARSER, DiagnosticSubsystem::Parser),
+            ErrorKind::RuntimeError
+            | ErrorKind::TypeError
+            | ErrorKind::UndefinedVariable
+            | ErrorKind::UndefinedFunction
+            | ErrorKind::DivisionByZero
+            | ErrorKind::InvalidOperation => {
+                (DIAGNOSTIC_CODE_RUNTIME, DiagnosticSubsystem::Runtime)
+            }
+        }
+    }
+
     pub fn new(kind: ErrorKind, message: String, location: SourceLocation) -> Self {
+        let (diagnostic_code, subsystem) = Self::default_diagnostic_for_kind(&kind);
         Self {
             kind,
+            diagnostic_code: diagnostic_code.to_string(),
+            subsystem,
             message,
             location,
             source_line: None,
@@ -120,6 +271,36 @@ impl RuffError {
         self
     }
 
+    pub fn with_diagnostic_code(mut self, diagnostic_code: impl Into<String>) -> Self {
+        self.diagnostic_code = diagnostic_code.into();
+        self
+    }
+
+    pub fn with_subsystem(mut self, subsystem: DiagnosticSubsystem) -> Self {
+        self.subsystem = subsystem;
+        self
+    }
+
+    pub fn as_diagnostic(&self) -> Diagnostic {
+        let mut diagnostic = Diagnostic::new(
+            self.diagnostic_code.clone(),
+            DiagnosticSeverity::Error,
+            self.subsystem,
+            self.message.clone(),
+        );
+        if self.location.line > 0 && self.location.column > 0 {
+            diagnostic = diagnostic.with_location(
+                self.location.file.clone(),
+                self.location.line,
+                self.location.column,
+            );
+        }
+        if let Some(help) = &self.help {
+            diagnostic = diagnostic.with_help(help.clone());
+        }
+        diagnostic
+    }
+
     /// Create a parse error
     pub fn parse_error(message: String, location: SourceLocation) -> Self {
         Self::new(ErrorKind::ParseError, message, location)
@@ -153,7 +334,9 @@ impl fmt::Display for RuffError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         // Error header with kind and message
         let kind_str = format!("{}", self.kind);
-        writeln!(f, "{}: {}", kind_str.red().bold(), self.message.bold())?;
+        let code_str = format!("[{}]", self.diagnostic_code).bright_magenta().bold();
+        let subsystem = format!("[{}]", self.subsystem.as_str()).bright_cyan();
+        writeln!(f, "{} {} {}: {}", code_str, subsystem, kind_str.red().bold(), self.message.bold())?;
 
         // Location arrow
         let location_str = format!("  --> {}", self.location);

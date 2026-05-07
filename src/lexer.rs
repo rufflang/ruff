@@ -3,6 +3,9 @@
 // Lexical analyzer (tokenizer) for the Ruff programming language.
 // Converts source code text into a stream of tokens for parsing.
 
+use crate::errors::{
+    Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, DIAGNOSTIC_CODE_LEXER,
+};
 use std::num::IntErrorKind;
 
 pub const MAX_IDENTIFIER_LENGTH: usize = 256;
@@ -61,6 +64,41 @@ pub struct LexerDiagnostic {
     pub column: usize,
     pub byte_offset: usize,
     pub file: Option<String>,
+}
+
+impl LexerDiagnosticKind {
+    fn diagnostic_suffix(&self) -> &'static str {
+        match self {
+            LexerDiagnosticKind::InvalidCharacter => "001",
+            LexerDiagnosticKind::NullByte => "002",
+            LexerDiagnosticKind::UnterminatedString => "003",
+            LexerDiagnosticKind::UnterminatedComment => "004",
+            LexerDiagnosticKind::InvalidEscape => "005",
+            LexerDiagnosticKind::NumericLiteralOverflow => "006",
+            LexerDiagnosticKind::MalformedNumericLiteral => "007",
+            LexerDiagnosticKind::IdentifierTooLong => "008",
+            LexerDiagnosticKind::StringLiteralTooLong => "009",
+            LexerDiagnosticKind::NumericLiteralTooLong => "010",
+        }
+    }
+}
+
+impl LexerDiagnostic {
+    pub fn diagnostic_code(&self) -> String {
+        let prefix = DIAGNOSTIC_CODE_LEXER.trim_end_matches("001");
+        format!("{}{}", prefix, self.kind.diagnostic_suffix())
+    }
+
+    pub fn to_diagnostic(&self) -> Diagnostic {
+        Diagnostic::new(
+            self.diagnostic_code(),
+            DiagnosticSeverity::Error,
+            DiagnosticSubsystem::Lexer,
+            self.message.clone(),
+        )
+        .with_help("Fix the lexical error in source and run again.")
+        .with_location(self.file.clone(), self.line, self.column)
+    }
 }
 
 #[derive(Debug, Clone)]

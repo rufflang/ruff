@@ -15,7 +15,9 @@
 // as it builds the AST.
 
 use crate::ast::{Expr, Stmt};
-use crate::errors::SourceLocation;
+use crate::errors::{
+    Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, SourceLocation, DIAGNOSTIC_CODE_PARSER,
+};
 use crate::lexer::{Token, TokenKind};
 use std::fs;
 use std::path::Path;
@@ -27,6 +29,19 @@ pub struct ParseDiagnostic {
     pub line: usize,
     pub column: usize,
     pub message: String,
+}
+
+impl ParseDiagnostic {
+    pub fn to_diagnostic(&self, file: Option<&str>) -> Diagnostic {
+        Diagnostic::new(
+            DIAGNOSTIC_CODE_PARSER,
+            DiagnosticSeverity::Error,
+            DiagnosticSubsystem::Parser,
+            self.message.clone(),
+        )
+        .with_help("Fix the parse error and rerun Ruff.")
+        .with_location(file.map(|value| value.to_string()), self.line, self.column)
+    }
 }
 
 #[derive(Debug, Clone)]
