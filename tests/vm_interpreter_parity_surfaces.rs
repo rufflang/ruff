@@ -910,6 +910,81 @@ fn vm_and_interpreter_nan_and_infinity_comparisons_match_policy() {
 }
 
 #[test]
+fn vm_and_interpreter_define_cross_type_numeric_and_string_ordering_contract() {
+    let script = r#"
+        int_float_eq := 1 == 1.0
+        int_float_ne := 1 != 1.0
+        int_float_lt := 1 < 1.5
+        float_int_ge := 2.0 >= 2
+        string_lt := "ant" < "bee"
+
+        comparison_contract_ok := int_float_eq
+            && (int_float_ne == false)
+            && int_float_lt
+            && float_int_ge
+            && string_lt
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "comparison_contract_ok");
+}
+
+#[test]
+fn vm_and_interpreter_define_collection_and_callable_equality_contract() {
+    let script = r#"
+        func make_adder(seed) {
+            return func(delta) {
+                return seed + delta
+            }
+        }
+
+        adder := make_adder(1)
+        same_func := adder == adder
+        other_func := adder == make_adder(1)
+        native_eq := print == print
+
+        array_eq := [1, 2, [3]] == [1, 2, [3]]
+        array_ne := [1, 2] != [1, 2, 3]
+
+        left := {"a": 1, "nested": {"x": 2}}
+        right := {"nested": {"x": 2}, "a": 1}
+        dict_eq := left == right
+        dict_ne := left != {"a": 1, "nested": {"x": 3}}
+
+        equality_contract_ok := same_func
+            && (other_func == false)
+            && native_eq
+            && array_eq
+            && array_ne
+            && dict_eq
+            && dict_ne
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "equality_contract_ok");
+}
+
+#[test]
+fn vm_and_interpreter_reject_boolean_ordering_comparisons() {
+    let script = r#"
+        func compare(left, right) {
+            return left < right
+        }
+
+        return compare(true, false)
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Invalid binary operation");
+}
+
+#[test]
+fn vm_and_interpreter_reject_cross_type_ordering_comparisons() {
+    let script = r#"
+        return 1 < "1"
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Invalid binary operation");
+}
+
+#[test]
 fn vm_and_interpreter_reject_overflow_in_local_in_place_addition() {
     let script = r#"
         mut total := 9223372036854775807

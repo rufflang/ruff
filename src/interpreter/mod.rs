@@ -1887,24 +1887,7 @@ impl Interpreter {
 
     /// Helper method to check if two values are equal (for Set operations)
     fn values_equal(a: &Value, b: &Value) -> bool {
-        match (a, b) {
-            (Value::Int(x), Value::Int(y)) => x == y,
-            (Value::Float(x), Value::Float(y)) => Value::float_equals(*x, *y),
-            (Value::Str(x), Value::Str(y)) => x == y,
-            (Value::Bool(x), Value::Bool(y)) => x == y,
-            (Value::Null, Value::Null) => true,
-            (Value::Array(x), Value::Array(y)) => {
-                x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| Self::values_equal(a, b))
-            }
-            (Value::Dict(x), Value::Dict(y)) => {
-                // Dictionaries are equal if they have the same keys with equal values
-                if x.len() != y.len() {
-                    return false;
-                }
-                x.iter().all(|(key, val)| y.get(key).map_or(false, |v| Self::values_equal(val, v)))
-            }
-            _ => false, // Different types or complex types not supported for equality
-        }
+        Value::equals(a, b)
     }
 
     fn undefined_variable(name: &str) -> Value {
@@ -2207,29 +2190,25 @@ impl Interpreter {
         if op == "||" {
             return Value::Bool(left.is_truthy() || right.is_truthy());
         }
+        if op == "==" {
+            return Value::Bool(Value::equals(left, right));
+        }
+        if op == "!=" {
+            return Value::Bool(!Value::equals(left, right));
+        }
+        if matches!(op, "<" | ">" | "<=" | ">=") {
+            return match Value::compare_order(left, op, right) {
+                Ok(result) => Value::Bool(result),
+                Err(error) => Value::Error(error),
+            };
+        }
 
         match (left, right) {
-            (Value::Null, Value::Null) => match op {
-                "==" => Value::Bool(true),
-                "!=" => Value::Bool(false),
-                _ => Self::invalid_binary_operation(op, left, right),
-            },
-            (Value::Null, _) | (_, Value::Null) => match op {
-                "==" => Value::Bool(false),
-                "!=" => Value::Bool(true),
-                _ => Self::invalid_binary_operation(op, left, right),
-            },
             (Value::Int(a), Value::Int(b)) => match op {
                 "+" | "-" | "*" | "/" | "%" => match Value::checked_int_arithmetic(*a, op, *b) {
                     Ok(result) => Value::Int(result),
                     Err(error) => Value::Error(error),
                 },
-                "==" => Value::Bool(a == b),
-                "!=" => Value::Bool(a != b),
-                ">" => Value::Bool(a > b),
-                "<" => Value::Bool(a < b),
-                ">=" => Value::Bool(a >= b),
-                "<=" => Value::Bool(a <= b),
                 _ => Self::invalid_binary_operation(op, left, right),
             },
             (Value::Float(a), Value::Float(b)) => match op {
@@ -2237,12 +2216,6 @@ impl Interpreter {
                     Ok(result) => Value::Float(result),
                     Err(error) => Value::Error(error),
                 },
-                "==" => Value::Bool(Value::float_equals(*a, *b)),
-                "!=" => Value::Bool(!Value::float_equals(*a, *b)),
-                ">" => Value::Bool(a > b),
-                "<" => Value::Bool(a < b),
-                ">=" => Value::Bool(a >= b),
-                "<=" => Value::Bool(a <= b),
                 _ => Self::invalid_binary_operation(op, left, right),
             },
             (Value::Int(a), Value::Float(b)) => {
@@ -2254,12 +2227,6 @@ impl Interpreter {
                             Err(error) => Value::Error(error),
                         }
                     }
-                    "==" => Value::Bool(Value::float_equals(a_float, *b)),
-                    "!=" => Value::Bool(!Value::float_equals(a_float, *b)),
-                    ">" => Value::Bool(a_float > *b),
-                    "<" => Value::Bool(a_float < *b),
-                    ">=" => Value::Bool(a_float >= *b),
-                    "<=" => Value::Bool(a_float <= *b),
                     _ => Self::invalid_binary_operation(op, left, right),
                 }
             }
@@ -2272,12 +2239,6 @@ impl Interpreter {
                             Err(error) => Value::Error(error),
                         }
                     }
-                    "==" => Value::Bool(Value::float_equals(*a, b_float)),
-                    "!=" => Value::Bool(!Value::float_equals(*a, b_float)),
-                    ">" => Value::Bool(*a > b_float),
-                    "<" => Value::Bool(*a < b_float),
-                    ">=" => Value::Bool(*a >= b_float),
-                    "<=" => Value::Bool(*a <= b_float),
                     _ => Self::invalid_binary_operation(op, left, right),
                 }
             }
@@ -2288,13 +2249,6 @@ impl Interpreter {
                     result_str.push_str(b.as_ref());
                     Value::Str(result)
                 }
-                "==" => Value::Bool(a.as_ref() == b.as_ref()),
-                "!=" => Value::Bool(a.as_ref() != b.as_ref()),
-                _ => Self::invalid_binary_operation(op, left, right),
-            },
-            (Value::Bool(a), Value::Bool(b)) => match op {
-                "==" => Value::Bool(a == b),
-                "!=" => Value::Bool(a != b),
                 _ => Self::invalid_binary_operation(op, left, right),
             },
             _ => Self::invalid_binary_operation(op, left, right),

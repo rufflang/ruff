@@ -183,6 +183,10 @@ impl LeakyFunctionBody {
             FunctionBodyRef { storage: Arc::new(FunctionBodyStorage { body: Vec::new() }) }
         }
     }
+
+    pub(crate) fn same_identity(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
 }
 
 #[cfg(test)]
@@ -257,6 +261,73 @@ mod tests {
         for value in truthy_values {
             assert!(value.is_truthy(), "expected truthy value, got {:?}", value);
         }
+    }
+
+    #[test]
+    fn value_equals_supports_numeric_cross_type_and_nested_collections() {
+        assert!(Value::equals(&Value::Int(1), &Value::Float(1.0)));
+        assert!(!Value::equals(&Value::Int(1), &Value::Float(2.0)));
+
+        let left_nested = Value::Array(Arc::new(vec![
+            Value::Int(1),
+            Value::Array(Arc::new(vec![Value::Int(2), Value::Int(3)])),
+        ]));
+        let right_nested = Value::Array(Arc::new(vec![
+            Value::Int(1),
+            Value::Array(Arc::new(vec![Value::Int(2), Value::Int(3)])),
+        ]));
+        assert!(Value::equals(&left_nested, &right_nested));
+
+        let mut left_dict = DictMap::default();
+        left_dict.insert(Arc::<str>::from("answer"), Value::Int(42));
+        let mut right_dict = DictMap::default();
+        right_dict.insert(Arc::<str>::from("answer"), Value::Int(42));
+        assert!(Value::equals(
+            &Value::Dict(Arc::new(left_dict)),
+            &Value::Dict(Arc::new(right_dict))
+        ));
+    }
+
+    #[test]
+    fn value_equals_supports_function_and_native_identity() {
+        let function_body = LeakyFunctionBody::new(vec![Stmt::Return(None)]);
+        let same_function = Value::Function(vec!["x".to_string()], function_body.clone(), None);
+        let same_function_alias =
+            Value::Function(vec!["x".to_string()], function_body.clone(), None);
+        let different_function = Value::Function(
+            vec!["x".to_string()],
+            LeakyFunctionBody::new(vec![Stmt::Return(None)]),
+            None,
+        );
+
+        assert!(Value::equals(&same_function, &same_function_alias));
+        assert!(!Value::equals(&same_function, &different_function));
+        assert!(Value::equals(
+            &Value::NativeFunction("print".to_string()),
+            &Value::NativeFunction("print".to_string())
+        ));
+    }
+
+    #[test]
+    fn value_compare_order_rejects_unsupported_types() {
+        let bool_error =
+            Value::compare_order(&Value::Bool(true), "<", &Value::Bool(false)).unwrap_err();
+        assert!(bool_error.contains("Invalid binary operation"));
+
+        let mixed_error =
+            Value::compare_order(&Value::Int(1), "<", &Value::Str(Arc::new("1".to_string())))
+                .unwrap_err();
+        assert!(mixed_error.contains("Invalid binary operation"));
+
+        assert_eq!(
+            Value::compare_order(
+                &Value::Str(Arc::new("a".to_string())),
+                "<",
+                &Value::Str(Arc::new("b".to_string()))
+            )
+            .unwrap(),
+            true
+        );
     }
 }
 
@@ -865,6 +936,305 @@ impl Value {
             Value::Array(values) => !values.is_empty(),
             Value::Dict(values) => !values.is_empty(),
             _ => true,
+        }
+    }
+
+    pub fn equals(left: &Value, right: &Value) -> bool {
+        match (left, right) {
+            (Value::Null, Value::Null) => true,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::Bytes(a), Value::Bytes(b)) => a == b,
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Float(a), Value::Float(b)) => Self::float_equals(*a, *b),
+            (Value::Int(a), Value::Float(b)) => Self::float_equals(*a as f64, *b),
+            (Value::Float(a), Value::Int(b)) => Self::float_equals(*a, *b as f64),
+            (Value::Array(a), Value::Array(b)) => {
+                a.len() == b.len()
+                    && a.iter().zip(b.iter()).all(|(lhs, rhs)| Self::equals(lhs, rhs))
+            }
+            (Value::Dict(_), Value::Dict(_))
+            | (Value::Dict(_), Value::FixedDict { .. })
+            | (Value::Dict(_), Value::IntDict(_))
+            | (Value::Dict(_), Value::DenseIntDict(_))
+            | (Value::Dict(_), Value::DenseIntDictInt(_))
+            | (Value::Dict(_), Value::DenseIntDictIntFull(_))
+            | (Value::FixedDict { .. }, Value::Dict(_))
+            | (Value::FixedDict { .. }, Value::FixedDict { .. })
+            | (Value::FixedDict { .. }, Value::IntDict(_))
+            | (Value::FixedDict { .. }, Value::DenseIntDict(_))
+            | (Value::FixedDict { .. }, Value::DenseIntDictInt(_))
+            | (Value::FixedDict { .. }, Value::DenseIntDictIntFull(_))
+            | (Value::IntDict(_), Value::Dict(_))
+            | (Value::IntDict(_), Value::FixedDict { .. })
+            | (Value::IntDict(_), Value::IntDict(_))
+            | (Value::IntDict(_), Value::DenseIntDict(_))
+            | (Value::IntDict(_), Value::DenseIntDictInt(_))
+            | (Value::IntDict(_), Value::DenseIntDictIntFull(_))
+            | (Value::DenseIntDict(_), Value::Dict(_))
+            | (Value::DenseIntDict(_), Value::FixedDict { .. })
+            | (Value::DenseIntDict(_), Value::IntDict(_))
+            | (Value::DenseIntDict(_), Value::DenseIntDict(_))
+            | (Value::DenseIntDict(_), Value::DenseIntDictInt(_))
+            | (Value::DenseIntDict(_), Value::DenseIntDictIntFull(_))
+            | (Value::DenseIntDictInt(_), Value::Dict(_))
+            | (Value::DenseIntDictInt(_), Value::FixedDict { .. })
+            | (Value::DenseIntDictInt(_), Value::IntDict(_))
+            | (Value::DenseIntDictInt(_), Value::DenseIntDict(_))
+            | (Value::DenseIntDictInt(_), Value::DenseIntDictInt(_))
+            | (Value::DenseIntDictInt(_), Value::DenseIntDictIntFull(_))
+            | (Value::DenseIntDictIntFull(_), Value::Dict(_))
+            | (Value::DenseIntDictIntFull(_), Value::FixedDict { .. })
+            | (Value::DenseIntDictIntFull(_), Value::IntDict(_))
+            | (Value::DenseIntDictIntFull(_), Value::DenseIntDict(_))
+            | (Value::DenseIntDictIntFull(_), Value::DenseIntDictInt(_))
+            | (Value::DenseIntDictIntFull(_), Value::DenseIntDictIntFull(_)) => {
+                Self::map_values_equal(left, right)
+            }
+            (
+                Value::Tagged { tag: left_tag, fields: left_fields },
+                Value::Tagged { tag: right_tag, fields: right_fields },
+            ) => {
+                left_tag == right_tag
+                    && Self::string_key_map_values_equal(left_fields, right_fields)
+            }
+            (
+                Value::Struct { name: left_name, fields: left_fields },
+                Value::Struct { name: right_name, fields: right_fields },
+            ) => {
+                left_name == right_name
+                    && Self::string_key_map_values_equal(left_fields, right_fields)
+            }
+            (
+                Value::StructDef {
+                    name: left_name,
+                    field_names: left_field_names,
+                    methods: left_methods,
+                },
+                Value::StructDef {
+                    name: right_name,
+                    field_names: right_field_names,
+                    methods: right_methods,
+                },
+            ) => {
+                left_name == right_name
+                    && left_field_names == right_field_names
+                    && Self::string_key_map_values_equal(left_methods, right_methods)
+            }
+            (
+                Value::Result { is_ok: left_ok, value: left_value },
+                Value::Result { is_ok: right_ok, value: right_value },
+            ) => left_ok == right_ok && Self::equals(left_value, right_value),
+            (
+                Value::Option { is_some: left_some, value: left_value },
+                Value::Option { is_some: right_some, value: right_value },
+            ) => left_some == right_some && Self::equals(left_value, right_value),
+            (
+                Value::Function(left_params, left_body, left_env),
+                Value::Function(right_params, right_body, right_env),
+            ) => {
+                left_params == right_params
+                    && left_body.same_identity(right_body)
+                    && Self::optional_env_ptr_eq(left_env, right_env)
+            }
+            (
+                Value::AsyncFunction(left_params, left_body, left_env),
+                Value::AsyncFunction(right_params, right_body, right_env),
+            ) => {
+                left_params == right_params
+                    && left_body.same_identity(right_body)
+                    && Self::optional_env_ptr_eq(left_env, right_env)
+            }
+            (
+                Value::BytecodeFunction { chunk: left_chunk, captured: left_captured },
+                Value::BytecodeFunction { chunk: right_chunk, captured: right_captured },
+            ) => {
+                left_chunk == right_chunk
+                    && Self::captured_value_map_ptr_eq(left_captured, right_captured)
+            }
+            (
+                Value::GeneratorDef(left_params, left_body),
+                Value::GeneratorDef(right_params, right_body),
+            ) => left_params == right_params && left_body.same_identity(right_body),
+            (Value::NativeFunction(left_name), Value::NativeFunction(right_name)) => {
+                left_name == right_name
+            }
+            _ => false,
+        }
+    }
+
+    pub fn compare_order(left: &Value, op: &str, right: &Value) -> Result<bool, String> {
+        match (left, right) {
+            (Value::Int(a), Value::Int(b)) => match op {
+                "<" => Ok(a < b),
+                ">" => Ok(a > b),
+                "<=" => Ok(a <= b),
+                ">=" => Ok(a >= b),
+                _ => Err(format!("Unknown comparison: {}", op)),
+            },
+            (Value::Float(a), Value::Float(b)) => match op {
+                "<" => Ok(a < b),
+                ">" => Ok(a > b),
+                "<=" => Ok(a <= b),
+                ">=" => Ok(a >= b),
+                _ => Err(format!("Unknown comparison: {}", op)),
+            },
+            (Value::Int(a), Value::Float(b)) => match op {
+                "<" => Ok((*a as f64) < *b),
+                ">" => Ok((*a as f64) > *b),
+                "<=" => Ok((*a as f64) <= *b),
+                ">=" => Ok((*a as f64) >= *b),
+                _ => Err(format!("Unknown comparison: {}", op)),
+            },
+            (Value::Float(a), Value::Int(b)) => match op {
+                "<" => Ok(*a < (*b as f64)),
+                ">" => Ok(*a > (*b as f64)),
+                "<=" => Ok(*a <= (*b as f64)),
+                ">=" => Ok(*a >= (*b as f64)),
+                _ => Err(format!("Unknown comparison: {}", op)),
+            },
+            (Value::Str(a), Value::Str(b)) => match op {
+                "<" => Ok(a.as_ref() < b.as_ref()),
+                ">" => Ok(a.as_ref() > b.as_ref()),
+                "<=" => Ok(a.as_ref() <= b.as_ref()),
+                ">=" => Ok(a.as_ref() >= b.as_ref()),
+                _ => Err(format!("Unknown comparison: {}", op)),
+            },
+            _ => Err(format!(
+                "Invalid binary operation: {} {} {}",
+                Self::type_name(left),
+                op,
+                Self::type_name(right)
+            )),
+        }
+    }
+
+    fn optional_env_ptr_eq(
+        left: &Option<Arc<Mutex<Environment>>>,
+        right: &Option<Arc<Mutex<Environment>>>,
+    ) -> bool {
+        match (left, right) {
+            (Some(left_env), Some(right_env)) => Arc::ptr_eq(left_env, right_env),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    fn map_values_equal(left: &Value, right: &Value) -> bool {
+        let Some(left_entries) = Self::map_entries(left) else {
+            return false;
+        };
+        let Some(right_entries) = Self::map_entries(right) else {
+            return false;
+        };
+        if left_entries.len() != right_entries.len() {
+            return false;
+        }
+
+        left_entries.iter().all(|(left_key, left_value)| {
+            right_entries
+                .iter()
+                .find(|(right_key, _)| left_key == right_key)
+                .map(|(_, right_value)| Self::equals(left_value, right_value))
+                .unwrap_or(false)
+        })
+    }
+
+    fn map_entries(value: &Value) -> Option<Vec<(String, Value)>> {
+        match value {
+            Value::Dict(map) => Some(
+                map.iter().map(|(key, value)| (key.as_ref().to_string(), value.clone())).collect(),
+            ),
+            Value::FixedDict { keys, values } => Some(
+                keys.iter()
+                    .zip(values.iter())
+                    .map(|(key, value)| (key.as_ref().to_string(), value.clone()))
+                    .collect(),
+            ),
+            Value::IntDict(map) => {
+                Some(map.iter().map(|(key, value)| (key.to_string(), value.clone())).collect())
+            }
+            Value::DenseIntDict(values) => Some(
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| (index.to_string(), value.clone()))
+                    .collect(),
+            ),
+            Value::DenseIntDictInt(values) => Some(
+                values
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, value)| {
+                        value.map(|int_value| (index.to_string(), Value::Int(int_value)))
+                    })
+                    .collect(),
+            ),
+            Value::DenseIntDictIntFull(values) => Some(
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| (index.to_string(), Value::Int(*value)))
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
+
+    fn string_key_map_values_equal(
+        left: &HashMap<String, Value>,
+        right: &HashMap<String, Value>,
+    ) -> bool {
+        if left.len() != right.len() {
+            return false;
+        }
+
+        left.iter().all(|(left_key, left_value)| {
+            right
+                .get(left_key)
+                .map(|right_value| Self::equals(left_value, right_value))
+                .unwrap_or(false)
+        })
+    }
+
+    fn captured_value_map_ptr_eq(
+        left: &HashMap<String, Arc<Mutex<Value>>>,
+        right: &HashMap<String, Arc<Mutex<Value>>>,
+    ) -> bool {
+        if left.len() != right.len() {
+            return false;
+        }
+
+        left.iter().all(|(left_key, left_value)| {
+            right
+                .get(left_key)
+                .map(|right_value| Arc::ptr_eq(left_value, right_value))
+                .unwrap_or(false)
+        })
+    }
+
+    fn type_name(value: &Value) -> &'static str {
+        match value {
+            Value::Int(_) => "int",
+            Value::Float(_) => "float",
+            Value::Bool(_) => "bool",
+            Value::Str(_) => "string",
+            Value::Array(_) => "array",
+            Value::Dict(_)
+            | Value::FixedDict { .. }
+            | Value::IntDict(_)
+            | Value::DenseIntDict(_)
+            | Value::DenseIntDictInt(_)
+            | Value::DenseIntDictIntFull(_) => "dict",
+            Value::Struct { .. } => "struct",
+            Value::Function(..)
+            | Value::AsyncFunction(..)
+            | Value::GeneratorDef(..)
+            | Value::Generator { .. } => "function",
+            Value::NativeFunction(_) => "native_function",
+            Value::Null => "null",
+            Value::Error(_) | Value::ErrorObject { .. } => "error",
+            _ => "value",
         }
     }
 

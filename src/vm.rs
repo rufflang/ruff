@@ -6716,46 +6716,7 @@ impl VM {
 
     /// Comparison operation
     fn compare_op(&self, left: &Value, op: &str, right: &Value) -> Result<Value, String> {
-        let result = match (left, right) {
-            (Value::Int(a), Value::Int(b)) => match op {
-                "<" => a < b,
-                ">" => a > b,
-                "<=" => a <= b,
-                ">=" => a >= b,
-                _ => return Err(format!("Unknown comparison: {}", op)),
-            },
-            (Value::Float(a), Value::Float(b)) => match op {
-                "<" => a < b,
-                ">" => a > b,
-                "<=" => a <= b,
-                ">=" => a >= b,
-                _ => return Err(format!("Unknown comparison: {}", op)),
-            },
-            (Value::Int(a), Value::Float(b)) => match op {
-                "<" => (*a as f64) < *b,
-                ">" => (*a as f64) > *b,
-                "<=" => (*a as f64) <= *b,
-                ">=" => (*a as f64) >= *b,
-                _ => return Err(format!("Unknown comparison: {}", op)),
-            },
-            (Value::Float(a), Value::Int(b)) => match op {
-                "<" => *a < (*b as f64),
-                ">" => *a > (*b as f64),
-                "<=" => *a <= (*b as f64),
-                ">=" => *a >= (*b as f64),
-                _ => return Err(format!("Unknown comparison: {}", op)),
-            },
-            (Value::Str(a), Value::Str(b)) => match op {
-                "<" => a.as_ref() < b.as_ref(),
-                ">" => a.as_ref() > b.as_ref(),
-                "<=" => a.as_ref() <= b.as_ref(),
-                ">=" => a.as_ref() >= b.as_ref(),
-                _ => return Err(format!("Unknown comparison: {}", op)),
-            },
-            _ => false,
-        };
-
-        Ok(Value::Bool(result))
+        Value::compare_order(left, op, right).map(Value::Bool)
     }
 
     /// Check if value is truthy
@@ -6765,15 +6726,7 @@ impl VM {
 
     /// Check if two values are equal
     fn values_equal(&self, left: &Value, right: &Value) -> bool {
-        match (left, right) {
-            (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => Value::float_equals(*a, *b),
-            (Value::Str(a), Value::Str(b)) => a == b,
-            (Value::Bool(a), Value::Bool(b)) => a == b,
-            (Value::Null, Value::Null) => true,
-            // TODO: Add array, dict, struct comparison
-            _ => false,
-        }
+        Value::equals(left, right)
     }
 
     /// Match a pattern against a value
