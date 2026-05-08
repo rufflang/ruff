@@ -1,7 +1,7 @@
 # Native API Security Posture
 
 Status: v1.0.0 baseline draft (active, not a release-ready claim)
-Last updated: 2026-05-07
+Last updated: 2026-05-08
 
 This document defines the security trust model and operational caveats for high-risk native APIs.
 
@@ -9,13 +9,37 @@ This posture document records current trust boundaries only; final 1.0 release r
 
 ## Trust Model
 
-Ruff scripts are trusted code by default. The runtime does not currently sandbox native APIs.
+Ruff now supports an explicit runtime capability policy for host-effect native APIs in `ruff run` and `ruff test-run`.
+
+Mode defaults:
+
+- default mode (no capability flags): trusted, all host-effect capabilities enabled
+- restricted mode (`--untrusted`): deny-by-default for host-effect capabilities
+- explicit allow mode (any `--allow-*` flag): restricted baseline with only requested capabilities enabled
+- override trusted mode (`--allow-all`): force-enable all host-effect capabilities
 
 Implications:
 
-- Any script that can call process/network/filesystem/crypto/database builtins can perform host-impacting actions.
-- Production environments should treat Ruff script execution as equivalent to running a local program with the current process privileges.
-- Untrusted scripts must be isolated with external controls (containerization, OS sandboxing, seccomp/apparmor, network egress controls, readonly filesystems, least-privilege credentials).
+- Trusted mode behaves like pre-policy Ruff and should be treated as equivalent to running a local program with the current process privileges.
+- Restricted mode blocks host-effect API calls until explicitly enabled by capability flags.
+- Untrusted scripts should be run with `--untrusted` and only the minimum required `--allow-*` flags, plus external controls (containerization, OS sandboxing, seccomp/apparmor, network egress controls, readonly filesystems, least-privilege credentials).
+
+Capability flags:
+
+- `--allow-fs-read`
+- `--allow-fs-write`
+- `--allow-fs-delete`
+- `--allow-process-exec`
+- `--allow-shell-exec`
+- `--allow-env-read`
+- `--allow-env-write`
+- `--allow-net-client`
+- `--allow-net-server`
+- `--allow-net` (enables both net client/server)
+- `--allow-database`
+- `--allow-clock`
+- `--allow-random`
+- `--allow-all`
 
 ## High-Risk Surface Areas
 
@@ -103,7 +127,13 @@ Operational guidance:
 
 ## Runtime Guardrail Expectations
 
-The current baseline guarantees argument-shape validation and deterministic misuse errors for high-risk API entrypoints. It does not provide in-runtime sandboxing, capability-scoped permissions, or policy enforcement.
+The current baseline guarantees:
+
+- capability checks at native host-effect boundaries for filesystem/process/shell/environment/network/database/clock/random APIs
+- deterministic capability-denied runtime errors in restricted mode
+- deterministic misuse errors when capability is enabled but arguments are invalid
+
+This policy is runtime-level gating, not a full sandbox. Scripts still run in-process and should be isolated externally for high-risk deployments.
 
 ## Regression Coverage Requirement
 

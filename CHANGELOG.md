@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed native host-effect runtime policy for `V1-SEC-002`: added centralized capability gating across interpreter/VM-native dispatch with CLI controls in `ruff run`/`ruff test-run` (`--untrusted`, granular `--allow-*`, and `--allow-all`), enforced capability checks for filesystem/process/shell/environment/network/database/clock/random surfaces (including spawned/async interpreter contexts and HTTP/image method-call paths), and added integration coverage in `tests/native_api_security_boundaries.rs` for deny/allow behavior plus no-bypass checks.
 - Changed VM import handling to execute `import` and `from ... import ...` through compiler-emitted VM import op paths (`__vm_import_all`, `__vm_import_symbol`) backed by the shared module loader, eliminating interpreter/VM drift where VM previously left imported names undefined.
 - Changed struct generator-method handling to an explicit unsupported contract across interpreter and compiler/VM paths using one shared error message (`Generator methods are not supported for structs: <Struct>.<method>`) instead of divergent runtime failures.
 - Changed binding mutability enforcement across interpreter and VM: `let`/`const` bindings now reject reassignment and in-place mutation through the binding, while `mut` bindings allow both; added runtime diagnostics for immutable-binding reassignment/mutation and parity coverage for global/local success and failure paths.

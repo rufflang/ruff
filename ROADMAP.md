@@ -746,7 +746,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 4: Secure Host Boundaries
 
 ```text
-[ ] V1-SEC-002: Add a native capability policy for host-effect APIs
+[x] V1-SEC-002: Add a native capability policy for host-effect APIs
     Priority: P1
     Severity: Critical
     Area: Security/Architecture
@@ -767,7 +767,7 @@ If a command is not yet available, create the missing configuration as part of t
         - CLI flags enable only the requested capability.
         - No dangerous API bypasses the policy.
     Acceptance criteria: A Ruff program cannot access host filesystem, process, environment, or network effects unless policy allows it.
-    Notes: This is a major 1.0 trust boundary. Keep policy lean but explicit.
+    Notes: Completed on 2026-05-08. Added centralized runtime capability policy primitives (`src/interpreter/capabilities.rs`) and wired enforcement through interpreter/VM native dispatch plus method-call bypass surfaces (`http_server.listen`, `Image.save`) and spawned/async interpreter contexts so policy cannot be bypassed via spawned execution paths. Added `ruff run`/`ruff test-run` CLI capability controls (`--untrusted`, granular `--allow-*`, `--allow-all`) with explicit restricted/trusted mode behavior. Updated security posture and README policy docs. Added integration coverage in `tests/native_api_security_boundaries.rs` for deny-by-default behavior, capability-enabled behavior, granularity (`allow only requested capability`), VM/interpreter parity, and spawned-interpreter inheritance checks. Verification: `cargo test --test native_api_security_boundaries`, `cargo test`.
 ```
 
 ```text

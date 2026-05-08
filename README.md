@@ -101,7 +101,7 @@ The current CLI exposes these subcommands:
 
 | Command | Purpose |
 | --- | --- |
-| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. |
+| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. Native host-effect capability policy can be scoped with `--untrusted` plus `--allow-*` flags (`--allow-fs-read`, `--allow-fs-write`, `--allow-fs-delete`, `--allow-process-exec`, `--allow-shell-exec`, `--allow-env-read`, `--allow-env-write`, `--allow-net-client`, `--allow-net-server`, `--allow-net`, `--allow-database`, `--allow-clock`, `--allow-random`, or `--allow-all`). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
@@ -114,7 +114,7 @@ The current CLI exposes these subcommands:
 | `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`, `--json`). |
 | `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing). |
 | `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
-| `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax; parse diagnostics exit non-zero before test collection. |
+| `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax; parse diagnostics exit non-zero before test collection. Supports the same `--untrusted` / `--allow-*` native capability policy flags as `ruff run`. |
 | `ruff bench [path]` | Run benchmark scripts. |
 | `ruff bench-cross` | Compare Ruff `parallel_map` against a Python `ProcessPoolExecutor` benchmark. |
 | `ruff bench-ssg` | Run the async SSG benchmark, with optional Python comparison and measurement controls. |
@@ -296,7 +296,7 @@ Native functions are registered in `src/interpreter/mod.rs` and dispatched throu
 
 The standard library is broad, but not all functions have polished reference documentation yet. When adding user-facing docs for a specific API, verify the handler contract in `src/interpreter/native_functions/` and the corresponding regression tests.
 
-High-risk native APIs (process/network/filesystem/crypto/database) are powerful and unsandboxed by default. Review `docs/NATIVE_API_SECURITY_POSTURE.md` before running untrusted scripts or deploying automation in shared environments.
+High-risk native APIs (process/network/filesystem/crypto/database) are powerful. `ruff run` and `ruff test-run` default to trusted capability mode for local workflows, and can be switched to deny-by-default mode with `--untrusted` plus explicit `--allow-*` capability flags. Review `docs/NATIVE_API_SECURITY_POSTURE.md` before running untrusted scripts or deploying automation in shared environments.
 For archive extraction, `unzip(...)` now rejects unsafe entry paths (absolute paths, `..` traversal components, drive-prefixed names, null-byte names, and symlink entries) and enforces extraction limits (1024 entries, 16 MiB per entry, 64 MiB total uncompressed size).
 
 ## Testing
