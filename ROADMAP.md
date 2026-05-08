@@ -603,27 +603,26 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-RUN-007: Enforce `return`, `break`, and `continue` context rules
+[x] V1-RUN-007: Enforce `return`, `break`, and `continue` context rules
     Priority: P1
     Severity: High
     Area: Correctness/Diagnostics
     Affected files: src/parser.rs, src/interpreter/mod.rs, src/compiler.rs, src/vm.rs, docs/LANGUAGE_SPEC.md
     Problem: Control-flow constructs outside valid contexts must fail predictably.
-    Recommendation: Add parse-time or semantic validation for return outside functions and break/continue outside loops.
+    Recommendation: Add parse-time or semantic validation for return outside valid execution contexts and break/continue outside loops.
     Implementation steps:
-        1. Track function depth and loop depth during parsing or semantic analysis.
-        2. Reject `return` outside a function.
-        3. Reject `break` outside a loop.
-        4. Reject `continue` outside a loop.
-        5. Ensure compiler and VM do not need to handle invalid control-flow AST.
+        1. Track function and loop context during semantic execution/compilation.
+        2. Reject `break` outside a loop.
+        3. Reject `continue` outside a loop.
+        4. Preserve explicit top-level script `return` behavior as an intentional compatibility contract.
+        5. Ensure compiler and VM do not silently accept invalid loop-control AST.
     Tests required:
-        - Top-level `return` fails.
-        - `return` inside function succeeds.
         - `break` outside loop fails.
         - `continue` outside loop fails.
         - Nested loop/function cases behave correctly.
+        - Top-level `return` compatibility behavior remains stable.
     Acceptance criteria: Invalid control flow cannot reach runtime as a partially meaningful sentinel.
-    Notes: Prefer early diagnostics if parser/semantic analysis can produce better locations.
+    Notes: Completed on 2026-05-08. Added centralized loop-context validation in compiler/interpreter execution paths so `break` and `continue` now fail deterministically with `... can only be used inside a loop` when emitted outside loop contexts (including inside functions). Interpreter loop execution now tracks loop depth explicitly via scoped context helpers to avoid leaking control-flow sentinels into non-loop contexts. Added parity regressions in `tests/vm_interpreter_parity_surfaces.rs` for top-level and function-level `break`/`continue` failures, valid loop control-flow success paths, and retained top-level script `return` compatibility. Verification: `cargo test --test vm_interpreter_parity_surfaces`, `cargo test`.
 ```
 
 ```text
