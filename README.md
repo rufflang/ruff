@@ -252,7 +252,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Function/method/native call arity is enforced at runtime. Too few or too many arguments return deterministic errors that include callable name plus expected and received counts/ranges.
 - String interpolation with `${...}` inside double-quoted strings.
 - `Result` and `Option` values through `Ok(...)`, `Err(...)`, `Some(...)`, and `None`.
-- `match`/`case` statements, including cases that bind `Ok(value)`, `Err(error)`, and `Some(value)` in interpreter mode.
+- `match`/`case` statements, including parity-covered `Result::`/`Option::` tag-style bindings (`Ok(value)`, `Err(error)`, `Some(value)`) on both interpreter and VM paths.
 - `try`/`except` blocks and `throw(...)` for runtime error flow.
 - `await` expressions and promise-returning async/native operations.
 - `spawn { ... }` syntax and native concurrency helpers.
@@ -391,6 +391,7 @@ These are intentional caveats for production readers rather than fine print:
 - Static typing is optional and not a VM-enforced compile-time contract in the current CLI path.
 - `import`/`export` syntax and module execution/export collection are implemented, and end-to-end package/module workflow integration coverage is present for core CLI flows.
 - Struct fields and instance literals exist, and explicit `self` struct methods are parity-covered in VM/interpreter tests.
+- Struct generator methods (`func*` inside `struct`) are intentionally unsupported and fail with a deterministic error (`Generator methods are not supported for structs: <Struct>.<method>`).
 - Spread literals and destructuring syntax are parity-covered in VM/interpreter tests for the tracked matrix scenarios.
 - `spawn { ... }` is parsed and executed as fire-and-forget work; do not rely on spawned output or shared state without using the explicit concurrency/native async APIs.
 - `Result`/`Option` values are implemented, and tag-style match bindings are parity-covered on both VM and interpreter paths for the tracked scenarios.

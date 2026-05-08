@@ -700,7 +700,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-COMP-001: Maintain VM/interpreter/compiler parity as a release gate
+[x] V1-COMP-001: Maintain VM/interpreter/compiler parity as a release gate
     Priority: P1
     Severity: High
     Area: Correctness/Architecture/Tests
@@ -718,7 +718,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Negative parity tests for unsupported features.
         - CI job running parity tests.
     Acceptance criteria: Any interpreter/VM divergence is either eliminated or explicitly documented and tested.
-    Notes: JIT must not be considered production-ready until it passes the same semantic contract.
+    Notes: Completed on 2026-05-08. Expanded parity coverage and release gating across compiler/interpreter/VM paths by: (1) adding explicit unsupported-surface parity for struct generator methods with one shared error contract (`Generator methods are not supported for structs: <Struct>.<method>`), (2) restoring import parity by compiling `import`/`from ... import ...` statements into VM import op paths backed by the shared module loader, (3) adding import parity regression coverage (`vm_and_interpreter_match_import_export_surface`) plus unsupported-surface negative coverage (`vm_and_interpreter_error_on_unsupported_struct_generator_method`), and (4) replacing the narrow P0-era parity matrix with a broader status/evidence matrix in `docs/VM_INTERPRETER_PARITY_MATRIX.md`. Added a dedicated CI parity job in `.github/workflows/ci-release-gate.yml` (`cargo test --test vm_interpreter_parity_surfaces`) and made the release-gate job depend on it. Verification: `cargo test --test vm_interpreter_parity_surfaces` and `cargo test` passed.
 ```
 
 ```text

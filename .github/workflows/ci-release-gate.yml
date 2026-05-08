@@ -45,8 +45,21 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+  vm-interpreter-parity:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run VM/interpreter parity suite
+        run: cargo test --test vm_interpreter_parity_surfaces
+
   release-gate:
-    needs: [release-gate-minimal-smoke, fmt-check, clippy]
+    needs: [release-gate-minimal-smoke, fmt-check, clippy, vm-interpreter-parity]
     runs-on: ubuntu-latest
 
     steps:

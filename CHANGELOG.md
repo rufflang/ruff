@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added explicit `V1-COMP-001` parity gate artifacts: expanded `docs/VM_INTERPRETER_PARITY_MATRIX.md` status/evidence table, a dedicated CI parity job in `.github/workflows/ci-release-gate.yml` (`cargo test --test vm_interpreter_parity_surfaces`), and new parity regressions for import/export behavior plus explicit unsupported struct generator methods.
 - Added release-gate CI enforcement for `v1.0.0` readiness via new workflow `.github/workflows/ci-release-gate.yml` (PR/main) and release-tag workflow gating in `.github/workflows/release-binaries.yml`, including required `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `scripts/release_gate.sh` execution.
 - Added `scripts/release_gate.sh` as the shared gate command for release-critical test surfaces, with CI-enabled socket integration coverage via `RUFF_ENABLE_SOCKET_TESTS=1` and optional `cargo audit`/`cargo deny` execution when tools are installed.
 - Added dedicated static server runtime module `src/serve_http.rs` for `ruff serve` with conditional request support (ETag/If-None-Match `304`), single-range byte responses (`206`/`416`), precompressed asset selection (`.br`/`.gz`), and deterministic status mapping for file access errors (`404`/`403`/`500`).
@@ -33,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed VM import handling to execute `import` and `from ... import ...` through compiler-emitted VM import op paths (`__vm_import_all`, `__vm_import_symbol`) backed by the shared module loader, eliminating interpreter/VM drift where VM previously left imported names undefined.
+- Changed struct generator-method handling to an explicit unsupported contract across interpreter and compiler/VM paths using one shared error message (`Generator methods are not supported for structs: <Struct>.<method>`) instead of divergent runtime failures.
 - Changed binding mutability enforcement across interpreter and VM: `let`/`const` bindings now reject reassignment and in-place mutation through the binding, while `mut` bindings allow both; added runtime diagnostics for immutable-binding reassignment/mutation and parity coverage for global/local success and failure paths.
 - Changed scope/declaration semantics so interpreter and VM now enforce duplicate same-scope declaration errors (`Duplicate declaration in the same scope: <name>`), preserve nearest-lexical shadowing, isolate control-flow locals from function/module outer scopes, and keep closure capture bound to the nearest lexical definition.
 - Changed control-flow context validation so compiler/interpreter now reject `break` and `continue` outside loops with deterministic errors (`... can only be used inside a loop`), including invalid usage inside function bodies; added parity regressions and retained top-level script `return` compatibility.
