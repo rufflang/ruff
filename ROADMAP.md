@@ -676,7 +676,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-SEM-003: Define equality and cross-type comparison semantics
+[x] V1-SEM-003: Define equality and cross-type comparison semantics
     Priority: P1
     Severity: Medium
     Area: Correctness/Language Semantics
@@ -696,7 +696,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Unsupported ordering errors.
         - VM/interpreter parity tests.
     Acceptance criteria: Equality and comparison behavior is documented and stable.
-    Notes: Avoid adding deep structural equality for all objects unless there is a clear language decision.
+    Notes: Completed on 2026-05-08. Added centralized value-comparison semantics in `src/interpreter/value.rs` and routed interpreter/VM equality+ordering through shared helpers so `==`/`!=` now have one runtime contract and ordering operators (`<`, `<=`, `>`, `>=`) reject unsupported type pairs with deterministic runtime errors instead of VM fallbacks. Equality now supports numeric cross-type comparison (`int`/`float`), deep array/dictionary comparison (including optimized VM dictionary encodings), structural `Result`/`Option`/tagged/struct equality, and identity-based callable equality for interpreter closures, VM bytecode closures, generator definitions, and native functions. Added regression coverage in `tests/vm_interpreter_parity_surfaces.rs` for cross-type numeric equality, string ordering, collection/callable equality, and unsupported ordering failures, plus focused unit coverage in `src/interpreter/value.rs` for helper-level semantics. Updated `docs/LANGUAGE_SPEC.md`, `README.md`, and `CHANGELOG.md` with the new contract. Verification: `cargo test --lib interpreter::value::tests::value_ -- --nocapture`, `cargo test --test vm_interpreter_parity_surfaces vm_and_interpreter_define_ -- --nocapture`, `cargo test --test vm_interpreter_parity_surfaces vm_and_interpreter_reject_ -- --nocapture`, and `cargo test` passed.
 ```
 
 ```text

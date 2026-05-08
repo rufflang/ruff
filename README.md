@@ -243,6 +243,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Logical `&&` and `||` use truthiness and short-circuit (RHS is evaluated only when required), returning boolean results.
 - Integer arithmetic (`+`, `-`, `*`, `/`, `%`) is checked at runtime (`i64`): overflow and divide/modulo-by-zero return deterministic runtime errors.
 - Float division/modulo by zero returns deterministic runtime errors; NaN and infinity comparisons follow documented language-spec behavior.
+- Equality/comparison semantics are explicit across interpreter and VM: `1 == 1.0` is true, arrays/dictionaries compare deeply by value, callable equality is identity-based, and unsupported ordering pairs (for example `bool < bool`) return deterministic runtime errors.
 - Arrays and dictionaries with indexing and standard library helpers.
 - Undefined identifiers are runtime errors. Use quoted string literals when a string value is intended.
 - Missing dictionary keys are runtime errors. Use helpers such as `has_key`, `get`, or `get_default` when a fallback value is intended.

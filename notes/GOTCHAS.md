@@ -170,6 +170,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-07_13-03_v1-run-004-truthiness-centralization.md)
 
+### Literal-only negative-op tests can be optimized away before runtime checks
+- **Problem:** Runtime-error regression tests for invalid comparisons can pass unexpectedly if the optimizer folds constant expressions first.
+- **Rule:** For tests that must validate runtime comparison/error behavior, avoid pure literal forms and force runtime evaluation through variables or function parameters.
+- **Implication:** Comparison/invalid-op tests should use non-literal execution paths when optimizer passes are enabled.
+
+(Discovered during: 2026-05-08_16-40_v1-sem-003-equality-comparison-contract.md)
+
 ### Script JIT can bypass runtime error semantics
 - **Problem:** Top-level script JIT may return a default value for opcodes whose checked VM path would report a runtime error.
 - **Rule:** Do not admit opcodes into script JIT unless the JIT implementation preserves the same error semantics as the bytecode VM.

@@ -266,6 +266,31 @@ Logical operators use these same rules:
   - comparisons against `NaN` evaluate to false,
   - infinities compare as expected (`+inf` greater than finite values, `-inf` less than finite values).
 
+### 5.9 Equality and comparison semantics
+
+- `==` and `!=` always return boolean results.
+- Primitive equality rules:
+  - `null == null` is `true`; `null` compared to non-`null` is unequal.
+  - booleans compare only against booleans.
+  - strings compare only against strings.
+  - bytes compare by exact byte sequence.
+  - numeric equality is cross-type for `int`/`float` using Ruff float-equality policy (`1 == 1.0` is `true`).
+- Collection and structured equality rules:
+  - arrays compare deeply and order-sensitively.
+  - dictionaries compare deeply by key/value pairs; runtime dictionary encodings (`Dict`, fixed dictionaries, and optimized integer-key variants) are treated as semantic equals when their effective key/value content matches.
+  - tagged values, structs, struct definitions, `Result`, and `Option` compare structurally by matching metadata plus recursively equal contained values.
+- Callable equality rules:
+  - native functions compare by function name identity.
+  - interpreter closures and async closures compare by function-body identity plus captured-environment identity.
+  - VM bytecode closures compare by compiled chunk equality plus captured-binding identity.
+  - generator definitions compare by parameter list and function-body identity.
+- Non-data runtime handles that do not satisfy one of the rules above compare unequal (`==` returns `false`, `!=` returns `true`).
+- Ordering operators (`<`, `<=`, `>`, `>=`) are only defined for:
+  - numeric pairs (`int`/`int`, `float`/`float`, `int`/`float`, `float`/`int`),
+  - string pairs (`string`/`string`, lexicographic ordering).
+- Unsupported ordering type pairs are runtime errors:
+  - `Invalid binary operation: <left_type> <op> <right_type>`.
+
 ## 6. Tooling Contract Compatibility Guarantees
 
 The following compatibility classes apply to language and tooling behavior:

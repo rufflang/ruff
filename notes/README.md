@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-08_16-40_v1-sem-003-equality-comparison-contract.md` — Centralized interpreter/VM equality+ordering semantics, added cross-type/collection/callable parity coverage, and captured optimizer constant-folding gotcha for runtime-error tests.
 - `2026-05-07_14-40_v1-run-006-scope-shadowing-declarations.md` — Enforced duplicate same-scope declaration errors, tightened interpreter/compiler scope boundaries for control-flow and loop lifetimes, and added VM/interpreter parity coverage for shadowing, closure capture, and leakage regressions.
 - `2026-05-07_14-13_v1-run-005-mutability-enforcement.md` — Enforced `let`/`const` immutability across interpreter+VM/compiler (including in-place mutation guards), removed unsound dead-store elision bypass, and added parity/environment regression coverage.
 - `2026-05-07_13-03_v1-run-004-truthiness-centralization.md` — Centralized `Value::is_truthy` semantics across interpreter/VM/native predicates, aligned logical short-circuit behavior with VM parity coverage, and captured compiler short-circuit/optimizer stack-shape gotchas.
