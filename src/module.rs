@@ -212,10 +212,7 @@ impl ModuleLoader {
                     .diagnostics
                     .first()
                     .map(|diagnostic| {
-                        format!(
-                            "{}:{}: {}",
-                            diagnostic.line, diagnostic.column, diagnostic.message
-                        )
+                        format!("{}:{}: {}", diagnostic.line, diagnostic.column, diagnostic.message)
                     })
                     .unwrap_or_else(|| "unknown parser error".to_string());
                 return Err(Self::runtime_error(format!(

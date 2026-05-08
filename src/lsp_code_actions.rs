@@ -36,10 +36,7 @@ pub fn code_actions(source: &str) -> Vec<CodeAction> {
                 replacement: "}".to_string(),
                 description: "Insert a closing brace to balance the opening brace.".to_string(),
             });
-        } else if diagnostic
-            .message
-            .contains("Unclosed opening parenthesis '('")
-        {
+        } else if diagnostic.message.contains("Unclosed opening parenthesis '('") {
             let insertion_column = line_end_column(&source_lines, diagnostic.line);
             actions.push(CodeAction {
                 title: "Insert missing closing parenthesis".to_string(),

@@ -16,10 +16,7 @@ pub struct RuffManifest {
 
 pub fn default_manifest(package_name: &str) -> String {
     let manifest = RuffManifest {
-        package: PackageMetadata {
-            name: package_name.to_string(),
-            version: "0.1.0".to_string(),
-        },
+        package: PackageMetadata { name: package_name.to_string(), version: "0.1.0".to_string() },
         dependencies: BTreeMap::new(),
     };
 
@@ -41,7 +38,8 @@ pub fn add_dependency(content: &str, name: &str, version: &str) -> Result<String
     let mut manifest = parse_manifest(content)?;
     manifest.dependencies.insert(name.to_string(), version.to_string());
 
-    toml::to_string_pretty(&manifest).map_err(|error| format!("Failed to serialize ruff.toml: {}", error))
+    toml::to_string_pretty(&manifest)
+        .map_err(|error| format!("Failed to serialize ruff.toml: {}", error))
 }
 
 #[cfg(test)]
@@ -59,7 +57,8 @@ mod tests {
     #[test]
     fn add_dependency_updates_manifest() {
         let content = default_manifest("demo");
-        let updated = add_dependency(&content, "http", "1.2.3").expect("dependency update should succeed");
+        let updated =
+            add_dependency(&content, "http", "1.2.3").expect("dependency update should succeed");
 
         let manifest = parse_manifest(&updated).expect("updated manifest should parse");
         assert_eq!(manifest.dependencies.get("http").map(|value| value.as_str()), Some("1.2.3"));

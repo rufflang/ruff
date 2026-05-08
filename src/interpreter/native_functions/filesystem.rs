@@ -82,18 +82,12 @@ fn sanitize_archive_entry_path(raw_name: &str) -> Result<PathBuf, String> {
     }
 
     if raw_name.contains('\0') {
-        return Err(format!(
-            "Unsafe archive entry '{}': null byte is not allowed",
-            raw_name
-        ));
+        return Err(format!("Unsafe archive entry '{}': null byte is not allowed", raw_name));
     }
 
     let normalized = raw_name.replace('\\', "/");
     if normalized.starts_with('/') {
-        return Err(format!(
-            "Unsafe archive entry '{}': absolute path is not allowed",
-            raw_name
-        ));
+        return Err(format!("Unsafe archive entry '{}': absolute path is not allowed", raw_name));
     }
 
     let mut sanitized = PathBuf::new();
@@ -178,10 +172,7 @@ fn ensure_canonical_path_within_root(
     entry_name: &str,
 ) -> Result<(), String> {
     let canonical_path = std::fs::canonicalize(path).map_err(|error| {
-        format!(
-            "Failed to resolve extraction path for '{}': {}",
-            entry_name, error
-        )
+        format!("Failed to resolve extraction path for '{}': {}", entry_name, error)
     })?;
 
     if !canonical_path.starts_with(canonical_output_root) {
@@ -222,19 +213,11 @@ fn extract_zip_archive_with_limits(
     }
 
     std::fs::create_dir_all(output_root).map_err(|error| {
-        format!(
-            "Failed to create output directory '{}': {}",
-            output_root.display(),
-            error
-        )
+        format!("Failed to create output directory '{}': {}", output_root.display(), error)
     })?;
 
     let canonical_output_root = std::fs::canonicalize(output_root).map_err(|error| {
-        format!(
-            "Failed to resolve output directory '{}': {}",
-            output_root.display(),
-            error
-        )
+        format!("Failed to resolve output directory '{}': {}", output_root.display(), error)
     })?;
 
     let mut extracted_files = Vec::new();
@@ -263,12 +246,10 @@ fn extract_zip_archive_with_limits(
             ));
         }
 
-        total_uncompressed_bytes = total_uncompressed_bytes.checked_add(entry_size).ok_or_else(|| {
-            format!(
-                "Archive extraction size overflow while processing entry '{}'",
-                entry_name
-            )
-        })?;
+        total_uncompressed_bytes =
+            total_uncompressed_bytes.checked_add(entry_size).ok_or_else(|| {
+                format!("Archive extraction size overflow while processing entry '{}'", entry_name)
+            })?;
 
         if total_uncompressed_bytes > limits.max_total_uncompressed_bytes {
             return Err(format!(
@@ -283,17 +264,9 @@ fn extract_zip_archive_with_limits(
         if archive_file.is_dir() {
             reject_symlink_target_path(&output_path, &entry_name)?;
             std::fs::create_dir_all(&output_path).map_err(|error| {
-                format!(
-                    "Failed to create directory '{}': {}",
-                    output_path.display(),
-                    error
-                )
+                format!("Failed to create directory '{}': {}", output_path.display(), error)
             })?;
-            ensure_canonical_path_within_root(
-                &output_path,
-                &canonical_output_root,
-                &entry_name,
-            )?;
+            ensure_canonical_path_within_root(&output_path, &canonical_output_root, &entry_name)?;
             continue;
         }
 
@@ -311,11 +284,7 @@ fn extract_zip_archive_with_limits(
         reject_symlink_target_path(&output_path, &entry_name)?;
 
         let mut output_file = File::create(&output_path).map_err(|error| {
-            format!(
-                "Failed to create output file '{}': {}",
-                output_path.display(),
-                error
-            )
+            format!("Failed to create output file '{}': {}", output_path.display(), error)
         })?;
 
         std::io::copy(&mut archive_file, &mut output_file)

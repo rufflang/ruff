@@ -48,12 +48,7 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
                 other => format!("{:?}", other),
             };
 
-            return Value::ErrorObject {
-                message,
-                stack: Vec::new(),
-                line: None,
-                cause: None,
-            };
+            return Value::ErrorObject { message, stack: Vec::new(), line: None, cause: None };
         }
         "collect" => {
             if let Some(arity) = Interpreter::native_callable_arity("collect") {
@@ -152,9 +147,10 @@ mod tests {
 
     fn available_udp_port() -> Option<i64> {
         match std::net::UdpSocket::bind("127.0.0.1:0") {
-            Ok(socket) => {
-                Some(socket.local_addr().expect("ephemeral udp socket should have local addr").port() as i64)
-            }
+            Ok(socket) => Some(
+                socket.local_addr().expect("ephemeral udp socket should have local addr").port()
+                    as i64,
+            ),
             Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => None,
             Err(error) => panic!("ephemeral udp socket should bind: {}", error),
         }
@@ -2929,7 +2925,8 @@ mod tests {
                 .as_nanos()
         ));
         if temp_dir.exists() {
-            std::fs::remove_dir_all(&temp_dir).expect("stale temp hardening dir should be removable");
+            std::fs::remove_dir_all(&temp_dir)
+                .expect("stale temp hardening dir should be removable");
         }
         std::fs::create_dir_all(&temp_dir).expect("temp hardening dir should be created");
         let temp_dir_string = temp_dir.to_string_lossy().to_string();

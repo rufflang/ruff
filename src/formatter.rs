@@ -9,11 +9,7 @@ pub struct FormatterOptions {
 
 impl Default for FormatterOptions {
     fn default() -> Self {
-        Self {
-            indent_width: 4,
-            line_length: 100,
-            sort_imports: true,
-        }
+        Self { indent_width: 4, line_length: 100, sort_imports: true }
     }
 }
 
@@ -114,9 +110,7 @@ fn normalize_spacing(line: &str) -> String {
         let escaped = regex::escape(operator);
         let pattern = format!(r"\s*{}\s*", escaped);
         let regex = Regex::new(&pattern).expect("operator regex must compile");
-        result = regex
-            .replace_all(&result, format!(" {} ", operator).as_str())
-            .to_string();
+        result = regex.replace_all(&result, format!(" {} ", operator).as_str()).to_string();
     }
 
     result = result.replace("( ", "(").replace(" )", ")");
@@ -142,11 +136,8 @@ fn wrap_if_needed(line: &str, indent_level: usize, options: &FormatterOptions) -
     let mut current = String::new();
 
     for (index, part) in parts.iter().enumerate() {
-        let candidate = if current.is_empty() {
-            part.to_string()
-        } else {
-            format!("{}, {}", current, part)
-        };
+        let candidate =
+            if current.is_empty() { part.to_string() } else { format!("{}, {}", current, part) };
 
         let candidate_width = (indent_level * options.indent_width) + candidate.chars().count();
         if candidate_width > options.line_length && !current.is_empty() {
@@ -187,11 +178,7 @@ mod tests {
 
         let formatted = format_source(
             &source,
-            &FormatterOptions {
-                indent_width: 2,
-                line_length: 120,
-                sort_imports: true,
-            },
+            &FormatterOptions { indent_width: 2, line_length: 120, sort_imports: true },
         );
 
         assert!(formatted.contains("func greet(name){"));
@@ -202,7 +189,8 @@ mod tests {
 
     #[test]
     fn formatter_sorts_leading_import_block() {
-        let source = ["import zeta", "from beta import b", "import alpha", "", "print(1)", ""].join("\n");
+        let source =
+            ["import zeta", "from beta import b", "import alpha", "", "print(1)", ""].join("\n");
         let formatted = format_source(&source, &FormatterOptions::default());
         let lines: Vec<&str> = formatted.lines().collect();
 
@@ -216,11 +204,7 @@ mod tests {
         let source = "print(a, b, c, d, e, f, g, h)\n";
         let formatted = format_source(
             source,
-            &FormatterOptions {
-                indent_width: 2,
-                line_length: 20,
-                sort_imports: false,
-            },
+            &FormatterOptions { indent_width: 2, line_length: 20, sort_imports: false },
         );
 
         assert!(formatted.lines().count() > 1);

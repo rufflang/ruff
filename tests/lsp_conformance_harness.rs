@@ -18,29 +18,13 @@ fn load_fixture(path: &PathBuf) -> Fixture {
     let raw = fs::read_to_string(path).expect("failed to read fixture file");
     let parsed: Value = serde_json::from_str(&raw).expect("fixture should be valid json");
 
-    let name = parsed
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("unnamed_fixture")
-        .to_string();
+    let name = parsed.get("name").and_then(Value::as_str).unwrap_or("unnamed_fixture").to_string();
 
-    let messages = parsed
-        .get("messages")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let messages = parsed.get("messages").and_then(Value::as_array).cloned().unwrap_or_default();
 
-    let expected = parsed
-        .get("expected")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let expected = parsed.get("expected").and_then(Value::as_array).cloned().unwrap_or_default();
 
-    Fixture {
-        name,
-        messages,
-        expected,
-    }
+    Fixture { name, messages, expected }
 }
 
 fn normalize_json(value: Value) -> Value {
@@ -110,12 +94,8 @@ fn protocol_fixtures_match_expected_responses() {
         }
 
         let normalized_actual: Vec<Value> = actual.into_iter().map(normalize_json).collect();
-        let normalized_expected: Vec<Value> = fixture
-            .expected
-            .clone()
-            .into_iter()
-            .map(normalize_json)
-            .collect();
+        let normalized_expected: Vec<Value> =
+            fixture.expected.clone().into_iter().map(normalize_json).collect();
 
         assert_eq!(
             normalized_actual.len(),
@@ -125,9 +105,9 @@ fn protocol_fixtures_match_expected_responses() {
         );
 
         for (index, expected_response) in normalized_expected.iter().enumerate() {
-            let actual_response = normalized_actual
-                .get(index)
-                .unwrap_or_else(|| panic!("fixture '{}' missing response index {}", fixture.name, index));
+            let actual_response = normalized_actual.get(index).unwrap_or_else(|| {
+                panic!("fixture '{}' missing response index {}", fixture.name, index)
+            });
             assert_json_contains(
                 actual_response,
                 expected_response,

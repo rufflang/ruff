@@ -30,10 +30,7 @@ pub fn generate_docs_for_file(
     fs::create_dir_all(output_dir)
         .map_err(|err| format!("Failed to create output directory: {}", err))?;
 
-    let module_name = source_path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("module");
+    let module_name = source_path.file_stem().and_then(|value| value.to_str()).unwrap_or("module");
 
     let module_doc_path = output_dir.join(format!("{}.html", module_name));
     let module_html = render_module_html(module_name, &items);
@@ -86,12 +83,7 @@ pub fn extract_doc_items(source: &str) -> Vec<DocItem> {
         if let Some(function_name) = parse_function_name(trimmed) {
             let docs = pending_docs.clone();
             let examples = extract_examples(&docs);
-            items.push(DocItem {
-                name: function_name,
-                line: index + 1,
-                docs,
-                examples,
-            });
+            items.push(DocItem { name: function_name, line: index + 1, docs, examples });
         }
 
         pending_docs.clear();
@@ -119,7 +111,11 @@ fn parse_function_name(line: &str) -> Option<String> {
         }
     }
 
-    if name.is_empty() { None } else { Some(name) }
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
 }
 
 fn extract_examples(docs: &[String]) -> Vec<String> {
@@ -161,16 +157,10 @@ fn render_module_html(module_name: &str, items: &[DocItem]) -> String {
     html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
     html.push_str("  <meta charset=\"utf-8\">\n");
     html.push_str("  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
-    html.push_str(&format!(
-        "  <title>Ruff Docs: {}</title>\n",
-        escape_html(module_name)
-    ));
+    html.push_str(&format!("  <title>Ruff Docs: {}</title>\n", escape_html(module_name)));
     html.push_str("  <style>body{font-family:ui-sans-serif,system-ui,sans-serif;max-width:920px;margin:2rem auto;padding:0 1rem;line-height:1.5}code,pre{font-family:ui-monospace,Menlo,monospace}pre{background:#f4f4f4;padding:0.8rem;border-radius:8px;overflow:auto}a{text-decoration:none}h1,h2{line-height:1.25}</style>\n");
     html.push_str("</head>\n<body>\n");
-    html.push_str(&format!(
-        "  <h1>Module Documentation: {}</h1>\n",
-        escape_html(module_name)
-    ));
+    html.push_str(&format!("  <h1>Module Documentation: {}</h1>\n", escape_html(module_name)));
 
     if items.is_empty() {
         html.push_str("  <p>No documented functions found. Add <code>///</code> comments above <code>func</code> declarations.</p>\n");
@@ -186,14 +176,8 @@ fn render_module_html(module_name: &str, items: &[DocItem]) -> String {
         html.push_str("  </ul>\n");
 
         for item in items {
-            html.push_str(&format!(
-                "  <section id=\"fn-{}\">\n",
-                escape_html(&item.name)
-            ));
-            html.push_str(&format!(
-                "    <h2>{}</h2>\n",
-                escape_html(&item.name)
-            ));
+            html.push_str(&format!("  <section id=\"fn-{}\">\n", escape_html(&item.name)));
+            html.push_str(&format!("    <h2>{}</h2>\n", escape_html(&item.name)));
             html.push_str(&format!("    <p><strong>Defined at line:</strong> {}</p>\n", item.line));
 
             if !item.docs.is_empty() {
@@ -242,11 +226,13 @@ fn render_builtin_html(names: &[&str]) -> String {
     html
 }
 
-fn render_index_html(module_name: &str, module_doc_path: &Path, builtin_doc_path: Option<&PathBuf>) -> String {
-    let module_file = module_doc_path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .unwrap_or("module.html");
+fn render_index_html(
+    module_name: &str,
+    module_doc_path: &Path,
+    builtin_doc_path: Option<&PathBuf>,
+) -> String {
+    let module_file =
+        module_doc_path.file_name().and_then(|value| value.to_str()).unwrap_or("module.html");
 
     let mut html = String::new();
     html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
@@ -264,10 +250,8 @@ fn render_index_html(module_name: &str, module_doc_path: &Path, builtin_doc_path
     ));
 
     if let Some(path) = builtin_doc_path {
-        let builtin_file = path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or("builtins.html");
+        let builtin_file =
+            path.file_name().and_then(|value| value.to_str()).unwrap_or("builtins.html");
         html.push_str(&format!(
             "    <li><a href=\"{}\">Builtin API reference</a></li>\n",
             escape_html(builtin_file)
@@ -327,11 +311,7 @@ mod tests {
 
         assert_eq!(summary.item_count, 1);
         assert!(summary.module_doc_path.exists());
-        assert!(summary
-            .builtin_doc_path
-            .as_ref()
-            .map(|path| path.exists())
-            .unwrap_or(false));
+        assert!(summary.builtin_doc_path.as_ref().map(|path| path.exists()).unwrap_or(false));
         assert!(output_dir.join("index.html").exists());
     }
 }

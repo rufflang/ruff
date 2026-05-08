@@ -830,30 +830,24 @@ fn ruff_value_to_yaml(value: &Value) -> Result<serde_yaml::Value, String> {
         Value::FixedDict { keys, values } => {
             let mut yaml_map = serde_yaml::Mapping::new();
             for (key, val) in keys.iter().zip(values.iter()) {
-                yaml_map.insert(
-                    serde_yaml::Value::String(key.to_string()),
-                    ruff_value_to_yaml(val)?,
-                );
+                yaml_map
+                    .insert(serde_yaml::Value::String(key.to_string()), ruff_value_to_yaml(val)?);
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
         }
         Value::IntDict(dict) => {
             let mut yaml_map = serde_yaml::Mapping::new();
             for (key, val) in dict.iter() {
-                yaml_map.insert(
-                    serde_yaml::Value::String(key.to_string()),
-                    ruff_value_to_yaml(val)?,
-                );
+                yaml_map
+                    .insert(serde_yaml::Value::String(key.to_string()), ruff_value_to_yaml(val)?);
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
         }
         Value::DenseIntDict(values) => {
             let mut yaml_map = serde_yaml::Mapping::new();
             for (index, val) in values.iter().enumerate() {
-                yaml_map.insert(
-                    serde_yaml::Value::String(index.to_string()),
-                    ruff_value_to_yaml(val)?,
-                );
+                yaml_map
+                    .insert(serde_yaml::Value::String(index.to_string()), ruff_value_to_yaml(val)?);
             }
             Ok(serde_yaml::Value::Mapping(yaml_map))
         }
@@ -2141,9 +2135,7 @@ mod tests {
         let decoded: serde_json::Value =
             serde_json::from_str(&encoded).expect("Serialized JSON should parse");
 
-        let items = decoded
-            .as_array()
-            .expect("Decoded array JSON should contain an array root");
+        let items = decoded.as_array().expect("Decoded array JSON should contain an array root");
         assert_eq!(items.len(), 3);
         assert_eq!(items[0], serde_json::Value::Number(1.into()));
         assert_eq!(items[1], serde_json::Value::Number(2.into()));
@@ -2158,9 +2150,8 @@ mod tests {
         let decoded: serde_json::Value =
             serde_json::from_str(&encoded).expect("Roundtrip JSON output should parse");
 
-        let items = decoded["items"]
-            .as_array()
-            .expect("items should remain an array after roundtrip");
+        let items =
+            decoded["items"].as_array().expect("items should remain an array after roundtrip");
         assert_eq!(items.len(), 2);
         assert_eq!(items[0]["id"], serde_json::Value::Number(1.into()));
         assert_eq!(items[1]["id"], serde_json::Value::Number(2.into()));

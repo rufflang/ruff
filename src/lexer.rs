@@ -507,15 +507,13 @@ fn tokenize_with_diagnostics_and_file(source: &str, file: Option<&str>) -> LexOu
 
                 if has_decimal {
                     match num.parse::<f64>() {
-                        Ok(parsed) if parsed.is_finite() => {
-                            push_token(
-                                &mut tokens,
-                                TokenKind::Float(parsed),
-                                start_line,
-                                start_col,
-                                start_offset,
-                            )
-                        }
+                        Ok(parsed) if parsed.is_finite() => push_token(
+                            &mut tokens,
+                            TokenKind::Float(parsed),
+                            start_line,
+                            start_col,
+                            start_offset,
+                        ),
                         Ok(_) => push_diag(
                             &mut diagnostics,
                             LexerDiagnosticKind::NumericLiteralOverflow,

@@ -21,8 +21,8 @@ fn tree_sitter_ruff_assets_exist_and_have_core_content() {
 
     let grammar = fs::read_to_string(grammar_path).expect("failed to read grammar.js");
     let corpus = fs::read_to_string(corpus_path).expect("failed to read corpus fixture");
-    let regressions_corpus =
-        fs::read_to_string(regressions_corpus_path).expect("failed to read regressions corpus fixture");
+    let regressions_corpus = fs::read_to_string(regressions_corpus_path)
+        .expect("failed to read regressions corpus fixture");
     let highlights = fs::read_to_string(highlights_path).expect("failed to read highlights query");
 
     assert!(grammar.contains("name: 'ruff'"));

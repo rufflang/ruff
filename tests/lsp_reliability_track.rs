@@ -87,7 +87,11 @@ fn malformed_sequences_and_lifecycle_churn_are_resilient() {
         assert_eq!(server.open_document_count(), 1);
 
         let closed = server.process_message(&close_message());
-        assert_eq!(closed.len(), 1, "didClose should emit diagnostics clear on iteration {iteration}");
+        assert_eq!(
+            closed.len(),
+            1,
+            "didClose should emit diagnostics clear on iteration {iteration}"
+        );
         assert_eq!(closed[0]["method"], json!("textDocument/publishDiagnostics"));
         assert_eq!(server.open_document_count(), 0);
     }

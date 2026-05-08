@@ -130,7 +130,11 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             let method_name = options
                 .get("method")
                 .and_then(|value| {
-                    if let Value::Str(text) = value { Some(text.as_ref().to_uppercase()) } else { None }
+                    if let Value::Str(text) = value {
+                        Some(text.as_ref().to_uppercase())
+                    } else {
+                        None
+                    }
                 })
                 .unwrap_or_else(|| "GET".to_string());
 
@@ -175,11 +179,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             let mut request = client.request(method, &url);
 
-            let header_dict = options
-                .get("_headers")
-                .or_else(|| options.get("headers"))
-                .and_then(|value| {
-                    if let Value::Dict(headers) = value { Some(headers.clone()) } else { None }
+            let header_dict =
+                options.get("_headers").or_else(|| options.get("headers")).and_then(|value| {
+                    if let Value::Dict(headers) = value {
+                        Some(headers.clone())
+                    } else {
+                        None
+                    }
                 });
 
             if let Some(headers) = header_dict {
