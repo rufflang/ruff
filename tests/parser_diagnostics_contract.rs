@@ -69,10 +69,7 @@ fn parser_accepts_valid_program_without_diagnostics() {
     assert!(output.diagnostics.is_empty());
     assert_eq!(output.stmts.len(), 2);
     assert!(!output.ast_spans.is_empty(), "expected parser to record AST spans");
-    assert!(output
-        .ast_spans
-        .iter()
-        .all(|node| node.span.end_byte >= node.span.start_byte));
+    assert!(output.ast_spans.iter().all(|node| node.span.end_byte >= node.span.start_byte));
     assert!(output
         .ast_spans
         .iter()
@@ -81,6 +78,37 @@ fn parser_accepts_valid_program_without_diagnostics() {
         .ast_spans
         .iter()
         .any(|node| matches!(node.kind, ruff::parser::AstNodeSpanKind::Expression)));
+}
+
+#[test]
+fn parser_accepts_bare_return_before_closing_brace() {
+    let output = parse_output("func noop() {\n    return\n}\n");
+    assert!(
+        output.diagnostics.is_empty(),
+        "expected bare return to parse without diagnostics, got {:?}",
+        output.diagnostics
+    );
+    assert_eq!(output.stmts.len(), 1);
+
+    match &output.stmts[0] {
+        ruff::ast::Stmt::FuncDef { body, .. } => {
+            assert_eq!(body.len(), 1);
+            assert!(matches!(body[0], ruff::ast::Stmt::Return(None)));
+        }
+        other => panic!("expected function statement, got {:?}", other),
+    }
+}
+
+#[test]
+fn parser_accepts_bare_return_at_eof() {
+    let output = parse_output("return");
+    assert!(
+        output.diagnostics.is_empty(),
+        "expected bare return at EOF to parse cleanly, got {:?}",
+        output.diagnostics
+    );
+    assert_eq!(output.stmts.len(), 1);
+    assert!(matches!(output.stmts[0], ruff::ast::Stmt::Return(None)));
 }
 
 #[test]

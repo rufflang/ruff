@@ -201,6 +201,7 @@ From highest precedence to lowest:
 ### 5.3 Function execution
 
 - Functions support positional parameters.
+- Function body fallthrough (reaching the end of the body without an explicit `return`) yields `null`.
 - Return without explicit value yields `null`.
 - `async func` values produce awaitable handles in runtime modes that support async scheduling.
 

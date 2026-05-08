@@ -1471,9 +1471,9 @@ impl Interpreter {
                         // Propagate error object - don't clear
                         self.return_value.clone().unwrap()
                     } else {
-                        // No explicit return - function returns 0
+                        // No explicit return - function falls through to null
                         self.return_value = None;
-                        Value::Int(0)
+                        Value::Null
                     };
 
                     // Pop the parameter scope
@@ -1514,9 +1514,9 @@ impl Interpreter {
                         // Propagate error object - don't clear
                         self.return_value.clone().unwrap()
                     } else {
-                        // No explicit return - function returns 0
+                        // No explicit return - function falls through to null
                         self.return_value = None;
-                        Value::Int(0)
+                        Value::Null
                     };
 
                     // Restore parent environment
@@ -1585,7 +1585,7 @@ impl Interpreter {
                         *val
                     } else {
                         self.return_value = None;
-                        Value::Int(0)
+                        Value::Null
                     };
 
                     // Restore parent environment
@@ -1640,7 +1640,7 @@ impl Interpreter {
                         *val
                     } else {
                         self.return_value = None;
-                        Value::Int(0)
+                        Value::Null
                     };
 
                     // Restore parent environment
@@ -3236,7 +3236,7 @@ impl Interpreter {
                 }
             }
             Stmt::Return(expr) => {
-                let value = expr.as_ref().map(|e| self.eval_expr(e)).unwrap_or(Value::Int(0));
+                let value = expr.as_ref().map(|e| self.eval_expr(e)).unwrap_or(Value::Null);
                 if Self::is_error_value(&value) {
                     self.return_value = Some(value);
                 } else {
@@ -3637,7 +3637,7 @@ impl Interpreter {
 
                             // Execute function body
                             self.with_function_context(|interp| interp.eval_stmts(&body.get()));
-                            let mut result = Value::Int(0);
+                            let mut result = Value::Null;
                             if let Some(Value::Return(val)) = self.return_value.clone() {
                                 self.return_value = None;
                                 result = *val;
@@ -4115,7 +4115,7 @@ impl Interpreter {
                                 } else {
                                     // No explicit return - clear any lingering state
                                     self.return_value = None;
-                                    Value::Int(0)
+                                    Value::Null
                                 };
 
                                 // Restore parent environment
@@ -4203,7 +4203,7 @@ impl Interpreter {
                                 self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
-                                Value::Int(0)
+                                Value::Null
                             };
 
                             self.env.pop_scope();
@@ -4237,7 +4237,7 @@ impl Interpreter {
                                 self.return_value.clone().unwrap()
                             } else {
                                 self.return_value = None;
-                                Value::Int(0)
+                                Value::Null
                             };
 
                             self.env.pop_scope();
@@ -4296,7 +4296,7 @@ impl Interpreter {
                                 if let Some(Value::Return(val)) = async_interpreter.return_value {
                                     *val
                                 } else {
-                                    Value::Int(0)
+                                    Value::Null
                                 };
 
                             // Send the result back
@@ -4418,7 +4418,7 @@ impl Interpreter {
                                     self.return_value.clone().unwrap()
                                 } else {
                                     self.return_value = None;
-                                    Value::Int(0)
+                                    Value::Null
                                 };
 
                                 self.env.pop_scope();
@@ -4458,7 +4458,7 @@ impl Interpreter {
                                     self.return_value.clone().unwrap()
                                 } else {
                                     self.return_value = None;
-                                    Value::Int(0)
+                                    Value::Null
                                 };
 
                                 self.env.pop_scope();
@@ -5186,7 +5186,7 @@ impl Interpreter {
                                         Value::Error(message)
                                     } else {
                                         self.return_value = None;
-                                        Value::Int(0)
+                                        Value::Null
                                     };
 
                                 self.env.pop_scope();

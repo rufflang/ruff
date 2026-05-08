@@ -1190,6 +1190,61 @@ fn vm_and_interpreter_short_circuit_logical_operators_evaluate_rhs_when_required
 }
 
 #[test]
+fn vm_and_interpreter_function_fallthrough_and_bare_return_yield_null() {
+    let script = r#"
+        func implicit_fallthrough() {
+            marker := 1
+        }
+
+        func bare_return() {
+            return
+        }
+
+        func explicit_zero() {
+            return 0
+        }
+
+        implicit_value := implicit_fallthrough()
+        bare_value := bare_return()
+        zero_value := explicit_zero()
+
+        falsey_hits := 0
+        if implicit_value { falsey_hits += 1 }
+        if bare_value { falsey_hits += 1 }
+
+        null_return_ok := type(implicit_value) == "null"
+            && type(bare_value) == "null"
+            && implicit_value == null
+            && bare_value == null
+            && zero_value == 0
+            && falsey_hits == 0
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "null_return_ok");
+}
+
+#[test]
+fn vm_and_interpreter_match_null_equality_contract() {
+    let script = r#"
+        eq_null := null == null
+        ne_null := null != null
+        eq_int_zero := null == 0
+        ne_int_zero := null != 0
+        eq_empty_string := null == ""
+        ne_empty_string := null != ""
+
+        null_eq_ok := eq_null == true
+            && ne_null == false
+            && eq_int_zero == false
+            && ne_int_zero == true
+            && eq_empty_string == false
+            && ne_empty_string == true
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "null_eq_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_spawn_surface() {
     let spawn_key = unique_spawn_key();
     let script = format!(

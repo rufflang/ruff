@@ -89,7 +89,8 @@ pub fn validate_source_size(source: &str, max_source_bytes: usize) -> Result<(),
 pub struct ParseOutput {
     pub stmts: Vec<Stmt>,
     pub diagnostics: Vec<ParseDiagnostic>,
-    #[allow(dead_code)] // Used by parser/LSP contracts and targeted tests; not consumed in every binary flow yet.
+    #[allow(dead_code)]
+    // Used by parser/LSP contracts and targeted tests; not consumed in every binary flow yet.
     pub ast_spans: Vec<AstNodeSpan>,
 }
 
@@ -165,9 +166,9 @@ impl Parser {
 
     fn token_width_chars(token: &Token) -> usize {
         match &token.kind {
-            TokenKind::Identifier(value) | TokenKind::Keyword(value) | TokenKind::Operator(value) => {
-                value.chars().count().max(1)
-            }
+            TokenKind::Identifier(value)
+            | TokenKind::Keyword(value)
+            | TokenKind::Operator(value) => value.chars().count().max(1),
             TokenKind::Int(value) => value.to_string().chars().count().max(1),
             TokenKind::Float(value) => value.to_string().chars().count().max(1),
             TokenKind::String(value) => value.chars().count().saturating_add(2).max(1),
@@ -222,10 +223,8 @@ impl Parser {
     }
 
     fn record_ast_span(&mut self, kind: AstNodeSpanKind, start_pos: usize, end_pos: usize) {
-        self.ast_spans.push(AstNodeSpan {
-            kind,
-            span: self.span_between_positions(start_pos, end_pos),
-        });
+        self.ast_spans
+            .push(AstNodeSpan { kind, span: self.span_between_positions(start_pos, end_pos) });
     }
 
     fn push_diagnostic(&mut self, message: impl Into<String>) {
@@ -544,7 +543,10 @@ impl Parser {
             TokenKind::Keyword(k) if k == "export" => self.parse_export(),
             TokenKind::Keyword(k) if k == "return" => {
                 self.advance();
-                let expr = if !matches!(self.peek(), TokenKind::Punctuation(';')) {
+                let expr = if !matches!(
+                    self.peek(),
+                    TokenKind::Punctuation(';') | TokenKind::Punctuation('}') | TokenKind::Eof
+                ) {
                     Some(self.parse_expr()?)
                 } else {
                     None
