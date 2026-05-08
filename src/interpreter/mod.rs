@@ -260,6 +260,8 @@ pub struct Interpreter {
     pub env: Environment,
     pub return_value: Option<Value>,
     control_flow: ControlFlow,
+    function_depth: usize,
+    loop_depth: usize,
     output: Option<Arc<Mutex<Vec<u8>>>>,
     pub source_file: Option<String>,
     pub source_lines: Vec<String>,
@@ -275,6 +277,8 @@ impl Interpreter {
             env: Environment::default(),
             return_value: None,
             control_flow: ControlFlow::None,
+            function_depth: 0,
+            loop_depth: 0,
             output: None,
             source_file: None,
             source_lines: Vec::new(),
@@ -309,6 +313,20 @@ impl Interpreter {
         let previous_size = self.async_task_pool_size;
         self.async_task_pool_size = size;
         previous_size
+    }
+
+    fn with_function_context<T>(&mut self, body: impl FnOnce(&mut Self) -> T) -> T {
+        self.function_depth += 1;
+        let result = body(self);
+        self.function_depth = self.function_depth.saturating_sub(1);
+        result
+    }
+
+    fn with_loop_context<T>(&mut self, body: impl FnOnce(&mut Self) -> T) -> T {
+        self.loop_depth += 1;
+        let result = body(self);
+        self.loop_depth = self.loop_depth.saturating_sub(1);
+        result
     }
 
     fn capture_spawn_bindings(&self) -> Vec<(String, SpawnCapturedValue)> {
@@ -1440,7 +1458,7 @@ impl Interpreter {
                     }
 
                     // Execute function body
-                    self.eval_stmts(&body.get());
+                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                     // Get return value
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -1483,7 +1501,7 @@ impl Interpreter {
                     }
 
                     // Execute function body
-                    self.eval_stmts(&body.get());
+                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                     // Get return value
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -1560,7 +1578,7 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.eval_stmts(&body.get());
+                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -1615,7 +1633,7 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.eval_stmts(&body.get());
+                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -1796,7 +1814,7 @@ impl Interpreter {
                         self.env.define(param.clone(), req_obj);
                     }
 
-                    self.eval_stmts(&body.get());
+                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                     // Get result
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -2945,267 +2963,286 @@ impl Interpreter {
                 }
             }
             Stmt::Loop { condition, body } => {
-                loop {
-                    if let Some(condition) = condition.as_ref() {
-                        let condition_value = self.eval_expr(condition);
-                        if self.set_return_if_error(&condition_value) {
-                            return;
+                self.with_loop_context(|interp| {
+                    loop {
+                        if let Some(condition) = condition.as_ref() {
+                            let condition_value = interp.eval_expr(condition);
+                            if interp.set_return_if_error(&condition_value) {
+                                return;
+                            }
+                            if !condition_value.is_truthy() {
+                                break;
+                            }
                         }
-                        if !condition_value.is_truthy() {
+
+                        interp.eval_scoped_stmts(body);
+
+                        // Handle control flow
+                        if interp.control_flow == ControlFlow::Break {
+                            interp.control_flow = ControlFlow::None;
+                            break;
+                        } else if interp.control_flow == ControlFlow::Continue {
+                            interp.control_flow = ControlFlow::None;
+                            continue;
+                        }
+
+                        if interp.return_value.is_some() {
                             break;
                         }
                     }
-
-                    self.eval_scoped_stmts(body);
-
-                    // Handle control flow
-                    if self.control_flow == ControlFlow::Break {
-                        self.control_flow = ControlFlow::None;
-                        break;
-                    } else if self.control_flow == ControlFlow::Continue {
-                        self.control_flow = ControlFlow::None;
-                        continue;
-                    }
-
-                    if self.return_value.is_some() {
-                        break;
-                    }
-                }
+                });
             }
             Stmt::For { var, iterable, body } => {
-                let mut iterable_value = self.eval_expr(iterable);
-                if self.set_return_if_error(&iterable_value) {
-                    return;
-                }
+                self.with_loop_context(|interp| {
+                    let mut iterable_value = interp.eval_expr(iterable);
+                    if interp.set_return_if_error(&iterable_value) {
+                        return;
+                    }
 
-                // If we got a GeneratorDef, call it to get a Generator instance
-                // This handles cases like: for x in generator_func() { ... }
-                if let Value::GeneratorDef(_, _) = &iterable_value {
-                    iterable_value = self.call_user_function(&iterable_value, &[]);
-                }
+                    // If we got a GeneratorDef, call it to get a Generator instance
+                    // This handles cases like: for x in generator_func() { ... }
+                    if let Value::GeneratorDef(_, _) = &iterable_value {
+                        iterable_value = interp.call_user_function(&iterable_value, &[]);
+                    }
 
-                // Check if this is a generator and handle it separately (needs to be mut)
-                if matches!(&iterable_value, Value::Generator { .. }) {
-                    let mut gen_value = iterable_value;
-                    loop {
-                        let next_option = self.generator_next(&mut gen_value);
-                        match next_option {
-                            Value::Option { is_some: true, value } => {
-                                // Got a value from generator
-                                self.env.push_scope();
-                                self.env.define(var.clone(), *value);
+                    // Check if this is a generator and handle it separately (needs to be mut)
+                    if matches!(&iterable_value, Value::Generator { .. }) {
+                        let mut gen_value = iterable_value;
+                        loop {
+                            let next_option = interp.generator_next(&mut gen_value);
+                            match next_option {
+                                Value::Option { is_some: true, value } => {
+                                    // Got a value from generator
+                                    interp.env.push_scope();
+                                    interp.env.define(var.clone(), *value);
 
-                                self.eval_stmts(body);
+                                    interp.eval_stmts(body);
 
-                                self.env.pop_scope();
+                                    interp.env.pop_scope();
+
+                                    // Handle control flow
+                                    if interp.control_flow == ControlFlow::Break {
+                                        interp.control_flow = ControlFlow::None;
+                                        break;
+                                    } else if interp.control_flow == ControlFlow::Continue {
+                                        interp.control_flow = ControlFlow::None;
+                                        continue;
+                                    }
+
+                                    if interp.return_value.is_some() {
+                                        break;
+                                    }
+                                }
+                                Value::Option { is_some: false, .. } => {
+                                    // Generator exhausted
+                                    break;
+                                }
+                                Value::Error(msg) => {
+                                    interp.return_value = Some(Value::Error(msg));
+                                    break;
+                                }
+                                _ => {
+                                    eprintln!("Unexpected value from generator iteration");
+                                    break;
+                                }
+                            }
+                        }
+                        return;
+                    }
+
+                    match &iterable_value {
+                        Value::Int(n) => {
+                            // Numeric range: for i in 5 { ... } iterates 0..5
+                            for i in 0..*n {
+                                // Create new scope for loop iteration
+                                // Push new scope
+                                interp.env.push_scope();
+                                interp.env.define(var.clone(), Value::Int(i));
+
+                                interp.eval_stmts(body);
+
+                                // Restore parent environment
+                                interp.env.pop_scope();
 
                                 // Handle control flow
-                                if self.control_flow == ControlFlow::Break {
-                                    self.control_flow = ControlFlow::None;
+                                if interp.control_flow == ControlFlow::Break {
+                                    interp.control_flow = ControlFlow::None;
                                     break;
-                                } else if self.control_flow == ControlFlow::Continue {
-                                    self.control_flow = ControlFlow::None;
+                                } else if interp.control_flow == ControlFlow::Continue {
+                                    interp.control_flow = ControlFlow::None;
                                     continue;
                                 }
 
-                                if self.return_value.is_some() {
+                                if interp.return_value.is_some() {
                                     break;
                                 }
                             }
-                            Value::Option { is_some: false, .. } => {
-                                // Generator exhausted
-                                break;
-                            }
-                            Value::Error(msg) => {
-                                self.return_value = Some(Value::Error(msg));
-                                break;
-                            }
-                            _ => {
-                                eprintln!("Unexpected value from generator iteration");
-                                break;
+                        }
+                        Value::Float(n) => {
+                            // Numeric range: for i in 5.0 { ... } iterates 0..5
+                            for i in 0..*n as i64 {
+                                // Create new scope for loop iteration
+                                // Push new scope
+                                interp.env.push_scope();
+                                interp.env.define(var.clone(), Value::Int(i));
+
+                                interp.eval_stmts(body);
+
+                                // Restore parent environment
+                                interp.env.pop_scope();
+
+                                // Handle control flow
+                                if interp.control_flow == ControlFlow::Break {
+                                    interp.control_flow = ControlFlow::None;
+                                    break;
+                                } else if interp.control_flow == ControlFlow::Continue {
+                                    interp.control_flow = ControlFlow::None;
+                                    continue;
+                                }
+
+                                if interp.return_value.is_some() {
+                                    break;
+                                }
                             }
                         }
-                    }
-                    return;
-                }
+                        Value::Array(arr) => {
+                            // Array iteration: for item in [1, 2, 3] { ... }
+                            let arr_clone = arr.as_ref().clone();
+                            for item in arr_clone {
+                                // Create new scope for loop iteration
+                                // Push new scope
+                                interp.env.push_scope();
+                                interp.env.define(var.clone(), item);
 
-                match &iterable_value {
-                    Value::Int(n) => {
-                        // Numeric range: for i in 5 { ... } iterates 0..5
-                        for i in 0..*n {
-                            // Create new scope for loop iteration
-                            // Push new scope
-                            self.env.push_scope();
-                            self.env.define(var.clone(), Value::Int(i));
+                                interp.eval_stmts(body);
 
-                            self.eval_stmts(body);
+                                // Restore parent environment
+                                interp.env.pop_scope();
 
-                            // Restore parent environment
-                            self.env.pop_scope();
+                                // Handle control flow
+                                if interp.control_flow == ControlFlow::Break {
+                                    interp.control_flow = ControlFlow::None;
+                                    break;
+                                } else if interp.control_flow == ControlFlow::Continue {
+                                    interp.control_flow = ControlFlow::None;
+                                    continue;
+                                }
 
-                            // Handle control flow
-                            if self.control_flow == ControlFlow::Break {
-                                self.control_flow = ControlFlow::None;
-                                break;
-                            } else if self.control_flow == ControlFlow::Continue {
-                                self.control_flow = ControlFlow::None;
-                                continue;
-                            }
-
-                            if self.return_value.is_some() {
-                                break;
+                                if interp.return_value.is_some() {
+                                    break;
+                                }
                             }
                         }
-                    }
-                    Value::Float(n) => {
-                        // Numeric range: for i in 5.0 { ... } iterates 0..5
-                        for i in 0..*n as i64 {
-                            // Create new scope for loop iteration
-                            // Push new scope
-                            self.env.push_scope();
-                            self.env.define(var.clone(), Value::Int(i));
+                        Value::Dict(dict) => {
+                            // Dictionary iteration: for key in {"a": 1, "b": 2} { ... }
+                            // Iterate over keys
+                            let keys: Vec<String> =
+                                dict.keys().map(|key| key.to_string()).collect();
+                            for key in keys {
+                                // Create new scope for loop iteration
+                                // Push new scope
+                                interp.env.push_scope();
+                                interp.env.define(var.clone(), Value::Str(Arc::new(key)));
 
-                            self.eval_stmts(body);
+                                interp.eval_stmts(body);
 
-                            // Restore parent environment
-                            self.env.pop_scope();
+                                // Restore parent environment
+                                interp.env.pop_scope();
 
-                            // Handle control flow
-                            if self.control_flow == ControlFlow::Break {
-                                self.control_flow = ControlFlow::None;
-                                break;
-                            } else if self.control_flow == ControlFlow::Continue {
-                                self.control_flow = ControlFlow::None;
-                                continue;
-                            }
+                                // Handle control flow
+                                if interp.control_flow == ControlFlow::Break {
+                                    interp.control_flow = ControlFlow::None;
+                                    break;
+                                } else if interp.control_flow == ControlFlow::Continue {
+                                    interp.control_flow = ControlFlow::None;
+                                    continue;
+                                }
 
-                            if self.return_value.is_some() {
-                                break;
-                            }
-                        }
-                    }
-                    Value::Array(arr) => {
-                        // Array iteration: for item in [1, 2, 3] { ... }
-                        let arr_clone = arr.as_ref().clone();
-                        for item in arr_clone {
-                            // Create new scope for loop iteration
-                            // Push new scope
-                            self.env.push_scope();
-                            self.env.define(var.clone(), item);
-
-                            self.eval_stmts(body);
-
-                            // Restore parent environment
-                            self.env.pop_scope();
-
-                            // Handle control flow
-                            if self.control_flow == ControlFlow::Break {
-                                self.control_flow = ControlFlow::None;
-                                break;
-                            } else if self.control_flow == ControlFlow::Continue {
-                                self.control_flow = ControlFlow::None;
-                                continue;
-                            }
-
-                            if self.return_value.is_some() {
-                                break;
+                                if interp.return_value.is_some() {
+                                    break;
+                                }
                             }
                         }
-                    }
-                    Value::Dict(dict) => {
-                        // Dictionary iteration: for key in {"a": 1, "b": 2} { ... }
-                        // Iterate over keys
-                        let keys: Vec<String> = dict.keys().map(|key| key.to_string()).collect();
-                        for key in keys {
-                            // Create new scope for loop iteration
-                            // Push new scope
-                            self.env.push_scope();
-                            self.env.define(var.clone(), Value::Str(Arc::new(key)));
+                        Value::Str(s) => {
+                            // String iteration: for char in "hello" { ... }
+                            let chars: Vec<char> = s.chars().collect();
+                            for ch in chars {
+                                // Create new scope for loop iteration
+                                // Push new scope
+                                interp.env.push_scope();
+                                interp
+                                    .env
+                                    .define(var.clone(), Value::Str(Arc::new(ch.to_string())));
 
-                            self.eval_stmts(body);
+                                interp.eval_stmts(body);
 
-                            // Restore parent environment
-                            self.env.pop_scope();
+                                // Restore parent environment
+                                interp.env.pop_scope();
 
-                            // Handle control flow
-                            if self.control_flow == ControlFlow::Break {
-                                self.control_flow = ControlFlow::None;
-                                break;
-                            } else if self.control_flow == ControlFlow::Continue {
-                                self.control_flow = ControlFlow::None;
-                                continue;
-                            }
+                                // Handle control flow
+                                if interp.control_flow == ControlFlow::Break {
+                                    interp.control_flow = ControlFlow::None;
+                                    break;
+                                } else if interp.control_flow == ControlFlow::Continue {
+                                    interp.control_flow = ControlFlow::None;
+                                    continue;
+                                }
 
-                            if self.return_value.is_some() {
-                                break;
-                            }
-                        }
-                    }
-                    Value::Str(s) => {
-                        // String iteration: for char in "hello" { ... }
-                        let chars: Vec<char> = s.chars().collect();
-                        for ch in chars {
-                            // Create new scope for loop iteration
-                            // Push new scope
-                            self.env.push_scope();
-                            self.env.define(var.clone(), Value::Str(Arc::new(ch.to_string())));
-
-                            self.eval_stmts(body);
-
-                            // Restore parent environment
-                            self.env.pop_scope();
-
-                            // Handle control flow
-                            if self.control_flow == ControlFlow::Break {
-                                self.control_flow = ControlFlow::None;
-                                break;
-                            } else if self.control_flow == ControlFlow::Continue {
-                                self.control_flow = ControlFlow::None;
-                                continue;
-                            }
-
-                            if self.return_value.is_some() {
-                                break;
+                                if interp.return_value.is_some() {
+                                    break;
+                                }
                             }
                         }
+                        _ => {
+                            eprintln!("Cannot iterate over non-iterable type");
+                        }
                     }
-                    _ => {
-                        eprintln!("Cannot iterate over non-iterable type");
-                    }
-                }
+                });
             }
             Stmt::While { condition, body } => {
-                // While loop: execute body while condition is truthy
-                loop {
-                    let cond_val = self.eval_expr(condition);
-                    if self.set_return_if_error(&cond_val) {
-                        return;
-                    }
-                    if !cond_val.is_truthy() {
-                        break;
-                    }
+                self.with_loop_context(|interp| {
+                    // While loop: execute body while condition is truthy
+                    loop {
+                        let cond_val = interp.eval_expr(condition);
+                        if interp.set_return_if_error(&cond_val) {
+                            return;
+                        }
+                        if !cond_val.is_truthy() {
+                            break;
+                        }
 
-                    self.eval_scoped_stmts(body);
+                        interp.eval_scoped_stmts(body);
 
-                    // Handle control flow
-                    if self.control_flow == ControlFlow::Break {
-                        self.control_flow = ControlFlow::None;
-                        break;
-                    } else if self.control_flow == ControlFlow::Continue {
-                        self.control_flow = ControlFlow::None;
-                        continue;
-                    }
+                        // Handle control flow
+                        if interp.control_flow == ControlFlow::Break {
+                            interp.control_flow = ControlFlow::None;
+                            break;
+                        } else if interp.control_flow == ControlFlow::Continue {
+                            interp.control_flow = ControlFlow::None;
+                            continue;
+                        }
 
-                    if self.return_value.is_some() {
-                        break;
+                        if interp.return_value.is_some() {
+                            break;
+                        }
                     }
-                }
+                });
             }
             Stmt::Break => {
-                self.control_flow = ControlFlow::Break;
+                if self.loop_depth == 0 {
+                    self.return_value =
+                        Some(Value::Error("break can only be used inside a loop".to_string()));
+                } else {
+                    self.control_flow = ControlFlow::Break;
+                }
             }
             Stmt::Continue => {
-                self.control_flow = ControlFlow::Continue;
+                if self.loop_depth == 0 {
+                    self.return_value =
+                        Some(Value::Error("continue can only be used inside a loop".to_string()));
+                } else {
+                    self.control_flow = ControlFlow::Continue;
+                }
             }
             Stmt::Return(expr) => {
                 let value = expr.as_ref().map(|e| self.eval_expr(e)).unwrap_or(Value::Int(0));
@@ -3608,7 +3645,7 @@ impl Interpreter {
                             }
 
                             // Execute function body
-                            self.eval_stmts(&body.get());
+                            self.with_function_context(|interp| interp.eval_stmts(&body.get()));
                             let mut result = Value::Int(0);
                             if let Some(Value::Return(val)) = self.return_value.clone() {
                                 self.return_value = None;
@@ -4075,7 +4112,7 @@ impl Interpreter {
                                 }
 
                                 // Execute method body
-                                self.eval_stmts(&body.get());
+                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
                                 {
@@ -4161,7 +4198,7 @@ impl Interpreter {
                                 }
                             }
 
-                            self.eval_stmts(&body.get());
+                            self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                             let result = if let Some(Value::Return(val)) = self.return_value.clone()
                             {
@@ -4195,7 +4232,7 @@ impl Interpreter {
                                 }
                             }
 
-                            self.eval_stmts(&body.get());
+                            self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                             let result = if let Some(Value::Return(val)) = self.return_value.clone()
                             {
@@ -4260,7 +4297,8 @@ impl Interpreter {
                             }
 
                             // Execute the async function body
-                            async_interpreter.eval_stmts(&body.get());
+                            async_interpreter
+                                .with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                             // Get the return value
                             let result =
@@ -4374,7 +4412,7 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.eval_stmts(&body.get());
+                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
@@ -4414,7 +4452,7 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.eval_stmts(&body.get());
+                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
@@ -5145,7 +5183,7 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.eval_stmts(&body.get());
+                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
 
                                 let result =
                                     if let Some(Value::Return(value)) = self.return_value.clone() {

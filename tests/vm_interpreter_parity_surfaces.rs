@@ -320,6 +320,93 @@ fn vm_and_interpreter_error_on_unsupported_unary_operation() {
 }
 
 #[test]
+fn vm_and_interpreter_error_on_break_outside_loop() {
+    let script = "break\n";
+    assert_interpreter_and_vm_error_contains(script, "break can only be used inside a loop");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_continue_outside_loop() {
+    let script = "continue\n";
+    assert_interpreter_and_vm_error_contains(script, "continue can only be used inside a loop");
+}
+
+#[test]
+fn vm_and_interpreter_allow_break_and_continue_inside_loop() {
+    let script = r#"
+        counter := 0
+        loop {
+            counter := counter + 1
+            if counter == 2 { continue }
+            if counter == 4 { break }
+        }
+        loop_ok := counter == 4
+    "#;
+
+    let interp = run_interpreter(script);
+    assert!(
+        interp.return_value.is_none(),
+        "unexpected interpreter control-flow error: {:?}",
+        interp.return_value
+    );
+    assert!(matches!(interp.env.get("loop_ok"), Some(Value::Bool(true))));
+
+    let vm_env = vm_env_with_builtins();
+    let vm_result = run_vm(script, vm_env.clone());
+    assert!(vm_result.is_ok(), "unexpected vm control-flow error: {:?}", vm_result.err());
+    let vm_globals = vm_env.lock().expect("failed to lock vm globals");
+    assert!(matches!(vm_globals.get("loop_ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn vm_and_interpreter_error_on_break_outside_loop_inside_function() {
+    let script = r#"
+        func bad() {
+            break
+        }
+
+        bad()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "break can only be used inside a loop");
+}
+
+#[test]
+fn vm_and_interpreter_error_on_continue_outside_loop_inside_function() {
+    let script = r#"
+        func bad() {
+            continue
+        }
+
+        bad()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "continue can only be used inside a loop");
+}
+
+#[test]
+fn vm_and_interpreter_allow_top_level_return_for_script_exit() {
+    let script = r#"
+        value := 41
+        return value + 1
+    "#;
+
+    let interp = run_interpreter(script);
+    assert!(matches!(
+        interp.return_value,
+        Some(Value::Return(value)) if matches!(*value, Value::Int(42))
+    ));
+
+    let vm_env = vm_env_with_builtins();
+    let vm_result = run_vm(script, vm_env);
+    assert!(
+        vm_result.is_ok(),
+        "expected VM to keep top-level return script behavior, got {:?}",
+        vm_result
+    );
+}
+
+#[test]
 fn vm_and_interpreter_match_valid_index_assignment_success_path() {
     let script = r#"
         values := [2, 4, 6]

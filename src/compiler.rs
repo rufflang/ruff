@@ -158,10 +158,11 @@ impl Compiler {
     }
 
     fn has_local_in_current_scope(&self, name: &str) -> bool {
-        self.locals
-            .iter()
-            .rev()
-            .any(|local| local.depth == self.scope_depth && local.name == name)
+        self.locals.iter().rev().any(|local| local.depth == self.scope_depth && local.name == name)
+    }
+
+    fn is_inside_loop(&self) -> bool {
+        !self.loop_starts.is_empty()
     }
 
     fn declare_local(
@@ -507,6 +508,10 @@ impl Compiler {
             }
 
             Stmt::Break => {
+                if !self.is_inside_loop() {
+                    return Err("break can only be used inside a loop".to_string());
+                }
+
                 // Add a jump that will be patched later
                 let jump_index = self.chunk.emit(OpCode::Jump(0));
                 if let Some(breaks) = self.loop_ends.last_mut() {
@@ -516,6 +521,10 @@ impl Compiler {
             }
 
             Stmt::Continue => {
+                if !self.is_inside_loop() {
+                    return Err("continue can only be used inside a loop".to_string());
+                }
+
                 // Jump back to loop start
                 if let Some(&loop_start) = self.loop_starts.last() {
                     self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -537,10 +546,7 @@ impl Compiler {
                 // Add parameters as locals
                 for param in params {
                     if func_compiler.has_local_in_current_scope(param) {
-                        return Err(format!(
-                            "Duplicate declaration in the same scope: {}",
-                            param
-                        ));
+                        return Err(format!("Duplicate declaration in the same scope: {}", param));
                     }
                     func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                 }
@@ -1136,10 +1142,7 @@ impl Compiler {
                 // Add parameters as locals
                 for param in params {
                     if func_compiler.has_local_in_current_scope(param) {
-                        return Err(format!(
-                            "Duplicate declaration in the same scope: {}",
-                            param
-                        ));
+                        return Err(format!("Duplicate declaration in the same scope: {}", param));
                     }
                     func_compiler.add_local(param, 1, BytecodeBindingKind::Mutable);
                 }
