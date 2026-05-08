@@ -42,7 +42,7 @@ use control_flow::ControlFlow;
 
 use crate::ast::{Expr, Stmt};
 use crate::builtins;
-use crate::errors::RuffError;
+use crate::errors::{unsupported_struct_generator_method_message, RuffError};
 use crate::module::ModuleLoader;
 
 // Infrastructure imports for stub modules (crypto.rs, database.rs, network.rs)
@@ -3388,12 +3388,12 @@ impl Interpreter {
                     } = method_stmt
                     {
                         if *is_generator {
-                            // Generators not supported as methods yet
-                            let gen = Value::GeneratorDef(
-                                params.clone(),
-                                LeakyFunctionBody::new(body.clone()),
-                            );
-                            method_map.insert(method_name.clone(), gen);
+                            let error = Value::Error(unsupported_struct_generator_method_message(
+                                name,
+                                method_name,
+                            ));
+                            self.set_return_if_error(&error);
+                            return;
                         } else {
                             let func = Value::Function(
                                 params.clone(),

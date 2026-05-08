@@ -4820,16 +4820,24 @@ impl VM {
                     }
                     args.reverse();
 
-                    // Call the native function through the interpreter
-                    let result = self.interpreter.call_native_function_impl(&name, &args);
-
-                    // Check if result is an error
-                    match &result {
-                        Value::Error(msg) => return Err(msg.clone()),
-                        Value::ErrorObject { .. } => {
-                            return Err(format!("Error in native function {}", name))
+                    let result = match name.as_str() {
+                        "__vm_import_all" => self.vm_import_all(&args),
+                        "__vm_import_symbol" => self.vm_import_symbol(&args),
+                        _ => {
+                            let native_result = self.interpreter.call_native_function_impl(&name, &args);
+                            match native_result {
+                                Value::Error(msg) => Err(msg),
+                                Value::ErrorObject { .. } => {
+                                    Err(format!("Error in native function {}", name))
+                                }
+                                other => Ok(other),
+                            }
                         }
-                        _ => self.stack.push(result),
+                    };
+
+                    match result {
+                        Ok(value) => self.stack.push(value),
+                        Err(err) => return Err(err),
                     }
                 }
 
@@ -4911,6 +4919,68 @@ impl VM {
                 }
             }
         }
+    }
+
+    fn define_import_binding_in_current_scope(&mut self, name: String, value: Value) {
+        if let Some(frame) = self.call_frames.last_mut() {
+            frame.locals_binding_kinds.insert(name.clone(), BytecodeBindingKind::Mutable);
+            frame.locals.insert(name, value);
+        } else {
+            self.globals.lock().unwrap().define_with_kind(name, value, BindingKind::Mutable);
+        }
+    }
+
+    fn vm_import_all(&mut self, args: &[Value]) -> Result<Value, String> {
+        if args.len() != 1 {
+            return Err(format!(
+                "__vm_import_all expects 1 arguments, got {}",
+                args.len()
+            ));
+        }
+
+        let module_name = match args.first() {
+            Some(Value::Str(name)) => name.as_ref().clone(),
+            _ => return Err("__vm_import_all expects module name as string".to_string()),
+        };
+
+        let exports = self
+            .interpreter
+            .module_loader
+            .get_all_exports(&module_name)
+            .map_err(|err| err.message)?;
+
+        for (name, value) in exports {
+            self.define_import_binding_in_current_scope(name, value);
+        }
+
+        Ok(Value::Null)
+    }
+
+    fn vm_import_symbol(&mut self, args: &[Value]) -> Result<Value, String> {
+        if args.len() != 2 {
+            return Err(format!(
+                "__vm_import_symbol expects 2 arguments, got {}",
+                args.len()
+            ));
+        }
+
+        let module_name = match args.first() {
+            Some(Value::Str(name)) => name.as_ref().clone(),
+            _ => return Err("__vm_import_symbol expects module name as string".to_string()),
+        };
+        let symbol_name = match args.get(1) {
+            Some(Value::Str(name)) => name.as_ref().clone(),
+            _ => return Err("__vm_import_symbol expects symbol name as string".to_string()),
+        };
+
+        let value = self
+            .interpreter
+            .module_loader
+            .get_symbol(&module_name, &symbol_name)
+            .map_err(|err| err.message)?;
+
+        self.define_import_binding_in_current_scope(symbol_name, value);
+        Ok(Value::Null)
     }
 
     /// Convert a constant to a runtime value

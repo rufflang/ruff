@@ -5,6 +5,7 @@
 
 use crate::ast::{ArrayElement, DictElement, Expr, Pattern, Stmt};
 use crate::bytecode::{BytecodeBindingKind, BytecodeChunk, Constant, OpCode};
+use crate::errors::unsupported_struct_generator_method_message;
 use crate::optimizer::Optimizer;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -591,6 +592,13 @@ impl Compiler {
                         ..
                     } = method_stmt
                     {
+                        if *is_generator {
+                            return Err(unsupported_struct_generator_method_message(
+                                name,
+                                method_name,
+                            ));
+                        }
+
                         let mut func_compiler = Compiler::new();
                         func_compiler.used_locals = Self::collect_used_variables(body);
                         func_compiler.chunk.name = Some(format!("{}.{}", name, method_name));
@@ -864,13 +872,41 @@ impl Compiler {
                 Ok(())
             }
 
-            Stmt::Import { .. }
-            | Stmt::Test { .. }
+            Stmt::Import { module, symbols } => {
+                let import_module_const =
+                    self.chunk.add_constant(Constant::String(module.clone()));
+
+                match symbols {
+                    Some(symbol_list) => {
+                        for symbol_name in symbol_list {
+                            let import_symbol_const =
+                                self.chunk.add_constant(Constant::String(symbol_name.clone()));
+
+                            self.chunk.emit(OpCode::LoadConst(import_module_const));
+                            self.chunk.emit(OpCode::LoadConst(import_symbol_const));
+                            self.chunk.emit(OpCode::CallNative(
+                                "__vm_import_symbol".to_string(),
+                                2,
+                            ));
+                            self.chunk.emit(OpCode::Pop);
+                        }
+                    }
+                    None => {
+                        self.chunk.emit(OpCode::LoadConst(import_module_const));
+                        self.chunk
+                            .emit(OpCode::CallNative("__vm_import_all".to_string(), 1));
+                        self.chunk.emit(OpCode::Pop);
+                    }
+                }
+
+                Ok(())
+            }
+
+            Stmt::Test { .. }
             | Stmt::TestSetup { .. }
             | Stmt::TestTeardown { .. }
             | Stmt::TestGroup { .. } => {
                 // These are handled at parse/runtime for now
-                // Import requires module system
                 // Test statements are executed by test runner
                 Ok(())
             }

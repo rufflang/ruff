@@ -3,6 +3,7 @@ use ruff::interpreter::{Environment, Interpreter, Value};
 use ruff::lexer::tokenize;
 use ruff::parser::Parser;
 use ruff::vm::{VmExecutionResult, VM};
+use std::fs;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -82,6 +83,14 @@ fn unique_spawn_key() -> String {
         .expect("system time should be after unix epoch")
         .as_nanos();
     format!("vm_interp_parity_spawn_{}_{}", std::process::id(), nanos)
+}
+
+fn unique_module_name() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be after unix epoch")
+        .as_nanos();
+    format!("vm_interp_parity_module_{}_{}", std::process::id(), nanos)
 }
 
 #[test]
@@ -498,6 +507,27 @@ fn vm_and_interpreter_error_on_unknown_method_member() {
 }
 
 #[test]
+fn vm_and_interpreter_error_on_unsupported_struct_generator_method() {
+    let script = r#"
+        struct Counter {
+            value: int,
+
+            func* emit(self) {
+                yield self.value
+            }
+        }
+
+        counter := Counter { value: 7 }
+        return counter.emit()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(
+        script,
+        "Generator methods are not supported for structs: Counter.emit",
+    );
+}
+
+#[test]
 fn vm_and_interpreter_error_on_function_arity_too_few() {
     let script = r#"
         func add(a, b) {
@@ -835,6 +865,25 @@ fn vm_and_interpreter_match_successful_captured_map_update() {
     "#;
 
     assert_interpreter_and_vm_bool(script, "map_update_ok");
+}
+
+#[test]
+fn vm_and_interpreter_match_import_export_surface() {
+    let module_name = unique_module_name();
+    let module_filename = format!("{}.ruff", module_name);
+    let module_source = "export answer := 42\n";
+    fs::write(&module_filename, module_source).expect("failed to write parity module");
+
+    let script = format!(
+        r#"
+        from {} import answer
+        import_ok := answer == 42
+    "#,
+        module_name
+    );
+
+    assert_interpreter_and_vm_bool(&script, "import_ok");
+    let _ = fs::remove_file(module_filename);
 }
 
 #[test]
