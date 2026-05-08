@@ -1889,7 +1889,7 @@ impl Interpreter {
     fn values_equal(a: &Value, b: &Value) -> bool {
         match (a, b) {
             (Value::Int(x), Value::Int(y)) => x == y,
-            (Value::Float(x), Value::Float(y)) => (x - y).abs() < f64::EPSILON,
+            (Value::Float(x), Value::Float(y)) => Value::float_equals(*x, *y),
             (Value::Str(x), Value::Str(y)) => x == y,
             (Value::Bool(x), Value::Bool(y)) => x == y,
             (Value::Null, Value::Null) => true,
@@ -2190,7 +2190,10 @@ impl Interpreter {
 
     fn unary_op_value(&self, op: &str, value: &Value) -> Value {
         match (op, value) {
-            ("-", Value::Int(n)) => Value::Int(-n),
+            ("-", Value::Int(n)) => match n.checked_neg() {
+                Some(result) => Value::Int(result),
+                None => Value::Error(format!("Integer overflow: -({})", n)),
+            },
             ("-", Value::Float(n)) => Value::Float(-n),
             ("!", Value::Bool(b)) => Value::Bool(!b),
             _ => Self::invalid_unary_operation(op, value),
@@ -2217,23 +2220,10 @@ impl Interpreter {
                 _ => Self::invalid_binary_operation(op, left, right),
             },
             (Value::Int(a), Value::Int(b)) => match op {
-                "+" => Value::Int(a.wrapping_add(*b)),
-                "-" => Value::Int(a.wrapping_sub(*b)),
-                "*" => Value::Int(a.wrapping_mul(*b)),
-                "/" => {
-                    if *b == 0 {
-                        Value::Error("Division by zero".to_string())
-                    } else {
-                        Value::Int(a / b)
-                    }
-                }
-                "%" => {
-                    if *b == 0 {
-                        Value::Error("Modulo by zero".to_string())
-                    } else {
-                        Value::Int(a % b)
-                    }
-                }
+                "+" | "-" | "*" | "/" | "%" => match Value::checked_int_arithmetic(*a, op, *b) {
+                    Ok(result) => Value::Int(result),
+                    Err(error) => Value::Error(error),
+                },
                 "==" => Value::Bool(a == b),
                 "!=" => Value::Bool(a != b),
                 ">" => Value::Bool(a > b),
@@ -2243,13 +2233,12 @@ impl Interpreter {
                 _ => Self::invalid_binary_operation(op, left, right),
             },
             (Value::Float(a), Value::Float(b)) => match op {
-                "+" => Value::Float(a + b),
-                "-" => Value::Float(a - b),
-                "*" => Value::Float(a * b),
-                "/" => Value::Float(a / b),
-                "%" => Value::Float(a % b),
-                "==" => Value::Bool((a - b).abs() < f64::EPSILON),
-                "!=" => Value::Bool((a - b).abs() >= f64::EPSILON),
+                "+" | "-" | "*" | "/" | "%" => match Value::checked_float_arithmetic(*a, op, *b) {
+                    Ok(result) => Value::Float(result),
+                    Err(error) => Value::Error(error),
+                },
+                "==" => Value::Bool(Value::float_equals(*a, *b)),
+                "!=" => Value::Bool(!Value::float_equals(*a, *b)),
                 ">" => Value::Bool(a > b),
                 "<" => Value::Bool(a < b),
                 ">=" => Value::Bool(a >= b),
@@ -2259,13 +2248,14 @@ impl Interpreter {
             (Value::Int(a), Value::Float(b)) => {
                 let a_float = *a as f64;
                 match op {
-                    "+" => Value::Float(a_float + b),
-                    "-" => Value::Float(a_float - b),
-                    "*" => Value::Float(a_float * b),
-                    "/" => Value::Float(a_float / b),
-                    "%" => Value::Float(a_float % b),
-                    "==" => Value::Bool((a_float - b).abs() < f64::EPSILON),
-                    "!=" => Value::Bool((a_float - b).abs() >= f64::EPSILON),
+                    "+" | "-" | "*" | "/" | "%" => {
+                        match Value::checked_float_arithmetic(a_float, op, *b) {
+                            Ok(result) => Value::Float(result),
+                            Err(error) => Value::Error(error),
+                        }
+                    }
+                    "==" => Value::Bool(Value::float_equals(a_float, *b)),
+                    "!=" => Value::Bool(!Value::float_equals(a_float, *b)),
                     ">" => Value::Bool(a_float > *b),
                     "<" => Value::Bool(a_float < *b),
                     ">=" => Value::Bool(a_float >= *b),
@@ -2276,13 +2266,14 @@ impl Interpreter {
             (Value::Float(a), Value::Int(b)) => {
                 let b_float = *b as f64;
                 match op {
-                    "+" => Value::Float(a + b_float),
-                    "-" => Value::Float(a - b_float),
-                    "*" => Value::Float(a * b_float),
-                    "/" => Value::Float(a / b_float),
-                    "%" => Value::Float(a % b_float),
-                    "==" => Value::Bool((a - b_float).abs() < f64::EPSILON),
-                    "!=" => Value::Bool((a - b_float).abs() >= f64::EPSILON),
+                    "+" | "-" | "*" | "/" | "%" => {
+                        match Value::checked_float_arithmetic(*a, op, b_float) {
+                            Ok(result) => Value::Float(result),
+                            Err(error) => Value::Error(error),
+                        }
+                    }
+                    "==" => Value::Bool(Value::float_equals(*a, b_float)),
+                    "!=" => Value::Bool(!Value::float_equals(*a, b_float)),
                     ">" => Value::Bool(*a > b_float),
                     "<" => Value::Bool(*a < b_float),
                     ">=" => Value::Bool(*a >= b_float),

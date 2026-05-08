@@ -838,6 +838,89 @@ fn vm_and_interpreter_match_successful_captured_map_update() {
 }
 
 #[test]
+fn vm_and_interpreter_reject_integer_add_overflow() {
+    let script = r#"
+        return 9223372036854775807 + 1
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Integer overflow");
+}
+
+#[test]
+fn vm_and_interpreter_reject_integer_subtract_overflow() {
+    let script = r#"
+        minimum := parse_int("-9223372036854775808")
+        return minimum - 1
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Integer overflow");
+}
+
+#[test]
+fn vm_and_interpreter_reject_integer_multiply_overflow() {
+    let script = r#"
+        return 3037000500 * 3037000500
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Integer overflow");
+}
+
+#[test]
+fn vm_and_interpreter_reject_integer_division_overflow() {
+    let script = r#"
+        minimum := parse_int("-9223372036854775808")
+        return minimum / -1
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Integer overflow");
+}
+
+#[test]
+fn vm_and_interpreter_reject_float_division_by_zero() {
+    let script = r#"
+        return 1.0 / 0.0
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Division by zero");
+}
+
+#[test]
+fn vm_and_interpreter_reject_float_modulo_by_zero() {
+    let script = r#"
+        return 1.0 % 0.0
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Modulo by zero");
+}
+
+#[test]
+fn vm_and_interpreter_nan_and_infinity_comparisons_match_policy() {
+    let script = r#"
+        nan_value := parse_float("NaN")
+        pos_inf := parse_float("inf")
+        neg_inf := parse_float("-inf")
+
+        nan_ok := (nan_value == nan_value) == false && (nan_value != nan_value) == true
+        inf_ok := pos_inf == parse_float("inf") && pos_inf > 1.0 && neg_inf < -1.0 && pos_inf != neg_inf
+
+        numeric_policy_ok := nan_ok && inf_ok
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "numeric_policy_ok");
+}
+
+#[test]
+fn vm_and_interpreter_reject_overflow_in_local_in_place_addition() {
+    let script = r#"
+        mut total := 9223372036854775807
+        total := total + 1
+        return total
+    "#;
+
+    assert_interpreter_and_vm_error_contains(script, "Integer overflow");
+}
+
+#[test]
 fn vm_and_interpreter_reject_reassignment_of_immutable_let_binding() {
     let script = r#"
         let value := 1

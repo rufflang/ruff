@@ -113,14 +113,20 @@ impl Optimizer {
     ) -> Option<Constant> {
         match (left, right, op) {
             // Integer arithmetic
-            (Constant::Int(a), Constant::Int(b), OpCode::Add) => Some(Constant::Int(a + b)),
-            (Constant::Int(a), Constant::Int(b), OpCode::Sub) => Some(Constant::Int(a - b)),
-            (Constant::Int(a), Constant::Int(b), OpCode::Mul) => Some(Constant::Int(a * b)),
+            (Constant::Int(a), Constant::Int(b), OpCode::Add) => {
+                a.checked_add(*b).map(Constant::Int)
+            }
+            (Constant::Int(a), Constant::Int(b), OpCode::Sub) => {
+                a.checked_sub(*b).map(Constant::Int)
+            }
+            (Constant::Int(a), Constant::Int(b), OpCode::Mul) => {
+                a.checked_mul(*b).map(Constant::Int)
+            }
             (Constant::Int(a), Constant::Int(b), OpCode::Div) if *b != 0 => {
-                Some(Constant::Int(a / b))
+                a.checked_div(*b).map(Constant::Int)
             }
             (Constant::Int(a), Constant::Int(b), OpCode::Mod) if *b != 0 => {
-                Some(Constant::Int(a % b))
+                a.checked_rem(*b).map(Constant::Int)
             }
 
             // Float arithmetic
@@ -220,7 +226,7 @@ impl Optimizer {
     /// Try to fold a unary operation on a constant
     fn try_fold_unary_op(&self, operand: &Constant, op: &OpCode) -> Option<Constant> {
         match (operand, op) {
-            (Constant::Int(n), OpCode::Negate) => Some(Constant::Int(-n)),
+            (Constant::Int(n), OpCode::Negate) => n.checked_neg().map(Constant::Int),
             (Constant::Float(f), OpCode::Negate) => Some(Constant::Float(-f)),
             (Constant::Bool(b), OpCode::Not) => Some(Constant::Bool(!b)),
             _ => None,

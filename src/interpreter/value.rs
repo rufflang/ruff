@@ -867,4 +867,67 @@ impl Value {
             _ => true,
         }
     }
+
+    /// Checked integer arithmetic semantics for Ruff runtime operations.
+    pub fn checked_int_arithmetic(left: i64, op: &str, right: i64) -> Result<i64, String> {
+        let overflow_error = || format!("Integer overflow: {} {} {}", left, op, right);
+        match op {
+            "+" => left.checked_add(right).ok_or_else(overflow_error),
+            "-" => left.checked_sub(right).ok_or_else(overflow_error),
+            "*" => left.checked_mul(right).ok_or_else(overflow_error),
+            "/" => {
+                if right == 0 {
+                    Err("Division by zero".to_string())
+                } else {
+                    left.checked_div(right).ok_or_else(overflow_error)
+                }
+            }
+            "%" => {
+                if right == 0 {
+                    Err("Modulo by zero".to_string())
+                } else {
+                    left.checked_rem(right).ok_or_else(overflow_error)
+                }
+            }
+            _ => Err(format!("Unsupported integer operator: {}", op)),
+        }
+    }
+
+    /// Float arithmetic semantics for Ruff runtime operations.
+    pub fn checked_float_arithmetic(left: f64, op: &str, right: f64) -> Result<f64, String> {
+        match op {
+            "+" => Ok(left + right),
+            "-" => Ok(left - right),
+            "*" => Ok(left * right),
+            "/" => {
+                if right == 0.0 {
+                    Err("Division by zero".to_string())
+                } else {
+                    Ok(left / right)
+                }
+            }
+            "%" => {
+                if right == 0.0 {
+                    Err("Modulo by zero".to_string())
+                } else {
+                    Ok(left % right)
+                }
+            }
+            _ => Err(format!("Unsupported float operator: {}", op)),
+        }
+    }
+
+    /// Float equality semantics:
+    /// - NaN is never equal to any value (including itself)
+    /// - infinities compare by exact IEEE sign/value
+    /// - finite values retain epsilon-based comparison for compatibility
+    pub fn float_equals(left: f64, right: f64) -> bool {
+        if left.is_nan() || right.is_nan() {
+            return false;
+        }
+        if left.is_infinite() || right.is_infinite() {
+            return left == right;
+        }
+        (left - right).abs() < f64::EPSILON
+    }
 }

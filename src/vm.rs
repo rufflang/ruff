@@ -1097,6 +1097,11 @@ impl VM {
                         instruction,
                         OpCode::MakeDict(_)
                             | OpCode::MakeDictWithKeys(_)
+                            | OpCode::Add
+                            | OpCode::Sub
+                            | OpCode::Mul
+                            | OpCode::Div
+                            | OpCode::Mod
                             | OpCode::Negate
                             | OpCode::Not
                             | OpCode::IndexGet
@@ -1758,7 +1763,7 @@ impl VM {
                     let apply_add = |target: &mut Value| -> Result<(), String> {
                         match (target, &rhs) {
                             (Value::Int(left), Value::Int(right)) => {
-                                *left = left.wrapping_add(*right);
+                                *left = Value::checked_int_arithmetic(*left, "+", *right)?;
                                 Ok(())
                             }
                             (Value::Float(left), Value::Float(right)) => {
@@ -1968,7 +1973,8 @@ impl VM {
                                 }
 
                                 for index in start..end {
-                                    let value = (index as i64).wrapping_mul(2);
+                                    let index_i64 = index as i64;
+                                    let value = Value::checked_int_arithmetic(index_i64, "*", 2)?;
                                     if index == values_mut.len() {
                                         values_mut.push(value);
                                     } else if index < values_mut.len() {
@@ -1995,7 +2001,9 @@ impl VM {
                                 }
 
                                 for index in start..end {
-                                    values_mut[index] = Some((index as i64).wrapping_mul(2));
+                                    let index_i64 = index as i64;
+                                    values_mut[index] =
+                                        Some(Value::checked_int_arithmetic(index_i64, "*", 2)?);
                                 }
                             }
                             Value::DenseIntDict(values) => {
@@ -2014,13 +2022,17 @@ impl VM {
                                 }
 
                                 for index in start..end {
-                                    values_mut[index] = Value::Int((index as i64).wrapping_mul(2));
+                                    let index_i64 = index as i64;
+                                    values_mut[index] = Value::Int(Value::checked_int_arithmetic(
+                                        index_i64, "*", 2,
+                                    )?);
                                 }
                             }
                             Value::IntDict(dict) => {
                                 let dict_mut = Arc::make_mut(dict);
                                 for index in current_index..limit_index {
-                                    dict_mut.insert(index, Value::Int(index.wrapping_mul(2)));
+                                    let doubled = Value::checked_int_arithmetic(index, "*", 2)?;
+                                    dict_mut.insert(index, Value::Int(doubled));
                                 }
                             }
                             Value::Dict(dict) => {
@@ -2036,15 +2048,18 @@ impl VM {
 
                                     let mut values = vec![0; end];
                                     for index in start..end {
-                                        values[index] = (index as i64).wrapping_mul(2);
+                                        let index_i64 = index as i64;
+                                        values[index] =
+                                            Value::checked_int_arithmetic(index_i64, "*", 2)?;
                                     }
                                     *target = Value::DenseIntDictIntFull(Arc::new(values));
                                 } else {
                                     let dict_mut = Arc::make_mut(dict);
                                     for index in current_index..limit_index {
+                                        let doubled = Value::checked_int_arithmetic(index, "*", 2)?;
                                         dict_mut.insert(
                                             Arc::from(index.to_string().as_str()),
-                                            Value::Int(index.wrapping_mul(2)),
+                                            Value::Int(doubled),
                                         );
                                     }
                                 }
@@ -2062,7 +2077,9 @@ impl VM {
 
                                     let mut dense_values = vec![0; end];
                                     for index in start..end {
-                                        dense_values[index] = (index as i64).wrapping_mul(2);
+                                        let index_i64 = index as i64;
+                                        dense_values[index] =
+                                            Value::checked_int_arithmetic(index_i64, "*", 2)?;
                                     }
                                     *target = Value::DenseIntDictIntFull(Arc::new(dense_values));
                                 } else {
@@ -2073,9 +2090,10 @@ impl VM {
                                         dict.insert(key, value);
                                     }
                                     for index in current_index..limit_index {
+                                        let doubled = Value::checked_int_arithmetic(index, "*", 2)?;
                                         dict.insert(
                                             Arc::from(index.to_string().as_str()),
-                                            Value::Int(index.wrapping_mul(2)),
+                                            Value::Int(doubled),
                                         );
                                     }
                                     *target = Value::Dict(Arc::new(dict));
@@ -2154,7 +2172,8 @@ impl VM {
                                 }
 
                                 for value in values[start..end].iter() {
-                                    running_sum = running_sum.wrapping_add(*value);
+                                    running_sum =
+                                        Value::checked_int_arithmetic(running_sum, "+", *value)?;
                                 }
                             }
                             Value::DenseIntDictInt(values) => {
@@ -2165,7 +2184,11 @@ impl VM {
                                 for value in values[start..end].iter() {
                                     match value {
                                         Some(int_value) => {
-                                            running_sum = running_sum.wrapping_add(*int_value);
+                                            running_sum = Value::checked_int_arithmetic(
+                                                running_sum,
+                                                "+",
+                                                *int_value,
+                                            )?;
                                         }
                                         None => {
                                             return Err(
@@ -2183,7 +2206,11 @@ impl VM {
                                 for value in values[start..end].iter() {
                                     match value {
                                         Value::Int(int_value) => {
-                                            running_sum = running_sum.wrapping_add(*int_value);
+                                            running_sum = Value::checked_int_arithmetic(
+                                                running_sum,
+                                                "+",
+                                                *int_value,
+                                            )?;
                                         }
                                         _ => {
                                             return Err(
@@ -2197,7 +2224,11 @@ impl VM {
                                 for key in current_index..limit_index {
                                     match dict.get(&key) {
                                         Some(Value::Int(int_value)) => {
-                                            running_sum = running_sum.wrapping_add(*int_value);
+                                            running_sum = Value::checked_int_arithmetic(
+                                                running_sum,
+                                                "+",
+                                                *int_value,
+                                            )?;
                                         }
                                         _ => {
                                             return Err(
@@ -2212,7 +2243,11 @@ impl VM {
                                     let key_string = key.to_string();
                                     match dict.get(key_string.as_str()) {
                                         Some(Value::Int(int_value)) => {
-                                            running_sum = running_sum.wrapping_add(*int_value);
+                                            running_sum = Value::checked_int_arithmetic(
+                                                running_sum,
+                                                "+",
+                                                *int_value,
+                                            )?;
                                         }
                                         _ => {
                                             return Err(
@@ -2231,7 +2266,11 @@ impl VM {
 
                                     match match_index.and_then(|idx| values.get(idx)) {
                                         Some(Value::Int(int_value)) => {
-                                            running_sum = running_sum.wrapping_add(*int_value);
+                                            running_sum = Value::checked_int_arithmetic(
+                                                running_sum,
+                                                "+",
+                                                *int_value,
+                                            )?;
                                         }
                                         _ => {
                                             return Err(
@@ -6630,47 +6669,27 @@ impl VM {
     fn binary_op(&self, left: &Value, op: &str, right: &Value) -> Result<Value, String> {
         match (left, right) {
             (Value::Int(a), Value::Int(b)) => match op {
-                "+" => Ok(Value::Int(a.wrapping_add(*b))),
-                "-" => Ok(Value::Int(a.wrapping_sub(*b))),
-                "*" => Ok(Value::Int(a.wrapping_mul(*b))),
-                "/" => {
-                    if *b == 0 {
-                        Err("Division by zero".to_string())
-                    } else {
-                        Ok(Value::Int(a / b))
-                    }
-                }
-                "%" => {
-                    if *b == 0 {
-                        Err("Modulo by zero".to_string())
-                    } else {
-                        Ok(Value::Int(a % b))
-                    }
+                "+" | "-" | "*" | "/" | "%" => {
+                    Value::checked_int_arithmetic(*a, op, *b).map(Value::Int)
                 }
                 _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Float(a), Value::Float(b)) => match op {
-                "+" => Ok(Value::Float(a + b)),
-                "-" => Ok(Value::Float(a - b)),
-                "*" => Ok(Value::Float(a * b)),
-                "/" => Ok(Value::Float(a / b)),
-                "%" => Ok(Value::Float(a % b)),
+                "+" | "-" | "*" | "/" | "%" => {
+                    Value::checked_float_arithmetic(*a, op, *b).map(Value::Float)
+                }
                 _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Int(a), Value::Float(b)) => match op {
-                "+" => Ok(Value::Float(*a as f64 + b)),
-                "-" => Ok(Value::Float(*a as f64 - b)),
-                "*" => Ok(Value::Float(*a as f64 * b)),
-                "/" => Ok(Value::Float(*a as f64 / b)),
-                "%" => Ok(Value::Float(*a as f64 % b)),
+                "+" | "-" | "*" | "/" | "%" => {
+                    Value::checked_float_arithmetic(*a as f64, op, *b).map(Value::Float)
+                }
                 _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Float(a), Value::Int(b)) => match op {
-                "+" => Ok(Value::Float(a + *b as f64)),
-                "-" => Ok(Value::Float(a - *b as f64)),
-                "*" => Ok(Value::Float(a * *b as f64)),
-                "/" => Ok(Value::Float(a / *b as f64)),
-                "%" => Ok(Value::Float(a % *b as f64)),
+                "+" | "-" | "*" | "/" | "%" => {
+                    Value::checked_float_arithmetic(*a, op, *b as f64).map(Value::Float)
+                }
                 _ => Err(Self::invalid_binary_operation(op, left, right)),
             },
             (Value::Str(a), Value::Str(b)) if op == "+" => {
@@ -6686,7 +6705,9 @@ impl VM {
     /// Unary operation
     fn unary_op(&self, op: &str, value: &Value) -> Result<Value, String> {
         match (op, value) {
-            ("-", Value::Int(n)) => Ok(Value::Int(-n)),
+            ("-", Value::Int(n)) => {
+                n.checked_neg().map(Value::Int).ok_or_else(|| format!("Integer overflow: -({})", n))
+            }
             ("-", Value::Float(f)) => Ok(Value::Float(-f)),
             ("!", Value::Bool(b)) => Ok(Value::Bool(!b)),
             _ => Err(format!("Invalid unary operation: {} {:?}", op, value)),
@@ -6746,7 +6767,7 @@ impl VM {
     fn values_equal(&self, left: &Value, right: &Value) -> bool {
         match (left, right) {
             (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => (a - b).abs() < f64::EPSILON,
+            (Value::Float(a), Value::Float(b)) => Value::float_equals(*a, *b),
             (Value::Str(a), Value::Str(b)) => a == b,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Null, Value::Null) => true,
