@@ -156,6 +156,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
 
+### Capability policy enforcement must include method-call and child-runtime paths
+- **Problem:** Host-effect operations can bypass central native dispatcher checks when routed through method-call helpers or child runtime instances.
+- **Rule:** Capability hardening must cover native dispatch, VM synthetic method markers (for example `__image_method_save`, `__http_server_method_listen`), and child runtime constructors (`spawn` and async function interpreters).
+- **Implication:** Security policy changes must audit both `src/interpreter/mod.rs` and `src/vm.rs` helper paths, not only `src/interpreter/native_functions/mod.rs`.
+
+(Discovered during: 2026-05-08_18-21_v1-sec-002-native-capability-policy.md)
+
 ### `Stmt::Import` parity depends on explicit compiler lowering
 - **Problem:** Import/export scripts can pass in interpreter mode but fail in VM mode with undefined symbols.
 - **Rule:** Treat `Stmt::Import` as a first-class compiler/VM parity surface; do not leave import statements as compiler no-ops.

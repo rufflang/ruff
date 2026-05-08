@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-08_18-21_v1-sec-002-native-capability-policy.md` — Added centralized runtime capability policy enforcement with CLI `--untrusted`/`--allow-*` controls, closed method-call and spawned/async interpreter bypass paths, and expanded native security-boundary integration coverage.
 - `2026-05-08_17-05_v1-comp-001-parity-gate-import-and-unsupported-surface.md` — Closed VM/interpreter/compiler parity drift for imports and unsupported struct generator methods, expanded parity matrix coverage, and added dedicated CI parity gate execution.
 - `2026-05-08_16-40_v1-sem-003-equality-comparison-contract.md` — Centralized interpreter/VM equality+ordering semantics, added cross-type/collection/callable parity coverage, and captured optimizer constant-folding gotcha for runtime-error tests.
 - `2026-05-07_14-40_v1-run-006-scope-shadowing-declarations.md` — Enforced duplicate same-scope declaration errors, tightened interpreter/compiler scope boundaries for control-flow and loop lifetimes, and added VM/interpreter parity coverage for shadowing, closure capture, and leakage regressions.
