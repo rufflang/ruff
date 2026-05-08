@@ -2,7 +2,7 @@
 
 Status: v1.0.0 baseline draft (active, not a release-ready claim)
 Spec version: 1.0.0-draft
-Last updated: 2026-05-07
+Last updated: 2026-05-08
 
 ## 1. Scope
 
@@ -245,6 +245,25 @@ Logical operators use these same rules:
 - `await` blocks expression completion on pending async values.
 - `spawn { ... }` schedules detached async work where supported by runtime mode.
 - Current VM/interpreter parity and capability notes for `spawn`, spread/destructuring, and match-binding surfaces are tracked in `docs/VM_INTERPRETER_PARITY_MATRIX.md`.
+
+### 5.8 Numeric semantics
+
+- Ruff integers are signed 64-bit values (`i64`).
+- Integer arithmetic (`+`, `-`, `*`, `/`, `%`) uses checked execution:
+  - overflow is a runtime error (`Integer overflow: <left> <op> <right>`),
+  - division by zero is a runtime error (`Division by zero`),
+  - modulo by zero is a runtime error (`Modulo by zero`).
+- Float arithmetic keeps IEEE results for non-zero divisors, with explicit zero-divisor guards:
+  - `x / 0.0` is a runtime error (`Division by zero`),
+  - `x % 0.0` is a runtime error (`Modulo by zero`).
+- Float equality is deterministic:
+  - `NaN` is never equal to any value (including itself),
+  - `!=` against `NaN` is true by complement of equality,
+  - infinities compare by IEEE sign/value (`+inf == +inf`, `+inf != -inf`),
+  - finite float equality retains epsilon-based comparison.
+- Float ordering (`<`, `<=`, `>`, `>=`) follows IEEE behavior:
+  - comparisons against `NaN` evaluate to false,
+  - infinities compare as expected (`+inf` greater than finite values, `-inf` less than finite values).
 
 ## 6. Tooling Contract Compatibility Guarantees
 

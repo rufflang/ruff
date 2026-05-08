@@ -240,6 +240,8 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Function bodies and control-flow bodies (`if`/`else`, `while`, `loop`, and `for`) use lexical scopes; inner shadowing is allowed, loop variables do not leak after loop completion, and closures capture the nearest lexical binding.
 - Shared truthiness semantics across interpreter/VM/native predicates: `false`, `null`, `0`, `0.0`, empty string, empty array, and empty dictionary are falsey; all other values are truthy.
 - Logical `&&` and `||` use truthiness and short-circuit (RHS is evaluated only when required), returning boolean results.
+- Integer arithmetic (`+`, `-`, `*`, `/`, `%`) is checked at runtime (`i64`): overflow and divide/modulo-by-zero return deterministic runtime errors.
+- Float division/modulo by zero returns deterministic runtime errors; NaN and infinity comparisons follow documented language-spec behavior.
 - Arrays and dictionaries with indexing and standard library helpers.
 - Undefined identifiers are runtime errors. Use quoted string literals when a string value is intended.
 - Missing dictionary keys are runtime errors. Use helpers such as `has_key`, `get`, or `get_default` when a fallback value is intended.

@@ -626,11 +626,11 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-SEM-001: Define numeric overflow, division, and float edge-case behavior
+[x] V1-SEM-001: Define numeric overflow, division, and float edge-case behavior
     Priority: P1
     Severity: Medium
     Area: Correctness/Security
-    Affected files: src/interpreter/value.rs, src/interpreter/mod.rs, src/vm.rs, src/compiler.rs, docs/LANGUAGE_SPEC.md
+    Affected files: src/interpreter/value.rs, src/interpreter/mod.rs, src/vm.rs, src/optimizer.rs, tests/vm_interpreter_parity_surfaces.rs, docs/LANGUAGE_SPEC.md
     Problem: Numeric behavior must be stable for production programs. Overflow, division by zero, NaN, and infinity behavior need explicit policy.
     Recommendation: Define checked integer arithmetic and consistent float behavior.
     Implementation steps:
@@ -648,7 +648,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Infinity handling matches spec.
         - VM/interpreter parity tests.
     Acceptance criteria: Numeric edge cases are deterministic and documented.
-    Notes: Prefer checked integer behavior for safe 1.0 defaults.
+    Notes: Completed on 2026-05-08. Added centralized numeric helpers in `Value` (`checked_int_arithmetic`, `checked_float_arithmetic`, `float_equals`) and routed interpreter/VM arithmetic paths through them so integer add/sub/mul/div/rem now use checked `i64` behavior with deterministic overflow errors, while float `/` and `%` now reject zero divisors with runtime errors. Updated float equality behavior for NaN/infinity edge cases and aligned overflow handling in optimized VM in-place/map-fusion opcode paths plus compiler constant-folding safeguards (`src/optimizer.rs`) to prevent debug-overflow panics and runtime drift. Script-JIT admission now excludes arithmetic opcodes pending explicit parity guarantees for the hardened numeric contract. Added parity regressions in `tests/vm_interpreter_parity_surfaces.rs` covering integer add/sub/mul/div overflow, float division/modulo by zero, NaN comparison semantics, infinity comparison behavior, and local in-place overflow updates. Updated numeric language contract docs in `docs/LANGUAGE_SPEC.md` and summary docs in `README.md`/`CHANGELOG.md`. Verification: `cargo test --test vm_interpreter_parity_surfaces vm_and_interpreter_reject_ -- --nocapture`, `cargo test --test vm_interpreter_parity_surfaces vm_and_interpreter_nan_and_infinity_comparisons_match_policy -- --nocapture`, `cargo test --lib optimizer::tests::test_constant_folding_arithmetic -- --nocapture`, `cargo test --lib vm::tests::test_sum_int_map_until_local_in_place_result -- --nocapture`, `cargo test --lib vm::tests::test_sum_int_map_until_local_in_place_missing_key_errors -- --nocapture`, and `cargo test` passed.
 ```
 
 ```text
