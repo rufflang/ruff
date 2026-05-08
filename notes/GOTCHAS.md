@@ -156,6 +156,20 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
 
+### `Stmt::Import` parity depends on explicit compiler lowering
+- **Problem:** Import/export scripts can pass in interpreter mode but fail in VM mode with undefined symbols.
+- **Rule:** Treat `Stmt::Import` as a first-class compiler/VM parity surface; do not leave import statements as compiler no-ops.
+- **Implication:** Keep VM import handlers (`__vm_import_all` / `__vm_import_symbol`) and parity tests in sync with interpreter module-loader behavior.
+
+(Discovered during: 2026-05-08_17-05_v1-comp-001-parity-gate-import-and-unsupported-surface.md)
+
+### Unsupported surfaces must fail with one deterministic contract across runtimes
+- **Problem:** The same unsupported syntax can produce misleadingly different errors between interpreter and VM/compiler paths.
+- **Rule:** Centralize unsupported-surface error messages and reject early in both runtime paths.
+- **Implication:** Add negative parity tests that assert the same error contract (for example struct generator methods).
+
+(Discovered during: 2026-05-08_17-05_v1-comp-001-parity-gate-import-and-unsupported-surface.md)
+
 ### Mutability checks are semantic effects, not removable store side effects
 - **Problem:** Compiler dead-store/elision passes can accidentally bypass runtime mutability enforcement for `let`/`const`.
 - **Rule:** Once assignment/store opcodes enforce language semantics (for example immutable reassignment/mutation errors), do not optimize them away without proving equivalent checks still run.
