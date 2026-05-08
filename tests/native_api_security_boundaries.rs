@@ -168,6 +168,40 @@ fn assert_runtime_boundary_failure(script_source: &str, expected_runtime_error: 
     );
 }
 
+fn assert_runtime_boundary_failure_with_args(
+    script_source: &str,
+    expected_runtime_error: &str,
+    run_args: &[&str],
+) {
+    let project_root = unique_temp_dir("native_api_security_boundary");
+    let script_path = project_root.join("boundary.ruff");
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let mut args = vec!["run"];
+    args.extend_from_slice(run_args);
+    args.push(script_path.to_str().expect("script path should be utf-8"));
+
+    let output = run_ruff(&args, &project_root);
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected runtime boundary failure with exit code 1, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains(expected_runtime_error),
+        "expected runtime error text '{}' in output, got stdout={} stderr={}",
+        expected_runtime_error,
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
 #[test]
 fn process_native_api_misuse_reports_deterministic_error() {
     assert_runtime_boundary_failure("execute(123)\n", "execute() requires a string command");
@@ -199,6 +233,223 @@ fn database_native_api_misuse_reports_deterministic_error() {
     assert_runtime_boundary_failure(
         "db_connect(\"sqlite\")\n",
         "db_connect requires database type ('sqlite'|'postgres'|'mysql') and connection string",
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_filesystem_write() {
+    assert_runtime_boundary_failure_with_args(
+        "write_file(\"blocked.txt\", \"data\")\n",
+        "Capability denied: filesystem-write required for write_file",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_process_exec() {
+    assert_runtime_boundary_failure_with_args(
+        "spawn_process([\"echo\", \"ok\"])\n",
+        "Capability denied: process-exec required for spawn_process",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_shell_exec() {
+    assert_runtime_boundary_failure_with_args(
+        "execute(\"echo ok\")\n",
+        "Capability denied: shell-exec required for execute",
+        &["--interpreter", "--untrusted", "--allow-process-exec"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_env_read() {
+    assert_runtime_boundary_failure_with_args(
+        "env(\"PATH\")\n",
+        "Capability denied: env-read required for env",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_env_write() {
+    assert_runtime_boundary_failure_with_args(
+        "env_set(\"RUFF_CAP_TEST\", \"1\")\n",
+        "Capability denied: env-write required for env_set",
+        &["--interpreter", "--untrusted", "--allow-env-read"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_network_client() {
+    assert_runtime_boundary_failure_with_args(
+        "http_get(\"http://127.0.0.1:1\")\n",
+        "Capability denied: network-client required for http_get",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_network_server() {
+    assert_runtime_boundary_failure_with_args(
+        "let server := http_server(8123)\nserver.listen()\n",
+        "Capability denied: network-server required for http_server.listen",
+        &["--interpreter", "--untrusted", "--allow-net-client"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_database() {
+    assert_runtime_boundary_failure_with_args(
+        "db_connect(\"sqlite\", \"tmp.db\")\n",
+        "Capability denied: database required for db_connect",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_clock() {
+    assert_runtime_boundary_failure_with_args(
+        "now()\n",
+        "Capability denied: clock required for now",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_untrusted_denies_random() {
+    assert_runtime_boundary_failure_with_args(
+        "random()\n",
+        "Capability denied: random required for random",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_allow_fs_write_enables_write_file() {
+    let project_root = unique_temp_dir("native_api_capability_allow_fs_write");
+    let script_path = project_root.join("allow_fs_write.ruff");
+    let output_path = project_root.join("written.txt");
+    let script_source = format!(
+        "write_file(\"{}\", \"allowed\")\n",
+        escape_ruff_string(output_path.to_str().expect("output path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-fs-write",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected write_file to succeed when fs-write is allowed, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let written = fs::read_to_string(&output_path).expect("expected write_file output file");
+    assert_eq!(written, "allowed");
+}
+
+#[test]
+fn native_capability_allows_only_requested_capability() {
+    let project_root = unique_temp_dir("native_api_capability_only_requested");
+    let script_path = project_root.join("allow_only_requested.ruff");
+    let output_path = project_root.join("written.txt");
+    let script_source = format!(
+        "write_file(\"{}\", \"allowed\")\nenv(\"PATH\")\n",
+        escape_ruff_string(output_path.to_str().expect("output path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-fs-write",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected env() to remain blocked when only fs-write is allowed, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("Capability denied: env-read required for env"),
+        "expected env-read capability denial, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let written = fs::read_to_string(&output_path).expect("expected write_file output file");
+    assert_eq!(written, "allowed");
+}
+
+#[test]
+fn native_capability_vm_and_interpreter_both_enforce_denial() {
+    let script = "write_file(\"blocked.txt\", \"data\")\n";
+    assert_runtime_boundary_failure_with_args(
+        script,
+        "Capability denied: filesystem-write required for write_file",
+        &["--untrusted"],
+    );
+    assert_runtime_boundary_failure_with_args(
+        script,
+        "Capability denied: filesystem-write required for write_file",
+        &["--interpreter", "--untrusted"],
+    );
+}
+
+#[test]
+fn native_capability_spawned_interpreter_inherits_policy() {
+    let project_root = unique_temp_dir("native_api_capability_spawn_inherit");
+    let script_path = project_root.join("spawn_policy.ruff");
+    let output_path = project_root.join("spawn_blocked.txt");
+    let script_source = format!(
+        "spawn {{\n    write_file(\"{}\", \"blocked\")\n}}\nsleep(100)\n",
+        escape_ruff_string(output_path.to_str().expect("output path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-clock",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "spawn script should complete while blocked write remains denied, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        !output_path.exists(),
+        "spawned interpreter should not bypass filesystem-write capability policy"
     );
 }
 

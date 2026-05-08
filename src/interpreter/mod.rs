@@ -18,6 +18,7 @@
 
 // Module structure
 mod async_runtime;
+mod capabilities;
 mod control_flow;
 mod environment;
 mod native_functions;
@@ -26,6 +27,7 @@ mod value;
 
 // Re-exports for backward compatibility
 pub use async_runtime::AsyncRuntime;
+pub use capabilities::{NativeCapability, RuntimeCapabilityPolicy};
 pub use environment::{BindingKind, Environment};
 // Test framework exports - used by CLI test command
 #[allow(unused_imports)]
@@ -268,11 +270,16 @@ pub struct Interpreter {
     pub module_loader: ModuleLoader,
     call_stack: Vec<String>, // Track function calls for stack traces
     async_task_pool_size: usize,
+    capability_policy: RuntimeCapabilityPolicy,
 }
 
 impl Interpreter {
     /// Creates a new interpreter with an empty environment
     pub fn new() -> Self {
+        Self::with_capability_policy(RuntimeCapabilityPolicy::trusted())
+    }
+
+    pub fn with_capability_policy(capability_policy: RuntimeCapabilityPolicy) -> Self {
         let mut interpreter = Interpreter {
             env: Environment::default(),
             return_value: None,
@@ -285,12 +292,37 @@ impl Interpreter {
             module_loader: ModuleLoader::new(),
             call_stack: Vec::new(),
             async_task_pool_size: DEFAULT_ASYNC_TASK_POOL_SIZE,
+            capability_policy,
         };
 
         // Register built-in functions and constants
         interpreter.register_builtins();
 
         interpreter
+    }
+
+    pub fn capability_policy(&self) -> &RuntimeCapabilityPolicy {
+        &self.capability_policy
+    }
+
+    pub fn set_capability_policy(&mut self, capability_policy: RuntimeCapabilityPolicy) {
+        self.capability_policy = capability_policy;
+    }
+
+    pub fn capability_error(capability: NativeCapability, surface: &str) -> Value {
+        Value::Error(format!("Capability denied: {} required for {}", capability.as_str(), surface))
+    }
+
+    pub fn require_capability(
+        &self,
+        capability: NativeCapability,
+        surface: &str,
+    ) -> Result<(), Value> {
+        if self.capability_policy.allows(capability) {
+            Ok(())
+        } else {
+            Err(Self::capability_error(capability, surface))
+        }
     }
 
     /// Set the environment (used by VM to share environment)
@@ -1715,6 +1747,11 @@ impl Interpreter {
     /// Starts an HTTP server with registered routes
     fn start_http_server(&mut self, port: u16, routes: Vec<(String, String, Value)>) -> Value {
         use tiny_http::{Response, Server};
+        if let Err(error) =
+            self.require_capability(NativeCapability::NetworkServer, "http_server.listen")
+        {
+            return error;
+        }
 
         println!("Starting HTTP server on port {}...", port);
 
@@ -3347,11 +3384,12 @@ impl Interpreter {
                 // Clone the body for the spawned thread
                 let body_clone = body.clone();
                 let captured_bindings = self.capture_spawn_bindings();
+                let capability_policy = self.capability_policy.clone();
 
                 // Spawn a new thread to execute the body with a transferable snapshot
                 // of parent bindings. Unsupported non-transferable values remain isolated.
                 std::thread::spawn(move || {
-                    let mut thread_interp = Interpreter::new();
+                    let mut thread_interp = Interpreter::with_capability_policy(capability_policy);
 
                     for (name, captured_value) in captured_bindings {
                         thread_interp.env.define(name, captured_value.into_value());
@@ -3696,6 +3734,12 @@ impl Interpreter {
                                         args.len()
                                     ));
                                 }
+                                if let Err(error) = self.require_capability(
+                                    NativeCapability::NetworkServer,
+                                    "http_server.listen",
+                                ) {
+                                    return error;
+                                }
                                 // server.listen() - start the HTTP server
                                 return self.start_http_server(*port, routes.clone());
                             }
@@ -3704,6 +3748,13 @@ impl Interpreter {
                     }
 
                     if let Value::Image { .. } = &obj_val {
+                        if field == "save" {
+                            if let Err(error) =
+                                self.require_capability(NativeCapability::FilesystemWrite, "save")
+                            {
+                                return error;
+                            }
+                        }
                         let arg_values: Vec<Value> =
                             args.iter().map(|arg| self.eval_expr(arg)).collect();
                         if let Some(result) =
@@ -4223,14 +4274,15 @@ impl Interpreter {
                         } else {
                             self.env.clone()
                         };
+                        let capability_policy = self.capability_policy.clone();
 
                         // Create a tokio oneshot channel for the result
                         let (tx, rx) = tokio::sync::oneshot::channel();
 
                         // Spawn a tokio task to execute the async function
                         AsyncRuntime::spawn_task(async move {
-                            let mut async_interpreter = Interpreter::new();
-                            async_interpreter.register_builtins(); // Register built-in functions
+                            let mut async_interpreter =
+                                Interpreter::with_capability_policy(capability_policy);
                             async_interpreter.env = base_env;
                             async_interpreter.env.push_scope();
 
@@ -4915,8 +4967,65 @@ impl Interpreter {
 
     /// Call a method on a value (used for iterator chaining and other method calls)
     fn call_method(&mut self, obj: Value, method: &str, args: Vec<Value>) -> Value {
+        if method == "save" {
+            if matches!(&obj, Value::Image { .. }) {
+                if let Err(error) =
+                    self.require_capability(NativeCapability::FilesystemWrite, "save")
+                {
+                    return error;
+                }
+            }
+        }
+
         if let Some(result) = Self::call_image_method_impl(&obj, method, &args) {
             return result;
+        }
+
+        if let Value::HttpServer { port, routes } = &obj {
+            return match method {
+                "route" => {
+                    if args.len() != 3 {
+                        Value::Error(
+                            "route() requires (method, path, handler_function)".to_string(),
+                        )
+                    } else if let (Value::Str(http_method), Value::Str(path), handler) =
+                        (&args[0], &args[1], &args[2])
+                    {
+                        if matches!(handler, Value::Function(_, _, _) | Value::NativeFunction(_)) {
+                            let mut new_routes = routes.clone();
+                            new_routes.push((
+                                http_method.as_ref().clone(),
+                                path.as_ref().clone(),
+                                handler.clone(),
+                            ));
+                            Value::HttpServer { port: *port, routes: new_routes }
+                        } else {
+                            Value::Error(
+                                "route() requires (method, path, handler_function)".to_string(),
+                            )
+                        }
+                    } else {
+                        Value::Error(
+                            "route() requires (method, path, handler_function)".to_string(),
+                        )
+                    }
+                }
+                "listen" => {
+                    if !args.is_empty() {
+                        Value::Error(format!(
+                            "HttpServer.listen expects 0 arguments, got {}",
+                            args.len()
+                        ))
+                    } else if let Err(error) = self
+                        .require_capability(NativeCapability::NetworkServer, "http_server.listen")
+                    {
+                        error
+                    } else {
+                        self.start_http_server(*port, routes.clone())
+                    }
+                }
+                _ => Value::Error(format!("Unknown method: {}", method)),
+            };
         }
 
         if let Value::Channel(chan) = &obj {

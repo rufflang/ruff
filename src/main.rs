@@ -33,7 +33,8 @@ mod serve_http;
 mod type_checker;
 mod vm;
 
-use clap::{Parser as ClapParser, Subcommand};
+use crate::interpreter::RuntimeCapabilityPolicy;
+use clap::{Args, Parser as ClapParser, Subcommand};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -47,6 +48,69 @@ use std::path::{Path, PathBuf};
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Args, Clone, Debug, Default)]
+struct CapabilityArgs {
+    /// Restrict host-effect native APIs by default; opt in with --allow-* flags.
+    #[arg(long, default_value_t = false)]
+    untrusted: bool,
+
+    /// Allow all host-effect capabilities (trusted mode).
+    #[arg(long, default_value_t = false)]
+    allow_all: bool,
+
+    /// Allow filesystem reads and metadata probes.
+    #[arg(long, default_value_t = false)]
+    allow_fs_read: bool,
+
+    /// Allow filesystem writes and in-place file mutations.
+    #[arg(long, default_value_t = false)]
+    allow_fs_write: bool,
+
+    /// Allow filesystem delete operations.
+    #[arg(long, default_value_t = false)]
+    allow_fs_delete: bool,
+
+    /// Allow process execution APIs (non-shell argv execution).
+    #[arg(long, default_value_t = false)]
+    allow_process_exec: bool,
+
+    /// Allow shell command execution APIs.
+    #[arg(long, default_value_t = false)]
+    allow_shell_exec: bool,
+
+    /// Allow environment variable reads.
+    #[arg(long, default_value_t = false)]
+    allow_env_read: bool,
+
+    /// Allow environment variable writes.
+    #[arg(long, default_value_t = false)]
+    allow_env_write: bool,
+
+    /// Allow outbound network client APIs (HTTP/TCP/UDP client calls).
+    #[arg(long, default_value_t = false)]
+    allow_net_client: bool,
+
+    /// Allow network listener/server APIs.
+    #[arg(long, default_value_t = false)]
+    allow_net_server: bool,
+
+    /// Convenience alias to enable both --allow-net-client and --allow-net-server.
+    #[arg(long, default_value_t = false)]
+    allow_net: bool,
+
+    /// Allow database connection and query APIs.
+    #[arg(long, default_value_t = false)]
+    allow_database: bool,
+
+    /// Allow wall-clock/time APIs.
+    #[arg(long, default_value_t = false)]
+    allow_clock: bool,
+
+    /// Allow random-number generation APIs.
+    #[arg(long, default_value_t = false)]
+    allow_random: bool,
 }
 
 #[derive(Subcommand)]
@@ -64,6 +128,9 @@ enum Commands {
         /// Cooperative scheduler timeout in milliseconds (overrides env/default)
         #[arg(long)]
         scheduler_timeout_ms: Option<u64>,
+
+        #[command(flatten)]
+        capabilities: CapabilityArgs,
 
         /// Arguments to pass to the script
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
@@ -127,6 +194,9 @@ enum Commands {
         /// Print detailed output for each test
         #[arg(short, long)]
         verbose: bool,
+
+        #[command(flatten)]
+        capabilities: CapabilityArgs,
     },
 
     /// Run performance benchmarks
@@ -492,6 +562,45 @@ fn cooperative_scheduler_timeout(
     }
 }
 
+fn build_runtime_capability_policy(args: &CapabilityArgs) -> RuntimeCapabilityPolicy {
+    if args.allow_all {
+        return RuntimeCapabilityPolicy::trusted();
+    }
+
+    let has_explicit_allows = args.allow_fs_read
+        || args.allow_fs_write
+        || args.allow_fs_delete
+        || args.allow_process_exec
+        || args.allow_shell_exec
+        || args.allow_env_read
+        || args.allow_env_write
+        || args.allow_net_client
+        || args.allow_net_server
+        || args.allow_net
+        || args.allow_database
+        || args.allow_clock
+        || args.allow_random;
+
+    if !args.untrusted && !has_explicit_allows {
+        return RuntimeCapabilityPolicy::trusted();
+    }
+
+    let mut policy = RuntimeCapabilityPolicy::restricted();
+    policy.filesystem_read = args.allow_fs_read;
+    policy.filesystem_write = args.allow_fs_write;
+    policy.filesystem_delete = args.allow_fs_delete;
+    policy.process_exec = args.allow_process_exec;
+    policy.shell_exec = args.allow_shell_exec;
+    policy.env_read = args.allow_env_read;
+    policy.env_write = args.allow_env_write;
+    policy.network_client = args.allow_net || args.allow_net_client;
+    policy.network_server = args.allow_net || args.allow_net_server;
+    policy.database = args.allow_database;
+    policy.clock = args.allow_clock;
+    policy.random = args.allow_random;
+    policy
+}
+
 fn report_lexer_diagnostics_and_exit(
     _file_label: &str,
     diagnostics: &[lexer::LexerDiagnostic],
@@ -562,13 +671,14 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { file, interpreter, scheduler_timeout_ms, script_args } => {
+        Commands::Run { file, interpreter, scheduler_timeout_ms, capabilities, script_args } => {
             let scheduler_timeout = match cooperative_scheduler_timeout(scheduler_timeout_ms) {
                 Ok(timeout) => timeout,
                 Err(error_message) => {
                     report_cli_error_and_exit(error_message);
                 }
             };
+            let capability_policy = build_runtime_capability_policy(&capabilities);
 
             // Store script arguments in environment for args() function to retrieve
             // We need to prepend the script filename so the filtering logic works correctly
@@ -615,6 +725,7 @@ async fn main() {
                             if std::env::var("DISABLE_JIT").is_ok() {
                                 vm.set_jit_enabled(false);
                             }
+                            vm.set_capability_policy(capability_policy.clone());
 
                             // Set up global environment with built-in functions
                             // We need to populate it with NativeFunction values for all built-ins
@@ -715,7 +826,8 @@ async fn main() {
                     eprintln!();
                 }
 
-                let mut interpreter = interpreter::Interpreter::new();
+                let mut interpreter =
+                    interpreter::Interpreter::with_capability_policy(capability_policy);
                 interpreter.set_source(filename, &code);
 
                 // Execute statements
@@ -796,7 +908,7 @@ async fn main() {
             parser::Parser::run_all_tests(Path::new("tests"), update);
         }
 
-        Commands::TestRun { file, verbose } => {
+        Commands::TestRun { file, verbose, capabilities } => {
             let code = read_ruff_source_for_parse(&file);
             let filename = file.to_string_lossy().to_string();
             let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
@@ -811,7 +923,9 @@ async fn main() {
             let stmts = parse_output.stmts;
 
             // Create base interpreter with standard library loaded
-            let base_interp = interpreter::Interpreter::new();
+            let base_interp = interpreter::Interpreter::with_capability_policy(
+                build_runtime_capability_policy(&capabilities),
+            );
 
             // Create test runner and collect tests
             let mut runner = interpreter::TestRunner::new();

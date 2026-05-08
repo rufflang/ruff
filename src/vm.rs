@@ -7,7 +7,7 @@ use crate::ast::Pattern;
 use crate::bytecode::{BytecodeBindingKind, BytecodeChunk, Constant, OpCode};
 use crate::interpreter::{
     BindingKind, CallableArity, DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap,
-    Interpreter, Value,
+    Interpreter, NativeCapability, RuntimeCapabilityPolicy, Value,
 };
 use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler};
 use std::collections::HashMap;
@@ -490,6 +490,10 @@ impl VM {
         };
 
         vm
+    }
+
+    pub fn set_capability_policy(&mut self, capability_policy: RuntimeCapabilityPolicy) {
+        self.interpreter.set_capability_policy(capability_policy);
     }
 
     fn set_chunk(&mut self, chunk: BytecodeChunk) {
@@ -4824,7 +4828,8 @@ impl VM {
                         "__vm_import_all" => self.vm_import_all(&args),
                         "__vm_import_symbol" => self.vm_import_symbol(&args),
                         _ => {
-                            let native_result = self.interpreter.call_native_function_impl(&name, &args);
+                            let native_result =
+                                self.interpreter.call_native_function_impl(&name, &args);
                             match native_result {
                                 Value::Error(msg) => Err(msg),
                                 Value::ErrorObject { .. } => {
@@ -4932,10 +4937,7 @@ impl VM {
 
     fn vm_import_all(&mut self, args: &[Value]) -> Result<Value, String> {
         if args.len() != 1 {
-            return Err(format!(
-                "__vm_import_all expects 1 arguments, got {}",
-                args.len()
-            ));
+            return Err(format!("__vm_import_all expects 1 arguments, got {}", args.len()));
         }
 
         let module_name = match args.first() {
@@ -4958,10 +4960,7 @@ impl VM {
 
     fn vm_import_symbol(&mut self, args: &[Value]) -> Result<Value, String> {
         if args.len() != 2 {
-            return Err(format!(
-                "__vm_import_symbol expects 2 arguments, got {}",
-                args.len()
-            ));
+            return Err(format!("__vm_import_symbol expects 2 arguments, got {}", args.len()));
         }
 
         let module_name = match args.first() {
@@ -5256,6 +5255,7 @@ impl VM {
 
                 let mut temp_vm = VM::new();
                 temp_vm.jit_enabled = false;
+                temp_vm.set_capability_policy(self.interpreter.capability_policy().clone());
                 temp_vm.set_globals(Arc::clone(&self.globals));
                 let result = temp_vm.execute(wrapper_chunk);
 
@@ -5276,6 +5276,15 @@ impl VM {
         routes: Vec<(String, String, Value)>,
     ) -> Result<Value, String> {
         use tiny_http::{Response, Server};
+        if let Err(error) = self
+            .interpreter
+            .require_capability(NativeCapability::NetworkServer, "http_server.listen")
+        {
+            if let Value::Error(message) = error {
+                return Err(message);
+            }
+            return Err("Capability denied for http_server.listen".to_string());
+        }
 
         println!("Starting HTTP server on port {}...", port);
         let server = Server::http(format!("0.0.0.0:{}", port))
@@ -5438,6 +5447,18 @@ impl VM {
             if name.starts_with("__image_method_") {
                 let method_name = name.strip_prefix("__image_method_").unwrap();
 
+                if method_name == "save" {
+                    if let Err(error) = self
+                        .interpreter
+                        .require_capability(NativeCapability::FilesystemWrite, "save")
+                    {
+                        if let Value::Error(message) = error {
+                            return Err(message);
+                        }
+                        return Err("Capability denied for save".to_string());
+                    }
+                }
+
                 // Remove the duplicate receiver argument emitted by MethodCall compilation.
                 if !args.is_empty() {
                     args.pop();
@@ -5496,6 +5517,17 @@ impl VM {
                                     args.len()
                                 ))
                             } else {
+                                if let Err(error) = self.interpreter.require_capability(
+                                    NativeCapability::NetworkServer,
+                                    "http_server.listen",
+                                ) {
+                                    if let Value::Error(message) = error {
+                                        return Err(message);
+                                    }
+                                    return Err(
+                                        "Capability denied for http_server.listen".to_string()
+                                    );
+                                }
                                 self.start_http_server_vm(port, routes)
                             }
                         }
