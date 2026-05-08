@@ -237,6 +237,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - `if`/`else`, `while`, `loop`, `for ... in`, `break`, and `continue`.
 - `break` and `continue` are only valid inside loop bodies; using either outside a loop is a deterministic runtime/compile error.
 - Top-level `return` remains supported as the script-exit value contract, while function `return` keeps standard early-exit behavior.
+- Function body fallthrough and `return` without an expression both yield `null`; explicit `return 0` remains integer zero.
 - Function bodies and control-flow bodies (`if`/`else`, `while`, `loop`, and `for`) use lexical scopes; inner shadowing is allowed, loop variables do not leak after loop completion, and closures capture the nearest lexical binding.
 - Shared truthiness semantics across interpreter/VM/native predicates: `false`, `null`, `0`, `0.0`, empty string, empty array, and empty dictionary are falsey; all other values are truthy.
 - Logical `&&` and `||` use truthiness and short-circuit (RHS is evaluated only when required), returning boolean results.

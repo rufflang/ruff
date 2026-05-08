@@ -652,7 +652,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-SEM-002: Define null, fallthrough, and return-without-value behavior
+[x] V1-SEM-002: Define null, fallthrough, and return-without-value behavior
     Priority: P1
     Severity: Medium
     Area: Correctness/Language Semantics
@@ -672,7 +672,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Null equality and truthiness tests.
         - VM/interpreter parity tests.
     Acceptance criteria: Null behavior is explicit and no missing-value path uses integer zero as a sentinel.
-    Notes: Complete with or after `V1-RUN-003`.
+    Notes: Completed on 2026-05-08. Parser return handling now accepts bare `return` before `}`/EOF, interpreter function/method/async return paths now treat body fallthrough and `return` without an expression as `Null` (replacing `Int(0)` sentinels), and explicit numeric returns such as `return 0` remain unchanged. Added parity and parser regressions for fallthrough null behavior, bare-return parsing, null equality/truthiness expectations, and explicit-zero return preservation. Verification: `cargo test --test vm_interpreter_parity_surfaces`, `cargo test --test parser_diagnostics_contract parser_accepts_bare_return`, and `cargo test` passed.
 ```
 
 ```text
