@@ -279,6 +279,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_23-02_v1-ci-001-release-gate-enforcement.md)
 
+### Blocking reqwest clients can panic when used on Tokio runtime threads
+- **Problem:** Network calls can panic with `Cannot drop a runtime in a context where blocking is not allowed` when `reqwest::blocking` is created/dropped in runtime-managed execution paths.
+- **Rule:** Route blocking HTTP execution through a dedicated OS thread (or use a fully async client path) before applying request/response policy logic.
+- **Implication:** Network hardening work must validate runtime context safety in addition to timeout/body-size enforcement.
+
+(Discovered during: 2026-05-13_12-56_v1-net-001-network-timeout-size-controls.md)
+
 ### Native-function tests should avoid fixed temp directories
 - **Problem:** Reusing a fixed temp path can make cleanup assertions fail due to stale nested state from earlier runs.
 - **Rule:** Build per-run temp directory names (for example PID + timestamp) and pre-clean if the path already exists.
