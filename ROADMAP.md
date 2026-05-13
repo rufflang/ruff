@@ -771,7 +771,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-SEC-003: Harden shell and process execution APIs
+[x] V1-SEC-003: Harden shell and process execution APIs
     Priority: P1
     Severity: Critical
     Area: Security
@@ -794,7 +794,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Output larger than limit is truncated or rejected according to docs.
         - Non-zero exit status is represented predictably.
     Acceptance criteria: Untrusted strings are not accidentally interpreted by a shell, and process execution is bounded.
-    Notes: Do not remove existing shell helper without adding replacement behavior and migration docs.
+    Notes: Completed on 2026-05-12. Added centralized bounded process execution in `src/interpreter/native_functions/system.rs` with shared option parsing and enforcement (`timeout_ms`, `max_output_bytes`, `inherit_env`, `env_allow`, `env_deny`, `env`), timeout-based process termination, bounded stdout/stderr capture with truncation metadata, and deterministic error-object propagation for spawn/wait/read failures. Preserved shell-string execution in `execute(...)` while adding structured shell status via `execute_status(...)`; both now accept optional process options and remain shell-exec scoped. Hardened direct argv execution surfaces (`spawn_process`, `pipe_commands`) to use the same bounded execution policy without shell interpolation and to return deterministic `ProcessResult` fields (`exitcode`, `stdout`, `stderr`, `success`, `timed_out`, `stdout_truncated`, `stderr_truncated`). Updated capability/type-check/dispatch contracts to include `execute_status` and optional process options. Added/updated integration and unit coverage for shell allow behavior, direct argv non-expansion, timeout termination, output truncation signaling, env allow/deny enforcement, strict arity expectations, and process dispatch contracts. Updated `README.md`, `docs/NATIVE_API_SECURITY_POSTURE.md`, and `docs/STANDARD_LIBRARY_REFERENCE.md` with the hardened process/shell contract details. Verification: `cargo test --lib interpreter::native_functions::system::tests`, `cargo test --lib native_functions::tests::test_release_hardening_system_operation_contracts`, `cargo test --lib native_functions::tests::test_release_hardening_process_module_dispatch_argument_contracts`, `cargo test --test native_api_security_boundaries process_`, `cargo test -q`.
 ```
 
 ```text

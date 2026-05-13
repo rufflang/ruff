@@ -110,6 +110,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-16_20-23_release-hardening-strict-arity-follow-through-slices.md)
 
+### Native API signature changes have three independent contract surfaces
+- **Problem:** A native API can be "fixed" in runtime handling but still fail tests and user validation paths.
+- **Rule:** When changing native argument contracts, update all three layers: runtime handler (`src/interpreter/native_functions/*`), type signature metadata (`src/type_checker.rs`), and native dispatch contract tests (`src/interpreter/native_functions/mod.rs`).
+- **Implication:** Use a three-surface checklist for every native signature/arity change to avoid partial migrations.
+
+(Discovered during: 2026-05-12_22-40_v1-sec-003-process-shell-hardening.md)
+
 ### Native `Value::Error` can be data, while undefined identifiers are fatal
 - **Problem:** Treating every `Value::Error` as an immediate statement-level halt breaks native helpers that intentionally return error values for callers to inspect.
 - **Rule:** Undefined identifier lookup must produce `Undefined variable: <name>` and stop execution, but `let x := native_call(...)` must still be allowed to bind a native `Value::Error` unless that API is intentionally changed.

@@ -131,9 +131,10 @@ Source of truth:
 | `env_or` | stable | `mode := env_or("MODE", "dev")` |
 | `args` | stable | `argv := args()` |
 | `sleep` | stable | `sleep(100)` |
-| `execute` | preview | `result := execute(["echo", "hi"])` |
-| `spawn_process` | experimental | `proc := spawn_process(["echo", "hi"])` |
-| `pipe_commands` | experimental | `out := pipe_commands([["echo", "hi"], ["cat"]])` |
+| `execute` | preview | `out := execute("echo hi", {"timeout_ms": 1000})` |
+| `execute_status` | preview | `r := execute_status("echo hi")` |
+| `spawn_process` | experimental | `r := spawn_process(["echo", "hi"], {"max_output_bytes": 4096})` |
+| `pipe_commands` | experimental | `out := pipe_commands([["echo", "hi"], ["cat"]], {"timeout_ms": 1000})` |
 | `channel` | preview | `ch := channel()` |
 | `shared_set` | preview | `shared_set("count", 1)` |
 | `shared_get` | preview | `v := shared_get("count")` |
@@ -141,6 +142,11 @@ Source of truth:
 | `parallel_map` | preview | `out := parallel_map([1,2], func (x) { return x + 1 })` |
 | `set_task_pool_size` | preview | `set_task_pool_size(8)` |
 | `get_task_pool_size` | preview | `n := get_task_pool_size()` |
+
+Process result contracts:
+
+- `execute_status` and `spawn_process` return `ProcessResult` fields: `exitcode`, `stdout`, `stderr`, `success`, `timed_out`, `stdout_truncated`, `stderr_truncated`
+- `execute` returns a stdout string on success and raises a deterministic error object on timeout, output-limit overflow, or non-zero exit
 
 ## Network, HTTP, and Auth
 

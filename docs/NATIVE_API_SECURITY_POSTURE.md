@@ -45,17 +45,32 @@ Capability flags:
 
 ### Process APIs
 
-Relevant builtins: `execute`, `spawn_process`, `pipe_commands`.
+Relevant builtins: `execute`, `execute_status`, `spawn_process`, `pipe_commands`.
 
 Risk profile:
 
 - command execution with host user privileges
 - shell/toolchain dependency and environment-variable influence
 
+Execution model:
+
+- `spawn_process` and `pipe_commands` execute direct argv arrays (no shell token expansion)
+- `execute` and `execute_status` execute shell command strings (`sh -c` / `cmd /C`) and remain high-risk surfaces
+- shell-string execution requires `--allow-shell-exec`; direct argv process execution requires `--allow-process-exec`
+
+Bounded process controls:
+
+- process builtins accept an optional options dict: `timeout_ms`, `max_output_bytes`, `inherit_env`, `env_allow`, `env_deny`, `env`
+- defaults: timeout `30000` ms, max captured stdout/stderr `1048576` bytes each
+- hard max for `max_output_bytes`: `16777216` bytes
+- `execute` preserves legacy string-return behavior on success but now fails with deterministic error objects on timeout, output-limit overflow, or non-zero exits
+- `execute_status` / `spawn_process` return a `ProcessResult` struct (`exitcode`, `stdout`, `stderr`, `success`, `timed_out`, `stdout_truncated`, `stderr_truncated`)
+- `pipe_commands` enforces the same timeout/output/env policy per stage and fails fast on boundary violations
+
 Operational guidance:
 
 - avoid interpolating untrusted input into command arguments
-- prefer explicit argument arrays (`spawn_process`) over shell-style command strings
+- prefer explicit argument arrays (`spawn_process`, `pipe_commands`) over shell-style command strings (`execute`, `execute_status`)
 - run Ruff in least-privilege execution contexts for automation workloads
 
 ### Network APIs

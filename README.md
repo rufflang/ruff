@@ -298,6 +298,7 @@ The standard library is broad, but not all functions have polished reference doc
 
 High-risk native APIs (process/network/filesystem/crypto/database) are powerful. `ruff run` and `ruff test-run` default to trusted capability mode for local workflows, and can be switched to deny-by-default mode with `--untrusted` plus explicit `--allow-*` capability flags. Review `docs/NATIVE_API_SECURITY_POSTURE.md` before running untrusted scripts or deploying automation in shared environments.
 For archive extraction, `unzip(...)` now rejects unsafe entry paths (absolute paths, `..` traversal components, drive-prefixed names, null-byte names, and symlink entries) and enforces extraction limits (1024 entries, 16 MiB per entry, 64 MiB total uncompressed size).
+For process execution, `spawn_process(...)` and `pipe_commands(...)` execute direct argv arrays (no shell interpolation), while `execute(...)` / `execute_status(...)` execute shell command strings and should be treated as high risk. These process APIs now accept an optional options dictionary (`timeout_ms`, `max_output_bytes`, `inherit_env`, `env_allow`, `env_deny`, `env`) and `execute_status(...)` / `spawn_process(...)` return `ProcessResult` metadata (`exitcode`, `stdout`, `stderr`, `success`, `timed_out`, `stdout_truncated`, `stderr_truncated`) for deterministic boundary handling.
 
 ## Testing
 
