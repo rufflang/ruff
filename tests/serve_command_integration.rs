@@ -161,6 +161,106 @@ fn serve_head_returns_headers_without_body() {
 }
 
 #[test]
+fn serve_get_returns_length_type_and_safe_default_headers() {
+    let root = unique_temp_dir("serve_get_headers");
+    let body = "<h1>Hello</h1>";
+    fs::write(root.join("index.html"), body).expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(200, response.status_code);
+    assert_eq!(body.as_bytes(), response.body.as_slice());
+    assert_eq!(
+        "text/html; charset=utf-8",
+        response.headers.get("content-type").expect("expected Content-Type header")
+    );
+    assert_eq!(
+        body.len().to_string(),
+        *response.headers.get("content-length").expect("expected Content-Length header")
+    );
+    assert_eq!(
+        "nosniff",
+        response
+            .headers
+            .get("x-content-type-options")
+            .expect("expected X-Content-Type-Options header")
+    );
+    assert_eq!(
+        "no-referrer",
+        response.headers.get("referrer-policy").expect("expected Referrer-Policy header")
+    );
+    assert_eq!(
+        "public, max-age=120",
+        response.headers.get("cache-control").expect("expected Cache-Control header")
+    );
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_method_not_allowed_returns_allow_header() {
+    let root = unique_temp_dir("serve_method_not_allowed");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "POST / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(405, response.status_code);
+    assert_eq!("GET, HEAD", response.headers.get("allow").expect("expected Allow header"));
+    assert_eq!(
+        "text/plain; charset=utf-8",
+        response.headers.get("content-type").expect("expected Content-Type header")
+    );
+    assert_eq!(
+        "no-store",
+        response.headers.get("cache-control").expect("expected Cache-Control header")
+    );
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_non_standard_method_returns_501() {
+    let root = unique_temp_dir("serve_non_standard_method");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "BREW / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(501, response.status_code);
+    assert_eq!(
+        "text/plain; charset=utf-8",
+        response.headers.get("content-type").expect("expected Content-Type header")
+    );
+    assert_eq!(
+        "no-store",
+        response.headers.get("cache-control").expect("expected Cache-Control header")
+    );
+    assert_eq!(
+        "nosniff",
+        response
+            .headers
+            .get("x-content-type-options")
+            .expect("expected X-Content-Type-Options header")
+    );
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn serve_range_returns_partial_content_and_content_range_header() {
     let root = unique_temp_dir("serve_range");
     fs::write(root.join("index.html"), b"0123456789").expect("failed to write index.html");
@@ -308,6 +408,61 @@ fn serve_rejects_url_encoded_parent_traversal() {
     );
 
     assert_eq!(403, response.status_code);
+    assert_eq!(
+        "text/plain; charset=utf-8",
+        response.headers.get("content-type").expect("expected Content-Type header")
+    );
+    assert_eq!(
+        "no-store",
+        response.headers.get("cache-control").expect("expected Cache-Control header")
+    );
+    assert_eq!(
+        "nosniff",
+        response
+            .headers
+            .get("x-content-type-options")
+            .expect("expected X-Content-Type-Options header")
+    );
+    assert_eq!(
+        "no-referrer",
+        response.headers.get("referrer-policy").expect("expected Referrer-Policy header")
+    );
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_missing_file_returns_404_with_standard_error_headers() {
+    let root = unique_temp_dir("serve_missing_file");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /missing.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(404, response.status_code);
+    assert_eq!(
+        "text/plain; charset=utf-8",
+        response.headers.get("content-type").expect("expected Content-Type header")
+    );
+    assert_eq!(
+        "no-store",
+        response.headers.get("cache-control").expect("expected Cache-Control header")
+    );
+    assert_eq!(
+        "nosniff",
+        response
+            .headers
+            .get("x-content-type-options")
+            .expect("expected X-Content-Type-Options header")
+    );
+    assert_eq!(
+        "no-referrer",
+        response.headers.get("referrer-policy").expect("expected Referrer-Policy header")
+    );
 
     drop(server);
     let _ = fs::remove_dir_all(root);

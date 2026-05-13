@@ -114,15 +114,26 @@ fn build_response(
     let method = request.method();
     let is_head = method == &Method::Head;
     if method != &Method::Get && !is_head {
-        return headify(
-            text_response(405, "Method Not Allowed", options, request.secure()),
-            is_head,
-        );
+        let response = if matches!(method, Method::NonStandard(_)) {
+            static_text_response(501, "Not Implemented", options, request.secure(), &[])
+        } else {
+            static_text_response(
+                405,
+                "Method Not Allowed",
+                options,
+                request.secure(),
+                &[("Allow", "GET, HEAD")],
+            )
+        };
+        return headify(response, is_head);
     }
 
     let raw_path = request.url().split('?').next().unwrap_or("/");
     if path_security::reject_url_encoded_parent_traversal(raw_path, "request path").is_err() {
-        return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
+        return headify(
+            static_text_response(403, "Forbidden", options, request.secure(), &[]),
+            is_head,
+        );
     }
 
     let mut relative_path = raw_path.trim_start_matches('/').to_string();
@@ -134,16 +145,23 @@ fn build_response(
     {
         Ok(path) => path,
         Err(_) => {
-            return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
+            return headify(
+                static_text_response(403, "Forbidden", options, request.secure(), &[]),
+                is_head,
+            );
         }
     };
 
-    let mut target_path = match path_security::join_within_root(root_dir, &relative_path, "request path") {
-        Ok(path) => path,
-        Err(_) => {
-            return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
-        }
-    };
+    let mut target_path =
+        match path_security::join_within_root(root_dir, &relative_path, "request path") {
+            Ok(path) => path,
+            Err(_) => {
+                return headify(
+                    static_text_response(403, "Forbidden", options, request.secure(), &[]),
+                    is_head,
+                );
+            }
+        };
     if target_path.is_dir() {
         target_path = target_path.join(&options.index);
     }
@@ -155,10 +173,12 @@ fn build_response(
         }
     };
 
-    if path_security::ensure_path_within_root(&canonical_target, root_dir, "request path")
-        .is_err()
+    if path_security::ensure_path_within_root(&canonical_target, root_dir, "request path").is_err()
     {
-        return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
+        return headify(
+            static_text_response(403, "Forbidden", options, request.secure(), &[]),
+            is_head,
+        );
     }
 
     let accept_encoding = header_value(request.headers(), "Accept-Encoding");
@@ -278,7 +298,7 @@ fn add_common_success_headers(
     }
     if let Some(cache_max_age) = options.cache_max_age {
         add_header(headers, "Cache-Control", &format!("public, max-age={}", cache_max_age));
-    } else if options.hardened {
+    } else {
         add_header(headers, "Cache-Control", "public, max-age=0, must-revalidate");
     }
     add_default_security_headers(headers, options, secure);
@@ -290,9 +310,9 @@ fn add_default_security_headers(
     secure: bool,
 ) {
     add_header(headers, "X-Content-Type-Options", "nosniff");
+    add_header(headers, "Referrer-Policy", "no-referrer");
     if options.hardened {
         add_header(headers, "X-Frame-Options", "DENY");
-        add_header(headers, "Referrer-Policy", "no-referrer");
         add_header(headers, "Cross-Origin-Opener-Policy", "same-origin");
         add_header(headers, "Cross-Origin-Resource-Policy", "same-origin");
         add_header(headers, "Permissions-Policy", "geolocation=(), microphone=(), camera=()");
@@ -320,23 +340,27 @@ fn status_mapped_error(
     };
 
     if 500 == status_code {
-        text_response(500, "Internal Server Error", options, secure)
+        static_text_response(500, "Internal Server Error", options, secure, &[])
     } else if 403 == status_code {
-        text_response(403, "Forbidden", options, secure)
+        static_text_response(403, "Forbidden", options, secure, &[])
     } else {
-        text_response(404, "Not Found", options, secure)
+        static_text_response(404, "Not Found", options, secure, &[])
     }
 }
 
-fn text_response(
+fn static_text_response(
     status_code: u16,
     body: &str,
     options: &ServeServerOptions,
     secure: bool,
+    extra_headers: &[(&str, &str)],
 ) -> PlannedResponse {
     let mut headers = Vec::new();
     add_header(&mut headers, "Content-Type", "text/plain; charset=utf-8");
     add_header(&mut headers, "Cache-Control", "no-store");
+    for (name, value) in extra_headers {
+        add_header(&mut headers, name, value);
+    }
     add_default_security_headers(&mut headers, options, secure);
     PlannedResponse {
         status_code,
@@ -712,5 +736,129 @@ mod tests {
             .find(|(name, _)| name.eq_ignore_ascii_case("x-content-type-options"))
             .map(|(_, value)| value.as_str());
         assert_eq!(nosniff, Some("nosniff"));
+    }
+
+    #[test]
+    fn add_common_success_headers_sets_conservative_cache_when_no_max_age() {
+        let options = ServeServerOptions {
+            index: "index.html".to_string(),
+            hardened: false,
+            cache_max_age: None,
+            access_log: false,
+            tls_cert: None,
+            tls_key: None,
+        };
+        let mut headers = Vec::new();
+        add_common_success_headers(
+            &mut headers,
+            Path::new("index.html"),
+            b"<html></html>",
+            Some("W/\"b-1\""),
+            &options,
+            false,
+        );
+
+        let cache_control = headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("cache-control"))
+            .map(|(_, value)| value.as_str());
+        assert_eq!(cache_control, Some("public, max-age=0, must-revalidate"));
+    }
+
+    #[test]
+    fn static_text_response_includes_extra_headers_and_default_security_headers() {
+        let options = ServeServerOptions {
+            index: "index.html".to_string(),
+            hardened: false,
+            cache_max_age: None,
+            access_log: false,
+            tls_cert: None,
+            tls_key: None,
+        };
+        let response = static_text_response(
+            405,
+            "Method Not Allowed",
+            &options,
+            false,
+            &[("Allow", "GET, HEAD")],
+        );
+
+        assert_eq!(405, response.status_code);
+        assert_eq!("Method Not Allowed".as_bytes(), response.body.as_slice());
+
+        let allow = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("allow"))
+            .map(|(_, value)| value.as_str());
+        let content_type = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+            .map(|(_, value)| value.as_str());
+        let cache_control = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("cache-control"))
+            .map(|(_, value)| value.as_str());
+        let nosniff = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("x-content-type-options"))
+            .map(|(_, value)| value.as_str());
+        let referrer_policy = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("referrer-policy"))
+            .map(|(_, value)| value.as_str());
+
+        assert_eq!(allow, Some("GET, HEAD"));
+        assert_eq!(content_type, Some("text/plain; charset=utf-8"));
+        assert_eq!(cache_control, Some("no-store"));
+        assert_eq!(nosniff, Some("nosniff"));
+        assert_eq!(referrer_policy, Some("no-referrer"));
+    }
+
+    #[test]
+    fn status_mapped_error_uses_500_contract_for_unexpected_io_errors() {
+        let options = ServeServerOptions {
+            index: "index.html".to_string(),
+            hardened: false,
+            cache_max_age: None,
+            access_log: false,
+            tls_cert: None,
+            tls_key: None,
+        };
+        let error = std::io::Error::other("synthetic unexpected io error");
+        let response = status_mapped_error(&error, &options, false);
+
+        assert_eq!(500, response.status_code);
+        assert_eq!("Internal Server Error".as_bytes(), response.body.as_slice());
+
+        let content_type = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+            .map(|(_, value)| value.as_str());
+        let cache_control = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("cache-control"))
+            .map(|(_, value)| value.as_str());
+        let nosniff = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("x-content-type-options"))
+            .map(|(_, value)| value.as_str());
+        let referrer_policy = response
+            .headers
+            .iter()
+            .find(|(name, _)| name.eq_ignore_ascii_case("referrer-policy"))
+            .map(|(_, value)| value.as_str());
+
+        assert_eq!(content_type, Some("text/plain; charset=utf-8"));
+        assert_eq!(cache_control, Some("no-store"));
+        assert_eq!(nosniff, Some("nosniff"));
+        assert_eq!(referrer_policy, Some("no-referrer"));
     }
 }
