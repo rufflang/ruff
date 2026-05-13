@@ -2,14 +2,15 @@ use crate::ast::{Expr, Pattern, Stmt};
 use crate::errors::{ErrorKind, RuffError};
 use crate::interpreter::{Environment, Interpreter, Value};
 use crate::lexer::tokenize_with_file;
-use crate::path_security;
 use crate::parser::Parser;
+use crate::path_security;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
-/// Represents a loaded module with its exported symbols
+/// Represents a loaded module with its exported symbols.
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Module {
@@ -18,13 +19,62 @@ pub struct Module {
     pub exports: HashMap<String, Value>,
 }
 
-/// Manages module loading, caching, and resolution
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ModuleCacheKey {
+    package_root: PathBuf,
+    module_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct CachedModule {
+    module: Module,
+    source_state: ModuleSourceState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ModuleSourceState {
+    modified: Option<SystemTime>,
+    len: u64,
+}
+
+#[derive(Debug, Clone)]
+struct LoadingModule {
+    module_name: String,
+    cache_key: ModuleCacheKey,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedModulePath {
+    module_path: PathBuf,
+    cache_key: ModuleCacheKey,
+}
+
+impl ModuleSourceState {
+    fn from_path(path: &Path) -> Result<Self, Box<RuffError>> {
+        let metadata = fs::metadata(path).map_err(|error| {
+            ModuleLoader::runtime_error(format!(
+                "Failed to read module metadata '{}': {}",
+                path.display(),
+                error
+            ))
+        })?;
+
+        let modified = metadata.modified().ok();
+
+        Ok(Self {
+            modified,
+            len: metadata.len(),
+        })
+    }
+}
+
+/// Manages module loading, caching, and resolution.
 pub struct ModuleLoader {
-    /// Cache of loaded modules to avoid re-parsing
-    loaded_modules: HashMap<String, Module>,
-    /// Stack of modules currently being loaded (for circular import detection)
-    loading_stack: Vec<String>,
-    /// Search paths for module resolution
+    /// Cache of loaded modules to avoid re-parsing.
+    loaded_modules: HashMap<ModuleCacheKey, CachedModule>,
+    /// Stack of modules currently being loaded (for circular import detection).
+    loading_stack: Vec<LoadingModule>,
+    /// Search paths for module resolution.
     search_paths: Vec<PathBuf>,
 }
 
@@ -104,10 +154,7 @@ impl ModuleLoader {
         deduped
     }
 
-    fn bind_export_value_to_module_env(
-        value: Value,
-        module_env: &Arc<Mutex<Environment>>,
-    ) -> Value {
+    fn bind_export_value_to_module_env(value: Value, module_env: &Arc<Mutex<Environment>>) -> Value {
         match value {
             Value::Function(params, body, captured_env) => {
                 let bound_env = captured_env.or_else(|| Some(Arc::clone(module_env)));
@@ -117,7 +164,11 @@ impl ModuleLoader {
                 let bound_env = captured_env.or_else(|| Some(Arc::clone(module_env)));
                 Value::AsyncFunction(params, body, bound_env)
             }
-            Value::StructDef { name, field_names, methods } => {
+            Value::StructDef {
+                name,
+                field_names,
+                methods,
+            } => {
                 let mut bound_methods = HashMap::new();
                 for (method_name, method_value) in methods {
                     bound_methods.insert(
@@ -125,51 +176,71 @@ impl ModuleLoader {
                         Self::bind_export_value_to_module_env(method_value, module_env),
                     );
                 }
-                Value::StructDef { name, field_names, methods: bound_methods }
+                Value::StructDef {
+                    name,
+                    field_names,
+                    methods: bound_methods,
+                }
             }
             other => other,
         }
     }
 
-    /// Creates a new module loader with default search paths
+    /// Creates a new module loader with default search paths.
     pub fn new() -> Self {
         ModuleLoader {
             loaded_modules: HashMap::new(),
             loading_stack: Vec::new(),
             search_paths: vec![
-                PathBuf::from("."),         // Current directory
-                PathBuf::from("./modules"), // Local modules directory
+                PathBuf::from("."),
+                PathBuf::from("./modules"),
             ],
         }
     }
 
-    /// Adds a search path for module resolution
+    /// Adds a search path for module resolution.
     #[allow(dead_code)]
     pub fn add_search_path<P: AsRef<Path>>(&mut self, path: P) {
         self.search_paths.push(path.as_ref().to_path_buf());
     }
 
-    /// Resolves a module name to a file path
-    fn resolve_module_path(&self, module_name: &str) -> Result<Option<PathBuf>, Box<RuffError>> {
-        // Convert module name to file path (e.g., "math" -> "math.ruff")
+    fn module_search_roots(&self) -> Vec<PathBuf> {
+        let mut roots = Vec::new();
+
+        if let Some(active_module) = self.loading_stack.last() {
+            roots.push(active_module.cache_key.package_root.clone());
+        }
+
+        roots.extend(self.search_paths.iter().cloned());
+        roots
+    }
+
+    /// Resolves a module name to a file path.
+    fn resolve_module_path(
+        &self,
+        module_name: &str,
+    ) -> Result<Option<ResolvedModulePath>, Box<RuffError>> {
         let filename = format!("{}.ruff", module_name);
-        let normalized_filename = path_security::sanitize_relative_path(&filename, "module import")
-            .map_err(|error| {
+        let normalized_filename =
+            path_security::sanitize_relative_path(&filename, "module import").map_err(|error| {
                 Self::runtime_error(format!("Unsafe module import '{}': {}", module_name, error))
             })?;
 
-        // Search in all search paths
-        for search_path in &self.search_paths {
-            let full_path = search_path.join(&normalized_filename);
-            if full_path.exists() {
-                let canonical_search_root = match path_security::canonicalize_root(
-                    search_path,
-                    "module search path",
-                ) {
+        let mut visited_roots = HashSet::new();
+
+        for search_path in self.module_search_roots() {
+            let canonical_search_root =
+                match path_security::canonicalize_root(&search_path, "module search path") {
                     Ok(path) => path,
                     Err(_) => continue,
                 };
 
+            if !visited_roots.insert(canonical_search_root.clone()) {
+                continue;
+            }
+
+            let full_path = canonical_search_root.join(&normalized_filename);
+            if full_path.exists() {
                 let canonical_module_path = fs::canonicalize(&full_path).map_err(|error| {
                     Self::runtime_error(format!(
                         "Failed to resolve module '{}' path '{}': {}",
@@ -194,40 +265,65 @@ impl ModuleLoader {
                     )));
                 }
 
-                return Ok(Some(canonical_module_path));
+                return Ok(Some(ResolvedModulePath {
+                    module_path: canonical_module_path.clone(),
+                    cache_key: ModuleCacheKey {
+                        package_root: canonical_search_root,
+                        module_path: canonical_module_path,
+                    },
+                }));
             }
         }
 
         Ok(None)
     }
 
-    /// Loads a module by name, returning cached version if available
+    /// Loads a module by name, returning cached version if available.
     pub fn load_module(&mut self, module_name: &str) -> Result<Module, Box<RuffError>> {
-        // Check cache first
-        if let Some(module) = self.loaded_modules.get(module_name) {
-            return Ok(module.clone());
-        }
-
-        // Check for circular imports
-        if self.loading_stack.iter().any(|name| name == module_name) {
-            return Err(Self::runtime_error(format!("Circular import detected: {}", module_name)));
-        }
-
-        // Resolve module path
-        let module_path = self.resolve_module_path(module_name)?.ok_or_else(|| {
+        let resolved_module = self.resolve_module_path(module_name)?.ok_or_else(|| {
             Self::runtime_error(format!("Module not found: {}", module_name))
         })?;
+        let cache_key = resolved_module.cache_key.clone();
 
-        // Add to loading stack
-        self.loading_stack.push(module_name.to_string());
+        if let Some(cycle_start) = self
+            .loading_stack
+            .iter()
+            .position(|entry| entry.cache_key == cache_key)
+        {
+            let mut import_chain: Vec<String> = self.loading_stack[cycle_start..]
+                .iter()
+                .map(|entry| entry.module_name.clone())
+                .collect();
+            import_chain.push(module_name.to_string());
+            return Err(Self::runtime_error(format!(
+                "Circular import detected: {}",
+                import_chain.join(" -> ")
+            )));
+        }
+
+        let current_source_state = ModuleSourceState::from_path(&resolved_module.module_path)?;
+
+        if let Some(cached_module) = self.loaded_modules.get(&cache_key) {
+            if cached_module.source_state == current_source_state {
+                return Ok(cached_module.module.clone());
+            }
+        }
+
+        self.loaded_modules.remove(&cache_key);
+
+        self.loading_stack.push(LoadingModule {
+            module_name: module_name.to_string(),
+            cache_key: cache_key.clone(),
+        });
 
         let load_result = (|| {
+            let module_path = resolved_module.module_path.clone();
             let source = fs::read_to_string(&module_path).map_err(|e| {
-                Self::runtime_error(format!("Failed to read module {}: {}", module_name, e))
+                Self::runtime_error(format!("Failed to read module '{}': {}", module_name, e))
             })?;
 
-            let tokens = tokenize_with_file(&source, Some(&module_path.to_string_lossy()))
-                .map_err(|diagnostics| {
+            let tokens = tokenize_with_file(&source, Some(&module_path.to_string_lossy())).map_err(
+                |diagnostics| {
                     let first = diagnostics
                         .first()
                         .map(|diagnostic| {
@@ -241,7 +337,8 @@ impl ModuleLoader {
                         "Failed to tokenize module '{}': {}",
                         module_name, first
                     ))
-                })?;
+                },
+            )?;
             let mut parser = Parser::new(tokens);
             let parse_output = parser.parse_with_diagnostics();
             if !parse_output.diagnostics.is_empty() {
@@ -249,7 +346,10 @@ impl ModuleLoader {
                     .diagnostics
                     .first()
                     .map(|diagnostic| {
-                        format!("{}:{}: {}", diagnostic.line, diagnostic.column, diagnostic.message)
+                        format!(
+                            "{}:{}: {}",
+                            diagnostic.line, diagnostic.column, diagnostic.message
+                        )
                     })
                     .unwrap_or_else(|| "unknown parser error".to_string());
                 return Err(Self::runtime_error(format!(
@@ -304,18 +404,29 @@ impl ModuleLoader {
                 }
             }
 
-            Ok(Module { name: module_name.to_string(), path: module_path.clone(), exports })
+            Ok(Module {
+                name: module_name.to_string(),
+                path: module_path.clone(),
+                exports,
+            })
         })();
 
         self.loading_stack.pop();
 
         let module = load_result?;
-        self.loaded_modules.insert(module_name.to_string(), module.clone());
+        let source_state = ModuleSourceState::from_path(&module.path)?;
+        self.loaded_modules.insert(
+            cache_key,
+            CachedModule {
+                module: module.clone(),
+                source_state,
+            },
+        );
 
         Ok(module)
     }
 
-    /// Gets a specific symbol from a module
+    /// Gets a specific symbol from a module.
     pub fn get_symbol(
         &mut self,
         module_name: &str,
@@ -332,7 +443,7 @@ impl ModuleLoader {
         })
     }
 
-    /// Gets all exports from a module
+    /// Gets all exports from a module.
     pub fn get_all_exports(
         &mut self,
         module_name: &str,
@@ -372,13 +483,17 @@ mod tests {
 
         let module_name = unique_name("math_mod");
         let module_path = temp_root.join(format!("{}.ruff", module_name));
-        fs::write(&module_path, "helper := 10\nexport visible := helper + 5\nhidden := 99\n")
-            .expect("failed to write module source");
+        fs::write(
+            &module_path,
+            "helper := 10\nexport visible := helper + 5\nhidden := 99\n",
+        )
+        .expect("failed to write module source");
 
         loader.add_search_path(&temp_root);
 
-        let exports =
-            loader.get_all_exports(&module_name).expect("module should load and return exports");
+        let exports = loader
+            .get_all_exports(&module_name)
+            .expect("module should load and return exports");
 
         assert!(matches!(exports.get("visible"), Some(Value::Int(15))));
         assert!(exports.get("helper").is_none());
@@ -400,12 +515,14 @@ mod tests {
 
         loader.add_search_path(&temp_root);
 
-        let err =
-            loader.get_symbol(&module_name, "absent").expect_err("expected missing symbol error");
+        let err = loader
+            .get_symbol(&module_name, "absent")
+            .expect_err("expected missing symbol error");
 
-        assert!(err
-            .message
-            .contains(&format!("Symbol 'absent' not found in module '{}'", module_name)));
+        assert!(
+            err.message
+                .contains(&format!("Symbol 'absent' not found in module '{}'", module_name))
+        );
 
         fs::remove_file(&module_path).expect("failed to clean up module file");
         fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
@@ -429,12 +546,144 @@ mod tests {
 
         loader.add_search_path(&temp_root);
 
-        let err = loader.get_all_exports(&module_a).expect_err("expected circular import failure");
+        let err = loader
+            .get_all_exports(&module_a)
+            .expect_err("expected circular import failure");
 
-        assert!(err.message.contains("Circular import detected"));
+        assert!(
+            err.message.contains(&format!(
+                "Circular import detected: {} -> {} -> {}",
+                module_a, module_b, module_a
+            )),
+            "expected circular import chain, got: {}",
+            err.message
+        );
 
         fs::remove_file(&module_a_path).expect("failed to clean up module A");
         fs::remove_file(&module_b_path).expect("failed to clean up module B");
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
+    fn load_module_rejects_parent_traversal_module_name() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_traversal_reject"));
+        fs::create_dir_all(&temp_root).expect("failed to create temp module dir");
+        loader.add_search_path(&temp_root);
+
+        let err = loader
+            .get_all_exports("../outside")
+            .expect_err("expected traversal module name to fail");
+
+        assert!(
+            err.message.contains("Unsafe module import '../outside'"),
+            "expected unsafe traversal error, got: {}",
+            err.message
+        );
+
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
+    fn load_module_prefers_importer_package_root_for_relative_imports() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_relative_root"));
+        let package_a = temp_root.join("package_a");
+        let package_b = temp_root.join("package_b");
+        fs::create_dir_all(&package_a).expect("failed to create package A");
+        fs::create_dir_all(&package_b).expect("failed to create package B");
+
+        let module_shared = unique_name("shared");
+        let module_entry_a = unique_name("entry_a");
+        let module_entry_b = unique_name("entry_b");
+
+        fs::write(
+            package_a.join(format!("{}.ruff", module_shared)),
+            "export shared_value := 11\n",
+        )
+        .expect("failed to write package A shared module");
+        fs::write(
+            package_b.join(format!("{}.ruff", module_shared)),
+            "export shared_value := 22\n",
+        )
+        .expect("failed to write package B shared module");
+
+        fs::write(
+            package_a.join(format!("{}.ruff", module_entry_a)),
+            format!(
+                "from {} import shared_value\nexport package_value := shared_value\n",
+                module_shared
+            ),
+        )
+        .expect("failed to write package A entry module");
+        fs::write(
+            package_b.join(format!("{}.ruff", module_entry_b)),
+            format!(
+                "from {} import shared_value\nexport package_value := shared_value\n",
+                module_shared
+            ),
+        )
+        .expect("failed to write package B entry module");
+
+        loader.add_search_path(&package_a);
+        loader.add_search_path(&package_b);
+
+        let package_a_value = loader
+            .get_symbol(&module_entry_a, "package_value")
+            .expect("expected package A import to succeed");
+        assert!(
+            matches!(package_a_value, Value::Int(11)),
+            "expected package A shared value 11, got: {:?}",
+            package_a_value
+        );
+
+        let package_b_value = loader
+            .get_symbol(&module_entry_b, "package_value")
+            .expect("expected package B import to succeed");
+        assert!(
+            matches!(package_b_value, Value::Int(22)),
+            "expected package B shared value 22, got: {:?}",
+            package_b_value
+        );
+
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
+    fn load_module_reloads_when_module_source_changes() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_cache_invalidation"));
+        fs::create_dir_all(&temp_root).expect("failed to create temp module dir");
+
+        let module_name = unique_name("cache_target");
+        let module_path = temp_root.join(format!("{}.ruff", module_name));
+        fs::write(&module_path, "export current := 1\n")
+            .expect("failed to write initial module source");
+
+        loader.add_search_path(&temp_root);
+
+        let initial_value = loader
+            .get_symbol(&module_name, "current")
+            .expect("expected initial module export");
+        assert!(
+            matches!(initial_value, Value::Int(1)),
+            "expected initial export value 1, got: {:?}",
+            initial_value
+        );
+
+        fs::write(&module_path, "export current := 222\n")
+            .expect("failed to update module source");
+
+        let updated_value = loader
+            .get_symbol(&module_name, "current")
+            .expect("expected module export after source update");
+        assert!(
+            matches!(updated_value, Value::Int(222)),
+            "expected updated export value 222 after cache invalidation, got: {:?}",
+            updated_value
+        );
+
+        fs::remove_file(&module_path).expect("failed to clean up module file");
         fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
     }
 

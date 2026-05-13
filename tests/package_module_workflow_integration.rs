@@ -158,3 +158,89 @@ fn package_module_workflow_end_to_end_contract() {
     assert_eq!(docgen_json["command"], "docgen");
     assert!(docgen_json["item_count"].as_u64().unwrap_or(0) >= 1);
 }
+
+#[test]
+fn package_module_cycle_error_reports_import_chain() {
+    let project_root = unique_temp_dir("package_module_cycle_error");
+
+    let module_a = "cycle_a";
+    let module_b = "cycle_b";
+    let module_a_path = project_root.join(format!("{}.ruff", module_a));
+    let module_b_path = project_root.join(format!("{}.ruff", module_b));
+    let workflow_path = project_root.join("cycle_workflow.ruff");
+
+    fs::write(&module_a_path, format!("import {}\nexport a := 1\n", module_b))
+        .expect("failed to write module A");
+    fs::write(&module_b_path, format!("import {}\nexport b := 2\n", module_a))
+        .expect("failed to write module B");
+    fs::write(&workflow_path, format!("import {}\nprint(\"unreachable\")\n", module_a))
+        .expect("failed to write cycle workflow script");
+
+    let run_output = run_ruff(
+        &["run", workflow_path.to_str().expect("path should be utf-8"), "--interpreter"],
+        &project_root,
+    );
+
+    assert!(
+        !run_output.status.success(),
+        "expected circular import run to fail, stdout={} stderr={}",
+        stdout_text(&run_output),
+        stderr_text(&run_output)
+    );
+
+    let stderr = stderr_text(&run_output);
+    assert!(
+        stderr.contains("Circular import detected: cycle_a -> cycle_b -> cycle_a"),
+        "expected circular import chain in stderr, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn package_module_run_refreshes_after_module_file_change() {
+    let project_root = unique_temp_dir("package_module_refresh");
+
+    let module_path = project_root.join("math_helper.ruff");
+    let workflow_path = project_root.join("refresh_workflow.ruff");
+
+    fs::write(&module_path, "export answer := 10\n").expect("failed to write initial module");
+    fs::write(&workflow_path, "from math_helper import answer\nprint(answer)\n")
+        .expect("failed to write workflow script");
+
+    let first_run = run_ruff(
+        &["run", workflow_path.to_str().expect("path should be utf-8"), "--interpreter"],
+        &project_root,
+    );
+    assert!(
+        first_run.status.success(),
+        "first run failed: stdout={} stderr={}",
+        stdout_text(&first_run),
+        stderr_text(&first_run)
+    );
+    assert!(
+        stdout_text(&first_run).contains("10"),
+        "expected first run output to include 10, got stdout={} stderr={}",
+        stdout_text(&first_run),
+        stderr_text(&first_run)
+    );
+
+    fs::write(&module_path, "export answer := 25\n")
+        .expect("failed to update module export value");
+
+    let second_run = run_ruff(
+        &["run", workflow_path.to_str().expect("path should be utf-8"), "--interpreter"],
+        &project_root,
+    );
+    assert!(
+        second_run.status.success(),
+        "second run failed: stdout={} stderr={}",
+        stdout_text(&second_run),
+        stderr_text(&second_run)
+    );
+    assert!(
+        stdout_text(&second_run).contains("25"),
+        "expected second run output to include updated value 25, got stdout={} stderr={}",
+        stdout_text(&second_run),
+        stderr_text(&second_run)
+    );
+}
