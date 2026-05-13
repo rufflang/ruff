@@ -143,14 +143,8 @@ pub const DIAGNOSTIC_CODE_VM: &str = "RUFVM001";
 pub const DIAGNOSTIC_CODE_CLI: &str = "RUFCLI001";
 pub const DIAGNOSTIC_CODE_LSP: &str = "RUFLSP001";
 
-pub fn unsupported_struct_generator_method_message(
-    struct_name: &str,
-    method_name: &str,
-) -> String {
-    format!(
-        "Generator methods are not supported for structs: {}.{}",
-        struct_name, method_name
-    )
+pub fn unsupported_struct_generator_method_message(struct_name: &str, method_name: &str) -> String {
+    format!("Generator methods are not supported for structs: {}.{}", struct_name, method_name)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

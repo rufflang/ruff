@@ -873,8 +873,7 @@ impl Compiler {
             }
 
             Stmt::Import { module, symbols } => {
-                let import_module_const =
-                    self.chunk.add_constant(Constant::String(module.clone()));
+                let import_module_const = self.chunk.add_constant(Constant::String(module.clone()));
 
                 match symbols {
                     Some(symbol_list) => {
@@ -884,17 +883,14 @@ impl Compiler {
 
                             self.chunk.emit(OpCode::LoadConst(import_module_const));
                             self.chunk.emit(OpCode::LoadConst(import_symbol_const));
-                            self.chunk.emit(OpCode::CallNative(
-                                "__vm_import_symbol".to_string(),
-                                2,
-                            ));
+                            self.chunk
+                                .emit(OpCode::CallNative("__vm_import_symbol".to_string(), 2));
                             self.chunk.emit(OpCode::Pop);
                         }
                     }
                     None => {
                         self.chunk.emit(OpCode::LoadConst(import_module_const));
-                        self.chunk
-                            .emit(OpCode::CallNative("__vm_import_all".to_string(), 1));
+                        self.chunk.emit(OpCode::CallNative("__vm_import_all".to_string(), 1));
                         self.chunk.emit(OpCode::Pop);
                     }
                 }

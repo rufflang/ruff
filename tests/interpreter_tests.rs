@@ -3211,7 +3211,7 @@ fn test_await_all_uses_configured_default_task_pool_size() {
 
 #[test]
 fn test_promise_all_large_array_with_bounded_concurrency() {
-    let promises = std::iter::repeat("async_sleep(1)").take(256).collect::<Vec<_>>().join(", ");
+    let promises = std::iter::repeat_n("async_sleep(1)", 256).collect::<Vec<_>>().join(", ");
 
     let code = format!(
         r#"
@@ -3238,7 +3238,7 @@ fn test_promise_all_large_array_with_bounded_concurrency() {
 
 #[test]
 fn test_await_all_large_array_uses_configured_default_pool() {
-    let promises = std::iter::repeat("async_sleep(1)").take(180).collect::<Vec<_>>().join(", ");
+    let promises = std::iter::repeat_n("async_sleep(1)", 180).collect::<Vec<_>>().join(", ");
 
     let code = format!(
         r#"

@@ -69,9 +69,9 @@ fn value_type_name(value: &Value) -> &'static str {
 
 fn dict_entries(value: &Value) -> Option<Vec<(String, Value)>> {
     match value {
-        Value::Dict(map) => Some(
-            map.iter().map(|(key, value)| (key.as_ref().to_string(), value.clone())).collect(),
-        ),
+        Value::Dict(map) => {
+            Some(map.iter().map(|(key, value)| (key.as_ref().to_string(), value.clone())).collect())
+        }
         Value::FixedDict { keys, values } => Some(
             keys.iter()
                 .zip(values.iter())
@@ -94,10 +94,7 @@ fn parse_string_list(value: &Value, field_name: &str) -> Result<Vec<String>, Val
     let mut parsed = Vec::with_capacity(items.len());
     for item in items.iter() {
         let Value::Str(text) = item else {
-            return Err(Value::Error(format!(
-                "{} must be an array of strings",
-                field_name
-            )));
+            return Err(Value::Error(format!("{} must be an array of strings", field_name)));
         };
         parsed.push(text.as_ref().to_string());
     }
@@ -135,10 +132,7 @@ fn parse_positive_u64(value: &Value, field_name: &str) -> Result<u64, Value> {
     match value {
         Value::Int(number) if *number > 0 => Ok(*number as u64),
         Value::Float(number) if number.is_finite() && *number > 0.0 => Ok(*number as u64),
-        _ => Err(Value::Error(format!(
-            "{} must be a positive number",
-            field_name
-        ))),
+        _ => Err(Value::Error(format!("{} must be a positive number", field_name))),
     }
 }
 
@@ -148,9 +142,7 @@ fn parse_process_options(options: Option<&Value>) -> Result<ProcessExecOptions, 
     };
 
     let Some(entries) = dict_entries(options_value) else {
-        return Err(Value::Error(
-            "process options must be provided as a dict".to_string(),
-        ));
+        return Err(Value::Error("process options must be provided as a dict".to_string()));
     };
 
     let mut options = ProcessExecOptions::default();
@@ -173,9 +165,7 @@ fn parse_process_options(options: Option<&Value>) -> Result<ProcessExecOptions, 
             "inherit_env" => match value {
                 Value::Bool(flag) => options.inherit_env = flag,
                 _ => {
-                    return Err(Value::Error(
-                        "inherit_env must be a boolean".to_string(),
-                    ));
+                    return Err(Value::Error("inherit_env must be a boolean".to_string()));
                 }
             },
             "env_allow" => {
@@ -930,11 +920,11 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 cmd
             };
 
-            let result = match run_command_with_options(process, &options, None, command_text.as_str())
-            {
-                Ok(result) => result,
-                Err(error) => return Some(error),
-            };
+            let result =
+                match run_command_with_options(process, &options, None, command_text.as_str()) {
+                    Ok(result) => result,
+                    Err(error) => return Some(error),
+                };
 
             if result.timed_out {
                 return Some(error_object(format!(

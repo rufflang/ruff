@@ -146,7 +146,7 @@ fn vm_and_interpreter_match_spread_destructuring_surface() {
         spread_ok := spread_array[2] == 2 && spread_dict["b"] == 2
     "#;
 
-    let interp = run_interpreter(&script);
+    let interp = run_interpreter(script);
     assert!(
         interp.return_value.is_none(),
         "interpreter returned runtime error: {:?}",

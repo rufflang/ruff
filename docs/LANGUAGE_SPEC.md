@@ -1,6 +1,6 @@
 # Ruff Language Specification
 
-Status: v1.0.0 baseline draft (active, not a release-ready claim)
+Status: v1.0.0 baseline draft (active)
 Spec version: 1.0.0-draft
 Last updated: 2026-05-08
 

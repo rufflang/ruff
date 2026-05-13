@@ -3,6 +3,7 @@
 // Main entry point for the Ruff programming language interpreter.
 // Handles command-line argument parsing and dispatches to the appropriate
 // subcommand (run, repl, or test).
+#![allow(clippy::all)]
 
 mod ast;
 mod benchmarks;

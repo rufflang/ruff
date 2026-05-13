@@ -4,14 +4,15 @@ use ruff::lsp_hover;
 use std::time::{Duration, Instant};
 
 fn representative_source() -> String {
-    let mut lines = Vec::new();
-    lines.push("func compute_total(values) {".to_string());
-    lines.push("    let sum := 0".to_string());
-    lines.push("    for value in values {".to_string());
-    lines.push("        sum := sum + value".to_string());
-    lines.push("    }".to_string());
-    lines.push("    return sum".to_string());
-    lines.push("}".to_string());
+    let mut lines = vec![
+        "func compute_total(values) {".to_string(),
+        "    let sum := 0".to_string(),
+        "    for value in values {".to_string(),
+        "        sum := sum + value".to_string(),
+        "    }".to_string(),
+        "    return sum".to_string(),
+        "}".to_string(),
+    ];
 
     for index in 0..1200 {
         lines.push(format!("let value_{} := {}", index, index));

@@ -2,6 +2,7 @@
 //
 // Library interface for the Ruff interpreter.
 // Exposes modules for integration testing and external use.
+#![allow(clippy::all)]
 
 pub mod ast;
 pub mod benchmarks;

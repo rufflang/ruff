@@ -224,8 +224,7 @@ fn package_module_run_refreshes_after_module_file_change() {
         stderr_text(&first_run)
     );
 
-    fs::write(&module_path, "export answer := 25\n")
-        .expect("failed to update module export value");
+    fs::write(&module_path, "export answer := 25\n").expect("failed to update module export value");
 
     let second_run = run_ruff(
         &["run", workflow_path.to_str().expect("path should be utf-8"), "--interpreter"],

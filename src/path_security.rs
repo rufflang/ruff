@@ -60,17 +60,17 @@ pub fn sanitize_relative_path(raw_path: &str, context: &str) -> Result<PathBuf, 
     }
 
     if sanitized.as_os_str().is_empty() {
-        return Err(unsafe_path_message(
-            context,
-            raw_path,
-            "empty normalized path is not allowed",
-        ));
+        return Err(unsafe_path_message(context, raw_path, "empty normalized path is not allowed"));
     }
 
     Ok(sanitized)
 }
 
-pub fn join_within_root(root: &Path, relative_path: &Path, context: &str) -> Result<PathBuf, String> {
+pub fn join_within_root(
+    root: &Path,
+    relative_path: &Path,
+    context: &str,
+) -> Result<PathBuf, String> {
     if relative_path.is_absolute() {
         return Err(unsafe_path_message(
             context,
@@ -134,7 +134,11 @@ pub fn canonicalize_root(root: &Path, context: &str) -> Result<PathBuf, String> 
         .map_err(|error| format!("Failed to resolve {} '{}': {}", context, root.display(), error))
 }
 
-pub fn ensure_path_within_root(path: &Path, canonical_root: &Path, context: &str) -> Result<(), String> {
+pub fn ensure_path_within_root(
+    path: &Path,
+    canonical_root: &Path,
+    context: &str,
+) -> Result<(), String> {
     if !path.starts_with(canonical_root) {
         return Err(format!(
             "Unsafe {} '{}': path escapes root directory '{}'",
@@ -152,8 +156,9 @@ pub fn ensure_canonical_path_within_root(
     canonical_root: &Path,
     context: &str,
 ) -> Result<(), String> {
-    let canonical_path = std::fs::canonicalize(path)
-        .map_err(|error| format!("Failed to resolve {} '{}': {}", context, path.display(), error))?;
+    let canonical_path = std::fs::canonicalize(path).map_err(|error| {
+        format!("Failed to resolve {} '{}': {}", context, path.display(), error)
+    })?;
     ensure_path_within_root(&canonical_path, canonical_root, context)
 }
 
@@ -183,11 +188,7 @@ pub fn reject_url_encoded_parent_traversal(raw_path: &str, context: &str) -> Res
     }
 
     if sanitize_relative_path(trimmed, context).is_err() {
-        return Err(unsafe_path_message(
-            context,
-            raw_path,
-            "URL-encoded traversal is not allowed",
-        ));
+        return Err(unsafe_path_message(context, raw_path, "URL-encoded traversal is not allowed"));
     }
 
     Ok(())
