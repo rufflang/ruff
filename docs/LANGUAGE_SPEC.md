@@ -291,6 +291,22 @@ Logical operators use these same rules:
 - Unsupported ordering type pairs are runtime errors:
   - `Invalid binary operation: <left_type> <op> <right_type>`.
 
+### 5.10 Module import resolution and caching semantics
+
+- Ruff supports `import module_name` and `from module_name import symbol1, symbol2`.
+- Import resolution searches for `<module_name>.ruff` in this order:
+  - the importing module's package root (for nested imports),
+  - then the loader's configured module search paths.
+- Module names are normalized as relative paths and must not contain unsafe traversal components:
+  - parent traversal (`..`) is rejected,
+  - absolute/drive-prefixed paths are rejected,
+  - symlink-resolved canonical targets must remain inside the active search root.
+- Import cycles are rejected with deterministic runtime diagnostics that include the full cycle chain (for example `Circular import detected: a -> b -> a`).
+- Module cache behavior:
+  - cache keys are scoped by package-root context plus canonical module path,
+  - cached exports are reused only while module source metadata is unchanged,
+  - when source metadata changes (mtime/size), the module is re-evaluated and cache state is refreshed.
+
 ## 6. Tooling Contract Compatibility Guarantees
 
 The following compatibility classes apply to language and tooling behavior:

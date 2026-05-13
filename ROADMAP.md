@@ -849,7 +849,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-MOD-001: Harden module import path resolution and caching
+[x] V1-MOD-001: Harden module import path resolution and caching
     Priority: P1
     Severity: High
     Area: Security/Correctness/Modules
@@ -870,7 +870,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Import cycle reports useful error.
         - Import cache does not reuse wrong module after path changes.
     Acceptance criteria: Import resolution is deterministic, contained, and documented.
-    Notes: Coordinate with any package manager or project config behavior.
+    Notes: Completed on 2026-05-13. Hardened module loading in `src/module.rs` with deterministic import search order that prefers the importing module's package root before configured search paths, explicit traversal rejection for unsafe module names, canonical root containment enforcement for resolved module paths (including symlink-escape rejection), circular-import diagnostics that include the full import chain, and cache-key scoping by canonical module path plus package-root context. Added metadata-based cache invalidation (mtime/size) so updated module source is reloaded instead of serving stale exports. Added/updated regression coverage in `src/module.rs` and `tests/package_module_workflow_integration.rs` for relative import success, traversal rejection, symlink escape rejection, cycle-chain errors, and module refresh after source change. Updated language/docs contracts in `docs/LANGUAGE_SPEC.md`, `README.md`, and `CHANGELOG.md`. Verification: `cargo test --lib module::tests::`, `cargo test --test package_module_workflow_integration`, and `cargo test` passed.
 ```
 
 ```text

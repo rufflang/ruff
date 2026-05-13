@@ -246,6 +246,10 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Float division/modulo by zero returns deterministic runtime errors; NaN and infinity comparisons follow documented language-spec behavior.
 - Equality/comparison semantics are explicit across interpreter and VM: `1 == 1.0` is true, arrays/dictionaries compare deeply by value, callable equality is identity-based, and unsupported ordering pairs (for example `bool < bool`) return deterministic runtime errors.
 - Arrays and dictionaries with indexing and standard library helpers.
+- Module imports (`import module`, `from module import symbol`) resolve relative to the importing module's package root first, then configured search paths.
+- Module resolution rejects unsafe traversal-style module names and symlink escapes that resolve outside the active module search root.
+- Circular imports fail with an explicit import chain (`a -> b -> a`) to make cycle diagnosis deterministic.
+- Module cache entries are context-aware (package root + canonical module path) and are invalidated when module source metadata changes during the same run.
 - Undefined identifiers are runtime errors. Use quoted string literals when a string value is intended.
 - Missing dictionary keys are runtime errors. Use helpers such as `has_key`, `get`, or `get_default` when a fallback value is intended.
 - Out-of-bounds array/string indexing, indexing non-indexable values, and invalid index-assignment targets are runtime errors.

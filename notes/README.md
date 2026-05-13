@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-13_01-13_v1-mod-001-module-import-hardening.md` — Hardened module import resolution/caching with package-root-aware search order and cache keys, cycle-chain diagnostics, metadata-driven reload behavior, and regression coverage for traversal/symlink/cycle/cache-refresh contracts.
 - `2026-05-13_00-13_v1-fs-002-file-io-safeguards.md` — Implemented bounded file read/write guardrails (8 MiB), explicit overwrite opt-in for `write_file`/`write_binary_file`, directory-path delete hardening, and security-boundary regressions with full-suite verification.
 - `2026-05-12_23-23_NO-ROADMAP_named-nested-closure-capture-parity.md` — Fixed named nested function closure-capture parity drift (interpreter + compiler free-variable analysis), added regression test for captured-variable mutation, and validated full VM/interpreter parity suite without regressions.
 - `2026-05-12_23-06_v1-fs-001-path-security-centralization.md` — Added shared path-security helpers and replaced ad hoc archive/server/module path checks with centralized lexical + canonical containment enforcement, including encoded-traversal and symlink-escape regressions.

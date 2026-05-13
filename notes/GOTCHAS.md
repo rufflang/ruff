@@ -233,6 +233,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-01-27_07-46_phase2-vm-optimizations.md)
 
+### Module cache keys must include package-root context
+- **Problem:** Reusing a cache keyed only by module name or canonical module path can return exports from the wrong package when two package roots contain same-name modules.
+- **Rule:** Scope module-cache identity by both canonical module path and import package-root context, and keep importer-package-root-first search order explicit.
+- **Implication:** Module-system refactors must include dual-package same-name regressions plus cache refresh tests after source updates.
+
+(Discovered during: 2026-05-13_01-13_v1-mod-001-module-import-hardening.md)
+
 ### Cranelift block sealing and terminators are correctness-critical
 - **Problem:** Misordered sealing or missing terminators causes verifier failures and invalid SSA graphs.
 - **Rule:** Ensure each basic block terminates and seal in control-flow-safe order.
