@@ -1,7 +1,7 @@
 # Native API Security Posture
 
 Status: v1.0.0 baseline draft (active, not a release-ready claim)
-Last updated: 2026-05-08
+Last updated: 2026-05-12
 
 This document defines the security trust model and operational caveats for high-risk native APIs.
 
@@ -103,6 +103,13 @@ Current archive-extraction guardrails (`unzip`):
 - rejects unsafe entry names: absolute paths, parent traversal (`..`), drive-prefixed segments, null-byte names, and symlink entries
 - fails the extraction on the first unsafe entry
 - enforces extraction limits: max 1024 entries, max 16 MiB per entry (uncompressed), max 64 MiB total uncompressed bytes
+
+Current file-operation guardrails:
+
+- whole-file reads (`read_file`, `read_lines`, `read_binary_file`, and async read wrapper `read_file_async`) reject files larger than `8 MiB`
+- write payloads (`write_file`, `write_file_sync`, `write_file_async`, `write_binary_file`, `append_file`) reject payloads larger than `8 MiB`
+- `write_file` and `write_binary_file` default to no-overwrite behavior; replacing an existing file requires explicit `overwrite=true`
+- `delete_file` refuses directory paths and only removes regular files (directory removal remains `os_rmdir`, which is non-recursive)
 
 Operational guidance:
 

@@ -824,7 +824,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-FS-002: Add file operation size, overwrite, and permission safeguards
+[x] V1-FS-002: Add file operation size, overwrite, and permission safeguards
     Priority: P1
     Severity: High
     Area: Security/FileSystem
@@ -845,7 +845,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Delete denied without capability.
         - Directory delete behavior is tested.
     Acceptance criteria: File APIs are bounded, permissioned, and documented.
-    Notes: Avoid surprising behavior changes by adding migration notes if current APIs overwrite by default.
+    Notes: Completed on 2026-05-12. Added centralized filesystem file-operation safeguards in `src/interpreter/native_functions/filesystem.rs`: whole-file reads (`read_file`, `read_lines`, `read_binary_file`, `read_file_async`) now fail above 8 MiB; write payloads (`write_file`, `write_file_sync`, `write_file_async`, `write_binary_file`, `append_file`) now fail above 8 MiB; and `write_file`/`write_binary_file` now require explicit `overwrite=true` to replace existing files (default no-overwrite). `delete_file` now rejects directory paths explicitly, while capability enforcement for delete remains scoped to `filesystem-delete`. Updated type-check signatures for optional overwrite in `src/type_checker.rs`, expanded security integration coverage in `tests/native_api_security_boundaries.rs` (limit failures, boundary success, overwrite deny/allow, fs-delete deny/allow, non-recursive directory delete behavior), and refreshed security docs in `README.md` and `docs/NATIVE_API_SECURITY_POSTURE.md`. Verification: `cargo test --test native_api_security_boundaries filesystem_ -- --nocapture`, `cargo test --test native_api_security_boundaries native_capability_allow_fs_delete_enables_delete_file -- --nocapture`, `cargo test test_release_hardening_filesystem_core_contracts -- --nocapture`, and `cargo test -q`.
 ```
 
 ```text
