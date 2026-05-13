@@ -27,6 +27,7 @@ mod lsp_server;
 mod module;
 mod optimizer;
 mod package_workflow;
+mod path_security;
 mod parser;
 mod repl;
 mod serve_http;

@@ -1,3 +1,4 @@
+use crate::path_security;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -120,12 +121,29 @@ fn build_response(
     }
 
     let raw_path = request.url().split('?').next().unwrap_or("/");
+    if path_security::reject_url_encoded_parent_traversal(raw_path, "request path").is_err() {
+        return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
+    }
+
     let mut relative_path = raw_path.trim_start_matches('/').to_string();
     if relative_path.is_empty() {
         relative_path = options.index.clone();
     }
 
-    let mut target_path = root_dir.join(&relative_path);
+    let relative_path = match path_security::sanitize_relative_path(&relative_path, "request path")
+    {
+        Ok(path) => path,
+        Err(_) => {
+            return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
+        }
+    };
+
+    let mut target_path = match path_security::join_within_root(root_dir, &relative_path, "request path") {
+        Ok(path) => path,
+        Err(_) => {
+            return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
+        }
+    };
     if target_path.is_dir() {
         target_path = target_path.join(&options.index);
     }
@@ -137,7 +155,9 @@ fn build_response(
         }
     };
 
-    if !canonical_target.starts_with(root_dir) {
+    if path_security::ensure_path_within_root(&canonical_target, root_dir, "request path")
+        .is_err()
+    {
         return headify(text_response(403, "Forbidden", options, request.secure()), is_head);
     }
 

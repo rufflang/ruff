@@ -7,6 +7,9 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(unix)]
+use std::os::unix::fs as unix_fs;
+
 const TEST_HOST: &str = "127.0.0.1";
 
 struct HttpResponse {
@@ -291,4 +294,46 @@ fn serve_mime_policy_covers_known_unknown_and_extensionless_assets() {
 
     drop(server);
     let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_rejects_url_encoded_parent_traversal() {
+    let root = unique_temp_dir("serve_encoded_traversal");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /%2e%2e/secret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(403, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn serve_rejects_symlink_escape_target() {
+    let root = unique_temp_dir("serve_symlink_escape");
+    let outside = unique_temp_dir("serve_symlink_escape_outside");
+    let symlink_path = root.join("linked.txt");
+    let outside_file = outside.join("secret.txt");
+
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+    fs::write(&outside_file, "outside").expect("failed to write outside file");
+    unix_fs::symlink(&outside_file, &symlink_path).expect("failed to create symlink");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /linked.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(403, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(outside);
 }

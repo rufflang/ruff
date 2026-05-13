@@ -26,6 +26,7 @@ pub mod lsp_server;
 pub mod module;
 pub mod optimizer;
 pub mod package_workflow;
+pub mod path_security;
 pub mod parser;
 pub mod repl;
 pub mod type_checker;

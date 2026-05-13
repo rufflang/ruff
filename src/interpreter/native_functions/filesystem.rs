@@ -3,10 +3,10 @@
 // Filesystem operation native functions
 
 use crate::interpreter::{AsyncRuntime, Interpreter, Value};
-use crate::{builtins, interpreter::DictMap};
+use crate::{builtins, interpreter::DictMap, path_security};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
@@ -71,69 +71,8 @@ fn zip_add_dir_recursive(
     Ok(())
 }
 
-fn is_windows_drive_prefixed(component: &str) -> bool {
-    let bytes = component.as_bytes();
-    bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic()
-}
-
 fn sanitize_archive_entry_path(raw_name: &str) -> Result<PathBuf, String> {
-    if raw_name.is_empty() {
-        return Err("Unsafe archive entry: empty path is not allowed".to_string());
-    }
-
-    if raw_name.contains('\0') {
-        return Err(format!("Unsafe archive entry '{}': null byte is not allowed", raw_name));
-    }
-
-    let normalized = raw_name.replace('\\', "/");
-    if normalized.starts_with('/') {
-        return Err(format!("Unsafe archive entry '{}': absolute path is not allowed", raw_name));
-    }
-
-    let mut sanitized = PathBuf::new();
-
-    for component in Path::new(&normalized).components() {
-        match component {
-            Component::Prefix(_) => {
-                return Err(format!(
-                    "Unsafe archive entry '{}': drive-prefixed path is not allowed",
-                    raw_name
-                ));
-            }
-            Component::RootDir => {
-                return Err(format!(
-                    "Unsafe archive entry '{}': absolute path is not allowed",
-                    raw_name
-                ));
-            }
-            Component::ParentDir => {
-                return Err(format!(
-                    "Unsafe archive entry '{}': parent directory traversal component is not allowed",
-                    raw_name
-                ));
-            }
-            Component::CurDir => {}
-            Component::Normal(segment) => {
-                let segment_text = segment.to_string_lossy();
-                if is_windows_drive_prefixed(&segment_text) {
-                    return Err(format!(
-                        "Unsafe archive entry '{}': drive-prefixed path is not allowed",
-                        raw_name
-                    ));
-                }
-                sanitized.push(segment);
-            }
-        }
-    }
-
-    if sanitized.as_os_str().is_empty() {
-        return Err(format!(
-            "Unsafe archive entry '{}': empty normalized path is not allowed",
-            raw_name
-        ));
-    }
-
-    Ok(sanitized)
+    path_security::sanitize_relative_path(raw_name, "archive entry")
 }
 
 fn archive_entry_is_symlink(entry: &zip::read::ZipFile<'_>) -> bool {
@@ -148,22 +87,14 @@ fn resolve_extraction_output_path(
     relative_entry_path: &Path,
     entry_name: &str,
 ) -> Result<PathBuf, String> {
-    if relative_entry_path.is_absolute() {
-        return Err(format!(
-            "Unsafe archive entry '{}': absolute output path is not allowed",
-            entry_name
-        ));
-    }
-
-    let output_path = output_root.join(relative_entry_path);
-    if !output_path.starts_with(output_root) {
-        return Err(format!(
-            "Unsafe archive entry '{}': extraction path escapes output directory",
-            entry_name
-        ));
-    }
-
-    Ok(output_path)
+    path_security::join_within_root(output_root, relative_entry_path, "archive entry").map_err(
+        |_| {
+            format!(
+                "Unsafe archive entry '{}': extraction path escapes output directory",
+                entry_name
+            )
+        },
+    )
 }
 
 fn ensure_canonical_path_within_root(
@@ -171,32 +102,36 @@ fn ensure_canonical_path_within_root(
     canonical_output_root: &Path,
     entry_name: &str,
 ) -> Result<(), String> {
-    let canonical_path = std::fs::canonicalize(path).map_err(|error| {
-        format!("Failed to resolve extraction path for '{}': {}", entry_name, error)
-    })?;
+    match path_security::ensure_canonical_path_within_root(
+        path,
+        canonical_output_root,
+        "extraction path",
+    ) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            if error.starts_with("Failed to resolve") {
+                return Err(format!(
+                    "Failed to resolve extraction path for '{}': {}",
+                    entry_name, error
+                ));
+            }
 
-    if !canonical_path.starts_with(canonical_output_root) {
-        return Err(format!(
-            "Unsafe archive entry '{}': extraction path escapes output directory",
-            entry_name
-        ));
+            Err(format!(
+                "Unsafe archive entry '{}': extraction path escapes output directory",
+                entry_name
+            ))
+        }
     }
-
-    Ok(())
 }
 
 fn reject_symlink_target_path(path: &Path, entry_name: &str) -> Result<(), String> {
-    if let Ok(metadata) = std::fs::symlink_metadata(path) {
-        if metadata.file_type().is_symlink() {
-            return Err(format!(
-                "Unsafe archive entry '{}': symbolic link target path '{}' is not allowed",
-                entry_name,
-                path.display()
-            ));
-        }
-    }
-
-    Ok(())
+    path_security::reject_symlink_target_path(path, "archive entry target path").map_err(|_| {
+        format!(
+            "Unsafe archive entry '{}': symbolic link target path '{}' is not allowed",
+            entry_name,
+            path.display()
+        )
+    })
 }
 
 fn extract_zip_archive_with_limits(
@@ -216,9 +151,7 @@ fn extract_zip_archive_with_limits(
         format!("Failed to create output directory '{}': {}", output_root.display(), error)
     })?;
 
-    let canonical_output_root = std::fs::canonicalize(output_root).map_err(|error| {
-        format!("Failed to resolve output directory '{}': {}", output_root.display(), error)
-    })?;
+    let canonical_output_root = path_security::canonicalize_root(output_root, "output directory")?;
 
     let mut extracted_files = Vec::new();
     let mut total_uncompressed_bytes = 0_u64;

@@ -2,6 +2,7 @@ use crate::ast::{Expr, Pattern, Stmt};
 use crate::errors::{ErrorKind, RuffError};
 use crate::interpreter::{Environment, Interpreter, Value};
 use crate::lexer::tokenize_with_file;
+use crate::path_security;
 use crate::parser::Parser;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -149,19 +150,55 @@ impl ModuleLoader {
     }
 
     /// Resolves a module name to a file path
-    fn resolve_module_path(&self, module_name: &str) -> Option<PathBuf> {
+    fn resolve_module_path(&self, module_name: &str) -> Result<Option<PathBuf>, Box<RuffError>> {
         // Convert module name to file path (e.g., "math" -> "math.ruff")
         let filename = format!("{}.ruff", module_name);
+        let normalized_filename = path_security::sanitize_relative_path(&filename, "module import")
+            .map_err(|error| {
+                Self::runtime_error(format!("Unsafe module import '{}': {}", module_name, error))
+            })?;
 
         // Search in all search paths
         for search_path in &self.search_paths {
-            let full_path = search_path.join(&filename);
+            let full_path = search_path.join(&normalized_filename);
             if full_path.exists() {
-                return Some(full_path);
+                let canonical_search_root = match path_security::canonicalize_root(
+                    search_path,
+                    "module search path",
+                ) {
+                    Ok(path) => path,
+                    Err(_) => continue,
+                };
+
+                let canonical_module_path = fs::canonicalize(&full_path).map_err(|error| {
+                    Self::runtime_error(format!(
+                        "Failed to resolve module '{}' path '{}': {}",
+                        module_name,
+                        full_path.display(),
+                        error
+                    ))
+                })?;
+
+                if path_security::ensure_path_within_root(
+                    &canonical_module_path,
+                    &canonical_search_root,
+                    "module import path",
+                )
+                .is_err()
+                {
+                    return Err(Self::runtime_error(format!(
+                        "Unsafe module import '{}': resolved path '{}' escapes module search root '{}'",
+                        module_name,
+                        canonical_module_path.display(),
+                        canonical_search_root.display()
+                    )));
+                }
+
+                return Ok(Some(canonical_module_path));
             }
         }
 
-        None
+        Ok(None)
     }
 
     /// Loads a module by name, returning cached version if available
@@ -177,9 +214,9 @@ impl ModuleLoader {
         }
 
         // Resolve module path
-        let module_path = self
-            .resolve_module_path(module_name)
-            .ok_or_else(|| Self::runtime_error(format!("Module not found: {}", module_name)))?;
+        let module_path = self.resolve_module_path(module_name)?.ok_or_else(|| {
+            Self::runtime_error(format!("Module not found: {}", module_name))
+        })?;
 
         // Add to loading stack
         self.loading_stack.push(module_name.to_string());
@@ -316,6 +353,9 @@ mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    #[cfg(unix)]
+    use std::os::unix::fs as unix_fs;
+
     fn unique_name(prefix: &str) -> String {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -396,5 +436,41 @@ mod tests {
         fs::remove_file(&module_a_path).expect("failed to clean up module A");
         fs::remove_file(&module_b_path).expect("failed to clean up module B");
         fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn load_module_rejects_symlink_escape_outside_search_root() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_symlink_root"));
+        let outside_root = std::env::temp_dir().join(unique_name("ruff_module_symlink_outside"));
+        fs::create_dir_all(&temp_root).expect("failed to create temp module dir");
+        fs::create_dir_all(&outside_root).expect("failed to create outside module dir");
+
+        let module_name = unique_name("escaped_module");
+        let outside_module_path = outside_root.join(format!("{}.ruff", module_name));
+        fs::write(&outside_module_path, "export escaped := 99\n")
+            .expect("failed to write outside module source");
+
+        let symlink_module_path = temp_root.join(format!("{}.ruff", module_name));
+        unix_fs::symlink(&outside_module_path, &symlink_module_path)
+            .expect("failed to create symlink module path");
+
+        loader.add_search_path(&temp_root);
+
+        let err = loader
+            .get_all_exports(&module_name)
+            .expect_err("expected symlink escape import to fail");
+
+        assert!(
+            err.message.contains("escapes module search root"),
+            "expected symlink-escape rejection error, got: {}",
+            err.message
+        );
+
+        fs::remove_file(&symlink_module_path).expect("failed to remove symlink module path");
+        fs::remove_file(&outside_module_path).expect("failed to remove outside module file");
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+        fs::remove_dir_all(&outside_root).expect("failed to clean up outside module dir");
     }
 }
