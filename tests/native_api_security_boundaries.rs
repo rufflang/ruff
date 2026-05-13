@@ -8,6 +8,8 @@ use zip::write::FileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
 static TEMP_DIR_COUNTER: AtomicUsize = AtomicUsize::new(0);
+const FS_MAX_READ_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
+const FS_MAX_WRITE_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -255,6 +257,88 @@ fn native_capability_untrusted_denies_filesystem_write() {
 }
 
 #[test]
+fn native_capability_untrusted_denies_filesystem_delete() {
+    let project_root = unique_temp_dir("native_api_capability_deny_fs_delete");
+    let script_path = project_root.join("deny_fs_delete.ruff");
+    let target_path = project_root.join("blocked-delete.txt");
+    fs::write(&target_path, "blocked").expect("failed to write delete target file");
+
+    let script_source = format!(
+        "delete_file(\"{}\")\n",
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected delete_file to be denied without fs-delete capability, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("Capability denied: filesystem-delete required for delete_file"),
+        "expected filesystem-delete capability denial, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        target_path.exists(),
+        "delete target should remain because delete capability is denied"
+    );
+}
+
+#[test]
+fn native_capability_allow_fs_delete_enables_delete_file() {
+    let project_root = unique_temp_dir("native_api_capability_allow_fs_delete");
+    let script_path = project_root.join("allow_fs_delete.ruff");
+    let target_path = project_root.join("allowed-delete.txt");
+    fs::write(&target_path, "allowed").expect("failed to write delete target file");
+
+    let script_source = format!(
+        "delete_file(\"{}\")\n",
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-fs-delete",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected delete_file to succeed when fs-delete is allowed, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        !target_path.exists(),
+        "delete target should be removed when delete capability is allowed"
+    );
+}
+
+#[test]
 fn native_capability_untrusted_denies_process_exec() {
     assert_runtime_boundary_failure_with_args(
         "spawn_process([\"echo\", \"ok\"])\n",
@@ -497,10 +581,232 @@ fn native_capability_spawned_interpreter_inherits_policy() {
 }
 
 #[test]
+fn filesystem_write_overwrite_requires_explicit_flag() {
+    let project_root = unique_temp_dir("filesystem_write_overwrite_requires_flag");
+    let script_path = project_root.join("overwrite_requires_flag.ruff");
+    let target_path = project_root.join("overwrite.txt");
+    fs::write(&target_path, "original").expect("failed to seed overwrite target file");
+
+    let script_source = format!(
+        "write_file(\"{}\", \"replacement\")\n",
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &["run", "--interpreter", script_path.to_str().expect("script path should be utf-8")],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected overwrite without explicit flag to fail, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("already exists") && combined_output.contains("overwrite"),
+        "expected overwrite safeguard error, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let written = fs::read_to_string(&target_path).expect("overwrite target should still exist");
+    assert_eq!(
+        written, "original",
+        "file content should remain unchanged when overwrite is denied"
+    );
+}
+
+#[test]
+fn filesystem_write_overwrite_succeeds_with_explicit_flag() {
+    let project_root = unique_temp_dir("filesystem_write_overwrite_with_flag");
+    let script_path = project_root.join("overwrite_with_flag.ruff");
+    let target_path = project_root.join("overwrite.txt");
+    fs::write(&target_path, "original").expect("failed to seed overwrite target file");
+
+    let script_source = format!(
+        "write_file(\"{}\", \"replacement\", true)\n",
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &["run", "--interpreter", script_path.to_str().expect("script path should be utf-8")],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected overwrite with explicit flag to succeed, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let written = fs::read_to_string(&target_path).expect("overwrite target should still exist");
+    assert_eq!(written, "replacement");
+}
+
+#[test]
+fn filesystem_read_file_rejects_payload_over_limit() {
+    let project_root = unique_temp_dir("filesystem_read_over_limit");
+    let script_path = project_root.join("read_over_limit.ruff");
+    let target_path = project_root.join("too-large.txt");
+    fs::write(&target_path, vec![b'A'; FS_MAX_READ_BYTES_FOR_TEST + 1])
+        .expect("failed to write oversized read fixture");
+
+    let script_source = format!(
+        "read_file(\"{}\")\n",
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &["run", "--interpreter", script_path.to_str().expect("script path should be utf-8")],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected oversized read to fail, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("exceeds maximum read size"),
+        "expected read-size limit error, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn filesystem_write_file_rejects_payload_over_limit() {
+    let project_root = unique_temp_dir("filesystem_write_over_limit");
+    let script_path = project_root.join("write_over_limit.ruff");
+    let target_path = project_root.join("too-large-write.txt");
+
+    let script_source = format!(
+        "let payload := repeat(\"A\", {})\nwrite_file(\"{}\", payload)\n",
+        FS_MAX_WRITE_BYTES_FOR_TEST + 1,
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &["run", "--interpreter", script_path.to_str().expect("script path should be utf-8")],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected oversized write to fail, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("exceeds maximum write size"),
+        "expected write-size limit error, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        !target_path.exists(),
+        "write target should not exist when oversized write is rejected"
+    );
+}
+
+#[test]
+fn filesystem_write_and_read_succeeds_at_size_limit_boundary() {
+    let project_root = unique_temp_dir("filesystem_size_limit_boundary_success");
+    let script_path = project_root.join("size_limit_boundary_success.ruff");
+    let target_path = project_root.join("at-limit.txt");
+
+    let script_source = format!(
+        "let payload := repeat(\"B\", {})\nwrite_file(\"{}\", payload)\nlet content := read_file(\"{}\")\nprint(len(content))\n",
+        FS_MAX_WRITE_BYTES_FOR_TEST,
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8")),
+        escape_ruff_string(target_path.to_str().expect("target path should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &["run", "--interpreter", script_path.to_str().expect("script path should be utf-8")],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected at-limit write/read to succeed, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        stdout_text(&output).contains(FS_MAX_WRITE_BYTES_FOR_TEST.to_string().as_str()),
+        "expected script output to include boundary payload length, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn filesystem_directory_delete_behavior_is_non_recursive() {
+    let project_root = unique_temp_dir("filesystem_directory_delete_non_recursive");
+    let script_path = project_root.join("directory_delete_non_recursive.ruff");
+    let target_dir = project_root.join("non_empty");
+    fs::create_dir_all(&target_dir).expect("failed to create non-empty directory fixture");
+    fs::write(target_dir.join("child.txt"), "child")
+        .expect("failed to seed non-empty directory fixture");
+
+    let script_source = format!(
+        "os_rmdir(\"{}\")\n",
+        escape_ruff_string(target_dir.to_str().expect("target dir should be utf-8"))
+    );
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &["run", "--interpreter", script_path.to_str().expect("script path should be utf-8")],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected non-empty directory delete to fail, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("Cannot remove directory"),
+        "expected non-recursive directory delete error, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        target_dir.exists(),
+        "non-empty directory should remain after failed non-recursive delete"
+    );
+}
+
+#[test]
 fn process_direct_exec_does_not_expand_shell_tokens() {
     let project_root = unique_temp_dir("native_api_process_no_shell_expand");
     let script_path = project_root.join("no_shell_expand.ruff");
-    let script_source = "let result := spawn_process([\"echo\", \"$HOME\"])\nprint(result.stdout)\n";
+    let script_source =
+        "let result := spawn_process([\"echo\", \"$HOME\"])\nprint(result.stdout)\n";
     fs::write(&script_path, script_source).expect("failed to write script");
 
     let output = run_ruff(

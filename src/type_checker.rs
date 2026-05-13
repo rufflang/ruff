@@ -996,7 +996,7 @@ impl TypeChecker {
         self.functions.insert(
             "write_file".to_string(),
             FunctionSignature {
-                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String), None],
                 return_type: Some(TypeAnnotation::Bool),
             },
         );
@@ -1269,7 +1269,7 @@ impl TypeChecker {
         self.functions.insert(
             "write_binary_file".to_string(),
             FunctionSignature {
-                param_types: vec![Some(TypeAnnotation::String), None], // Path and bytes
+                param_types: vec![Some(TypeAnnotation::String), None, None], // Path, bytes, optional overwrite
                 return_type: Some(TypeAnnotation::Bool),
             },
         );
@@ -1698,7 +1698,7 @@ impl TypeChecker {
             "spawn_process".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::Any), None], // command argv + optional options
-                return_type: None,       // Returns dict with stdout, stderr, status
+                return_type: None, // Returns dict with stdout, stderr, status
             },
         );
 
@@ -1706,7 +1706,7 @@ impl TypeChecker {
             "pipe_commands".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::Any), None], // command arrays + optional options
-                return_type: None,       // Returns dict with stdout, stderr, status
+                return_type: None, // Returns dict with stdout, stderr, status
             },
         );
 

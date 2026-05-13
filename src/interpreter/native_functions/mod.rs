@@ -825,7 +825,9 @@ mod tests {
             "execute_status",
             &[Value::Str(Arc::new("echo release-hardening-system".to_string()))],
         );
-        assert!(matches!(execute_status_success, Value::Struct { name, .. } if name == "ProcessResult"));
+        assert!(
+            matches!(execute_status_success, Value::Struct { name, .. } if name == "ProcessResult")
+        );
 
         let input_wrong_type = call_native_function(&mut interpreter, "input", &[Value::Int(1)]);
         assert!(
@@ -3161,7 +3163,7 @@ mod tests {
 
         let write_missing = call_native_function(&mut interpreter, "write_file", &[]);
         assert!(
-            matches!(write_missing, Value::Error(message) if message.contains("write_file requires two arguments"))
+            matches!(write_missing, Value::Error(message) if message.contains("write_file requires 2 or 3 arguments"))
         );
 
         let write_extra = call_native_function(
@@ -3174,7 +3176,7 @@ mod tests {
             ],
         );
         assert!(
-            matches!(write_extra, Value::Error(message) if message.contains("write_file requires two arguments"))
+            matches!(write_extra, Value::Error(message) if message.contains("write_file optional overwrite flag must be a bool"))
         );
 
         let append_missing = call_native_function(&mut interpreter, "append_file", &[]);
@@ -3331,7 +3333,7 @@ mod tests {
 
         let write_binary_missing = call_native_function(&mut interpreter, "write_binary_file", &[]);
         assert!(
-            matches!(write_binary_missing, Value::Error(message) if message.contains("write_binary_file requires two arguments"))
+            matches!(write_binary_missing, Value::Error(message) if message.contains("write_binary_file requires 2 or 3 arguments"))
         );
 
         let write_binary_extra = call_native_function(
@@ -3344,7 +3346,7 @@ mod tests {
             ],
         );
         assert!(
-            matches!(write_binary_extra, Value::Error(message) if message.contains("write_binary_file requires two arguments"))
+            matches!(write_binary_extra, Value::Error(message) if message.contains("write_binary_file optional overwrite flag must be a bool"))
         );
 
         let base_dir = tmp_test_path("filesystem_hardening");

@@ -13,6 +13,8 @@ use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 const ZIP_UNIX_FILE_TYPE_MASK: u32 = 0o170000;
 const ZIP_UNIX_SYMLINK_FILE_TYPE: u32 = 0o120000;
+const MAX_FILE_READ_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_FILE_WRITE_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
 struct ZipExtractionLimits {
@@ -27,6 +29,70 @@ impl ZipExtractionLimits {
         max_total_uncompressed_bytes: 64 * 1024 * 1024,
         max_single_entry_uncompressed_bytes: 16 * 1024 * 1024,
     };
+}
+
+fn validate_read_size_limit(path: &str) -> Result<(), String> {
+    let metadata = std::fs::metadata(path)
+        .map_err(|error| format!("Cannot read file '{}': {}", path, error))?;
+    let file_size = metadata.len();
+    if file_size > MAX_FILE_READ_BYTES {
+        return Err(format!(
+            "Cannot read file '{}': exceeds maximum read size ({} bytes > {} bytes)",
+            path, file_size, MAX_FILE_READ_BYTES
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_write_size_limit(path: &str, payload_size: usize) -> Result<(), String> {
+    if payload_size > MAX_FILE_WRITE_BYTES {
+        return Err(format!(
+            "Cannot write file '{}': payload exceeds maximum write size ({} bytes > {} bytes)",
+            path, payload_size, MAX_FILE_WRITE_BYTES
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_append_size_limit(path: &str, payload_size: usize) -> Result<(), String> {
+    if payload_size > MAX_FILE_WRITE_BYTES {
+        return Err(format!(
+            "Cannot append to file '{}': payload exceeds maximum write size ({} bytes > {} bytes)",
+            path, payload_size, MAX_FILE_WRITE_BYTES
+        ));
+    }
+
+    Ok(())
+}
+
+fn parse_overwrite_flag(function_name: &str, arg_values: &[Value]) -> Result<bool, Value> {
+    match arg_values.len() {
+        2 => Ok(false),
+        3 => match arg_values.get(2) {
+            Some(Value::Bool(flag)) => Ok(*flag),
+            _ => Err(Value::Error(format!(
+                "{} optional overwrite flag must be a bool",
+                function_name
+            ))),
+        },
+        _ => Err(Value::Error(format!(
+            "{} requires 2 or 3 arguments: path, content/bytes, [overwrite]",
+            function_name
+        ))),
+    }
+}
+
+fn enforce_overwrite_policy(path: &str, overwrite: bool) -> Result<(), String> {
+    if !overwrite && Path::new(path).exists() {
+        return Err(format!(
+            "Cannot write file '{}': file already exists (pass overwrite=true to replace it)",
+            path
+        ));
+    }
+
+    Ok(())
 }
 
 fn zip_add_dir_recursive(
@@ -242,6 +308,11 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
                 // Spawn async task to read file
                 AsyncRuntime::spawn_task(async move {
+                    if let Err(error) = validate_read_size_limit(path_clone.as_ref()) {
+                        let _ = tx.send(Err(error));
+                        return Value::Null;
+                    }
+
                     match tokio::fs::read_to_string(path_clone.as_ref()).await {
                         Ok(content) => {
                             let _ = tx.send(Ok(Value::Str(Arc::new(content))));
@@ -266,22 +337,33 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "write_file_async" => {
-            if arg_values.len() < 2 {
-                return Some(Value::Error(
-                    "write_file requires two arguments: path and content".to_string(),
-                ));
-            }
+            let overwrite = match parse_overwrite_flag("write_file", arg_values) {
+                Ok(flag) => flag,
+                Err(error) => return Some(error),
+            };
             if let (Some(Value::Str(path)), Some(Value::Str(content))) =
                 (arg_values.first(), arg_values.get(1))
             {
                 let path_clone = path.clone();
                 let content_clone = content.clone();
+                let payload_size = content_clone.as_ref().as_bytes().len();
 
                 // Create oneshot channel for result
                 let (tx, rx) = tokio::sync::oneshot::channel();
 
                 // Spawn async task to write file
                 AsyncRuntime::spawn_task(async move {
+                    if let Err(error) = validate_write_size_limit(path_clone.as_ref(), payload_size)
+                    {
+                        let _ = tx.send(Err(error));
+                        return Value::Null;
+                    }
+
+                    if let Err(error) = enforce_overwrite_policy(path_clone.as_ref(), overwrite) {
+                        let _ = tx.send(Err(error));
+                        return Value::Null;
+                    }
+
                     match tokio::fs::write(path_clone.as_ref(), content_clone.as_ref()).await {
                         Ok(_) => {
                             let _ = tx.send(Ok(Value::Bool(true)));
@@ -346,14 +428,21 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "write_file" => {
-            if arg_values.len() != 2 {
-                return Some(Value::Error(
-                    "write_file requires two arguments: path and content".to_string(),
-                ));
-            }
+            let overwrite = match parse_overwrite_flag("write_file", arg_values) {
+                Ok(flag) => flag,
+                Err(error) => return Some(error),
+            };
             if let (Some(Value::Str(path)), Some(Value::Str(content))) =
                 (arg_values.first(), arg_values.get(1))
             {
+                if let Err(error) = validate_write_size_limit(path.as_ref(), content.len()) {
+                    return Some(Value::Error(error));
+                }
+
+                if let Err(error) = enforce_overwrite_policy(path.as_ref(), overwrite) {
+                    return Some(Value::Error(error));
+                }
+
                 match std::fs::write(path.as_ref(), content.as_ref()) {
                     Ok(_) => Value::Bool(true),
                     Err(e) => Value::Error(format!("Cannot write file '{}': {}", path.as_ref(), e)),
@@ -372,6 +461,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
 
             if let Some(Value::Str(path)) = arg_values.first() {
+                if let Err(error) = validate_read_size_limit(path.as_ref()) {
+                    return Some(Value::Error(error));
+                }
+
                 match std::fs::read_to_string(path.as_ref()) {
                     Ok(content) => Value::Str(Arc::new(content)),
                     Err(e) => Value::Error(format!("Cannot read file '{}': {}", path.as_ref(), e)),
@@ -382,14 +475,21 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "write_file_sync" => {
-            if arg_values.len() < 2 {
-                return Some(Value::Error(
-                    "write_file_sync requires two arguments: path and content".to_string(),
-                ));
-            }
+            let overwrite = match parse_overwrite_flag("write_file_sync", arg_values) {
+                Ok(flag) => flag,
+                Err(error) => return Some(error),
+            };
             if let (Some(Value::Str(path)), Some(Value::Str(content))) =
                 (arg_values.first(), arg_values.get(1))
             {
+                if let Err(error) = validate_write_size_limit(path.as_ref(), content.len()) {
+                    return Some(Value::Error(error));
+                }
+
+                if let Err(error) = enforce_overwrite_policy(path.as_ref(), overwrite) {
+                    return Some(Value::Error(error));
+                }
+
                 match std::fs::write(path.as_ref(), content.as_ref()) {
                     Ok(_) => Value::Bool(true),
                     Err(e) => Value::Error(format!("Cannot write file '{}': {}", path.as_ref(), e)),
@@ -428,6 +528,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
 
             if let Some(Value::Str(path)) = arg_values.first() {
+                if let Err(error) = validate_read_size_limit(path.as_ref()) {
+                    return Some(Value::Error(error));
+                }
+
                 match std::fs::read(path.as_ref()) {
                     Ok(bytes) => Value::Bytes(bytes),
                     Err(e) => {
@@ -440,14 +544,21 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
         }
 
         "write_binary_file" => {
-            if arg_values.len() != 2 {
-                return Some(Value::Error(
-                    "write_binary_file requires two arguments: path and bytes".to_string(),
-                ));
-            }
+            let overwrite = match parse_overwrite_flag("write_binary_file", arg_values) {
+                Ok(flag) => flag,
+                Err(error) => return Some(error),
+            };
             if let (Some(Value::Str(path)), Some(Value::Bytes(bytes))) =
                 (arg_values.first(), arg_values.get(1))
             {
+                if let Err(error) = validate_write_size_limit(path.as_ref(), bytes.len()) {
+                    return Some(Value::Error(error));
+                }
+
+                if let Err(error) = enforce_overwrite_policy(path.as_ref(), overwrite) {
+                    return Some(Value::Error(error));
+                }
+
                 match std::fs::write(path.as_ref(), bytes) {
                     Ok(_) => Value::Bool(true),
                     Err(e) => {
@@ -815,6 +926,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             if let (Some(Value::Str(path)), Some(Value::Str(content))) =
                 (arg_values.first(), arg_values.get(1))
             {
+                if let Err(error) = validate_append_size_limit(path.as_ref(), content.len()) {
+                    return Some(Value::Error(error));
+                }
+
                 match OpenOptions::new().create(true).append(true).open(path.as_ref()) {
                     Ok(mut file) => match file.write_all(content.as_ref().as_bytes()) {
                         Ok(_) => Value::Bool(true),
@@ -857,6 +972,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
 
             if let Some(Value::Str(path)) = arg_values.first() {
+                if let Err(error) = validate_read_size_limit(path.as_ref()) {
+                    return Some(Value::Error(error));
+                }
+
                 match std::fs::read_to_string(path.as_ref()) {
                     Ok(content) => {
                         let lines: Vec<Value> = content
@@ -941,6 +1060,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
 
             if let Some(Value::Str(path)) = arg_values.first() {
+                if Path::new(path.as_ref()).is_dir() {
+                    return Some(Value::Error(format!(
+                        "Cannot delete file '{}': path is a directory",
+                        path.as_ref()
+                    )));
+                }
+
                 match std::fs::remove_file(path.as_ref()) {
                     Ok(_) => Value::Bool(true),
                     Err(e) => {
