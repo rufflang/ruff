@@ -22,7 +22,7 @@ use crate::errors::{
 use crate::lexer::{Token, TokenKind};
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::process::Command;
 use std::time::Instant;
 
 pub const DEFAULT_MAX_SOURCE_BYTES: usize = 1_048_576;
@@ -2168,20 +2168,30 @@ impl Parser {
                     }
                     continue;
                 }
-                let ast = parse_output.stmts;
-                let mut interp = crate::interpreter::Interpreter::new();
-                interp.set_source(path.to_string_lossy().to_string(), &content);
-
                 let start = Instant::now();
+                // Run each fixture in a child process so one interpreter crash (for example
+                // stack overflow in a specific script) does not abort the whole `ruff test` run.
+                let current_exe = match std::env::current_exe() {
+                    Ok(path) => path,
+                    Err(err) => {
+                        println!("[✗] {}", path.display());
+                        println!("Failed to locate current executable: {err}");
+                        continue;
+                    }
+                };
 
-                let buffer = Arc::new(Mutex::new(Vec::new()));
-                interp.set_output(buffer.clone());
-
-                interp.eval_stmts(&ast);
-
-                let actual = {
-                    let lock = buffer.lock().unwrap();
-                    String::from_utf8_lossy(&lock).trim().to_string()
+                let actual = match Command::new(current_exe)
+                    .arg("run")
+                    .arg(&path)
+                    .arg("--interpreter")
+                    .output()
+                {
+                    Ok(output) => String::from_utf8_lossy(&output.stdout).trim().to_string(),
+                    Err(err) => {
+                        println!("[✗] {}", path.display());
+                        println!("Failed to execute test script: {err}");
+                        continue;
+                    }
                 };
 
                 let expected = if expected_path.exists() && !update_snapshots {

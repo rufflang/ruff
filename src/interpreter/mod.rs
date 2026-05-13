@@ -1432,6 +1432,7 @@ impl Interpreter {
     }
 
     /// Sets the output sink for print statements (used for testing)
+    #[allow(dead_code)]
     pub fn set_output(&mut self, output: Arc<Mutex<Vec<u8>>>) {
         self.output = Some(output);
     }
