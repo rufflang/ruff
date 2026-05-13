@@ -854,16 +854,15 @@ fn test_scope_chain_lookup() {
     // Variables should be found walking up the scope chain (nested functions)
     let code = r#"
         a := 1
-        result := 0
         func outer() {
             b := 2
             func inner() {
                 c := 3
-                result := a + b + c
+                return a + b + c
             }
-            inner()
+            return inner()
         }
-        outer()
+        result := outer()
     "#;
 
     let interp = run_code(code);
