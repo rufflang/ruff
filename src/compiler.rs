@@ -2066,7 +2066,10 @@ impl Compiler {
                     collect_expr_vars(value, used);
                     match target {
                         Expr::Identifier(name) => {
-                            defined.insert(name.clone());
+                            // Assignment can mutate an outer captured binding.
+                            // Treat identifier targets as usage so free-variable
+                            // analysis preserves closure capture when needed.
+                            used.insert(name.clone());
                         }
                         Expr::IndexAccess { object, index } => {
                             collect_expr_vars(object, used);

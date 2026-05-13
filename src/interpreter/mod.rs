@@ -2770,8 +2770,13 @@ impl Interpreter {
                 is_generator,
                 is_async,
             } => {
-                // Regular functions don't capture environment - they use the environment at call time
-                // Only lambda expressions (closures) should capture environment
+                // Named functions defined in nested scopes should capture lexical state
+                // so interpreter behavior matches compiler/VM closure semantics.
+                let captured_env = if self.env.scopes.len() > 1 {
+                    Some(Arc::new(Mutex::new(self.env.clone())))
+                } else {
+                    None
+                };
 
                 // If it's a generator, create a generator value instead
                 if *is_generator {
@@ -2784,14 +2789,14 @@ impl Interpreter {
                     let func = Value::AsyncFunction(
                         params.clone(),
                         LeakyFunctionBody::new(body.clone()),
-                        None, // No captured environment for function definitions
+                        captured_env,
                     );
                     self.env.define(name.clone(), func);
                 } else {
                     let func = Value::Function(
                         params.clone(),
                         LeakyFunctionBody::new(body.clone()),
-                        None, // No captured environment for regular function definitions
+                        captured_env,
                     );
                     self.env.define(name.clone(), func);
                 }

@@ -868,6 +868,30 @@ fn vm_and_interpreter_match_successful_captured_map_update() {
 }
 
 #[test]
+fn vm_and_interpreter_match_named_nested_capture_mutation() {
+    let script = r#"
+        func make_counter() {
+            mut count := 0
+
+            func bump() {
+                count := count + 1
+                return count
+            }
+
+            return bump
+        }
+
+        bump := make_counter()
+        first := bump()
+        second := bump()
+
+        capture_mutation_ok := first == 1 && second == 2
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "capture_mutation_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_import_export_surface() {
     let module_name = unique_module_name();
     let module_filename = format!("{}.ruff", module_name);
