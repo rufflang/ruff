@@ -5,6 +5,7 @@
 // core functionality for math, strings, arrays, I/O operations, and JSON.
 
 use crate::interpreter::{DictMap, Value};
+use crate::network_policy;
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{DateTime, TimeZone, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -1458,19 +1459,27 @@ pub fn dict_invert(dict: &DictMap) -> DictMap {
 /// Infrastructure for http.get() builtin
 #[allow(dead_code)]
 pub fn http_get(url: &str) -> Result<DictMap, String> {
-    match reqwest::blocking::get(url) {
-        Ok(response) => {
-            let status = response.status().as_u16() as f64;
-            let body = response.text().unwrap_or_default();
+    let url = url.to_string();
+    network_policy::run_blocking_http_task("HTTP GET", move || {
+        let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
+        let response = client.get(&url).send().map_err(|e| format!("HTTP GET failed: {}", e))?;
+        http_response_to_dict("HTTP GET", response)
+    })
+}
 
-            let mut result = DictMap::default();
-            result.insert("status".into(), Value::Int(status as i64));
-            result.insert("body".into(), Value::Str(Arc::new(body)));
-
-            Ok(result)
-        }
-        Err(e) => Err(format!("HTTP GET failed: {}", e)),
-    }
+fn http_response_to_dict(
+    surface: &str,
+    response: reqwest::blocking::Response,
+) -> Result<DictMap, String> {
+    let (status, _headers, body_bytes) =
+        network_policy::read_http_response_bytes(response, surface)?;
+    let mut result = DictMap::default();
+    result.insert("status".into(), Value::Int(status as i64));
+    result.insert(
+        "body".into(),
+        Value::Str(Arc::new(String::from_utf8_lossy(&body_bytes).to_string())),
+    );
+    Ok(result)
 }
 
 /// Make an HTTP POST request with JSON body
@@ -1478,91 +1487,67 @@ pub fn http_get(url: &str) -> Result<DictMap, String> {
 /// Infrastructure for http.post() builtin
 #[allow(dead_code)]
 pub fn http_post(url: &str, body_json: &str) -> Result<DictMap, String> {
-    let client = reqwest::blocking::Client::new();
-
-    match client
-        .post(url)
-        .header("Content-Type", "application/json")
-        .body(body_json.to_string())
-        .send()
-    {
-        Ok(response) => {
-            let status = response.status().as_u16() as f64;
-            let body = response.text().unwrap_or_default();
-
-            let mut result = DictMap::default();
-            result.insert("status".into(), Value::Int(status as i64));
-            result.insert("body".into(), Value::Str(Arc::new(body)));
-
-            Ok(result)
-        }
-        Err(e) => Err(format!("HTTP POST failed: {}", e)),
-    }
+    let url = url.to_string();
+    let body_json = body_json.to_string();
+    network_policy::run_blocking_http_task("HTTP POST", move || {
+        let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
+        let response = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .body(body_json)
+            .send()
+            .map_err(|e| format!("HTTP POST failed: {}", e))?;
+        http_response_to_dict("HTTP POST", response)
+    })
 }
 
 /// Make an HTTP PUT request with JSON body
 /// Infrastructure for http.put() builtin
 #[allow(dead_code)]
 pub fn http_put(url: &str, body_json: &str) -> Result<DictMap, String> {
-    let client = reqwest::blocking::Client::new();
-
-    match client
-        .put(url)
-        .header("Content-Type", "application/json")
-        .body(body_json.to_string())
-        .send()
-    {
-        Ok(response) => {
-            let status = response.status().as_u16() as f64;
-            let body = response.text().unwrap_or_default();
-
-            let mut result = DictMap::default();
-            result.insert("status".into(), Value::Int(status as i64));
-            result.insert("body".into(), Value::Str(Arc::new(body)));
-
-            Ok(result)
-        }
-        Err(e) => Err(format!("HTTP PUT failed: {}", e)),
-    }
+    let url = url.to_string();
+    let body_json = body_json.to_string();
+    network_policy::run_blocking_http_task("HTTP PUT", move || {
+        let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
+        let response = client
+            .put(&url)
+            .header("Content-Type", "application/json")
+            .body(body_json)
+            .send()
+            .map_err(|e| format!("HTTP PUT failed: {}", e))?;
+        http_response_to_dict("HTTP PUT", response)
+    })
 }
 
 /// Make an HTTP DELETE request
 /// Infrastructure for http.delete() builtin
 #[allow(dead_code)]
 pub fn http_delete(url: &str) -> Result<DictMap, String> {
-    let client = reqwest::blocking::Client::new();
-
-    match client.delete(url).send() {
-        Ok(response) => {
-            let status = response.status().as_u16() as f64;
-            let body = response.text().unwrap_or_default();
-
-            let mut result = DictMap::default();
-            result.insert("status".into(), Value::Int(status as i64));
-            result.insert("body".into(), Value::Str(Arc::new(body)));
-
-            Ok(result)
-        }
-        Err(e) => Err(format!("HTTP DELETE failed: {}", e)),
-    }
+    let url = url.to_string();
+    network_policy::run_blocking_http_task("HTTP DELETE", move || {
+        let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
+        let response =
+            client.delete(&url).send().map_err(|e| format!("HTTP DELETE failed: {}", e))?;
+        http_response_to_dict("HTTP DELETE", response)
+    })
 }
 
 /// Make an HTTP GET request and return binary data
 /// Infrastructure for http.getBinary() builtin
 #[allow(dead_code)]
 pub fn http_get_binary(url: &str) -> Result<Vec<u8>, String> {
-    match reqwest::blocking::get(url) {
-        Ok(response) => {
-            if !response.status().is_success() {
-                return Err(format!("HTTP GET failed with status: {}", response.status()));
-            }
-            match response.bytes() {
-                Ok(bytes) => Ok(bytes.to_vec()),
-                Err(e) => Err(format!("Failed to read response bytes: {}", e)),
-            }
+    let url = url.to_string();
+    network_policy::run_blocking_http_task("HTTP GET request", move || {
+        let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
+        let response =
+            client.get(&url).send().map_err(|e| format!("HTTP GET request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("HTTP GET failed with status: {}", response.status()));
         }
-        Err(e) => Err(format!("HTTP GET request failed: {}", e)),
-    }
+        let (_, _, body_bytes) =
+            network_policy::read_http_response_bytes(response, "HTTP GET request")?;
+        Ok(body_bytes)
+    })
 }
 
 /// Encode bytes to base64 string
@@ -1653,45 +1638,50 @@ pub fn oauth2_get_token(
     token_url: &str,
     redirect_uri: &str,
 ) -> Result<DictMap, String> {
-    let client = reqwest::blocking::Client::new();
+    let code = code.to_string();
+    let client_id = client_id.to_string();
+    let client_secret = client_secret.to_string();
+    let token_url = token_url.to_string();
+    let redirect_uri = redirect_uri.to_string();
 
-    let params = [
-        ("grant_type", "authorization_code"),
-        ("code", code),
-        ("client_id", client_id),
-        ("client_secret", client_secret),
-        ("redirect_uri", redirect_uri),
-    ];
+    network_policy::run_blocking_http_task("OAuth2 token request", move || {
+        let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
+        let params = [
+            ("grant_type", "authorization_code"),
+            ("code", code.as_str()),
+            ("client_id", client_id.as_str()),
+            ("client_secret", client_secret.as_str()),
+            ("redirect_uri", redirect_uri.as_str()),
+        ];
 
-    match client.post(token_url).form(&params).send() {
-        Ok(response) => {
-            let status = response.status().as_u16();
-            if !response.status().is_success() {
-                let error_body = response.text().unwrap_or_default();
-                return Err(format!(
-                    "OAuth2 token request failed with status {}: {}",
-                    status, error_body
-                ));
-            }
+        let response = client
+            .post(&token_url)
+            .form(&params)
+            .send()
+            .map_err(|e| format!("OAuth2 token request failed: {}", e))?;
 
-            let body = response.text().unwrap_or_default();
+        let status = response.status().as_u16();
+        let (_, _, body_bytes) =
+            network_policy::read_http_response_bytes(response, "OAuth2 token request")?;
+        let body = String::from_utf8_lossy(&body_bytes).to_string();
 
-            // Parse the JSON response
-            match serde_json::from_str::<serde_json::Value>(&body) {
-                Ok(json) => {
-                    let mut result = DictMap::default();
-                    if let Some(obj) = json.as_object() {
-                        for (key, val) in obj {
-                            result.insert(key.clone().into(), json_to_ruff_value(val.clone()));
-                        }
-                    }
-                    Ok(result)
-                }
-                Err(e) => Err(format!("Failed to parse OAuth2 token response: {}", e)),
-            }
+        if !(200..300).contains(&status) {
+            return Err(format!("OAuth2 token request failed with status {}: {}", status, body));
         }
-        Err(e) => Err(format!("OAuth2 token request failed: {}", e)),
-    }
+
+        match serde_json::from_str::<serde_json::Value>(&body) {
+            Ok(json) => {
+                let mut result = DictMap::default();
+                if let Some(obj) = json.as_object() {
+                    for (key, val) in obj {
+                        result.insert(key.clone().into(), json_to_ruff_value(val.clone()));
+                    }
+                }
+                Ok(result)
+            }
+            Err(e) => Err(format!("Failed to parse OAuth2 token response: {}", e)),
+        }
+    })
 }
 
 /// HTTP Streaming Functions
@@ -1711,18 +1701,20 @@ pub struct HttpStream {
 pub fn http_get_stream(url: &str) -> Result<Vec<u8>, String> {
     // For now, we'll fetch the entire response but allow chunked reading
     // In a real implementation, this would use async streaming
-    match reqwest::blocking::get(url) {
-        Ok(response) => {
-            if !response.status().is_success() {
-                return Err(format!("HTTP GET stream failed with status: {}", response.status()));
-            }
-            match response.bytes() {
-                Ok(bytes) => Ok(bytes.to_vec()),
-                Err(e) => Err(format!("Failed to read stream bytes: {}", e)),
-            }
+    let url = url.to_string();
+    network_policy::run_blocking_http_task("HTTP GET stream", move || {
+        let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
+        let response = client
+            .get(&url)
+            .send()
+            .map_err(|e| format!("HTTP GET stream request failed: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("HTTP GET stream failed with status: {}", response.status()));
         }
-        Err(e) => Err(format!("HTTP GET stream request failed: {}", e)),
-    }
+        let (_, _, body_bytes) =
+            network_policy::read_http_response_bytes(response, "HTTP GET stream")?;
+        Ok(body_bytes)
+    })
 }
 
 /// Assert & Debug Functions

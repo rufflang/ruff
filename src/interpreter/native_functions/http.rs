@@ -2,8 +2,8 @@
 //
 // HTTP client native functions
 
-use crate::builtins;
 use crate::interpreter::{DictMap, Value};
+use crate::{builtins, network_policy};
 use reqwest::Method;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -30,14 +30,16 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 let mut handles = Vec::new();
                 for url in url_strings {
                     let handle = std::thread::spawn(move || -> Result<(u16, String), String> {
-                        match reqwest::blocking::get(&url) {
-                            Ok(response) => {
-                                let status = response.status().as_u16();
-                                let body = response.text().unwrap_or_default();
-                                Ok((status, body))
-                            }
-                            Err(e) => Err(format!("HTTP GET failed: {}", e)),
-                        }
+                        let client = network_policy::build_http_client(
+                            network_policy::default_http_timeout(),
+                        )?;
+                        let response = client
+                            .get(&url)
+                            .send()
+                            .map_err(|e| format!("HTTP GET failed: {}", e))?;
+                        let (status, _, body_bytes) =
+                            network_policy::read_http_response_bytes(response, "HTTP GET")?;
+                        Ok((status, String::from_utf8_lossy(&body_bytes).to_string()))
                     });
                     handles.push(handle);
                 }
@@ -138,18 +140,15 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 })
                 .unwrap_or_else(|| "GET".to_string());
 
-            let method = match Method::from_bytes(method_name.as_bytes()) {
-                Ok(method) => method,
-                Err(error) => {
-                    return Some(Value::Result {
-                        is_ok: false,
-                        value: Box::new(Value::Str(Arc::new(format!(
-                            "Invalid HTTP method '{}': {}",
-                            method_name, error
-                        )))),
-                    });
-                }
-            };
+            if let Err(error) = Method::from_bytes(method_name.as_bytes()) {
+                return Some(Value::Result {
+                    is_ok: false,
+                    value: Box::new(Value::Str(Arc::new(format!(
+                        "Invalid HTTP method '{}': {}",
+                        method_name, error
+                    )))),
+                });
+            }
 
             let timeout_seconds = options
                 .get("timeout")
@@ -158,53 +157,67 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Int(timeout) => Some(*timeout as f64),
                     _ => None,
                 })
-                .unwrap_or(45.0_f64)
+                .unwrap_or_else(|| network_policy::default_http_timeout().as_secs_f64())
                 .max(0.001_f64);
 
-            let client = match reqwest::blocking::Client::builder()
-                .timeout(Duration::from_secs_f64(timeout_seconds))
-                .build()
-            {
-                Ok(client) => client,
-                Err(error) => {
-                    return Some(Value::Result {
-                        is_ok: false,
-                        value: Box::new(Value::Str(Arc::new(format!(
-                            "Failed to create HTTP client: {}",
-                            error
-                        )))),
-                    });
-                }
-            };
-
-            let mut request = client.request(method, &url);
-
-            let header_dict =
-                options.get("_headers").or_else(|| options.get("headers")).and_then(|value| {
+            let headers: Vec<(String, String)> = options
+                .get("_headers")
+                .or_else(|| options.get("headers"))
+                .and_then(|value| {
                     if let Value::Dict(headers) = value {
-                        Some(headers.clone())
+                        Some(
+                            headers
+                                .iter()
+                                .filter_map(|(key, value)| {
+                                    if let Value::Str(header_value) = value {
+                                        Some((key.to_string(), header_value.to_string()))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect(),
+                        )
                     } else {
                         None
                     }
+                })
+                .unwrap_or_default();
+
+            let body = options.get("_body").or_else(|| options.get("body")).and_then(|value| {
+                if let Value::Str(body) = value {
+                    Some(body.to_string())
+                } else {
+                    None
+                }
+            });
+
+            let request_result =
+                network_policy::run_blocking_http_task("HTTP request", move || {
+                    let method = Method::from_bytes(method_name.as_bytes()).map_err(|error| {
+                        format!("Invalid HTTP method '{}': {}", method_name, error)
+                    })?;
+                    let client = network_policy::build_http_client(Duration::from_secs_f64(
+                        timeout_seconds,
+                    ))?;
+
+                    let mut request = client.request(method, &url);
+                    for (key, value) in headers {
+                        request = request.header(&key, &value);
+                    }
+                    if let Some(body) = body {
+                        request = request.body(body);
+                    }
+
+                    let response = request
+                        .send()
+                        .map_err(|error| format!("HTTP request failed: {}", error))?;
+                    network_policy::read_http_response_bytes(response, "HTTP request")
                 });
 
-            if let Some(headers) = header_dict {
-                for (key, value) in headers.iter() {
-                    if let Value::Str(header_value) = value {
-                        request = request.header(key.as_ref(), header_value.as_ref());
-                    }
-                }
-            }
-
-            if let Some(Value::Str(body)) = options.get("_body").or_else(|| options.get("body")) {
-                request = request.body(body.as_ref().clone());
-            }
-
-            match request.send() {
-                Ok(response) => {
-                    let status = response.status().as_u16() as i64;
-                    let response_headers = response.headers().clone();
-                    let body = response.text().unwrap_or_default();
+            match request_result {
+                Ok((status, response_headers, body_bytes)) => {
+                    let status = status as i64;
+                    let body = String::from_utf8_lossy(&body_bytes).to_string();
 
                     let mut result_dict = DictMap::default();
                     result_dict.insert("status".into(), Value::Int(status));
@@ -228,13 +241,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         value: Box::new(Value::Dict(Arc::new(result_dict))),
                     }
                 }
-                Err(error) => Value::Result {
-                    is_ok: false,
-                    value: Box::new(Value::Str(Arc::new(format!(
-                        "HTTP request failed: {}",
-                        error
-                    )))),
-                },
+                Err(error) => {
+                    Value::Result { is_ok: false, value: Box::new(Value::Str(Arc::new(error))) }
+                }
             }
         }
 

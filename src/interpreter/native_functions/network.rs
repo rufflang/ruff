@@ -3,8 +3,22 @@
 // Network-related native functions (TCP, UDP sockets)
 
 use crate::interpreter::{DictMap, Interpreter, Value};
+use crate::network_policy;
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
+
+fn timeout_aware_error_message(operation: &str, error: &std::io::Error) -> String {
+    match error.kind() {
+        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock => format!(
+            "{} timed out after {}ms read/{}ms write timeout policy: {}",
+            operation,
+            network_policy::DEFAULT_NETWORK_READ_TIMEOUT_MS,
+            network_policy::DEFAULT_NETWORK_WRITE_TIMEOUT_MS,
+            error
+        ),
+        _ => format!("{}: {}", operation, error),
+    }
+}
 
 pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -48,12 +62,25 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 if let Some(Value::TcpListener { listener, .. }) = arg_values.first() {
                     let listener_guard = listener.lock().unwrap();
                     match listener_guard.accept() {
-                        Ok((stream, peer_address)) => Value::TcpStream {
-                            stream: Arc::new(Mutex::new(stream)),
-                            peer_addr: peer_address.to_string(),
-                        },
+                        Ok((stream, peer_address)) => {
+                            match network_policy::apply_tcp_stream_timeouts(&stream, "tcp_accept") {
+                                Ok(()) => Value::TcpStream {
+                                    stream: Arc::new(Mutex::new(stream)),
+                                    peer_addr: peer_address.to_string(),
+                                },
+                                Err(error) => Value::ErrorObject {
+                                    message: error,
+                                    stack: Vec::new(),
+                                    line: None,
+                                    cause: None,
+                                },
+                            }
+                        }
                         Err(error) => Value::ErrorObject {
-                            message: format!("Failed to accept connection: {}", error),
+                            message: timeout_aware_error_message(
+                                "Failed to accept connection",
+                                &error,
+                            ),
                             stack: Vec::new(),
                             line: None,
                             cause: None,
@@ -72,13 +99,13 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Str(host)), Some(Value::Int(port))) => {
                         let address = format!("{}:{}", host.as_ref(), port);
-                        match std::net::TcpStream::connect(&address) {
+                        match network_policy::connect_tcp_stream(&address, "tcp_connect") {
                             Ok(stream) => Value::TcpStream {
                                 stream: Arc::new(Mutex::new(stream)),
                                 peer_addr: address,
                             },
                             Err(error) => Value::ErrorObject {
-                                message: format!("Failed to connect to '{}': {}", address, error),
+                                message: error,
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,
@@ -105,14 +132,20 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                             Ok(_) => match stream_guard.flush() {
                                 Ok(_) => Value::Int(data.len() as i64),
                                 Err(error) => Value::ErrorObject {
-                                    message: format!("Failed to flush TCP stream: {}", error),
+                                    message: timeout_aware_error_message(
+                                        "Failed to flush TCP stream",
+                                        &error,
+                                    ),
                                     stack: Vec::new(),
                                     line: None,
                                     cause: None,
                                 },
                             },
                             Err(error) => Value::ErrorObject {
-                                message: format!("Failed to send data over TCP: {}", error),
+                                message: timeout_aware_error_message(
+                                    "Failed to send data over TCP",
+                                    &error,
+                                ),
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,
@@ -125,14 +158,20 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                             Ok(_) => match stream_guard.flush() {
                                 Ok(_) => Value::Int(data.len() as i64),
                                 Err(error) => Value::ErrorObject {
-                                    message: format!("Failed to flush TCP stream: {}", error),
+                                    message: timeout_aware_error_message(
+                                        "Failed to flush TCP stream",
+                                        &error,
+                                    ),
                                     stack: Vec::new(),
                                     line: None,
                                     cause: None,
                                 },
                             },
                             Err(error) => Value::ErrorObject {
-                                message: format!("Failed to send data over TCP: {}", error),
+                                message: timeout_aware_error_message(
+                                    "Failed to send data over TCP",
+                                    &error,
+                                ),
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,
@@ -152,14 +191,14 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             } else {
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::TcpStream { stream, .. }), Some(Value::Int(size))) => {
-                        if *size <= 0 {
-                            return Some(Value::Error(
-                                "tcp_receive size must be positive".to_string(),
-                            ));
-                        }
+                        let size = match network_policy::validate_receive_size(*size, "tcp_receive")
+                        {
+                            Ok(size) => size,
+                            Err(error) => return Some(Value::Error(error)),
+                        };
 
                         let mut stream_guard = stream.lock().unwrap();
-                        let mut buffer = vec![0u8; *size as usize];
+                        let mut buffer = vec![0u8; size];
                         match stream_guard.read(&mut buffer) {
                             Ok(read_size) => {
                                 buffer.truncate(read_size);
@@ -169,7 +208,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                                 }
                             }
                             Err(error) => Value::ErrorObject {
-                                message: format!("Failed to receive data from TCP: {}", error),
+                                message: timeout_aware_error_message(
+                                    "Failed to receive data from TCP",
+                                    &error,
+                                ),
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,
@@ -252,10 +294,21 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                     (Some(Value::Str(host)), Some(Value::Int(port))) => {
                         let address = format!("{}:{}", host.as_ref(), port);
                         match std::net::UdpSocket::bind(&address) {
-                            Ok(socket) => Value::UdpSocket {
-                                socket: Arc::new(Mutex::new(socket)),
-                                addr: address,
-                            },
+                            Ok(socket) => {
+                                match network_policy::apply_udp_socket_timeouts(&socket, "udp_bind")
+                                {
+                                    Ok(()) => Value::UdpSocket {
+                                        socket: Arc::new(Mutex::new(socket)),
+                                        addr: address,
+                                    },
+                                    Err(error) => Value::ErrorObject {
+                                        message: error,
+                                        stack: Vec::new(),
+                                        line: None,
+                                        cause: None,
+                                    },
+                                }
+                            }
                             Err(error) => Value::ErrorObject {
                                 message: format!(
                                     "Failed to bind UDP socket on '{}': {}",
@@ -299,7 +352,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                     match socket_guard.send_to(data.as_ref().as_bytes(), &address) {
                         Ok(sent_size) => Value::Int(sent_size as i64),
                         Err(error) => Value::ErrorObject {
-                            message: format!("Failed to send UDP datagram to '{}': {}", address, error),
+                            message: timeout_aware_error_message(
+                                &format!("Failed to send UDP datagram to '{}'", address),
+                                &error,
+                            ),
                             stack: Vec::new(),
                             line: None,
                             cause: None,
@@ -317,7 +373,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                     match socket_guard.send_to(data, &address) {
                         Ok(sent_size) => Value::Int(sent_size as i64),
                         Err(error) => Value::ErrorObject {
-                            message: format!("Failed to send UDP datagram to '{}': {}", address, error),
+                            message: timeout_aware_error_message(
+                                &format!("Failed to send UDP datagram to '{}'", address),
+                                &error,
+                            ),
                             stack: Vec::new(),
                             line: None,
                             cause: None,
@@ -339,14 +398,16 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             } else {
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::UdpSocket { socket, .. }), Some(Value::Int(size))) => {
-                        if *size <= 0 {
-                            return Some(Value::Error(
-                                "udp_receive_from size must be positive".to_string(),
-                            ));
-                        }
+                        let size = match network_policy::validate_receive_size(
+                            *size,
+                            "udp_receive_from",
+                        ) {
+                            Ok(size) => size,
+                            Err(error) => return Some(Value::Error(error)),
+                        };
 
                         let socket_guard = socket.lock().unwrap();
-                        let mut buffer = vec![0u8; *size as usize];
+                        let mut buffer = vec![0u8; size];
                         match socket_guard.recv_from(&mut buffer) {
                             Ok((read_size, source_address)) => {
                                 buffer.truncate(read_size);
@@ -366,7 +427,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                                 Value::Dict(Arc::new(result))
                             }
                             Err(error) => Value::ErrorObject {
-                                message: format!("Failed to receive UDP datagram: {}", error),
+                                message: timeout_aware_error_message(
+                                    "Failed to receive UDP datagram",
+                                    &error,
+                                ),
                                 stack: Vec::new(),
                                 line: None,
                                 cause: None,

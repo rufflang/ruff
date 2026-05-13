@@ -1,15 +1,18 @@
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use zip::write::FileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
 static TEMP_DIR_COUNTER: AtomicUsize = AtomicUsize::new(0);
 const FS_MAX_READ_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
 const FS_MAX_WRITE_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
+const NETWORK_MAX_BODY_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -47,6 +50,54 @@ fn run_ruff_with_env(args: &[&str], current_dir: &Path, env_pairs: &[(&str, &str
         command.env(key, value);
     }
     command.output().expect("failed to execute ruff binary")
+}
+
+fn read_http_request(stream: &mut TcpStream) {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let mut request = Vec::new();
+    let mut chunk = [0u8; 1024];
+    loop {
+        match stream.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(read_size) => {
+                request.extend_from_slice(&chunk[..read_size]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+}
+
+fn spawn_one_shot_http_server(
+    body: Vec<u8>,
+    response_delay: Duration,
+) -> Option<(u16, thread::JoinHandle<()>)> {
+    let listener = match TcpListener::bind("127.0.0.1:0") {
+        Ok(listener) => listener,
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return None,
+        Err(error) => panic!("failed to bind local HTTP test listener: {}", error),
+    };
+    let port = listener.local_addr().expect("local addr should resolve").port();
+
+    let handle = thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            read_http_request(&mut stream);
+            if !response_delay.is_zero() {
+                thread::sleep(response_delay);
+            }
+            let response_headers = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            let _ = stream.write_all(response_headers.as_bytes());
+            let _ = stream.write_all(&body);
+            let _ = stream.flush();
+        }
+    });
+
+    Some((port, handle))
 }
 
 fn stdout_text(output: &Output) -> String {
@@ -423,6 +474,93 @@ fn native_capability_untrusted_denies_network_server() {
         "let server := http_server(8123)\nserver.listen()\n",
         "Capability denied: network-server required for http_server.listen",
         &["--interpreter", "--untrusted", "--allow-net-client"],
+    );
+}
+
+#[test]
+fn network_http_get_rejects_oversized_response_body() {
+    let body = vec![b'Z'; NETWORK_MAX_BODY_BYTES_FOR_TEST + 1];
+    let Some((port, _server_handle)) = spawn_one_shot_http_server(body, Duration::from_millis(0))
+    else {
+        eprintln!(
+            "Skipping oversized HTTP body boundary test: sandbox denied local TCP bind permissions"
+        );
+        return;
+    };
+
+    let project_root = unique_temp_dir("network_http_get_oversized_body");
+    let script_path = project_root.join("oversized_http_body.ruff");
+    let script_source = format!("http_get(\"http://127.0.0.1:{}/payload\")\n", port);
+    fs::write(&script_path, script_source).expect("failed to write oversized http script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected oversized HTTP response to fail, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("response body exceeds maximum network body size"),
+        "expected oversized response boundary error, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn network_http_request_timeout_is_reported_deterministically() {
+    let body = b"slow-response".to_vec();
+    let Some((port, _server_handle)) = spawn_one_shot_http_server(body, Duration::from_millis(250))
+    else {
+        eprintln!("Skipping HTTP timeout boundary test: sandbox denied local TCP bind permissions");
+        return;
+    };
+
+    let project_root = unique_temp_dir("network_http_request_timeout");
+    let script_path = project_root.join("http_timeout_boundary.ruff");
+    let script_source = format!(
+        "let result := http_request(\"http://127.0.0.1:{}/timeout\", {{\"timeout\": 0.05}})\nprint(result)\n",
+        port
+    );
+    fs::write(&script_path, script_source).expect("failed to write timeout script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected timeout to be surfaced as an http_request Result error, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let output_text = stdout_text(&output).to_lowercase();
+    assert!(
+        output_text.contains("timed out") || output_text.contains("timeout"),
+        "expected timeout details in result output, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
     );
 }
 

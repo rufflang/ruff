@@ -5101,6 +5101,96 @@ mod tests {
     }
 
     #[test]
+    fn test_release_hardening_network_module_size_limit_contracts() {
+        let max_body_bytes = crate::network_policy::MAX_NETWORK_BODY_BYTES as i64;
+
+        let Some(tcp_port) = available_tcp_port() else {
+            eprintln!("Skipping TCP size-limit assertions: sandbox denied TCP bind permissions");
+            return;
+        };
+
+        let mut server_interpreter = Interpreter::new();
+        let listener = call_native_function(
+            &mut server_interpreter,
+            "tcp_listen",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(tcp_port)],
+        );
+        let listener_value = match listener {
+            Value::TcpListener { .. } => listener,
+            other => panic!("Expected TcpListener from tcp_listen, got {:?}", other),
+        };
+
+        let client_thread = std::thread::spawn(move || {
+            let mut client_interpreter = Interpreter::new();
+            let stream = call_native_function(
+                &mut client_interpreter,
+                "tcp_connect",
+                &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(tcp_port)],
+            );
+            let stream_value = match stream {
+                Value::TcpStream { .. } => stream,
+                other => panic!("Expected TcpStream from tcp_connect, got {:?}", other),
+            };
+
+            let close_result =
+                call_native_function(&mut client_interpreter, "tcp_close", &[stream_value]);
+            assert!(matches!(close_result, Value::Bool(true)));
+        });
+
+        let accepted =
+            call_native_function(&mut server_interpreter, "tcp_accept", &[listener_value.clone()]);
+        let accepted_stream = match accepted {
+            Value::TcpStream { .. } => accepted,
+            other => panic!("Expected TcpStream from tcp_accept, got {:?}", other),
+        };
+
+        let over_limit_receive = call_native_function(
+            &mut server_interpreter,
+            "tcp_receive",
+            &[accepted_stream.clone(), Value::Int(max_body_bytes + 1)],
+        );
+        assert!(
+            matches!(over_limit_receive, Value::Error(message) if message.contains("tcp_receive size exceeds maximum network body size"))
+        );
+
+        let close_stream =
+            call_native_function(&mut server_interpreter, "tcp_close", &[accepted_stream]);
+        assert!(matches!(close_stream, Value::Bool(true)));
+        let close_listener =
+            call_native_function(&mut server_interpreter, "tcp_close", &[listener_value]);
+        assert!(matches!(close_listener, Value::Bool(true)));
+        client_thread.join().expect("tcp client thread should complete");
+
+        let Some(udp_port) = available_udp_port() else {
+            eprintln!("Skipping UDP size-limit assertions: sandbox denied UDP bind permissions");
+            return;
+        };
+        let mut udp_interpreter = Interpreter::new();
+        let receiver_socket = call_native_function(
+            &mut udp_interpreter,
+            "udp_bind",
+            &[Value::Str(Arc::new("127.0.0.1".to_string())), Value::Int(udp_port)],
+        );
+        let receiver_value = match receiver_socket {
+            Value::UdpSocket { .. } => receiver_socket,
+            other => panic!("Expected UdpSocket for receiver, got {:?}", other),
+        };
+
+        let over_limit_udp_receive = call_native_function(
+            &mut udp_interpreter,
+            "udp_receive_from",
+            &[receiver_value.clone(), Value::Int(max_body_bytes + 1)],
+        );
+        assert!(
+            matches!(over_limit_udp_receive, Value::Error(message) if message.contains("udp_receive_from size exceeds maximum network body size"))
+        );
+
+        let close_receiver =
+            call_native_function(&mut udp_interpreter, "udp_close", &[receiver_value]);
+        assert!(matches!(close_receiver, Value::Bool(true)));
+    }
+
+    #[test]
     fn test_release_hardening_network_module_round_trip_behaviors() {
         let Some(tcp_port) = available_tcp_port() else {
             eprintln!("Skipping network round-trip test: sandbox denied TCP bind permissions");
