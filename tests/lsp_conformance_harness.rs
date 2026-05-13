@@ -90,7 +90,7 @@ fn protocol_fixtures_match_expected_responses() {
 
         for message in fixture.messages.iter() {
             let responses = server.process_message(message);
-            actual.extend(responses.into_iter());
+            actual.extend(responses);
         }
 
         let normalized_actual: Vec<Value> = actual.into_iter().map(normalize_json).collect();
