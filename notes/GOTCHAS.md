@@ -342,6 +342,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_22-32_v1-http-001-mime-policy-unification.md)
 
+### Root-bound path policy must canonicalize candidate and root
+- **Problem:** Lexical path checks alone can miss symlink escapes in module/file serving flows, and request-path checks after filesystem resolution can miss encoded traversal contracts.
+- **Rule:** Use shared path helpers that combine lexical rejection (null byte, parent traversal, absolute path, drive prefixes) with canonical root containment (`canonical_candidate.starts_with(canonical_root)`) before allowing root-bound file/module access.
+- **Implication:** For `ruff serve` and module loading, enforce encoded-traversal checks before resolution and canonical containment checks after resolution; do not rely on a single phase.
+
+(Discovered during: 2026-05-12_23-06_v1-fs-001-path-security-centralization.md)
+
 ---
 
 ## Mental Model Summary

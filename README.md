@@ -148,6 +148,7 @@ Behavior highlights:
 
 - Supports `GET` and `HEAD` requests (returns `405` for unsupported methods).
 - Enforces canonical root-boundary checks to block path traversal.
+- Rejects URL-encoded traversal request paths before filesystem resolution.
 - Uses no-follow file reads on Unix to reduce symlink race/swap risks.
 - Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
 - Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).
@@ -390,7 +391,7 @@ These are intentional caveats for production readers rather than fine print:
 - Tagged releases publish standalone Linux/macOS artifacts with checksums; package-manager taps remain outside the current v1 release gate.
 - VM execution is the default, but the tree-walking interpreter still matters for some language surfaces and diagnostics.
 - Static typing is optional and not a VM-enforced compile-time contract in the current CLI path.
-- `import`/`export` syntax and module execution/export collection are implemented, and end-to-end package/module workflow integration coverage is present for core CLI flows.
+- `import`/`export` syntax and module execution/export collection are implemented; module file resolution is constrained to configured search roots and rejects symlink-resolved escapes.
 - Struct fields and instance literals exist, and explicit `self` struct methods are parity-covered in VM/interpreter tests.
 - Struct generator methods (`func*` inside `struct`) are intentionally unsupported and fail with a deterministic error (`Generator methods are not supported for structs: <Struct>.<method>`).
 - Spread literals and destructuring syntax are parity-covered in VM/interpreter tests for the tracked matrix scenarios.

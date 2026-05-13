@@ -798,7 +798,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-FS-001: Centralize safe path normalization and containment
+[x] V1-FS-001: Centralize safe path normalization and containment
     Priority: P1
     Severity: Critical
     Area: Security/FileSystem/Architecture
@@ -820,7 +820,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Windows drive-like path rejected cross-platform.
         - Valid nested path accepted.
     Acceptance criteria: Every root-bound path operation uses the central helper.
-    Notes: This is a dependency for secure static serving and archive extraction.
+    Notes: Completed on 2026-05-12. Added centralized path-safety helpers in `src/path_security.rs` for lexical path sanitization (null byte, empty path, parent traversal, absolute path, and Windows drive-prefix rejection), root-bounded path joining, canonical containment checks, symlink-target rejection, and URL-encoded traversal detection. Replaced ad hoc path logic in `src/interpreter/native_functions/filesystem.rs` (archive extraction), `src/serve_http.rs` (request-path validation + root containment), and `src/module.rs` (search-root-bounded module resolution, including symlink-resolved escape rejection). Added regression coverage in `tests/serve_command_integration.rs` for URL-encoded traversal and symlink escape paths, plus `src/module.rs` tests for module symlink-escape rejection and unit tests in `src/path_security.rs` for success/failure path normalization contracts. Verification: `cargo test --test serve_command_integration serve_rejects_url_encoded_parent_traversal -- --nocapture`, `cargo test --test serve_command_integration serve_rejects_symlink_escape_target -- --nocapture`, `cargo test module::tests::load_module_rejects_symlink_escape_outside_search_root --lib -- --nocapture`, `cargo test path_security::tests --lib -- --nocapture`, `cargo test --test native_api_security_boundaries unzip_ -- --nocapture`, and `cargo test -q`.
 ```
 
 ```text
