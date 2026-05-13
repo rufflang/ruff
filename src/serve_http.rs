@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
+const MAX_REQUEST_TARGET_BYTES: usize = 4096;
+
 #[derive(Debug, Clone)]
 pub struct ServeServerOptions {
     pub index: String,
@@ -20,6 +22,13 @@ struct PlannedResponse {
     body: Vec<u8>,
     headers: Vec<(String, String)>,
     content_length: Option<usize>,
+}
+
+#[derive(Debug)]
+enum RequestTargetValidationError {
+    BadRequest,
+    Forbidden,
+    UriTooLong,
 }
 
 pub fn run_static_server(
@@ -128,25 +137,16 @@ fn build_response(
         return headify(response, is_head);
     }
 
-    let raw_path = request.url().split('?').next().unwrap_or("/");
-    if path_security::reject_url_encoded_parent_traversal(raw_path, "request path").is_err() {
-        return headify(
-            static_text_response(403, "Forbidden", options, request.secure(), &[]),
-            is_head,
-        );
-    }
-
-    let mut relative_path = raw_path.trim_start_matches('/').to_string();
-    if relative_path.is_empty() {
-        relative_path = options.index.clone();
-    }
-
-    let relative_path = match path_security::sanitize_relative_path(&relative_path, "request path")
-    {
+    let relative_path = match validate_request_target(request.url(), &options.index) {
         Ok(path) => path,
-        Err(_) => {
+        Err(error) => {
+            let (status_code, body) = match error {
+                RequestTargetValidationError::BadRequest => (400, "Bad Request"),
+                RequestTargetValidationError::Forbidden => (403, "Forbidden"),
+                RequestTargetValidationError::UriTooLong => (414, "URI Too Long"),
+            };
             return headify(
-                static_text_response(403, "Forbidden", options, request.secure(), &[]),
+                static_text_response(status_code, body, options, request.secure(), &[]),
                 is_head,
             );
         }
@@ -367,6 +367,76 @@ fn static_text_response(
         body: body.as_bytes().to_vec(),
         headers,
         content_length: Some(body.len()),
+    }
+}
+
+fn validate_request_target(
+    request_target: &str,
+    index_file: &str,
+) -> Result<PathBuf, RequestTargetValidationError> {
+    if request_target.len() > MAX_REQUEST_TARGET_BYTES {
+        return Err(RequestTargetValidationError::UriTooLong);
+    }
+
+    if request_target.contains('#') {
+        return Err(RequestTargetValidationError::BadRequest);
+    }
+
+    let raw_path = request_target.split('?').next().unwrap_or("/");
+    let raw_path = if raw_path.is_empty() { "/" } else { raw_path };
+    let decoded_path =
+        percent_decode_once(raw_path).map_err(|_| RequestTargetValidationError::BadRequest)?;
+
+    if decoded_path.contains('\0') {
+        return Err(RequestTargetValidationError::BadRequest);
+    }
+
+    let candidate_path = {
+        let trimmed = decoded_path.trim_start_matches('/');
+        if trimmed.is_empty() {
+            index_file
+        } else {
+            trimmed
+        }
+    };
+
+    path_security::sanitize_relative_path(candidate_path, "request path")
+        .map_err(|_| RequestTargetValidationError::Forbidden)
+}
+
+fn percent_decode_once(path: &str) -> Result<String, RequestTargetValidationError> {
+    let bytes = path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if b'%' == bytes[index] {
+            if index + 2 >= bytes.len() {
+                return Err(RequestTargetValidationError::BadRequest);
+            }
+
+            let hi = decode_hex_nibble(bytes[index + 1])
+                .ok_or(RequestTargetValidationError::BadRequest)?;
+            let lo = decode_hex_nibble(bytes[index + 2])
+                .ok_or(RequestTargetValidationError::BadRequest)?;
+            decoded.push((hi << 4) | lo);
+            index += 3;
+            continue;
+        }
+
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+
+    String::from_utf8(decoded).map_err(|_| RequestTargetValidationError::BadRequest)
+}
+
+fn decode_hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -860,5 +930,56 @@ mod tests {
         assert_eq!(cache_control, Some("no-store"));
         assert_eq!(nosniff, Some("nosniff"));
         assert_eq!(referrer_policy, Some("no-referrer"));
+    }
+
+    #[test]
+    fn validate_request_target_accepts_query_strings_without_affecting_path_resolution() {
+        let path =
+            validate_request_target("/index.html?download=%2e%2e%2fsecret.txt", "index.html")
+                .expect("expected request target with query string to resolve");
+        assert_eq!(PathBuf::from("index.html"), path);
+    }
+
+    #[test]
+    fn validate_request_target_rejects_invalid_percent_encoding() {
+        let err = validate_request_target("/bad%2", "index.html")
+            .expect_err("expected invalid percent encoding to fail");
+        assert!(matches!(err, RequestTargetValidationError::BadRequest));
+    }
+
+    #[test]
+    fn validate_request_target_rejects_fragment_targets() {
+        let err = validate_request_target("/index.html#fragment", "index.html")
+            .expect_err("expected fragment in request target to fail");
+        assert!(matches!(err, RequestTargetValidationError::BadRequest));
+    }
+
+    #[test]
+    fn validate_request_target_rejects_decoded_null_bytes() {
+        let err = validate_request_target("/%00secret.txt", "index.html")
+            .expect_err("expected decoded null byte to fail");
+        assert!(matches!(err, RequestTargetValidationError::BadRequest));
+    }
+
+    #[test]
+    fn validate_request_target_rejects_oversized_targets() {
+        let oversized_target = format!("/{}", "a".repeat(MAX_REQUEST_TARGET_BYTES + 1));
+        let err = validate_request_target(&oversized_target, "index.html")
+            .expect_err("expected oversized request target to fail");
+        assert!(matches!(err, RequestTargetValidationError::UriTooLong));
+    }
+
+    #[test]
+    fn validate_request_target_rejects_single_decoded_parent_traversal() {
+        let err = validate_request_target("/%2e%2e/secret.txt", "index.html")
+            .expect_err("expected decoded parent traversal to fail");
+        assert!(matches!(err, RequestTargetValidationError::Forbidden));
+    }
+
+    #[test]
+    fn validate_request_target_decodes_once_so_double_encoded_parent_is_not_treated_as_parent() {
+        let path = validate_request_target("/%252e%252e/secret.txt", "index.html")
+            .expect("expected double-encoded parent segment to remain a literal path segment");
+        assert_eq!(PathBuf::from("%2e%2e/secret.txt"), path);
     }
 }

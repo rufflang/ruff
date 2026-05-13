@@ -433,6 +433,118 @@ fn serve_rejects_url_encoded_parent_traversal() {
 }
 
 #[test]
+fn serve_double_encoded_parent_traversal_does_not_escape_root() {
+    let root = unique_temp_dir("serve_double_encoded_traversal");
+    let outside = unique_temp_dir("serve_double_encoded_traversal_outside");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+    fs::write(outside.join("secret.txt"), "outside-secret")
+        .expect("failed to write outside secret");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /%252e%252e/secret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_ne!(
+        200, response.status_code,
+        "double-encoded traversal should never serve outside-root content"
+    );
+    assert_ne!(b"outside-secret", response.body.as_slice());
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(outside);
+}
+
+#[test]
+fn serve_rejects_invalid_percent_encoding_with_400() {
+    let root = unique_temp_dir("serve_invalid_percent_encoding");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /bad%2 HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(400, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_rejects_null_byte_in_request_target_with_400() {
+    let root = unique_temp_dir("serve_null_byte_request_target");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /%00secret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(400, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_rejects_fragment_in_request_target_with_400() {
+    let root = unique_temp_dir("serve_fragment_request_target");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /index.html#fragment HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(400, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_oversized_request_target_returns_414() {
+    let root = unique_temp_dir("serve_oversized_request_target");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let oversized_path = format!("/{}", "a".repeat(10_000));
+    let request =
+        format!("GET {} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n", oversized_path);
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(server.port, &request);
+
+    assert_eq!(414, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_query_string_does_not_change_filesystem_resolution() {
+    let root = unique_temp_dir("serve_query_string_path_resolution");
+    fs::write(root.join("index.html"), "<h1>Hello Query</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /index.html?path=%2e%2e%2fsecret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(200, response.status_code);
+    assert_eq!(b"<h1>Hello Query</h1>", response.body.as_slice());
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn serve_missing_file_returns_404_with_standard_error_headers() {
     let root = unique_temp_dir("serve_missing_file");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
