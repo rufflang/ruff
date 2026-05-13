@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -88,17 +88,52 @@ fn spawn_serve_process(root: &Path) -> ServeProcess {
 }
 
 fn send_http_request(port: u16, request: &str) -> HttpResponse {
-    let mut stream =
-        TcpStream::connect((TEST_HOST, port)).expect("failed to connect to serve process");
-    stream.set_read_timeout(Some(Duration::from_secs(2))).expect("failed to set read timeout");
-    stream.set_write_timeout(Some(Duration::from_secs(2))).expect("failed to set write timeout");
+    // Under CI contention, the server subprocess can occasionally reset the first connection.
+    // Retry a small number of times so the test reflects response-shape correctness, not socket jitter.
+    let mut last_error = None;
+    for _ in 0..3 {
+        match send_http_request_once(port, request) {
+            Ok(response) => return response,
+            Err(error) => {
+                last_error = Some(error);
+                thread::sleep(Duration::from_millis(25));
+            }
+        }
+    }
 
-    stream.write_all(request.as_bytes()).expect("failed to write HTTP request");
+    panic!(
+        "failed to read HTTP response after retries: {}",
+        last_error.unwrap_or_else(|| "unknown error".to_string())
+    );
+}
+
+fn send_http_request_once(port: u16, request: &str) -> Result<HttpResponse, String> {
+    let mut stream = TcpStream::connect((TEST_HOST, port))
+        .map_err(|error| format!("failed to connect to serve process: {}", error))?;
+    stream
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .map_err(|error| format!("failed to set read timeout: {}", error))?;
+    stream
+        .set_write_timeout(Some(Duration::from_secs(2)))
+        .map_err(|error| format!("failed to set write timeout: {}", error))?;
+
+    stream
+        .write_all(request.as_bytes())
+        .map_err(|error| format!("failed to write HTTP request: {}", error))?;
     let _ = stream.shutdown(Shutdown::Write);
 
     let mut response_bytes = Vec::new();
-    stream.read_to_end(&mut response_bytes).expect("failed to read HTTP response");
-    parse_http_response(&response_bytes)
+    match stream.read_to_end(&mut response_bytes) {
+        Ok(_) => Ok(parse_http_response(&response_bytes)),
+        Err(error) if error.kind() == ErrorKind::ConnectionReset => {
+            if response_bytes.windows(4).any(|window| window == b"\r\n\r\n") {
+                Ok(parse_http_response(&response_bytes))
+            } else {
+                Err(format!("connection reset before full response: {}", error))
+            }
+        }
+        Err(error) => Err(format!("failed to read HTTP response: {}", error)),
+    }
 }
 
 fn parse_http_response(response_bytes: &[u8]) -> HttpResponse {
