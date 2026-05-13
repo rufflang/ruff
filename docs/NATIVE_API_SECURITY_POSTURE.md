@@ -75,7 +75,7 @@ Operational guidance:
 
 ### Network APIs
 
-Relevant builtins: TCP and UDP helpers in `src/interpreter/native_functions/network.rs`.
+Relevant builtins: HTTP/TCP/UDP helpers in `src/interpreter/native_functions/http.rs` and `src/interpreter/native_functions/network.rs`.
 
 Risk profile:
 
@@ -83,11 +83,20 @@ Risk profile:
 - listeners can expose local services
 - blocking behavior can impact availability if misused
 
+Current network guardrails:
+
+- capability-gated execution (`network-client` for outbound calls, `network-server` for listener binds)
+- bounded TCP connect timeout (`10000 ms`)
+- bounded TCP/UDP read-write timeouts (`30000 ms`)
+- bounded HTTP client timeout (`30000 ms`)
+- bounded HTTP/TCP/UDP response-receive bodies (`8 MiB` max)
+- deterministic timeout/limit errors for read/write/response-limit boundary violations
+
 Operational guidance:
 
 - enforce host-level ingress/egress restrictions
 - bind listeners to explicit interfaces and non-privileged ports
-- validate payload boundaries and size parameters
+- validate payload boundaries and size parameters before sending/receiving large payloads
 
 ### Filesystem APIs
 

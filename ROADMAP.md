@@ -874,7 +874,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-NET-001: Add network timeout, size, and capability controls
+[x] V1-NET-001: Add network timeout, size, and capability controls
     Priority: P1
     Severity: High
     Area: Security/Networking
@@ -894,7 +894,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Oversized response/body rejected.
         - Allowed local request succeeds with capability.
     Acceptance criteria: Network APIs cannot hang indefinitely or run without explicit policy.
-    Notes: Keep tests local and deterministic.
+    Notes: Completed on 2026-05-13. Added centralized network guardrails in `src/network_policy.rs` and applied them across HTTP/TCP/UDP native paths. HTTP client surfaces now execute in a dedicated blocking worker thread (avoids Tokio blocking-runtime panic paths), enforce bounded request timeouts (`30s` default), and reject oversized response bodies above `8 MiB` with deterministic boundary errors. TCP/UDP paths now use bounded connect/read/write timeout policy (`10s` connect, `30s` read/write), enforce maximum receive-size requests (`8 MiB`), and surface timeout-aware read/write errors consistently. Added regression coverage for oversized HTTP responses and local timeout behavior in `tests/native_api_security_boundaries.rs`, plus network module size-limit contracts in `src/interpreter/native_functions/mod.rs`. Updated security/readme/docs contracts accordingly. Verification: `cargo test --lib test_release_hardening_network_module_`, `cargo test --test native_api_security_boundaries network_http_`, and `cargo test`.
 ```
 
 ### Phase 5: HTTP And Static Server Hardening
