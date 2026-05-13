@@ -926,7 +926,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-HTTP-003: Harden URL decoding and request-target validation
+[x] V1-HTTP-003: Harden URL decoding and request-target validation
     Priority: P1
     Severity: Critical
     Area: HTTP/Security
@@ -950,7 +950,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Oversized URI returns 414.
         - Query string does not affect filesystem path.
     Acceptance criteria: Request paths cannot escape the server root through encoding tricks.
-    Notes: This item is security-critical for `ruff serve`.
+    Notes: Completed on 2026-05-13. Added centralized request-target validation in `src/serve_http.rs` that parses path separately from query, rejects raw-request fragments, percent-decodes request paths exactly once, rejects malformed percent encodings and decoded null bytes with `400`, applies decoded-path sanitization/root-boundary policy before filesystem lookup, and enforces a `4096`-byte request-target cap with `414 URI Too Long`. Expanded integration coverage in `tests/serve_command_integration.rs` for encoded traversal, double-encoded traversal non-bypass behavior, invalid percent encoding (`400`), decoded null byte (`400`), fragment rejection (`400`), oversized URI (`414`), and query-string path isolation. Added focused validator unit tests in `src/serve_http.rs` for decode-once, traversal, query parsing, fragment, null-byte, invalid-percent, and length-limit contracts. Verification: `cargo test serve_http::tests::validate_request_target_ -- --nocapture`, `cargo test --test serve_command_integration serve_ -- --nocapture`, and `cargo test` passed.
 ```
 
 ```text

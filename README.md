@@ -148,7 +148,8 @@ Behavior highlights:
 
 - Supports `GET` and `HEAD` requests; standard non-read methods return `405 Method Not Allowed` with `Allow: GET, HEAD`, and non-standard methods return `501 Not Implemented`.
 - Enforces canonical root-boundary checks to block path traversal.
-- Rejects URL-encoded traversal request paths before filesystem resolution.
+- Validates request targets before filesystem resolution: path/query are parsed separately, fragments are rejected, request paths are percent-decoded exactly once, and malformed percent-encoding or decoded null bytes return `400 Bad Request`.
+- Rejects unsafe decoded traversal paths with `403 Forbidden`, and rejects oversized request targets larger than `4096` bytes with `414 URI Too Long`.
 - Uses no-follow file reads on Unix to reduce symlink race/swap risks.
 - Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
 - Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).
