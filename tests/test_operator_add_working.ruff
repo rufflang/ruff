@@ -4,9 +4,9 @@ struct Vec2 {
     x: float,
     y: float,
     
-    func op_add(other: Vec2) {
-        result := Vec2 { x: x + other.x, y: y + other.y };
-        return result;
+    func op_add(other) {
+        result := Vec2 { x: x + other.x, y: y + other.y }
+        return result
     }
 }
 
