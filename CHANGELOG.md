@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed `HttpServer` method dispatch in the legacy interpreter (`src/interpreter/legacy_full.rs`): `Expr::MethodCall` nodes were routed through `call_method()`, which only handled iterator methods and returned "Unknown method: route" for all `HttpServer` calls. Added `HttpServer` handling to `call_method()` so that `server.route(method, path, handler)` appends a route and returns a new `HttpServer` value, and `server.listen()` starts the server, matching the existing `Expr::Call`/`FieldAccess` code path behavior.
+
 ### Added
 
 - Added explicit `V1-COMP-001` parity gate artifacts: expanded `docs/VM_INTERPRETER_PARITY_MATRIX.md` status/evidence table, a dedicated CI parity job in `.github/workflows/ci-release-gate.yml` (`cargo test --test vm_interpreter_parity_surfaces`), and new parity regressions for import/export behavior plus explicit unsupported struct generator methods.

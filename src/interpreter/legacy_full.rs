@@ -10204,6 +10204,39 @@ impl Interpreter {
                 self.iterator_next(obj)
             }
             _ => {
+                // Handle HttpServer methods (route, listen)
+                if let Value::HttpServer { port, routes } = &obj {
+                    match method {
+                        "route" => {
+                            if args.len() >= 3 {
+                                if let (Value::Str(m), Value::Str(p)) = (&args[0], &args[1]) {
+                                    let handler = args[2].clone();
+                                    if matches!(handler, Value::Function(_, _, _)) {
+                                        let mut new_routes = routes.clone();
+                                        new_routes.push((
+                                            (**m).clone(),
+                                            (**p).clone(),
+                                            handler,
+                                        ));
+                                        return Value::HttpServer {
+                                            port: *port,
+                                            routes: new_routes,
+                                        };
+                                    }
+                                }
+                            }
+                            return Value::Error(
+                                "route() requires (method, path, handler_function)".to_string(),
+                            );
+                        }
+                        "listen" => {
+                            let port = *port;
+                            let routes = routes.clone();
+                            return self.start_http_server(port, routes);
+                        }
+                        _ => {}
+                    }
+                }
                 // Check if it's a struct method
                 match &obj {
                     Value::Struct { name: _, fields: _ } => {
