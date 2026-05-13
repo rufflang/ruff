@@ -938,8 +938,16 @@ impl TypeChecker {
         self.functions.insert(
             "execute".to_string(),
             FunctionSignature {
-                param_types: vec![Some(TypeAnnotation::String)],
+                param_types: vec![Some(TypeAnnotation::String), None],
                 return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "execute_status".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), None],
+                return_type: None,
             },
         );
 
@@ -1689,7 +1697,7 @@ impl TypeChecker {
         self.functions.insert(
             "spawn_process".to_string(),
             FunctionSignature {
-                param_types: vec![None], // array of command args
+                param_types: vec![Some(TypeAnnotation::Any), None], // command argv + optional options
                 return_type: None,       // Returns dict with stdout, stderr, status
             },
         );
@@ -1697,7 +1705,7 @@ impl TypeChecker {
         self.functions.insert(
             "pipe_commands".to_string(),
             FunctionSignature {
-                param_types: vec![None], // array of command arrays
+                param_types: vec![Some(TypeAnnotation::Any), None], // command arrays + optional options
                 return_type: None,       // Returns dict with stdout, stderr, status
             },
         );

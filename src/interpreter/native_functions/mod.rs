@@ -789,7 +789,7 @@ mod tests {
 
         let execute_missing_args = call_native_function(&mut interpreter, "execute", &[]);
         assert!(
-            matches!(execute_missing_args, Value::Error(message) if message.contains("expects 1 argument"))
+            matches!(execute_missing_args, Value::Error(message) if message.contains("expects 1-2 arguments"))
         );
 
         let execute_wrong_type =
@@ -801,10 +801,14 @@ mod tests {
         let execute_extra_arg = call_native_function(
             &mut interpreter,
             "execute",
-            &[Value::Str(Arc::new("echo release-hardening-system".to_string())), Value::Int(1)],
+            &[
+                Value::Str(Arc::new("echo release-hardening-system".to_string())),
+                Value::Dict(Arc::new(Default::default())),
+                Value::Int(1),
+            ],
         );
         assert!(
-            matches!(execute_extra_arg, Value::Error(message) if message.contains("expects 1 argument"))
+            matches!(execute_extra_arg, Value::Error(message) if message.contains("expects 1-2 arguments"))
         );
 
         let execute_success = call_native_function(
@@ -815,6 +819,13 @@ mod tests {
         assert!(
             matches!(execute_success, Value::Str(output) if output.as_ref().contains("release-hardening-system"))
         );
+
+        let execute_status_success = call_native_function(
+            &mut interpreter,
+            "execute_status",
+            &[Value::Str(Arc::new("echo release-hardening-system".to_string()))],
+        );
+        assert!(matches!(execute_status_success, Value::Struct { name, .. } if name == "ProcessResult"));
 
         let input_wrong_type = call_native_function(&mut interpreter, "input", &[Value::Int(1)]);
         assert!(
@@ -4063,12 +4074,12 @@ mod tests {
 
         let spawn_missing = call_native_function(&mut interpreter, "spawn_process", &[]);
         assert!(
-            matches!(spawn_missing, Value::Error(message) if message.contains("spawn_process requires an array of command arguments"))
+            matches!(spawn_missing, Value::Error(message) if message.contains("optional options"))
         );
 
         let pipe_missing = call_native_function(&mut interpreter, "pipe_commands", &[]);
         assert!(
-            matches!(pipe_missing, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
+            matches!(pipe_missing, Value::Error(message) if message.contains("optional options"))
         );
 
         let spawn_extra = call_native_function(
@@ -4076,11 +4087,12 @@ mod tests {
             "spawn_process",
             &[
                 Value::Array(Arc::new(vec![Value::Str(Arc::new("echo".to_string()))])),
+                Value::Dict(Arc::new(Default::default())),
                 Value::Int(1),
             ],
         );
         assert!(
-            matches!(spawn_extra, Value::Error(message) if message.contains("spawn_process requires an array of command arguments"))
+            matches!(spawn_extra, Value::Error(message) if message.contains("optional options"))
         );
 
         let pipe_extra = call_native_function(
@@ -4090,11 +4102,12 @@ mod tests {
                 Value::Array(Arc::new(vec![Value::Array(Arc::new(vec![Value::Str(Arc::new(
                     "echo".to_string(),
                 ))]))])),
+                Value::Dict(Arc::new(Default::default())),
                 Value::Int(1),
             ],
         );
         assert!(
-            matches!(pipe_extra, Value::Error(message) if message.contains("pipe_commands requires an array of command arrays"))
+            matches!(pipe_extra, Value::Error(message) if message.contains("optional options"))
         );
     }
 

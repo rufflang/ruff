@@ -38,6 +38,15 @@ fn run_ruff(args: &[&str], current_dir: &Path) -> Output {
         .expect("failed to execute ruff binary")
 }
 
+fn run_ruff_with_env(args: &[&str], current_dir: &Path, env_pairs: &[(&str, &str)]) -> Output {
+    let mut command = Command::new(ruff_binary());
+    command.current_dir(current_dir).args(args);
+    for (key, value) in env_pairs {
+        command.env(key, value);
+    }
+    command.output().expect("failed to execute ruff binary")
+}
+
 fn stdout_text(output: &Output) -> String {
     String::from_utf8(output.stdout.clone()).expect("stdout should be utf-8")
 }
@@ -264,6 +273,40 @@ fn native_capability_untrusted_denies_shell_exec() {
 }
 
 #[test]
+fn native_capability_untrusted_allows_shell_exec_when_enabled() {
+    let project_root = unique_temp_dir("native_api_capability_allow_shell_exec");
+    let script_path = project_root.join("allow_shell_exec.ruff");
+    fs::write(&script_path, "print(execute(\"echo shell-allowed\"))\n")
+        .expect("failed to write script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-shell-exec",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected execute() to succeed when shell-exec is allowed, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        stdout_text(&output).contains("shell-allowed"),
+        "expected shell command output in stdout, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
 fn native_capability_untrusted_denies_env_read() {
     assert_runtime_boundary_failure_with_args(
         "env(\"PATH\")\n",
@@ -450,6 +493,173 @@ fn native_capability_spawned_interpreter_inherits_policy() {
     assert!(
         !output_path.exists(),
         "spawned interpreter should not bypass filesystem-write capability policy"
+    );
+}
+
+#[test]
+fn process_direct_exec_does_not_expand_shell_tokens() {
+    let project_root = unique_temp_dir("native_api_process_no_shell_expand");
+    let script_path = project_root.join("no_shell_expand.ruff");
+    let script_source = "let result := spawn_process([\"echo\", \"$HOME\"])\nprint(result.stdout)\n";
+    fs::write(&script_path, script_source).expect("failed to write script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-process-exec",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected spawn_process direct argv execution to avoid shell expansion, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        stdout_text(&output).contains("$HOME"),
+        "expected direct argv process output to preserve literal shell token, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn process_timeout_kills_long_running_process() {
+    let project_root = unique_temp_dir("native_api_process_timeout");
+    let child_script_path = project_root.join("slow_child.ruff");
+    fs::write(&child_script_path, "sleep(250)\nprint(\"done\")\n")
+        .expect("failed to write child script");
+
+    let script_path = project_root.join("timeout_boundary.ruff");
+    let script_source = format!(
+        "let result := spawn_process([\"{}\", \"run\", \"--interpreter\", \"{}\"], {{\"timeout_ms\": 25}})\nprint(result.timed_out)\nprint(result.success)\n",
+        escape_ruff_string(ruff_binary().as_str()),
+        escape_ruff_string(child_script_path.to_str().expect("child script path should be utf-8")),
+    );
+    fs::write(&script_path, script_source).expect("failed to write timeout script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-process-exec",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected timed process execution to be reported deterministically, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        stdout_text(&output).contains("true") && stdout_text(&output).contains("false"),
+        "expected timeout result to report timed_out=true and success=false, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn process_output_limit_sets_truncation_flags() {
+    let project_root = unique_temp_dir("native_api_process_output_limit");
+    let child_script_path = project_root.join("large_output_child.ruff");
+    fs::write(&child_script_path, "print(repeat(\"A\", 4096))\n")
+        .expect("failed to write child script");
+
+    let script_path = project_root.join("output_limit_boundary.ruff");
+    let script_source = format!(
+        "let result := spawn_process([\"{}\", \"run\", \"--interpreter\", \"{}\"], {{\"max_output_bytes\": 64}})\nprint(result.stdout_truncated)\nprint(len(result.stdout))\n",
+        escape_ruff_string(ruff_binary().as_str()),
+        escape_ruff_string(child_script_path.to_str().expect("child script path should be utf-8")),
+    );
+    fs::write(&script_path, script_source).expect("failed to write output-limit script");
+
+    let output = run_ruff(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-process-exec",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected output truncation metadata to be reported, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        stdout_text(&output).contains("true"),
+        "expected stdout_truncated=true when process output exceeds limit, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn process_env_allow_and_deny_policy_is_enforced() {
+    let project_root = unique_temp_dir("native_api_process_env_policy");
+    let child_script_path = project_root.join("env_child.ruff");
+    fs::write(
+        &child_script_path,
+        "print(env_or(\"RUFF_ALLOWED\", \"missing-allowed\"))\nprint(env_or(\"RUFF_DENIED\", \"missing-denied\"))\nprint(env_or(\"RUFF_INJECTED\", \"missing-injected\"))\n",
+    )
+    .expect("failed to write child script");
+
+    let script_path = project_root.join("env_policy_boundary.ruff");
+    let script_source = format!(
+        "let result := spawn_process([\"{}\", \"run\", \"--interpreter\", \"{}\"], {{\"inherit_env\": false, \"env_allow\": [\"RUFF_ALLOWED\", \"RUFF_DENIED\"], \"env_deny\": [\"RUFF_DENIED\"], \"env\": {{\"RUFF_INJECTED\": \"injected-value\"}}}})\nprint(result.stdout)\n",
+        escape_ruff_string(ruff_binary().as_str()),
+        escape_ruff_string(child_script_path.to_str().expect("child script path should be utf-8")),
+    );
+    fs::write(&script_path, script_source).expect("failed to write env-policy script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-process-exec",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[("RUFF_ALLOWED", "allowed-value"), ("RUFF_DENIED", "denied-value")],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected process env allow/deny policy to be enforced, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let output_text = stdout_text(&output);
+    assert!(
+        output_text.contains("allowed-value")
+            && output_text.contains("missing-denied")
+            && output_text.contains("injected-value"),
+        "expected allow/deny env policy effects in process stdout, got stdout={} stderr={}",
+        output_text,
+        stderr_text(&output)
     );
 }
 

@@ -6,8 +6,408 @@ use crate::builtins;
 use crate::interpreter::{DictMap, Value};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::process::Stdio;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant};
+
+const DEFAULT_PROCESS_TIMEOUT_MS: u64 = 30_000;
+const DEFAULT_PROCESS_MAX_OUTPUT_BYTES: usize = 1024 * 1024;
+const MAX_PROCESS_MAX_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
+const PROCESS_POLL_INTERVAL_MS: u64 = 10;
+
+#[derive(Clone, Debug)]
+struct ProcessExecOptions {
+    timeout_ms: u64,
+    max_output_bytes: usize,
+    inherit_env: bool,
+    env_allow: Option<Vec<String>>,
+    env_deny: Vec<String>,
+    env: HashMap<String, String>,
+}
+
+impl Default for ProcessExecOptions {
+    fn default() -> Self {
+        Self {
+            timeout_ms: DEFAULT_PROCESS_TIMEOUT_MS,
+            max_output_bytes: DEFAULT_PROCESS_MAX_OUTPUT_BYTES,
+            inherit_env: true,
+            env_allow: None,
+            env_deny: Vec::new(),
+            env: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ProcessExecutionResult {
+    exitcode: i64,
+    success: bool,
+    timed_out: bool,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+    stdout_truncated: bool,
+    stderr_truncated: bool,
+}
+
+fn error_object(message: impl Into<String>) -> Value {
+    Value::ErrorObject { message: message.into(), stack: Vec::new(), line: None, cause: None }
+}
+
+fn value_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Int(_) => "int",
+        Value::Float(_) => "float",
+        Value::Str(_) => "string",
+        Value::Bool(_) => "bool",
+        Value::Array(_) => "array",
+        Value::Dict(_) | Value::FixedDict { .. } => "dict",
+        Value::Null => "null",
+        _ => "value",
+    }
+}
+
+fn dict_entries(value: &Value) -> Option<Vec<(String, Value)>> {
+    match value {
+        Value::Dict(map) => Some(
+            map.iter().map(|(key, value)| (key.as_ref().to_string(), value.clone())).collect(),
+        ),
+        Value::FixedDict { keys, values } => Some(
+            keys.iter()
+                .zip(values.iter())
+                .map(|(key, value)| (key.as_ref().to_string(), value.clone()))
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+fn parse_string_list(value: &Value, field_name: &str) -> Result<Vec<String>, Value> {
+    let Value::Array(items) = value else {
+        return Err(Value::Error(format!(
+            "{} must be an array of strings, got {}",
+            field_name,
+            value_type_name(value)
+        )));
+    };
+
+    let mut parsed = Vec::with_capacity(items.len());
+    for item in items.iter() {
+        let Value::Str(text) = item else {
+            return Err(Value::Error(format!(
+                "{} must be an array of strings",
+                field_name
+            )));
+        };
+        parsed.push(text.as_ref().to_string());
+    }
+
+    Ok(parsed)
+}
+
+fn parse_string_dict(value: &Value, field_name: &str) -> Result<HashMap<String, String>, Value> {
+    let Some(entries) = dict_entries(value) else {
+        return Err(Value::Error(format!(
+            "{} must be a dict of string keys and values",
+            field_name
+        )));
+    };
+
+    let mut parsed = HashMap::new();
+    for (key, value) in entries {
+        match value {
+            Value::Str(text) => {
+                parsed.insert(key, text.as_ref().to_string());
+            }
+            _ => {
+                return Err(Value::Error(format!(
+                    "{} must contain only string values",
+                    field_name
+                )));
+            }
+        }
+    }
+
+    Ok(parsed)
+}
+
+fn parse_positive_u64(value: &Value, field_name: &str) -> Result<u64, Value> {
+    match value {
+        Value::Int(number) if *number > 0 => Ok(*number as u64),
+        Value::Float(number) if number.is_finite() && *number > 0.0 => Ok(*number as u64),
+        _ => Err(Value::Error(format!(
+            "{} must be a positive number",
+            field_name
+        ))),
+    }
+}
+
+fn parse_process_options(options: Option<&Value>) -> Result<ProcessExecOptions, Value> {
+    let Some(options_value) = options else {
+        return Ok(ProcessExecOptions::default());
+    };
+
+    let Some(entries) = dict_entries(options_value) else {
+        return Err(Value::Error(
+            "process options must be provided as a dict".to_string(),
+        ));
+    };
+
+    let mut options = ProcessExecOptions::default();
+
+    for (key, value) in entries {
+        match key.as_str() {
+            "timeout_ms" => {
+                options.timeout_ms = parse_positive_u64(&value, "timeout_ms")?;
+            }
+            "max_output_bytes" => {
+                let parsed = parse_positive_u64(&value, "max_output_bytes")? as usize;
+                if parsed > MAX_PROCESS_MAX_OUTPUT_BYTES {
+                    return Err(Value::Error(format!(
+                        "max_output_bytes exceeds the maximum supported size ({})",
+                        MAX_PROCESS_MAX_OUTPUT_BYTES
+                    )));
+                }
+                options.max_output_bytes = parsed;
+            }
+            "inherit_env" => match value {
+                Value::Bool(flag) => options.inherit_env = flag,
+                _ => {
+                    return Err(Value::Error(
+                        "inherit_env must be a boolean".to_string(),
+                    ));
+                }
+            },
+            "env_allow" => {
+                options.env_allow = Some(parse_string_list(&value, "env_allow")?);
+            }
+            "env_deny" => {
+                options.env_deny = parse_string_list(&value, "env_deny")?;
+            }
+            "env" => {
+                options.env = parse_string_dict(&value, "env")?;
+            }
+            _ => {
+                return Err(Value::Error(format!(
+                    "unsupported process option '{}'; supported options are timeout_ms, max_output_bytes, inherit_env, env_allow, env_deny, env",
+                    key
+                )));
+            }
+        }
+    }
+
+    Ok(options)
+}
+
+fn apply_env_policy(command: &mut Command, options: &ProcessExecOptions) {
+    match &options.env_allow {
+        Some(allow_list) => {
+            command.env_clear();
+            for key in allow_list {
+                if let Some(value) = std::env::var_os(key) {
+                    command.env(key, value);
+                }
+            }
+        }
+        None if !options.inherit_env => {
+            command.env_clear();
+        }
+        None => {}
+    }
+
+    for key in &options.env_deny {
+        command.env_remove(key);
+    }
+
+    for (key, value) in &options.env {
+        command.env(key, value);
+    }
+}
+
+fn collect_stream_with_limit<R: Read>(
+    mut reader: R,
+    max_output_bytes: usize,
+) -> Result<(Vec<u8>, bool), String> {
+    let mut collected = Vec::new();
+    let mut truncated = false;
+    let mut chunk = [0_u8; 8192];
+
+    loop {
+        let read_count = reader.read(&mut chunk).map_err(|error| error.to_string())?;
+        if 0 == read_count {
+            break;
+        }
+
+        if collected.len() < max_output_bytes {
+            let remaining = max_output_bytes - collected.len();
+            let to_copy = remaining.min(read_count);
+            collected.extend_from_slice(&chunk[..to_copy]);
+            if to_copy < read_count {
+                truncated = true;
+            }
+        } else {
+            truncated = true;
+        }
+    }
+
+    Ok((collected, truncated))
+}
+
+fn render_command_for_error(program: &str, args: &[String]) -> String {
+    if args.is_empty() {
+        program.to_string()
+    } else {
+        format!("{} {}", program, args.join(" "))
+    }
+}
+
+fn run_command_with_options(
+    mut command: Command,
+    options: &ProcessExecOptions,
+    stdin_input: Option<Vec<u8>>,
+    command_label: &str,
+) -> Result<ProcessExecutionResult, Value> {
+    apply_env_policy(&mut command, options);
+
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    if stdin_input.is_some() {
+        command.stdin(Stdio::piped());
+    }
+
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            return Err(error_object(format!(
+                "Failed to spawn process '{}': {}",
+                command_label, error
+            )));
+        }
+    };
+
+    if let Some(input) = stdin_input {
+        if let Some(mut stdin) = child.stdin.take() {
+            if let Err(error) = stdin.write_all(&input) {
+                return Err(error_object(format!(
+                    "Failed to write stdin for process '{}': {}",
+                    command_label, error
+                )));
+            }
+        }
+    }
+
+    let Some(stdout_reader) = child.stdout.take() else {
+        return Err(error_object(format!(
+            "Failed to capture stdout for process '{}'",
+            command_label
+        )));
+    };
+    let Some(stderr_reader) = child.stderr.take() else {
+        return Err(error_object(format!(
+            "Failed to capture stderr for process '{}'",
+            command_label
+        )));
+    };
+
+    let max_output_bytes = options.max_output_bytes;
+    let stdout_handle =
+        thread::spawn(move || collect_stream_with_limit(stdout_reader, max_output_bytes));
+    let stderr_handle =
+        thread::spawn(move || collect_stream_with_limit(stderr_reader, max_output_bytes));
+
+    let timeout = Duration::from_millis(options.timeout_ms);
+    let start = Instant::now();
+    let mut timed_out = false;
+
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    timed_out = true;
+                    let _ = child.kill();
+                    match child.wait() {
+                        Ok(status) => break status,
+                        Err(error) => {
+                            return Err(error_object(format!(
+                                "Failed to terminate timed-out process '{}': {}",
+                                command_label, error
+                            )));
+                        }
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(PROCESS_POLL_INTERVAL_MS));
+            }
+            Err(error) => {
+                return Err(error_object(format!(
+                    "Failed while waiting for process '{}': {}",
+                    command_label, error
+                )));
+            }
+        }
+    };
+
+    let (stdout, stdout_truncated) = match stdout_handle.join() {
+        Ok(Ok(value)) => value,
+        Ok(Err(error)) => {
+            return Err(error_object(format!(
+                "Failed to read stdout for process '{}': {}",
+                command_label, error
+            )));
+        }
+        Err(_) => {
+            return Err(error_object(format!(
+                "Failed to join stdout reader for process '{}'",
+                command_label
+            )));
+        }
+    };
+
+    let (stderr, stderr_truncated) = match stderr_handle.join() {
+        Ok(Ok(value)) => value,
+        Ok(Err(error)) => {
+            return Err(error_object(format!(
+                "Failed to read stderr for process '{}': {}",
+                command_label, error
+            )));
+        }
+        Err(_) => {
+            return Err(error_object(format!(
+                "Failed to join stderr reader for process '{}'",
+                command_label
+            )));
+        }
+    };
+
+    Ok(ProcessExecutionResult {
+        exitcode: status.code().unwrap_or(-1) as i64,
+        success: status.success() && !timed_out,
+        timed_out,
+        stdout,
+        stderr,
+        stdout_truncated,
+        stderr_truncated,
+    })
+}
+
+fn process_result_to_value(result: ProcessExecutionResult) -> Value {
+    let mut fields = HashMap::new();
+    fields.insert("exitcode".to_string(), Value::Int(result.exitcode));
+    fields.insert(
+        "stdout".to_string(),
+        Value::Str(Arc::new(String::from_utf8_lossy(&result.stdout).to_string())),
+    );
+    fields.insert(
+        "stderr".to_string(),
+        Value::Str(Arc::new(String::from_utf8_lossy(&result.stderr).to_string())),
+    );
+    fields.insert("success".to_string(), Value::Bool(result.success));
+    fields.insert("timed_out".to_string(), Value::Bool(result.timed_out));
+    fields.insert("stdout_truncated".to_string(), Value::Bool(result.stdout_truncated));
+    fields.insert("stderr_truncated".to_string(), Value::Bool(result.stderr_truncated));
+
+    Value::Struct { name: "ProcessResult".to_string(), fields }
+}
 
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
@@ -504,24 +904,110 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "execute" => {
-            if arg_values.len() != 1 {
-                return Some(Value::Error("execute() expects 1 argument".to_string()));
+            if arg_values.is_empty() || arg_values.len() > 2 {
+                return Some(Value::Error(
+                    "execute() expects 1-2 arguments (command, [options])".to_string(),
+                ));
             }
 
-            match arg_values.first() {
-                Some(Value::Str(command)) => {
-                    Value::Str(Arc::new(builtins::execute_command(command.as_ref())))
-                }
-                _ => Value::Error("execute() requires a string command".to_string()),
+            let Some(Value::Str(command)) = arg_values.first() else {
+                return Some(Value::Error("execute() requires a string command".to_string()));
+            };
+
+            let options = match parse_process_options(arg_values.get(1)) {
+                Ok(options) => options,
+                Err(error) => return Some(error),
+            };
+
+            let command_text = command.as_ref().to_string();
+            let process = if cfg!(target_os = "windows") {
+                let mut cmd = Command::new("cmd");
+                cmd.args(["/C", command_text.as_str()]);
+                cmd
+            } else {
+                let mut cmd = Command::new("sh");
+                cmd.arg("-c").arg(command_text.as_str());
+                cmd
+            };
+
+            let result = match run_command_with_options(process, &options, None, command_text.as_str())
+            {
+                Ok(result) => result,
+                Err(error) => return Some(error),
+            };
+
+            if result.timed_out {
+                return Some(error_object(format!(
+                    "execute() timed out after {}ms",
+                    options.timeout_ms
+                )));
+            }
+
+            if result.stdout_truncated || result.stderr_truncated {
+                return Some(error_object(format!(
+                    "execute() output exceeded max_output_bytes ({})",
+                    options.max_output_bytes
+                )));
+            }
+
+            if !result.success {
+                return Some(error_object(format!(
+                    "execute() command failed with exit code {}: {}",
+                    result.exitcode,
+                    String::from_utf8_lossy(&result.stderr)
+                )));
+            }
+
+            Value::Str(Arc::new(String::from_utf8_lossy(&result.stdout).to_string()))
+        }
+
+        "execute_status" => {
+            if arg_values.is_empty() || arg_values.len() > 2 {
+                return Some(Value::Error(
+                    "execute_status() expects 1-2 arguments (command, [options])".to_string(),
+                ));
+            }
+
+            let Some(Value::Str(command)) = arg_values.first() else {
+                return Some(Value::Error(
+                    "execute_status() requires a string command".to_string(),
+                ));
+            };
+
+            let options = match parse_process_options(arg_values.get(1)) {
+                Ok(options) => options,
+                Err(error) => return Some(error),
+            };
+
+            let command_text = command.as_ref().to_string();
+            let process = if cfg!(target_os = "windows") {
+                let mut cmd = Command::new("cmd");
+                cmd.args(["/C", command_text.as_str()]);
+                cmd
+            } else {
+                let mut cmd = Command::new("sh");
+                cmd.arg("-c").arg(command_text.as_str());
+                cmd
+            };
+
+            match run_command_with_options(process, &options, None, command_text.as_str()) {
+                Ok(result) => process_result_to_value(result),
+                Err(error) => error,
             }
         }
 
         "spawn_process" => {
-            if arg_values.len() != 1 {
+            if arg_values.is_empty() || arg_values.len() > 2 {
                 return Some(Value::Error(
-                    "spawn_process requires an array of command arguments".to_string(),
+                    "spawn_process requires an array of command arguments and optional options"
+                        .to_string(),
                 ));
             }
+
+            let options = match parse_process_options(arg_values.get(1)) {
+                Ok(options) => options,
+                Err(error) => return Some(error),
+            };
 
             if let Some(Value::Array(args)) = arg_values.first() {
                 if args.is_empty() {
@@ -543,55 +1029,13 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 let program = &cmd_parts[0];
                 let args_slice = &cmd_parts[1..];
+                let mut command = Command::new(program);
+                command.args(args_slice);
+                let label = render_command_for_error(program, args_slice);
 
-                match std::process::Command::new(program)
-                    .args(args_slice)
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .spawn()
-                {
-                    Ok(mut child) => match child.wait() {
-                        Ok(status) => {
-                            let stdout = if let Some(mut out) = child.stdout.take() {
-                                let mut buffer = String::new();
-                                let _ = out.read_to_string(&mut buffer);
-                                buffer
-                            } else {
-                                String::new()
-                            };
-
-                            let stderr = if let Some(mut err) = child.stderr.take() {
-                                let mut buffer = String::new();
-                                let _ = err.read_to_string(&mut buffer);
-                                buffer
-                            } else {
-                                String::new()
-                            };
-
-                            let mut fields = HashMap::new();
-                            fields.insert(
-                                "exitcode".to_string(),
-                                Value::Int(status.code().unwrap_or(-1) as i64),
-                            );
-                            fields.insert("stdout".to_string(), Value::Str(Arc::new(stdout)));
-                            fields.insert("stderr".to_string(), Value::Str(Arc::new(stderr)));
-                            fields.insert("success".to_string(), Value::Bool(status.success()));
-
-                            Value::Struct { name: "ProcessResult".to_string(), fields }
-                        }
-                        Err(e) => Value::ErrorObject {
-                            message: format!("Failed to wait for process: {}", e),
-                            stack: Vec::new(),
-                            line: None,
-                            cause: None,
-                        },
-                    },
-                    Err(e) => Value::ErrorObject {
-                        message: format!("Failed to spawn process '{}': {}", program, e),
-                        stack: Vec::new(),
-                        line: None,
-                        cause: None,
-                    },
+                match run_command_with_options(command, &options, None, label.as_str()) {
+                    Ok(result) => process_result_to_value(result),
+                    Err(error) => error,
                 }
             } else {
                 Value::Error("spawn_process requires an array of command arguments".to_string())
@@ -599,11 +1043,17 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "pipe_commands" => {
-            if arg_values.len() != 1 {
+            if arg_values.is_empty() || arg_values.len() > 2 {
                 return Some(Value::Error(
-                    "pipe_commands requires an array of command arrays".to_string(),
+                    "pipe_commands requires an array of command arrays and optional options"
+                        .to_string(),
                 ));
             }
+
+            let options = match parse_process_options(arg_values.get(1)) {
+                Ok(options) => options,
+                Err(error) => return Some(error),
+            };
 
             if let Some(Value::Array(commands)) = arg_values.first() {
                 if commands.is_empty() {
@@ -642,95 +1092,50 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 let mut previous_output: Option<Vec<u8>> = None;
 
-                for (index, cmd_parts) in parsed_commands.iter().enumerate() {
+                for cmd_parts in parsed_commands.iter() {
                     let program = &cmd_parts[0];
                     let args = &cmd_parts[1..];
 
-                    let mut command = std::process::Command::new(program);
+                    let mut command = Command::new(program);
                     command.args(args);
+                    let label = render_command_for_error(program, args);
 
-                    if previous_output.is_some() {
-                        command.stdin(Stdio::piped());
+                    let run_result = match run_command_with_options(
+                        command,
+                        &options,
+                        previous_output.take(),
+                        label.as_str(),
+                    ) {
+                        Ok(result) => result,
+                        Err(error) => return Some(error),
+                    };
+
+                    if run_result.timed_out {
+                        return Some(error_object(format!(
+                            "Command '{}' timed out after {}ms",
+                            cmd_parts.join(" "),
+                            options.timeout_ms
+                        )));
                     }
 
-                    if index == parsed_commands.len() - 1 {
-                        command.stdout(Stdio::piped());
-                    } else {
-                        command.stdout(Stdio::piped());
+                    if run_result.stdout_truncated || run_result.stderr_truncated {
+                        return Some(error_object(format!(
+                            "Command '{}' output exceeded max_output_bytes ({})",
+                            cmd_parts.join(" "),
+                            options.max_output_bytes
+                        )));
                     }
 
-                    command.stderr(Stdio::piped());
-
-                    match command.spawn() {
-                        Ok(mut child) => {
-                            if let Some(input) = previous_output.take() {
-                                if let Some(mut stdin) = child.stdin.take() {
-                                    let _ = stdin.write_all(&input);
-                                }
-                            }
-
-                            match child.wait() {
-                                Ok(status) => {
-                                    if !status.success() {
-                                        let stderr = if let Some(mut err) = child.stderr.take() {
-                                            let mut buffer = String::new();
-                                            let _ = err.read_to_string(&mut buffer);
-                                            buffer
-                                        } else {
-                                            String::new()
-                                        };
-
-                                        return Some(Value::ErrorObject {
-                                            message: format!(
-                                                "Command '{}' failed with exit code {}: {}",
-                                                cmd_parts.join(" "),
-                                                status.code().unwrap_or(-1),
-                                                stderr
-                                            ),
-                                            stack: Vec::new(),
-                                            line: None,
-                                            cause: None,
-                                        });
-                                    }
-
-                                    if let Some(mut stdout) = child.stdout.take() {
-                                        let mut buffer = Vec::new();
-                                        if let Err(e) = stdout.read_to_end(&mut buffer) {
-                                            return Some(Value::ErrorObject {
-                                                message: format!(
-                                                    "Failed to read output from '{}': {}",
-                                                    program, e
-                                                ),
-                                                stack: Vec::new(),
-                                                line: None,
-                                                cause: None,
-                                            });
-                                        }
-                                        previous_output = Some(buffer);
-                                    }
-                                }
-                                Err(e) => {
-                                    return Some(Value::ErrorObject {
-                                        message: format!(
-                                            "Failed to wait for process '{}': {}",
-                                            program, e
-                                        ),
-                                        stack: Vec::new(),
-                                        line: None,
-                                        cause: None,
-                                    });
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            return Some(Value::ErrorObject {
-                                message: format!("Failed to spawn process '{}': {}", program, e),
-                                stack: Vec::new(),
-                                line: None,
-                                cause: None,
-                            });
-                        }
+                    if !run_result.success {
+                        return Some(error_object(format!(
+                            "Command '{}' failed with exit code {}: {}",
+                            cmd_parts.join(" "),
+                            run_result.exitcode,
+                            String::from_utf8_lossy(&run_result.stderr)
+                        )));
                     }
+
+                    previous_output = Some(run_result.stdout);
                 }
 
                 if let Some(output) = previous_output {
@@ -760,7 +1165,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::handle;
-    use crate::interpreter::Value;
+    use crate::interpreter::{DictMap, Value};
     use std::sync::Arc;
 
     fn string_value(value: &str) -> Value {
@@ -919,8 +1324,29 @@ mod tests {
                 assert!(matches!(fields.get("stdout"), Some(Value::Str(_))));
                 assert!(matches!(fields.get("stderr"), Some(Value::Str(_))));
                 assert!(matches!(fields.get("success"), Some(Value::Bool(true))));
+                assert!(matches!(fields.get("timed_out"), Some(Value::Bool(false))));
+                assert!(matches!(fields.get("stdout_truncated"), Some(Value::Bool(false))));
+                assert!(matches!(fields.get("stderr_truncated"), Some(Value::Bool(false))));
             }
             other => panic!("Expected ProcessResult struct from spawn_process, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_execute_status_returns_process_result_struct() {
+        let result = handle("execute_status", &[string_value("echo ruff")]).unwrap();
+        match result {
+            Value::Struct { name, fields } => {
+                assert_eq!(name, "ProcessResult");
+                assert!(matches!(fields.get("exitcode"), Some(Value::Int(_))));
+                assert!(matches!(fields.get("stdout"), Some(Value::Str(_))));
+                assert!(matches!(fields.get("stderr"), Some(Value::Str(_))));
+                assert!(matches!(fields.get("success"), Some(Value::Bool(_))));
+                assert!(matches!(fields.get("timed_out"), Some(Value::Bool(_))));
+                assert!(matches!(fields.get("stdout_truncated"), Some(Value::Bool(_))));
+                assert!(matches!(fields.get("stderr_truncated"), Some(Value::Bool(_))));
+            }
+            other => panic!("Expected ProcessResult struct from execute_status, got {:?}", other),
         }
     }
 
@@ -978,13 +1404,16 @@ mod tests {
             "spawn_process",
             &[
                 Value::Array(Arc::new(vec![Value::Str(Arc::new("echo".to_string()))])),
+                Value::Dict(Arc::new(DictMap::default())),
                 Value::Int(1),
             ],
         )
         .unwrap();
         assert!(matches!(
             spawn_extra,
-            Value::Error(message) if message == "spawn_process requires an array of command arguments"
+            Value::Error(message)
+                if message
+                    == "spawn_process requires an array of command arguments and optional options"
         ));
 
         let pipe_extra = handle(
@@ -993,13 +1422,25 @@ mod tests {
                 Value::Array(Arc::new(vec![Value::Array(Arc::new(vec![Value::Str(Arc::new(
                     "echo".to_string(),
                 ))]))])),
+                Value::Dict(Arc::new(DictMap::default())),
                 Value::Int(1),
             ],
         )
         .unwrap();
         assert!(matches!(
             pipe_extra,
-            Value::Error(message) if message == "pipe_commands requires an array of command arrays"
+            Value::Error(message)
+                if message
+                    == "pipe_commands requires an array of command arrays and optional options"
+        ));
+
+        let execute_status_extra =
+            handle("execute_status", &[string_value("echo ok"), Value::Int(1), Value::Int(2)])
+                .unwrap();
+        assert!(matches!(
+            execute_status_extra,
+            Value::Error(message)
+                if message == "execute_status() expects 1-2 arguments (command, [options])"
         ));
     }
 }

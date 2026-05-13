@@ -576,6 +576,7 @@ impl Interpreter {
             "exit",
             "sleep",
             "execute",
+            "execute_status",
             // OS module functions
             "os_getcwd",
             "os_chdir",
@@ -1053,6 +1054,10 @@ impl Interpreter {
         self.env.define("exit".to_string(), Value::NativeFunction("exit".to_string()));
         self.env.define("sleep".to_string(), Value::NativeFunction("sleep".to_string()));
         self.env.define("execute".to_string(), Value::NativeFunction("execute".to_string()));
+        self.env.define(
+            "execute_status".to_string(),
+            Value::NativeFunction("execute_status".to_string()),
+        );
 
         // OS module functions
         self.env.define("os_getcwd".to_string(), Value::NativeFunction("os_getcwd".to_string()));

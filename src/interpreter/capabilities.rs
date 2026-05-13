@@ -134,7 +134,7 @@ pub fn capability_for_native_function(name: &str) -> Option<NativeCapability> {
         "spawn_process" | "pipe_commands" => Some(NativeCapability::ProcessExec),
 
         // Shell execution
-        "execute" => Some(NativeCapability::ShellExec),
+        "execute" | "execute_status" => Some(NativeCapability::ShellExec),
 
         // Environment read/write
         "env" | "env_or" | "env_int" | "env_float" | "env_bool" | "env_required" | "env_list" => {
