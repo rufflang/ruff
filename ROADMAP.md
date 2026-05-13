@@ -900,7 +900,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 5: HTTP And Static Server Hardening
 
 ```text
-[ ] V1-HTTP-002: Add complete static response status and header handling
+[x] V1-HTTP-002: Add complete static response status and header handling
     Priority: P1
     Severity: High
     Area: HTTP/Security/DX
@@ -922,7 +922,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Unsupported method behavior is documented and tested.
         - 404/403/415/500 response shape tests.
     Acceptance criteria: Static server responses are standards-aware, predictable, and tested.
-    Notes: Do not add every HTTP status blindly. Only implement statuses tied to server behavior.
+    Notes: Completed on 2026-05-13. Added centralized static text/error response construction in `src/serve_http.rs`, returning `405 Method Not Allowed` with `Allow: GET, HEAD` for standard unsupported methods and `501 Not Implemented` for non-standard methods. Hardened default response headers by always including `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`, and made successful responses fall back to conservative cache policy (`public, max-age=0, must-revalidate`) when explicit max-age is absent. Expanded integration coverage in `tests/serve_command_integration.rs` for GET/HEAD response headers, POST `405` + `Allow`, non-standard-method `501`, and `403`/`404` error response headers. Added unit coverage in `src/serve_http.rs` for conservative cache fallback, static error response header contracts, and deterministic `500` response shape. Verification: `cargo test --test serve_command_integration serve_`, `cargo test serve_http::tests::`, and `cargo test` passed.
 ```
 
 ```text

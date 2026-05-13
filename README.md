@@ -146,7 +146,7 @@ ruff serve output --tls-cert ./certs/dev-cert.pem --tls-key ./certs/dev-key.pem
 
 Behavior highlights:
 
-- Supports `GET` and `HEAD` requests (returns `405` for unsupported methods).
+- Supports `GET` and `HEAD` requests; standard non-read methods return `405 Method Not Allowed` with `Allow: GET, HEAD`, and non-standard methods return `501 Not Implemented`.
 - Enforces canonical root-boundary checks to block path traversal.
 - Rejects URL-encoded traversal request paths before filesystem resolution.
 - Uses no-follow file reads on Unix to reduce symlink race/swap risks.
@@ -155,7 +155,8 @@ Behavior highlights:
 - Detects and serves precompressed sibling assets (`.br`, `.gz`) when accepted.
 - Uses one centralized, case-insensitive MIME extension registry for known asset types.
 - Serves unknown-extension and extensionless files as `application/octet-stream` (including unknown active-content payloads).
-- Adds baseline hardening headers (`X-Content-Type-Options`) and stricter security headers in hardened mode.
+- Adds baseline response-safety headers (`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`) plus conservative cache defaults when explicit max-age is not configured.
+- Adds stricter hardened-mode headers (`X-Frame-Options`, COOP/CORP, CSP, Permissions-Policy).
 - Adds `Strict-Transport-Security` only for secure (TLS) requests.
 
 Machine-readable output and automation contracts are documented in [docs/CLI_MACHINE_READABLE_CONTRACTS.md](docs/CLI_MACHINE_READABLE_CONTRACTS.md).
