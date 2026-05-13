@@ -212,12 +212,12 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_17-07_undefined-identifier-runtime-errors.md, 2026-05-06_21-06_v1-run-003-invalid-operation-errors.md)
 
-### Interpreter named nested functions are not closure expressions
-- **Problem:** A nested `func name(...) { ... }` may not capture local variables the way an anonymous `func(...) { ... }` expression does.
-- **Rule:** Use function expressions when a test or example requires closure-captured locals.
-- **Implication:** Captured-state parity tests should use `binding := func(...) { ... }` unless the selected task is explicitly about named nested function capture.
+### Named nested closure mutation requires capture + free-variable parity
+- **Problem:** VM can raise `Undefined variable` for outer-scope variables mutated inside nested named functions when interpreter capture and compiler free-variable analysis drift.
+- **Rule:** Keep interpreter nested `Stmt::FuncDef` closure capture semantics aligned with compiler free-variable detection, and treat identifier assignment targets as usage for upvalue capture.
+- **Implication:** Any closure-capture change must run full VM/interpreter parity tests; passing expression-closure tests alone is insufficient.
 
-(Discovered during: 2026-05-06_12-25_vm-map-missing-key-runtime-errors.md)
+(Discovered during: 2026-05-12_23-23_NO-ROADMAP_named-nested-closure-capture-parity.md)
 
 ### Dead-code elimination must remap all index-based metadata
 - **Problem:** Jump targets/handlers/source-map entries become invalid after instruction removal.
