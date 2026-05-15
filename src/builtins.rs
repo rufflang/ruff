@@ -548,12 +548,25 @@ pub fn format_string(template: &str, args: &[Value]) -> Result<String, String> {
 }
 
 /// JSON functions
+const MAX_JSON_INPUT_BYTES: usize = 1_048_576;
+const MAX_JSON_NESTING_DEPTH: usize = 64;
+
 /// Parse a JSON string into a Ruff value
 /// Infrastructure for json.parse() builtin
 #[allow(dead_code)]
 pub fn parse_json(json_str: &str) -> Result<Value, String> {
+    if json_str.len() > MAX_JSON_INPUT_BYTES {
+        return Err(format!(
+            "JSON input exceeds maximum input size of {} bytes",
+            MAX_JSON_INPUT_BYTES
+        ));
+    }
+
     match serde_json::from_str::<serde_json::Value>(json_str) {
-        Ok(json_value) => Ok(json_to_ruff_value(json_value)),
+        Ok(json_value) => {
+            validate_json_nesting_depth(&json_value, MAX_JSON_NESTING_DEPTH)?;
+            Ok(json_to_ruff_value(json_value))
+        }
         Err(e) => Err(format!("JSON parse error: {}", e)),
     }
 }
@@ -578,10 +591,16 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
             // Preserve integer vs float distinction
             if let Some(i) = n.as_i64() {
                 Value::Int(i)
+            } else if let Some(u) = n.as_u64() {
+                if let Ok(i) = i64::try_from(u) {
+                    Value::Int(i)
+                } else {
+                    Value::Float(u as f64)
+                }
             } else if let Some(f) = n.as_f64() {
                 Value::Float(f)
             } else {
-                Value::Int(0)
+                Value::Null
             }
         }
         serde_json::Value::String(s) => Value::Str(Arc::new(s)),
@@ -601,51 +620,111 @@ fn json_to_ruff_value(json: serde_json::Value) -> Value {
 
 /// Convert Ruff Value to serde_json::Value
 fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
+    ruff_value_to_json_with_depth(value, 0)
+}
+
+fn ruff_value_to_json_with_depth(
+    value: &Value,
+    depth: usize,
+) -> Result<serde_json::Value, String> {
+    if depth > MAX_JSON_NESTING_DEPTH {
+        return Err(format!(
+            "JSON value exceeds maximum nesting depth of {}",
+            MAX_JSON_NESTING_DEPTH
+        ));
+    }
+
     match value {
         Value::Null => Ok(serde_json::Value::Null),
         Value::Int(n) => Ok(serde_json::Value::Number(serde_json::Number::from(*n))),
-        Value::Float(n) => Ok(serde_json::Value::Number(
-            serde_json::Number::from_f64(*n).unwrap_or_else(|| serde_json::Number::from(0)),
-        )),
+        Value::Float(n) => {
+            if !n.is_finite() {
+                return Err(format!("Cannot convert non-finite float {} to JSON", n));
+            }
+
+            let number = serde_json::Number::from_f64(*n).ok_or_else(|| {
+                format!("Cannot convert non-finite float {} to JSON", n)
+            })?;
+            Ok(serde_json::Value::Number(number))
+        }
         Value::Str(s) => Ok(serde_json::Value::String(s.as_ref().clone())),
         Value::Bool(b) => Ok(serde_json::Value::Bool(*b)),
         Value::Array(arr) => {
             let mut json_arr = Vec::new();
             for item in arr.iter() {
-                json_arr.push(ruff_value_to_json(item)?);
+                json_arr.push(ruff_value_to_json_with_depth(item, depth + 1)?);
             }
             Ok(serde_json::Value::Array(json_arr))
         }
         Value::Dict(dict) => {
             let mut json_obj = serde_json::Map::new();
-            for (key, val) in dict.iter() {
-                json_obj.insert(key.to_string(), ruff_value_to_json(val)?);
+            let mut entries: Vec<(&Arc<str>, &Value)> = dict.iter().collect();
+            entries.sort_by(|(left, _), (right, _)| left.as_ref().cmp(right.as_ref()));
+            for (key, val) in entries {
+                json_obj.insert(key.to_string(), ruff_value_to_json_with_depth(val, depth + 1)?);
             }
             Ok(serde_json::Value::Object(json_obj))
         }
         Value::FixedDict { keys, values } => {
             let mut json_obj = serde_json::Map::new();
             for (key, val) in keys.iter().zip(values.iter()) {
-                json_obj.insert(key.to_string(), ruff_value_to_json(val)?);
+                json_obj.insert(
+                    key.to_string(),
+                    ruff_value_to_json_with_depth(val, depth + 1)?,
+                );
             }
             Ok(serde_json::Value::Object(json_obj))
         }
         Value::IntDict(dict) => {
             let mut json_obj = serde_json::Map::new();
-            for (key, val) in dict.iter() {
-                json_obj.insert(key.to_string(), ruff_value_to_json(val)?);
+            let mut entries: Vec<(&i64, &Value)> = dict.iter().collect();
+            entries.sort_by_key(|(key, _)| **key);
+            for (key, val) in entries {
+                json_obj.insert(key.to_string(), ruff_value_to_json_with_depth(val, depth + 1)?);
             }
             Ok(serde_json::Value::Object(json_obj))
         }
         Value::DenseIntDict(values) => {
             let mut json_obj = serde_json::Map::new();
             for (index, val) in values.iter().enumerate() {
-                json_obj.insert(index.to_string(), ruff_value_to_json(val)?);
+                json_obj.insert(
+                    index.to_string(),
+                    ruff_value_to_json_with_depth(val, depth + 1)?,
+                );
             }
             Ok(serde_json::Value::Object(json_obj))
         }
         _ => Err(format!("Cannot convert {:?} to JSON", value)),
     }
+}
+
+fn validate_json_nesting_depth(
+    root: &serde_json::Value,
+    max_depth: usize,
+) -> Result<(), String> {
+    let mut stack: Vec<(&serde_json::Value, usize)> = vec![(root, 0)];
+
+    while let Some((value, depth)) = stack.pop() {
+        if depth > max_depth {
+            return Err(format!("JSON input exceeds maximum nesting depth of {}", max_depth));
+        }
+
+        match value {
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    stack.push((item, depth + 1));
+                }
+            }
+            serde_json::Value::Object(entries) => {
+                for nested in entries.values() {
+                    stack.push((nested, depth + 1));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 /// TOML functions
