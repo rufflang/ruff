@@ -40,6 +40,7 @@ use crate::interpreter::RuntimeCapabilityPolicy;
 use clap::{Args, Parser as ClapParser, Subcommand};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 #[derive(ClapParser)]
 #[command(
@@ -177,6 +178,34 @@ enum Commands {
         /// TLS private key path (PEM). Requires --tls-cert.
         #[arg(long)]
         tls_key: Option<PathBuf>,
+
+        /// Maximum HTTP request line size in bytes.
+        #[arg(long, default_value_t = 8192)]
+        max_request_line_bytes: usize,
+
+        /// Maximum combined HTTP header bytes.
+        #[arg(long, default_value_t = 16384)]
+        max_header_bytes: usize,
+
+        /// Maximum HTTP header count.
+        #[arg(long, default_value_t = 100)]
+        max_header_count: usize,
+
+        /// Maximum request body bytes accepted by the static server.
+        #[arg(long, default_value_t = 1048576)]
+        max_request_body_bytes: usize,
+
+        /// Per-connection read timeout in milliseconds.
+        #[arg(long, default_value_t = 5000)]
+        read_timeout_ms: u64,
+
+        /// Per-connection write timeout in milliseconds.
+        #[arg(long, default_value_t = 5000)]
+        write_timeout_ms: u64,
+
+        /// Maximum number of concurrent request handlers.
+        #[arg(long, default_value_t = 128)]
+        max_connections: usize,
     },
 
     /// Launch interactive Ruff REPL
@@ -877,6 +906,13 @@ async fn main() {
             access_log,
             tls_cert,
             tls_key,
+            max_request_line_bytes,
+            max_header_bytes,
+            max_header_count,
+            max_request_body_bytes,
+            read_timeout_ms,
+            write_timeout_ms,
+            max_connections,
         } => {
             let options = serve_http::ServeServerOptions {
                 index,
@@ -885,6 +921,13 @@ async fn main() {
                 access_log,
                 tls_cert,
                 tls_key,
+                max_request_line_bytes,
+                max_header_bytes,
+                max_header_count,
+                max_request_body_bytes,
+                read_timeout: Duration::from_millis(read_timeout_ms),
+                write_timeout: Duration::from_millis(write_timeout_ms),
+                max_connections,
             };
 
             if let Err(message) = serve_http::run_static_server(dir, host, port, options) {

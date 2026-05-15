@@ -1,7 +1,10 @@
 use crate::path_security;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 const MAX_REQUEST_TARGET_BYTES: usize = 4096;
@@ -17,6 +20,13 @@ pub struct ServeServerOptions {
     pub access_log: bool,
     pub tls_cert: Option<PathBuf>,
     pub tls_key: Option<PathBuf>,
+    pub max_request_line_bytes: usize,
+    pub max_header_bytes: usize,
+    pub max_header_count: usize,
+    pub max_request_body_bytes: usize,
+    pub read_timeout: Duration,
+    pub write_timeout: Duration,
+    pub max_connections: usize,
 }
 
 #[derive(Debug)]
@@ -34,12 +44,22 @@ enum RequestTargetValidationError {
     UriTooLong,
 }
 
+#[derive(Debug)]
+enum RequestLimitsError {
+    RequestLineTooLong,
+    HeadersTooLarge,
+    TooManyHeaders,
+    PayloadTooLarge,
+}
+
 pub fn run_static_server(
     dir: PathBuf,
     host: String,
     port: u16,
     options: ServeServerOptions,
 ) -> Result<(), String> {
+    validate_server_options(&options)?;
+
     let root_dir = fs::canonicalize(&dir)
         .map_err(|err| format!("Failed to resolve serve directory '{}': {}", dir.display(), err))?;
 
@@ -55,16 +75,19 @@ pub fn run_static_server(
     }
 
     let bind_addr = format!("{}:{}", host, port);
+    let listener = std::net::TcpListener::bind(&bind_addr)
+        .map_err(|err| format!("Failed to bind {}: {}", bind_addr, err))?;
+
     let server = if tls_enabled {
         let certificate = fs::read(options.tls_cert.as_ref().expect("tls cert exists"))
             .map_err(|err| format!("Failed to read TLS certificate file: {}", err))?;
         let private_key = fs::read(options.tls_key.as_ref().expect("tls key exists"))
             .map_err(|err| format!("Failed to read TLS private key file: {}", err))?;
 
-        Server::https(&bind_addr, tiny_http::SslConfig { certificate, private_key })
+        Server::from_listener(listener, Some(tiny_http::SslConfig { certificate, private_key }))
             .map_err(|err| format!("Failed to start HTTPS server on {}: {}", bind_addr, err))?
     } else {
-        Server::http(&bind_addr)
+        Server::from_listener(listener, None)
             .map_err(|err| format!("Failed to start server on {}: {}", bind_addr, err))?
     };
 
@@ -72,30 +95,108 @@ pub fn run_static_server(
     println!("Serving {} on {}://{}", root_dir.display(), scheme, bind_addr);
     println!("Press Ctrl+C to stop");
 
-    for request in server.incoming_requests() {
-        let started = Instant::now();
-        let method = request.method().clone();
-        let url = request.url().to_string();
-        let secure = request.secure();
+    let root_dir = Arc::new(root_dir);
+    let options = Arc::new(options);
+    let active_requests = Arc::new(AtomicUsize::new(0));
 
-        let planned = build_response(&root_dir, &options, &request);
-        let status_code = planned.status_code;
-        let response_bytes = planned.content_length.unwrap_or_else(|| planned.body.len());
-        let response = planned_to_http_response(planned);
-        let _ = request.respond(response);
+    loop {
+        let request = match server.recv_timeout(options.read_timeout) {
+            Ok(Some(request)) => request,
+            Ok(None) => continue,
+            Err(error) => return Err(format!("HTTP server receive error: {}", error)),
+        };
 
-        log_access(
-            options.access_log,
-            &method,
-            &url,
-            status_code,
-            response_bytes,
-            started.elapsed().as_millis(),
-            secure,
-        );
+        if !try_acquire_request_slot(&active_requests, options.max_connections) {
+            let response = static_text_response(
+                503,
+                "Service Unavailable",
+                options.as_ref(),
+                request.secure(),
+                &[],
+            );
+            let response = planned_to_http_response(response);
+            let _ = request.respond(response);
+            continue;
+        }
+
+        let root_dir = Arc::clone(&root_dir);
+        let options = Arc::clone(&options);
+        let active_requests = Arc::clone(&active_requests);
+
+        thread::spawn(move || {
+            let _request_slot_guard = ActiveRequestSlotGuard { active: active_requests };
+            let started = Instant::now();
+            let method = request.method().clone();
+            let url = request.url().to_string();
+            let secure = request.secure();
+
+            let planned = build_response(root_dir.as_ref(), options.as_ref(), &request);
+            let status_code = planned.status_code;
+            let response_bytes = planned.content_length.unwrap_or_else(|| planned.body.len());
+            let response = planned_to_http_response(planned);
+            let _ = request.respond(response);
+
+            log_access(
+                options.access_log,
+                &method,
+                &url,
+                status_code,
+                response_bytes,
+                started.elapsed().as_millis(),
+                secure,
+            );
+        });
+    }
+}
+
+fn validate_server_options(options: &ServeServerOptions) -> Result<(), String> {
+    if 0 == options.max_request_line_bytes {
+        return Err("serve max request line bytes must be greater than 0".to_string());
+    }
+    if 0 == options.max_header_bytes {
+        return Err("serve max header bytes must be greater than 0".to_string());
+    }
+    if 0 == options.max_header_count {
+        return Err("serve max header count must be greater than 0".to_string());
+    }
+    if 0 == options.max_request_body_bytes {
+        return Err("serve max request body bytes must be greater than 0".to_string());
+    }
+    if 0 == options.max_connections {
+        return Err("serve max connections must be greater than 0".to_string());
+    }
+    if options.read_timeout.is_zero() {
+        return Err("serve read timeout must be greater than 0ms".to_string());
+    }
+    if options.write_timeout.is_zero() {
+        return Err("serve write timeout must be greater than 0ms".to_string());
     }
 
     Ok(())
+}
+
+fn try_acquire_request_slot(active: &AtomicUsize, max_connections: usize) -> bool {
+    loop {
+        let current = active.load(Ordering::Acquire);
+        if current >= max_connections {
+            return false;
+        }
+
+        match active.compare_exchange(current, current + 1, Ordering::AcqRel, Ordering::Acquire) {
+            Ok(_) => return true,
+            Err(_) => continue,
+        }
+    }
+}
+
+struct ActiveRequestSlotGuard {
+    active: Arc<AtomicUsize>,
+}
+
+impl Drop for ActiveRequestSlotGuard {
+    fn drop(&mut self) {
+        self.active.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 fn planned_to_http_response(plan: PlannedResponse) -> Response<std::io::Cursor<Vec<u8>>> {
@@ -125,6 +226,20 @@ fn build_response(
 ) -> PlannedResponse {
     let method = request.method();
     let is_head = method == &Method::Head;
+
+    if let Err(error) = validate_request_limits(request, options) {
+        let (status_code, body) = match error {
+            RequestLimitsError::RequestLineTooLong => (414, "URI Too Long"),
+            RequestLimitsError::HeadersTooLarge => (413, "Payload Too Large"),
+            RequestLimitsError::TooManyHeaders => (413, "Payload Too Large"),
+            RequestLimitsError::PayloadTooLarge => (413, "Payload Too Large"),
+        };
+        return headify(
+            static_text_response(status_code, body, options, request.secure(), &[]),
+            is_head,
+        );
+    }
+
     if method != &Method::Get && !is_head {
         let response = if matches!(method, Method::NonStandard(_)) {
             static_text_response(501, "Not Implemented", options, request.secure(), &[])
@@ -280,6 +395,36 @@ fn build_response(
         request.secure(),
     );
     headify(response, is_head)
+}
+
+fn validate_request_limits(
+    request: &Request,
+    options: &ServeServerOptions,
+) -> Result<(), RequestLimitsError> {
+    let request_line =
+        format!("{} {} HTTP/{}", request.method().as_str(), request.url(), request.http_version());
+    if request_line.len() + 2 > options.max_request_line_bytes {
+        return Err(RequestLimitsError::RequestLineTooLong);
+    }
+
+    if request.headers().len() > options.max_header_count {
+        return Err(RequestLimitsError::TooManyHeaders);
+    }
+
+    let header_bytes: usize = request
+        .headers()
+        .iter()
+        .map(|header| header.field.as_str().as_str().len() + 2 + header.value.as_str().len() + 2)
+        .sum();
+    if header_bytes > options.max_header_bytes {
+        return Err(RequestLimitsError::HeadersTooLarge);
+    }
+
+    if request.body_length().unwrap_or(0) > options.max_request_body_bytes {
+        return Err(RequestLimitsError::PayloadTooLarge);
+    }
+
+    Ok(())
 }
 
 fn add_common_success_headers(
@@ -752,6 +897,24 @@ fn log_access(
 mod tests {
     use super::*;
 
+    fn test_options() -> ServeServerOptions {
+        ServeServerOptions {
+            index: "index.html".to_string(),
+            hardened: false,
+            cache_max_age: Some(300),
+            access_log: false,
+            tls_cert: None,
+            tls_key: None,
+            max_request_line_bytes: 8192,
+            max_header_bytes: 16384,
+            max_header_count: 100,
+            max_request_body_bytes: 1048576,
+            read_timeout: Duration::from_secs(5),
+            write_timeout: Duration::from_secs(5),
+            max_connections: 128,
+        }
+    }
+
     #[test]
     fn parse_single_range_supports_standard_and_suffix_ranges() {
         assert_eq!(parse_single_range("bytes=0-9", 100), Ok(Some((0, 9))));
@@ -828,14 +991,7 @@ mod tests {
 
     #[test]
     fn add_common_success_headers_sets_nosniff_for_file_responses() {
-        let options = ServeServerOptions {
-            index: "index.html".to_string(),
-            hardened: false,
-            cache_max_age: Some(300),
-            access_log: false,
-            tls_cert: None,
-            tls_key: None,
-        };
+        let options = test_options();
         let mut headers = Vec::new();
         add_common_success_headers(
             &mut headers,
@@ -855,14 +1011,8 @@ mod tests {
 
     #[test]
     fn add_common_success_headers_sets_conservative_cache_when_no_max_age() {
-        let options = ServeServerOptions {
-            index: "index.html".to_string(),
-            hardened: false,
-            cache_max_age: None,
-            access_log: false,
-            tls_cert: None,
-            tls_key: None,
-        };
+        let mut options = test_options();
+        options.cache_max_age = None;
         let mut headers = Vec::new();
         add_common_success_headers(
             &mut headers,
@@ -882,14 +1032,8 @@ mod tests {
 
     #[test]
     fn static_text_response_includes_extra_headers_and_default_security_headers() {
-        let options = ServeServerOptions {
-            index: "index.html".to_string(),
-            hardened: false,
-            cache_max_age: None,
-            access_log: false,
-            tls_cert: None,
-            tls_key: None,
-        };
+        let mut options = test_options();
+        options.cache_max_age = None;
         let response = static_text_response(
             405,
             "Method Not Allowed",
@@ -936,14 +1080,8 @@ mod tests {
 
     #[test]
     fn status_mapped_error_uses_500_contract_for_unexpected_io_errors() {
-        let options = ServeServerOptions {
-            index: "index.html".to_string(),
-            hardened: false,
-            cache_max_age: None,
-            access_log: false,
-            tls_cert: None,
-            tls_key: None,
-        };
+        let mut options = test_options();
+        options.cache_max_age = None;
         let error = std::io::Error::other("synthetic unexpected io error");
         let response = status_mapped_error(&error, &options, false);
 
@@ -1049,5 +1187,26 @@ mod tests {
         let path = validate_request_target("/%252e%252e/secret.txt", "index.html")
             .expect("expected double-encoded parent segment to remain a literal path segment");
         assert_eq!(PathBuf::from("%2e%2e/secret.txt"), path);
+    }
+
+    #[test]
+    fn validate_server_options_rejects_zero_timeout_and_connection_limits() {
+        let mut options = test_options();
+        options.read_timeout = Duration::ZERO;
+        let read_timeout_error = validate_server_options(&options)
+            .expect_err("expected zero read timeout to be rejected");
+        assert_eq!("serve read timeout must be greater than 0ms", read_timeout_error);
+
+        options = test_options();
+        options.write_timeout = Duration::ZERO;
+        let write_timeout_error = validate_server_options(&options)
+            .expect_err("expected zero write timeout to be rejected");
+        assert_eq!("serve write timeout must be greater than 0ms", write_timeout_error);
+
+        options = test_options();
+        options.max_connections = 0;
+        let max_connections_error = validate_server_options(&options)
+            .expect_err("expected zero max connections to be rejected");
+        assert_eq!("serve max connections must be greater than 0", max_connections_error);
     }
 }

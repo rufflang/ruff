@@ -50,21 +50,28 @@ fn find_free_port() -> u16 {
 }
 
 fn spawn_serve_process(root: &Path) -> ServeProcess {
+    spawn_serve_process_with_extra_args(root, &[])
+}
+
+fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> ServeProcess {
     let port = find_free_port();
-    let mut child = Command::new(ruff_binary())
-        .current_dir(root)
-        .args([
-            "serve",
-            root.to_str().expect("path should be utf-8"),
-            "--host",
-            TEST_HOST,
-            "--port",
-            &port.to_string(),
-            "--index",
-            "index.html",
-            "--cache-max-age",
-            "120",
-        ])
+    let mut command = Command::new(ruff_binary());
+    command.current_dir(root);
+    command.args([
+        "serve",
+        root.to_str().expect("path should be utf-8"),
+        "--host",
+        TEST_HOST,
+        "--port",
+        &port.to_string(),
+        "--index",
+        "index.html",
+        "--cache-max-age",
+        "120",
+    ]);
+    command.args(extra_args);
+
+    let mut child = command
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -556,6 +563,86 @@ fn serve_oversized_request_target_returns_414() {
     let response = send_http_request(server.port, &request);
 
     assert_eq!(414, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_oversized_request_line_returns_414() {
+    let root = unique_temp_dir("serve_oversized_request_line");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let oversized_method = "M".repeat(9_000);
+    let request = format!(
+        "{} /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+        oversized_method
+    );
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(server.port, &request);
+
+    assert_eq!(414, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_oversized_headers_return_413() {
+    let root = unique_temp_dir("serve_oversized_headers");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process_with_extra_args(&root, &["--max-header-bytes", "256"]);
+    let huge_header_value = "x".repeat(1024);
+    let request = format!(
+        "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Big: {}\r\nConnection: close\r\n\r\n",
+        huge_header_value
+    );
+    let response = send_http_request(server.port, &request);
+
+    assert_eq!(413, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_too_many_headers_return_413() {
+    let root = unique_temp_dir("serve_too_many_headers");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process_with_extra_args(&root, &["--max-header-count", "4"]);
+
+    let mut request = String::from("GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\n");
+    for index in 0..6 {
+        request.push_str(&format!("X-Header-{}: value\r\n", index));
+    }
+    request.push_str("Connection: close\r\n\r\n");
+
+    let response = send_http_request(server.port, &request);
+    assert_eq!(413, response.status_code);
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_custom_timeout_flags_still_serve_normal_requests() {
+    let root = unique_temp_dir("serve_custom_timeouts");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process_with_extra_args(
+        &root,
+        &["--read-timeout-ms", "25", "--write-timeout-ms", "25"],
+    );
+    let response = send_http_request(
+        server.port,
+        "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(200, response.status_code);
+    assert_eq!(b"<h1>Hello</h1>", response.body.as_slice());
 
     drop(server);
     let _ = fs::remove_dir_all(root);
