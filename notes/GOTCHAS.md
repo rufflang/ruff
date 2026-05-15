@@ -363,6 +363,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_22-32_v1-http-001-mime-policy-unification.md)
 
+### Precompressed extension handling must not override direct archive MIME contracts
+- **Problem:** Treating every `.gz`/`.br` path as a precompressed representation can force archive files into incorrect response-shape semantics.
+- **Rule:** Only apply precompressed `Content-Encoding` splitting for multi-extension assets (for example `index.html.gz`), and keep single-extension archive files on extension-based MIME resolution.
+- **Implication:** MIME map changes should include regression coverage for both precompressed siblings and direct archive extensions.
+
+(Discovered during: 2026-05-15_14-21_v1-http-007-mime-registry-coverage.md)
+
 ### Root-bound path policy must canonicalize candidate and root
 - **Problem:** Lexical path checks alone can miss symlink escapes in module/file serving flows, and request-path checks after filesystem resolution can miss encoded traversal contracts.
 - **Rule:** Use shared path helpers that combine lexical rejection (null byte, parent traversal, absolute path, drive prefixes) with canonical root containment (`canonical_candidate.starts_with(canonical_root)`) before allowing root-bound file/module access.

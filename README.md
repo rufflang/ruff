@@ -158,7 +158,7 @@ Behavior highlights:
 - Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
 - Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).
 - Detects and serves precompressed sibling assets (`.br`, `.gz`) when accepted.
-- Uses one centralized, case-insensitive MIME extension registry for known asset types.
+- Uses one centralized, case-insensitive MIME extension registry for real-world static assets (web/text, images including `tif`/`tiff`, audio/video including `mov`, fonts including `eot`, and archives including `zip`/`tar`/`gz`/`tgz`/`7z`).
 - Serves unknown-extension and extensionless files as `application/octet-stream` (including unknown active-content payloads).
 - Adds baseline response-safety headers (`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`) plus conservative cache defaults when explicit max-age is not configured.
 - Adds stricter hardened-mode headers (`X-Frame-Options`, COOP/CORP, CSP, Permissions-Policy).

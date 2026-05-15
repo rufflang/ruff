@@ -983,7 +983,10 @@ mod tests {
     #[test]
     fn guess_content_type_covers_v1_http_007_required_mappings() {
         assert_eq!(guess_content_type(Path::new("index.html"), b""), "text/html; charset=utf-8");
-        assert_eq!(guess_content_type(Path::new("feed.xml"), b""), "application/xml; charset=utf-8");
+        assert_eq!(
+            guess_content_type(Path::new("feed.xml"), b""),
+            "application/xml; charset=utf-8"
+        );
         assert_eq!(guess_content_type(Path::new("styles.css"), b""), "text/css; charset=utf-8");
         assert_eq!(
             guess_content_type(Path::new("app.js"), b""),

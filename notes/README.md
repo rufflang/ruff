@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-15_14-21_v1-http-007-mime-registry-coverage.md` — Completed `V1-HTTP-007` by expanding centralized static-serve MIME mappings across missing real-world asset families, tightening `.gz`/`.br` precompressed split behavior to preserve archive MIME contracts, and adding unit/integration regressions for case-insensitive lookup, fallback behavior, double extensions, and dotfile-block precedence.
 - `2026-05-15_13-58_v1-http-006-streaming-range-policy.md` — Implemented `V1-HTTP-006` by streaming `ruff serve` static file bodies from disk (including ranged reads), preserving deterministic `Content-Length` contracts for GET/HEAD, adding large-file and invalid-range regressions, and fixing a subprocess readiness race in serve integration tests.
 - `2026-05-15_13-17_v1-http-005-request-header-timeout-connection-limits.md` — Implemented `ruff serve` request/header/body/concurrency limit hardening (`V1-HTTP-005`) with new CLI knobs, deterministic `413/414/503` limit responses, regression coverage for oversized request surfaces, and an accept-loop timeout gotcha fix for `tiny_http`.
 - `2026-05-15_10-49_v1-http-004-hidden-private-file-policy.md` — Added centralized `ruff serve` hidden/private path blocking (`403`) for dotfile/dot-directory and backup/swap-style targets, plus unit/integration regressions and documented deterministic policy behavior.

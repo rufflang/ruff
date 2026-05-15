@@ -1028,7 +1028,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-HTTP-007: Expand MIME registry for real-world static assets
+[x] V1-HTTP-007: Expand MIME registry for real-world static assets
     Priority: P1
     Severity: Medium
     Area: HTTP/Standard Library/Usefulness
@@ -1050,7 +1050,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Double extension behavior.
         - Dotfile behavior interacts correctly with `V1-HTTP-004`.
     Acceptance criteria: Common static assets are served with correct types and unknown content is handled safely.
-    Notes: Keep map centralized and easy to extend.
+    Notes: Completed on 2026-05-15. Expanded `src/serve_http.rs` centralized MIME registry with required real-world mappings across image (`tif`/`tiff`), audio/video (`mov`), font (`eot`), and archive (`zip`, `tar`, `gz`, `tgz`, `7z`) families while preserving case-insensitive extension matching and safe `application/octet-stream` fallback for unknown/extensionless files. Refined `.gz`/`.br` handling so `Content-Encoding` is applied only for multi-extension precompressed assets (for example `index.html.gz`) instead of single-extension archive files. Added unit regressions in `src/serve_http.rs` and live subprocess coverage in `tests/serve_command_integration.rs` for family mappings, unknown/extensionless fallback, double-extension fallback, and dotfile-block precedence. Verification: `cargo test serve_http::tests::guess_content_type_ -- --nocapture`, `cargo test serve_http::tests::split_content_path_and_encoding_only_treats_multi_extension_files_as_precompressed -- --nocapture`, `cargo test --test serve_command_integration serve_mime_ -- --nocapture --test-threads=1`, `cargo test --test serve_command_integration serve_dotfile_blocking_takes_priority_over_known_extension_mime_resolution -- --nocapture --test-threads=1`, and `cargo test` passed.
 ```
 
 ### Phase 6: Standard Library And Universal Usefulness
