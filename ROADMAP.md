@@ -1079,7 +1079,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-STD-002: Add robust JSON support or document its absence
+[x] V1-STD-002: Add robust JSON support or document its absence
     Priority: P2
     Severity: Enhancement
     Area: Standard Library/Usefulness
@@ -1099,7 +1099,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Unsupported value types fail clearly.
         - Size/depth limits.
     Acceptance criteria: JSON behavior is useful, bounded, and documented, or explicitly deferred.
-    Notes: Do not build an ad hoc JSON parser if a safe dependency is already available.
+    Notes: Completed on 2026-05-15. Hardened centralized JSON behavior in `src/builtins.rs` (used by `src/interpreter/native_functions/json.rs`) with explicit parse bounds (`MAX_JSON_INPUT_BYTES=1,048,576`, `MAX_JSON_NESTING_DEPTH=64`), deterministic nesting-limit failures, non-finite float rejection for stringify (`NaN`, `+/-inf`), deterministic dictionary key ordering during JSON serialization (lexicographic string keys / ascending integer keys), and safer JSON-number conversion (no silent `Int(0)` fallback). Added comprehensive regression coverage in `tests/native_json.rs` for parse success across object/array/string/number/bool/null roots, location-aware invalid JSON errors, stringify success for primitive+nested values, unsupported-value failures, parse size/depth limits, and non-finite float failures. Updated `docs/STANDARD_LIBRARY.md`, `README.md`, and `CHANGELOG.md` with the new JSON contract. Verification: `cargo test --test native_json`, `cargo test --lib test_json_roundtrip_array_of_objects_preserves_cardinality`, `cargo test --lib test_parse_json_and_to_json_round_trip`, and `cargo test` passed.
 ```
 
 ```text

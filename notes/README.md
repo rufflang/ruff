@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-15_17-35_v1-std-002-json-hardening.md` — Completed `V1-STD-002` by hardening centralized JSON parse/stringify contracts with explicit size/depth bounds, deterministic dictionary key ordering, non-finite float rejection, and dedicated regression coverage in `tests/native_json.rs`.
 - `2026-05-15_17-22_v1-std-001-native-api-inventory.md` — Completed `V1-STD-001` by adding a canonical complete native API inventory table (`docs/STANDARD_LIBRARY.md`), centralizing alias/capability/arity metadata helpers in `Interpreter`, and adding strict runtime/docs parity contract tests for builtin coverage, capability labels, arity labels, and alias edge cases.
 - `2026-05-15_14-21_v1-http-007-mime-registry-coverage.md` — Completed `V1-HTTP-007` by expanding centralized static-serve MIME mappings across missing real-world asset families, tightening `.gz`/`.br` precompressed split behavior to preserve archive MIME contracts, and adding unit/integration regressions for case-insensitive lookup, fallback behavior, double extensions, and dotfile-block precedence.
 - `2026-05-15_13-58_v1-http-006-streaming-range-policy.md` — Implemented `V1-HTTP-006` by streaming `ruff serve` static file bodies from disk (including ranged reads), preserving deterministic `Content-Length` contracts for GET/HEAD, adding large-file and invalid-range regressions, and fixing a subprocess readiness race in serve integration tests.

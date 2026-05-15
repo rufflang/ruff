@@ -306,6 +306,7 @@ Native functions are registered in `src/interpreter/mod.rs` and dispatched throu
 - Media/archive/crypto/network: image loading, zip/unzip, SHA/MD5, bcrypt, AES, RSA, TCP, and UDP helpers.
 
 The complete native API inventory (function signatures, arity labels, capability requirements, and examples) is documented in `docs/STANDARD_LIBRARY.md` and contract-checked against runtime registration in `tests/stdlib_reference_contract.rs`.
+For data-format boundaries, `parse_json(...)` now enforces a `1,048,576`-byte input limit and `64`-level nesting limit with location-aware parse failures, and `to_json(...)` now rejects non-finite floats (`NaN`/`+/-inf`) while producing deterministic key ordering for dictionary-like values.
 
 High-risk native APIs (process/network/filesystem/crypto/database) are powerful. `ruff run` and `ruff test-run` default to trusted capability mode for local workflows, and can be switched to deny-by-default mode with `--untrusted` plus explicit `--allow-*` capability flags. Review `docs/NATIVE_API_SECURITY_POSTURE.md` before running untrusted scripts or deploying automation in shared environments.
 For archive extraction, `unzip(...)` now rejects unsafe entry paths (absolute paths, `..` traversal components, drive-prefixed names, null-byte names, and symlink entries) and enforces extraction limits (1024 entries, 16 MiB per entry, 64 MiB total uncompressed size).

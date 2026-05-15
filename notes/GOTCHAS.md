@@ -110,6 +110,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-16_20-23_release-hardening-strict-arity-follow-through-slices.md)
 
+### JSON serialization must reject non-finite floats and sort map keys
+- **Problem:** JSON helpers can silently coerce invalid numeric states (`NaN`/`+/-inf`) or emit non-deterministic object-key ordering when converting hash-map-backed values.
+- **Rule:** Reject non-finite float serialization explicitly and define deterministic key ordering for dictionary-like JSON output.
+- **Implication:** When touching JSON conversion paths, add tests for non-finite failure contracts, map key ordering determinism, and parse/stringify bounds.
+
+(Discovered during: 2026-05-15_17-35_v1-std-002-json-hardening.md)
+
 ### Native API signature changes have three independent contract surfaces
 - **Problem:** A native API can be "fixed" in runtime handling but still fail tests and user validation paths.
 - **Rule:** When changing native argument contracts, update all three layers: runtime handler (`src/interpreter/native_functions/*`), type signature metadata (`src/type_checker.rs`), and native dispatch contract tests (`src/interpreter/native_functions/mod.rs`).
