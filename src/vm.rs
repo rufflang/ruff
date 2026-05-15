@@ -9,7 +9,7 @@ use crate::interpreter::{
     BindingKind, CallableArity, DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap,
     Interpreter, NativeCapability, RuntimeCapabilityPolicy, Value,
 };
-use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler};
+use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler, UnsupportedJitSurface};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
@@ -467,7 +467,7 @@ impl VM {
                 eprintln!("Falling back to interpreter-only mode");
                 JitCompiler::default()
             }),
-            jit_enabled: true,
+            jit_enabled: false,
             function_call_stack: Vec::new(),
             function_call_counts: HashMap::new(),
             compiled_functions: HashMap::new(),
@@ -648,9 +648,27 @@ impl VM {
         self.jit_compiler.set_enabled(enabled);
     }
 
+    /// Returns whether JIT is currently enabled for this VM.
+    pub fn jit_enabled(&self) -> bool {
+        self.jit_enabled
+    }
+
     /// Get JIT compilation statistics
     pub fn jit_stats(&self) -> crate::jit::JitStats {
         self.jit_compiler.stats()
+    }
+
+    /// Validate whether a bytecode chunk (including nested function chunks) is JIT-compatible.
+    pub fn validate_jit_supported_surfaces(&self, chunk: &BytecodeChunk) -> Result<(), String> {
+        self.first_unsupported_jit_surface(chunk)
+            .map_or(Ok(()), |unsupported| Err(unsupported.describe()))
+    }
+
+    fn first_unsupported_jit_surface(
+        &self,
+        chunk: &BytecodeChunk,
+    ) -> Option<UnsupportedJitSurface> {
+        self.jit_compiler.first_unsupported_surface(chunk)
     }
 
     /// Attempt to JIT-compile a bytecode function immediately.
@@ -7334,6 +7352,87 @@ mod tests {
         let ast = parser.parse();
         let mut compiler = Compiler::new();
         compiler.compile(&ast).expect("compile should succeed")
+    }
+
+    #[test]
+    fn test_jit_is_disabled_by_default() {
+        let vm = VM::new();
+        assert!(!vm.jit_enabled(), "JIT should require explicit opt-in");
+    }
+
+    #[test]
+    fn test_validate_jit_supported_surfaces_reports_unsupported_opcode() {
+        let chunk = compile_chunk(
+            r#"
+            values := [1, 2, 3]
+            return values[0]
+            "#,
+        );
+
+        let vm = VM::new();
+        let error =
+            vm.validate_jit_supported_surfaces(&chunk).expect_err("array ops are not JIT-safe");
+        assert!(error.contains("unsupported opcode"));
+        assert!(error.contains("MakeArray") || error.contains("IndexGet"));
+    }
+
+    #[test]
+    fn test_jit_supported_arithmetic_program_executes_when_enabled() {
+        let chunk = compile_chunk(
+            r#"
+            return (1 + 2) * 5
+            "#,
+        );
+
+        let mut vm = VM::new();
+        vm.set_jit_enabled(true);
+        vm.validate_jit_supported_surfaces(&chunk)
+            .expect("pure arithmetic script should be JIT-compatible");
+
+        match vm.execute(chunk) {
+            Ok(Value::Int(value)) => assert_eq!(value, 15),
+            Ok(other) => panic!("Expected int 15, got {:?}", other),
+            Err(error) => panic!("Expected success, got VM error: {}", error),
+        }
+    }
+
+    #[test]
+    fn test_jit_supported_function_call_path_matches_interpreter_result() {
+        let chunk = compile_chunk(
+            r#"
+            func inc(x) {
+                return x + 1
+            }
+
+            return inc(41)
+            "#,
+        );
+
+        let function_chunk = chunk
+            .constants
+            .iter()
+            .find_map(|constant| match constant {
+                Constant::Function(function_chunk) => Some((**function_chunk).clone()),
+                _ => None,
+            })
+            .expect("expected compiled function constant");
+
+        let mut vm = VM::new();
+        vm.set_jit_enabled(true);
+
+        let compiled = vm
+            .jit_compile_bytecode_function(&Value::BytecodeFunction {
+                chunk: function_chunk,
+                captured: HashMap::new(),
+            })
+            .expect("jit compilation attempt should not hard-fail");
+        assert!(compiled, "expected JIT to compile supported function chunk");
+
+        match vm.execute(chunk) {
+            Ok(Value::Int(value)) => assert_eq!(value, 42),
+            Ok(other) => panic!("Expected int 42, got {:?}", other),
+            Err(error) => panic!("Expected success, got VM error: {}", error),
+        }
     }
 
     #[test]

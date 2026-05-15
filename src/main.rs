@@ -129,6 +129,10 @@ enum Commands {
         #[arg(long)]
         interpreter: bool,
 
+        /// Opt in to experimental JIT compilation for JIT-compatible bytecode surfaces.
+        #[arg(long, default_value_t = false)]
+        jit: bool,
+
         /// Cooperative scheduler timeout in milliseconds (overrides env/default)
         #[arg(long)]
         scheduler_timeout_ms: Option<u64>,
@@ -703,7 +707,14 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Run { file, interpreter, scheduler_timeout_ms, capabilities, script_args } => {
+        Commands::Run {
+            file,
+            interpreter,
+            jit,
+            scheduler_timeout_ms,
+            capabilities,
+            script_args,
+        } => {
             let scheduler_timeout = match cooperative_scheduler_timeout(scheduler_timeout_ms) {
                 Ok(timeout) => timeout,
                 Err(error_message) => {
@@ -754,8 +765,16 @@ async fn main() {
                         // Spawn VM execution in a blocking task to avoid runtime conflicts
                         let result = tokio::task::spawn_blocking(move || {
                             let mut vm = vm::VM::new();
-                            if std::env::var("DISABLE_JIT").is_ok() {
-                                vm.set_jit_enabled(false);
+                            let jit_requested = jit && std::env::var("DISABLE_JIT").is_err();
+                            vm.set_jit_enabled(jit_requested);
+                            if jit_requested {
+                                if let Err(reason) = vm.validate_jit_supported_surfaces(&chunk) {
+                                    eprintln!(
+                                        "JIT opt-in requested, but this program is not JIT-compatible ({}). Falling back to VM bytecode execution without JIT.",
+                                        reason
+                                    );
+                                    vm.set_jit_enabled(false);
+                                }
                             }
                             vm.set_capability_policy(capability_policy.clone());
 

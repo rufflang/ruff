@@ -179,6 +179,23 @@ pub type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
 /// Used for single-argument integer functions (like fib(n)) for maximum performance
 pub type CompiledFnWithArg = unsafe extern "C" fn(*mut VMContext, i64) -> i64;
 
+/// Details about a bytecode surface that current JIT cannot compile.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnsupportedJitSurface {
+    pub chunk_name: String,
+    pub instruction_offset: usize,
+    pub opcode: OpCode,
+}
+
+impl UnsupportedJitSurface {
+    pub fn describe(&self) -> String {
+        format!(
+            "unsupported opcode in chunk '{}' at instruction {}: {:?}",
+            self.chunk_name, self.instruction_offset, self.opcode
+        )
+    }
+}
+
 /// Metadata about a JIT-compiled function
 /// Used to track which calling convention to use and enable direct recursion
 #[derive(Clone, Copy)]
@@ -7740,6 +7757,44 @@ impl JitCompiler {
             }
         }
         true
+    }
+
+    /// Return the first unsupported opcode found in the provided chunk or nested function chunks.
+    pub fn first_unsupported_surface(
+        &self,
+        chunk: &BytecodeChunk,
+    ) -> Option<UnsupportedJitSurface> {
+        let chunk_name = chunk.name.as_deref().unwrap_or("<script>");
+        self.first_unsupported_surface_in_chunk(chunk, chunk_name)
+    }
+
+    fn first_unsupported_surface_in_chunk(
+        &self,
+        chunk: &BytecodeChunk,
+        chunk_name: &str,
+    ) -> Option<UnsupportedJitSurface> {
+        for (pc, instr) in chunk.instructions.iter().enumerate() {
+            if !self.is_supported_opcode(instr, &chunk.constants) {
+                return Some(UnsupportedJitSurface {
+                    chunk_name: chunk_name.to_string(),
+                    instruction_offset: pc,
+                    opcode: instr.clone(),
+                });
+            }
+        }
+
+        for constant in &chunk.constants {
+            if let Constant::Function(function_chunk) = constant {
+                let nested_name = function_chunk.name.as_deref().unwrap_or("<anonymous-function>");
+                if let Some(unsupported) =
+                    self.first_unsupported_surface_in_chunk(function_chunk, nested_name)
+                {
+                    return Some(unsupported);
+                }
+            }
+        }
+
+        None
     }
 
     /// Enable or disable JIT compilation
