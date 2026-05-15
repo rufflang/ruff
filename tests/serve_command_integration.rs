@@ -615,6 +615,100 @@ fn serve_missing_file_returns_404_with_standard_error_headers() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[test]
+fn serve_blocks_dotenv_file_with_403() {
+    let root = unique_temp_dir("serve_blocks_dotenv");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+    fs::write(root.join(".env"), "SECRET=1").expect("failed to write .env");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /.env HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(403, response.status_code);
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_blocks_dot_git_config_with_403() {
+    let root = unique_temp_dir("serve_blocks_dot_git");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+    fs::create_dir_all(root.join(".git")).expect("failed to create .git directory");
+    fs::write(root.join(".git").join("config"), "[core]\nrepositoryformatversion = 0\n")
+        .expect("failed to write .git/config");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /.git/config HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(403, response.status_code);
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_blocks_dot_ds_store_with_403() {
+    let root = unique_temp_dir("serve_blocks_ds_store");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+    fs::write(root.join(".DS_Store"), "mac-metadata").expect("failed to write .DS_Store");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /.DS_Store HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(403, response.status_code);
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_blocks_backup_and_swap_files_with_403() {
+    let root = unique_temp_dir("serve_blocks_backup_swap");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+    fs::write(root.join("secrets.txt.bak"), "backup copy").expect("failed to write backup file");
+    fs::write(root.join("settings.json.swp"), "swap copy").expect("failed to write swap file");
+
+    let server = spawn_serve_process(&root);
+    let backup_response = send_http_request(
+        server.port,
+        "GET /secrets.txt.bak HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+    let swap_response = send_http_request(
+        server.port,
+        "GET /settings.json.swp HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(403, backup_response.status_code);
+    assert_eq!(403, swap_response.status_code);
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_still_serves_normal_public_files() {
+    let root = unique_temp_dir("serve_public_files_still_work");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+    fs::write(root.join("public.txt"), "public-data").expect("failed to write public file");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /public.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(200, response.status_code);
+    assert_eq!(b"public-data", response.body.as_slice());
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
 #[cfg(unix)]
 #[test]
 fn serve_rejects_symlink_escape_target() {

@@ -5,6 +5,9 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
 const MAX_REQUEST_TARGET_BYTES: usize = 4096;
+const BLOCKED_PRIVATE_PATH_NAMES: [&str; 5] = [".env", ".git", ".svn", ".hg", ".ds_store"];
+const BLOCKED_PRIVATE_PATH_SUFFIXES: [&str; 7] =
+    [".bak", ".backup", ".tmp", ".old", ".orig", ".swp", ".swo"];
 
 #[derive(Debug, Clone)]
 pub struct ServeServerOptions {
@@ -400,8 +403,50 @@ fn validate_request_target(
         }
     };
 
-    path_security::sanitize_relative_path(candidate_path, "request path")
-        .map_err(|_| RequestTargetValidationError::Forbidden)
+    let sanitized_path = path_security::sanitize_relative_path(candidate_path, "request path")
+        .map_err(|_| RequestTargetValidationError::Forbidden)?;
+
+    if path_has_blocked_private_components(&sanitized_path) {
+        return Err(RequestTargetValidationError::Forbidden);
+    }
+
+    Ok(sanitized_path)
+}
+
+fn path_has_blocked_private_components(path: &Path) -> bool {
+    let components: Vec<String> = path
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => value.to_str().map(|text| text.to_string()),
+            _ => None,
+        })
+        .collect();
+
+    if components.is_empty() {
+        return false;
+    }
+
+    let last_index = components.len() - 1;
+    for (index, component) in components.iter().enumerate() {
+        let lower = component.to_ascii_lowercase();
+        if lower.starts_with('.') || BLOCKED_PRIVATE_PATH_NAMES.contains(&lower.as_str()) {
+            return true;
+        }
+
+        if index == last_index && private_leaf_name_is_blocked(&lower) {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn private_leaf_name_is_blocked(file_name_lower: &str) -> bool {
+    if file_name_lower.ends_with('~') {
+        return true;
+    }
+
+    BLOCKED_PRIVATE_PATH_SUFFIXES.iter().any(|suffix| file_name_lower.ends_with(suffix))
 }
 
 fn percent_decode_once(path: &str) -> Result<String, RequestTargetValidationError> {
@@ -974,6 +1019,29 @@ mod tests {
         let err = validate_request_target("/%2e%2e/secret.txt", "index.html")
             .expect_err("expected decoded parent traversal to fail");
         assert!(matches!(err, RequestTargetValidationError::Forbidden));
+    }
+
+    #[test]
+    fn validate_request_target_rejects_hidden_and_private_paths() {
+        for path in [
+            "/.env",
+            "/.git/config",
+            "/.DS_Store",
+            "/notes.txt.bak",
+            "/settings.json.swp",
+            "/tmp/scratch~",
+        ] {
+            let err = validate_request_target(path, "index.html")
+                .expect_err("expected private path request target to fail");
+            assert!(matches!(err, RequestTargetValidationError::Forbidden), "path: {}", path);
+        }
+    }
+
+    #[test]
+    fn validate_request_target_keeps_non_private_paths_available() {
+        let path = validate_request_target("/public/readme.txt", "index.html")
+            .expect("expected non-private path to resolve");
+        assert_eq!(PathBuf::from("public/readme.txt"), path);
     }
 
     #[test]
