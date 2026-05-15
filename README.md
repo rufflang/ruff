@@ -101,7 +101,7 @@ The current CLI exposes these subcommands:
 
 | Command | Purpose |
 | --- | --- |
-| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. Native host-effect capability policy can be scoped with `--untrusted` plus `--allow-*` flags (`--allow-fs-read`, `--allow-fs-write`, `--allow-fs-delete`, `--allow-process-exec`, `--allow-shell-exec`, `--allow-env-read`, `--allow-env-write`, `--allow-net-client`, `--allow-net-server`, `--allow-net`, `--allow-database`, `--allow-clock`, `--allow-random`, or `--allow-all`). |
+| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. Experimental JIT is opt-in via `--jit`; if the program contains unsupported JIT surfaces Ruff reports a deterministic warning and falls back to non-JIT VM execution. Native host-effect capability policy can be scoped with `--untrusted` plus `--allow-*` flags (`--allow-fs-read`, `--allow-fs-write`, `--allow-fs-delete`, `--allow-process-exec`, `--allow-shell-exec`, `--allow-env-read`, `--allow-env-write`, `--allow-net-client`, `--allow-net-server`, `--allow-net`, `--allow-database`, `--allow-clock`, `--allow-random`, or `--allow-all`). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`, `--max-request-line-bytes`, `--max-header-bytes`, `--max-header-count`, `--max-request-body-bytes`, `--read-timeout-ms`, `--write-timeout-ms`, `--max-connections`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
@@ -184,7 +184,7 @@ Useful environment variables:
 
 | Variable | Effect |
 | --- | --- |
-| `DISABLE_JIT=1` | Disables JIT support in the VM path. |
+| `DISABLE_JIT=1` | Forces JIT off even when `ruff run --jit` is requested. |
 | `DEBUG_AST=1` | Prints the parsed AST before VM execution. |
 | `RUFF_SCHEDULER_TIMEOUT_MS=<ms>` | Overrides the VM cooperative scheduler completion timeout when `ruff run --scheduler-timeout-ms` is not provided. The default is `120000`. |
 

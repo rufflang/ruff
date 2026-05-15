@@ -722,7 +722,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-JIT-001: Gate JIT behind explicit support and parity guarantees
+[x] V1-JIT-001: Gate JIT behind explicit support and parity guarantees
     Priority: P2
     Severity: Medium
     Area: Performance/Correctness/Architecture
@@ -740,7 +740,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Unsupported feature produces clear diagnostic.
         - JIT disabled by default unless release policy says otherwise.
     Acceptance criteria: JIT cannot silently execute a program with different semantics from interpreter/VM.
-    Notes: Do not optimize unsafe or unmeasured behavior into the 1.0 default path.
+    Notes: Completed on 2026-05-15. JIT is now explicit opt-in (`ruff run --jit`) and no longer enabled by default in `VM::new()`. Added centralized support-surface validation in `src/jit.rs`/`src/vm.rs` that scans top-level and nested function chunks, reports the first unsupported opcode with chunk/instruction context, and is used by CLI JIT opt-in handling to emit a deterministic warning then fall back to normal VM bytecode execution without JIT. Added JIT contract regressions in `src/vm.rs` (default-off, unsupported-surface detection, supported arithmetic and bytecode-function execution paths) and CLI integration coverage in `tests/jit_execution_contract.rs` for default behavior, unsupported-surface diagnostics, and supported-surface opt-in success. Verification: `cargo test --lib jit_supported`, `cargo test test_jit_is_disabled_by_default --lib`, and `cargo test --test jit_execution_contract` passed.
 ```
 
 ### Phase 4: Secure Host Boundaries

@@ -37,5 +37,5 @@ This matrix tracks parity for roadmap item `V1-COMP-001`.
 
 ## Notes
 
-- This matrix tracks interpreter/VM/compiler parity only. JIT remains separately tracked by `V1-JIT-001`.
+- This matrix tracks interpreter/VM/compiler parity only. JIT remains an experimental, opt-in surface (`ruff run --jit`) with explicit unsupported-opcode detection and deterministic fallback messaging; see `V1-JIT-001` notes in `ROADMAP.md`.
 - Any newly added language/runtime surface must update this matrix and add parity evidence in the same change.
