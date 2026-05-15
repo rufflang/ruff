@@ -1056,7 +1056,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 6: Standard Library And Universal Usefulness
 
 ```text
-[ ] V1-STD-001: Create a complete native API inventory and support table
+[x] V1-STD-001: Create a complete native API inventory and support table
     Priority: P1
     Severity: Medium
     Area: Docs/Standard Library/Security
@@ -1075,7 +1075,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Native arity tests cover documented signatures.
         - Capability tests match documented requirements.
     Acceptance criteria: There is no undocumented native API exposed to users.
-    Notes: If a native API is experimental, mark it clearly.
+    Notes: Completed on 2026-05-15. Added `docs/STANDARD_LIBRARY.md` as the canonical full native API inventory table generated from runtime builtin registration (`Interpreter::get_builtin_names()`), including signature/arity labels, capability requirements, return/error contract summaries, and examples for every exposed builtin. Added centralized interpreter helpers for canonical native names plus public capability/arity lookup (`Interpreter::native_function_capability`, `Interpreter::native_function_arity`) and routed native dispatch canonicalization through the shared helper to avoid alias drift. Replaced and expanded `tests/stdlib_reference_contract.rs` to enforce full runtime/doc parity (no missing or extra entries, no duplicates, required field coverage, capability-column parity with runtime policy, and centralized arity metadata parity including alias edge cases for `println`, `str`, and `time`). Updated `README.md` and `docs/NATIVE_API_SECURITY_POSTURE.md` to point at the canonical inventory and contract tests. Verification: `cargo test --test stdlib_reference_contract` and `cargo test` passed.
 ```
 
 ```text

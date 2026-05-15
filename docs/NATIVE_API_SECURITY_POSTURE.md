@@ -41,6 +41,8 @@ Capability flags:
 - `--allow-random`
 - `--allow-all`
 
+Per-function capability mapping is tracked in `docs/STANDARD_LIBRARY.md` and contract-tested in `tests/stdlib_reference_contract.rs`.
+
 ## High-Risk Surface Areas
 
 ### Process APIs

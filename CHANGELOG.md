@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `V1-STD-001` native API inventory coverage in `docs/STANDARD_LIBRARY.md` with a complete runtime builtin support table (signature, arity label, return/error contract summary, capability requirement, and example) plus a stronger contract test suite in `tests/stdlib_reference_contract.rs` that locks runtime/doc parity, duplicate prevention, centralized arity metadata alignment, and capability-policy alignment.
 - Added explicit `V1-COMP-001` parity gate artifacts: expanded `docs/VM_INTERPRETER_PARITY_MATRIX.md` status/evidence table, a dedicated CI parity job in `.github/workflows/ci-release-gate.yml` (`cargo test --test vm_interpreter_parity_surfaces`), and new parity regressions for import/export behavior plus explicit unsupported struct generator methods.
 - Added release-gate CI enforcement for `v1.0.0` readiness via new workflow `.github/workflows/ci-release-gate.yml` (PR/main) and release-tag workflow gating in `.github/workflows/release-binaries.yml`, including required `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and `scripts/release_gate.sh` execution.
 - Added `scripts/release_gate.sh` as the shared gate command for release-critical test surfaces, with CI-enabled socket integration coverage via `RUFF_ENABLE_SOCKET_TESTS=1` and optional `cargo audit`/`cargo deny` execution when tools are installed.

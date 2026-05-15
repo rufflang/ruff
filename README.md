@@ -305,7 +305,7 @@ Native functions are registered in `src/interpreter/mod.rs` and dispatched throu
 - Async and concurrency: sleep/timeout promises, async file/HTTP operations, task handles, `Promise.all` aliases, `parallel_map`, shared state, channels, task-pool sizing.
 - Media/archive/crypto/network: image loading, zip/unzip, SHA/MD5, bcrypt, AES, RSA, TCP, and UDP helpers.
 
-The standard library is broad, but not all functions have polished reference documentation yet. When adding user-facing docs for a specific API, verify the handler contract in `src/interpreter/native_functions/` and the corresponding regression tests.
+The complete native API inventory (function signatures, arity labels, capability requirements, and examples) is documented in `docs/STANDARD_LIBRARY.md` and contract-checked against runtime registration in `tests/stdlib_reference_contract.rs`.
 
 High-risk native APIs (process/network/filesystem/crypto/database) are powerful. `ruff run` and `ruff test-run` default to trusted capability mode for local workflows, and can be switched to deny-by-default mode with `--untrusted` plus explicit `--allow-*` capability flags. Review `docs/NATIVE_API_SECURITY_POSTURE.md` before running untrusted scripts or deploying automation in shared environments.
 For archive extraction, `unzip(...)` now rejects unsafe entry paths (absolute paths, `..` traversal components, drive-prefixed names, null-byte names, and symlink entries) and enforces extraction limits (1024 entries, 16 MiB per entry, 64 MiB total uncompressed size).
@@ -422,6 +422,7 @@ These are intentional caveats for production readers rather than fine print:
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md): benchmark and profiling notes.
 - [docs/VM_INSTRUCTIONS.md](docs/VM_INSTRUCTIONS.md): bytecode VM instruction reference.
 - [docs/EXTENDING.md](docs/EXTENDING.md): adding native functionality.
+- [docs/STANDARD_LIBRARY.md](docs/STANDARD_LIBRARY.md): complete native API inventory and support table.
 - [docs/DEPRECATION_POLICY.md](docs/DEPRECATION_POLICY.md): semver-tied deprecation windows and removal policy.
 - [docs/NATIVE_API_SECURITY_POSTURE.md](docs/NATIVE_API_SECURITY_POSTURE.md): trust model and operational caveats for high-risk native APIs.
 
