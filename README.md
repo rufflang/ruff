@@ -150,6 +150,7 @@ Behavior highlights:
 - Enforces canonical root-boundary checks to block path traversal.
 - Validates request targets before filesystem resolution: path/query are parsed separately, fragments are rejected, request paths are percent-decoded exactly once, and malformed percent-encoding or decoded null bytes return `400 Bad Request`.
 - Rejects unsafe decoded traversal paths with `403 Forbidden`, and rejects oversized request targets larger than `4096` bytes with `414 URI Too Long`.
+- Blocks hidden/private path targets by default with `403 Forbidden` (dotfiles/directories such as `.env`, `.git`, `.svn`, `.hg`, `.DS_Store`, plus backup/swap suffixes such as `.bak`, `.backup`, `.tmp`, `.old`, `.orig`, `.swp`, `.swo`, and trailing `~`).
 - Uses no-follow file reads on Unix to reduce symlink race/swap risks.
 - Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
 - Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).

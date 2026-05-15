@@ -954,7 +954,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-HTTP-004: Add dotfile, hidden-file, and private-file policy
+[x] V1-HTTP-004: Add dotfile, hidden-file, and private-file policy
     Priority: P1
     Severity: High
     Area: HTTP/Security
@@ -975,7 +975,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Normal files still served.
         - Optional allow-hidden flag works if added.
     Acceptance criteria: `ruff serve` does not expose common private files by default.
-    Notes: Decide 403 vs 404 once and document it.
+    Notes: Completed on 2026-05-15. Added centralized private-path filtering in `src/serve_http.rs` request-target validation so hidden/private path targets are denied before filesystem resolution with one deterministic policy: `403 Forbidden` for both existing and non-existing blocked targets. The deny policy blocks dotfile/dot-directory path components (including `.env`, `.git`, `.svn`, `.hg`, `.DS_Store`) and backup/swap-like leaf names (`*.bak`, `*.backup`, `*.tmp`, `*.old`, `*.orig`, `*.swp`, `*.swo`, and trailing `~`). Added integration regressions in `tests/serve_command_integration.rs` for `.env`, `.git/config`, `.DS_Store`, backup/swap files, and normal-file success; plus validator unit tests in `src/serve_http.rs` for hidden/private rejection and non-private pass-through. Updated `README.md` static-server hardening docs and `CHANGELOG.md`. Verification: `cargo test serve_http::tests::validate_request_target_ -- --nocapture`, `cargo test --test serve_command_integration serve_ -- --nocapture --test-threads=1`, and `cargo test` passed.
 ```
 
 ```text
