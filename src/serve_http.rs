@@ -1,5 +1,6 @@
 use crate::path_security;
 use std::fs;
+use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -29,10 +30,9 @@ pub struct ServeServerOptions {
     pub max_connections: usize,
 }
 
-#[derive(Debug)]
 struct PlannedResponse {
     status_code: u16,
-    body: Vec<u8>,
+    body: Box<dyn Read + Send>,
     headers: Vec<(String, String)>,
     content_length: Option<usize>,
 }
@@ -132,7 +132,7 @@ pub fn run_static_server(
 
             let planned = build_response(root_dir.as_ref(), options.as_ref(), &request);
             let status_code = planned.status_code;
-            let response_bytes = planned.content_length.unwrap_or_else(|| planned.body.len());
+            let response_bytes = planned.content_length.unwrap_or(0);
             let response = planned_to_http_response(planned);
             let _ = request.respond(response);
 
@@ -199,9 +199,15 @@ impl Drop for ActiveRequestSlotGuard {
     }
 }
 
-fn planned_to_http_response(plan: PlannedResponse) -> Response<std::io::Cursor<Vec<u8>>> {
-    let mut response =
-        Response::from_data(plan.body).with_status_code(StatusCode(plan.status_code));
+fn planned_to_http_response(plan: PlannedResponse) -> tiny_http::ResponseBox {
+    let mut response = Response::new(
+        StatusCode(plan.status_code),
+        Vec::new(),
+        plan.body,
+        plan.content_length,
+        None,
+    )
+    .with_chunked_threshold(usize::MAX);
     if let Some(content_length) = plan.content_length {
         if let Ok(content_length_header) =
             Header::from_bytes("Content-Length".as_bytes(), content_length.to_string().as_bytes())
@@ -302,27 +308,26 @@ fn build_response(
     let accept_encoding = header_value(request.headers(), "Accept-Encoding");
     let selected_target = choose_precompressed_path(&canonical_target, accept_encoding.as_deref());
 
-    let file_bytes = match read_file_nofollow(&selected_target) {
-        Ok(bytes) => bytes,
+    let (mut file, file_len) = match open_file_nofollow(&selected_target) {
+        Ok(file_info) => file_info,
         Err(error) => {
             return headify(status_mapped_error(&error, options, request.secure()), is_head);
         }
     };
 
-    let file_len = file_bytes.len();
     let etag = weak_etag(&selected_target, file_len);
     if let Some(if_none_match) = header_value(request.headers(), "If-None-Match") {
         if if_none_match_matches(&if_none_match, &etag) {
             let mut response = PlannedResponse {
                 status_code: 304,
-                body: Vec::new(),
+                body: boxed_bytes(Vec::new()),
                 headers: Vec::new(),
                 content_length: Some(0),
             };
             add_common_success_headers(
                 &mut response.headers,
                 &selected_target,
-                &file_bytes,
+                &[],
                 Some(&etag),
                 options,
                 request.secure(),
@@ -331,23 +336,27 @@ fn build_response(
         }
     }
 
-    let mut status_code = 200;
-    let mut body = file_bytes;
     if let Some(range_header) = header_value(request.headers(), "Range") {
-        match parse_single_range(&range_header, body.len()) {
+        match parse_single_range(&range_header, file_len) {
             Ok(Some((start, end))) => {
-                status_code = 206;
-                body = body[start..=end].to_vec();
+                let range_len = end - start + 1;
+                if let Err(error) = file.seek(SeekFrom::Start(start as u64)) {
+                    return headify(
+                        status_mapped_error(&error, options, request.secure()),
+                        is_head,
+                    );
+                }
+                let ranged_reader = file.take(range_len as u64);
                 let mut response = PlannedResponse {
-                    status_code,
-                    content_length: Some(end - start + 1),
-                    body,
+                    status_code: 206,
+                    content_length: Some(range_len),
+                    body: Box::new(ranged_reader),
                     headers: Vec::new(),
                 };
                 add_common_success_headers(
                     &mut response.headers,
                     &selected_target,
-                    &response.body,
+                    &[],
                     Some(&etag),
                     options,
                     request.secure(),
@@ -363,7 +372,7 @@ fn build_response(
             Err(_) => {
                 let mut response = PlannedResponse {
                     status_code: 416,
-                    body: b"Range Not Satisfiable".to_vec(),
+                    body: boxed_bytes(b"Range Not Satisfiable".to_vec()),
                     headers: Vec::new(),
                     content_length: Some("Range Not Satisfiable".len()),
                 };
@@ -381,15 +390,15 @@ fn build_response(
     }
 
     let mut response = PlannedResponse {
-        status_code,
-        content_length: Some(body.len()),
-        body,
+        status_code: 200,
+        content_length: Some(file_len),
+        body: Box::new(file),
         headers: Vec::new(),
     };
     add_common_success_headers(
         &mut response.headers,
         &selected_target,
-        &response.body,
+        &[],
         Some(&etag),
         options,
         request.secure(),
@@ -512,7 +521,7 @@ fn static_text_response(
     add_default_security_headers(&mut headers, options, secure);
     PlannedResponse {
         status_code,
-        body: body.as_bytes().to_vec(),
+        body: boxed_bytes(body.as_bytes().to_vec()),
         headers,
         content_length: Some(body.len()),
     }
@@ -633,21 +642,19 @@ fn decode_hex_nibble(byte: u8) -> Option<u8> {
 fn headify(mut response: PlannedResponse, is_head: bool) -> PlannedResponse {
     if is_head {
         if response.content_length.is_none() {
-            response.content_length = Some(response.body.len());
+            response.content_length = Some(0);
         }
-        response.body.clear();
+        response.body = boxed_bytes(Vec::new());
     }
     response
 }
 
-fn read_file_nofollow(path: &Path) -> std::io::Result<Vec<u8>> {
+fn open_file_nofollow(path: &Path) -> std::io::Result<(fs::File, usize)> {
     #[cfg(unix)]
     {
-        use std::io::Read;
         use std::os::unix::fs::OpenOptionsExt;
 
-        let mut file =
-            fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
+        let file = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(path)?;
         let metadata = file.metadata()?;
         if !metadata.is_file() {
             return Err(std::io::Error::new(
@@ -656,13 +663,15 @@ fn read_file_nofollow(path: &Path) -> std::io::Result<Vec<u8>> {
             ));
         }
 
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes)?;
-        Ok(bytes)
+        let file_len = usize::try_from(metadata.len()).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Requested file is too large")
+        })?;
+        Ok((file, file_len))
     }
 
     #[cfg(not(unix))]
     {
+        let file = fs::File::open(path)?;
         let metadata = fs::metadata(path)?;
         if !metadata.is_file() {
             return Err(std::io::Error::new(
@@ -670,8 +679,15 @@ fn read_file_nofollow(path: &Path) -> std::io::Result<Vec<u8>> {
                 "Requested path is not a regular file",
             ));
         }
-        fs::read(path)
+        let file_len = usize::try_from(metadata.len()).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Requested file is too large")
+        })?;
+        Ok((file, file_len))
     }
+}
+
+fn boxed_bytes(bytes: Vec<u8>) -> Box<dyn Read + Send> {
+    Box::new(Cursor::new(bytes))
 }
 
 fn header_value(headers: &[Header], name: &str) -> Option<String> {
@@ -897,6 +913,12 @@ fn log_access(
 mod tests {
     use super::*;
 
+    fn planned_body_bytes(response: &mut PlannedResponse) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        response.body.read_to_end(&mut bytes).expect("planned response body should be readable");
+        bytes
+    }
+
     fn test_options() -> ServeServerOptions {
         ServeServerOptions {
             index: "index.html".to_string(),
@@ -1034,7 +1056,7 @@ mod tests {
     fn static_text_response_includes_extra_headers_and_default_security_headers() {
         let mut options = test_options();
         options.cache_max_age = None;
-        let response = static_text_response(
+        let mut response = static_text_response(
             405,
             "Method Not Allowed",
             &options,
@@ -1043,7 +1065,7 @@ mod tests {
         );
 
         assert_eq!(405, response.status_code);
-        assert_eq!("Method Not Allowed".as_bytes(), response.body.as_slice());
+        assert_eq!("Method Not Allowed".as_bytes(), planned_body_bytes(&mut response).as_slice());
 
         let allow = response
             .headers
@@ -1083,10 +1105,13 @@ mod tests {
         let mut options = test_options();
         options.cache_max_age = None;
         let error = std::io::Error::other("synthetic unexpected io error");
-        let response = status_mapped_error(&error, &options, false);
+        let mut response = status_mapped_error(&error, &options, false);
 
         assert_eq!(500, response.status_code);
-        assert_eq!("Internal Server Error".as_bytes(), response.body.as_slice());
+        assert_eq!(
+            "Internal Server Error".as_bytes(),
+            planned_body_bytes(&mut response).as_slice()
+        );
 
         let content_type = response
             .headers

@@ -78,12 +78,15 @@ fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> Serv
         .expect("failed to spawn ruff serve process");
 
     for _ in 0..100 {
-        if TcpStream::connect((TEST_HOST, port)).is_ok() {
-            return ServeProcess { child, port };
-        }
-
         if let Some(status) = child.try_wait().expect("failed to poll child process") {
             panic!("ruff serve exited before readiness check completed: {}", status);
+        }
+
+        if TcpStream::connect((TEST_HOST, port)).is_ok() {
+            if let Some(status) = child.try_wait().expect("failed to poll child process") {
+                panic!("ruff serve exited before readiness check completed: {}", status);
+            }
+            return ServeProcess { child, port };
         }
 
         thread::sleep(Duration::from_millis(50));
@@ -319,6 +322,76 @@ fn serve_range_returns_partial_content_and_content_range_header() {
         response.headers.get("content-range").expect("expected Content-Range header")
     );
     assert_eq!(b"2345", response.body.as_slice());
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_invalid_range_returns_416_with_content_range_header() {
+    let root = unique_temp_dir("serve_invalid_range");
+    fs::write(root.join("index.html"), b"0123456789").expect("failed to write index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nRange: bytes=50-60\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(416, response.status_code);
+    assert_eq!(
+        "bytes */10",
+        response.headers.get("content-range").expect("expected Content-Range header")
+    );
+    assert_eq!(b"Range Not Satisfiable", response.body.as_slice());
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_large_file_get_returns_expected_content_length_and_body() {
+    let root = unique_temp_dir("serve_large_file_get");
+    let expected_body = vec![b'x'; 2 * 1024 * 1024 + 333];
+    fs::write(root.join("index.html"), &expected_body).expect("failed to write large index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(200, response.status_code);
+    assert_eq!(expected_body.len(), response.body.len());
+    assert_eq!(expected_body.as_slice(), response.body.as_slice());
+    assert_eq!(
+        expected_body.len().to_string(),
+        *response.headers.get("content-length").expect("expected Content-Length header")
+    );
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_large_file_head_returns_content_length_without_body() {
+    let root = unique_temp_dir("serve_large_file_head");
+    let expected_len = 2 * 1024 * 1024 + 333;
+    let expected_body = vec![b'y'; expected_len];
+    fs::write(root.join("index.html"), &expected_body).expect("failed to write large index.html");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "HEAD /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(200, response.status_code);
+    assert_eq!(0, response.body.len(), "HEAD responses should not include body bytes");
+    assert_eq!(
+        expected_len.to_string(),
+        *response.headers.get("content-length").expect("expected Content-Length header")
+    );
 
     drop(server);
     let _ = fs::remove_dir_all(root);
