@@ -363,6 +363,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-12_23-06_v1-fs-001-path-security-centralization.md)
 
+### Listener-level socket timeouts can destabilize `tiny_http` accept loops
+- **Problem:** Enabling socket receive/send timeouts on the listening socket can cause intermittent `ruff serve` process exits and follow-on `Connection refused` test failures.
+- **Rule:** Do not set `SO_RCVTIMEO`/`SO_SNDTIMEO` on the listener for `tiny_http` lifecycle control; prefer server-loop timeout APIs (for example `Server::recv_timeout(...)`) that do not alter accept-loop behavior.
+- **Implication:** If timeout behavior is being hardened in `src/serve_http.rs`, validate full subprocess integration stability (`tests/serve_command_integration.rs`) and not only targeted timeout scenarios.
+
+(Discovered during: 2026-05-15_13-17_v1-http-005-request-header-timeout-connection-limits.md)
+
 ---
 
 ## Mental Model Summary

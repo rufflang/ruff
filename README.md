@@ -103,7 +103,7 @@ The current CLI exposes these subcommands:
 | --- | --- |
 | `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. Native host-effect capability policy can be scoped with `--untrusted` plus `--allow-*` flags (`--allow-fs-read`, `--allow-fs-write`, `--allow-fs-delete`, `--allow-process-exec`, `--allow-shell-exec`, `--allow-env-read`, `--allow-env-write`, `--allow-net-client`, `--allow-net-server`, `--allow-net`, `--allow-database`, `--allow-clock`, `--allow-random`, or `--allow-all`). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
-| `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`). |
+| `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`, `--max-request-line-bytes`, `--max-header-bytes`, `--max-header-count`, `--max-request-body-bytes`, `--read-timeout-ms`, `--write-timeout-ms`, `--max-connections`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
 | `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`, `--json`). |
 | `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |
@@ -151,6 +151,8 @@ Behavior highlights:
 - Validates request targets before filesystem resolution: path/query are parsed separately, fragments are rejected, request paths are percent-decoded exactly once, and malformed percent-encoding or decoded null bytes return `400 Bad Request`.
 - Rejects unsafe decoded traversal paths with `403 Forbidden`, and rejects oversized request targets larger than `4096` bytes with `414 URI Too Long`.
 - Blocks hidden/private path targets by default with `403 Forbidden` (dotfiles/directories such as `.env`, `.git`, `.svn`, `.hg`, `.DS_Store`, plus backup/swap suffixes such as `.bak`, `.backup`, `.tmp`, `.old`, `.orig`, `.swp`, `.swo`, and trailing `~`).
+- Enforces static-server request limits by default: max request line `8192` bytes (`414 URI Too Long`), max combined header bytes `16384` (`413 Payload Too Large`), max header count `100` (`413`), and max request body `1048576` bytes (`413`).
+- Applies configurable timeout/concurrency controls for server hardening (`--read-timeout-ms`, `--write-timeout-ms`, `--max-connections`); requests above the concurrent-handler limit return `503 Service Unavailable`.
 - Uses no-follow file reads on Unix to reduce symlink race/swap risks.
 - Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
 - Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).

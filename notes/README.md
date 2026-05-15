@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-15_13-17_v1-http-005-request-header-timeout-connection-limits.md` — Implemented `ruff serve` request/header/body/concurrency limit hardening (`V1-HTTP-005`) with new CLI knobs, deterministic `413/414/503` limit responses, regression coverage for oversized request surfaces, and an accept-loop timeout gotcha fix for `tiny_http`.
 - `2026-05-15_10-49_v1-http-004-hidden-private-file-policy.md` — Added centralized `ruff serve` hidden/private path blocking (`403`) for dotfile/dot-directory and backup/swap-style targets, plus unit/integration regressions and documented deterministic policy behavior.
 - `2026-05-13_13-22_v1-http-002-static-response-status-headers.md` — Centralized static serve text/error response construction, added `405` `Allow` and non-standard-method `501` handling, tightened default response headers/cache fallback, and expanded live server response-shape regression coverage for V1-HTTP-002.
 - `2026-05-13_12-56_v1-net-001-network-timeout-size-controls.md` — Added centralized network timeout/body-size policy across HTTP/TCP/UDP with deterministic boundary errors, local timeout/oversize regressions, and blocking-reqwest runtime-safety hardening.

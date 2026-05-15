@@ -979,7 +979,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-HTTP-005: Add request size, header size, timeout, and connection limits
+[x] V1-HTTP-005: Add request size, header size, timeout, and connection limits
     Priority: P1
     Severity: High
     Area: HTTP/Security/Performance
@@ -1001,7 +1001,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Timeout behavior tested deterministically where possible.
         - Normal requests still succeed.
     Acceptance criteria: Static server resource use is bounded by documented defaults.
-    Notes: Avoid flaky timeout tests by using very small local controlled sockets.
+    Notes: Completed on 2026-05-15. Added centralized request-limit enforcement in `src/serve_http.rs` for request-line bytes (`414 URI Too Long`), combined header bytes (`413 Payload Too Large`), header count (`413`), and request body bytes (`413`) with configurable defaults (`8192` line bytes, `16384` header bytes, `100` headers, `1048576` body bytes). Added bounded concurrent request-handler limits (`max_connections`, default `128`) with deterministic `503 Service Unavailable` when saturated, plus serve-option validation for zero/invalid limits and timeout settings. Exposed CLI knobs in `src/main.rs`: `--max-request-line-bytes`, `--max-header-bytes`, `--max-header-count`, `--max-request-body-bytes`, `--read-timeout-ms`, `--write-timeout-ms`, and `--max-connections`. Added serve integration regressions in `tests/serve_command_integration.rs` for oversized request lines, oversized header bytes, too-many-headers behavior, and explicit timeout-flag normal-request success; plus unit coverage in `src/serve_http.rs` for timeout/connection option validation contracts. Verification: `cargo test serve_http::tests:: -- --nocapture`, `cargo test --test serve_command_integration serve_ -- --nocapture --test-threads=1`, and `cargo test` passed.
 ```
 
 ```text
