@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-15_17-22_v1-std-001-native-api-inventory.md` — Completed `V1-STD-001` by adding a canonical complete native API inventory table (`docs/STANDARD_LIBRARY.md`), centralizing alias/capability/arity metadata helpers in `Interpreter`, and adding strict runtime/docs parity contract tests for builtin coverage, capability labels, arity labels, and alias edge cases.
 - `2026-05-15_14-21_v1-http-007-mime-registry-coverage.md` — Completed `V1-HTTP-007` by expanding centralized static-serve MIME mappings across missing real-world asset families, tightening `.gz`/`.br` precompressed split behavior to preserve archive MIME contracts, and adding unit/integration regressions for case-insensitive lookup, fallback behavior, double extensions, and dotfile-block precedence.
 - `2026-05-15_13-58_v1-http-006-streaming-range-policy.md` — Implemented `V1-HTTP-006` by streaming `ruff serve` static file bodies from disk (including ranged reads), preserving deterministic `Content-Length` contracts for GET/HEAD, adding large-file and invalid-range regressions, and fixing a subprocess readiness race in serve integration tests.
 - `2026-05-15_13-17_v1-http-005-request-header-timeout-connection-limits.md` — Implemented `ruff serve` request/header/body/concurrency limit hardening (`V1-HTTP-005`) with new CLI knobs, deterministic `413/414/503` limit responses, regression coverage for oversized request surfaces, and an accept-loop timeout gotcha fix for `tiny_http`.
