@@ -19,7 +19,6 @@ pub mod strings;
 pub mod system;
 pub mod type_ops;
 
-use super::capabilities::capability_for_native_function;
 use super::{Interpreter, Value};
 
 /// Main dispatcher that routes native function calls to appropriate category modules
@@ -67,20 +66,15 @@ pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[
         _ => {}
     }
 
-    let canonical_name = match name {
-        "println" => "print",
-        "str" => "to_string",
-        "time" => "current_timestamp",
-        other => other,
-    };
+    let canonical_name = Interpreter::canonical_native_function_name(name);
 
-    if let Some(capability) = capability_for_native_function(canonical_name) {
+    if let Some(capability) = Interpreter::native_function_capability(canonical_name) {
         if let Err(error) = interp.require_capability(capability, canonical_name) {
             return error;
         }
     }
 
-    if let Some(arity) = Interpreter::native_callable_arity(canonical_name) {
+    if let Some(arity) = Interpreter::native_function_arity(canonical_name) {
         if let Err(message) = arity.validate(arg_values.len()) {
             return Value::Error(message);
         }

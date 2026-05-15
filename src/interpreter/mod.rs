@@ -274,6 +274,23 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
+    pub fn canonical_native_function_name(name: &str) -> &str {
+        match name {
+            "println" => "print",
+            "str" => "to_string",
+            "time" => "current_timestamp",
+            other => other,
+        }
+    }
+
+    pub fn native_function_capability(name: &str) -> Option<NativeCapability> {
+        capabilities::capability_for_native_function(Self::canonical_native_function_name(name))
+    }
+
+    pub fn native_function_arity(name: &str) -> Option<CallableArity> {
+        Self::native_callable_arity(Self::canonical_native_function_name(name))
+    }
+
     /// Creates a new interpreter with an empty environment
     pub fn new() -> Self {
         Self::with_capability_policy(RuntimeCapabilityPolicy::trusted())
