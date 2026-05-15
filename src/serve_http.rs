@@ -821,17 +821,25 @@ fn split_content_path_and_encoding(path: &Path) -> (PathBuf, Option<&'static str
     match extension.as_deref() {
         Some("gz") => {
             if let Some(file_stem) = path.file_stem().and_then(|stem| stem.to_str()) {
-                (path.with_file_name(file_stem), Some("gzip"))
+                let stem_path = path.with_file_name(file_stem);
+                if stem_path.extension().is_some() {
+                    return (stem_path, Some("gzip"));
+                }
             } else {
-                (path.to_path_buf(), Some("gzip"))
+                return (path.to_path_buf(), Some("gzip"));
             }
+            (path.to_path_buf(), None)
         }
         Some("br") => {
             if let Some(file_stem) = path.file_stem().and_then(|stem| stem.to_str()) {
-                (path.with_file_name(file_stem), Some("br"))
+                let stem_path = path.with_file_name(file_stem);
+                if stem_path.extension().is_some() {
+                    return (stem_path, Some("br"));
+                }
             } else {
-                (path.to_path_buf(), Some("br"))
+                return (path.to_path_buf(), Some("br"));
             }
+            (path.to_path_buf(), None)
         }
         _ => (path.to_path_buf(), None),
     }
@@ -872,15 +880,22 @@ fn known_mime_for_extension(ext: &str) -> Option<&'static str> {
         "avif" => Some("image/avif"),
         "ico" => Some("image/x-icon"),
         "bmp" => Some("image/bmp"),
+        "tif" | "tiff" => Some("image/tiff"),
         "woff" => Some("font/woff"),
         "woff2" => Some("font/woff2"),
         "ttf" => Some("font/ttf"),
         "otf" => Some("font/otf"),
+        "eot" => Some("application/vnd.ms-fontobject"),
         "mp3" => Some("audio/mpeg"),
         "wav" => Some("audio/wav"),
         "ogg" => Some("audio/ogg"),
         "mp4" => Some("video/mp4"),
         "webm" => Some("video/webm"),
+        "mov" => Some("video/quicktime"),
+        "zip" => Some("application/zip"),
+        "tar" => Some("application/x-tar"),
+        "gz" | "tgz" => Some("application/gzip"),
+        "7z" => Some("application/x-7z-compressed"),
         _ => None,
     }
 }
@@ -966,8 +981,9 @@ mod tests {
     }
 
     #[test]
-    fn guess_content_type_covers_required_web_asset_mappings() {
+    fn guess_content_type_covers_v1_http_007_required_mappings() {
         assert_eq!(guess_content_type(Path::new("index.html"), b""), "text/html; charset=utf-8");
+        assert_eq!(guess_content_type(Path::new("feed.xml"), b""), "application/xml; charset=utf-8");
         assert_eq!(guess_content_type(Path::new("styles.css"), b""), "text/css; charset=utf-8");
         assert_eq!(
             guess_content_type(Path::new("app.js"), b""),
@@ -980,10 +996,21 @@ mod tests {
         assert_eq!(guess_content_type(Path::new("image.png"), b""), "image/png");
         assert_eq!(guess_content_type(Path::new("image.jpg"), b""), "image/jpeg");
         assert_eq!(guess_content_type(Path::new("vector.svg"), b""), "image/svg+xml");
+        assert_eq!(guess_content_type(Path::new("scan.tiff"), b""), "image/tiff");
         assert_eq!(guess_content_type(Path::new("app.wasm"), b""), "application/wasm");
+        assert_eq!(
+            guess_content_type(Path::new("legacy.eot"), b""),
+            "application/vnd.ms-fontobject"
+        );
         assert_eq!(guess_content_type(Path::new("font.woff2"), b""), "font/woff2");
+        assert_eq!(guess_content_type(Path::new("song.mp3"), b""), "audio/mpeg");
+        assert_eq!(guess_content_type(Path::new("movie.mov"), b""), "video/quicktime");
         assert_eq!(guess_content_type(Path::new("manual.pdf"), b""), "application/pdf");
         assert_eq!(guess_content_type(Path::new("notes.txt"), b""), "text/plain; charset=utf-8");
+        assert_eq!(guess_content_type(Path::new("archive.tar"), b""), "application/x-tar");
+        assert_eq!(guess_content_type(Path::new("archive.7z"), b""), "application/x-7z-compressed");
+        assert_eq!(guess_content_type(Path::new("archive.tgz"), b""), "application/gzip");
+        assert_eq!(guess_content_type(Path::new("archive.gz"), b""), "application/gzip");
     }
 
     #[test]
@@ -1009,6 +1036,29 @@ mod tests {
             guess_content_type(Path::new("payload.unknown"), html_bytes),
             "application/octet-stream"
         );
+    }
+
+    #[test]
+    fn guess_content_type_uses_last_extension_for_double_extension_fallback() {
+        assert_eq!(
+            guess_content_type(Path::new("payload.js.unknown"), b"console.log('nope')"),
+            "application/octet-stream"
+        );
+    }
+
+    #[test]
+    fn split_content_path_and_encoding_only_treats_multi_extension_files_as_precompressed() {
+        let (content_path, encoding) = split_content_path_and_encoding(Path::new("index.html.gz"));
+        assert_eq!(Path::new("index.html"), content_path.as_path());
+        assert_eq!(Some("gzip"), encoding);
+
+        let (content_path, encoding) = split_content_path_and_encoding(Path::new("archive.gz"));
+        assert_eq!(Path::new("archive.gz"), content_path.as_path());
+        assert_eq!(None, encoding);
+
+        let (content_path, encoding) = split_content_path_and_encoding(Path::new("bundle.tar.br"));
+        assert_eq!(Path::new("bundle.tar"), content_path.as_path());
+        assert_eq!(Some("br"), encoding);
     }
 
     #[test]

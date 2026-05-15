@@ -455,16 +455,27 @@ fn serve_mime_policy_covers_known_unknown_and_extensionless_assets() {
     fs::write(root.join("index.html"), "<h1>home</h1>").expect("failed to write html");
     fs::write(root.join("styles.css"), "body { color: black; }").expect("failed to write css");
     fs::write(root.join("app.js"), "console.log('ruff');").expect("failed to write js");
+    fs::write(root.join("feed.xml"), "<root/>").expect("failed to write xml");
     fs::write(root.join("data.json"), "{\"ok\":true}").expect("failed to write json");
     fs::write(root.join("image.png"), [137, 80, 78, 71, 13, 10, 26, 10])
         .expect("failed to write png");
     fs::write(root.join("photo.jpg"), [0xff, 0xd8, 0xff, 0xd9]).expect("failed to write jpg");
+    fs::write(root.join("scan.tif"), [0x49, 0x49, 0x2a, 0x00]).expect("failed to write tif");
     fs::write(root.join("vector.SVG"), "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>")
         .expect("failed to write svg");
     fs::write(root.join("mod.wasm"), [0x00, 0x61, 0x73, 0x6d]).expect("failed to write wasm");
+    fs::write(root.join("legacy.eot"), [0x4c, 0x50]).expect("failed to write eot");
     fs::write(root.join("font.woff2"), [0x77, 0x4f, 0x46, 0x32]).expect("failed to write woff2");
+    fs::write(root.join("song.mp3"), [0x49, 0x44, 0x33]).expect("failed to write mp3");
+    fs::write(root.join("video.MOV"), [0x00, 0x00, 0x00, 0x14]).expect("failed to write mov");
+    fs::write(root.join("archive.zip"), [0x50, 0x4b, 0x03, 0x04]).expect("failed to write zip");
+    fs::write(root.join("bundle.tar"), [0x75, 0x73, 0x74, 0x61]).expect("failed to write tar");
+    fs::write(root.join("bundle.tgz"), [0x1f, 0x8b, 0x08]).expect("failed to write tgz");
+    fs::write(root.join("bundle.7z"), [0x37, 0x7a, 0xbc, 0xaf]).expect("failed to write 7z");
     fs::write(root.join("doc.pdf"), b"%PDF-1.4").expect("failed to write pdf");
     fs::write(root.join("notes.txt"), "hello").expect("failed to write txt");
+    fs::write(root.join("payload.js.unknown"), "console.log('blocked sniff');")
+        .expect("failed to write double extension payload");
     fs::write(root.join("payload.unknown"), "<!DOCTYPE html><script>alert(1)</script>")
         .expect("failed to write unknown");
     fs::write(root.join("LICENSE"), "license text").expect("failed to write extensionless file");
@@ -474,14 +485,24 @@ fn serve_mime_policy_covers_known_unknown_and_extensionless_assets() {
         ("/index.html", "text/html; charset=utf-8"),
         ("/styles.css", "text/css; charset=utf-8"),
         ("/app.js", "application/javascript; charset=utf-8"),
+        ("/feed.xml", "application/xml; charset=utf-8"),
         ("/data.json", "application/json; charset=utf-8"),
         ("/image.png", "image/png"),
         ("/photo.jpg", "image/jpeg"),
+        ("/scan.tif", "image/tiff"),
         ("/vector.SVG", "image/svg+xml"),
         ("/mod.wasm", "application/wasm"),
+        ("/legacy.eot", "application/vnd.ms-fontobject"),
         ("/font.woff2", "font/woff2"),
+        ("/song.mp3", "audio/mpeg"),
+        ("/video.MOV", "video/quicktime"),
+        ("/archive.zip", "application/zip"),
+        ("/bundle.tar", "application/x-tar"),
+        ("/bundle.tgz", "application/gzip"),
+        ("/bundle.7z", "application/x-7z-compressed"),
         ("/doc.pdf", "application/pdf"),
         ("/notes.txt", "text/plain; charset=utf-8"),
+        ("/payload.js.unknown", "application/octet-stream"),
         ("/payload.unknown", "application/octet-stream"),
         ("/LICENSE", "application/octet-stream"),
     ];
@@ -506,6 +527,28 @@ fn serve_mime_policy_covers_known_unknown_and_extensionless_assets() {
                 .unwrap_or_else(|| panic!("expected nosniff header for {}", path))
         );
     }
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn serve_dotfile_blocking_takes_priority_over_known_extension_mime_resolution() {
+    let root = unique_temp_dir("serve_mime_dotfile_priority");
+    fs::write(root.join("index.html"), "<h1>home</h1>").expect("failed to write index");
+    fs::write(root.join(".hidden.json"), "{\"secret\":true}").expect("failed to write dotfile");
+
+    let server = spawn_serve_process(&root);
+    let response = send_http_request(
+        server.port,
+        "GET /.hidden.json HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+
+    assert_eq!(403, response.status_code);
+    assert_eq!(
+        "text/plain; charset=utf-8",
+        response.headers.get("content-type").expect("expected Content-Type header")
+    );
 
     drop(server);
     let _ = fs::remove_dir_all(root);
