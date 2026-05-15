@@ -279,6 +279,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_23-02_v1-ci-001-release-gate-enforcement.md)
 
+### Subprocess serve-readiness checks can false-positive under parallel test port races
+- **Problem:** A test can incorrectly treat a different process as its spawned server readiness signal and later fail with `Connection refused`.
+- **Rule:** In readiness loops, check child liveness both before and after successful port-connect probes.
+- **Implication:** Keep `tests/serve_command_integration.rs` readiness checks process-aware, not port-only.
+
+(Discovered during: 2026-05-15_13-58_v1-http-006-streaming-range-policy.md)
+
 ### Blocking reqwest clients can panic when used on Tokio runtime threads
 - **Problem:** Network calls can panic with `Cannot drop a runtime in a context where blocking is not allowed` when `reqwest::blocking` is created/dropped in runtime-managed execution paths.
 - **Rule:** Route blocking HTTP execution through a dedicated OS thread (or use a fully async client path) before applying request/response policy logic.

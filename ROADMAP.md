@@ -1005,7 +1005,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-HTTP-006: Stream large files and define range-request policy
+[x] V1-HTTP-006: Stream large files and define range-request policy
     Priority: P2
     Severity: Medium
     Area: HTTP/Performance
@@ -1024,7 +1024,7 @@ If a command is not yet available, create the missing configuration as part of t
         - HEAD large file does not read whole body.
         - Range supported or rejected according to docs.
     Acceptance criteria: Static serving does not require loading entire files into memory.
-    Notes: Range support is useful but can be deferred if rejection is explicit and tested.
+    Notes: Completed on 2026-05-15. `src/serve_http.rs` now streams static file bodies from file handles (including ranged reads via seek + bounded reader) instead of buffering entire files in memory before response construction, while preserving deterministic `Content-Length` for `GET` and `HEAD` responses. Range policy remains explicit and tested: valid single-range requests return `206` with `Content-Range`, and invalid ranges return deterministic `416` with `Content-Range: bytes */<len>`. Added integration regressions in `tests/serve_command_integration.rs` for large-file GET/HEAD contracts and invalid-range handling. Verification: `cargo test --test serve_command_integration -- --nocapture --test-threads=1`, `cargo test serve_http::tests:: -- --nocapture`, and `cargo test` passed.
 ```
 
 ```text

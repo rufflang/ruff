@@ -154,6 +154,7 @@ Behavior highlights:
 - Enforces static-server request limits by default: max request line `8192` bytes (`414 URI Too Long`), max combined header bytes `16384` (`413 Payload Too Large`), max header count `100` (`413`), and max request body `1048576` bytes (`413`).
 - Applies configurable timeout/concurrency controls for server hardening (`--read-timeout-ms`, `--write-timeout-ms`, `--max-connections`); requests above the concurrent-handler limit return `503 Service Unavailable`.
 - Uses no-follow file reads on Unix to reduce symlink race/swap risks.
+- Streams static file bodies from disk instead of buffering whole files in memory, while preserving deterministic `Content-Length` for `GET` and `HEAD`.
 - Returns deterministic status mapping for common file errors (`404`, `403`, `500`).
 - Adds ETag-based conditional responses (`304`) and single-range byte serving (`206`/`416`).
 - Detects and serves precompressed sibling assets (`.br`, `.gz`) when accepted.
