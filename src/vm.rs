@@ -10,6 +10,7 @@ use crate::interpreter::{
     Interpreter, NativeCapability, RuntimeCapabilityPolicy, Value,
 };
 use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler, UnsupportedJitSurface};
+use crate::runtime_limits;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
@@ -5077,6 +5078,15 @@ impl VM {
     /// Set up a call frame for a bytecode function (doesn't return - Return opcode will handle that)
     fn call_bytecode_function(&mut self, function: Value, args: Vec<Value>) -> Result<(), String> {
         if let Value::BytecodeFunction { chunk, captured } = function {
+            let max_depth = runtime_limits::DEFAULT_MAX_VM_CALL_DEPTH;
+            if self.call_frames.len() >= max_depth || self.recursion_depth >= max_depth {
+                let callable = chunk.name.as_deref().unwrap_or("<anonymous>");
+                return Err(format!(
+                    "Maximum VM call stack depth of {} exceeded while calling {}",
+                    max_depth, callable
+                ));
+            }
+
             // Create new call frame with parameters bound
             let mut locals = HashMap::new();
             let mut locals_binding_kinds = HashMap::new();
@@ -8373,6 +8383,45 @@ mod tests {
         match run_vm_code(code) {
             Ok(value) => panic!("Expected runtime error, got value: {:?}", value),
             Err(error) => assert!(error.contains("Missing map key")),
+        }
+    }
+
+    #[test]
+    fn test_vm_recursion_boundary_succeeds() {
+        let code = r#"
+            func countdown(n) {
+                if n == 0 {
+                    return 0
+                }
+                return 1 + countdown(n - 1)
+            }
+
+            return countdown(64)
+        "#;
+
+        match run_vm_code(code) {
+            Ok(Value::Int(value)) => assert_eq!(value, 64),
+            Ok(other) => panic!("Expected int 64, got: {:?}", other),
+            Err(error) => panic!("Expected recursion boundary success, got VM error: {}", error),
+        }
+    }
+
+    #[test]
+    fn test_vm_recursion_exceeding_limit_errors() {
+        let code = r#"
+            func loop_forever(n) {
+                return loop_forever(n + 1)
+            }
+
+            return loop_forever(0)
+        "#;
+
+        match run_vm_code(code) {
+            Ok(value) => panic!("Expected call stack depth error, got value: {:?}", value),
+            Err(error) => assert!(error.contains(&format!(
+                "Maximum VM call stack depth of {} exceeded",
+                runtime_limits::DEFAULT_MAX_VM_CALL_DEPTH
+            ))),
         }
     }
 

@@ -187,7 +187,8 @@ fn parser_recovery_reports_multiple_independent_errors() {
 
 #[test]
 fn parser_reports_expression_depth_limit_for_parenthesized_expressions() {
-    let limits = ParserLimits { max_expression_depth: 8, max_block_depth: 64 };
+    let limits =
+        ParserLimits { max_expression_depth: 8, max_block_depth: 64, ..ParserLimits::default() };
     let output = parse_output_with_limits(&nested_parenthesized_expression(16), limits);
     assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
         .message
@@ -196,7 +197,8 @@ fn parser_reports_expression_depth_limit_for_parenthesized_expressions() {
 
 #[test]
 fn parser_reports_expression_depth_limit_for_nested_array_literals() {
-    let limits = ParserLimits { max_expression_depth: 6, max_block_depth: 64 };
+    let limits =
+        ParserLimits { max_expression_depth: 6, max_block_depth: 64, ..ParserLimits::default() };
     let output = parse_output_with_limits(&nested_array_literal(12), limits);
     assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
         .message
@@ -205,7 +207,8 @@ fn parser_reports_expression_depth_limit_for_nested_array_literals() {
 
 #[test]
 fn parser_reports_block_depth_limit_for_nested_if_blocks() {
-    let limits = ParserLimits { max_expression_depth: 64, max_block_depth: 4 };
+    let limits =
+        ParserLimits { max_expression_depth: 64, max_block_depth: 4, ..ParserLimits::default() };
     let output = parse_output_with_limits(&nested_if_blocks(8), limits);
     assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
         .message
@@ -214,11 +217,41 @@ fn parser_reports_block_depth_limit_for_nested_if_blocks() {
 
 #[test]
 fn parser_accepts_expression_depth_at_limit_boundary() {
-    let limits = ParserLimits { max_expression_depth: 16, max_block_depth: 64 };
+    let limits =
+        ParserLimits { max_expression_depth: 16, max_block_depth: 64, ..ParserLimits::default() };
     let output = parse_output_with_limits(&nested_parenthesized_expression(6), limits);
     assert!(
         output.diagnostics.is_empty(),
         "expected no diagnostics at boundary-safe expression depth, got {:?}",
+        output.diagnostics
+    );
+}
+
+#[test]
+fn parser_reports_collection_literal_limit_for_array() {
+    let limits = ParserLimits { max_collection_literal_items: 4, ..ParserLimits::default() };
+    let output = parse_output_with_limits("[1, 2, 3, 4, 5]\n", limits);
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Array literal exceeds maximum element count of 4")));
+}
+
+#[test]
+fn parser_reports_collection_literal_limit_for_dictionary() {
+    let limits = ParserLimits { max_collection_literal_items: 3, ..ParserLimits::default() };
+    let output = parse_output_with_limits("{\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}\n", limits);
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Dictionary literal exceeds maximum item count of 3")));
+}
+
+#[test]
+fn parser_accepts_collection_literal_at_limit_boundary() {
+    let limits = ParserLimits { max_collection_literal_items: 5, ..ParserLimits::default() };
+    let output = parse_output_with_limits("[1, 2, 3, 4, 5]\n", limits);
+    assert!(
+        output.diagnostics.is_empty(),
+        "expected no diagnostics at collection literal boundary, got {:?}",
         output.diagnostics
     );
 }

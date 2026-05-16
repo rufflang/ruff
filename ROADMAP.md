@@ -1227,7 +1227,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-PERF-003: Add memory and resource exhaustion safeguards
+[x] V1-PERF-003: Add memory and resource exhaustion safeguards
     Priority: P1
     Severity: High
     Area: Security/Performance/Runtime
@@ -1247,7 +1247,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Boundary-at-limit success tests.
         - Config override tests if overrides exist.
     Acceptance criteria: Untrusted input cannot force unbounded memory/CPU use without hitting a documented limit.
-    Notes: Infinite loop timeouts are optional for trusted local execution, but recursion and allocation limits are required.
+    Notes: Completed on 2026-05-16. Added centralized runtime/resource defaults in `src/runtime_limits.rs` and wired parser/runtime/native surfaces to use them: source-size (`1,048,576` bytes), string-literal length (`8,192`), collection-literal item count (`4,096`), interpreter call-depth (`32`), VM call-depth (`256`), and shared native IO bounds (`8 MiB`) reused by filesystem/network policy modules. Parser now reports deterministic collection-literal diagnostics for oversized array/dictionary literals, interpreter function-entry guardrails now fail with explicit call-depth errors before unbounded recursion, and VM bytecode function calls now fail with deterministic max-depth errors. Added regression coverage in `tests/parser_diagnostics_contract.rs`, `src/interpreter/mod.rs` unit tests, and `src/vm.rs` VM tests, plus centralized-limit contract alignment in `tests/native_api_security_boundaries.rs`. Verification: targeted parser/interpreter/VM/native-IO limit tests and full `cargo test`.
 ```
 
 ### Phase 9: Test Coverage, Fuzzing, And Regression Gates

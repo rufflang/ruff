@@ -1,3 +1,4 @@
+use crate::runtime_limits;
 use reqwest::blocking::{Client, Response};
 use std::io::Read;
 use std::net::{TcpStream, ToSocketAddrs, UdpSocket};
@@ -7,7 +8,7 @@ pub const DEFAULT_NETWORK_CONNECT_TIMEOUT_MS: u64 = 10_000;
 pub const DEFAULT_NETWORK_READ_TIMEOUT_MS: u64 = 30_000;
 pub const DEFAULT_NETWORK_WRITE_TIMEOUT_MS: u64 = 30_000;
 pub const DEFAULT_HTTP_TIMEOUT_MS: u64 = 30_000;
-pub const MAX_NETWORK_BODY_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_NETWORK_BODY_BYTES: usize = runtime_limits::MAX_NETWORK_BODY_BYTES;
 
 pub fn run_blocking_http_task<T, F>(surface: &str, task: F) -> Result<T, String>
 where

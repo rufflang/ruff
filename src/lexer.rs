@@ -4,10 +4,11 @@
 // Converts source code text into a stream of tokens for parsing.
 
 use crate::errors::{Diagnostic, DiagnosticSeverity, DiagnosticSubsystem, DIAGNOSTIC_CODE_LEXER};
+use crate::runtime_limits;
 use std::num::IntErrorKind;
 
 pub const MAX_IDENTIFIER_LENGTH: usize = 256;
-pub const MAX_STRING_LITERAL_LENGTH: usize = 8192;
+pub const MAX_STRING_LITERAL_LENGTH: usize = runtime_limits::DEFAULT_MAX_STRING_LITERAL_LENGTH;
 pub const MAX_NUMERIC_LITERAL_LENGTH: usize = 512;
 
 #[derive(Debug, Clone, PartialEq)]

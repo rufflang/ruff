@@ -32,6 +32,7 @@ mod package_workflow;
 mod parser;
 mod path_security;
 mod repl;
+mod runtime_limits;
 mod serve_http;
 mod type_checker;
 mod vm;

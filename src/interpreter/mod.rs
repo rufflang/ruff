@@ -46,6 +46,7 @@ use crate::ast::{Expr, Stmt};
 use crate::builtins;
 use crate::errors::{unsupported_struct_generator_method_message, RuffError};
 use crate::module::ModuleLoader;
+use crate::runtime_limits;
 
 // Infrastructure imports for stub modules (crypto.rs, database.rs, network.rs)
 // These will be used when stub modules are fully implemented
@@ -106,6 +107,57 @@ enum SpawnCapturedValue {
     DenseIntDictIntFull(Vec<i64>),
     Result { is_ok: bool, value: Box<SpawnCapturedValue> },
     Option { is_some: bool, value: Box<SpawnCapturedValue> },
+}
+
+#[cfg(test)]
+mod runtime_limit_tests {
+    use super::*;
+
+    #[test]
+    fn function_context_rejects_depth_at_limit() {
+        let mut interpreter = Interpreter::new();
+        interpreter.function_depth = runtime_limits::DEFAULT_MAX_INTERPRETER_CALL_DEPTH;
+
+        let result = interpreter.with_function_context("limit_probe", |_interp| ());
+        assert!(matches!(
+            result,
+            Err(Value::Error(message))
+                if message.contains(&format!(
+                    "Maximum call stack depth of {} exceeded",
+                    runtime_limits::DEFAULT_MAX_INTERPRETER_CALL_DEPTH
+                ))
+        ));
+    }
+
+    #[test]
+    fn function_context_rejects_call_stack_at_limit() {
+        let mut interpreter = Interpreter::new();
+        interpreter.call_stack =
+            vec!["call".to_string(); runtime_limits::DEFAULT_MAX_INTERPRETER_CALL_DEPTH];
+
+        let result = interpreter.with_function_context("stack_limit_probe", |_interp| ());
+        assert!(matches!(
+            result,
+            Err(Value::Error(message))
+                if message.contains(&format!(
+                    "Maximum call stack depth of {} exceeded",
+                    runtime_limits::DEFAULT_MAX_INTERPRETER_CALL_DEPTH
+                ))
+        ));
+    }
+
+    #[test]
+    fn function_context_allows_boundary_minus_one() {
+        let mut interpreter = Interpreter::new();
+        interpreter.function_depth = runtime_limits::DEFAULT_MAX_INTERPRETER_CALL_DEPTH - 1;
+
+        let result = interpreter.with_function_context("boundary_probe", |_interp| 42);
+        assert!(matches!(result, Ok(42)));
+        assert_eq!(
+            interpreter.function_depth,
+            runtime_limits::DEFAULT_MAX_INTERPRETER_CALL_DEPTH - 1
+        );
+    }
 }
 
 impl SpawnCapturedValue {
@@ -364,11 +416,23 @@ impl Interpreter {
         previous_size
     }
 
-    fn with_function_context<T>(&mut self, body: impl FnOnce(&mut Self) -> T) -> T {
+    fn with_function_context<T>(
+        &mut self,
+        callable_name: &str,
+        body: impl FnOnce(&mut Self) -> T,
+    ) -> Result<T, Value> {
+        let max_depth = runtime_limits::DEFAULT_MAX_INTERPRETER_CALL_DEPTH;
+        if self.function_depth >= max_depth || self.call_stack.len() >= max_depth {
+            return Err(Value::Error(format!(
+                "Maximum call stack depth of {} exceeded while calling {}",
+                max_depth, callable_name
+            )));
+        }
+
         self.function_depth += 1;
         let result = body(self);
         self.function_depth = self.function_depth.saturating_sub(1);
-        result
+        Ok(result)
     }
 
     fn with_loop_context<T>(&mut self, body: impl FnOnce(&mut Self) -> T) -> T {
@@ -1513,7 +1577,16 @@ impl Interpreter {
                     }
 
                     // Execute function body
-                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                    if let Err(error) = self
+                        .with_function_context("<anonymous function>", |interp| {
+                            interp.eval_stmts(&body.get())
+                        })
+                    {
+                        self.env.pop_scope();
+                        self.env = saved_env;
+                        self.call_stack.pop();
+                        return error;
+                    }
 
                     // Get return value
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -1556,7 +1629,15 @@ impl Interpreter {
                     }
 
                     // Execute function body
-                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                    if let Err(error) = self
+                        .with_function_context("<anonymous function>", |interp| {
+                            interp.eval_stmts(&body.get())
+                        })
+                    {
+                        self.env.pop_scope();
+                        self.call_stack.pop();
+                        return error;
+                    }
 
                     // Get return value
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
@@ -1633,7 +1714,14 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                    if let Err(error) = self
+                        .with_function_context(&format!("{}.{}", name, method_name), |interp| {
+                            interp.eval_stmts(&body.get())
+                        })
+                    {
+                        self.env.pop_scope();
+                        return Some(error);
+                    }
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -1688,7 +1776,14 @@ impl Interpreter {
                     }
 
                     // Execute method body
-                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                    if let Err(error) = self
+                        .with_function_context(&format!("{}.{}", name, method_name), |interp| {
+                            interp.eval_stmts(&body.get())
+                        })
+                    {
+                        self.env.pop_scope();
+                        return Some(error);
+                    }
 
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
@@ -1874,12 +1969,23 @@ impl Interpreter {
                         self.env.define(param.clone(), req_obj);
                     }
 
-                    self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                    if let Err(error) = self
+                        .with_function_context("<http route handler>", |interp| {
+                            interp.eval_stmts(&body.get())
+                        })
+                    {
+                        self.return_value = Some(error);
+                    }
 
                     // Get result
                     let result = if let Some(Value::Return(val)) = self.return_value.clone() {
                         self.return_value = None;
                         *val
+                    } else if let Some(Value::Error(message)) = self.return_value.clone() {
+                        self.return_value = None;
+                        Value::Error(message)
+                    } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                        self.return_value.clone().unwrap()
                     } else {
                         self.return_value = None;
                         Value::HttpResponse {
@@ -1905,6 +2011,10 @@ impl Interpreter {
                         }
 
                         response_to_send = Some(response);
+                    } else if let Value::Error(_) | Value::ErrorObject { .. } = result {
+                        response_to_send = Some(
+                            Response::from_string("Internal Server Error").with_status_code(500),
+                        );
                     } else {
                         // Handler didn't return HttpResponse
                         response_to_send = Some(
@@ -3656,11 +3766,24 @@ impl Interpreter {
                             }
 
                             // Execute function body
-                            self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                            if let Err(error) = self
+                                .with_function_context("<pipe function>", |interp| {
+                                    interp.eval_stmts(&body.get())
+                                })
+                            {
+                                self.return_value = Some(error);
+                            }
                             let mut result = Value::Null;
                             if let Some(Value::Return(val)) = self.return_value.clone() {
                                 self.return_value = None;
                                 result = *val;
+                            } else if let Some(Value::Error(message)) = self.return_value.clone() {
+                                self.return_value = None;
+                                result = Value::Error(message);
+                            } else if let Some(Value::ErrorObject { .. }) =
+                                self.return_value.clone()
+                            {
+                                result = self.return_value.clone().unwrap();
                             }
 
                             // Restore environment if we changed it
@@ -4136,7 +4259,13 @@ impl Interpreter {
                                 }
 
                                 // Execute method body
-                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                                if let Err(error) = self.with_function_context(
+                                    &format!("{}.{}", name, field),
+                                    |interp| interp.eval_stmts(&body.get()),
+                                ) {
+                                    self.env.pop_scope();
+                                    return error;
+                                }
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
                                 {
@@ -4222,7 +4351,16 @@ impl Interpreter {
                                 }
                             }
 
-                            self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                            if let Err(error) = self
+                                .with_function_context(callable_name.as_str(), |interp| {
+                                    interp.eval_stmts(&body.get())
+                                })
+                            {
+                                self.env.pop_scope();
+                                self.env = saved_env;
+                                self.call_stack.pop();
+                                return error;
+                            }
 
                             let result = if let Some(Value::Return(val)) = self.return_value.clone()
                             {
@@ -4256,7 +4394,15 @@ impl Interpreter {
                                 }
                             }
 
-                            self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                            if let Err(error) = self
+                                .with_function_context(callable_name.as_str(), |interp| {
+                                    interp.eval_stmts(&body.get())
+                                })
+                            {
+                                self.env.pop_scope();
+                                self.call_stack.pop();
+                                return error;
+                            }
 
                             let result = if let Some(Value::Return(val)) = self.return_value.clone()
                             {
@@ -4322,16 +4468,22 @@ impl Interpreter {
                             }
 
                             // Execute the async function body
-                            async_interpreter
-                                .with_function_context(|interp| interp.eval_stmts(&body.get()));
+                            if let Err(error) = async_interpreter
+                                .with_function_context("<async function>", |interp| {
+                                    interp.eval_stmts(&body.get())
+                                })
+                            {
+                                let _ = tx.send(Ok(error));
+                                return Value::Null;
+                            }
 
                             // Get the return value
-                            let result =
-                                if let Some(Value::Return(val)) = async_interpreter.return_value {
-                                    *val
-                                } else {
-                                    Value::Null
-                                };
+                            let result = match async_interpreter.return_value.clone() {
+                                Some(Value::Return(val)) => *val,
+                                Some(Value::Error(message)) => Value::Error(message),
+                                Some(value @ Value::ErrorObject { .. }) => value,
+                                _ => Value::Null,
+                            };
 
                             // Send the result back
                             let _ = tx.send(Ok(result));
@@ -4437,7 +4589,16 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                                if let Err(error) = self
+                                    .with_function_context(name.as_str(), |interp| {
+                                        interp.eval_stmts(&body.get())
+                                    })
+                                {
+                                    self.env.pop_scope();
+                                    self.env = saved_env;
+                                    self.call_stack.pop();
+                                    return error;
+                                }
 
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
@@ -4477,7 +4638,15 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                                if let Err(error) = self
+                                    .with_function_context(name.as_str(), |interp| {
+                                        interp.eval_stmts(&body.get())
+                                    })
+                                {
+                                    self.env.pop_scope();
+                                    self.call_stack.pop();
+                                    return error;
+                                }
 
                                 let result = if let Some(Value::Return(val)) =
                                     self.return_value.clone()
@@ -5265,7 +5434,13 @@ impl Interpreter {
                                     }
                                 }
 
-                                self.with_function_context(|interp| interp.eval_stmts(&body.get()));
+                                if let Err(error) = self.with_function_context(
+                                    &format!("{}.{}", name, method),
+                                    |interp| interp.eval_stmts(&body.get()),
+                                ) {
+                                    self.env.pop_scope();
+                                    return error;
+                                }
 
                                 let result =
                                     if let Some(Value::Return(value)) = self.return_value.clone() {

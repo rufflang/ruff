@@ -3,6 +3,7 @@
 // Filesystem operation native functions
 
 use crate::interpreter::{AsyncRuntime, Interpreter, Value};
+use crate::runtime_limits;
 use crate::{builtins, interpreter::DictMap, path_security};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -13,8 +14,8 @@ use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 const ZIP_UNIX_FILE_TYPE_MASK: u32 = 0o170000;
 const ZIP_UNIX_SYMLINK_FILE_TYPE: u32 = 0o120000;
-const MAX_FILE_READ_BYTES: u64 = 8 * 1024 * 1024;
-const MAX_FILE_WRITE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_FILE_READ_BYTES: u64 = runtime_limits::MAX_FILE_IO_BYTES as u64;
+const MAX_FILE_WRITE_BYTES: usize = runtime_limits::MAX_FILE_IO_BYTES;
 
 #[derive(Clone, Copy)]
 struct ZipExtractionLimits {

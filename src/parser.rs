@@ -20,14 +20,17 @@ use crate::errors::{
     DIAGNOSTIC_CODE_PARSER,
 };
 use crate::lexer::{Token, TokenKind};
+use crate::runtime_limits;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
-pub const DEFAULT_MAX_SOURCE_BYTES: usize = 1_048_576;
-pub const DEFAULT_MAX_EXPRESSION_DEPTH: usize = 256;
-pub const DEFAULT_MAX_BLOCK_DEPTH: usize = 128;
+pub const DEFAULT_MAX_SOURCE_BYTES: usize = runtime_limits::DEFAULT_MAX_SOURCE_BYTES;
+pub const DEFAULT_MAX_EXPRESSION_DEPTH: usize = runtime_limits::DEFAULT_MAX_EXPRESSION_DEPTH;
+pub const DEFAULT_MAX_BLOCK_DEPTH: usize = runtime_limits::DEFAULT_MAX_BLOCK_DEPTH;
+pub const DEFAULT_MAX_COLLECTION_LITERAL_ITEMS: usize =
+    runtime_limits::DEFAULT_MAX_COLLECTION_LITERAL_ITEMS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseDiagnostic {
@@ -110,6 +113,7 @@ pub struct AstNodeSpan {
 pub struct ParserLimits {
     pub max_expression_depth: usize,
     pub max_block_depth: usize,
+    pub max_collection_literal_items: usize,
 }
 
 impl Default for ParserLimits {
@@ -117,6 +121,7 @@ impl Default for ParserLimits {
         Self {
             max_expression_depth: DEFAULT_MAX_EXPRESSION_DEPTH,
             max_block_depth: DEFAULT_MAX_BLOCK_DEPTH,
+            max_collection_literal_items: DEFAULT_MAX_COLLECTION_LITERAL_ITEMS,
         }
     }
 }
@@ -130,6 +135,7 @@ pub struct Parser {
     block_depth: usize,
     max_expression_depth: usize,
     max_block_depth: usize,
+    max_collection_literal_items: usize,
     ast_spans: Vec<AstNodeSpan>,
 }
 
@@ -148,6 +154,7 @@ impl Parser {
             block_depth: 0,
             max_expression_depth: limits.max_expression_depth,
             max_block_depth: limits.max_block_depth,
+            max_collection_literal_items: limits.max_collection_literal_items,
             ast_spans: Vec::new(),
         }
     }
@@ -1883,9 +1890,23 @@ impl Parser {
                 self.advance(); // consume ...
                 if let Some(expr) = self.parse_equality() {
                     elements.push(crate::ast::ArrayElement::Spread(expr));
+                    if elements.len() > self.max_collection_literal_items {
+                        self.push_diagnostic(format!(
+                            "Array literal exceeds maximum element count of {}",
+                            self.max_collection_literal_items
+                        ));
+                        return None;
+                    }
                 }
             } else if let Some(elem) = self.parse_equality() {
                 elements.push(crate::ast::ArrayElement::Single(elem));
+                if elements.len() > self.max_collection_literal_items {
+                    self.push_diagnostic(format!(
+                        "Array literal exceeds maximum element count of {}",
+                        self.max_collection_literal_items
+                    ));
+                    return None;
+                }
             }
 
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
@@ -1918,6 +1939,13 @@ impl Parser {
                 self.advance(); // consume ...
                 if let Some(expr) = self.parse_equality() {
                     pairs.push(crate::ast::DictElement::Spread(expr));
+                    if pairs.len() > self.max_collection_literal_items {
+                        self.push_diagnostic(format!(
+                            "Dictionary literal exceeds maximum item count of {}",
+                            self.max_collection_literal_items
+                        ));
+                        return None;
+                    }
                 }
 
                 if matches!(self.peek(), TokenKind::Punctuation(',')) {
@@ -1940,6 +1968,13 @@ impl Parser {
             // Parse value - use parse_equality to avoid recursion
             let value = self.parse_equality()?;
             pairs.push(crate::ast::DictElement::Pair(key, value));
+            if pairs.len() > self.max_collection_literal_items {
+                self.push_diagnostic(format!(
+                    "Dictionary literal exceeds maximum item count of {}",
+                    self.max_collection_literal_items
+                ));
+                return None;
+            }
 
             if matches!(self.peek(), TokenKind::Punctuation(',')) {
                 self.advance();

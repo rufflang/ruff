@@ -293,6 +293,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-06_23-02_v1-ci-001-release-gate-enforcement.md)
 
+### Deep interpreter recursion tests can overflow Rust test worker stacks before semantic limits trigger
+- **Problem:** In-process integration recursion tests can abort with host stack overflow even when Ruff recursion/call-depth limits are implemented.
+- **Rule:** Validate interpreter depth-limit contracts with direct state-based unit tests (or subprocess CLI tests), not only deep recursive integration scripts.
+- **Implication:** For recursion-limit hardening, prefer deterministic guard checks in `src/interpreter/mod.rs` tests; treat deep recursive integration runs as environment-sensitive smoke evidence.
+
+(Discovered during: 2026-05-16_16-12_v1-perf-003-resource-exhaustion-safeguards.md)
+
 ### Subprocess serve-readiness checks can false-positive under parallel test port races
 - **Problem:** A test can incorrectly treat a different process as its spawned server readiness signal and later fail with `Connection refused`.
 - **Rule:** In readiness loops, check child liveness both before and after successful port-connect probes.

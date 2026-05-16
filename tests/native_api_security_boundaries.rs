@@ -1,3 +1,4 @@
+use ruff::runtime_limits;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -10,9 +11,9 @@ use zip::write::FileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
 static TEMP_DIR_COUNTER: AtomicUsize = AtomicUsize::new(0);
-const FS_MAX_READ_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
-const FS_MAX_WRITE_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
-const NETWORK_MAX_BODY_BYTES_FOR_TEST: usize = 8 * 1024 * 1024;
+const FS_MAX_READ_BYTES_FOR_TEST: usize = runtime_limits::MAX_FILE_IO_BYTES;
+const FS_MAX_WRITE_BYTES_FOR_TEST: usize = runtime_limits::MAX_FILE_IO_BYTES;
+const NETWORK_MAX_BODY_BYTES_FOR_TEST: usize = runtime_limits::MAX_NETWORK_BODY_BYTES;
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
