@@ -104,3 +104,9 @@ benchmark_output.txt
 
 # === PRIVATE SHOWCASES ===
 /showcases/
+
+# === LOCAL AUDIT REPORTS ===
+/docs/UNSAFE_CODE_AUDIT.md
+/docs/UNFINISHED_AND_MVP_AUDIT.md
+/docs/RUFF_FEATURE_INVENTORY.md
+/docs/AI_CENTRIC_GAP_ANALYSIS.md
