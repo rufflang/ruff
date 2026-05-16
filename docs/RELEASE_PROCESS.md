@@ -60,10 +60,22 @@ Canonical full gate command:
 bash scripts/release_gate.sh --full
 ```
 
+Release-candidate readiness gate command:
+
+```bash
+bash scripts/release_candidate_gate.sh --full
+```
+
 Fast smoke gate command:
 
 ```bash
 bash scripts/release_gate.sh --minimal
+```
+
+Roadmap-only readiness precheck:
+
+```bash
+bash scripts/release_candidate_gate.sh --roadmap-only
 ```
 
 Full gate command order:

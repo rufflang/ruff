@@ -366,6 +366,12 @@ Run the release-gate CI suite locally:
 bash scripts/release_gate.sh
 ```
 
+Run the release-candidate readiness gate (roadmap precheck + full release gate):
+
+```bash
+bash scripts/release_candidate_gate.sh --full
+```
+
 Fast smoke mode (useful before pushing, and the mode CI uses for lightweight script-validation):
 
 ```bash

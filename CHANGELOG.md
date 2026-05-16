@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `V1-REL-001` executable release-candidate gate script `scripts/release_candidate_gate.sh` with `--roadmap-only` and `--full` modes to enforce roadmap readiness checks before full release-gate execution, plus `tests/release_candidate_gate_contract.rs` coverage for mode/help wiring and roadmap-only success behavior.
 - Added `V1-DOC-004` README contract coverage via `tests/readme_contracts.rs`, asserting required first-contact user contract markers remain present: explicit 1.0 readiness status, security/trust-mode snapshot, install + quickstart anchors, CLI serve visibility, untrusted-mode guidance, and core links to roadmap/spec/stdlib/release-process docs.
 - Added `V1-DOC-003` release-policy docs contract coverage via `tests/release_process_docs_contract.rs`, asserting required release-process policy sections (semver, compatibility rules, RC process, changelog format, publish flow) and verifying `scripts/release_gate.sh --help` exposes documented mode/env controls.
 - Added `V1-DOC-002` operator-grade security docs contract coverage via `tests/security_posture_docs_contract.rs`, locking required `docs/NATIVE_API_SECURITY_POSTURE.md` section markers (threat model, trust modes, static-server defaults, safe/unsafe patterns, external sandboxing guidance) and smoke-checking that `ruff run --help` still exposes every documented capability flag (`--untrusted`, `--allow-*`).
@@ -48,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed release documentation and operator workflow for `V1-REL-001`: `docs/RELEASE_PROCESS.md` and `README.md` now document the dedicated RC gate command path (`scripts/release_candidate_gate.sh`) for roadmap precheck and full release-gate execution sequencing.
 - Changed `README.md` for `V1-DOC-004` to better reflect current 1.0 expectations: added an explicit safety-model snapshot (non-sandbox warning, trusted default, `--untrusted` guidance) and a consolidated core-reference links section for roadmap/spec/stdlib/release policy navigation.
 - Changed `docs/RELEASE_PROCESS.md` for `V1-DOC-003` into a full compatibility and release-execution policy document: added explicit versioning classes, language/stdlib/diagnostic stability rules, RC workflow, required CI/local gate order, changelog template requirements, and crate/artifact publication sequence used for release sign-off.
 - Changed `docs/NATIVE_API_SECURITY_POSTURE.md` for `V1-DOC-002` from a baseline caveat list into an operator-focused security guide with explicit non-sandbox posture, capability matrix, static-server hardening defaults, archive/process/network/filesystem risk boundaries, concrete safe/unsafe CLI examples, and OS/container sandboxing recommendations for untrusted workflows.
