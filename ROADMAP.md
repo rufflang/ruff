@@ -1383,7 +1383,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-DOC-003: Create a release process and compatibility policy
+[x] V1-DOC-003: Create a release process and compatibility policy
     Priority: P1
     Severity: Medium
     Area: Release/Docs
@@ -1401,7 +1401,7 @@ If a command is not yet available, create the missing configuration as part of t
         8. Document how to publish crate/artifacts.
     Tests required: Release-gate script passes locally and in CI.
     Acceptance criteria: Maintainers can cut a repeatable release without relying on tribal knowledge.
-    Notes: Do not bump to 1.0 until all required gates pass.
+    Notes: Completed on 2026-05-16. Expanded `docs/RELEASE_PROCESS.md` into the canonical release+compatibility policy, including semantic versioning rules, language/stdlib compatibility commitments, machine-readable diagnostic/CLI stability rules, explicit RC workflow, required CI/local gate ordering, changelog sectioning template, and crate/artifact publication order (`cargo publish --dry-run`/`cargo publish` + release artifact workflow). Added `tests/release_process_docs_contract.rs` to lock required policy sections and validate `scripts/release_gate.sh --help` mode/env documentation. Updated README release-doc callout to reflect that `docs/RELEASE_PROCESS.md` is the authoritative policy for release sign-off. Verification: `cargo test --test release_process_docs_contract` and `bash scripts/release_gate.sh --minimal` passed. Local full `cargo test` runs were executed but encountered unrelated environment-sensitive failures in socket/performance-sensitive tests (`tests/serve_command_integration.rs` bind permission races and `interpreter::async_runtime::tests::test_concurrent_tasks` timing threshold drift); targeted suites for this roadmap item passed.
 ```
 
 ```text

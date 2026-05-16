@@ -198,6 +198,8 @@ Protocol contracts, install/upgrade guidance, and release artifact checklist doc
 - [docs/LSP_RELIABILITY.md](docs/LSP_RELIABILITY.md)
 - [docs/V1_SCOPE.md](docs/V1_SCOPE.md)
 
+`docs/RELEASE_PROCESS.md` now carries the canonical semantic-versioning, compatibility, release-candidate, changelog-format, and publication workflow policy used for release sign-off.
+
 Useful environment variables:
 
 | Variable | Effect |
