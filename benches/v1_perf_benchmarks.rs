@@ -213,6 +213,11 @@ struct ModuleBenchmarkFixture {
     entry_module: String,
 }
 
+struct DeepModuleChainBenchmarkFixture {
+    root_dir: PathBuf,
+    terminal_module: String,
+}
+
 fn module_benchmark_fixture() -> &'static ModuleBenchmarkFixture {
     static FIXTURE: OnceLock<ModuleBenchmarkFixture> = OnceLock::new();
     FIXTURE.get_or_init(|| {
@@ -244,8 +249,43 @@ fn module_benchmark_fixture() -> &'static ModuleBenchmarkFixture {
     })
 }
 
+fn deep_module_chain_benchmark_fixture() -> &'static DeepModuleChainBenchmarkFixture {
+    static FIXTURE: OnceLock<DeepModuleChainBenchmarkFixture> = OnceLock::new();
+    FIXTURE.get_or_init(|| {
+        let root_dir = unique_temp_dir("v1_perf_module_chain_bench");
+        fs::create_dir_all(&root_dir).expect("deep module chain benchmark root should be created");
+
+        let module_count = 24usize;
+        let mut module_names = Vec::with_capacity(module_count);
+        for index in 0..module_count {
+            module_names.push(format!("chain_{index:03}"));
+        }
+
+        for index in 0..module_count {
+            let module_path = root_dir.join(format!("{}.ruff", module_names[index]));
+            let body = if index == 0 {
+                "export depth := 0\n".to_string()
+            } else {
+                format!(
+                    "from {} import depth\nexport depth := depth + 1\n",
+                    module_names[index - 1]
+                )
+            };
+            fs::write(module_path, body)
+                .expect("deep module chain benchmark file should be written");
+        }
+
+        let terminal_module = module_names
+            .last()
+            .cloned()
+            .expect("deep module chain should include a terminal module");
+        DeepModuleChainBenchmarkFixture { root_dir, terminal_module }
+    })
+}
+
 fn bench_module_resolution(c: &mut Criterion) {
     let fixture = module_benchmark_fixture();
+    let deep_chain_fixture = deep_module_chain_benchmark_fixture();
 
     let mut group = c.benchmark_group("module_resolution");
     group.bench_function("many_small_modules_cold_loader", |b| {
@@ -259,6 +299,22 @@ fn bench_module_resolution(c: &mut Criterion) {
                 let module =
                     loader.load_module(&fixture.entry_module).expect("module workload should load");
                 black_box(module.exports.len());
+            },
+            BatchSize::SmallInput,
+        );
+    });
+    group.bench_function("deep_import_chain_cold_loader", |b| {
+        b.iter_batched(
+            || {
+                let mut loader = ModuleLoader::new();
+                loader.add_search_path(&deep_chain_fixture.root_dir);
+                loader
+            },
+            |mut loader| {
+                let depth = loader
+                    .get_symbol(&deep_chain_fixture.terminal_module, "depth")
+                    .expect("deep import chain workload should load");
+                black_box(depth);
             },
             BatchSize::SmallInput,
         );

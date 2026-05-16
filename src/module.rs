@@ -71,6 +71,8 @@ pub struct ModuleLoader {
     loaded_modules: HashMap<ModuleCacheKey, CachedModule>,
     /// Stack of modules currently being loaded (for circular import detection).
     loading_stack: Vec<LoadingModule>,
+    /// O(1) index for modules currently being loaded.
+    loading_stack_index: HashMap<ModuleCacheKey, usize>,
     /// Search paths for module resolution.
     search_paths: Vec<PathBuf>,
 }
@@ -183,6 +185,7 @@ impl ModuleLoader {
         ModuleLoader {
             loaded_modules: HashMap::new(),
             loading_stack: Vec::new(),
+            loading_stack_index: HashMap::new(),
             search_paths: vec![PathBuf::from("."), PathBuf::from("./modules")],
         }
     }
@@ -274,9 +277,7 @@ impl ModuleLoader {
             .ok_or_else(|| Self::runtime_error(format!("Module not found: {}", module_name)))?;
         let cache_key = resolved_module.cache_key.clone();
 
-        if let Some(cycle_start) =
-            self.loading_stack.iter().position(|entry| entry.cache_key == cache_key)
-        {
+        if let Some(cycle_start) = self.loading_stack_index.get(&cache_key).copied() {
             let mut import_chain: Vec<String> = self.loading_stack[cycle_start..]
                 .iter()
                 .map(|entry| entry.module_name.clone())
@@ -298,10 +299,12 @@ impl ModuleLoader {
 
         self.loaded_modules.remove(&cache_key);
 
+        let loading_stack_position = self.loading_stack.len();
         self.loading_stack.push(LoadingModule {
             module_name: module_name.to_string(),
             cache_key: cache_key.clone(),
         });
+        self.loading_stack_index.insert(cache_key.clone(), loading_stack_position);
 
         let load_result = (|| {
             let module_path = resolved_module.module_path.clone();
@@ -390,7 +393,9 @@ impl ModuleLoader {
             Ok(Module { name: module_name.to_string(), path: module_path.clone(), exports })
         })();
 
-        self.loading_stack.pop();
+        if let Some(loading_module) = self.loading_stack.pop() {
+            self.loading_stack_index.remove(&loading_module.cache_key);
+        }
 
         let module = load_result?;
         let source_state = ModuleSourceState::from_path(&module.path)?;
@@ -524,9 +529,60 @@ mod tests {
             "expected circular import chain, got: {}",
             err.message
         );
+        assert!(loader.loading_stack.is_empty(), "loading stack should be cleared after errors");
+        assert!(
+            loader.loading_stack_index.is_empty(),
+            "loading stack index should be cleared after errors"
+        );
 
         fs::remove_file(&module_a_path).expect("failed to clean up module A");
         fs::remove_file(&module_b_path).expect("failed to clean up module B");
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
+    fn load_module_deep_chain_completes_and_clears_loading_index() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_deep_chain"));
+        fs::create_dir_all(&temp_root).expect("failed to create temp module dir");
+
+        let module_count = 12usize;
+        let mut names = Vec::with_capacity(module_count);
+        for index in 0..module_count {
+            names.push(unique_name(&format!("chain_{index}")));
+        }
+
+        for index in 0..module_count {
+            let module_path = temp_root.join(format!("{}.ruff", names[index]));
+            let body = if index == 0 {
+                "export depth := 0\n".to_string()
+            } else {
+                format!("from {} import depth\nexport depth := depth + 1\n", names[index - 1])
+            };
+            fs::write(&module_path, body).expect("failed to write chain module");
+        }
+
+        loader.add_search_path(&temp_root);
+
+        let value = loader
+            .get_symbol(names.last().expect("deep chain should have a final module"), "depth")
+            .expect("expected deep chain module to load");
+
+        assert!(
+            matches!(value, Value::Int(v) if v == (module_count as i64 - 1)),
+            "expected deep chain export depth {}, got {:?}",
+            module_count - 1,
+            value
+        );
+        assert!(
+            loader.loading_stack.is_empty(),
+            "loading stack should be empty after successful deep-chain load"
+        );
+        assert!(
+            loader.loading_stack_index.is_empty(),
+            "loading stack index should be empty after successful deep-chain load"
+        );
+
         fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
     }
 
