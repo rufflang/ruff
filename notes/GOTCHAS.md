@@ -96,6 +96,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-05_11-17_http-query-route-hardening.md)
 
+### Deep import-chain stress tests can hit stack limits before recursion guards
+- **Problem:** Module-import stress fixtures with high chain depth can fail with host stack overflow even when module semantics are otherwise correct.
+- **Rule:** Keep import-chain depth bounded in performance/correctness tests until explicit recursion/call-depth safeguards are implemented.
+- **Implication:** Do not treat deep-chain overflow as module-loader semantic drift; scope it to resource-limit work (`V1-PERF-003`).
+
+(Discovered during: 2026-05-16_13-48_v1-perf-002-module-loader-cycle-check-scaling.md)
+
 ### Control-flow truthiness must explicitly handle integer zero
 - **Problem:** Missing-key/fallback branches can silently execute incorrectly when condition values are numeric sentinels.
 - **Rule:** `Int(0)` must be falsey and non-zero ints truthy in both `Stmt::If` and `Stmt::While` evaluation paths.
