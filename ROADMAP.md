@@ -1158,7 +1158,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-CLI-002: Add `check`, `run`, and `test` workflow clarity
+[x] V1-CLI-002: Add `check`, `run`, and `test` workflow clarity
     Priority: P2
     Severity: Enhancement
     Area: CLI/DX
@@ -1177,7 +1177,7 @@ If a command is not yet available, create the missing configuration as part of t
         - `test` discovers and runs expected tests.
         - Verbose/quiet behavior is deterministic.
     Acceptance criteria: Common developer workflows are first-class and documented.
-    Notes: If a command is deferred, document the current equivalent.
+    Notes: Completed on 2026-05-16. Added first-class `ruff check <file>` in `src/main.rs` with a non-executing validation path (lex/parse/compile only) and deterministic output modes: `--quiet` suppresses success output, `--verbose` prints statement/bytecode counts, and `--json` returns a stable machine-readable payload (`command`, `file`, `status`, `statement_count`, `bytecode_instruction_count`). Centralized parse/diagnostic handling for `run`/`check`/`test-run` through shared `parse_ruff_program(...)` helper logic to keep workflow behavior consistent. Expanded `tests/cli_contracts.rs` with regression coverage for side-effect-free `check`, runtime-executing `run` output, `ruff test` fixture discovery/summary behavior, quiet/verbose determinism, and check JSON schema validation. Updated workflow docs in `README.md` (explicit subcommand model, `check` docs, clarified `test` fixture/snapshot behavior) and JSON contract docs in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`. Verification: `cargo test --test cli_contracts`, `cargo test`.
 ```
 
 ### Phase 8: Performance And Resource Management

@@ -103,6 +103,7 @@ The current CLI exposes these subcommands:
 | --- | --- |
 | `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. Experimental JIT is opt-in via `--jit`; if the program contains unsupported JIT surfaces Ruff reports a deterministic warning and falls back to non-JIT VM execution. Native host-effect capability policy can be scoped with `--untrusted` plus `--allow-*` flags (`--allow-fs-read`, `--allow-fs-write`, `--allow-fs-delete`, `--allow-process-exec`, `--allow-shell-exec`, `--allow-env-read`, `--allow-env-write`, `--allow-net-client`, `--allow-net-server`, `--allow-net`, `--allow-database`, `--allow-clock`, `--allow-random`, or `--allow-all`). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
+| `ruff check <file>` | Validate Ruff source without executing it (lex/parse/compile only). `--quiet` suppresses success output, `--verbose` prints statement/bytecode counts, and `--json` emits a machine-readable success payload. |
 | `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`, `--max-request-line-bytes`, `--max-header-bytes`, `--max-header-count`, `--max-request-body-bytes`, `--read-timeout-ms`, `--write-timeout-ms`, `--max-connections`). |
 | `ruff repl` | Start the interactive REPL (tab completion, command highlighting, multiline continuation validation, and `.help <function>` support). |
 | `ruff format <file>` | Format Ruff source files with opinionated defaults (`--indent`, `--line-length`, `--no-sort-imports`, `--check`, `--write`, `--json`). |
@@ -113,7 +114,7 @@ The current CLI exposes these subcommands:
 | `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
 | `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`, `--json`). |
 | `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing). |
-| `ruff test` | Run `.ruff` files under `tests/`; `--update` regenerates expected-output snapshots. |
+| `ruff test` | Discover `.ruff` fixtures under `tests/`, execute each fixture via `ruff run --interpreter`, and compare output against sibling `.out` snapshots; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax; parse diagnostics exit non-zero before test collection. Supports the same `--untrusted` / `--allow-*` native capability policy flags as `ruff run`. |
 | `ruff bench [path]` | Run benchmark scripts. |
 | `ruff bench-cross` | Compare Ruff `parallel_map` against a Python `ProcessPoolExecutor` benchmark. |
@@ -126,6 +127,8 @@ The current CLI exposes these subcommands:
 | `ruff lsp-diagnostics <file>` | Return source diagnostics for editor refresh loops (lexer failures, delimiter mismatches, and parser diagnostics); `--json` emits stable `code` and `subsystem` metadata per diagnostic. |
 | `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME>` | Return rename edits for the symbol under the cursor and the updated source text; add `--json` for structured output. |
 | `ruff lsp-code-actions <file>` | Return syntax quick-fix actions derived from diagnostics (for example unmatched/unclosed delimiters); add `--json` for structured output. |
+
+Ruff currently requires explicit subcommands; `ruff <file>` is not treated as an implicit alias for `ruff run <file>`.
 
 ### CLI Exit Codes
 

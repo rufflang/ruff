@@ -69,6 +69,16 @@ Top-level array of issue objects. Per item fields:
 - `message` (string)
 - `fix` (object or null)
 
+### `ruff check --json`
+
+Top-level object fields:
+
+- `command` (string, constant `"check"`)
+- `file` (string)
+- `status` (string, currently `"ok"`)
+- `statement_count` (number)
+- `bytecode_instruction_count` (number)
+
 ### `ruff docgen --json`
 
 Top-level object fields:
