@@ -140,8 +140,8 @@ where
 fn assert_unzip_failure(output: &Output, expected_runtime_error: &str) {
     assert_eq!(
         output.status.code(),
-        Some(1),
-        "expected unzip boundary failure with exit code 1, got status={:?}, stdout={}, stderr={}",
+        Some(4),
+        "expected unzip boundary failure with exit code 4, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(output),
         stderr_text(output)
@@ -213,8 +213,8 @@ fn assert_runtime_boundary_failure(script_source: &str, expected_runtime_error: 
 
     assert_eq!(
         output.status.code(),
-        Some(1),
-        "expected runtime misuse to exit with code 1, got status={:?}, stdout={}, stderr={}",
+        Some(4),
+        "expected runtime misuse to exit with code 4, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
         stderr_text(&output)
@@ -247,8 +247,8 @@ fn assert_runtime_boundary_failure_with_args(
 
     assert_eq!(
         output.status.code(),
-        Some(1),
-        "expected runtime boundary failure with exit code 1, got status={:?}, stdout={}, stderr={}",
+        Some(4),
+        "expected runtime boundary failure with exit code 4, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
         stderr_text(&output)
@@ -332,7 +332,7 @@ fn native_capability_untrusted_denies_filesystem_delete() {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(4),
         "expected delete_file to be denied without fs-delete capability, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
@@ -505,7 +505,7 @@ fn network_http_get_rejects_oversized_response_body() {
     );
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(4),
         "expected oversized HTTP response to fail, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
@@ -649,7 +649,7 @@ fn native_capability_allows_only_requested_capability() {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(4),
         "expected env() to remain blocked when only fs-write is allowed, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
@@ -738,7 +738,7 @@ fn filesystem_write_overwrite_requires_explicit_flag() {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(4),
         "expected overwrite without explicit flag to fail, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
@@ -809,7 +809,7 @@ fn filesystem_read_file_rejects_payload_over_limit() {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(4),
         "expected oversized read to fail, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
@@ -844,7 +844,7 @@ fn filesystem_write_file_rejects_payload_over_limit() {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(4),
         "expected oversized write to fail, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),
@@ -920,7 +920,7 @@ fn filesystem_directory_delete_behavior_is_non_recursive() {
 
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(4),
         "expected non-empty directory delete to fail, got status={:?}, stdout={}, stderr={}",
         output.status.code(),
         stdout_text(&output),

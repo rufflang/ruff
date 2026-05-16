@@ -189,14 +189,14 @@ fn cli_json_negative_paths_have_stable_failure_signals() {
     let missing_file_str = missing_file.to_str().expect("path should be utf-8");
 
     let format_missing = run_ruff(&["format", missing_file_str, "--json"]);
-    assert_eq!(format_missing.status.code(), Some(1));
+    assert_eq!(format_missing.status.code(), Some(5));
     assert!(format_missing.stdout.is_empty(), "format failure should not emit JSON stdout");
     let format_stderr =
         String::from_utf8(format_missing.stderr).expect("stderr should be valid utf-8");
     assert!(format_stderr.contains("Failed to read .ruff file"));
 
     let lint_missing = run_ruff(&["lint", missing_file_str, "--json"]);
-    assert_eq!(lint_missing.status.code(), Some(1));
+    assert_eq!(lint_missing.status.code(), Some(5));
     assert!(lint_missing.stdout.is_empty(), "lint failure should not emit JSON stdout");
     let lint_stderr = String::from_utf8(lint_missing.stderr).expect("stderr should be valid utf-8");
     assert!(lint_stderr.contains("Failed to read .ruff file"));
@@ -227,7 +227,7 @@ fn cli_json_negative_paths_have_stable_failure_signals() {
         "renamed",
         "--json",
     ]);
-    assert_eq!(unknown_symbol.status.code(), Some(1));
+    assert_eq!(unknown_symbol.status.code(), Some(4));
     assert!(unknown_symbol.stdout.is_empty());
     let unknown_symbol_stderr =
         String::from_utf8(unknown_symbol.stderr).expect("stderr should be valid utf-8");

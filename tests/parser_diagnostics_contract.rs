@@ -230,7 +230,7 @@ fn cli_run_exits_non_zero_on_parse_diagnostics() {
     write_fixture(&file, "print((1 + 2)\n");
 
     let output = run_ruff(&["run", file.to_str().expect("path should be utf-8")]);
-    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.status.code(), Some(3));
 
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("[RUFPARSE001]"));
@@ -244,7 +244,7 @@ fn cli_test_run_exits_non_zero_on_parse_diagnostics() {
     write_fixture(&file, "test \"broken\" {\n    print((1 + 2)\n}\n");
 
     let output = run_ruff(&["test-run", file.to_str().expect("path should be utf-8")]);
-    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.status.code(), Some(3));
 
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("[RUFPARSE001]"));
@@ -259,7 +259,7 @@ fn cli_run_exits_non_zero_when_source_exceeds_max_size() {
     write_fixture(&file, &oversized);
 
     let output = run_ruff(&["run", file.to_str().expect("path should be utf-8")]);
-    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.status.code(), Some(3));
 
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("[RUFPARSE001]"));

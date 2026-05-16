@@ -578,6 +578,22 @@ enum Commands {
 
 const DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS: u64 = 120_000;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(i32)]
+enum CliExitCode {
+    UsageError = 2,
+    LexParseError = 3,
+    RuntimeError = 4,
+    IoError = 5,
+    InternalError = 6,
+}
+
+impl CliExitCode {
+    fn code(self) -> i32 {
+        self as i32
+    }
+}
+
 fn cooperative_scheduler_timeout(
     cli_timeout_ms: Option<u64>,
 ) -> Result<std::time::Duration, String> {
@@ -643,7 +659,7 @@ fn report_lexer_diagnostics_and_exit(
 ) -> ! {
     let converted: Vec<errors::Diagnostic> =
         diagnostics.iter().map(|diagnostic| diagnostic.to_diagnostic()).collect();
-    report_diagnostics_and_exit(&converted);
+    report_diagnostics_and_exit(&converted, CliExitCode::LexParseError);
 }
 
 fn report_parser_diagnostics_and_exit(
@@ -652,24 +668,24 @@ fn report_parser_diagnostics_and_exit(
 ) -> ! {
     let converted: Vec<errors::Diagnostic> =
         diagnostics.iter().map(|diagnostic| diagnostic.to_diagnostic(Some(file_label))).collect();
-    report_diagnostics_and_exit(&converted);
+    report_diagnostics_and_exit(&converted, CliExitCode::LexParseError);
 }
 
-fn report_diagnostics_and_exit(diagnostics: &[errors::Diagnostic]) -> ! {
+fn report_diagnostics_and_exit(diagnostics: &[errors::Diagnostic], code: CliExitCode) -> ! {
     for diagnostic in diagnostics {
         eprintln!("{}", diagnostic.render_human());
     }
-    std::process::exit(1);
+    std::process::exit(code.code());
 }
 
-fn report_cli_error_and_exit(message: impl Into<String>) -> ! {
+fn report_cli_error_and_exit(message: impl Into<String>, code: CliExitCode) -> ! {
     let diagnostic = errors::Diagnostic::new(
         errors::DIAGNOSTIC_CODE_CLI,
         errors::DiagnosticSeverity::Error,
         errors::DiagnosticSubsystem::Cli,
         message.into(),
     );
-    report_diagnostics_and_exit(&[diagnostic]);
+    report_diagnostics_and_exit(&[diagnostic], code);
 }
 
 fn read_ruff_source_for_parse(file: &Path) -> String {
@@ -687,11 +703,10 @@ fn read_ruff_source_for_parse(file: &Path) -> String {
     let code = match fs::read_to_string(file) {
         Ok(content) => content,
         Err(err) => {
-            report_cli_error_and_exit(format!(
-                "Failed to read .ruff file '{}': {}",
-                file.display(),
-                err
-            ));
+            report_cli_error_and_exit(
+                format!("Failed to read .ruff file '{}': {}", file.display(), err),
+                CliExitCode::IoError,
+            );
         }
     };
 
@@ -718,7 +733,7 @@ async fn main() {
             let scheduler_timeout = match cooperative_scheduler_timeout(scheduler_timeout_ms) {
                 Ok(timeout) => timeout,
                 Err(error_message) => {
-                    report_cli_error_and_exit(error_message);
+                    report_cli_error_and_exit(error_message, CliExitCode::UsageError);
                 }
             };
             let capability_policy = build_runtime_capability_policy(&capabilities);
@@ -842,7 +857,7 @@ async fn main() {
                                     .with_call_stack(call_stack);
 
                                 eprintln!("{}", error);
-                                std::process::exit(1);
+                                std::process::exit(CliExitCode::RuntimeError.code());
                             }
                             Err(e) => {
                                 let diagnostic = errors::Diagnostic::new(
@@ -851,7 +866,10 @@ async fn main() {
                                     errors::DiagnosticSubsystem::Vm,
                                     format!("VM execution panicked: {}", e),
                                 );
-                                report_diagnostics_and_exit(&[diagnostic]);
+                                report_diagnostics_and_exit(
+                                    &[diagnostic],
+                                    CliExitCode::InternalError,
+                                );
                             }
                         }
                     }
@@ -862,7 +880,7 @@ async fn main() {
                             errors::DiagnosticSubsystem::Vm,
                             format!("Compilation error: {}", e),
                         );
-                        report_diagnostics_and_exit(&[diagnostic]);
+                        report_diagnostics_and_exit(&[diagnostic], CliExitCode::RuntimeError);
                     }
                 }
             } else {
@@ -895,7 +913,7 @@ async fn main() {
                             )
                             .with_call_stack(interpreter.get_call_stack());
                             eprintln!("{}", err);
-                            std::process::exit(1);
+                            std::process::exit(CliExitCode::RuntimeError.code());
                         }
                         interpreter::Value::ErrorObject { message, .. } => {
                             let err = RuffError::runtime_error(
@@ -904,7 +922,7 @@ async fn main() {
                             )
                             .with_call_stack(interpreter.get_call_stack());
                             eprintln!("{}", err);
-                            std::process::exit(1);
+                            std::process::exit(CliExitCode::RuntimeError.code());
                         }
                         _ => {}
                     }
@@ -951,7 +969,7 @@ async fn main() {
 
             if let Err(message) = serve_http::run_static_server(dir, host, port, options) {
                 eprintln!("{}", message);
-                std::process::exit(1);
+                std::process::exit(CliExitCode::RuntimeError.code());
             }
         }
 
@@ -959,12 +977,12 @@ async fn main() {
             Ok(mut repl) => {
                 if let Err(e) = repl.run() {
                     eprintln!("REPL error: {}", e);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             }
             Err(e) => {
                 eprintln!("Failed to start REPL: {}", e);
-                std::process::exit(1);
+                std::process::exit(CliExitCode::RuntimeError.code());
             }
         },
 
@@ -998,7 +1016,7 @@ async fn main() {
 
             if runner.tests.is_empty() {
                 println!("No tests found in {}", file.display());
-                std::process::exit(1);
+                std::process::exit(CliExitCode::RuntimeError.code());
             }
 
             // Run all tests
@@ -1028,7 +1046,7 @@ async fn main() {
                     )]
                 } else {
                     eprintln!("Error: Path does not exist: {}", p.display());
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::IoError.code());
                 }
             } else {
                 // Default to benchmarks directory
@@ -1037,7 +1055,7 @@ async fn main() {
                     runner.run_directory(default_path)
                 } else {
                     eprintln!("Error: No benchmark directory found. Please specify a path.");
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::IoError.code());
                 }
             };
 
@@ -1061,7 +1079,7 @@ async fn main() {
                 Ok(content) => content,
                 Err(err) => {
                     eprintln!("Failed to read .ruff file '{}': {}", file.display(), err);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::IoError.code());
                 }
             };
             let options = formatter::FormatterOptions {
@@ -1075,7 +1093,7 @@ async fn main() {
             if write {
                 if let Err(err) = fs::write(&file, &formatted) {
                     eprintln!("Failed to write formatted file '{}': {}", file.display(), err);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::IoError.code());
                 }
             }
 
@@ -1111,12 +1129,12 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize formatter result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
 
                 if check && changed {
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
 
                 return;
@@ -1127,7 +1145,7 @@ async fn main() {
                     println!("already formatted");
                 } else {
                     println!("needs formatting");
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             } else if write {
                 println!("formatted {}", file.display());
@@ -1141,7 +1159,7 @@ async fn main() {
                 Ok(content) => content,
                 Err(err) => {
                     eprintln!("Failed to read .ruff file '{}': {}", file.display(), err);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::IoError.code());
                 }
             };
             let issues = linter::lint_source(&source);
@@ -1151,7 +1169,7 @@ async fn main() {
                 if fixed != source {
                     if let Err(err) = fs::write(&file, fixed) {
                         eprintln!("Failed to write lint fixes to '{}': {}", file.display(), err);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::IoError.code());
                     }
                     println!("applied safe lint fixes to {}", file.display());
                 } else {
@@ -1181,7 +1199,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize lint results: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
@@ -1199,7 +1217,7 @@ async fn main() {
             }
 
             if issues.iter().any(|issue| matches!(issue.severity, linter::LintSeverity::Error)) {
-                std::process::exit(1);
+                std::process::exit(CliExitCode::RuntimeError.code());
             }
         }
 
@@ -1215,18 +1233,27 @@ async fn main() {
             };
 
             let src_dir = project_dir.join("src");
-            std::fs::create_dir_all(&src_dir).expect("Failed to create src directory");
+            if let Err(err) = std::fs::create_dir_all(&src_dir) {
+                eprintln!("Failed to create src directory '{}': {}", src_dir.display(), err);
+                std::process::exit(CliExitCode::IoError.code());
+            }
 
             let manifest_path = project_dir.join("ruff.toml");
             if !manifest_path.exists() {
                 let manifest = package_workflow::default_manifest(&package_name);
-                std::fs::write(&manifest_path, manifest).expect("Failed to write ruff.toml");
+                if let Err(err) = std::fs::write(&manifest_path, manifest) {
+                    eprintln!("Failed to write '{}': {}", manifest_path.display(), err);
+                    std::process::exit(CliExitCode::IoError.code());
+                }
             }
 
             let main_source_path = src_dir.join("main.ruff");
             if !main_source_path.exists() {
-                std::fs::write(&main_source_path, "print(\"Hello from Ruff\")\n")
-                    .expect("Failed to write src/main.ruff");
+                if let Err(err) = std::fs::write(&main_source_path, "print(\"Hello from Ruff\")\n")
+                {
+                    eprintln!("Failed to write '{}': {}", main_source_path.display(), err);
+                    std::process::exit(CliExitCode::IoError.code());
+                }
             }
 
             println!("initialized project at {}", project_dir.display());
@@ -1234,27 +1261,42 @@ async fn main() {
 
         Commands::PackageAdd { name, version, manifest } => {
             let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
-            let content = fs::read_to_string(&manifest_path).expect("Failed to read ruff.toml");
+            let content = match fs::read_to_string(&manifest_path) {
+                Ok(content) => content,
+                Err(err) => {
+                    eprintln!("Failed to read '{}': {}", manifest_path.display(), err);
+                    std::process::exit(CliExitCode::IoError.code());
+                }
+            };
             let updated = match package_workflow::add_dependency(&content, &name, &version) {
                 Ok(manifest_content) => manifest_content,
                 Err(message) => {
                     eprintln!("{}", message);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
 
-            fs::write(&manifest_path, updated).expect("Failed to write updated ruff.toml");
+            if let Err(err) = fs::write(&manifest_path, updated) {
+                eprintln!("Failed to write '{}': {}", manifest_path.display(), err);
+                std::process::exit(CliExitCode::IoError.code());
+            }
             println!("added dependency {} {}", name, version);
         }
 
         Commands::PackageInstall { manifest } => {
             let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
-            let content = fs::read_to_string(&manifest_path).expect("Failed to read ruff.toml");
+            let content = match fs::read_to_string(&manifest_path) {
+                Ok(content) => content,
+                Err(err) => {
+                    eprintln!("Failed to read '{}': {}", manifest_path.display(), err);
+                    std::process::exit(CliExitCode::IoError.code());
+                }
+            };
             let parsed = match package_workflow::parse_manifest(&content) {
                 Ok(manifest_data) => manifest_data,
                 Err(message) => {
                     eprintln!("{}", message);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
 
@@ -1269,12 +1311,18 @@ async fn main() {
 
         Commands::PackagePublish { manifest, publish } => {
             let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
-            let content = fs::read_to_string(&manifest_path).expect("Failed to read ruff.toml");
+            let content = match fs::read_to_string(&manifest_path) {
+                Ok(content) => content,
+                Err(err) => {
+                    eprintln!("Failed to read '{}': {}", manifest_path.display(), err);
+                    std::process::exit(CliExitCode::IoError.code());
+                }
+            };
             let parsed = match package_workflow::parse_manifest(&content) {
                 Ok(manifest_data) => manifest_data,
                 Err(message) => {
                     eprintln!("{}", message);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
 
@@ -1297,7 +1345,7 @@ async fn main() {
                     Ok(result) => result,
                     Err(message) => {
                         eprintln!("{}", message);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::RuntimeError.code());
                     }
                 };
 
@@ -1315,7 +1363,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize docgen result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
 
@@ -1337,18 +1385,18 @@ async fn main() {
                 Ok(path) => path,
                 Err(e) => {
                     eprintln!("Failed to determine Ruff binary path: {}", e);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::InternalError.code());
                 }
             };
 
             if !ruff_script.exists() {
                 eprintln!("Ruff benchmark script not found: {}", ruff_script.display());
-                std::process::exit(1);
+                std::process::exit(CliExitCode::IoError.code());
             }
 
             if !python_script.exists() {
                 eprintln!("Python benchmark script not found: {}", python_script.display());
-                std::process::exit(1);
+                std::process::exit(CliExitCode::IoError.code());
             }
 
             match run_process_pool_comparison(
@@ -1379,7 +1427,7 @@ async fn main() {
                 }
                 Err(e) => {
                     eprintln!("Cross-language benchmark failed: {}", e);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             }
         }
@@ -1416,19 +1464,19 @@ async fn main() {
                 Ok(path) => path,
                 Err(e) => {
                     eprintln!("Failed to determine Ruff binary path: {}", e);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::InternalError.code());
                 }
             };
 
             if !ruff_script.exists() {
                 eprintln!("Ruff SSG benchmark script not found: {}", ruff_script.display());
-                std::process::exit(1);
+                std::process::exit(CliExitCode::IoError.code());
             }
 
             let python_script_path = if compare_python {
                 if !python_script.exists() {
                     eprintln!("Python SSG benchmark script not found: {}", python_script.display());
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::IoError.code());
                 }
                 Some(python_script.as_path())
             } else {
@@ -1439,7 +1487,7 @@ async fn main() {
 
             if runs == 0 {
                 eprintln!("SSG benchmark runs must be >= 1");
-                std::process::exit(1);
+                std::process::exit(CliExitCode::UsageError.code());
             }
 
             if variability_warning_threshold < 0.0
@@ -1454,7 +1502,7 @@ async fn main() {
                     mean_median_drift_warning_threshold,
                     range_spread_warning_threshold
                 );
-                std::process::exit(1);
+                std::process::exit(CliExitCode::UsageError.code());
             }
 
             let warning_thresholds = SsgWarningThresholds {
@@ -1484,7 +1532,7 @@ async fn main() {
                 Ok(results) => results,
                 Err(e) => {
                     eprintln!("SSG benchmark failed: {}", e);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
 
@@ -1492,7 +1540,7 @@ async fn main() {
                 Ok(summary) => summary,
                 Err(e) => {
                     eprintln!("SSG benchmark aggregation failed: {}", e);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
 
@@ -1531,7 +1579,7 @@ async fn main() {
                     Ok(gate) => gate,
                     Err(e) => {
                         eprintln!("SSG throughput gate validation failed: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::RuntimeError.code());
                     }
                 };
                 println!("{}", format_ssg_throughput_gate_summary(gate));
@@ -1630,7 +1678,7 @@ async fn main() {
                 Ok(value) => value,
                 Err(e) => {
                     eprintln!("SSG benchmark trend analysis failed: {}", e);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
 
@@ -1745,7 +1793,7 @@ async fn main() {
                         gate.observed_median_ms,
                         gate.threshold_ms
                     );
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             }
         }
@@ -1802,7 +1850,10 @@ async fn main() {
             // Generate flamegraph if requested
             if let Some(fg_path) = flamegraph {
                 let fg_data = generate_flamegraph_data(&profile_data.cpu);
-                fs::write(&fg_path, fg_data).expect("Failed to write flamegraph data");
+                if let Err(err) = fs::write(&fg_path, fg_data) {
+                    eprintln!("Failed to write flamegraph data '{}': {}", fg_path.display(), err);
+                    std::process::exit(CliExitCode::IoError.code());
+                }
                 println!("\nFlamegraph data written to: {}", fg_path.display());
                 println!("Generate SVG with: flamegraph.pl {} > flamegraph.svg", fg_path.display());
             }
@@ -1830,7 +1881,7 @@ async fn main() {
                     Ok(output) => println!("{}", output),
                     Err(e) => {
                         eprintln!("Failed to serialize completion results: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
@@ -1859,7 +1910,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize definition result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
@@ -1901,7 +1952,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize references result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
@@ -1939,7 +1990,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize hover result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
@@ -1973,7 +2024,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize diagnostics result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
@@ -1998,7 +2049,7 @@ async fn main() {
                 Ok(result) => result,
                 Err(message) => {
                     eprintln!("{}", message);
-                    std::process::exit(1);
+                    std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
 
@@ -2026,7 +2077,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize rename result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
@@ -2067,7 +2118,7 @@ async fn main() {
                     Ok(serialized) => println!("{}", serialized),
                     Err(e) => {
                         eprintln!("Failed to serialize code actions result: {}", e);
-                        std::process::exit(1);
+                        std::process::exit(CliExitCode::InternalError.code());
                     }
                 }
             } else {
