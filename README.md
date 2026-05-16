@@ -397,6 +397,12 @@ Run docs/examples smoke contracts (parse/run/expected-fail metadata):
 cargo test --test docs_examples
 ```
 
+Run language-spec semantic contract tests (scope/mutability/arity/truthiness/indexing):
+
+```bash
+cargo test --test language_spec_contracts
+```
+
 Release-gate prerequisites and runtime profile:
 
 - Requires Rust toolchain with `cargo fmt`, `cargo clippy`, and `cargo test` available.

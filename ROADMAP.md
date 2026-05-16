@@ -1337,7 +1337,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 10: Documentation And Release Readiness
 
 ```text
-[ ] V1-DOC-001: Reconcile language spec with implementation
+[x] V1-DOC-001: Reconcile language spec with implementation
     Priority: P1
     Severity: High
     Area: Docs/Correctness
@@ -1358,7 +1358,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Every spec example is covered by docs/example smoke tests.
         - Semantic tests exist for every table/rule.
     Acceptance criteria: A user can predict Ruff behavior from the spec, and the test suite enforces that behavior.
-    Notes: Do not document desired behavior until code and tests match it, unless clearly marked "planned".
+    Notes: Completed on 2026-05-16. Reconciled `docs/LANGUAGE_SPEC.md` with current runtime/parser behavior by adding explicit lexical/mutability/scope/function/control-flow/data-structure/module examples plus a dedicated diagnostics/CLI exit-code contract section aligned with `V1-CLI-001`. Added `tests/language_spec_contracts.rs` to enforce documented semantics across interpreter and VM (mutability success/failure paths, duplicate declarations, lexical shadowing and loop-binding lifetime, function null fallthrough, callable arity errors, truthiness/logical short-circuit contracts, and indexing error determinism). Updated README testing guidance with the new spec contract command and validated both spec-example smoke and semantic contracts before full-suite verification.
 ```
 
 ```text

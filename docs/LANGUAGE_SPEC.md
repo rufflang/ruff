@@ -2,7 +2,7 @@
 
 Status: v1.0.0 baseline draft (active)
 Spec version: 1.0.0-draft
-Last updated: 2026-05-08
+Last updated: 2026-05-16
 
 ## 1. Scope
 
@@ -44,6 +44,18 @@ Contextual constructors `Ok`, `Err`, `Some`, and `None` are identifiers in token
 Lexing failures are reported as structured diagnostics with source location metadata.
 Malformed source must not be silently accepted as valid tokens.
 Current lexer diagnostics include invalid character, null byte, unterminated string, unterminated block comment, invalid escape, malformed numeric literal, numeric overflow, and identifier/string/numeric token-length limit violations.
+
+Lexical example:
+
+```ruff
+# line comment
+// alternate line comment
+/* block comment */
+
+let escaped := "line\\nnext"
+let quote := "say \\\"hi\\\""
+let value := 42
+```
 
 ## 4. Core Grammar Baseline (v0.14.0)
 
@@ -187,6 +199,15 @@ From highest precedence to lowest:
   - `name := value` updates an existing mutable binding when present.
   - otherwise it creates a new mutable binding in the current scope.
 
+Example:
+
+```ruff
+let immutable := 1
+mut counter := 0
+counter += 1
+const build_id := "v1"
+```
+
 ### 5.2 Scope model
 
 - Top-level script bindings resolve in the global scope.
@@ -198,12 +219,38 @@ From highest precedence to lowest:
 - Closures capture the nearest visible lexical binding.
 - Referencing an identifier with no visible binding is a runtime error of the form `Undefined variable: <name>`. Ruff does not convert unknown identifiers into strings; quote string literals explicitly.
 
+Example:
+
+```ruff
+mut outer := 10
+if true {
+    let outer := 20
+    seen_inner := outer
+}
+seen_outer := outer
+```
+
 ### 5.3 Function execution
 
 - Functions support positional parameters.
 - Function body fallthrough (reaching the end of the body without an explicit `return`) yields `null`.
 - Return without explicit value yields `null`.
 - `async func` values produce awaitable handles in runtime modes that support async scheduling.
+
+Example:
+
+```ruff
+func add(a, b) {
+    return a + b
+}
+
+func no_value() {
+    let local := 1
+}
+
+let total := add(2, 3)
+let fallback := no_value()
+```
 
 ### 5.4 Control flow
 
@@ -223,6 +270,21 @@ Logical operators use these same rules:
 - `a || b` short-circuits when `a` is truthy; `b` is evaluated only when `a` is falsey.
 - Both operators return boolean results (`true`/`false`), not the original operand values.
 
+Example:
+
+```ruff
+mut falsey_hits := 0
+if 0 { falsey_hits += 1 }
+if "" { falsey_hits += 1 }
+
+mut truthy_hits := 0
+if 1 { truthy_hits += 1 }
+if "false" { truthy_hits += 1 }
+
+let and_value := true && 5
+let or_value := false || 5
+```
+
 ### 5.5 Error flow
 
 - `throw(value)` signals runtime exceptions.
@@ -240,6 +302,16 @@ Logical operators use these same rules:
 - Unsupported unary/binary operations are runtime errors; Ruff does not silently coerce invalid operations to `Int(0)` or empty-string values.
 - Struct fields are resolved by declared field names.
 - Struct method behavior and runtime-path parity are tracked in `docs/VM_INTERPRETER_PARITY_MATRIX.md`.
+
+Example:
+
+```ruff
+mut profile := {"name": "ruff", "visits": 1}
+profile["visits"] += 1
+
+mut items := [1, 2, 3]
+items[0] := 9
+```
 
 ### 5.7 Concurrency and await
 
@@ -306,6 +378,29 @@ Logical operators use these same rules:
   - cache keys are scoped by package-root context plus canonical module path,
   - cached exports are reused only while module source metadata is unchanged,
   - when source metadata changes (mtime/size), the module is re-evaluated and cache state is refreshed.
+
+Example:
+
+```ruff
+import math_helpers
+from metrics import average, total
+```
+
+### 5.11 Diagnostics and CLI exit codes
+
+- CLI diagnostics are emitted on `stderr`.
+- Successful program output and successful `--json` payloads are emitted on `stdout`.
+- Exit-code categories are stable for automation:
+  - `0`: success
+  - `1`: command failure or unmet gate (`format --check`, lint/test failure)
+  - `2`: command-line usage or argument parse error
+  - `3`: lexer/parser diagnostic error
+  - `4`: runtime semantic/execution error
+  - `5`: IO failure
+  - `6`: internal/tooling failure
+- Machine-readable diagnostic payload shape contracts are documented in:
+  - `docs/CLI_MACHINE_READABLE_CONTRACTS.md`
+  - `docs/PROTOCOL_CONTRACTS.md`
 
 ## 6. Tooling Contract Compatibility Guarantees
 
