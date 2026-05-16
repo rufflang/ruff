@@ -2,7 +2,7 @@
 
 Status: v1.0.0 baseline draft (active)
 Contract version: `1.0.0-draft`
-Last updated: 2026-05-07
+Last updated: 2026-05-16
 
 This document defines automation-facing contracts for Ruff CLI JSON outputs and exit behavior.
 
@@ -11,13 +11,18 @@ This document defines automation-facing contracts for Ruff CLI JSON outputs and 
 Ruff user-facing commands follow this policy:
 
 - `0`: command completed successfully
-- `1`: command completed with runtime/validation/tooling failure (including failed `--check` style gates)
+- `1`: command completed with a generic command failure or unmet gate (for example `format --check`, `lint` errors, failed `test-run` assertions, benchmark throughput gate failures)
 - `2`: command-line usage/argument parse error (Clap-level usage failure)
+- `3`: lexical/parser diagnostic failure
+- `4`: runtime execution/semantic failure
+- `5`: IO failure (for example missing input file, read/write/create failure)
+- `6`: internal/tooling failure (for example unexpected runtime panic surfaces or JSON serialization failure)
 
 Notes:
 
 - Commands that intentionally gate behavior (for example format check mode) use `1` when the requested gate is not met.
 - For automation, treat any non-zero exit as failure unless a command-specific policy explicitly documents otherwise.
+- `tests/cli_contracts.rs` and `tests/cli_json_contracts.rs` lock these exit-code contracts.
 
 ## Error Shape Policy
 
@@ -112,6 +117,6 @@ Any payload-affecting change to the documented JSON shapes requires all of the f
 
 `tests/cli_json_contracts.rs::cli_json_negative_paths_have_stable_failure_signals` locks these failure-path automation guarantees:
 
-- missing input files for JSON-mode `format`/`lint` exit with code `1`, emit no JSON payload on `stdout`, and report a deterministic read-failure message on `stderr`
+- missing input files for JSON-mode `format`/`lint` exit with code `5`, emit no JSON payload on `stdout`, and report a deterministic read-failure message on `stderr`
 - malformed CLI parameters (for example non-numeric `--line`) exit with code `2`, emit no JSON payload on `stdout`, and return Clap usage diagnostics on `stderr`
-- unknown-symbol rename requests exit with code `1`, emit no JSON payload on `stdout`, and emit deterministic symbol-resolution failure text on `stderr`
+- unknown-symbol rename requests exit with code `4`, emit no JSON payload on `stdout`, and emit deterministic symbol-resolution failure text on `stderr`

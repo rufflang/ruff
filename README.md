@@ -127,6 +127,20 @@ The current CLI exposes these subcommands:
 | `ruff lsp-rename <file> --line <N> --column <N> --new-name <NAME>` | Return rename edits for the symbol under the cursor and the updated source text; add `--json` for structured output. |
 | `ruff lsp-code-actions <file>` | Return syntax quick-fix actions derived from diagnostics (for example unmatched/unclosed delimiters); add `--json` for structured output. |
 
+### CLI Exit Codes
+
+Ruff uses stable exit-code categories for automation:
+
+- `0`: success
+- `1`: generic command failure or unmet gate (for example `format --check` needs changes, lint/test failures)
+- `2`: command-line usage/argument parse error
+- `3`: lexer/parser diagnostic failure
+- `4`: runtime execution/semantic failure
+- `5`: IO failure (missing/unreadable/unwritable paths)
+- `6`: internal/tooling failure
+
+All user-facing diagnostics are emitted on `stderr`; successful program or JSON output is emitted on `stdout`.
+
 ### Static Server (`ruff serve`)
 
 `ruff serve` is intended to be a universal local static preview surface for Ruff users.

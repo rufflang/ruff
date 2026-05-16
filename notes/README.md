@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-16_10-44_v1-cli-001-exit-code-contract.md` — Completed `V1-CLI-001` by centralizing CLI exit-code categories in `src/main.rs` (usage/lex-parse/runtime/IO/internal), replacing panic-prone command-path `expect(...)` handling with deterministic categorized exits, and adding contract/regression coverage in `tests/cli_contracts.rs`, `tests/cli_json_contracts.rs`, `tests/parser_diagnostics_contract.rs`, and `tests/native_api_security_boundaries.rs`.
 - `2026-05-15_17-35_v1-std-002-json-hardening.md` — Completed `V1-STD-002` by hardening centralized JSON parse/stringify contracts with explicit size/depth bounds, deterministic dictionary key ordering, non-finite float rejection, and dedicated regression coverage in `tests/native_json.rs`.
 - `2026-05-15_17-22_v1-std-001-native-api-inventory.md` — Completed `V1-STD-001` by adding a canonical complete native API inventory table (`docs/STANDARD_LIBRARY.md`), centralizing alias/capability/arity metadata helpers in `Interpreter`, and adding strict runtime/docs parity contract tests for builtin coverage, capability labels, arity labels, and alias edge cases.
 - `2026-05-15_14-21_v1-http-007-mime-registry-coverage.md` — Completed `V1-HTTP-007` by expanding centralized static-serve MIME mappings across missing real-world asset families, tightening `.gz`/`.br` precompressed split behavior to preserve archive MIME contracts, and adding unit/integration regressions for case-insensitive lookup, fallback behavior, double extensions, and dotfile-block precedence.

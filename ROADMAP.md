@@ -1130,7 +1130,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 7: CLI And Developer Experience
 
 ```text
-[ ] V1-CLI-001: Define and enforce CLI command/exit-code contract
+[x] V1-CLI-001: Define and enforce CLI command/exit-code contract
     Priority: P1
     Severity: High
     Area: CLI/DX/Diagnostics
@@ -1154,7 +1154,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Runtime error exits with runtime error code.
         - JSON diagnostics are valid JSON.
     Acceptance criteria: CLI behavior is stable, documented, and covered by integration tests.
-    Notes: Do not change command names without migration notes.
+    Notes: Completed on 2026-05-16. Added centralized CLI exit-code categories in `src/main.rs` and routed command failures through stable contracts: usage (`2`), lex/parse (`3`), runtime (`4`), IO (`5`), and internal (`6`), while retaining `1` for explicit gate-style command failures (for example `format --check` and lint/test failure outcomes). Replaced panic-prone `expect(...)` command paths in project/package/profile handlers with deterministic stderr diagnostics + categorized exits. Added integration coverage in `tests/cli_contracts.rs` for help/version success, usage failures, missing-file IO failures, parse failures, runtime failures, and JSON diagnostics validity/stdout-stderr separation; updated existing contract regressions in `tests/cli_json_contracts.rs` and `tests/parser_diagnostics_contract.rs` to assert the new codes. Updated `README.md` and `docs/CLI_MACHINE_READABLE_CONTRACTS.md` with the enforced exit-code policy and negative-path JSON contract mapping. Verification: `cargo test --test cli_contracts --test cli_json_contracts --test parser_diagnostics_contract` and `cargo test` passed.
 ```
 
 ```text
