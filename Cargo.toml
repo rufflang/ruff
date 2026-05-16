@@ -56,6 +56,9 @@ cranelift-jit = "0.112"
 cranelift-native = "0.112"
 target-lexicon = "0.12"
 
+[dev-dependencies]
+criterion = "0.5"
+
 [[example]]
 name = "jit_microbenchmark"
 path = "examples/jit_microbenchmark.rs"
@@ -63,3 +66,7 @@ path = "examples/jit_microbenchmark.rs"
 [[example]]
 name = "jit_simple_test"
 path = "examples/jit_simple_test.rs"
+
+[[bench]]
+name = "v1_perf_benchmarks"
+harness = false

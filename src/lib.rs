@@ -31,5 +31,6 @@ pub mod package_workflow;
 pub mod parser;
 pub mod path_security;
 pub mod repl;
+pub mod serve_http;
 pub mod type_checker;
 pub mod vm;
