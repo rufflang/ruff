@@ -269,11 +269,7 @@ fn examples_smoke_parse_run_or_expected_fail() {
         }
     }
 
-    assert!(
-        failures.is_empty(),
-        "example smoke mismatches:\n{}",
-        failures.join("\n")
-    );
+    assert!(failures.is_empty(), "example smoke mismatches:\n{}", failures.join("\n"));
 }
 
 #[test]
@@ -288,19 +284,12 @@ fn docs_ruff_snippets_parse_or_expected_fail() {
         for (index, snippet) in blocks {
             let block_id = format!("{}#{}", rel, index);
             let mode = classify_doc_block(&block_id);
-            let snippet_file = temp_dir.join(format!(
-                "{}_{}.ruff",
-                rel.replace('/', "_").replace('.', "_"),
-                index
-            ));
+            let snippet_file =
+                temp_dir.join(format!("{}_{}.ruff", rel.replace(['/', '.'], "_"), index));
             fs::write(&snippet_file, snippet).expect("failed to write snippet file");
 
             let output = run_ruff(
-                &[
-                    "check",
-                    snippet_file.to_str().expect("snippet path should be utf-8"),
-                    "--quiet",
-                ],
+                &["check", snippet_file.to_str().expect("snippet path should be utf-8"), "--quiet"],
                 &root,
             );
 
@@ -328,9 +317,5 @@ fn docs_ruff_snippets_parse_or_expected_fail() {
         }
     }
 
-    assert!(
-        failures.is_empty(),
-        "docs snippet smoke mismatches:\n{}",
-        failures.join("\n")
-    );
+    assert!(failures.is_empty(), "docs snippet smoke mismatches:\n{}", failures.join("\n"));
 }

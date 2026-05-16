@@ -32,7 +32,8 @@ fn expected_capability_flags() -> [&'static str; 14] {
 #[test]
 fn native_security_posture_doc_covers_required_operator_sections_and_flags() {
     let doc_path = repo_root().join("docs").join("NATIVE_API_SECURITY_POSTURE.md");
-    let content = fs::read_to_string(&doc_path).expect("failed to read native security posture doc");
+    let content =
+        fs::read_to_string(&doc_path).expect("failed to read native security posture doc");
 
     let required_sections = [
         "Ruff is not a sandbox",
@@ -86,8 +87,5 @@ fn cli_help_includes_documented_capability_flags() {
             flag
         );
     }
-    assert!(
-        stdout.contains("--untrusted"),
-        "expected run --help output to include --untrusted"
-    );
+    assert!(stdout.contains("--untrusted"), "expected run --help output to include --untrusted");
 }

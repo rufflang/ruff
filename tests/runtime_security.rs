@@ -48,10 +48,8 @@ fn runtime_security_rejects_invalid_escape_sequences() {
     let project_root = unique_temp_dir("runtime_security_invalid_escape");
     let script_path = write_script(&project_root, "invalid_escape.ruff", "print(\"\\q\")\n");
 
-    let output = run_ruff(
-        &["run", script_path.to_str().expect("path should be utf-8")],
-        &project_root,
-    );
+    let output =
+        run_ruff(&["run", script_path.to_str().expect("path should be utf-8")], &project_root);
 
     assert_eq!(
         output.status.code(),
@@ -75,10 +73,8 @@ fn runtime_security_rejects_oversized_string_literals() {
     let script_source = format!("print(\"{}\")\n", oversized);
     let script_path = write_script(&project_root, "oversized_string.ruff", &script_source);
 
-    let output = run_ruff(
-        &["run", script_path.to_str().expect("path should be utf-8")],
-        &project_root,
-    );
+    let output =
+        run_ruff(&["run", script_path.to_str().expect("path should be utf-8")], &project_root);
 
     assert_eq!(
         output.status.code(),
@@ -103,10 +99,8 @@ fn runtime_security_rejects_oversized_collection_literals() {
     let script_source = format!("let values := [{}]\nprint(len(values))\n", elements.join(", "));
     let script_path = write_script(&project_root, "oversized_collection.ruff", &script_source);
 
-    let output = run_ruff(
-        &["run", script_path.to_str().expect("path should be utf-8")],
-        &project_root,
-    );
+    let output =
+        run_ruff(&["run", script_path.to_str().expect("path should be utf-8")], &project_root);
 
     assert_eq!(
         output.status.code(),
@@ -130,11 +124,7 @@ fn runtime_security_break_and_continue_outside_loops_are_rejected() {
     let continue_script = write_script(&project_root, "continue_outside_loop.ruff", "continue\n");
 
     let break_output = run_ruff(
-        &[
-            "run",
-            "--interpreter",
-            break_script.to_str().expect("path should be utf-8"),
-        ],
+        &["run", "--interpreter", break_script.to_str().expect("path should be utf-8")],
         &project_root,
     );
     assert_eq!(
@@ -152,11 +142,7 @@ fn runtime_security_break_and_continue_outside_loops_are_rejected() {
     );
 
     let continue_output = run_ruff(
-        &[
-            "run",
-            "--interpreter",
-            continue_script.to_str().expect("path should be utf-8"),
-        ],
+        &["run", "--interpreter", continue_script.to_str().expect("path should be utf-8")],
         &project_root,
     );
     assert_eq!(

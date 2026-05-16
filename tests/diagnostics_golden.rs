@@ -41,11 +41,9 @@ fn assert_or_update_golden(base_name: &str, kind: &str, actual: &str) {
     });
     let expected_normalized = normalize_snapshot_text(&expected);
     assert_eq!(
-        expected_normalized,
-        actual_normalized,
+        expected_normalized, actual_normalized,
         "snapshot mismatch for {}.{}",
-        base_name,
-        kind
+        base_name, kind
     );
 }
 
@@ -57,16 +55,13 @@ fn first_lexer_diagnostic_from_fixture(fixture_file: &str) -> Diagnostic {
     let source = read_fixture_source(fixture_file);
     let diagnostics = tokenize_with_file(&source, Some(fixture_file))
         .expect_err("fixture should produce lexer diagnostics");
-    diagnostics
-        .first()
-        .expect("lexer diagnostics should not be empty")
-        .to_diagnostic()
+    diagnostics.first().expect("lexer diagnostics should not be empty").to_diagnostic()
 }
 
 fn first_parser_diagnostic_from_fixture(fixture_file: &str) -> Diagnostic {
     let source = read_fixture_source(fixture_file);
-    let tokens =
-        tokenize_with_file(&source, Some(fixture_file)).expect("fixture should tokenize for parser");
+    let tokens = tokenize_with_file(&source, Some(fixture_file))
+        .expect("fixture should tokenize for parser");
     let mut parser = Parser::new(tokens);
     let parse_output = parser.parse_with_diagnostics();
     parse_output
