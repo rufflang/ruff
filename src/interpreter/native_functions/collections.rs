@@ -32,7 +32,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             Some(Value::Queue(queue)) => Value::Int(queue.len() as i64),
             Some(Value::Stack(stack)) => Value::Int(stack.len() as i64),
             Some(Value::Str(_)) => return None, // Let strings module handle this
-            _ => Value::Int(0),
+            Some(_) => Value::Error(
+                "len() requires an array, dict, bytes, set, queue, stack, or string".to_string(),
+            ),
+            None => Value::Error("len() requires 1 argument".to_string()),
         },
 
         // Polymorphic contains - handles both strings and arrays
@@ -65,7 +68,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     Value::Array(arr)
                 }
             } else {
-                Value::Array(Arc::new(vec![]))
+                Value::Error(format!("{}() requires an array as the first argument", name))
             }
         }
 
@@ -78,7 +81,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let popped = arr_mut.pop().unwrap_or(Value::Int(0));
                 Value::Array(Arc::new(vec![Value::Array(arr_clone), popped]))
             } else {
-                Value::Array(Arc::new(vec![]))
+                Value::Error("pop() requires an array argument".to_string())
             }
         }
 
@@ -95,7 +98,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let end_idx = (*end as usize).max(start_idx).min(arr.len());
                 Value::Array(Arc::new(arr[start_idx..end_idx].to_vec()))
             } else {
-                Value::Array(Arc::new(vec![]))
+                Value::Error("slice() requires array and numeric start/end arguments".to_string())
             }
         }
 
@@ -110,7 +113,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 result.extend((**arr2).iter().cloned());
                 Value::Array(Arc::new(result))
             } else {
-                Value::Array(Arc::new(vec![]))
+                Value::Error("concat() requires two array arguments".to_string())
             }
         }
 
@@ -257,7 +260,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                             ]))
                         }
                     }
-                    _ => Value::Array(Arc::new(vec![])),
+                    _ => Value::Error(
+                        "remove() requires an array or dictionary-like value with a valid key/item"
+                            .to_string(),
+                    ),
                 }
             }
         }
@@ -294,7 +300,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 match arg_values.first() {
                     Some(Value::Array(_)) => Value::Array(Arc::new(builtins::array_clear())),
                     Some(Value::Dict(_)) => Value::Dict(Arc::new(DictMap::default())),
-                    _ => Value::Array(Arc::new(vec![])),
+                    _ => Value::Error("clear() requires an array or dict argument".to_string()),
                 }
             }
         }
@@ -1632,5 +1638,45 @@ mod tests {
             && matches!(&values[1], Value::Array(pair) if pair.len() == 2
                 && matches!(&pair[0], Value::Int(2))
                 && matches!(&pair[1], Value::Int(20)))));
+    }
+
+    #[test]
+    fn test_collection_helpers_reject_wrong_types_instead_of_silent_fallbacks() {
+        let mut interpreter = Interpreter::new();
+
+        let len_wrong_type = handle(&mut interpreter, "len", &[Value::Null]).expect("handler");
+        assert!(
+            matches!(len_wrong_type, Value::Error(message) if message.contains("len() requires"))
+        );
+
+        let push_wrong_type =
+            handle(&mut interpreter, "push", &[Value::Null, Value::Int(1)]).expect("handler");
+        assert!(
+            matches!(push_wrong_type, Value::Error(message) if message.contains("push() requires an array"))
+        );
+
+        let pop_wrong_type = handle(&mut interpreter, "pop", &[Value::Null]).expect("handler");
+        assert!(
+            matches!(pop_wrong_type, Value::Error(message) if message.contains("pop() requires an array"))
+        );
+
+        let slice_wrong_type =
+            handle(&mut interpreter, "slice", &[Value::Null, Value::Int(0), Value::Int(1)])
+                .expect("handler");
+        assert!(
+            matches!(slice_wrong_type, Value::Error(message) if message.contains("slice() requires array and numeric start/end arguments"))
+        );
+
+        let concat_wrong_type =
+            handle(&mut interpreter, "concat", &[Value::Array(Arc::new(vec![])), Value::Null])
+                .expect("handler");
+        assert!(
+            matches!(concat_wrong_type, Value::Error(message) if message.contains("concat() requires two array arguments"))
+        );
+
+        let clear_wrong_type = handle(&mut interpreter, "clear", &[Value::Null]).expect("handler");
+        assert!(
+            matches!(clear_wrong_type, Value::Error(message) if message.contains("clear() requires an array or dict"))
+        );
     }
 }

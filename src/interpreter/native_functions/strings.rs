@@ -6,6 +6,34 @@ use crate::builtins;
 use crate::interpreter::{DictMap, Value};
 use std::sync::Arc;
 
+fn require_string_arg<'a>(
+    args: &'a [Value],
+    index: usize,
+    function_name: &str,
+    label: &str,
+) -> Result<&'a str, Value> {
+    match args.get(index) {
+        Some(Value::Str(value)) => Ok(value.as_ref()),
+        _ => Err(Value::Error(format!(
+            "{}() requires a string argument for {}",
+            function_name, label
+        ))),
+    }
+}
+
+fn require_number_arg(
+    args: &[Value],
+    index: usize,
+    function_name: &str,
+    label: &str,
+) -> Result<f64, Value> {
+    match args.get(index) {
+        Some(Value::Int(n)) => Ok(*n as f64),
+        Some(Value::Float(n)) => Ok(*n),
+        _ => Err(Value::Error(format!("{}() {} must be a number", function_name, label))),
+    }
+}
+
 pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
     let result = match name {
         "len" => {
@@ -20,7 +48,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Str(Arc::new(builtins::to_upper(&**s)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error(format!("{}() requires a string argument", name))
             }
         }
 
@@ -28,7 +56,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Str(Arc::new(builtins::to_lower(&**s)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error(format!("{}() requires a string argument", name))
             }
         }
 
@@ -36,7 +64,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Str(Arc::new(builtins::capitalize(&**s)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error("capitalize() requires a string argument".to_string())
             }
         }
 
@@ -44,7 +72,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Str(Arc::new(builtins::trim(&**s)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error("trim() requires a string argument".to_string())
             }
         }
 
@@ -52,7 +80,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Str(Arc::new(builtins::trim_start(&**s)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error("trim_start() requires a string argument".to_string())
             }
         }
 
@@ -60,28 +88,27 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Str(Arc::new(builtins::trim_end(&**s)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error("trim_end() requires a string argument".to_string())
             }
         }
 
         "char_at" => {
-            if let (Some(Value::Str(s)), Some(index_val)) = (args.first(), args.get(1)) {
-                let index = match index_val {
-                    Value::Int(n) => *n as f64,
-                    Value::Float(n) => *n,
-                    _ => 0.0,
-                };
-                Value::Str(Arc::new(builtins::char_at(&**s, index)))
-            } else {
-                Value::Str(Arc::new(String::new()))
-            }
+            let s = match require_string_arg(args, 0, "char_at", "value") {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            let index = match require_number_arg(args, 1, "char_at", "index") {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            Value::Str(Arc::new(builtins::char_at(s, index)))
         }
 
         "is_empty" => {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Bool(builtins::is_empty(&**s))
             } else {
-                Value::Bool(true)
+                Value::Error("is_empty() requires a string argument".to_string())
             }
         }
 
@@ -89,7 +116,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let Some(Value::Str(s)) = args.first() {
                 Value::Int(builtins::count_chars(&**s))
             } else {
-                Value::Int(0)
+                Value::Error("count_chars() requires a string argument".to_string())
             }
         }
 
@@ -117,23 +144,19 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
         }
 
         "substring" => {
-            if let (Some(Value::Str(s)), Some(start_val), Some(end_val)) =
-                (args.first(), args.get(1), args.get(2))
-            {
-                let start = match start_val {
-                    Value::Int(n) => *n as f64,
-                    Value::Float(n) => *n,
-                    _ => 0.0,
-                };
-                let end = match end_val {
-                    Value::Int(n) => *n as f64,
-                    Value::Float(n) => *n,
-                    _ => 0.0,
-                };
-                Value::Str(Arc::new(builtins::substring(&**s, start, end)))
-            } else {
-                Value::Str(Arc::new(String::new()))
-            }
+            let s = match require_string_arg(args, 0, "substring", "value") {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            let start = match require_number_arg(args, 1, "substring", "start and end") {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            let end = match require_number_arg(args, 2, "substring", "start and end") {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            Value::Str(Arc::new(builtins::substring(s, start, end)))
         }
 
         "replace_str" | "replace" => {
@@ -142,7 +165,9 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             {
                 Value::Str(Arc::new(builtins::replace(&**s, &**old, &**new)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error(
+                    "replace() requires string, from-string, and to-string arguments".to_string(),
+                )
             }
         }
 
@@ -150,7 +175,9 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let (Some(Value::Str(s)), Some(Value::Str(prefix))) = (args.first(), args.get(1)) {
                 Value::Bool(builtins::starts_with(&**s, &**prefix))
             } else {
-                Value::Bool(false)
+                Value::Error(
+                    "starts_with() requires string and prefix string arguments".to_string(),
+                )
             }
         }
 
@@ -158,7 +185,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             if let (Some(Value::Str(s)), Some(Value::Str(suffix))) = (args.first(), args.get(1)) {
                 Value::Bool(builtins::ends_with(&**s, &**suffix))
             } else {
-                Value::Bool(false)
+                Value::Error("ends_with() requires string and suffix string arguments".to_string())
             }
         }
 
@@ -186,16 +213,15 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
         }
 
         "repeat" => {
-            if let (Some(Value::Str(s)), Some(count_val)) = (args.first(), args.get(1)) {
-                let count = match count_val {
-                    Value::Int(n) => *n as f64,
-                    Value::Float(n) => *n,
-                    _ => 0.0,
-                };
-                Value::Str(Arc::new(builtins::repeat(&**s, count)))
-            } else {
-                Value::Str(Arc::new(String::new()))
-            }
+            let s = match require_string_arg(args, 0, "repeat", "value") {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            let count = match require_number_arg(args, 1, "repeat", "count") {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            Value::Str(Arc::new(builtins::repeat(s, count)))
         }
 
         "split" => {
@@ -206,7 +232,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     parts.into_iter().map(|s| Value::Str(Arc::new(s))).collect();
                 Value::Array(Arc::new(values))
             } else {
-                Value::Array(Arc::new(vec![]))
+                Value::Error("split() requires string and delimiter string arguments".to_string())
             }
         }
 
@@ -286,7 +312,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                     .collect();
                 Value::Str(Arc::new(builtins::join(&strings, &**separator)))
             } else {
-                Value::Str(Arc::new(String::new()))
+                Value::Error("join() requires array and separator string arguments".to_string())
             }
         }
 
@@ -407,7 +433,9 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                 let width = match width_val {
                     Value::Int(n) => *n,
                     Value::Float(n) => *n as i64,
-                    _ => 0,
+                    _ => {
+                        return Some(Value::Error("pad_left() width must be a number".to_string()))
+                    }
                 };
                 Value::Str(Arc::new(builtins::str_pad_left(&**s, width, &**pad_char)))
             } else {
@@ -422,7 +450,9 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                 let width = match width_val {
                     Value::Int(n) => *n,
                     Value::Float(n) => *n as i64,
-                    _ => 0,
+                    _ => {
+                        return Some(Value::Error("pad_right() width must be a number".to_string()))
+                    }
                 };
                 Value::Str(Arc::new(builtins::str_pad_right(&**s, width, &**pad_char)))
             } else {
@@ -471,7 +501,9 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                 let max_len = match len_val {
                     Value::Int(n) => *n,
                     Value::Float(n) => *n as i64,
-                    _ => 0,
+                    _ => {
+                        return Some(Value::Error("truncate() length must be a number".to_string()))
+                    }
                 };
                 Value::Str(Arc::new(builtins::str_truncate(&**s, max_len, &**suffix)))
             } else {
@@ -744,6 +776,44 @@ mod tests {
             [Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])), Value::Int(2)];
         assert!(handle("contains", &array_args).is_none());
         assert!(handle("index_of", &array_args).is_none());
+    }
+
+    #[test]
+    fn test_core_string_helpers_reject_wrong_types_instead_of_silent_fallbacks() {
+        let upper_wrong_type = handle("to_upper", &[Value::Int(1)]).unwrap();
+        assert!(
+            matches!(upper_wrong_type, Value::Error(message) if message.contains("to_upper() requires a string argument"))
+        );
+
+        let char_at_wrong_index =
+            handle("char_at", &[str_value("ruff"), Value::Bool(true)]).unwrap();
+        assert!(
+            matches!(char_at_wrong_index, Value::Error(message) if message.contains("char_at() index must be a number"))
+        );
+
+        let substring_wrong_bound = handle(
+            "substring",
+            &[str_value("ruff"), Value::Int(1), Value::Str("x".to_string().into())],
+        )
+        .unwrap();
+        assert!(
+            matches!(substring_wrong_bound, Value::Error(message) if message.contains("substring() start and end must be a number"))
+        );
+
+        let split_wrong_delimiter = handle("split", &[str_value("a,b"), Value::Int(1)]).unwrap();
+        assert!(
+            matches!(split_wrong_delimiter, Value::Error(message) if message.contains("split() requires string and delimiter string arguments"))
+        );
+
+        let repeat_wrong_count = handle("repeat", &[str_value("ha"), str_value("3")]).unwrap();
+        assert!(
+            matches!(repeat_wrong_count, Value::Error(message) if message.contains("repeat() count must be a number"))
+        );
+
+        let count_chars_wrong_type = handle("count_chars", &[Value::Null]).unwrap();
+        assert!(
+            matches!(count_chars_wrong_type, Value::Error(message) if message.contains("count_chars() requires a string argument"))
+        );
     }
 
     #[test]

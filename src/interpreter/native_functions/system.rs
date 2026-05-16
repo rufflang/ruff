@@ -643,7 +643,12 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             if let (Some(Value::Str(date_str)), Some(Value::Str(format))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                Value::Float(builtins::parse_date(date_str, format))
+                match builtins::parse_date(date_str, format) {
+                    Ok(timestamp) => Value::Float(timestamp),
+                    Err(message) => {
+                        Value::ErrorObject { message, stack: Vec::new(), line: None, cause: None }
+                    }
+                }
             } else {
                 Value::Error("parse_date requires date string and format string".to_string())
             }
@@ -1188,6 +1193,33 @@ mod tests {
                 assert!(message.contains("not found"));
             }
             other => panic!("Expected Value::ErrorObject from env_int(), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_env_bool_invalid_value_returns_error_object() {
+        let key = "RUFF_NATIVE_SYSTEM_ENV_BOOL_INVALID_TEST";
+        std::env::set_var(key, "definitely-not-bool");
+
+        let result = handle("env_bool", &[string_value(key)]).unwrap();
+        match result {
+            Value::ErrorObject { message, .. } => {
+                assert!(message.contains("not a valid bool"));
+            }
+            other => panic!("Expected Value::ErrorObject from env_bool(), got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_parse_date_invalid_input_returns_error_object() {
+        let result =
+            handle("parse_date", &[string_value("2026/05/16"), string_value("YYYY-MM-DD")])
+                .unwrap();
+        match result {
+            Value::ErrorObject { message, .. } => {
+                assert!(message.contains("parse_date failed"));
+            }
+            other => panic!("Expected Value::ErrorObject from parse_date(), got {:?}", other),
         }
     }
 

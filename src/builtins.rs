@@ -7,7 +7,7 @@
 use crate::interpreter::{DictMap, Value};
 use crate::network_policy;
 use base64::{engine::general_purpose, Engine as _};
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -623,10 +623,7 @@ fn ruff_value_to_json(value: &Value) -> Result<serde_json::Value, String> {
     ruff_value_to_json_with_depth(value, 0)
 }
 
-fn ruff_value_to_json_with_depth(
-    value: &Value,
-    depth: usize,
-) -> Result<serde_json::Value, String> {
+fn ruff_value_to_json_with_depth(value: &Value, depth: usize) -> Result<serde_json::Value, String> {
     if depth > MAX_JSON_NESTING_DEPTH {
         return Err(format!(
             "JSON value exceeds maximum nesting depth of {}",
@@ -642,9 +639,8 @@ fn ruff_value_to_json_with_depth(
                 return Err(format!("Cannot convert non-finite float {} to JSON", n));
             }
 
-            let number = serde_json::Number::from_f64(*n).ok_or_else(|| {
-                format!("Cannot convert non-finite float {} to JSON", n)
-            })?;
+            let number = serde_json::Number::from_f64(*n)
+                .ok_or_else(|| format!("Cannot convert non-finite float {} to JSON", n))?;
             Ok(serde_json::Value::Number(number))
         }
         Value::Str(s) => Ok(serde_json::Value::String(s.as_ref().clone())),
@@ -668,10 +664,7 @@ fn ruff_value_to_json_with_depth(
         Value::FixedDict { keys, values } => {
             let mut json_obj = serde_json::Map::new();
             for (key, val) in keys.iter().zip(values.iter()) {
-                json_obj.insert(
-                    key.to_string(),
-                    ruff_value_to_json_with_depth(val, depth + 1)?,
-                );
+                json_obj.insert(key.to_string(), ruff_value_to_json_with_depth(val, depth + 1)?);
             }
             Ok(serde_json::Value::Object(json_obj))
         }
@@ -687,10 +680,7 @@ fn ruff_value_to_json_with_depth(
         Value::DenseIntDict(values) => {
             let mut json_obj = serde_json::Map::new();
             for (index, val) in values.iter().enumerate() {
-                json_obj.insert(
-                    index.to_string(),
-                    ruff_value_to_json_with_depth(val, depth + 1)?,
-                );
+                json_obj.insert(index.to_string(), ruff_value_to_json_with_depth(val, depth + 1)?);
             }
             Ok(serde_json::Value::Object(json_obj))
         }
@@ -698,10 +688,7 @@ fn ruff_value_to_json_with_depth(
     }
 }
 
-fn validate_json_nesting_depth(
-    root: &serde_json::Value,
-    max_depth: usize,
-) -> Result<(), String> {
+fn validate_json_nesting_depth(root: &serde_json::Value, max_depth: usize) -> Result<(), String> {
     let mut stack: Vec<(&serde_json::Value, usize)> = vec![(root, 0)];
 
     while let Some((value, depth)) = stack.pop() {
@@ -1124,22 +1111,24 @@ pub fn format_date(timestamp: f64, format_str: &str) -> String {
 
 /// Parse a date string to Unix timestamp
 /// Supports format: "YYYY-MM-DD"
-pub fn parse_date(date_str: &str, _format: &str) -> f64 {
-    // Simple parser for "YYYY-MM-DD" format
-    let parts: Vec<&str> = date_str.split('-').collect();
-    if parts.len() != 3 {
-        return 0.0;
+pub fn parse_date(date_str: &str, format: &str) -> Result<f64, String> {
+    if "YYYY-MM-DD" != format {
+        return Err(format!(
+            "parse_date failed: unsupported format '{}' (expected 'YYYY-MM-DD')",
+            format
+        ));
     }
 
-    let year = parts[0].parse::<i32>().unwrap_or(1970);
-    let month = parts[1].parse::<u32>().unwrap_or(1);
-    let day = parts[2].parse::<u32>().unwrap_or(1);
+    let parsed_date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|error| {
+        format!("parse_date failed: '{}' does not match format 'YYYY-MM-DD' ({})", date_str, error)
+    })?;
 
-    if let Some(dt) = Utc.with_ymd_and_hms(year, month, day, 0, 0, 0).single() {
-        dt.timestamp() as f64
-    } else {
-        0.0
-    }
+    let naive_datetime = parsed_date
+        .and_hms_opt(0, 0, 0)
+        .ok_or_else(|| format!("parse_date failed: '{}' is out of range", date_str))?;
+    let dt: DateTime<Utc> = DateTime::from_naive_utc_and_offset(naive_datetime, Utc);
+
+    Ok(dt.timestamp() as f64)
 }
 
 /// System operation functions
@@ -1189,7 +1178,14 @@ pub fn env_bool(var_name: &str) -> Result<bool, String> {
     match env::var(var_name) {
         Ok(val) => {
             let val_lower = val.to_lowercase();
-            Ok(matches!(val_lower.as_str(), "true" | "1" | "yes" | "on"))
+            match val_lower.as_str() {
+                "true" | "1" | "yes" | "on" => Ok(true),
+                "false" | "0" | "no" | "off" => Ok(false),
+                _ => Err(format!(
+                    "Environment variable '{}' value '{}' is not a valid bool",
+                    var_name, val
+                )),
+            }
         }
         Err(_) => Err(format!("Environment variable '{}' not found", var_name)),
     }

@@ -4195,7 +4195,10 @@ impl Interpreter {
                 if let (Some(Value::Str(date_str)), Some(Value::Str(format))) =
                     (arg_values.first(), arg_values.get(1))
                 {
-                    Value::Float(builtins::parse_date(date_str, format))
+                    match builtins::parse_date(date_str, format) {
+                        Ok(timestamp) => Value::Float(timestamp),
+                        Err(message) => Value::Error(message),
+                    }
                 } else {
                     Value::Error("parse_date requires date string and format string".to_string())
                 }

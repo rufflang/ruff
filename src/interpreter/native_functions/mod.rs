@@ -938,8 +938,8 @@ mod tests {
         );
         assert!(matches!(stack_len, Value::Int(4)));
 
-        let fallback_len = call_native_function(&mut interpreter, "len", &[Value::Null]);
-        assert!(matches!(fallback_len, Value::Int(0)));
+        let invalid_len = call_native_function(&mut interpreter, "len", &[Value::Null]);
+        assert!(matches!(invalid_len, Value::Error(message) if message.contains("len() requires")));
 
         let missing_args_len = call_native_function(&mut interpreter, "len", &[]);
         assert!(matches!(
@@ -1339,7 +1339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_release_hardening_string_utility_behavior_and_fallback_contracts() {
+    fn test_release_hardening_string_utility_behavior_and_error_contracts() {
         let mut interpreter = Interpreter::new();
 
         let starts_with_true = call_native_function(
@@ -1367,7 +1367,9 @@ mod tests {
             "starts_with",
             &[Value::Str(Arc::new("ruff-lang".to_string())), Value::Int(1)],
         );
-        assert!(matches!(starts_with_invalid, Value::Bool(false)));
+        assert!(
+            matches!(starts_with_invalid, Value::Error(message) if message.contains("starts_with() requires string and prefix string arguments"))
+        );
 
         let ends_with_true = call_native_function(
             &mut interpreter,
@@ -1394,7 +1396,9 @@ mod tests {
             "ends_with",
             &[Value::Str(Arc::new("ruff-lang".to_string())), Value::Int(1)],
         );
-        assert!(matches!(ends_with_invalid, Value::Bool(false)));
+        assert!(
+            matches!(ends_with_invalid, Value::Error(message) if message.contains("ends_with() requires string and suffix string arguments"))
+        );
 
         let repeat_ok = call_native_function(
             &mut interpreter,
@@ -1431,7 +1435,9 @@ mod tests {
             "char_at",
             &[Value::Str(Arc::new("ruff".to_string()))],
         );
-        assert!(matches!(char_at_missing, Value::Str(value) if value.as_ref().is_empty()));
+        assert!(
+            matches!(char_at_missing, Value::Error(message) if message.contains("char_at() index must be a number"))
+        );
 
         let is_empty_true = call_native_function(
             &mut interpreter,
@@ -1448,7 +1454,9 @@ mod tests {
         assert!(matches!(is_empty_false, Value::Bool(false)));
 
         let is_empty_missing = call_native_function(&mut interpreter, "is_empty", &[]);
-        assert!(matches!(is_empty_missing, Value::Bool(true)));
+        assert!(
+            matches!(is_empty_missing, Value::Error(message) if message.contains("is_empty() requires a string argument"))
+        );
 
         let count_chars_ok = call_native_function(
             &mut interpreter,
@@ -1465,7 +1473,9 @@ mod tests {
         assert!(matches!(count_chars_unicode, Value::Int(2)));
 
         let count_chars_missing = call_native_function(&mut interpreter, "count_chars", &[]);
-        assert!(matches!(count_chars_missing, Value::Int(0)));
+        assert!(
+            matches!(count_chars_missing, Value::Error(message) if message.contains("count_chars() requires a string argument"))
+        );
     }
 
     #[test]
@@ -1939,7 +1949,7 @@ mod tests {
                 Value::Str(Arc::new("YYYY-MM-DD".to_string())),
             ],
         );
-        assert!(matches!(parse_date_invalid, Value::Float(value) if value == 0.0));
+        assert!(matches!(parse_date_invalid, Value::ErrorObject { .. }));
 
         let parse_date_missing = call_native_function(&mut interpreter, "parse_date", &[]);
         assert!(
@@ -1961,7 +1971,7 @@ mod tests {
     }
 
     #[test]
-    fn test_release_hardening_math_behavior_and_fallback_contracts() {
+    fn test_release_hardening_math_behavior_and_error_contracts() {
         let mut interpreter = Interpreter::new();
 
         let abs_ok = call_native_function(&mut interpreter, "abs", &[Value::Int(-42)]);
@@ -2007,7 +2017,9 @@ mod tests {
         );
 
         let abs_missing = call_native_function(&mut interpreter, "abs", &[]);
-        assert!(matches!(abs_missing, Value::Int(0)));
+        assert!(
+            matches!(abs_missing, Value::Error(message) if message.contains("abs() expects 1 argument"))
+        );
 
         let abs_extra =
             call_native_function(&mut interpreter, "abs", &[Value::Int(-42), Value::Int(1)]);
@@ -2020,10 +2032,14 @@ mod tests {
             "abs",
             &[Value::Str(Arc::new("invalid".to_string()))],
         );
-        assert!(matches!(abs_invalid_type, Value::Int(0)));
+        assert!(
+            matches!(abs_invalid_type, Value::Error(message) if message.contains("abs() expects numeric argument"))
+        );
 
         let pow_missing = call_native_function(&mut interpreter, "pow", &[Value::Int(2)]);
-        assert!(matches!(pow_missing, Value::Int(0)));
+        assert!(
+            matches!(pow_missing, Value::Error(message) if message.contains("pow() expects 2 arguments"))
+        );
 
         let pow_extra = call_native_function(
             &mut interpreter,
@@ -2039,7 +2055,19 @@ mod tests {
             "pow",
             &[Value::Int(2), Value::Str(Arc::new("bad".to_string()))],
         );
-        assert!(matches!(pow_invalid_type, Value::Int(0)));
+        assert!(
+            matches!(pow_invalid_type, Value::Error(message) if message.contains("pow() expects numeric arguments"))
+        );
+
+        let sqrt_domain_error = call_native_function(&mut interpreter, "sqrt", &[Value::Int(-1)]);
+        assert!(
+            matches!(sqrt_domain_error, Value::Error(message) if message.contains("sqrt() domain error"))
+        );
+
+        let log_domain_error = call_native_function(&mut interpreter, "log", &[Value::Int(0)]);
+        assert!(
+            matches!(log_domain_error, Value::Error(message) if message.contains("log() domain error"))
+        );
 
         let min_extra = call_native_function(
             &mut interpreter,
@@ -2888,7 +2916,7 @@ mod tests {
             "env_bool",
             &[Value::Str(Arc::new(env_bool_invalid_key.to_string()))],
         );
-        assert!(matches!(env_bool_bad_parse, Value::Bool(false)));
+        assert!(matches!(env_bool_bad_parse, Value::ErrorObject { .. }));
 
         let env_required_missing = call_native_function(
             &mut interpreter,

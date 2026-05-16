@@ -5,68 +5,81 @@
 use crate::builtins;
 use crate::interpreter::Value;
 
+fn number_arg(name: &str, arg_name: &str, value: &Value) -> Result<f64, Value> {
+    match value {
+        Value::Int(n) => Ok(*n as f64),
+        Value::Float(n) => Ok(*n),
+        _ => Err(Value::Error(format!(
+            "{}() expects numeric argument '{}' , got {:?}",
+            name, arg_name, value
+        ))),
+    }
+}
+
 /// Handle math-related function calls  
 /// Returns Some(value) if the function was handled, None if not recognized
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         // Math functions - single argument
         "abs" | "sqrt" | "floor" | "ceil" | "round" | "sin" | "cos" | "tan" | "log" | "exp" => {
-            if arg_values.len() > 1 {
+            if arg_values.len() != 1 {
                 return Some(Value::Error(format!("{}() expects 1 argument", name)));
             }
 
-            if let Some(val) = arg_values.first() {
-                let x = match val {
-                    Value::Int(n) => *n as f64,
-                    Value::Float(n) => *n,
-                    _ => return Some(Value::Int(0)),
-                };
-                let result = match name {
-                    "abs" => builtins::abs(x),
-                    "sqrt" => builtins::sqrt(x),
-                    "floor" => builtins::floor(x),
-                    "ceil" => builtins::ceil(x),
-                    "round" => builtins::round(x),
-                    "sin" => builtins::sin(x),
-                    "cos" => builtins::cos(x),
-                    "tan" => builtins::tan(x),
-                    "log" => builtins::log(x),
-                    "exp" => builtins::exp(x),
-                    _ => 0.0,
-                };
-                Value::Float(result)
-            } else {
-                Value::Int(0)
+            let x = match number_arg(name, "value", &arg_values[0]) {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+
+            if "sqrt" == name && x < 0.0 {
+                return Some(Value::Error(format!("{}() domain error: value must be >= 0", name)));
             }
+
+            if "log" == name && x <= 0.0 {
+                return Some(Value::Error(format!("{}() domain error: value must be > 0", name)));
+            }
+
+            let result = match name {
+                "abs" => builtins::abs(x),
+                "sqrt" => builtins::sqrt(x),
+                "floor" => builtins::floor(x),
+                "ceil" => builtins::ceil(x),
+                "round" => builtins::round(x),
+                "sin" => builtins::sin(x),
+                "cos" => builtins::cos(x),
+                "tan" => builtins::tan(x),
+                "log" => builtins::log(x),
+                "exp" => builtins::exp(x),
+                _ => 0.0,
+            };
+            Value::Float(result)
         }
 
         // Math functions - two arguments
         "pow" | "min" | "max" => {
-            if arg_values.len() > 2 {
+            if arg_values.len() != 2 {
                 return Some(Value::Error(format!("{}() expects 2 arguments", name)));
             }
 
-            if let (Some(val_a), Some(val_b)) = (arg_values.first(), arg_values.get(1)) {
-                let a = match val_a {
-                    Value::Int(n) => *n as f64,
-                    Value::Float(n) => *n,
-                    _ => return Some(Value::Int(0)),
-                };
-                let b = match val_b {
-                    Value::Int(n) => *n as f64,
-                    Value::Float(n) => *n,
-                    _ => return Some(Value::Int(0)),
-                };
-                let result = match name {
-                    "pow" => builtins::pow(a, b),
-                    "min" => builtins::min(a, b),
-                    "max" => builtins::max(a, b),
-                    _ => 0.0,
-                };
-                Value::Float(result)
-            } else {
-                Value::Int(0)
-            }
+            let a = match number_arg(name, "a", &arg_values[0]) {
+                Ok(value) => value,
+                Err(_) => {
+                    return Some(Value::Error(format!("{}() expects numeric arguments", name)))
+                }
+            };
+            let b = match number_arg(name, "b", &arg_values[1]) {
+                Ok(value) => value,
+                Err(_) => {
+                    return Some(Value::Error(format!("{}() expects numeric arguments", name)))
+                }
+            };
+            let result = match name {
+                "pow" => builtins::pow(a, b),
+                "min" => builtins::min(a, b),
+                "max" => builtins::max(a, b),
+                _ => 0.0,
+            };
+            Value::Float(result)
         }
 
         _ => return None,
@@ -78,7 +91,6 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 mod tests {
     use super::handle;
     use crate::interpreter::Value;
-    use std::sync::Arc;
 
     #[test]
     fn test_math_api_strict_arity_rejects_extra_arguments() {
@@ -120,15 +132,41 @@ mod tests {
     }
 
     #[test]
-    fn test_math_api_preserves_missing_argument_fallbacks() {
+    fn test_math_api_rejects_missing_and_invalid_arguments() {
         let abs_missing = handle("abs", &[]).expect("abs should return a result");
-        assert!(matches!(abs_missing, Value::Int(0)));
+        assert!(
+            matches!(abs_missing, Value::Error(message) if message.contains("abs() expects 1 argument"))
+        );
 
         let pow_missing = handle("pow", &[Value::Int(2)]).expect("pow should return a result");
-        assert!(matches!(pow_missing, Value::Int(0)));
+        assert!(
+            matches!(pow_missing, Value::Error(message) if message.contains("pow() expects 2 arguments"))
+        );
 
-        let pow_invalid = handle("pow", &[Value::Int(2), Value::Str(Arc::new("bad".to_string()))])
+        let pow_invalid = handle("pow", &[Value::Int(2), Value::Str("bad".to_string().into())])
             .expect("pow should return a result");
-        assert!(matches!(pow_invalid, Value::Int(0)));
+        assert!(
+            matches!(pow_invalid, Value::Error(message) if message.contains("pow() expects numeric arguments"))
+        );
+    }
+
+    #[test]
+    fn test_math_api_domain_and_success_contracts() {
+        let sqrt_negative = handle("sqrt", &[Value::Int(-1)]).expect("sqrt should return a result");
+        assert!(
+            matches!(sqrt_negative, Value::Error(message) if message.contains("sqrt() domain error"))
+        );
+
+        let log_zero = handle("log", &[Value::Int(0)]).expect("log should return a result");
+        assert!(
+            matches!(log_zero, Value::Error(message) if message.contains("log() domain error"))
+        );
+
+        let sqrt_success = handle("sqrt", &[Value::Int(9)]).expect("sqrt should return a result");
+        assert!(matches!(sqrt_success, Value::Float(value) if (value - 3.0).abs() < f64::EPSILON));
+
+        let pow_success =
+            handle("pow", &[Value::Int(2), Value::Int(8)]).expect("pow should return a result");
+        assert!(matches!(pow_success, Value::Float(value) if (value - 256.0).abs() < f64::EPSILON));
     }
 }
