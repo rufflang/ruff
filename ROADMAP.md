@@ -1316,7 +1316,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-TEST-005: Smoke-test examples and documentation snippets
+[x] V1-TEST-005: Smoke-test examples and documentation snippets
     Priority: P1
     Severity: Medium
     Area: Docs/Tests/DX
@@ -1331,7 +1331,7 @@ If a command is not yet available, create the missing configuration as part of t
         5. Update examples that rely on obsolete semantics.
     Tests required: Example smoke test suite.
     Acceptance criteria: Documented Ruff code either runs, parses, or is explicitly marked as illustrative/manual.
-    Notes: Do not silently delete examples. Update or mark them.
+    Notes: Completed on 2026-05-16. Added `tests/docs_examples.rs`, a metadata-driven smoke harness that inventories every `examples/**/*.ruff` file and fenced ` ```ruff ` block from `README.md` plus `docs/*.md`, then enforces explicit classification as run / parse-only / expected-fail. The suite executes a curated run subset (`ruff run --interpreter`), parse-checks the remaining examples/snippets (`ruff check --quiet`), and locks known legacy drift as explicit expected-fail metadata so status changes require intentional reclassification rather than silent drift. Documented execution in `README.md` under testing (`cargo test --test docs_examples`). Verification: `cargo test --test docs_examples` and full `cargo test`.
 ```
 
 ### Phase 10: Documentation And Release Readiness

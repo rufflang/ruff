@@ -391,6 +391,12 @@ Refresh diagnostics golden snapshots intentionally:
 RUFF_UPDATE_GOLDENS=1 cargo test --test diagnostics_golden
 ```
 
+Run docs/examples smoke contracts (parse/run/expected-fail metadata):
+
+```bash
+cargo test --test docs_examples
+```
+
 Release-gate prerequisites and runtime profile:
 
 - Requires Rust toolchain with `cargo fmt`, `cargo clippy`, and `cargo test` available.

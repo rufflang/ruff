@@ -349,6 +349,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-16_17-03_v1-test-004-diagnostics-golden-snapshots.md)
 
+### Docs snippet expected-fail metadata is ordinal-index sensitive
+- **Problem:** Expected-fail entries for fenced docs snippets can break after unrelated docs edits because block IDs shift.
+- **Rule:** Recompute `<file>#<ordinal>` IDs whenever fenced Ruff blocks are added/removed before existing expected-fail snippets.
+- **Implication:** After docs edits, rerun `cargo test --test docs_examples` and refresh expected-fail block IDs intentionally.
+
+(Discovered during: 2026-05-16_17-10_v1-test-005-docs-examples-smoke-suite.md)
+
 ### VM microbench harnesses must explicitly seed builtin globals
 - **Problem:** VM benchmark programs can fail with undefined builtin/runtime helper names (for example `len`, `range`) even when equivalent interpreter benchmarks work.
 - **Rule:** In custom VM bench harnesses, register builtin names into VM globals before executing compiled chunks.
