@@ -371,6 +371,14 @@ cargo +nightly fuzz run parser -- -max_total_time=20
 
 Nightly CI runs the same bounded fuzz smoke in `.github/workflows/fuzz-smoke.yml`.
 
+Run the runtime/native security regression suites directly:
+
+```bash
+cargo test --test runtime_security
+cargo test --test native_api_security_boundaries
+cargo test --test serve_command_integration
+```
+
 Release-gate prerequisites and runtime profile:
 
 - Requires Rust toolchain with `cargo fmt`, `cargo clippy`, and `cargo test` available.

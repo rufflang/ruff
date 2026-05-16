@@ -744,6 +744,29 @@ fn serve_too_many_headers_return_413() {
 }
 
 #[test]
+fn serve_request_body_over_limit_returns_413_before_method_dispatch() {
+    let root = unique_temp_dir("serve_request_body_limit");
+    fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
+
+    let server = spawn_serve_process_with_extra_args(&root, &["--max-request-body-bytes", "8"]);
+    let oversized_body = "ABCDEFGHIJKL";
+    let request = format!(
+        "POST /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        oversized_body.len(),
+        oversized_body
+    );
+
+    let response = send_http_request(server.port, &request);
+    assert_eq!(
+        413, response.status_code,
+        "expected oversized request body to be rejected before method handling"
+    );
+
+    drop(server);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn serve_custom_timeout_flags_still_serve_normal_requests() {
     let root = unique_temp_dir("serve_custom_timeouts");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");

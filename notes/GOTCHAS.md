@@ -307,6 +307,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-15_13-58_v1-http-006-streaming-range-policy.md)
 
+### Serve request limits are enforced before method checks
+- **Problem:** Oversized `POST`/non-GET requests can return `413` rather than `405`, which looks wrong if tests assume method validation always runs first.
+- **Rule:** Model `ruff serve` request evaluation as limits/target validation first, method dispatch second.
+- **Implication:** Size-limit regressions in `tests/serve_command_integration.rs` should assert `413` for over-limit bodies even on unsupported methods.
+
+(Discovered during: 2026-05-16_16-59_v1-test-003-runtime-native-security-regressions.md)
+
 ### Blocking reqwest clients can panic when used on Tokio runtime threads
 - **Problem:** Network calls can panic with `Cannot drop a runtime in a context where blocking is not allowed` when `reqwest::blocking` is created/dropped in runtime-managed execution paths.
 - **Rule:** Route blocking HTTP execution through a dedicated OS thread (or use a fully async client path) before applying request/response policy logic.

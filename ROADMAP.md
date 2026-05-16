@@ -1275,7 +1275,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-TEST-003: Add runtime and native API security regression suite
+[x] V1-TEST-003: Add runtime and native API security regression suite
     Priority: P1
     Severity: Critical
     Area: Security/Tests
@@ -1290,7 +1290,7 @@ If a command is not yet available, create the missing configuration as part of t
         5. Add HTTP malformed request tests.
     Tests required: This item itself is the test suite expansion.
     Acceptance criteria: Every P0/P1 security fix has at least one regression test that fails before the fix and passes after it.
-    Notes: Keep tests deterministic and local-only.
+    Notes: Completed on 2026-05-16. Added dedicated malicious-source/runtime regression coverage in `tests/runtime_security.rs` for invalid escapes, oversized string/collection literals, loop-control misuse (`break`/`continue` outside loops), interpreter call-depth exhaustion, module import-cycle diagnostics, and Unix symlink-escape module rejection. Expanded static-server boundary coverage in `tests/serve_command_integration.rs` with an oversized request-body contract asserting `413 Payload Too Large` is enforced before method dispatch. Existing `tests/native_api_security_boundaries.rs` coverage now serves as the filesystem/process/network/archive hardening matrix for overwrite/size/capability/traversal/symlink/extraction boundaries. Verification: `cargo test --test runtime_security`, `cargo test --test native_api_security_boundaries`, `cargo test --test serve_command_integration serve_request_body_over_limit_returns_413_before_method_dispatch`, and `cargo test`.
 ```
 
 ```text

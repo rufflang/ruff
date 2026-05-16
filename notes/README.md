@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-16_16-59_v1-test-003-runtime-native-security-regressions.md` — Completed `V1-TEST-003` by adding a dedicated `tests/runtime_security.rs` malicious-source/runtime regression suite (limit boundaries, control-flow misuse, call-depth, module cycle/symlink-escape) and extending static-serve abuse coverage with request-body-limit `413` enforcement before method dispatch.
 - `2026-05-16_16-35_v1-test-002-lexer-parser-fuzzing.md` — Completed `V1-TEST-002` by adding cargo-fuzz scaffolding and seed corpora for lexer/parser malformed-input coverage plus a dedicated nightly/manual fuzz-smoke CI workflow, and documented the local libFuzzer C++ header/toolchain dependency gotcha.
 - `2026-05-16_16-12_v1-perf-003-resource-exhaustion-safeguards.md` — Completed `V1-PERF-003` by centralizing parser/runtime/native IO resource limits (`src/runtime_limits.rs`), enforcing parser collection-literal bounds plus interpreter/VM call-depth guardrails with deterministic runtime diagnostics, and adding targeted regressions while documenting the Rust test-thread stack-depth gotcha for recursion-based interpreter tests.
 - `2026-05-16_13-48_v1-perf-002-module-loader-cycle-check-scaling.md` — Completed `V1-PERF-002` by replacing module-loader circular-import stack scans with an O(1) `loading_stack_index` lookup to remove avoidable O(n^2) import-chain behavior, adding cleanup/success regressions in `src/module.rs`, and adding a dedicated deep-import-chain module-resolution benchmark workload for measurable hotspot tracking.
