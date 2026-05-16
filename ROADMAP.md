@@ -1806,9 +1806,9 @@ Before tagging v1.0.0:
 [x] All P0 items complete.
 [x] All P1 items complete or explicitly deferred with documented release exception.
 [x] P2 items reviewed and either completed or documented as post-1.0.
-[ ] `cargo fmt --check` passes.
-[ ] `cargo clippy --all-targets --all-features -- -D warnings` passes.
-[ ] `cargo test` passes.
+[x] `cargo fmt --check` passes.
+[x] `cargo clippy --all-targets --all-features -- -D warnings` passes.
+[x] `cargo test` passes.
 [x] Integration tests pass.
 [x] Security boundary tests pass.
 [x] Static server tests pass.
