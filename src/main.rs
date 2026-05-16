@@ -145,6 +145,24 @@ enum Commands {
         script_args: Vec<String>,
     },
 
+    /// Validate Ruff source (lex/parse/compile) without executing the program
+    Check {
+        /// Path to the .ruff file
+        file: PathBuf,
+
+        /// Suppress success output (failures still print diagnostics)
+        #[arg(short, long, default_value_t = false, conflicts_with = "verbose")]
+        quiet: bool,
+
+        /// Print expanded success summary
+        #[arg(short, long, default_value_t = false, conflicts_with = "quiet")]
+        verbose: bool,
+
+        /// Print validation result as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+    },
+
     /// Serve a directory over HTTP for local preview/testing
     Serve {
         /// Directory to serve (default: current directory)
@@ -717,6 +735,21 @@ fn read_ruff_source_for_parse(file: &Path) -> String {
     code
 }
 
+fn parse_ruff_program(file: &Path) -> (String, String, Vec<ast::Stmt>) {
+    let code = read_ruff_source_for_parse(file);
+    let filename = file.to_string_lossy().to_string();
+    let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
+        Ok(tokens) => tokens,
+        Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
+    };
+    let mut parser = parser::Parser::new(tokens);
+    let parse_output = parser.parse_with_diagnostics();
+    if !parse_output.diagnostics.is_empty() {
+        report_parser_diagnostics_and_exit(&filename, &parse_output.diagnostics);
+    }
+    (code, filename, parse_output.stmts)
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -752,18 +785,7 @@ async fn main() {
                 // Use unit separator
             }
 
-            let code = read_ruff_source_for_parse(&file);
-            let filename = file.to_string_lossy().to_string();
-            let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
-                Ok(tokens) => tokens,
-                Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
-            };
-            let mut parser = parser::Parser::new(tokens);
-            let parse_output = parser.parse_with_diagnostics();
-            if !parse_output.diagnostics.is_empty() {
-                report_parser_diagnostics_and_exit(&filename, &parse_output.diagnostics);
-            }
-            let stmts = parse_output.stmts;
+            let (code, filename, stmts) = parse_ruff_program(&file);
 
             // Debug: print AST for inspection
             if !interpreter && std::env::var("DEBUG_AST").is_ok() {
@@ -933,6 +955,56 @@ async fn main() {
             }
         }
 
+        Commands::Check { file, quiet, verbose, json } => {
+            let (_code, filename, stmts) = parse_ruff_program(&file);
+            let mut compiler = compiler::Compiler::new();
+            let instruction_count = match compiler.compile(&stmts) {
+                Ok(chunk) => chunk.instructions.len(),
+                Err(error_message) => {
+                    let diagnostic = errors::Diagnostic::new(
+                        errors::DIAGNOSTIC_CODE_VM,
+                        errors::DiagnosticSeverity::Error,
+                        errors::DiagnosticSubsystem::Vm,
+                        format!("Compilation error: {}", error_message),
+                    );
+                    report_diagnostics_and_exit(&[diagnostic], CliExitCode::RuntimeError);
+                }
+            };
+
+            if json {
+                let output = serde_json::json!({
+                    "command": "check",
+                    "file": filename,
+                    "status": "ok",
+                    "statement_count": stmts.len(),
+                    "bytecode_instruction_count": instruction_count,
+                });
+                match serde_json::to_string_pretty(&output) {
+                    Ok(serialized) => println!("{}", serialized),
+                    Err(error) => {
+                        report_cli_error_and_exit(
+                            format!("Failed to serialize check result: {}", error),
+                            CliExitCode::InternalError,
+                        );
+                    }
+                }
+                return;
+            }
+
+            if !quiet {
+                if verbose {
+                    println!(
+                        "check passed: {} (statements={}, bytecode_instructions={})",
+                        file.display(),
+                        stmts.len(),
+                        instruction_count
+                    );
+                } else {
+                    println!("check passed: {}", file.display());
+                }
+            }
+        }
+
         Commands::Serve {
             dir,
             port,
@@ -992,18 +1064,7 @@ async fn main() {
         }
 
         Commands::TestRun { file, verbose, capabilities } => {
-            let code = read_ruff_source_for_parse(&file);
-            let filename = file.to_string_lossy().to_string();
-            let tokens = match lexer::tokenize_with_file(&code, Some(&filename)) {
-                Ok(tokens) => tokens,
-                Err(diagnostics) => report_lexer_diagnostics_and_exit(&filename, &diagnostics),
-            };
-            let mut parser = parser::Parser::new(tokens);
-            let parse_output = parser.parse_with_diagnostics();
-            if !parse_output.diagnostics.is_empty() {
-                report_parser_diagnostics_and_exit(&filename, &parse_output.diagnostics);
-            }
-            let stmts = parse_output.stmts;
+            let (_code, _filename, stmts) = parse_ruff_program(&file);
 
             // Create base interpreter with standard library loaded
             let base_interp = interpreter::Interpreter::with_capability_policy(

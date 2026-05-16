@@ -27,6 +27,14 @@ fn run_ruff(args: &[&str]) -> std::process::Output {
     Command::new(ruff_binary()).args(args).output().expect("failed to execute ruff binary")
 }
 
+fn run_ruff_in_dir(args: &[&str], cwd: &Path) -> std::process::Output {
+    Command::new(ruff_binary())
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .expect("failed to execute ruff binary")
+}
+
 fn write_fixture(path: &Path, content: &str) {
     fs::write(path, content).expect("failed to write fixture file");
 }
@@ -114,4 +122,96 @@ fn cli_lsp_diagnostics_json_is_valid_json() {
     let parsed: Value = serde_json::from_str(&stdout).expect("stdout should be valid JSON");
     assert!(parsed.is_array());
     assert!(output.stderr.is_empty(), "successful JSON diagnostics should not write stderr");
+}
+
+#[test]
+fn cli_check_does_not_execute_script_side_effects() {
+    let dir = unique_temp_dir("cli_check_no_side_effects");
+    let file = dir.join("check_only.ruff");
+    let marker = dir.join("marker.txt");
+    let source = format!("write_file(\"{}\", \"created\", true)\n", marker.to_string_lossy());
+    write_fixture(&file, &source);
+
+    let output = run_ruff(&["check", file.to_str().expect("path should be utf-8")]);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(!marker.exists(), "check command must not execute runtime side effects");
+}
+
+#[test]
+fn cli_run_executes_program_output() {
+    let dir = unique_temp_dir("cli_run_executes_output");
+    let file = dir.join("prints.ruff");
+    write_fixture(&file, "print(\"run-ok\")\n");
+
+    let output = run_ruff(&["run", file.to_str().expect("path should be utf-8")]);
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "successful run should not emit stderr");
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(stdout.contains("run-ok"), "run should execute and print script output");
+}
+
+#[test]
+fn cli_test_discovers_and_runs_expected_fixtures() {
+    let workspace = unique_temp_dir("cli_test_discovers_fixtures");
+    let tests_dir = workspace.join("tests");
+    fs::create_dir_all(&tests_dir).expect("failed to create tests directory");
+
+    let fixture = tests_dir.join("sample.ruff");
+    let snapshot = tests_dir.join("sample.out");
+    write_fixture(&fixture, "print(\"fixture-ok\")\n");
+    write_fixture(&snapshot, "fixture-ok\n");
+
+    let output = run_ruff_in_dir(&["test"], &workspace);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "test command should report results on stdout");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(stdout.contains("Passed 1/1 tests"), "test should discover and run fixture files");
+    assert!(stdout.contains("[✓]"), "test should report passing fixture");
+}
+
+#[test]
+fn cli_check_verbose_and_quiet_output_are_deterministic() {
+    let dir = unique_temp_dir("cli_check_verbosity");
+    let file = dir.join("valid.ruff");
+    write_fixture(&file, "let value := args()\n");
+
+    let quiet = run_ruff(&["check", file.to_str().expect("path should be utf-8"), "--quiet"]);
+    assert_eq!(quiet.status.code(), Some(0));
+    assert!(quiet.stdout.is_empty(), "check --quiet should suppress success output on stdout");
+    assert!(quiet.stderr.is_empty(), "check --quiet success should not write stderr");
+
+    let verbose = run_ruff(&["check", file.to_str().expect("path should be utf-8"), "--verbose"]);
+    assert_eq!(verbose.status.code(), Some(0));
+    assert!(verbose.stderr.is_empty(), "check --verbose success should not write stderr");
+    let verbose_stdout = String::from_utf8(verbose.stdout).expect("stdout should be utf-8");
+    assert!(
+        verbose_stdout.contains("check passed"),
+        "check --verbose should emit deterministic success summary"
+    );
+    assert!(
+        verbose_stdout.contains("statements="),
+        "check --verbose should include statement-count metadata"
+    );
+}
+
+#[test]
+fn cli_check_json_success_is_valid_json() {
+    let dir = unique_temp_dir("cli_check_json");
+    let file = dir.join("valid.ruff");
+    write_fixture(&file, "print(\"json-check\")\n");
+
+    let output = run_ruff(&["check", file.to_str().expect("path should be utf-8"), "--json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "check --json success should not write stderr");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    let parsed: Value = serde_json::from_str(&stdout).expect("check --json output should be JSON");
+    assert_eq!(parsed["command"], "check");
+    assert_eq!(parsed["status"], "ok");
+    assert_eq!(parsed["file"], file.display().to_string());
+    assert!(parsed["statement_count"].is_u64());
+    assert!(parsed["bytecode_instruction_count"].is_u64());
 }
