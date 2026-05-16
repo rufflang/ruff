@@ -1294,7 +1294,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-TEST-004: Add golden tests for diagnostics
+[x] V1-TEST-004: Add golden tests for diagnostics
     Priority: P1
     Severity: Medium
     Area: Diagnostics/Tests
@@ -1312,7 +1312,7 @@ If a command is not yet available, create the missing configuration as part of t
         - JSON diagnostics snapshots.
         - Cross-platform line ending handling.
     Acceptance criteria: Diagnostic formatting is stable and intentional.
-    Notes: Avoid snapshots that include nondeterministic temp paths.
+    Notes: Completed on 2026-05-16. Added fixture-backed diagnostics golden suite `tests/diagnostics_golden.rs` plus snapshot fixtures under `tests/fixtures/diagnostics/` for lexer, parser, semantic-parser, runtime, CLI, and serve-related diagnostic contracts. The harness captures paired human (`*.human.golden`) and JSON (`*.json.golden`) snapshots via stable `Diagnostic` conversion/rendering APIs, normalizes line endings for cross-platform assertions, and supports explicit snapshot refreshes via `RUFF_UPDATE_GOLDENS=1 cargo test --test diagnostics_golden`. Added source fixtures for malformed lexical and parse inputs plus semantic assignment-target and runtime identifier error scenarios. Verification: `RUFF_UPDATE_GOLDENS=1 cargo test --test diagnostics_golden` (snapshot generation) and `cargo test --test diagnostics_golden` (lockfile assertion), followed by full `cargo test`.
 ```
 
 ```text

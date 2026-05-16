@@ -379,6 +379,18 @@ cargo test --test native_api_security_boundaries
 cargo test --test serve_command_integration
 ```
 
+Run diagnostics golden snapshot contracts:
+
+```bash
+cargo test --test diagnostics_golden
+```
+
+Refresh diagnostics golden snapshots intentionally:
+
+```bash
+RUFF_UPDATE_GOLDENS=1 cargo test --test diagnostics_golden
+```
+
 Release-gate prerequisites and runtime profile:
 
 - Requires Rust toolchain with `cargo fmt`, `cargo clippy`, and `cargo test` available.

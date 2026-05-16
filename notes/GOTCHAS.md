@@ -342,6 +342,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-05-16_16-35_v1-test-002-lexer-parser-fuzzing.md)
 
+### Diagnostics snapshot updates must stay env-gated
+- **Problem:** Golden diagnostics can silently drift if test harnesses auto-overwrite expected files.
+- **Rule:** Require an explicit env flag (for example `RUFF_UPDATE_GOLDENS=1`) before writing snapshot files.
+- **Implication:** Normal `cargo test` runs should only verify snapshots; intentional contract changes must opt in to regeneration.
+
+(Discovered during: 2026-05-16_17-03_v1-test-004-diagnostics-golden-snapshots.md)
+
 ### VM microbench harnesses must explicitly seed builtin globals
 - **Problem:** VM benchmark programs can fail with undefined builtin/runtime helper names (for example `len`, `range`) even when equivalent interpreter benchmarks work.
 - **Rule:** In custom VM bench harnesses, register builtin names into VM globals before executing compiled chunks.

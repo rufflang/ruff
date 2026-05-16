@@ -1,0 +1,10 @@
+{
+  "code": "RUFPARSE001",
+  "column": 9,
+  "file": "semantic_invalid_assignment.ruff",
+  "help": "Fix the parse error and rerun Ruff.",
+  "line": 2,
+  "message": "Expected expression",
+  "severity": "error",
+  "subsystem": "parser"
+}

@@ -1,0 +1,3 @@
+[RUFPARSE001] [parser] error: Expected expression
+  --> semantic_invalid_assignment.ruff:2:9
+  = help: Fix the parse error and rerun Ruff.
