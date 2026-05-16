@@ -406,12 +406,15 @@ test "string predicate" {
 Ruff includes benchmark tooling because performance work is a first-class part of the project, especially for the VM, async scheduler, and native SSG benchmark path.
 
 ```bash
+cargo bench --bench v1_perf_benchmarks
 cargo run -- bench examples/benchmarks
 cargo run -- bench-cross
 cargo run -- bench-ssg --runs 5 --warmup-runs 1
 cargo run -- bench-ssg --compare-python --profile-async
 cargo run -- profile examples/benchmark.ruff
 ```
+
+`cargo bench --bench v1_perf_benchmarks` runs the core Criterion baseline suite for lexer, parser, interpreter, VM, module-resolution, and static-server request workloads.
 
 `bench-ssg` supports repeated runs, warmups, percentile reporting, measurement-quality warnings, optional Python comparison, optional stage profiling, and a throughput gate via `--throughput-gate-ms`.
 

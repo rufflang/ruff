@@ -117,32 +117,12 @@ fn stdlib_inventory_rows_include_required_contract_fields() {
     let rows = parse_inventory_rows(&inventory);
 
     for row in &rows {
-        assert!(
-            !row.signature.is_empty(),
-            "missing signature for builtin '{}'",
-            row.function
-        );
-        assert!(
-            !row.arity.is_empty(),
-            "missing arity for builtin '{}'",
-            row.function
-        );
-        assert!(
-            !row.return_type.is_empty(),
-            "missing return type for builtin '{}'",
-            row.function
-        );
+        assert!(!row.signature.is_empty(), "missing signature for builtin '{}'", row.function);
+        assert!(!row.arity.is_empty(), "missing arity for builtin '{}'", row.function);
+        assert!(!row.return_type.is_empty(), "missing return type for builtin '{}'", row.function);
         assert!(!row.errors.is_empty(), "missing errors column for builtin '{}'", row.function);
-        assert!(
-            !row.capability.is_empty(),
-            "missing capability for builtin '{}'",
-            row.function
-        );
-        assert!(
-            !row.example.is_empty(),
-            "missing example for builtin '{}'",
-            row.function
-        );
+        assert!(!row.capability.is_empty(), "missing capability for builtin '{}'", row.function);
+        assert!(!row.example.is_empty(), "missing example for builtin '{}'", row.function);
     }
 }
 
@@ -180,11 +160,7 @@ fn stdlib_inventory_capability_column_matches_runtime_policy() {
             .map(|capability| capability.as_str().to_string())
             .unwrap_or_else(|| "none".to_string());
 
-        assert_eq!(
-            row.capability, expected,
-            "capability mismatch for builtin '{}'",
-            row.function
-        );
+        assert_eq!(row.capability, expected, "capability mismatch for builtin '{}'", row.function);
     }
 }
 

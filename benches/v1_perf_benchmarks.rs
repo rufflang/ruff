@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion
 use reqwest::blocking::Client;
 use ruff::ast::Stmt;
 use ruff::compiler::Compiler;
-use ruff::interpreter::Interpreter;
+use ruff::interpreter::{Environment, Interpreter, Value};
 use ruff::lexer::{tokenize, Token};
 use ruff::module::ModuleLoader;
 use ruff::parser::Parser;
@@ -12,7 +12,7 @@ use std::fs;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -25,13 +25,7 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
         .expect("system time before unix epoch")
         .as_nanos();
     let counter = UNIQUE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    path.push(format!(
-        "ruff_{}_{}_{}_{}",
-        prefix,
-        std::process::id(),
-        nanos,
-        counter
-    ));
+    path.push(format!("ruff_{}_{}_{}_{}", prefix, std::process::id(), nanos, counter));
     path
 }
 
@@ -95,11 +89,11 @@ fn build_runtime_workload_source() -> String {
 
     source.push_str(
         "total := 0\n\
-         for i in 32 {\n\
+         for i in range(32) {\n\
              total := total + numbers[i]\n\
          }\n\
          text := \"ruff\"\n\
-         for i in 40 {\n\
+         for i in range(40) {\n\
              text := text + \"-x\"\n\
          }\n\
          metrics := {\"sum\": total, \"fib\": fib(10), \"label\": text}\n\
@@ -131,10 +125,10 @@ fn bench_lexer(c: &mut Criterion) {
 }
 
 fn bench_parser(c: &mut Criterion) {
-    let large_tokens = tokenize(&build_large_lexer_source(4_000))
-        .expect("large parser source should tokenize");
-    let deep_tokens = tokenize(&build_deep_expression_source(200))
-        .expect("deep parser source should tokenize");
+    let large_tokens =
+        tokenize(&build_large_lexer_source(4_000)).expect("large parser source should tokenize");
+    let deep_tokens =
+        tokenize(&build_deep_expression_source(200)).expect("deep parser source should tokenize");
 
     let mut group = c.benchmark_group("parser");
     group.bench_function("large_file", |b| {
@@ -192,15 +186,26 @@ fn bench_vm(c: &mut Criterion) {
             VM::new,
             |mut vm| {
                 vm.set_jit_enabled(false);
-                let value = vm
-                    .execute(chunk.clone())
-                    .expect("vm benchmark workload should execute");
+                configure_vm_globals(&mut vm);
+                let value =
+                    vm.execute(chunk.clone()).expect("vm benchmark workload should execute");
                 black_box(value);
             },
             BatchSize::SmallInput,
         );
     });
     group.finish();
+}
+
+fn configure_vm_globals(vm: &mut VM) {
+    let globals = Arc::new(Mutex::new(Environment::new()));
+    for builtin in Interpreter::get_builtin_names() {
+        globals
+            .lock()
+            .expect("globals lock should be available")
+            .set(builtin.to_string(), Value::NativeFunction(builtin.to_string()));
+    }
+    vm.set_globals(globals);
 }
 
 struct ModuleBenchmarkFixture {
@@ -251,9 +256,8 @@ fn bench_module_resolution(c: &mut Criterion) {
                 loader
             },
             |mut loader| {
-                let module = loader
-                    .load_module(&fixture.entry_module)
-                    .expect("module workload should load");
+                let module =
+                    loader.load_module(&fixture.entry_module).expect("module workload should load");
                 black_box(module.exports.len());
             },
             BatchSize::SmallInput,
@@ -286,11 +290,8 @@ fn serve_benchmark_fixture() -> &'static ServeBenchmarkFixture {
 
         let small_path = "small.txt".to_string();
         let large_path = "large.bin".to_string();
-        fs::write(
-            root_dir.join(&small_path),
-            "ruff benchmark static server payload\n",
-        )
-        .expect("small benchmark payload should be written");
+        fs::write(root_dir.join(&small_path), "ruff benchmark static server payload\n")
+            .expect("small benchmark payload should be written");
         fs::write(root_dir.join(&large_path), vec![b'x'; 2 * 1024 * 1024])
             .expect("large benchmark payload should be written");
 
@@ -312,12 +313,7 @@ fn serve_benchmark_fixture() -> &'static ServeBenchmarkFixture {
                 write_timeout: Duration::from_millis(500),
                 max_connections: 128,
             };
-            let _ = run_static_server(
-                server_dir,
-                "127.0.0.1".to_string(),
-                port,
-                options,
-            );
+            let _ = run_static_server(server_dir, "127.0.0.1".to_string(), port, options);
         });
 
         let base_url = format!("http://127.0.0.1:{}", port);
@@ -339,13 +335,7 @@ fn serve_benchmark_fixture() -> &'static ServeBenchmarkFixture {
         }
         assert!(ready, "serve benchmark server failed to become ready");
 
-        ServeBenchmarkFixture {
-            base_url,
-            small_path,
-            large_path,
-            _root_dir: root_dir,
-            client,
-        }
+        ServeBenchmarkFixture { base_url, small_path, large_path, _root_dir: root_dir, client }
     })
 }
 

@@ -16,10 +16,7 @@ fn nested_json_array(depth: usize) -> String {
 
 #[test]
 fn parse_json_supports_all_json_root_value_kinds() {
-    assert!(matches!(
-        builtins::parse_json("null").expect("null root should parse"),
-        Value::Null
-    ));
+    assert!(matches!(builtins::parse_json("null").expect("null root should parse"), Value::Null));
     assert!(matches!(
         builtins::parse_json("true").expect("bool root should parse"),
         Value::Bool(true)
@@ -37,8 +34,8 @@ fn parse_json_supports_all_json_root_value_kinds() {
         Value::Array(values) if values.len() == 3
     ));
 
-    let object = builtins::parse_json("{\"name\":\"ruff\",\"ok\":true}")
-        .expect("object root should parse");
+    let object =
+        builtins::parse_json("{\"name\":\"ruff\",\"ok\":true}").expect("object root should parse");
     match object {
         Value::Dict(map) => {
             assert!(matches!(
@@ -62,22 +59,14 @@ fn parse_json_invalid_input_reports_location() {
 fn parse_json_rejects_excessive_input_size() {
     let oversized = format!("\"{}\"", "x".repeat(2 * 1024 * 1024));
     let error = builtins::parse_json(&oversized).expect_err("oversized json should fail");
-    assert!(
-        error.contains("maximum input size"),
-        "expected size-limit error, got: {}",
-        error
-    );
+    assert!(error.contains("maximum input size"), "expected size-limit error, got: {}", error);
 }
 
 #[test]
 fn parse_json_rejects_excessive_nesting_depth() {
     let too_deep = nested_json_array(80);
     let error = builtins::parse_json(&too_deep).expect_err("deep json should fail");
-    assert!(
-        error.contains("maximum nesting depth"),
-        "expected depth-limit error, got: {}",
-        error
-    );
+    assert!(error.contains("maximum nesting depth"), "expected depth-limit error, got: {}", error);
 }
 
 #[test]
@@ -89,7 +78,8 @@ fn to_json_stringifies_primitive_and_nested_values() {
 
     let mut nested = DictMap::default();
     nested.insert(Arc::<str>::from("z"), Value::Int(26));
-    nested.insert(Arc::<str>::from("a"), Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])));
+    nested
+        .insert(Arc::<str>::from("a"), Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])));
 
     let encoded = builtins::to_json(&Value::Dict(Arc::new(nested)))
         .expect("nested dict stringify should succeed");
@@ -118,9 +108,5 @@ fn to_json_rejects_non_finite_numbers() {
 fn to_json_rejects_unsupported_value_types() {
     let error = builtins::to_json(&Value::NativeFunction("print".to_string()))
         .expect_err("native function should not serialize to json");
-    assert!(
-        error.contains("Cannot convert"),
-        "expected unsupported-type error, got: {}",
-        error
-    );
+    assert!(error.contains("Cannot convert"), "expected unsupported-type error, got: {}", error);
 }

@@ -314,6 +314,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-13_18-52_bench-cross-cwd-gotcha.md)
 
+### VM microbench harnesses must explicitly seed builtin globals
+- **Problem:** VM benchmark programs can fail with undefined builtin/runtime helper names (for example `len`, `range`) even when equivalent interpreter benchmarks work.
+- **Rule:** In custom VM bench harnesses, register builtin names into VM globals before executing compiled chunks.
+- **Implication:** Reuse the same builtin-seeding contract as production benchmark runners to avoid measuring setup bugs instead of runtime performance.
+
+(Discovered during: 2026-05-16_13-31_v1-perf-001-criterion-baselines.md)
+
 ### Full-suite timing assertions are brittle under load
 - **Problem:** Throughput/timing tests that assert monotonic runtime behavior flake in CI and loaded local environments.
 - **Rule:** Assert deterministic correctness signals (checksums/counts/non-negative timing) instead of strict timing trends.

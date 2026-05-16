@@ -1183,7 +1183,7 @@ If a command is not yet available, create the missing configuration as part of t
 ### Phase 8: Performance And Resource Management
 
 ```text
-[ ] V1-PERF-001: Add a benchmark suite for lexer, parser, interpreter, VM, modules, and server
+[x] V1-PERF-001: Add a benchmark suite for lexer, parser, interpreter, VM, modules, and server
     Priority: P1
     Severity: Medium
     Area: Performance/Tests
@@ -1200,7 +1200,7 @@ If a command is not yet available, create the missing configuration as part of t
         7. Add static server benchmark for small and large files if feasible.
     Tests required: Benchmarks compile and run locally with `cargo bench`.
     Acceptance criteria: Ruff has repeatable performance baselines for release comparison.
-    Notes: Do not optimize before measuring unless fixing obvious O(n^2) behavior found during implementation.
+    Notes: Completed on 2026-05-16. Added Criterion-based benchmark harness wiring in `Cargo.toml` (`criterion` dev-dependency + `[[bench]] v1_perf_benchmarks`) and new suite `benches/v1_perf_benchmarks.rs` covering lexer (`large_source`, `many_tokens`), parser (`large_file`, `deep_expression`), interpreter and VM runtime workloads (loops/function calls/recursion/strings/collections), module-resolution cold-load performance for many small modules, and static-server GET request throughput for small and large files via `src/serve_http.rs` (`run_static_server`) live local request fixtures. Exposed `serve_http` through `src/lib.rs` so the benchmark target exercises the production static-server code path directly. Verification: `cargo bench --bench v1_perf_benchmarks --no-run`, `cargo bench --bench v1_perf_benchmarks -- --warm-up-time 0.01 --measurement-time 0.01 --sample-size 10` (local machine-load-sensitive smoke evidence).
 ```
 
 ```text
