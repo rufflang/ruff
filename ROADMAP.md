@@ -1103,7 +1103,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-STD-003: Harden string, collection, math, time, and environment helpers
+[x] V1-STD-003: Harden string, collection, math, time, and environment helpers
     Priority: P2
     Severity: Medium
     Area: Standard Library/Correctness
@@ -1124,7 +1124,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Time formatting/parsing edge cases where supported.
         - Env access denied/allowed tests.
     Acceptance criteria: Native helper behavior is broad enough for real scripts and never fails silently.
-    Notes: Prefer a small reliable stdlib over a large inconsistent one.
+    Notes: Completed on 2026-05-16. Hardened native helper contracts across `src/interpreter/native_functions/math.rs`, `src/interpreter/native_functions/strings.rs`, `src/interpreter/native_functions/collections.rs`, `src/interpreter/native_functions/system.rs`, and shared date/env parsing in `src/builtins.rs` (plus legacy compatibility path update in `src/interpreter/legacy_full.rs`). Math helpers now reject missing/invalid arguments and report deterministic domain errors (`sqrt` negative input, `log` non-positive input) instead of silent `Int(0)` fallbacks. Core string helpers now return structured argument/type errors instead of empty-string/empty-array defaults on invalid inputs. Key collection helpers (`len`, `push`/`append`, `pop`, `slice`, `concat`, `clear`) now reject invalid types with deterministic errors rather than silent fallback values. Time/env hardening now enforces strict `parse_date(..., "YYYY-MM-DD")` parsing with explicit `ErrorObject` failures on invalid input and strict boolean token parsing for `env_bool` (invalid values now error instead of coercing to `false`). Added regression coverage for success/error/edge paths in module tests and aligned `len` contract tests in `src/interpreter/native_functions/mod.rs`. Verification: `cargo test test_math_api_rejects_missing_and_invalid_arguments`, `cargo test test_math_api_domain_and_success_contracts`, `cargo test test_core_string_helpers_reject_wrong_types_instead_of_silent_fallbacks`, `cargo test test_collection_helpers_reject_wrong_types_instead_of_silent_fallbacks`, `cargo test test_env_bool_invalid_value_returns_error_object`, `cargo test test_parse_date_invalid_input_returns_error_object`, `cargo test test_release_hardening_len_polymorphic_contracts`, `cargo test parse_date`, `cargo test env_bool`, and `cargo test test_array_collection_behavior_contracts`.
 ```
 
 ### Phase 7: CLI And Developer Experience
