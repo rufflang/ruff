@@ -19,6 +19,20 @@ The project is currently at `0.14.0` in `Cargo.toml`, after completing the stabi
 - [ROADMAP.md](ROADMAP.md) is the single source of truth for release readiness and blocker tracking.
 - Ruff `1.0.0` must not be released until all P0/P1 roadmap items and the final release checklist are complete.
 
+## Safety Model Snapshot
+
+- Ruff is not a sandbox.
+- `ruff run` and `ruff test-run` default to trusted mode (host-effect APIs enabled).
+- For untrusted code, start with `--untrusted` and add only required `--allow-*` flags.
+- Review [docs/NATIVE_API_SECURITY_POSTURE.md](docs/NATIVE_API_SECURITY_POSTURE.md) before running untrusted scripts or shared-environment automation.
+
+## Core Reference Links
+
+- [ROADMAP.md](ROADMAP.md) (release readiness and blockers)
+- [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md) (language/runtime contract baseline)
+- [docs/STANDARD_LIBRARY.md](docs/STANDARD_LIBRARY.md) (native API inventory + capability mapping)
+- [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) (versioning, compatibility, release policy)
+
 ## Cross-IDE Strategy
 
 Ruff language tooling is being aligned around a universal-first architecture:

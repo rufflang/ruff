@@ -1405,7 +1405,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-DOC-004: Update README for accurate 1.0 user expectations
+[x] V1-DOC-004: Update README for accurate 1.0 user expectations
     Priority: P1
     Severity: Medium
     Area: Docs/DX
@@ -1422,7 +1422,7 @@ If a command is not yet available, create the missing configuration as part of t
         7. Add links to language spec, stdlib docs, release process, and roadmap.
     Tests required: README commands and examples smoke-tested by `V1-TEST-005`.
     Acceptance criteria: README accurately represents what Ruff can do today and what is required for 1.0.
-    Notes: Keep marketing claims restrained until release gates pass.
+    Notes: Completed on 2026-05-16. Updated `README.md` with explicit safety/trust-mode framing (`Ruff is not a sandbox`, trusted default, `--untrusted` + `--allow-*` guidance), added a focused core-reference section linking roadmap/spec/stdlib/release policy docs, and preserved accurate pre-1.0 readiness language. Added `tests/readme_contracts.rs` to lock required README contract markers (1.0 readiness status, security snapshot, install/quickstart cues, CLI serve visibility, untrusted-mode guidance, and core reference links). Verification: `cargo test --test readme_contracts` and `cargo test --test docs_examples` passed. Local full `cargo test` runs were executed but intermittently failed on unrelated socket-startup timing races in `tests/serve_command_integration.rs`; focused serve suite reruns passed.
 ```
 
 ```text
