@@ -328,6 +328,13 @@ If you are new to the project, read this first.
 
 (Discovered during: 2026-02-13_18-52_bench-cross-cwd-gotcha.md)
 
+### Local cargo-fuzz builds can fail due host C++/SDK header setup
+- **Problem:** `cargo +nightly check` / `cargo +nightly fuzz run` may fail on some hosts with `libfuzzer-sys` errors like missing `cassert`/`cstdint`.
+- **Rule:** Treat dedicated Linux CI fuzz-smoke workflow as the authoritative compile/run signal unless local toolchain prerequisites are known good.
+- **Implication:** When adding fuzz targets, wire nightly CI smoke coverage and do not assume every local machine can build libFuzzer C++ dependencies out of the box.
+
+(Discovered during: 2026-05-16_16-35_v1-test-002-lexer-parser-fuzzing.md)
+
 ### VM microbench harnesses must explicitly seed builtin globals
 - **Problem:** VM benchmark programs can fail with undefined builtin/runtime helper names (for example `len`, `range`) even when equivalent interpreter benchmarks work.
 - **Rule:** In custom VM bench harnesses, register builtin names into VM globals before executing compiled chunks.

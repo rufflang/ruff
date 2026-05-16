@@ -361,6 +361,16 @@ To include socket-bound static-serve integration tests in local gate runs:
 RUFF_ENABLE_SOCKET_TESTS=1 bash scripts/release_gate.sh
 ```
 
+Run lexer/parser fuzz smoke locally (requires nightly + `cargo-fuzz`):
+
+```bash
+cargo +stable install cargo-fuzz --locked
+cargo +nightly fuzz run lexer -- -max_total_time=20
+cargo +nightly fuzz run parser -- -max_total_time=20
+```
+
+Nightly CI runs the same bounded fuzz smoke in `.github/workflows/fuzz-smoke.yml`.
+
 Release-gate prerequisites and runtime profile:
 
 - Requires Rust toolchain with `cargo fmt`, `cargo clippy`, and `cargo test` available.
