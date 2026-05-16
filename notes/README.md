@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-16_17-40_v1-doc-release-gate-followthrough.md` — Completed `V1-DOC-001` through `V1-REL-001` with new docs contract suites and an executable `scripts/release_candidate_gate.sh` workflow, plus explicit release-checklist blocker documentation for local full-suite socket/timing instability and formatting-gate drift.
 - `2026-05-16_17-10_v1-test-005-docs-examples-smoke-suite.md` — Completed `V1-TEST-005` by adding `tests/docs_examples.rs`, a metadata-driven smoke harness that inventories all `examples/**/*.ruff` files and fenced Ruff docs snippets, then enforces explicit run/parse/expected-fail classifications to prevent silent documentation drift.
 - `2026-05-16_17-03_v1-test-004-diagnostics-golden-snapshots.md` — Completed `V1-TEST-004` by adding fixture-backed diagnostics golden tests (`tests/diagnostics_golden.rs`) with paired human/JSON snapshots, CRLF normalization safeguards, and explicit snapshot refresh workflow via `RUFF_UPDATE_GOLDENS=1`.
 - `2026-05-16_16-59_v1-test-003-runtime-native-security-regressions.md` — Completed `V1-TEST-003` by adding a dedicated `tests/runtime_security.rs` malicious-source/runtime regression suite (limit boundaries, control-flow misuse, call-depth, module cycle/symlink-escape) and extending static-serve abuse coverage with request-body-limit `413` enforcement before method dispatch.
