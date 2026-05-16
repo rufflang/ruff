@@ -1204,7 +1204,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-PERF-002: Audit and remove avoidable O(n^2) parser/runtime behavior
+[x] V1-PERF-002: Audit and remove avoidable O(n^2) parser/runtime behavior
     Priority: P2
     Severity: Medium
     Area: Performance
@@ -1223,7 +1223,7 @@ If a command is not yet available, create the missing configuration as part of t
         - Benchmarks show no regression for targeted cases.
         - Add regression test if optimization changes a failure mode.
     Acceptance criteria: Each performance change is tied to a measured bottleneck and has no semantic regression.
-    Notes: Avoid broad rewrites that make semantics harder to audit.
+    Notes: Completed on 2026-05-16. Replaced O(n) per-load circular-import detection scans in `src/module.rs` with an O(1) `loading_stack_index` map keyed by `ModuleCacheKey`, eliminating avoidable O(n^2) behavior for deep acyclic import chains while preserving the existing circular-import diagnostic contract. Added regression coverage in `src/module.rs` tests for stack/index cleanup after circular-import failures and successful chained imports (`load_module_deep_chain_completes_and_clears_loading_index`). Extended `benches/v1_perf_benchmarks.rs` with a dedicated `module_resolution/deep_import_chain_cold_loader` Criterion case to keep the targeted hotspot measurable alongside the existing many-small-modules benchmark. Verification: `cargo test --lib load_module_`, `cargo bench --bench v1_perf_benchmarks --no-run`, `cargo bench --bench v1_perf_benchmarks deep_import_chain_cold_loader -- --warm-up-time 0.01 --measurement-time 0.01 --sample-size 10`, `cargo test`.
 ```
 
 ```text
