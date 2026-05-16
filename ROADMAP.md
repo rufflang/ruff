@@ -1362,7 +1362,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-DOC-002: Expand native API security posture into an operator-grade security guide
+[x] V1-DOC-002: Expand native API security posture into an operator-grade security guide
     Priority: P1
     Severity: High
     Area: Docs/Security
@@ -1379,7 +1379,7 @@ If a command is not yet available, create the missing configuration as part of t
         7. Add examples of safe and unsafe configurations.
     Tests required: Documentation examples and referenced CLI flags must be smoke-tested.
     Acceptance criteria: Users can understand and configure Ruff's host security boundary without reading the source.
-    Notes: Be direct about limitations. Do not market unsafe behavior as sandboxed.
+    Notes: Completed on 2026-05-16. Reworked `docs/NATIVE_API_SECURITY_POSTURE.md` into an operator-grade guide with explicit non-sandbox statement, threat model/non-goals, trust-mode defaults, full capability flag matrix, static-server security defaults, archive/process/network/filesystem risk sections, safe-vs-unsafe CLI patterns, and external sandboxing recommendations. Added `tests/security_posture_docs_contract.rs` to enforce that required capability flags and operator sections remain present in docs and that `ruff run --help` still exposes all documented `--untrusted`/`--allow-*` flags. Updated `README.md` security guidance to point operators to the expanded posture guide.
 ```
 
 ```text

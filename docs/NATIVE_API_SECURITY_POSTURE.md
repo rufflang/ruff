@@ -1,173 +1,237 @@
 # Native API Security Posture
 
 Status: v1.0.0 baseline draft (active, not a release-ready claim)
-Last updated: 2026-05-12
+Last updated: 2026-05-16
 
-This document defines the security trust model and operational caveats for high-risk native APIs.
+This document is an operator-focused security guide for Ruff's host-effect runtime APIs.
 
-This posture document records current trust boundaries only; final 1.0 release readiness is tracked in `ROADMAP.md` and depends on outstanding security/runtime roadmap items.
+Ruff is not a sandbox. Running Ruff code is equivalent to running local code with the current process privileges unless you explicitly apply capability restrictions and external isolation controls.
 
-## Trust Model
+Release readiness remains tracked in `ROADMAP.md`.
 
-Ruff now supports an explicit runtime capability policy for host-effect native APIs in `ruff run` and `ruff test-run`.
+## 1. Threat Model
 
-Mode defaults:
+### Security objective
 
-- default mode (no capability flags): trusted, all host-effect capabilities enabled
-- restricted mode (`--untrusted`): deny-by-default for host-effect capabilities
-- explicit allow mode (any `--allow-*` flag): restricted baseline with only requested capabilities enabled
-- override trusted mode (`--allow-all`): force-enable all host-effect capabilities
+Provide deterministic runtime controls and failure contracts for host-effect APIs so operators can run trusted automation safely and run untrusted scripts with explicit least-privilege policy.
 
-Implications:
+### In scope
 
-- Trusted mode behaves like pre-policy Ruff and should be treated as equivalent to running a local program with the current process privileges.
-- Restricted mode blocks host-effect API calls until explicitly enabled by capability flags.
-- Untrusted scripts should be run with `--untrusted` and only the minimum required `--allow-*` flags, plus external controls (containerization, OS sandboxing, seccomp/apparmor, network egress controls, readonly filesystems, least-privilege credentials).
+- Runtime capability gating for host-effect APIs (`--untrusted`, `--allow-*`).
+- Deterministic runtime-denied/misuse errors.
+- Built-in guardrails for selected high-risk surfaces (filesystem/network/process/archive/static serving).
 
-Capability flags:
+### Out of scope (non-goals)
 
-- `--allow-fs-read`
-- `--allow-fs-write`
-- `--allow-fs-delete`
-- `--allow-process-exec`
-- `--allow-shell-exec`
-- `--allow-env-read`
-- `--allow-env-write`
-- `--allow-net-client`
-- `--allow-net-server`
-- `--allow-net` (enables both net client/server)
-- `--allow-database`
-- `--allow-clock`
-- `--allow-random`
-- `--allow-all`
+- Full process/container sandboxing.
+- Kernel-level isolation.
+- Guaranteed data exfiltration prevention without host firewall/policy controls.
+- Multi-tenant isolation in one Ruff process.
 
-Per-function capability mapping is tracked in `docs/STANDARD_LIBRARY.md` and contract-tested in `tests/stdlib_reference_contract.rs`.
+## 2. Trust Modes And Defaults
 
-## High-Risk Surface Areas
+### Default behavior
 
-### Process APIs
+`ruff run` and `ruff test-run` default to trusted mode when no capability flags are provided.
 
-Relevant builtins: `execute`, `execute_status`, `spawn_process`, `pipe_commands`.
+Trusted mode means all host-effect capabilities are enabled and scripts run with ambient user permissions.
 
-Risk profile:
+### Restricted behavior
 
-- command execution with host user privileges
-- shell/toolchain dependency and environment-variable influence
+Use `--untrusted` to switch to deny-by-default mode.
 
-Execution model:
+In `--untrusted` mode, host-effect calls fail unless explicitly re-enabled via `--allow-*` flags.
 
-- `spawn_process` and `pipe_commands` execute direct argv arrays (no shell token expansion)
-- `execute` and `execute_status` execute shell command strings (`sh -c` / `cmd /C`) and remain high-risk surfaces
-- shell-string execution requires `--allow-shell-exec`; direct argv process execution requires `--allow-process-exec`
+### Explicit policy behavior
 
-Bounded process controls:
+- `--allow-*` flags imply restricted baseline with only requested capabilities enabled.
+- `--allow-all` force-enables all capabilities and should be treated as trusted mode.
 
-- process builtins accept an optional options dict: `timeout_ms`, `max_output_bytes`, `inherit_env`, `env_allow`, `env_deny`, `env`
-- defaults: timeout `30000` ms, max captured stdout/stderr `1048576` bytes each
-- hard max for `max_output_bytes`: `16777216` bytes
-- `execute` preserves legacy string-return behavior on success but now fails with deterministic error objects on timeout, output-limit overflow, or non-zero exits
-- `execute_status` / `spawn_process` return a `ProcessResult` struct (`exitcode`, `stdout`, `stderr`, `success`, `timed_out`, `stdout_truncated`, `stderr_truncated`)
-- `pipe_commands` enforces the same timeout/output/env policy per stage and fails fast on boundary violations
+## 3. Capability Flags
 
-Operational guidance:
+| Flag | Capability | Typical APIs Unlocked | Primary Risk |
+| --- | --- | --- | --- |
+| `--allow-fs-read` | Filesystem read | `read_file`, `read_lines`, `read_binary_file`, metadata/path reads | Data disclosure |
+| `--allow-fs-write` | Filesystem write | `write_file`, `append_file`, `write_binary_file`, mkdir/write helpers | Data tampering |
+| `--allow-fs-delete` | Filesystem delete | `delete_file`, delete-adjacent flows | Data loss |
+| `--allow-process-exec` | Direct process execution | `spawn_process`, `pipe_commands` | Arbitrary command execution |
+| `--allow-shell-exec` | Shell-string execution | `execute`, `execute_status` | Shell injection/command abuse |
+| `--allow-env-read` | Environment read | `env`, `env_list`, related env readers | Secret leakage |
+| `--allow-env-write` | Environment write | `env_set` and env mutation | Process/session tampering |
+| `--allow-net-client` | Outbound network | `http_get/post/request`, TCP/UDP client operations | Data exfiltration/SSRF-style pivots |
+| `--allow-net-server` | Listener/network server | `http_server.listen`, server-side sockets | Local service exposure |
+| `--allow-net` | Net client + server | Union of network-client/network-server surfaces | Combined network risk |
+| `--allow-database` | Database access | `db_connect`, query/transaction helpers | Unauthorized data access |
+| `--allow-clock` | Clock/time | `now`, timestamp helpers | Timing side-channel support |
+| `--allow-random` | Randomness | `random`, random helpers | Nondeterministic workflows |
+| `--allow-all` | All capabilities | All host-effect APIs | Full ambient-host risk |
 
-- avoid interpolating untrusted input into command arguments
-- prefer explicit argument arrays (`spawn_process`, `pipe_commands`) over shell-style command strings (`execute`, `execute_status`)
-- run Ruff in least-privilege execution contexts for automation workloads
+Per-function capability metadata is maintained in `docs/STANDARD_LIBRARY.md` and contract-tested in `tests/stdlib_reference_contract.rs`.
 
-### Network APIs
+## 4. High-Risk Native Surface Guidance
 
-Relevant builtins: HTTP/TCP/UDP helpers in `src/interpreter/native_functions/http.rs` and `src/interpreter/native_functions/network.rs`.
+### 4.1 Process and Shell APIs
 
-Risk profile:
+Relevant APIs: `execute`, `execute_status`, `spawn_process`, `pipe_commands`.
 
-- outbound connections can exfiltrate data
-- listeners can expose local services
-- blocking behavior can impact availability if misused
+Policy boundaries:
 
-Current network guardrails:
-
-- capability-gated execution (`network-client` for outbound calls, `network-server` for listener binds)
-- bounded TCP connect timeout (`10000 ms`)
-- bounded TCP/UDP read-write timeouts (`30000 ms`)
-- bounded HTTP client timeout (`30000 ms`)
-- bounded HTTP/TCP/UDP response-receive bodies (`8 MiB` max)
-- deterministic timeout/limit errors for read/write/response-limit boundary violations
+- `spawn_process` and `pipe_commands` require `--allow-process-exec`.
+- `execute` and `execute_status` require `--allow-shell-exec`.
 
 Operational guidance:
 
-- enforce host-level ingress/egress restrictions
-- bind listeners to explicit interfaces and non-privileged ports
-- validate payload boundaries and size parameters before sending/receiving large payloads
+- Prefer argv-array APIs (`spawn_process`, `pipe_commands`) over shell strings.
+- Never pass untrusted input directly into shell command strings.
+- Keep `inherit_env` disabled unless explicitly required.
+- Use `timeout_ms`, `max_output_bytes`, and env allow/deny controls for bounded execution.
 
-### Filesystem APIs
+### 4.2 Network APIs
 
-Relevant builtins: file read/write/delete, directory operations, archive helpers, path helpers.
+Relevant APIs: HTTP/TCP/UDP helpers.
 
-Risk profile:
+Policy boundaries:
 
-- arbitrary file read/write/delete within process permissions
-- archive extraction remains a high-impact host-write surface even with built-in hardening
+- Outbound operations require `--allow-net-client`.
+- Listener/server operations require `--allow-net-server`.
+- `--allow-net` enables both.
 
-Current archive-extraction guardrails (`unzip`):
+Built-in guardrails:
 
-- rejects unsafe entry names: absolute paths, parent traversal (`..`), drive-prefixed segments, null-byte names, and symlink entries
-- fails the extraction on the first unsafe entry
-- enforces extraction limits: max 1024 entries, max 16 MiB per entry (uncompressed), max 64 MiB total uncompressed bytes
-
-Current file-operation guardrails:
-
-- whole-file reads (`read_file`, `read_lines`, `read_binary_file`, and async read wrapper `read_file_async`) reject files larger than `8 MiB`
-- write payloads (`write_file`, `write_file_sync`, `write_file_async`, `write_binary_file`, `append_file`) reject payloads larger than `8 MiB`
-- `write_file` and `write_binary_file` default to no-overwrite behavior; replacing an existing file requires explicit `overwrite=true`
-- `delete_file` refuses directory paths and only removes regular files (directory removal remains `os_rmdir`, which is non-recursive)
+- TCP connect timeout: `10000 ms`
+- TCP/UDP read-write timeout: `30000 ms`
+- HTTP client timeout: `30000 ms`
+- Max network response/receive body: `8 MiB`
 
 Operational guidance:
 
-- run with least-privilege filesystem permissions
-- avoid operating on attacker-controlled archive inputs without pre-validation, especially when expected payloads may exceed the built-in extraction limits
-- constrain working directories in production jobs
+- Restrict egress and ingress at OS/network policy layers.
+- Bind server listeners to explicit interfaces and non-privileged ports.
+- Treat large unvalidated payloads as hostile by default.
 
-### Crypto APIs
+### 4.3 Filesystem and Archive APIs
 
-Relevant builtins: hashing, password hashing/verification, AES, RSA helpers.
+Relevant APIs: read/write/delete/path/directory/archive helpers.
 
-Risk profile:
+Policy boundaries:
 
-- misuse can create false security guarantees
-- key-material handling is caller responsibility
+- Filesystem read paths require `--allow-fs-read`.
+- Filesystem write paths require `--allow-fs-write`.
+- Filesystem delete paths require `--allow-fs-delete`.
+
+Built-in file IO guardrails:
+
+- Whole-file read operations capped at `8 MiB`.
+- Write payload operations capped at `8 MiB`.
+- `write_file` and `write_binary_file` require explicit `overwrite=true` for replacement.
+- `delete_file` rejects directory paths.
+
+`unzip` hardening:
+
+- Rejects absolute paths, `..` traversal, drive-prefixed names, null-byte names, and symlink entries.
+- Fails extraction on first unsafe entry.
+- Enforces extraction limits: 1024 entries, 16 MiB per entry, 64 MiB total uncompressed bytes.
 
 Operational guidance:
 
-- store keys outside source code and rotate through external secret management
-- treat crypto helper errors as hard failures, not soft warnings
-- avoid custom crypto protocol design in Ruff scripts
+- Treat archive extraction as a high-risk write surface.
+- Constrain writable roots for Ruff processes.
+- Avoid running untrusted archive workflows in privileged directories.
 
-### Database APIs
+### 4.4 Database APIs
 
-Relevant builtins: `db_connect`, `db_execute`, `db_query`, pools, transactions.
+Relevant APIs: connection/query/pool/transaction helpers.
 
-Risk profile:
+Policy boundaries:
 
-- credential misuse and lateral movement if connection strings are over-privileged
-- destructive SQL execution when inputs are not controlled
+- Database access requires `--allow-database`.
 
 Operational guidance:
 
-- use least-privileged database users per workload
-- parameterize queries where possible
-- isolate network access from Ruff execution environments to only required database endpoints
+- Use least-privileged DB accounts.
+- Restrict DB network reachability to required endpoints.
+- Parameterize query data wherever possible.
 
-## Runtime Guardrail Expectations
+### 4.5 Crypto APIs
 
-The current baseline guarantees:
+Relevant APIs: hash/password/AES/RSA helpers.
 
-- capability checks at native host-effect boundaries for filesystem/process/shell/environment/network/database/clock/random APIs
-- deterministic capability-denied runtime errors in restricted mode
-- deterministic misuse errors when capability is enabled but arguments are invalid
+Policy boundaries:
 
-This policy is runtime-level gating, not a full sandbox. Scripts still run in-process and should be isolated externally for high-risk deployments.
+- Crypto helpers are not capability-gated separately today; they execute within runtime trust context.
 
-## Regression Coverage Requirement
+Operational guidance:
 
-Security-sensitive behavior changes to these native categories must include targeted regression tests for failure and misuse boundaries, and update this document if trust assumptions or caveats change.
+- Keep keys and secrets out of source files.
+- Use external secret management and key rotation workflows.
+- Treat crypto API errors as hard failures.
+
+## 5. Static Server (`ruff serve`) Security Defaults
+
+`ruff serve` is intended for local static preview/testing and should not be treated as a hardened internet-facing platform.
+
+Key defaults and controls:
+
+- Root-bound canonical path checks and traversal rejection.
+- Single-pass percent-decoding with malformed encoding/null-byte rejection.
+- Hidden/private path blocking (`.env`, `.git`, backup/swap-style names).
+- Deterministic request limits (line/header/body sizes, header count, max connections).
+- Safe MIME fallback (`application/octet-stream`) for unknown/extensionless paths.
+- Baseline response headers (`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`).
+- Hardened-mode headers with `--hardened`.
+
+Operator guidance:
+
+- Use a reverse proxy, TLS termination, and network ACLs for shared environments.
+- Treat `ruff serve` as preview infrastructure, not as a full production edge server.
+
+## 6. Safe vs Unsafe Configuration Patterns
+
+### Safer local review of untrusted script with minimal permissions
+
+```bash
+ruff run --interpreter --untrusted --allow-fs-read ./script.ruff
+```
+
+### Safer network client workflow with explicit egress-only capability
+
+```bash
+ruff run --interpreter --untrusted --allow-net-client ./fetch.ruff
+```
+
+### Unsafe pattern: full capability escalation for untrusted input
+
+```bash
+ruff run --allow-all ./untrusted.ruff
+```
+
+### Unsafe pattern: enabling shell execution for interpolated user input
+
+```bash
+ruff run --interpreter --untrusted --allow-shell-exec ./script_that_builds_shell_strings.ruff
+```
+
+## 7. Recommended External Sandboxing Controls
+
+For high-risk or shared environments, apply host/container controls in addition to Ruff runtime capability policy:
+
+- Run Ruff in containers or VM sandboxes with least privileges.
+- Use read-only filesystems where possible; mount narrow writable directories.
+- Drop Linux capabilities and apply seccomp/AppArmor/SELinux profiles.
+- Apply strict outbound and inbound firewall rules.
+- Use dedicated low-privilege service accounts.
+- Isolate secrets from environment variables when possible.
+
+## 8. Verification And Regression Expectations
+
+Security boundary changes must include test updates and document updates in this file.
+
+Primary regression suites:
+
+```bash
+cargo test --test native_api_security_boundaries
+cargo test --test runtime_security
+cargo test --test serve_command_integration
+```
+
+These suites cover capability denial/allow behavior, archive and path safety boundaries, request-boundary handling, and deterministic failure contracts.
