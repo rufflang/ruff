@@ -1867,3 +1867,114 @@ Suggested execution order:
 No-regression requirement:
 
 Every item must leave Ruff more correct, more secure, or more measurable than before. If a change breaks an existing example or behavior, either preserve the behavior safely or document and test the replacement behavior.
+
+## 15. Audit-Derived Continuation Backlog (2026-05-16)
+
+These items are derived from:
+
+- `docs/UNSAFE_CODE_AUDIT.md`
+- `docs/UNFINISHED_AND_MVP_AUDIT.md`
+- `docs/RUFF_FEATURE_INVENTORY.md`
+- `docs/AI_CENTRIC_GAP_ANALYSIS.md`
+
+They are intentionally split into:
+
+1. **Pre-v1 promotion candidates** (owner decision required)
+2. **Post-v1 expansion tracks** (default backlog)
+
+### 15.1 Pre-v1 Promotion Candidates
+
+```text
+[x] V1-BASE-003: Deconflict stale historical planning docs from active v1 guidance
+    Priority: P1
+    Severity: Medium
+    Area: Docs/Release Hygiene
+    Affected files: notes/NEXT_SESSION.md, ROADMAP.md, CHANGELOG.md
+    Problem: `notes/NEXT_SESSION.md` still presents Jan-2026 v0.9.0 emergency JIT goals as current-blocking guidance, which can conflict with v1 checklist authority.
+    Recommendation: Keep the file as historical evidence, but mark it explicitly as archived/superseded by current `ROADMAP.md` and v1 scope docs.
+    Implementation steps:
+        1. Add a clear historical/superseded banner at the top of `notes/NEXT_SESSION.md`.
+        2. Point readers to active readiness sources (`ROADMAP.md`, `docs/V1_SCOPE.md`).
+        3. Update changelog and roadmap note.
+    Tests required: Docs consistency only.
+    Acceptance criteria: No active workflow should interpret `NEXT_SESSION.md` as current release-gate authority.
+    Notes: Completed on 2026-05-16. Added an explicit superseded/historical banner to `notes/NEXT_SESSION.md` and pointed active workflows to `ROADMAP.md`, `docs/V1_SCOPE.md`, and `docs/RELEASE_PROCESS.md` so legacy v0.9 emergency language is no longer ambiguous for current release readiness.
+```
+
+```text
+[ ] V1-TEST-006: Burn down docs/examples expected-fail debt
+    Priority: P1
+    Severity: Medium
+    Area: Docs/Tests/Quality
+    Affected files: tests/docs_examples.rs, README.md, docs/*.md
+    Problem: `docs_examples` harness intentionally carries expected-fail entries, which means some user-facing docs/examples are still parse-drift debt.
+    Recommendation: Convert expected-fail examples/snippets to parse-clean or run-clean status where feasible.
+    Implementation steps:
+        1. Inventory current expected-fail entries in `tests/docs_examples.rs`.
+        2. Fix snippet/example syntax and behavior in docs/examples.
+        3. Reclassify fixed entries from expected-fail to parse/run.
+    Tests required: `cargo test --test docs_examples` and `cargo test`.
+    Acceptance criteria: Expected-fail set is reduced and remaining entries are explicitly justified.
+```
+
+```text
+[ ] V1-ERR-002: Add machine-readable runtime diagnostics mode for `ruff run`
+    Priority: P1
+    Severity: Medium
+    Area: CLI/Diagnostics/Automation
+    Affected files: src/main.rs, src/errors.rs, docs/CLI_MACHINE_READABLE_CONTRACTS.md, tests/diagnostics_golden.rs
+    Problem: Parse/lint/docgen have strong JSON contracts, but runtime execution diagnostics are less automation-friendly for agentic workflows.
+    Recommendation: Add stable runtime JSON diagnostic output mode for `ruff run` failures.
+    Implementation steps:
+        1. Define runtime JSON envelope shape and versioning rules.
+        2. Add CLI flag path and shared rendering.
+        3. Add fixture/golden coverage for runtime JSON diagnostics.
+    Tests required: JSON contract tests + diagnostics golden tests + `cargo test`.
+    Acceptance criteria: Runtime failures can be consumed deterministically by tooling/agents.
+```
+
+### 15.2 Post-v1 Expansion Tracks
+
+```text
+[ ] V2-SEC-001: Unsafe code reduction and safety-invariant hardening track
+    Priority: P2
+    Severity: High
+    Area: VM/JIT/Safety
+    Affected files: src/jit.rs, src/vm.rs, docs/NATIVE_API_SECURITY_POSTURE.md
+    Problem: `unsafe` usage is concentrated (57 real callsites) in JIT/VM boundaries and should be reduced or tightly documented over time.
+    Recommendation: Establish a staged unsafe-reduction plan: annotate invariants, centralize wrappers, then remove unnecessary unsafe usage where possible.
+    Tests required: Existing VM/JIT tests + targeted regression tests per refactor.
+```
+
+```text
+[ ] V2-AI-001: First-class AI API ergonomics layer
+    Priority: P2
+    Severity: Enhancement
+    Area: Standard Library/HTTP/Developer Experience
+    Affected files: src/interpreter/native_functions/http.rs, docs/STANDARD_LIBRARY.md, docs/LANGUAGE_SPEC.md
+    Problem: AI workflows currently rely on low-level HTTP+JSON glue in user scripts.
+    Recommendation: Add high-level native helpers for chat/embeddings/streaming/tool-call loops with deterministic error contracts.
+    Tests required: Native contract tests + docs examples + integration smoke tests.
+```
+
+```text
+[ ] V2-PKG-001: Deterministic dependency and lockfile workflow
+    Priority: P2
+    Severity: Enhancement
+    Area: Packaging/Release/DX
+    Affected files: package workflow modules, docs/RELEASE_PROCESS.md, README.md
+    Problem: AI-assisted projects benefit heavily from deterministic dependency resolution and reproducible environment bootstrap.
+    Recommendation: Introduce lockfile semantics and deterministic install/verify flow.
+    Tests required: package workflow integration tests + release docs contract updates.
+```
+
+```text
+[ ] V2-LSP-001: Advanced editor protocol surfaces for AI-assisted tooling
+    Priority: P2
+    Severity: Enhancement
+    Area: LSP/Tooling
+    Affected files: src/lsp_server.rs, docs/PROTOCOL_CONTRACTS.md, tests/lsp_conformance_harness.rs
+    Problem: Baseline LSP surface is strong, but advanced AI/editor workflows benefit from semantic tokens, inlay hints, and code lens support.
+    Recommendation: Implement advanced protocol slices with stable contract fixtures.
+    Tests required: protocol fixture updates + conformance harness coverage.
+```

@@ -1,4 +1,18 @@
-# 🎯 NEXT SESSION: Make Ruff FASTER Than Python!
+# Archived Historical Note (Superseded)
+
+This file captures a **January 2026 v0.9.0-era performance plan** and is kept for historical context only.
+
+It is **not** an active release gate for current Ruff work.
+
+Active planning and release authority now lives in:
+
+1. `ROADMAP.md` (current execution and release checklist)
+2. `docs/V1_SCOPE.md` (v1 in-scope/out-of-scope commitments)
+3. `docs/RELEASE_PROCESS.md` (release procedure and policy)
+
+---
+
+# 🎯 NEXT SESSION: Make Ruff FASTER Than Python! (Historical)
 
 **Date Created:** 2026-01-28  
 **Priority:** 🔥 CRITICAL - BLOCKING v0.9.0 RELEASE  
