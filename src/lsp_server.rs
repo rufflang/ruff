@@ -1105,12 +1105,12 @@ fn collect_document_symbols(source: &str) -> Vec<SymbolEntry> {
 
 fn token_type_index(kind: &TokenKind) -> Option<u32> {
     match kind {
-        TokenKind::Identifier(_) => Some(8),     // variable
-        TokenKind::Keyword(_) => Some(15),       // keyword
+        TokenKind::Identifier(_) => Some(8), // variable
+        TokenKind::Keyword(_) => Some(15),   // keyword
         TokenKind::String(_) | TokenKind::InterpolatedString(_) => Some(18), // string
         TokenKind::Int(_) | TokenKind::Float(_) => Some(19), // number
-        TokenKind::Operator(_) => Some(21),      // operator
-        TokenKind::Bool(_) => Some(15),          // keyword-like literal
+        TokenKind::Operator(_) => Some(21),  // operator
+        TokenKind::Bool(_) => Some(15),      // keyword-like literal
         _ => None,
     }
 }
@@ -1126,7 +1126,9 @@ fn token_length(kind: &TokenKind) -> usize {
                 .iter()
                 .map(|part| match part {
                     lexer::InterpolatedPart::Text(text) => text.chars().count(),
-                    lexer::InterpolatedPart::Expression(expr) => expr.chars().count().saturating_add(3),
+                    lexer::InterpolatedPart::Expression(expr) => {
+                        expr.chars().count().saturating_add(3)
+                    }
                 })
                 .sum();
             content_len.saturating_add(2)
@@ -1224,7 +1226,8 @@ fn collect_inlay_hints(source: &str) -> Vec<Value> {
 
         let mut name_index = index + 1;
         if keyword == "let" {
-            if let Some(TokenKind::Keyword(next_keyword)) = tokens.get(name_index).map(|t| &t.kind) {
+            if let Some(TokenKind::Keyword(next_keyword)) = tokens.get(name_index).map(|t| &t.kind)
+            {
                 if next_keyword == "mut" {
                     name_index += 1;
                 }
@@ -1641,16 +1644,10 @@ mod tests {
                 }
             }
         }));
-        let token_data = semantic_tokens[0]["result"]["data"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
+        let token_data =
+            semantic_tokens[0]["result"]["data"].as_array().cloned().unwrap_or_default();
         assert!(!token_data.is_empty(), "expected semantic token data");
-        assert_eq!(
-            token_data.len() % 5,
-            0,
-            "semantic token payload must encode 5-field tuples"
-        );
+        assert_eq!(token_data.len() % 5, 0, "semantic token payload must encode 5-field tuples");
 
         let inlay_hints = server.process_message(&json!({
             "jsonrpc": "2.0",
@@ -1666,10 +1663,7 @@ mod tests {
                 }
             }
         }));
-        let hints = inlay_hints[0]["result"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
+        let hints = inlay_hints[0]["result"].as_array().cloned().unwrap_or_default();
         assert!(hints.iter().any(|hint| hint["label"] == json!(": int")));
 
         let code_lens = server.process_message(&json!({
@@ -1682,13 +1676,8 @@ mod tests {
                 }
             }
         }));
-        let lenses = code_lens[0]["result"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        assert!(lenses
-            .iter()
-            .any(|lens| lens["command"]["command"] == json!("ruff.symbolInfo")));
+        let lenses = code_lens[0]["result"].as_array().cloned().unwrap_or_default();
+        assert!(lenses.iter().any(|lens| lens["command"]["command"] == json!("ruff.symbolInfo")));
     }
 
     #[test]

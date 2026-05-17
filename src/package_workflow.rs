@@ -39,8 +39,7 @@ pub fn parse_manifest(content: &str) -> Result<RuffManifest, String> {
 }
 
 pub fn parse_lockfile(content: &str) -> Result<RuffLockfile, String> {
-    toml::from_str::<RuffLockfile>(content)
-        .map_err(|error| format!("Invalid ruff.lock: {}", error))
+    toml::from_str::<RuffLockfile>(content).map_err(|error| format!("Invalid ruff.lock: {}", error))
 }
 
 pub fn lockfile_from_manifest(manifest: &RuffManifest) -> RuffLockfile {
@@ -52,7 +51,8 @@ pub fn lockfile_from_manifest(manifest: &RuffManifest) -> RuffLockfile {
 }
 
 pub fn serialize_lockfile(lockfile: &RuffLockfile) -> Result<String, String> {
-    toml::to_string_pretty(lockfile).map_err(|error| format!("Failed to serialize ruff.lock: {}", error))
+    toml::to_string_pretty(lockfile)
+        .map_err(|error| format!("Failed to serialize ruff.lock: {}", error))
 }
 
 pub fn verify_lockfile_matches_manifest(

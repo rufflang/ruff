@@ -72,13 +72,7 @@ fn package_module_workflow_end_to_end_contract() {
     );
 
     let package_install = run_ruff(
-        &[
-            "package-install",
-            "--manifest",
-            manifest_path_str,
-            "--lockfile",
-            lockfile_path_str,
-        ],
+        &["package-install", "--manifest", manifest_path_str, "--lockfile", lockfile_path_str],
         &project_root,
     );
     assert!(
@@ -103,13 +97,7 @@ fn package_module_workflow_end_to_end_contract() {
     );
 
     let package_install_second = run_ruff(
-        &[
-            "package-install",
-            "--manifest",
-            manifest_path_str,
-            "--lockfile",
-            lockfile_path_str,
-        ],
+        &["package-install", "--manifest", manifest_path_str, "--lockfile", lockfile_path_str],
         &project_root,
     );
     assert!(
@@ -205,8 +193,7 @@ fn package_module_workflow_end_to_end_contract() {
 fn package_install_frozen_detects_lockfile_drift_and_verifies_after_regeneration() {
     let project_root = unique_temp_dir("package_install_frozen_lockfile");
     let project_root_str = project_root.to_str().expect("path should be utf-8");
-    let init =
-        run_ruff(&["init", "--dir", project_root_str, "--name", "lock_demo"], &project_root);
+    let init = run_ruff(&["init", "--dir", project_root_str, "--name", "lock_demo"], &project_root);
     assert!(
         init.status.success(),
         "ruff init failed: stdout={} stderr={}",
@@ -231,13 +218,7 @@ fn package_install_frozen_detects_lockfile_drift_and_verifies_after_regeneration
     );
 
     let install = run_ruff(
-        &[
-            "package-install",
-            "--manifest",
-            manifest_path_str,
-            "--lockfile",
-            lockfile_path_str,
-        ],
+        &["package-install", "--manifest", manifest_path_str, "--lockfile", lockfile_path_str],
         &project_root,
     );
     assert!(
@@ -280,13 +261,7 @@ fn package_install_frozen_detects_lockfile_drift_and_verifies_after_regeneration
     );
 
     let regenerate = run_ruff(
-        &[
-            "package-install",
-            "--manifest",
-            manifest_path_str,
-            "--lockfile",
-            lockfile_path_str,
-        ],
+        &["package-install", "--manifest", manifest_path_str, "--lockfile", lockfile_path_str],
         &project_root,
     );
     assert!(

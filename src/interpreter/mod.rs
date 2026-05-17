@@ -1201,14 +1201,10 @@ impl Interpreter {
             "ai_stream_chat".to_string(),
             Value::NativeFunction("ai_stream_chat".to_string()),
         );
-        self.env.define(
-            "ai_embedding".to_string(),
-            Value::NativeFunction("ai_embedding".to_string()),
-        );
-        self.env.define(
-            "ai_tool_loop".to_string(),
-            Value::NativeFunction("ai_tool_loop".to_string()),
-        );
+        self.env
+            .define("ai_embedding".to_string(), Value::NativeFunction("ai_embedding".to_string()));
+        self.env
+            .define("ai_tool_loop".to_string(), Value::NativeFunction("ai_tool_loop".to_string()));
 
         // Concurrent HTTP functions
         self.env.define(
@@ -2540,9 +2536,10 @@ impl Interpreter {
                 "ai_stream_chat",
                 vec!["prompt_or_messages".to_string(), "options".to_string()],
             ),
-            "ai_embedding" => {
-                CallableArity::exact("ai_embedding", vec!["input".to_string(), "options".to_string()])
-            }
+            "ai_embedding" => CallableArity::exact(
+                "ai_embedding",
+                vec!["input".to_string(), "options".to_string()],
+            ),
             "ai_tool_loop" => CallableArity::exact(
                 "ai_tool_loop",
                 vec!["prompt_or_messages".to_string(), "options".to_string()],

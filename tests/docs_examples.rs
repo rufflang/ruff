@@ -107,10 +107,7 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 35] {
             "benchmark fixture kept as negative-coverage debt",
         ),
         ("examples/csv_demo.ruff", "legacy stdlib/example syntax drift"),
-        (
-            "examples/database_mysql.ruff",
-            "requires unsupported or drifted database demo syntax",
-        ),
+        ("examples/database_mysql.ruff", "requires unsupported or drifted database demo syntax"),
         (
             "examples/destructuring_demo.ruff",
             "destructuring surface still has parse drift in docs example",
@@ -119,10 +116,7 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 35] {
         ("examples/io_module_demo.ruff", "legacy IO module example drift"),
         ("examples/math_module.ruff", "legacy math module example drift"),
         ("examples/minimal_async.ruff", "async/await syntax drift"),
-        (
-            "examples/pattern_matching.ruff",
-            "pattern-matching syntax drift in legacy example",
-        ),
+        ("examples/pattern_matching.ruff", "pattern-matching syntax drift in legacy example"),
         (
             "examples/project_api_tester.ruff",
             "named-argument style not supported by current parser",
@@ -151,34 +145,22 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 35] {
             "examples/projects/contact_manager.ruff",
             "project example has unresolved parse/runtime debt",
         ),
-        (
-            "examples/projects/log_parser.ruff",
-            "project example has unresolved parse/runtime debt",
-        ),
+        ("examples/projects/log_parser.ruff", "project example has unresolved parse/runtime debt"),
         (
             "examples/projects/oauth_github_demo.ruff",
             "uses unsupported null-coalescing operator syntax",
         ),
-        (
-            "examples/projects/streaming_downloader.ruff",
-            "legacy loop syntax drift",
-        ),
+        ("examples/projects/streaming_downloader.ruff", "legacy loop syntax drift"),
         (
             "examples/projects/weather_dashboard.ruff",
             "known VM duplicate-declaration compile error in fixture",
         ),
-        (
-            "examples/spread_operator_demo.ruff",
-            "spread/index syntax drift in legacy example",
-        ),
+        ("examples/spread_operator_demo.ruff", "spread/index syntax drift in legacy example"),
         ("examples/ssg/ssg_async.ruff", "async control-flow syntax drift"),
         ("examples/ssg/test_parse_perf.ruff", "intentional malformed fixture"),
         ("examples/ssg/test_trim.ruff", "intentional malformed fixture"),
         ("examples/stdlib_crypto.ruff", "legacy loop syntax drift"),
-        (
-            "examples/struct_self_methods.ruff",
-            "struct method example has unresolved syntax debt",
-        ),
+        ("examples/struct_self_methods.ruff", "struct method example has unresolved syntax debt"),
         ("examples/testing_demo.ruff", "legacy test helper syntax drift"),
         ("examples/toml_demo.ruff", "intentional malformed string fixture"),
         ("examples/unary_operators.ruff", "legacy unary syntax drift"),
@@ -187,10 +169,7 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 35] {
 }
 
 fn expected_fail_examples() -> HashSet<&'static str> {
-    expected_fail_examples_with_reason()
-        .iter()
-        .map(|(path, _reason)| *path)
-        .collect()
+    expected_fail_examples_with_reason().iter().map(|(path, _reason)| *path).collect()
 }
 
 fn classify_example(path: &str) -> SmokeMode {
@@ -376,19 +355,13 @@ fn docs_ruff_snippets_parse_or_expected_fail() {
 fn expected_fail_examples_have_reasons_and_exist() {
     let root = repo_root();
     let expected_fails = expected_fail_examples_with_reason();
-    assert!(
-        !expected_fails.is_empty(),
-        "expected-fail examples list should not be empty"
-    );
+    assert!(!expected_fails.is_empty(), "expected-fail examples list should not be empty");
 
     let mut seen = HashSet::new();
     for (path, reason) in expected_fails {
         assert!(!reason.trim().is_empty(), "missing reason for {path}");
         assert!(seen.insert(path), "duplicate expected-fail entry: {path}");
-        assert!(
-            root.join(path).exists(),
-            "expected-fail example does not exist on disk: {path}"
-        );
+        assert!(root.join(path).exists(), "expected-fail example does not exist on disk: {path}");
     }
 }
 

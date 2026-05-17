@@ -7934,8 +7934,11 @@ mod tests {
     fn invoke_compiled_fn_with_arg_wrapper_forwards_argument() {
         let mut ctx =
             VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
-        let result =
-            invoke_compiled_fn_with_arg(dummy_compiled_fn_with_arg as CompiledFnWithArg, &mut ctx, 35);
+        let result = invoke_compiled_fn_with_arg(
+            dummy_compiled_fn_with_arg as CompiledFnWithArg,
+            &mut ctx,
+            35,
+        );
         assert_eq!(result, 42);
     }
 
