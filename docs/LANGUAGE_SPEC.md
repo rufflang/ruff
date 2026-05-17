@@ -421,6 +421,15 @@ The following compatibility classes apply to language and tooling behavior:
 
 4. Native builtin compatibility
 - Existing builtin names and documented argument contracts are stable within a minor line unless a security fix requires immediate breakage.
+- High-level AI HTTP helpers (`ai_chat`, `ai_stream_chat`, `ai_embedding`, `ai_tool_loop`) follow deterministic contracts:
+  - invalid argument/options shapes return `Value::Error` contract messages;
+  - transport/provider failures return `Result(Err("<message>"))`;
+  - successful responses return `Result(Ok(<dictionary payload>))`.
+
+```ruff
+opts := {"endpoint": "http://127.0.0.1:8080/v1/chat/completions", "model": "gpt-mock"}
+chat := ai_chat("Hello", opts)
+```
 
 ## 7. Breaking-Change Policy
 

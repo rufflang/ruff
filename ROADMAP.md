@@ -1950,7 +1950,7 @@ They are intentionally split into:
 ```
 
 ```text
-[ ] V2-AI-001: First-class AI API ergonomics layer
+[x] V2-AI-001: First-class AI API ergonomics layer
     Priority: P2
     Severity: Enhancement
     Area: Standard Library/HTTP/Developer Experience
@@ -1958,6 +1958,7 @@ They are intentionally split into:
     Problem: AI workflows currently rely on low-level HTTP+JSON glue in user scripts.
     Recommendation: Add high-level native helpers for chat/embeddings/streaming/tool-call loops with deterministic error contracts.
     Tests required: Native contract tests + docs examples + integration smoke tests.
+    Notes: Completed on 2026-05-16. Added first-class high-level AI native helpers in `src/interpreter/native_functions/http.rs`: `ai_chat`, `ai_stream_chat`, `ai_embedding`, and `ai_tool_loop`, including centralized options parsing (`endpoint`, `model`, timeout, headers), deterministic request/response envelope handling, strict input validation, and deterministic failure contracts (`Value::Error` for shape misuse, `Result(Err(...))` for transport/provider failures). Registered the helpers in runtime builtin registration/listing and centralized arity/capability metadata (`src/interpreter/mod.rs`, `src/interpreter/capabilities.rs`). Added native contract coverage in `src/interpreter/native_functions/http.rs` tests for success, failure, edge validation, and embedding-vector regression using a local one-shot HTTP fixture server. Updated `docs/STANDARD_LIBRARY.md`, `docs/LANGUAGE_SPEC.md`, `README.md`, and `CHANGELOG.md`.
 ```
 
 ```text

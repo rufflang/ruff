@@ -145,8 +145,9 @@ pub fn capability_for_native_function(name: &str) -> Option<NativeCapability> {
         // Network client/server
         "parallel_http" | "http_get" | "http_post" | "http_request" | "http_put"
         | "http_delete" | "http_get_binary" | "http_get_stream" | "oauth2_get_token"
-        | "tcp_connect" | "tcp_send" | "tcp_receive" | "udp_send_to" | "udp_receive_from"
-        | "async_http_get" | "async_http_post" => Some(NativeCapability::NetworkClient),
+        | "ai_chat" | "ai_stream_chat" | "ai_embedding" | "ai_tool_loop" | "tcp_connect"
+        | "tcp_send" | "tcp_receive" | "udp_send_to" | "udp_receive_from" | "async_http_get"
+        | "async_http_post" => Some(NativeCapability::NetworkClient),
         "tcp_listen" | "tcp_accept" | "udp_bind" => Some(NativeCapability::NetworkServer),
 
         // Database

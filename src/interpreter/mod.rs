@@ -685,6 +685,10 @@ impl Interpreter {
             "http_put",
             "http_delete",
             "http_get_binary",
+            "ai_chat",
+            "ai_stream_chat",
+            "ai_embedding",
+            "ai_tool_loop",
             // Concurrent HTTP functions
             "parallel_http",
             // JWT authentication functions
@@ -1191,6 +1195,19 @@ impl Interpreter {
         self.env.define(
             "http_get_binary".to_string(),
             Value::NativeFunction("http_get_binary".to_string()),
+        );
+        self.env.define("ai_chat".to_string(), Value::NativeFunction("ai_chat".to_string()));
+        self.env.define(
+            "ai_stream_chat".to_string(),
+            Value::NativeFunction("ai_stream_chat".to_string()),
+        );
+        self.env.define(
+            "ai_embedding".to_string(),
+            Value::NativeFunction("ai_embedding".to_string()),
+        );
+        self.env.define(
+            "ai_tool_loop".to_string(),
+            Value::NativeFunction("ai_tool_loop".to_string()),
         );
 
         // Concurrent HTTP functions
@@ -2514,6 +2531,21 @@ impl Interpreter {
                 2,
                 3,
                 vec!["items".to_string(), "mapper".to_string(), "concurrency".to_string()],
+            ),
+            "ai_chat" => CallableArity::exact(
+                "ai_chat",
+                vec!["prompt_or_messages".to_string(), "options".to_string()],
+            ),
+            "ai_stream_chat" => CallableArity::exact(
+                "ai_stream_chat",
+                vec!["prompt_or_messages".to_string(), "options".to_string()],
+            ),
+            "ai_embedding" => {
+                CallableArity::exact("ai_embedding", vec!["input".to_string(), "options".to_string()])
+            }
+            "ai_tool_loop" => CallableArity::exact(
+                "ai_tool_loop",
+                vec!["prompt_or_messages".to_string(), "options".to_string()],
             ),
             "print" | "debug" | "array" => CallableArity::variadic(name, 0, vec![]),
             _ => return None,

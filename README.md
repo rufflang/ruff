@@ -334,7 +334,7 @@ Native functions are registered in `src/interpreter/mod.rs` and dispatched throu
 - Filesystem and binary I/O: text files, binary files, metadata, random access reads/writes, copy/truncate helpers, path helpers, OS helpers.
 - Data formats: JSON, TOML, YAML, CSV, and Base64.
 - System utilities: environment variables, CLI args, time/date helpers, sleep, process execution, process spawning, command piping.
-- HTTP and auth: HTTP client calls, streaming/binary HTTP helpers, response helpers, JWT helpers, OAuth2 helpers, parallel HTTP.
+- HTTP and auth: HTTP client calls, streaming/binary HTTP helpers, response helpers, JWT helpers, OAuth2 helpers, parallel HTTP, plus high-level AI helpers (`ai_chat`, `ai_stream_chat`, `ai_embedding`, `ai_tool_loop`) with deterministic `Result` failure contracts.
 - Database helpers: SQLite, Postgres, MySQL-oriented connection/query APIs, pools, transactions, last-insert-id helpers.
 - Async and concurrency: sleep/timeout promises, async file/HTTP operations, task handles, `Promise.all` aliases, `parallel_map`, shared state, channels, task-pool sizing.
 - Media/archive/crypto/network: image loading, zip/unzip, SHA/MD5, bcrypt, AES, RSA, TCP, and UDP helpers.

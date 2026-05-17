@@ -1,7 +1,7 @@
 # Standard Library Inventory
 
 Status: v1.0.0 baseline draft (active)
-Last updated: 2026-05-15
+Last updated: 2026-05-16
 
 This inventory is the canonical support table for runtime-native functions registered by `Interpreter::get_builtin_names()` in `src/interpreter/mod.rs`.
 
@@ -221,6 +221,10 @@ JSON conversion contract (`parse_json` / `to_json`):
 | `http_put` | `http_put(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-client` | `result := http_put(...)` |
 | `http_delete` | `http_delete(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-client` | `result := http_delete(...)` |
 | `http_get_binary` | `http_get_binary(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-client` | `result := http_get_binary(...)` |
+| `ai_chat` | `ai_chat(prompt_or_messages, options)` | exact 2 | dynamic (Value) | Value::Error on invalid args/options contracts; `Result(Err)` with deterministic transport/API response failures. | `network-client` | `result := ai_chat("Hi", {"endpoint":"https://example.ai/chat","model":"gpt"})` |
+| `ai_stream_chat` | `ai_stream_chat(prompt_or_messages, options)` | exact 2 | dynamic (Value) | Value::Error on invalid args/options contracts; `Result(Err)` with deterministic transport/API response failures. | `network-client` | `result := ai_stream_chat("Hi", {"endpoint":"https://example.ai/chat","model":"gpt"})` |
+| `ai_embedding` | `ai_embedding(input, options)` | exact 2 | dynamic (Value) | Value::Error on invalid args/options contracts; `Result(Err)` if embedding response contract is missing `data[0].embedding`. | `network-client` | `result := ai_embedding("query", {"endpoint":"https://example.ai/embed","model":"text-embed"})` |
+| `ai_tool_loop` | `ai_tool_loop(prompt_or_messages, options)` | exact 2 | dynamic (Value) | Value::Error on invalid args/options contracts; `Result(Err)` for missing tool results or deterministic transport/API failures. | `network-client` | `result := ai_tool_loop("Plan this", {"endpoint":"https://example.ai/chat","model":"gpt","tool_results":{"lookup":"ok"}})` |
 | `parallel_http` | `parallel_http(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-client` | `result := parallel_http(...)` |
 | `jwt_encode` | `jwt_encode(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := jwt_encode(...)` |
 | `jwt_decode` | `jwt_decode(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := jwt_decode(...)` |

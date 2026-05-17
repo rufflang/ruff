@@ -9,6 +9,436 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+const MAX_AI_TOOL_LOOP_STEPS: i64 = 16;
+
+struct AiRequestConfig {
+    endpoint: String,
+    model: String,
+    api_key: Option<String>,
+    timeout_seconds: f64,
+    headers: Vec<(String, String)>,
+}
+
+fn ai_err_result(message: impl Into<String>) -> Value {
+    Value::Result {
+        is_ok: false,
+        value: Box::new(Value::Str(Arc::new(message.into()))),
+    }
+}
+
+fn ai_ok_result(value: Value) -> Value {
+    Value::Result { is_ok: true, value: Box::new(value) }
+}
+
+fn value_to_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Int(v) => Some(*v),
+        Value::Float(v) => Some(*v as i64),
+        _ => None,
+    }
+}
+
+fn value_to_f64(value: &Value) -> Option<f64> {
+    match value {
+        Value::Int(v) => Some(*v as f64),
+        Value::Float(v) => Some(*v),
+        _ => None,
+    }
+}
+
+fn parse_ai_headers(options: &DictMap, surface: &str) -> Result<Vec<(String, String)>, Value> {
+    let mut headers = Vec::new();
+    if let Some(raw_headers) = options.get("headers") {
+        let header_dict = match raw_headers {
+            Value::Dict(dict) => dict,
+            _ => {
+                return Err(Value::Error(format!(
+                    "{}() requires options.headers to be a dictionary of string values",
+                    surface
+                )));
+            }
+        };
+
+        for (key, value) in header_dict.iter() {
+            match value {
+                Value::Str(text) => headers.push((key.to_string(), text.to_string())),
+                _ => {
+                    return Err(Value::Error(format!(
+                        "{}() requires options.headers['{}'] to be a string",
+                        surface, key
+                    )));
+                }
+            }
+        }
+    }
+
+    Ok(headers)
+}
+
+fn parse_ai_request_config(options: &DictMap, surface: &str) -> Result<AiRequestConfig, Value> {
+    let endpoint = match options.get("endpoint") {
+        Some(Value::Str(endpoint)) if !endpoint.trim().is_empty() => endpoint.as_ref().clone(),
+        Some(Value::Str(_)) => {
+            return Err(Value::Error(format!(
+                "{}() requires options.endpoint to be a non-empty string",
+                surface
+            )));
+        }
+        _ => {
+            return Err(Value::Error(format!(
+                "{}() requires options.endpoint (string)",
+                surface
+            )));
+        }
+    };
+
+    let model = match options.get("model") {
+        Some(Value::Str(model)) if !model.trim().is_empty() => model.as_ref().clone(),
+        Some(Value::Str(_)) => {
+            return Err(Value::Error(format!(
+                "{}() requires options.model to be a non-empty string",
+                surface
+            )));
+        }
+        _ => {
+            return Err(Value::Error(format!(
+                "{}() requires options.model (string)",
+                surface
+            )));
+        }
+    };
+
+    let api_key = match options.get("api_key") {
+        Some(Value::Str(key)) if !key.is_empty() => Some(key.as_ref().clone()),
+        Some(Value::Str(_)) | None => None,
+        Some(_) => {
+            return Err(Value::Error(format!(
+                "{}() requires options.api_key to be a string when provided",
+                surface
+            )));
+        }
+    };
+
+    let timeout_seconds = match options.get("timeout") {
+        Some(value) => {
+            let timeout = value_to_f64(value).ok_or_else(|| {
+                Value::Error(format!(
+                    "{}() requires options.timeout to be a positive number",
+                    surface
+                ))
+            })?;
+            if timeout <= 0.0 {
+                return Err(Value::Error(format!(
+                    "{}() requires options.timeout to be a positive number",
+                    surface
+                )));
+            }
+            timeout
+        }
+        None => network_policy::default_http_timeout().as_secs_f64(),
+    };
+
+    let headers = parse_ai_headers(options, surface)?;
+
+    Ok(AiRequestConfig { endpoint, model, api_key, timeout_seconds, headers })
+}
+
+fn ai_message(role: &str, content: impl Into<String>) -> Value {
+    let mut message = DictMap::default();
+    message.insert("role".into(), Value::Str(Arc::new(role.to_string())));
+    message.insert("content".into(), Value::Str(Arc::new(content.into())));
+    Value::Dict(Arc::new(message))
+}
+
+fn parse_ai_messages(input: &Value, surface: &str) -> Result<Vec<Value>, Value> {
+    match input {
+        Value::Str(prompt) => Ok(vec![ai_message("user", prompt.as_ref().clone())]),
+        Value::Array(messages) => {
+            let mut normalized = Vec::new();
+            for (index, message) in messages.iter().enumerate() {
+                let dict = match message {
+                    Value::Dict(dict) => dict,
+                    _ => {
+                        return Err(Value::Error(format!(
+                            "{}() requires messages[{}] to be a dictionary with role/content fields",
+                            surface, index
+                        )));
+                    }
+                };
+
+                let role = match dict.get("role") {
+                    Some(Value::Str(role)) if !role.is_empty() => role.as_ref().clone(),
+                    _ => {
+                        return Err(Value::Error(format!(
+                            "{}() requires messages[{}].role to be a non-empty string",
+                            surface, index
+                        )));
+                    }
+                };
+
+                let content = match dict.get("content") {
+                    Some(Value::Str(content)) => content.as_ref().clone(),
+                    _ => {
+                        return Err(Value::Error(format!(
+                            "{}() requires messages[{}].content to be a string",
+                            surface, index
+                        )));
+                    }
+                };
+
+                normalized.push(ai_message(&role, content));
+            }
+            Ok(normalized)
+        }
+        _ => Err(Value::Error(format!(
+            "{}() expects first argument to be a prompt string or messages array",
+            surface
+        ))),
+    }
+}
+
+fn parse_ai_embedding_input(input: &Value, surface: &str) -> Result<Value, Value> {
+    match input {
+        Value::Str(text) => Ok(Value::Str(text.clone())),
+        Value::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                if !matches!(item, Value::Str(_)) {
+                    return Err(Value::Error(format!(
+                        "{}() requires input[{}] to be a string",
+                        surface, index
+                    )));
+                }
+            }
+            Ok(Value::Array(items.clone()))
+        }
+        _ => Err(Value::Error(format!(
+            "{}() expects first argument to be a string or array of strings",
+            surface
+        ))),
+    }
+}
+
+fn merge_ai_extra_body(
+    payload: &mut DictMap,
+    options: &DictMap,
+    reserved_keys: &[&str],
+    surface: &str,
+) -> Result<(), Value> {
+    let Some(extra_body) = options.get("body") else {
+        return Ok(());
+    };
+    let extra_body = match extra_body {
+        Value::Dict(dict) => dict,
+        _ => {
+            return Err(Value::Error(format!(
+                "{}() requires options.body to be a dictionary when provided",
+                surface
+            )));
+        }
+    };
+
+    for (key, value) in extra_body.iter() {
+        if reserved_keys.iter().any(|reserved| *reserved == key.as_ref()) {
+            return Err(Value::Error(format!(
+                "{}() reserves options.body['{}']; pass it via top-level options instead",
+                surface, key
+            )));
+        }
+        payload.insert(key.clone(), value.clone());
+    }
+
+    Ok(())
+}
+
+fn truncate_for_error(text: &str, max_chars: usize) -> String {
+    let mut out = String::new();
+    for (count, ch) in text.chars().enumerate() {
+        if count >= max_chars {
+            out.push_str("...");
+            return out;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+fn run_ai_request(
+    surface: &str,
+    config: &AiRequestConfig,
+    payload: Value,
+) -> Result<(i64, DictMap, String, Value), String> {
+    let payload_json = builtins::to_json(&payload)
+        .map_err(|error| format!("{} failed: request body serialization error: {}", surface, error))?;
+
+    let endpoint = config.endpoint.clone();
+    let api_key = config.api_key.clone();
+    let headers = config.headers.clone();
+    let timeout_seconds = config.timeout_seconds;
+    let surface_for_task = surface.to_string();
+
+    let request_result = network_policy::run_blocking_http_task(surface, move || {
+        let client = network_policy::build_http_client(Duration::from_secs_f64(timeout_seconds))?;
+        let mut request = client.post(&endpoint);
+        request = request.header("Content-Type", "application/json");
+        request = request.header("Accept", "application/json");
+
+        if let Some(api_key) = api_key {
+            request = request.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        for (name, value) in headers {
+            request = request.header(&name, &value);
+        }
+
+        let response = request
+            .body(payload_json)
+            .send()
+            .map_err(|error| format!("{} failed: {}", surface_for_task, error))?;
+        network_policy::read_http_response_bytes(response, surface_for_task.as_str())
+    })?;
+
+    let (status, response_headers, body_bytes) = request_result;
+    let body_text = String::from_utf8_lossy(&body_bytes).to_string();
+    let parsed_body = builtins::parse_json(&body_text).map_err(|error| {
+        format!(
+            "{} failed: response was not valid JSON ({})",
+            surface, error
+        )
+    })?;
+
+    let mut headers_dict = DictMap::default();
+    for (name, value) in response_headers.iter() {
+        if let Ok(value_str) = value.to_str() {
+            headers_dict.insert(name.as_str().to_string().into(), Value::Str(Arc::new(value_str.to_string())));
+        }
+    }
+
+    Ok((status as i64, headers_dict, body_text, parsed_body))
+}
+
+fn extract_chat_content(response_json: &Value) -> Option<String> {
+    let root = match response_json {
+        Value::Dict(root) => root,
+        _ => return None,
+    };
+    let choices = match root.get("choices") {
+        Some(Value::Array(choices)) => choices,
+        _ => return None,
+    };
+    let first_choice = match choices.first() {
+        Some(Value::Dict(choice)) => choice,
+        _ => return None,
+    };
+
+    if let Some(Value::Dict(message)) = first_choice.get("message") {
+        if let Some(Value::Str(content)) = message.get("content") {
+            return Some(content.as_ref().clone());
+        }
+    }
+    if let Some(Value::Str(text)) = first_choice.get("text") {
+        return Some(text.as_ref().clone());
+    }
+    None
+}
+
+fn extract_chat_chunks(response_json: &Value) -> Vec<Value> {
+    let mut chunks = Vec::new();
+    let Some(root) = (match response_json {
+        Value::Dict(root) => Some(root),
+        _ => None,
+    }) else {
+        return chunks;
+    };
+
+    if let Some(Value::Array(choice_values)) = root.get("choices") {
+        for choice in choice_values.iter() {
+            if let Value::Dict(choice_dict) = choice {
+                if let Some(Value::Dict(delta)) = choice_dict.get("delta") {
+                    if let Some(Value::Str(content)) = delta.get("content") {
+                        chunks.push(Value::Str(content.clone()));
+                    }
+                } else if let Some(Value::Dict(message)) = choice_dict.get("message") {
+                    if let Some(Value::Str(content)) = message.get("content") {
+                        chunks.push(Value::Str(content.clone()));
+                    }
+                } else if let Some(Value::Str(text)) = choice_dict.get("text") {
+                    chunks.push(Value::Str(text.clone()));
+                }
+            }
+        }
+    }
+
+    chunks
+}
+
+fn extract_embedding_vector(response_json: &Value) -> Option<Vec<Value>> {
+    let root = match response_json {
+        Value::Dict(root) => root,
+        _ => return None,
+    };
+    let data = match root.get("data") {
+        Some(Value::Array(data)) => data,
+        _ => return None,
+    };
+    let first_item = match data.first() {
+        Some(Value::Dict(item)) => item,
+        _ => return None,
+    };
+    let embedding = match first_item.get("embedding") {
+        Some(Value::Array(embedding)) => embedding,
+        _ => return None,
+    };
+
+    let mut vector = Vec::new();
+    for value in embedding.iter() {
+        match value_to_f64(value) {
+            Some(number) => vector.push(Value::Float(number)),
+            None => return None,
+        }
+    }
+
+    Some(vector)
+}
+
+fn extract_tool_call_names(response_json: &Value) -> Vec<String> {
+    let mut names = Vec::new();
+    let root = match response_json {
+        Value::Dict(root) => root,
+        _ => return names,
+    };
+    let choices = match root.get("choices") {
+        Some(Value::Array(choices)) => choices,
+        _ => return names,
+    };
+    let first_choice = match choices.first() {
+        Some(Value::Dict(choice)) => choice,
+        _ => return names,
+    };
+    let message = match first_choice.get("message") {
+        Some(Value::Dict(message)) => message,
+        _ => return names,
+    };
+    let tool_calls = match message.get("tool_calls") {
+        Some(Value::Array(tool_calls)) => tool_calls,
+        _ => return names,
+    };
+
+    for tool_call in tool_calls.iter() {
+        let Value::Dict(call_dict) = tool_call else {
+            continue;
+        };
+        let Some(Value::Dict(function_dict)) = call_dict.get("function") else {
+            continue;
+        };
+        let Some(Value::Str(name)) = function_dict.get("name") else {
+            continue;
+        };
+        names.push(name.as_ref().clone());
+    }
+
+    names
+}
+
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         "parallel_http" => {
@@ -245,6 +675,361 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Value::Result { is_ok: false, value: Box::new(Value::Str(Arc::new(error))) }
                 }
             }
+        }
+
+        "ai_chat" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "ai_chat() expects 2 arguments (prompt_or_messages, options), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            let options = match arg_values.get(1) {
+                Some(Value::Dict(options)) => options,
+                _ => {
+                    return Some(Value::Error(
+                        "ai_chat() requires an options dictionary as second argument".to_string(),
+                    ));
+                }
+            };
+
+            let config = match parse_ai_request_config(options, "ai_chat") {
+                Ok(config) => config,
+                Err(error) => return Some(error),
+            };
+            let messages = match parse_ai_messages(&arg_values[0], "ai_chat") {
+                Ok(messages) => messages,
+                Err(error) => return Some(error),
+            };
+
+            let mut payload = DictMap::default();
+            payload.insert("model".into(), Value::Str(Arc::new(config.model.clone())));
+            payload.insert("messages".into(), Value::Array(Arc::new(messages.clone())));
+            if let Err(error) =
+                merge_ai_extra_body(&mut payload, options, &["model", "messages"], "ai_chat")
+            {
+                return Some(error);
+            }
+
+            let request = run_ai_request("ai_chat", &config, Value::Dict(Arc::new(payload)));
+            match request {
+                Ok((status, headers, text, json)) => {
+                    if !(200..300).contains(&status) {
+                        return Some(ai_err_result(format!(
+                            "ai_chat failed with HTTP status {}: {}",
+                            status,
+                            truncate_for_error(&text, 240)
+                        )));
+                    }
+
+                    let message = extract_chat_content(&json).unwrap_or_default();
+                    let mut result = DictMap::default();
+                    result.insert("status".into(), Value::Int(status));
+                    result.insert("model".into(), Value::Str(Arc::new(config.model)));
+                    result.insert("message".into(), Value::Str(Arc::new(message)));
+                    result.insert("text".into(), Value::Str(Arc::new(text)));
+                    result.insert("json".into(), json);
+                    result.insert("headers".into(), Value::Dict(Arc::new(headers)));
+                    ai_ok_result(Value::Dict(Arc::new(result)))
+                }
+                Err(error) => ai_err_result(error),
+            }
+        }
+
+        "ai_stream_chat" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "ai_stream_chat() expects 2 arguments (prompt_or_messages, options), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            let options = match arg_values.get(1) {
+                Some(Value::Dict(options)) => options,
+                _ => {
+                    return Some(Value::Error(
+                        "ai_stream_chat() requires an options dictionary as second argument"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let config = match parse_ai_request_config(options, "ai_stream_chat") {
+                Ok(config) => config,
+                Err(error) => return Some(error),
+            };
+            let messages = match parse_ai_messages(&arg_values[0], "ai_stream_chat") {
+                Ok(messages) => messages,
+                Err(error) => return Some(error),
+            };
+
+            let mut payload = DictMap::default();
+            payload.insert("model".into(), Value::Str(Arc::new(config.model.clone())));
+            payload.insert("messages".into(), Value::Array(Arc::new(messages)));
+            payload.insert("stream".into(), Value::Bool(true));
+            if let Err(error) = merge_ai_extra_body(
+                &mut payload,
+                options,
+                &["model", "messages", "stream"],
+                "ai_stream_chat",
+            ) {
+                return Some(error);
+            }
+
+            let request = run_ai_request("ai_stream_chat", &config, Value::Dict(Arc::new(payload)));
+            match request {
+                Ok((status, headers, text, json)) => {
+                    if !(200..300).contains(&status) {
+                        return Some(ai_err_result(format!(
+                            "ai_stream_chat failed with HTTP status {}: {}",
+                            status,
+                            truncate_for_error(&text, 240)
+                        )));
+                    }
+
+                    let mut chunks = extract_chat_chunks(&json);
+                    if chunks.is_empty() && !text.is_empty() {
+                        chunks.push(Value::Str(Arc::new(text.clone())));
+                    }
+
+                    let mut result = DictMap::default();
+                    result.insert("status".into(), Value::Int(status));
+                    result.insert("model".into(), Value::Str(Arc::new(config.model)));
+                    result.insert("chunks".into(), Value::Array(Arc::new(chunks)));
+                    result.insert("text".into(), Value::Str(Arc::new(text)));
+                    result.insert("json".into(), json);
+                    result.insert("headers".into(), Value::Dict(Arc::new(headers)));
+                    ai_ok_result(Value::Dict(Arc::new(result)))
+                }
+                Err(error) => ai_err_result(error),
+            }
+        }
+
+        "ai_embedding" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "ai_embedding() expects 2 arguments (input, options), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            let options = match arg_values.get(1) {
+                Some(Value::Dict(options)) => options,
+                _ => {
+                    return Some(Value::Error(
+                        "ai_embedding() requires an options dictionary as second argument"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let config = match parse_ai_request_config(options, "ai_embedding") {
+                Ok(config) => config,
+                Err(error) => return Some(error),
+            };
+            let input = match parse_ai_embedding_input(&arg_values[0], "ai_embedding") {
+                Ok(input) => input,
+                Err(error) => return Some(error),
+            };
+
+            let mut payload = DictMap::default();
+            payload.insert("model".into(), Value::Str(Arc::new(config.model.clone())));
+            payload.insert("input".into(), input);
+            if let Err(error) =
+                merge_ai_extra_body(&mut payload, options, &["model", "input"], "ai_embedding")
+            {
+                return Some(error);
+            }
+
+            let request = run_ai_request("ai_embedding", &config, Value::Dict(Arc::new(payload)));
+            match request {
+                Ok((status, headers, text, json)) => {
+                    if !(200..300).contains(&status) {
+                        return Some(ai_err_result(format!(
+                            "ai_embedding failed with HTTP status {}: {}",
+                            status,
+                            truncate_for_error(&text, 240)
+                        )));
+                    }
+
+                    let vector = match extract_embedding_vector(&json) {
+                        Some(vector) => vector,
+                        None => {
+                            return Some(ai_err_result(
+                                "ai_embedding failed: response JSON missing data[0].embedding numeric array"
+                                    .to_string(),
+                            ));
+                        }
+                    };
+
+                    let mut result = DictMap::default();
+                    result.insert("status".into(), Value::Int(status));
+                    result.insert("model".into(), Value::Str(Arc::new(config.model)));
+                    result.insert("vector".into(), Value::Array(Arc::new(vector)));
+                    result.insert("text".into(), Value::Str(Arc::new(text)));
+                    result.insert("json".into(), json);
+                    result.insert("headers".into(), Value::Dict(Arc::new(headers)));
+                    ai_ok_result(Value::Dict(Arc::new(result)))
+                }
+                Err(error) => ai_err_result(error),
+            }
+        }
+
+        "ai_tool_loop" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "ai_tool_loop() expects 2 arguments (prompt_or_messages, options), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            let options = match arg_values.get(1) {
+                Some(Value::Dict(options)) => options,
+                _ => {
+                    return Some(Value::Error(
+                        "ai_tool_loop() requires an options dictionary as second argument"
+                            .to_string(),
+                    ));
+                }
+            };
+
+            let config = match parse_ai_request_config(options, "ai_tool_loop") {
+                Ok(config) => config,
+                Err(error) => return Some(error),
+            };
+
+            let max_steps = match options.get("max_steps") {
+                Some(value) => match value_to_i64(value) {
+                    Some(v) if (1..=MAX_AI_TOOL_LOOP_STEPS).contains(&v) => v,
+                    _ => {
+                        return Some(Value::Error(format!(
+                            "ai_tool_loop() requires options.max_steps to be an integer between 1 and {}",
+                            MAX_AI_TOOL_LOOP_STEPS
+                        )));
+                    }
+                },
+                None => 4,
+            };
+
+            let tools = match options.get("tools") {
+                Some(Value::Array(tools)) => Some(tools.clone()),
+                Some(_) => {
+                    return Some(Value::Error(
+                        "ai_tool_loop() requires options.tools to be an array when provided"
+                            .to_string(),
+                    ));
+                }
+                None => None,
+            };
+
+            let tool_results = match options.get("tool_results") {
+                Some(Value::Dict(results)) => Some(results.clone()),
+                Some(_) => {
+                    return Some(Value::Error(
+                        "ai_tool_loop() requires options.tool_results to be a dictionary when provided"
+                            .to_string(),
+                    ));
+                }
+                None => None,
+            };
+
+            let mut messages = match parse_ai_messages(&arg_values[0], "ai_tool_loop") {
+                Ok(messages) => messages,
+                Err(error) => return Some(error),
+            };
+
+            let mut final_status = 0_i64;
+            let mut final_text = String::new();
+            let mut final_json = Value::Null;
+            let mut last_message = String::new();
+            let mut steps_taken = 0_i64;
+
+            for _ in 0..max_steps {
+                let mut payload = DictMap::default();
+                payload.insert("model".into(), Value::Str(Arc::new(config.model.clone())));
+                payload.insert("messages".into(), Value::Array(Arc::new(messages.clone())));
+                if let Some(tools) = &tools {
+                    payload.insert("tools".into(), Value::Array(tools.clone()));
+                }
+                payload.insert("stream".into(), Value::Bool(false));
+                if let Err(error) = merge_ai_extra_body(
+                    &mut payload,
+                    options,
+                    &["model", "messages", "tools", "stream"],
+                    "ai_tool_loop",
+                ) {
+                    return Some(error);
+                }
+
+                let request_result =
+                    run_ai_request("ai_tool_loop", &config, Value::Dict(Arc::new(payload)));
+                let (status, _headers, text, response_json) = match request_result {
+                    Ok(result) => result,
+                    Err(error) => return Some(ai_err_result(error)),
+                };
+                if !(200..300).contains(&status) {
+                    return Some(ai_err_result(format!(
+                        "ai_tool_loop failed with HTTP status {}: {}",
+                        status,
+                        truncate_for_error(&text, 240)
+                    )));
+                }
+
+                steps_taken += 1;
+                final_status = status;
+                final_text = text;
+                final_json = response_json.clone();
+                last_message = extract_chat_content(&response_json).unwrap_or_default();
+                messages.push(ai_message("assistant", last_message.clone()));
+
+                let tool_call_names = extract_tool_call_names(&response_json);
+                if tool_call_names.is_empty() {
+                    break;
+                }
+
+                let Some(tool_results) = &tool_results else {
+                    return Some(ai_err_result(
+                        "ai_tool_loop requires options.tool_results to resolve tool_calls in model responses"
+                            .to_string(),
+                    ));
+                };
+
+                for tool_name in tool_call_names {
+                    let tool_output = match tool_results.get(tool_name.as_str()) {
+                        Some(Value::Str(output)) => output.as_ref().clone(),
+                        Some(_) => {
+                            return Some(ai_err_result(format!(
+                                "ai_tool_loop requires options.tool_results['{}'] to be a string",
+                                tool_name
+                            )));
+                        }
+                        None => {
+                            return Some(ai_err_result(format!(
+                                "ai_tool_loop missing tool result for '{}'",
+                                tool_name
+                            )));
+                        }
+                    };
+
+                    let mut tool_message = DictMap::default();
+                    tool_message.insert("role".into(), Value::Str(Arc::new("tool".to_string())));
+                    tool_message
+                        .insert("name".into(), Value::Str(Arc::new(tool_name.to_string())));
+                    tool_message.insert("content".into(), Value::Str(Arc::new(tool_output)));
+                    messages.push(Value::Dict(Arc::new(tool_message)));
+                }
+            }
+
+            let mut result = DictMap::default();
+            result.insert("status".into(), Value::Int(final_status));
+            result.insert("model".into(), Value::Str(Arc::new(config.model)));
+            result.insert("steps".into(), Value::Int(steps_taken));
+            result.insert("message".into(), Value::Str(Arc::new(last_message)));
+            result.insert("text".into(), Value::Str(Arc::new(final_text)));
+            result.insert("json".into(), final_json);
+            result.insert("messages".into(), Value::Array(Arc::new(messages)));
+            ai_ok_result(Value::Dict(Arc::new(result)))
         }
 
         "http_put" => {
@@ -626,9 +1411,86 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::mpsc;
 
     fn str_value(value: &str) -> Value {
         Value::Str(Arc::new(value.to_string()))
+    }
+
+    fn one_shot_json_server(
+        status_code: u16,
+        response_body: &'static str,
+    ) -> (String, mpsc::Receiver<String>, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("test listener should bind");
+        let address = listener.local_addr().expect("test listener should have address");
+        let endpoint = format!("http://127.0.0.1:{}/v1/mock", address.port());
+
+        let (request_tx, request_rx) = mpsc::channel::<String>();
+        let handle = std::thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+
+            let mut buffer = Vec::new();
+            let mut temp = [0_u8; 4096];
+            let mut header_end = None;
+            while header_end.is_none() {
+                let read = stream.read(&mut temp).expect("request read should succeed");
+                if read == 0 {
+                    break;
+                }
+                buffer.extend_from_slice(&temp[..read]);
+                header_end = buffer.windows(4).position(|window| window == b"\r\n\r\n");
+            }
+
+            let Some(header_end) = header_end else {
+                return;
+            };
+            let body_start = header_end + 4;
+            let header_text = String::from_utf8_lossy(&buffer[..header_end]).to_string();
+            let content_length = header_text
+                .lines()
+                .find_map(|line| {
+                    let lower = line.to_ascii_lowercase();
+                    if let Some(length_str) = lower.strip_prefix("content-length:") {
+                        return length_str.trim().parse::<usize>().ok();
+                    }
+                    None
+                })
+                .unwrap_or(0);
+
+            while buffer.len().saturating_sub(body_start) < content_length {
+                let read = stream.read(&mut temp).expect("request body read should succeed");
+                if read == 0 {
+                    break;
+                }
+                buffer.extend_from_slice(&temp[..read]);
+            }
+
+            let body_end = body_start.saturating_add(content_length).min(buffer.len());
+            let body = String::from_utf8_lossy(&buffer[body_start..body_end]).to_string();
+            let _ = request_tx.send(body);
+
+            let response = format!(
+                "HTTP/1.1 {} OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                status_code,
+                response_body.len(),
+                response_body
+            );
+            let _ = stream.write_all(response.as_bytes());
+            let _ = stream.flush();
+        });
+
+        (endpoint, request_rx, handle)
+    }
+
+    fn ai_options(endpoint: &str, model: &str) -> Value {
+        let mut options = DictMap::default();
+        options.insert("endpoint".into(), str_value(endpoint));
+        options.insert("model".into(), str_value(model));
+        Value::Dict(Arc::new(options))
     }
 
     #[test]
@@ -742,6 +1604,114 @@ mod tests {
             handle("set_header", &[Value::Int(1), str_value("k"), str_value("v")]).unwrap();
         assert!(
             matches!(set_header_error, Value::Error(message) if message.contains("requires an HTTP response as first argument"))
+        );
+    }
+
+    #[test]
+    fn test_ai_chat_success_path_returns_normalized_result_and_request_payload() {
+        let response_body = r#"{"choices":[{"message":{"content":"hello from model"}}]}"#;
+        let (endpoint, request_rx, server_handle) = one_shot_json_server(200, response_body);
+
+        let result = handle("ai_chat", &[str_value("Hello model"), ai_options(&endpoint, "gpt-mock")])
+            .expect("ai_chat should return a value");
+
+        let request_body = request_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("server should capture request body");
+        server_handle.join().expect("server thread should finish");
+
+        let parsed_request =
+            builtins::parse_json(&request_body).expect("ai_chat request body should be JSON");
+        match parsed_request {
+            Value::Dict(payload) => {
+                assert!(matches!(payload.get("model"), Some(Value::Str(model)) if model.as_ref() == "gpt-mock"));
+                assert!(matches!(payload.get("messages"), Some(Value::Array(messages)) if messages.len() == 1));
+            }
+            other => panic!("expected request body dict, got {:?}", other),
+        }
+
+        match result {
+            Value::Result { is_ok: true, value } => match *value {
+                Value::Dict(result_dict) => {
+                    assert!(matches!(result_dict.get("status"), Some(Value::Int(200))));
+                    assert!(matches!(result_dict.get("message"), Some(Value::Str(message)) if message.as_ref() == "hello from model"));
+                }
+                other => panic!("expected ai_chat success dict, got {:?}", other),
+            },
+            other => panic!("expected ai_chat ok result, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ai_embedding_extracts_numeric_vector_regression() {
+        let response_body = r#"{"data":[{"embedding":[0.5,1,2.25]}]}"#;
+        let (endpoint, _request_rx, server_handle) = one_shot_json_server(200, response_body);
+
+        let result =
+            handle("ai_embedding", &[str_value("seed text"), ai_options(&endpoint, "embed-mock")])
+                .expect("ai_embedding should return a value");
+        server_handle.join().expect("server thread should finish");
+
+        match result {
+            Value::Result { is_ok: true, value } => match *value {
+                Value::Dict(result_dict) => match result_dict.get("vector") {
+                    Some(Value::Array(vector)) => {
+                        assert_eq!(vector.len(), 3);
+                        assert!(matches!(vector[0], Value::Float(v) if (v - 0.5).abs() < 1e-9));
+                        assert!(matches!(vector[1], Value::Float(v) if (v - 1.0).abs() < 1e-9));
+                        assert!(matches!(vector[2], Value::Float(v) if (v - 2.25).abs() < 1e-9));
+                    }
+                    other => panic!("expected vector array, got {:?}", other),
+                },
+                other => panic!("expected ai_embedding success dict, got {:?}", other),
+            },
+            other => panic!("expected ai_embedding ok result, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ai_helpers_surface_contract_failures_and_edge_validation() {
+        let missing_options = handle("ai_chat", &[str_value("hello"), Value::Int(1)]).unwrap();
+        assert!(
+            matches!(missing_options, Value::Error(message) if message.contains("requires an options dictionary"))
+        );
+
+        let mut bad_options = DictMap::default();
+        bad_options.insert("endpoint".into(), str_value("http://127.0.0.1:1"));
+        bad_options.insert("model".into(), str_value("gpt-mock"));
+        bad_options.insert("timeout".into(), Value::Int(0));
+        let bad_timeout = handle(
+            "ai_chat",
+            &[str_value("hello"), Value::Dict(Arc::new(bad_options))],
+        )
+        .unwrap();
+        assert!(
+            matches!(bad_timeout, Value::Error(message) if message.contains("options.timeout to be a positive number"))
+        );
+
+        let mut tool_loop_options = DictMap::default();
+        tool_loop_options.insert("endpoint".into(), str_value("http://127.0.0.1:1"));
+        tool_loop_options.insert("model".into(), str_value("gpt-mock"));
+        tool_loop_options.insert("max_steps".into(), Value::Int(0));
+        let bad_steps = handle(
+            "ai_tool_loop",
+            &[str_value("hello"), Value::Dict(Arc::new(tool_loop_options))],
+        )
+        .unwrap();
+        assert!(
+            matches!(bad_steps, Value::Error(message) if message.contains("options.max_steps to be an integer between 1"))
+        );
+    }
+
+    #[test]
+    fn test_ai_chat_non_json_response_returns_deterministic_failure_result() {
+        let (endpoint, _request_rx, server_handle) = one_shot_json_server(200, "not-json");
+        let result = handle("ai_chat", &[str_value("Hello"), ai_options(&endpoint, "gpt-mock")])
+            .expect("ai_chat should return a result");
+        server_handle.join().expect("server thread should finish");
+
+        assert!(
+            matches!(result, Value::Result { is_ok: false, value } if matches!(value.as_ref(), Value::Str(message) if message.contains("response was not valid JSON")))
         );
     }
 }
