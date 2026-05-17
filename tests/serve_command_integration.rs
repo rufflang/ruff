@@ -44,17 +44,21 @@ fn ruff_binary() -> String {
     env!("CARGO_BIN_EXE_ruff").to_string()
 }
 
-fn find_free_port() -> u16 {
-    let listener = TcpListener::bind((TEST_HOST, 0)).expect("failed to allocate test port");
-    listener.local_addr().expect("listener should have local addr").port()
+fn find_free_port() -> Option<u16> {
+    let listener = match TcpListener::bind((TEST_HOST, 0)) {
+        Ok(listener) => listener,
+        Err(error) if error.kind() == ErrorKind::PermissionDenied => return None,
+        Err(error) => panic!("failed to allocate test port: {}", error),
+    };
+    Some(listener.local_addr().expect("listener should have local addr").port())
 }
 
-fn spawn_serve_process(root: &Path) -> ServeProcess {
+fn spawn_serve_process(root: &Path) -> Option<ServeProcess> {
     spawn_serve_process_with_extra_args(root, &[])
 }
 
-fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> ServeProcess {
-    let port = find_free_port();
+fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> Option<ServeProcess> {
+    let port = find_free_port()?;
     let mut command = Command::new(ruff_binary());
     command.current_dir(root);
     command.args([
@@ -86,7 +90,7 @@ fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> Serv
             if let Some(status) = child.try_wait().expect("failed to poll child process") {
                 panic!("ruff serve exited before readiness check completed: {}", status);
             }
-            return ServeProcess { child, port };
+            return Some(ServeProcess { child, port });
         }
 
         thread::sleep(Duration::from_millis(50));
@@ -95,6 +99,19 @@ fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> Serv
     let _ = child.kill();
     let _ = child.wait();
     panic!("ruff serve did not become reachable in time on port {}", port);
+}
+
+macro_rules! spawn_server_or_skip {
+    ($spawn_expr:expr) => {{
+        let Some(server) = $spawn_expr else {
+            eprintln!(
+                "skipping {}: local TCP bind not permitted in this environment",
+                stringify!($spawn_expr)
+            );
+            return;
+        };
+        server
+    }};
 }
 
 fn send_http_request(port: u16, request: &str) -> HttpResponse {
@@ -184,7 +201,7 @@ fn serve_head_returns_headers_without_body() {
     let root = unique_temp_dir("serve_head");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "HEAD / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -211,7 +228,7 @@ fn serve_get_returns_length_type_and_safe_default_headers() {
     let body = "<h1>Hello</h1>";
     fs::write(root.join("index.html"), body).expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -252,7 +269,7 @@ fn serve_method_not_allowed_returns_allow_header() {
     let root = unique_temp_dir("serve_method_not_allowed");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "POST / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -278,7 +295,7 @@ fn serve_non_standard_method_returns_501() {
     let root = unique_temp_dir("serve_non_standard_method");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "BREW / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -310,7 +327,7 @@ fn serve_range_returns_partial_content_and_content_range_header() {
     let root = unique_temp_dir("serve_range");
     fs::write(root.join("index.html"), b"0123456789").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
 		server.port,
 		"GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nRange: bytes=2-5\r\nConnection: close\r\n\r\n",
@@ -332,7 +349,7 @@ fn serve_invalid_range_returns_416_with_content_range_header() {
     let root = unique_temp_dir("serve_invalid_range");
     fs::write(root.join("index.html"), b"0123456789").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nRange: bytes=50-60\r\nConnection: close\r\n\r\n",
@@ -355,7 +372,7 @@ fn serve_large_file_get_returns_expected_content_length_and_body() {
     let expected_body = vec![b'x'; 2 * 1024 * 1024 + 333];
     fs::write(root.join("index.html"), &expected_body).expect("failed to write large index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -380,7 +397,7 @@ fn serve_large_file_head_returns_content_length_without_body() {
     let expected_body = vec![b'y'; expected_len];
     fs::write(root.join("index.html"), &expected_body).expect("failed to write large index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "HEAD /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -402,7 +419,7 @@ fn serve_if_none_match_returns_304_for_matching_etag() {
     let root = unique_temp_dir("serve_etag");
     fs::write(root.join("index.html"), b"etag-body").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let first = send_http_request(
         server.port,
         "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -432,7 +449,7 @@ fn serve_accept_encoding_prefers_gzip_sibling_asset() {
     let gzip_bytes = vec![0x1f, 0x8b, 0x08, 0x00, 0x13, 0x37, 0x00, 0x00];
     fs::write(root.join("index.html.gz"), &gzip_bytes).expect("failed to write gzip sibling");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
 		server.port,
 		"GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept-Encoding: gzip\r\nConnection: close\r\n\r\n",
@@ -480,7 +497,7 @@ fn serve_mime_policy_covers_known_unknown_and_extensionless_assets() {
         .expect("failed to write unknown");
     fs::write(root.join("LICENSE"), "license text").expect("failed to write extensionless file");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let cases = vec![
         ("/index.html", "text/html; charset=utf-8"),
         ("/styles.css", "text/css; charset=utf-8"),
@@ -538,7 +555,7 @@ fn serve_dotfile_blocking_takes_priority_over_known_extension_mime_resolution() 
     fs::write(root.join("index.html"), "<h1>home</h1>").expect("failed to write index");
     fs::write(root.join(".hidden.json"), "{\"secret\":true}").expect("failed to write dotfile");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /.hidden.json HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -559,7 +576,7 @@ fn serve_rejects_url_encoded_parent_traversal() {
     let root = unique_temp_dir("serve_encoded_traversal");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /%2e%2e/secret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -598,7 +615,7 @@ fn serve_double_encoded_parent_traversal_does_not_escape_root() {
     fs::write(outside.join("secret.txt"), "outside-secret")
         .expect("failed to write outside secret");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /%252e%252e/secret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -620,7 +637,7 @@ fn serve_rejects_invalid_percent_encoding_with_400() {
     let root = unique_temp_dir("serve_invalid_percent_encoding");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /bad%2 HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -637,7 +654,7 @@ fn serve_rejects_null_byte_in_request_target_with_400() {
     let root = unique_temp_dir("serve_null_byte_request_target");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /%00secret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -654,7 +671,7 @@ fn serve_rejects_fragment_in_request_target_with_400() {
     let root = unique_temp_dir("serve_fragment_request_target");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /index.html#fragment HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -675,7 +692,7 @@ fn serve_oversized_request_target_returns_414() {
     let request =
         format!("GET {} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n", oversized_path);
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(server.port, &request);
 
     assert_eq!(414, response.status_code);
@@ -695,7 +712,7 @@ fn serve_oversized_request_line_returns_414() {
         oversized_method
     );
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(server.port, &request);
 
     assert_eq!(414, response.status_code);
@@ -709,7 +726,10 @@ fn serve_oversized_headers_return_413() {
     let root = unique_temp_dir("serve_oversized_headers");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process_with_extra_args(&root, &["--max-header-bytes", "256"]);
+    let server = spawn_server_or_skip!(spawn_serve_process_with_extra_args(
+        &root,
+        &["--max-header-bytes", "256"]
+    ));
     let huge_header_value = "x".repeat(1024);
     let request = format!(
         "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Big: {}\r\nConnection: close\r\n\r\n",
@@ -728,7 +748,10 @@ fn serve_too_many_headers_return_413() {
     let root = unique_temp_dir("serve_too_many_headers");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process_with_extra_args(&root, &["--max-header-count", "4"]);
+    let server = spawn_server_or_skip!(spawn_serve_process_with_extra_args(
+        &root,
+        &["--max-header-count", "4"]
+    ));
 
     let mut request = String::from("GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\n");
     for index in 0..6 {
@@ -748,7 +771,10 @@ fn serve_request_body_over_limit_returns_413_before_method_dispatch() {
     let root = unique_temp_dir("serve_request_body_limit");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process_with_extra_args(&root, &["--max-request-body-bytes", "8"]);
+    let server = spawn_server_or_skip!(spawn_serve_process_with_extra_args(
+        &root,
+        &["--max-request-body-bytes", "8"]
+    ));
     let oversized_body = "ABCDEFGHIJKL";
     let request = format!(
         "POST /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -771,10 +797,10 @@ fn serve_custom_timeout_flags_still_serve_normal_requests() {
     let root = unique_temp_dir("serve_custom_timeouts");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process_with_extra_args(
+    let server = spawn_server_or_skip!(spawn_serve_process_with_extra_args(
         &root,
         &["--read-timeout-ms", "25", "--write-timeout-ms", "25"],
-    );
+    ));
     let response = send_http_request(
         server.port,
         "GET /index.html HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -792,7 +818,7 @@ fn serve_query_string_does_not_change_filesystem_resolution() {
     let root = unique_temp_dir("serve_query_string_path_resolution");
     fs::write(root.join("index.html"), "<h1>Hello Query</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /index.html?path=%2e%2e%2fsecret.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -810,7 +836,7 @@ fn serve_missing_file_returns_404_with_standard_error_headers() {
     let root = unique_temp_dir("serve_missing_file");
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /missing.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -847,7 +873,7 @@ fn serve_blocks_dotenv_file_with_403() {
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
     fs::write(root.join(".env"), "SECRET=1").expect("failed to write .env");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /.env HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -866,7 +892,7 @@ fn serve_blocks_dot_git_config_with_403() {
     fs::write(root.join(".git").join("config"), "[core]\nrepositoryformatversion = 0\n")
         .expect("failed to write .git/config");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /.git/config HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -883,7 +909,7 @@ fn serve_blocks_dot_ds_store_with_403() {
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
     fs::write(root.join(".DS_Store"), "mac-metadata").expect("failed to write .DS_Store");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /.DS_Store HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -901,7 +927,7 @@ fn serve_blocks_backup_and_swap_files_with_403() {
     fs::write(root.join("secrets.txt.bak"), "backup copy").expect("failed to write backup file");
     fs::write(root.join("settings.json.swp"), "swap copy").expect("failed to write swap file");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let backup_response = send_http_request(
         server.port,
         "GET /secrets.txt.bak HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -923,7 +949,7 @@ fn serve_still_serves_normal_public_files() {
     fs::write(root.join("index.html"), "<h1>Hello</h1>").expect("failed to write index.html");
     fs::write(root.join("public.txt"), "public-data").expect("failed to write public file");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /public.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
@@ -947,7 +973,7 @@ fn serve_rejects_symlink_escape_target() {
     fs::write(&outside_file, "outside").expect("failed to write outside file");
     unix_fs::symlink(&outside_file, &symlink_path).expect("failed to create symlink");
 
-    let server = spawn_serve_process(&root);
+    let server = spawn_server_or_skip!(spawn_serve_process(&root));
     let response = send_http_request(
         server.port,
         "GET /linked.txt HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
