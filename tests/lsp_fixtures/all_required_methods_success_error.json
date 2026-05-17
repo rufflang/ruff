@@ -40,7 +40,16 @@
     { "jsonrpc": "2.0", "id": 118, "method": "textDocument/documentSymbol", "params": { } },
 
     { "jsonrpc": "2.0", "id": 19, "method": "workspace/symbol", "params": { "query": "qq" } },
-    { "jsonrpc": "2.0", "id": 119, "method": "workspace/symbol", "params": { "query": "qq" } }
+    { "jsonrpc": "2.0", "id": 119, "method": "workspace/symbol", "params": { "query": "qq" } },
+
+    { "jsonrpc": "2.0", "id": 20, "method": "textDocument/semanticTokens/full", "params": { "textDocument": { "uri": "file:///tmp/all_required_methods.ruff" } } },
+    { "jsonrpc": "2.0", "id": 120, "method": "textDocument/semanticTokens/full", "params": { } },
+
+    { "jsonrpc": "2.0", "id": 21, "method": "textDocument/inlayHint", "params": { "textDocument": { "uri": "file:///tmp/all_required_methods.ruff" }, "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 5, "character": 0 } } } },
+    { "jsonrpc": "2.0", "id": 121, "method": "textDocument/inlayHint", "params": { "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 5, "character": 0 } } } },
+
+    { "jsonrpc": "2.0", "id": 22, "method": "textDocument/codeLens", "params": { "textDocument": { "uri": "file:///tmp/all_required_methods.ruff" } } },
+    { "jsonrpc": "2.0", "id": 122, "method": "textDocument/codeLens", "params": { } }
   ],
   "expected": [
     {
@@ -79,6 +88,15 @@
     { "jsonrpc": "2.0", "id": 118, "error": { "code": -32602 } },
 
     { "jsonrpc": "2.0", "id": 19, "result": [ { "name": "qq_fn" } ] },
-    { "jsonrpc": "2.0", "id": 119, "result": [ { "name": "qq_fn" } ] }
+    { "jsonrpc": "2.0", "id": 119, "result": [ { "name": "qq_fn" } ] },
+
+    { "jsonrpc": "2.0", "id": 20, "result": { "data": [0, 0, 4, 15, 0] } },
+    { "jsonrpc": "2.0", "id": 120, "error": { "code": -32602 } },
+
+    { "jsonrpc": "2.0", "id": 21, "result": [] },
+    { "jsonrpc": "2.0", "id": 121, "error": { "code": -32602 } },
+
+    { "jsonrpc": "2.0", "id": 22, "result": [ { "command": { "command": "ruff.symbolInfo" } } ] },
+    { "jsonrpc": "2.0", "id": 122, "error": { "code": -32602 } }
   ]
 }

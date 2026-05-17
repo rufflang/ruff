@@ -1974,7 +1974,7 @@ They are intentionally split into:
 ```
 
 ```text
-[ ] V2-LSP-001: Advanced editor protocol surfaces for AI-assisted tooling
+[x] V2-LSP-001: Advanced editor protocol surfaces for AI-assisted tooling
     Priority: P2
     Severity: Enhancement
     Area: LSP/Tooling
@@ -1982,4 +1982,5 @@ They are intentionally split into:
     Problem: Baseline LSP surface is strong, but advanced AI/editor workflows benefit from semantic tokens, inlay hints, and code lens support.
     Recommendation: Implement advanced protocol slices with stable contract fixtures.
     Tests required: protocol fixture updates + conformance harness coverage.
+    Notes: Completed on 2026-05-16. Added advanced LSP server capability advertisement and request handling in `src/lsp_server.rs` for `textDocument/semanticTokens/full`, `textDocument/inlayHint`, and `textDocument/codeLens`, with deterministic token encoding/hint/lens output shapes and invalid-params behavior aligned to existing JSON-RPC contracts. Added dedicated unit coverage in `src/lsp_server.rs` for advanced capability presence and method response-shape stability. Updated conformance fixtures (`tests/lsp_fixtures/all_required_methods_success_error.json`) so harness execution covers the new methods and error-path behavior. Updated protocol contract docs in `docs/PROTOCOL_CONTRACTS.md`, plus README LSP command contract wording and changelog/roadmap status.
 ```

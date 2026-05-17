@@ -44,6 +44,20 @@ Required symbol identity fields by surface:
 - location coordinates (line/column or range)
 - optional kind metadata (`function`, `variable`, etc)
 
+## Advanced Editor Metadata Contract
+
+Used by:
+
+- LSP `textDocument/semanticTokens/full`
+- LSP `textDocument/inlayHint`
+- LSP `textDocument/codeLens`
+
+Required advanced-metadata fields:
+
+- semantic tokens: `result.data` encoded in 5-field relative tuples (`deltaLine`, `deltaStart`, `length`, `tokenType`, `tokenModifiers`)
+- inlay hints: `position` + `label` (with optional `kind`)
+- code lenses: `range` + `command.title` + `command.command`
+
 ## Edit Contract
 
 Used by:
@@ -106,6 +120,9 @@ The table below is the canonical support matrix for Ruff's LSP server at this co
 | `textDocument/references` | Supported | Returns declaration-aware references for the requested document. |
 | `textDocument/rename` | Supported | Returns text edits under `result.changes[uri]`. |
 | `textDocument/codeAction` | Supported | Returns syntax quick-fix actions derived from diagnostics. |
+| `textDocument/semanticTokens/full` | Supported | Returns deterministic token legend encoding in `result.data` (5-field tuple groups). |
+| `textDocument/inlayHint` | Supported | Returns deterministic hint list derived from local binding/type-inference heuristics. |
+| `textDocument/codeLens` | Supported | Returns deterministic per-function code-lens command entries. |
 | `textDocument/formatting` | Supported | Returns full-document edit list or empty list if unchanged. |
 | `textDocument/rangeFormatting` | Supported | Currently returns full-document-style edit behavior. |
 | `textDocument/documentSymbol` | Supported | Returns symbol list for requested open/resolved document. |

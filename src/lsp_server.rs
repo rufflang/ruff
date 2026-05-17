@@ -115,6 +115,42 @@ impl LspServer {
                         "referencesProvider": true,
                         "renameProvider": true,
                         "codeActionProvider": true,
+                        "codeLensProvider": {
+                            "resolveProvider": false
+                        },
+                        "inlayHintProvider": true,
+                        "semanticTokensProvider": {
+                            "legend": {
+                                "tokenTypes": [
+                                    "namespace",
+                                    "type",
+                                    "class",
+                                    "enum",
+                                    "interface",
+                                    "struct",
+                                    "typeParameter",
+                                    "parameter",
+                                    "variable",
+                                    "property",
+                                    "enumMember",
+                                    "event",
+                                    "function",
+                                    "method",
+                                    "macro",
+                                    "keyword",
+                                    "modifier",
+                                    "comment",
+                                    "string",
+                                    "number",
+                                    "regexp",
+                                    "operator",
+                                    "decorator"
+                                ],
+                                "tokenModifiers": []
+                            },
+                            "full": true,
+                            "range": false
+                        },
                         "documentFormattingProvider": true,
                         "documentRangeFormattingProvider": true,
                         "documentSymbolProvider": true,
@@ -430,6 +466,74 @@ impl LspServer {
                     "jsonrpc": "2.0",
                     "id": id,
                     "result": actions
+                })
+            }
+            "textDocument/semanticTokens/full" => {
+                let uri = match request_uri(params) {
+                    Some(value) => value,
+                    None => {
+                        return invalid_params_response(id, "Missing textDocument.uri");
+                    }
+                };
+
+                let source = match self.resolve_document_source(&uri) {
+                    Ok(content) => content,
+                    Err(message) => {
+                        return invalid_params_response(id, &message);
+                    }
+                };
+
+                let data = collect_semantic_token_data(&source);
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": {
+                        "data": data
+                    }
+                })
+            }
+            "textDocument/inlayHint" => {
+                let uri = match request_uri(params) {
+                    Some(value) => value,
+                    None => {
+                        return invalid_params_response(id, "Missing textDocument.uri");
+                    }
+                };
+
+                let source = match self.resolve_document_source(&uri) {
+                    Ok(content) => content,
+                    Err(message) => {
+                        return invalid_params_response(id, &message);
+                    }
+                };
+
+                let hints = collect_inlay_hints(&source);
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": hints
+                })
+            }
+            "textDocument/codeLens" => {
+                let uri = match request_uri(params) {
+                    Some(value) => value,
+                    None => {
+                        return invalid_params_response(id, "Missing textDocument.uri");
+                    }
+                };
+
+                let source = match self.resolve_document_source(&uri) {
+                    Ok(content) => content,
+                    Err(message) => {
+                        return invalid_params_response(id, &message);
+                    }
+                };
+
+                let lenses = collect_code_lenses(&source);
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": lenses
                 })
             }
             "textDocument/formatting" => {
@@ -999,6 +1103,206 @@ fn collect_document_symbols(source: &str) -> Vec<SymbolEntry> {
     symbols
 }
 
+fn token_type_index(kind: &TokenKind) -> Option<u32> {
+    match kind {
+        TokenKind::Identifier(_) => Some(8),     // variable
+        TokenKind::Keyword(_) => Some(15),       // keyword
+        TokenKind::String(_) | TokenKind::InterpolatedString(_) => Some(18), // string
+        TokenKind::Int(_) | TokenKind::Float(_) => Some(19), // number
+        TokenKind::Operator(_) => Some(21),      // operator
+        TokenKind::Bool(_) => Some(15),          // keyword-like literal
+        _ => None,
+    }
+}
+
+fn token_length(kind: &TokenKind) -> usize {
+    match kind {
+        TokenKind::Identifier(name) | TokenKind::Keyword(name) | TokenKind::Operator(name) => {
+            name.chars().count()
+        }
+        TokenKind::String(text) => text.chars().count().saturating_add(2),
+        TokenKind::InterpolatedString(parts) => {
+            let content_len: usize = parts
+                .iter()
+                .map(|part| match part {
+                    lexer::InterpolatedPart::Text(text) => text.chars().count(),
+                    lexer::InterpolatedPart::Expression(expr) => expr.chars().count().saturating_add(3),
+                })
+                .sum();
+            content_len.saturating_add(2)
+        }
+        TokenKind::Int(value) => value.to_string().chars().count(),
+        TokenKind::Float(value) => value.to_string().chars().count(),
+        TokenKind::Bool(value) => {
+            if *value {
+                4
+            } else {
+                5
+            }
+        }
+        TokenKind::Punctuation(_) => 1,
+        TokenKind::Eof => 0,
+    }
+}
+
+fn collect_semantic_token_data(source: &str) -> Vec<u32> {
+    let tokens = match lexer::tokenize(source) {
+        Ok(tokens) => tokens,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut encoded = Vec::new();
+    let mut previous_line = 0usize;
+    let mut previous_start = 0usize;
+    let mut emitted_any = false;
+
+    for token in tokens.iter() {
+        let Some(token_type) = token_type_index(&token.kind) else {
+            continue;
+        };
+        let length = token_length(&token.kind);
+        if length == 0 {
+            continue;
+        }
+
+        let start_one_based = token.column.saturating_sub(length).max(1);
+        let line_zero = zero_based(token.line);
+        let start_zero = zero_based(start_one_based);
+
+        let (delta_line, delta_start) = if !emitted_any {
+            (line_zero, start_zero)
+        } else if line_zero == previous_line {
+            (0, start_zero.saturating_sub(previous_start))
+        } else {
+            (line_zero.saturating_sub(previous_line), start_zero)
+        };
+
+        encoded.push(delta_line as u32);
+        encoded.push(delta_start as u32);
+        encoded.push(length as u32);
+        encoded.push(token_type);
+        encoded.push(0);
+
+        previous_line = line_zero;
+        previous_start = start_zero;
+        emitted_any = true;
+    }
+
+    encoded
+}
+
+fn infer_binding_type_hint(token: &TokenKind) -> Option<&'static str> {
+    match token {
+        TokenKind::Int(_) => Some("int"),
+        TokenKind::Float(_) => Some("float"),
+        TokenKind::String(_) | TokenKind::InterpolatedString(_) => Some("string"),
+        TokenKind::Bool(_) => Some("bool"),
+        TokenKind::Keyword(keyword) if keyword == "func" => Some("function"),
+        TokenKind::Punctuation('[') => Some("array"),
+        TokenKind::Punctuation('{') => Some("dict"),
+        _ => None,
+    }
+}
+
+fn collect_inlay_hints(source: &str) -> Vec<Value> {
+    let tokens = match lexer::tokenize(source) {
+        Ok(tokens) => tokens,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut hints = Vec::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let token = &tokens[index];
+        let keyword = match &token.kind {
+            TokenKind::Keyword(keyword) if keyword == "let" || keyword == "const" => keyword,
+            _ => {
+                index += 1;
+                continue;
+            }
+        };
+
+        let mut name_index = index + 1;
+        if keyword == "let" {
+            if let Some(TokenKind::Keyword(next_keyword)) = tokens.get(name_index).map(|t| &t.kind) {
+                if next_keyword == "mut" {
+                    name_index += 1;
+                }
+            }
+        }
+
+        let Some(name_token) = tokens.get(name_index) else {
+            index += 1;
+            continue;
+        };
+        let TokenKind::Identifier(_) = &name_token.kind else {
+            index += 1;
+            continue;
+        };
+
+        let Some(operator_token) = tokens.get(name_index + 1) else {
+            index += 1;
+            continue;
+        };
+        let TokenKind::Operator(operator) = &operator_token.kind else {
+            index += 1;
+            continue;
+        };
+        if operator != ":=" {
+            index += 1;
+            continue;
+        }
+
+        let Some(value_token) = tokens.get(name_index + 2) else {
+            index += 1;
+            continue;
+        };
+        let Some(type_label) = infer_binding_type_hint(&value_token.kind) else {
+            index += 1;
+            continue;
+        };
+
+        hints.push(json!({
+            "position": {
+                "line": zero_based(name_token.line),
+                "character": zero_based(name_token.column),
+            },
+            "label": format!(": {}", type_label),
+            "kind": 1
+        }));
+
+        index += 1;
+    }
+
+    hints
+}
+
+fn collect_code_lenses(source: &str) -> Vec<Value> {
+    collect_document_symbols(source)
+        .into_iter()
+        .filter(|symbol| symbol.kind == 12)
+        .map(|symbol| {
+            json!({
+                "range": {
+                    "start": {
+                        "line": zero_based(symbol.line),
+                        "character": zero_based(symbol.column),
+                    },
+                    "end": {
+                        "line": zero_based(symbol.line),
+                        "character": zero_based(symbol.column + symbol.length),
+                    }
+                },
+                "command": {
+                    "title": format!("symbol {}", symbol.name),
+                    "command": "ruff.symbolInfo",
+                    "arguments": [symbol.name]
+                }
+            })
+        })
+        .collect()
+}
+
 fn method_not_found_response(id: Value, method: &str) -> Value {
     json!({
         "jsonrpc": "2.0",
@@ -1289,6 +1593,102 @@ mod tests {
         assert!(!symbols
             .iter()
             .any(|symbol| { symbol.get("name").and_then(Value::as_str) == Some("build_site") }));
+    }
+
+    #[test]
+    fn initialize_advertises_advanced_lsp_capabilities() {
+        let mut server = LspServer::new(LspServerConfig::default());
+        let response = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 61,
+            "method": "initialize",
+            "params": {}
+        }));
+
+        let capabilities = response[0]
+            .get("result")
+            .and_then(|value| value.get("capabilities"))
+            .cloned()
+            .expect("initialize response should include capabilities");
+
+        assert_eq!(capabilities["inlayHintProvider"], json!(true));
+        assert_eq!(capabilities["codeLensProvider"]["resolveProvider"], json!(false));
+        assert_eq!(capabilities["semanticTokensProvider"]["full"], json!(true));
+        assert_eq!(capabilities["semanticTokensProvider"]["range"], json!(false));
+    }
+
+    #[test]
+    fn advanced_methods_return_deterministic_shapes() {
+        let mut server = LspServer::new(LspServerConfig::default());
+        let _ = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/advanced_methods.ruff",
+                    "text": "func greet(name) {\n    return name\n}\nlet value := 1\n"
+                }
+            }
+        }));
+
+        let semantic_tokens = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 62,
+            "method": "textDocument/semanticTokens/full",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/advanced_methods.ruff"
+                }
+            }
+        }));
+        let token_data = semantic_tokens[0]["result"]["data"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(!token_data.is_empty(), "expected semantic token data");
+        assert_eq!(
+            token_data.len() % 5,
+            0,
+            "semantic token payload must encode 5-field tuples"
+        );
+
+        let inlay_hints = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 63,
+            "method": "textDocument/inlayHint",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/advanced_methods.ruff"
+                },
+                "range": {
+                    "start": {"line": 0, "character": 0},
+                    "end": {"line": 4, "character": 0}
+                }
+            }
+        }));
+        let hints = inlay_hints[0]["result"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(hints.iter().any(|hint| hint["label"] == json!(": int")));
+
+        let code_lens = server.process_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 64,
+            "method": "textDocument/codeLens",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///tmp/advanced_methods.ruff"
+                }
+            }
+        }));
+        let lenses = code_lens[0]["result"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        assert!(lenses
+            .iter()
+            .any(|lens| lens["command"]["command"] == json!("ruff.symbolInfo")));
     }
 
     #[test]

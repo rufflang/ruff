@@ -127,7 +127,7 @@ The current CLI exposes these subcommands:
 | `ruff package-install` | Generate deterministic `ruff.lock` output from `ruff.toml` and enumerate dependencies (`--manifest`, `--lockfile`, `--frozen` verify mode). |
 | `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
 | `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`, `--json`). |
-| `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing). |
+| `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing), including advanced editor metadata surfaces (`textDocument/semanticTokens/full`, `textDocument/inlayHint`, `textDocument/codeLens`). |
 | `ruff test` | Discover `.ruff` fixtures under `tests/`, execute each fixture via `ruff run --interpreter`, and compare output against sibling `.out` snapshots; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax; parse diagnostics exit non-zero before test collection. Supports the same `--untrusted` / `--allow-*` native capability policy flags as `ruff run`. |
 | `ruff bench [path]` | Run benchmark scripts. |
