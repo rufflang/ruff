@@ -46,24 +46,26 @@ fn stderr_text(output: &Output) -> String {
     String::from_utf8(output.stderr.clone()).expect("stderr should be utf-8")
 }
 
-fn collect_ruff_files(root: &Path) -> Vec<PathBuf> {
-    fn walk(dir: &Path, files: &mut Vec<PathBuf>) {
-        let entries = fs::read_dir(dir).expect("failed to read directory");
-        for entry in entries {
-            let entry = entry.expect("failed to read directory entry");
-            let path = entry.path();
-            if path.is_dir() {
-                walk(&path, files);
-                continue;
-            }
-            if path.extension().and_then(|ext| ext.to_str()) == Some("ruff") {
-                files.push(path);
-            }
-        }
-    }
+fn collect_tracked_ruff_files(root: &Path, tracked_root: &str) -> Vec<PathBuf> {
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(["ls-files", tracked_root])
+        .output()
+        .expect("failed to run git ls-files for tracked Ruff examples");
+    assert!(
+        output.status.success(),
+        "git ls-files {} failed: {}",
+        tracked_root,
+        stderr_text(&output)
+    );
 
-    let mut files = Vec::new();
-    walk(root, &mut files);
+    let stdout = stdout_text(&output);
+    let mut files: Vec<PathBuf> = stdout
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && line.ends_with(".ruff"))
+        .map(|line| root.join(line))
+        .collect();
     files.sort();
     files
 }
@@ -86,7 +88,7 @@ fn run_examples() -> HashSet<&'static str> {
     ])
 }
 
-fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 35] {
+fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 32] {
     [
         ("examples/await_test.ruff", "async/await syntax drift"),
         ("examples/benchmark_async.ruff", "legacy control-flow syntax drift"),
@@ -156,9 +158,6 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 35] {
             "known VM duplicate-declaration compile error in fixture",
         ),
         ("examples/spread_operator_demo.ruff", "spread/index syntax drift in legacy example"),
-        ("examples/ssg/ssg_async.ruff", "async control-flow syntax drift"),
-        ("examples/ssg/test_parse_perf.ruff", "intentional malformed fixture"),
-        ("examples/ssg/test_trim.ruff", "intentional malformed fixture"),
         ("examples/stdlib_crypto.ruff", "legacy loop syntax drift"),
         ("examples/struct_self_methods.ruff", "struct method example has unresolved syntax debt"),
         ("examples/testing_demo.ruff", "legacy test helper syntax drift"),
@@ -245,8 +244,7 @@ fn extract_ruff_blocks(markdown_path: &Path) -> Vec<(usize, String)> {
 #[test]
 fn examples_smoke_parse_run_or_expected_fail() {
     let root = repo_root();
-    let examples_root = root.join("examples");
-    let files = collect_ruff_files(&examples_root);
+    let files = collect_tracked_ruff_files(&root, "examples");
     assert!(!files.is_empty(), "expected at least one Ruff example file");
 
     let mut failures = Vec::new();
