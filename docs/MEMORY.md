@@ -163,9 +163,9 @@ pub fn get(&self, name: &str) -> Option<Value> {
 ```ruff
 x := 10      # Global scope: scopes[0]["x"] = 10
 
-{
-    x := 20  # Block scope: scopes[1]["x"] = 20 (shadows global)
-    print(x) # Prints 20 (finds in scopes[1] first)
+if true {
+    scoped_x := 20  # Block scope variable
+    print(scoped_x) # Prints 20
 }
 
 print(x)     # Prints 10 (scopes[1] popped, finds in scopes[0])
@@ -338,11 +338,11 @@ func outer() {
 func outer() {
     x := 10
     
-    f := func() {
+    func inner() {
         print(x)  # OK: closure captures x
     }
     
-    f()  # Prints: 10
+    inner()  # Prints: 10
 }
 ```
 
@@ -386,13 +386,11 @@ drop(env);       // ref count = 0 → Environment freed
 
 **Example**:
 ```ruff
-{
-    x := [1, 2, 3]      # Array allocated
-    y := {"key": "val"} # Dict allocated
-    
-    # Scope ends here
-}  
-# x and y destroyed, memory freed
+x := [1, 2, 3]      # Array allocated
+y := {"key": "val"} # Dict allocated
+print(len(x))
+print(y["key"])
+# x and y are reclaimed when script execution ends
 ```
 
 ### Cycle Detection
@@ -561,10 +559,8 @@ Arc<Mutex<Environment>>
 **Use Case**: Limit variable lifetime.
 
 ```ruff
-{
-    large_data := read_file("huge.csv")  # 1 GB allocated
-    process(large_data)
-}  # large_data destroyed, 1 GB freed
+large_data := read_file("huge.csv")  # 1 GB allocated
+process(large_data)
 
 next_operation()  # Memory available
 ```
@@ -578,10 +574,8 @@ for i in range(1000) {
     data := expensive_computation()
     use(data)
     
-    data := null  # Release reference (value destroyed)
-    
-    # Or re-assign to clear
-    data := 0  # Old value destroyed
+    released := null  # Release reference (value destroyed)
+    use(released)
 }
 ```
 
@@ -606,7 +600,7 @@ arr := range(1000000)
 
 func process(arr, start, end) {
     for i in range(start, end) {
-        # Work with arr[i]
+        print(arr[i])  # Work with arr[i]
     }
 }
 
@@ -759,7 +753,7 @@ func process_file(path) {
 tree := {
     "left": {
         "left": {
-            "left": { ... }  # 10 levels deep
+            "left": {"value": 1}
         }
     }
 }
@@ -790,7 +784,7 @@ for n in nums {
 
 **Good** (lazy evaluation):
 ```ruff
-gen nums := range(1000000)  # No allocation yet
+nums := range(1000000)  # No allocation yet
 for n in nums {
     if n > 100 { break }  # Only created 101 values
 }

@@ -458,13 +458,14 @@ spawn {
 ### 3. Channels
 
 ```ruff
-let (tx, rx) := channel()
+ch := channel()
 
 spawn {
-    tx.send("Hello from thread!")
+    ch.send("Hello from thread!")
 }
 
-let msg := rx.recv()  // Blocks until message
+msg := ch.receive()  // Blocks until message
+print(msg)
 ```
 
 **Implementation**: Wraps `std::sync::mpsc::channel()`

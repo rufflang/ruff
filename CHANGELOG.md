@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `V1-TEST-006` docs/example smoke debt tracking: `tests/docs_examples.rs` no longer carries any expected-fail fenced docs snippets, Ruff docs snippet examples in `docs/ARCHITECTURE.md`, `docs/CONCURRENCY.md`, `docs/MEMORY.md`, and `docs/PERFORMANCE.md` were updated to parse-clean syntax, optional-typing proposal-only snippets in `docs/OPTIONAL_TYPING_DESIGN.md` were moved to non-Ruff fenced text with parse-clean Ruff equivalents added, and remaining expected-fail `.ruff` example files now require explicit per-file debt reasons plus invariant checks for existence and run-set overlap.
 - Changed release-planning hygiene by marking `notes/NEXT_SESSION.md` as an explicitly archived/superseded v0.9 historical note and redirecting active workflow authority to `ROADMAP.md`, `docs/V1_SCOPE.md`, and `docs/RELEASE_PROCESS.md`.
 - Changed release documentation and operator workflow for `V1-REL-001`: `docs/RELEASE_PROCESS.md` and `README.md` now document the dedicated RC gate command path (`scripts/release_candidate_gate.sh`) for roadmap precheck and full release-gate execution sequencing.
 - Changed `README.md` for `V1-DOC-004` to better reflect current 1.0 expectations: added an explicit safety-model snapshot (non-sandbox warning, trusted default, `--untrusted` guidance) and a consolidated core-reference links section for roadmap/spec/stdlib/release policy navigation.

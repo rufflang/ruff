@@ -420,6 +420,8 @@ Run docs/examples smoke contracts (parse/run/expected-fail metadata):
 cargo test --test docs_examples
 ```
 
+`docs_examples` now expects all fenced Ruff docs snippets to parse clean; remaining `expected-fail` entries are limited to legacy `.ruff` example files with explicit per-file debt reasons in `tests/docs_examples.rs`.
+
 Run language-spec semantic contract tests (scope/mutability/arity/truthiness/indexing):
 
 ```bash

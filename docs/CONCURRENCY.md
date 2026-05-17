@@ -419,7 +419,7 @@ Generators provide **lazy evaluation** with cooperative multitasking using `yiel
 
 **Syntax**:
 ```ruff
-gen range(n) {
+func* range_generator(n) {
     i := 0
     while i < n {
         yield i
@@ -515,10 +515,10 @@ Expr::Yield(value_expr) => {
 ### Generator Usage
 
 ```ruff
-gen := range(5)
+generator := range_generator(5)
 
 loop {
-    value := gen.next()
+    value := generator.next()
     if value == null {
         break
     }
@@ -557,8 +557,10 @@ func fan_out_fan_in(items) {
     
     # Fan-in: Collect results
     results := []
-    for i in range(len(items)) {
+    received := 0
+    while received < len(items) {
         results.push(ch.receive())
+        received := received + 1
     }
     
     return results
@@ -605,29 +607,21 @@ func pipeline(data) {
 **Use Case**: Apply async function to array items concurrently.
 
 ```ruff
-async func async_map(items, async_fn) {
-    promises := []
-    
-    for item in items {
-        promise := async_fn(item)
-        promises.push(promise)
-    }
-    
+func map_values(items, map_fn) {
     results := []
-    for promise in promises {
-        results.push(await promise)
+    for item in items {
+        results.push(map_fn(item))
     }
-    
     return results
 }
 
 # Usage
-async func fetch(url) {
+func fetch(url) {
     return http_get(url)
 }
 
 urls := ["https://api1.com", "https://api2.com", "https://api3.com"]
-results := await async_map(urls, fetch)
+results := map_values(urls, fetch)
 ```
 
 ### Pattern 4: Worker Pool
@@ -640,7 +634,8 @@ func worker_pool(tasks, num_workers) {
     result_ch := channel()
     
     # Spawn workers
-    for i in range(num_workers) {
+    worker_index := 0
+    while worker_index < num_workers {
         spawn {
             loop {
                 task := task_ch.receive()
@@ -650,19 +645,24 @@ func worker_pool(tasks, num_workers) {
                 result_ch.send(result)
             }
         }
+        worker_index := worker_index + 1
     }
     
     # Send tasks
     spawn {
-        for task in tasks {
-            task_ch.send(task)
+        task_index := 0
+        while task_index < len(tasks) {
+            task_ch.send(tasks[task_index])
+            task_index := task_index + 1
         }
     }
     
     # Collect results
     results := []
-    for i in range(len(tasks)) {
+    result_index := 0
+    while result_index < len(tasks) {
         results.push(result_ch.receive())
+        result_index := result_index + 1
     }
     
     return results
@@ -734,20 +734,15 @@ loop {
 ### 4. Handle Promise Errors
 
 ```ruff
-async func fetch_data(url) {
-    result := http_get(url)
-    if type(result) == "Error" {
-        return Err(result)
-    }
-    return Ok(result)
+func fetch_data(url) {
+    return http_get(url)
 }
 
-promise := fetch_data("https://api.example.com")
-result := await promise
-
-match result {
-    Ok(data) => print("Success: ${data}"),
-    Err(error) => print("Failed: ${error}"),
+result := fetch_data("https://api.example.com")
+if type(result) == "Error" {
+    print("Failed: ${result}")
+} else {
+    print("Success: ${result}")
 }
 ```
 

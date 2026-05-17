@@ -310,18 +310,19 @@ Type guards add overhead. Keep types consistent:
 
 ```ruff
 # ❌ Type mixing defeats JIT optimization
-let x := 0
+x := 0
 for i in range(1000) {
     x := x + i  # int
-    if i % 100 == 0 {
-        x := float(x)  # suddenly float! Guard fails
+    checkpoint := i / 100
+    if checkpoint * 100 == i {
+        x := x + 0.5  # suddenly float! Guard fails
     }
 }
 
 # ✅ Consistent types enable specialization
-let x := 0
-for i in range(1000) {
-    x := x + i  # always int
+y := 0
+for j in range(1000) {
+    y := y + j  # always int
 }
 ```
 
@@ -358,7 +359,7 @@ func sum_array(arr) {
 }
 
 # ✅ Use built-in
-let total := array.reduce(|acc, x| acc + x, 0)
+let total := sum(arr)
 ```
 
 ### 5. Preallocate Collections

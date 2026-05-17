@@ -1902,7 +1902,7 @@ They are intentionally split into:
 ```
 
 ```text
-[ ] V1-TEST-006: Burn down docs/examples expected-fail debt
+[x] V1-TEST-006: Burn down docs/examples expected-fail debt
     Priority: P1
     Severity: Medium
     Area: Docs/Tests/Quality
@@ -1915,6 +1915,7 @@ They are intentionally split into:
         3. Reclassify fixed entries from expected-fail to parse/run.
     Tests required: `cargo test --test docs_examples` and `cargo test`.
     Acceptance criteria: Expected-fail set is reduced and remaining entries are explicitly justified.
+    Notes: Completed on 2026-05-16. Removed all docs-snippet expected-fail debt from `tests/docs_examples.rs` by fixing parse-drift snippets in `docs/ARCHITECTURE.md`, `docs/CONCURRENCY.md`, `docs/MEMORY.md`, `docs/OPTIONAL_TYPING_DESIGN.md`, and `docs/PERFORMANCE.md` and by converting deferred optional-typing proposal-only syntax fences to `text` plus parse-clean Ruff equivalents. Added explicit reason metadata for every remaining expected-fail example entry and new regression checks that expected-fail entries have reasons, exist on disk, and do not overlap run-smoke examples. Verification: `cargo test --test docs_examples` passed. `cargo test` was run and failed only on `tests/release_candidate_gate_contract.rs` because `V1-ERR-002` remained unchecked at that point.
 ```
 
 ```text

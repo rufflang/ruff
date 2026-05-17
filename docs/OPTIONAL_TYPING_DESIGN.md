@@ -40,7 +40,7 @@ Compatibility contract for v1:
 
 ### Supported Type Syntax (proposed)
 
-```ruff
+```text
 func calculate(x: int, y: float) -> float {
     return x * y
 }
@@ -49,6 +49,19 @@ let name: string := "Alice"
 let enabled: bool := true
 let scores: Array<int> := [95, 87, 92]
 let user_scores: Dict<string, int> := {"alice": 95}
+```
+
+Current parse-clean equivalent under today's dynamic runtime:
+
+```ruff
+func calculate(x, y) {
+    return x * y
+}
+
+name := "Alice"
+enabled := true
+scores := [95, 87, 92]
+user_scores := {"alice": 95}
 ```
 
 ### Type Forms (proposed)
@@ -74,7 +87,7 @@ let user_scores: Dict<string, int> := {"alice": 95}
 
 Potential opt-in forms remain design candidates and are not part of the v1 stable contract:
 
-```ruff
+```text
 @type_check
 func calculate(x: int, y: float) -> float {
     return x * y

@@ -86,44 +86,111 @@ fn run_examples() -> HashSet<&'static str> {
     ])
 }
 
+fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 35] {
+    [
+        ("examples/await_test.ruff", "async/await syntax drift"),
+        ("examples/benchmark_async.ruff", "legacy control-flow syntax drift"),
+        (
+            "examples/benchmarks/file_io.ruff",
+            "benchmark fixture contains parser-incompatible syntax",
+        ),
+        (
+            "examples/benchmarks/run_benchmarks.ruff",
+            "known VM duplicate-declaration compile error in fixture",
+        ),
+        (
+            "examples/benchmarks/sorting_algorithms.ruff",
+            "benchmark fixture kept as negative-coverage debt",
+        ),
+        (
+            "examples/benchmarks/string_processing.ruff",
+            "benchmark fixture kept as negative-coverage debt",
+        ),
+        ("examples/csv_demo.ruff", "legacy stdlib/example syntax drift"),
+        (
+            "examples/database_mysql.ruff",
+            "requires unsupported or drifted database demo syntax",
+        ),
+        (
+            "examples/destructuring_demo.ruff",
+            "destructuring surface still has parse drift in docs example",
+        ),
+        ("examples/http_streaming.ruff", "legacy loop syntax drift"),
+        ("examples/io_module_demo.ruff", "legacy IO module example drift"),
+        ("examples/math_module.ruff", "legacy math module example drift"),
+        ("examples/minimal_async.ruff", "async/await syntax drift"),
+        (
+            "examples/pattern_matching.ruff",
+            "pattern-matching syntax drift in legacy example",
+        ),
+        (
+            "examples/project_api_tester.ruff",
+            "named-argument style not supported by current parser",
+        ),
+        (
+            "examples/project_data_pipeline.ruff",
+            "pipeline project example has unresolved syntax debt",
+        ),
+        (
+            "examples/project_log_analyzer.ruff",
+            "named-argument style not supported by current parser",
+        ),
+        (
+            "examples/project_markdown_converter.ruff",
+            "project example has unresolved parse/runtime debt",
+        ),
+        (
+            "examples/project_task_manager.ruff",
+            "named-argument style not supported by current parser",
+        ),
+        (
+            "examples/project_web_scraper.ruff",
+            "named-argument style not supported by current parser",
+        ),
+        (
+            "examples/projects/contact_manager.ruff",
+            "project example has unresolved parse/runtime debt",
+        ),
+        (
+            "examples/projects/log_parser.ruff",
+            "project example has unresolved parse/runtime debt",
+        ),
+        (
+            "examples/projects/oauth_github_demo.ruff",
+            "uses unsupported null-coalescing operator syntax",
+        ),
+        (
+            "examples/projects/streaming_downloader.ruff",
+            "legacy loop syntax drift",
+        ),
+        (
+            "examples/projects/weather_dashboard.ruff",
+            "known VM duplicate-declaration compile error in fixture",
+        ),
+        (
+            "examples/spread_operator_demo.ruff",
+            "spread/index syntax drift in legacy example",
+        ),
+        ("examples/ssg/ssg_async.ruff", "async control-flow syntax drift"),
+        ("examples/ssg/test_parse_perf.ruff", "intentional malformed fixture"),
+        ("examples/ssg/test_trim.ruff", "intentional malformed fixture"),
+        ("examples/stdlib_crypto.ruff", "legacy loop syntax drift"),
+        (
+            "examples/struct_self_methods.ruff",
+            "struct method example has unresolved syntax debt",
+        ),
+        ("examples/testing_demo.ruff", "legacy test helper syntax drift"),
+        ("examples/toml_demo.ruff", "intentional malformed string fixture"),
+        ("examples/unary_operators.ruff", "legacy unary syntax drift"),
+        ("examples/yaml_demo.ruff", "intentional malformed string fixture"),
+    ]
+}
+
 fn expected_fail_examples() -> HashSet<&'static str> {
-    HashSet::from([
-        "examples/await_test.ruff",
-        "examples/benchmark_async.ruff",
-        "examples/benchmarks/file_io.ruff",
-        "examples/benchmarks/run_benchmarks.ruff",
-        "examples/benchmarks/sorting_algorithms.ruff",
-        "examples/benchmarks/string_processing.ruff",
-        "examples/csv_demo.ruff",
-        "examples/database_mysql.ruff",
-        "examples/destructuring_demo.ruff",
-        "examples/http_streaming.ruff",
-        "examples/io_module_demo.ruff",
-        "examples/math_module.ruff",
-        "examples/minimal_async.ruff",
-        "examples/pattern_matching.ruff",
-        "examples/project_api_tester.ruff",
-        "examples/project_data_pipeline.ruff",
-        "examples/project_log_analyzer.ruff",
-        "examples/project_markdown_converter.ruff",
-        "examples/project_task_manager.ruff",
-        "examples/project_web_scraper.ruff",
-        "examples/projects/contact_manager.ruff",
-        "examples/projects/log_parser.ruff",
-        "examples/projects/oauth_github_demo.ruff",
-        "examples/projects/streaming_downloader.ruff",
-        "examples/projects/weather_dashboard.ruff",
-        "examples/spread_operator_demo.ruff",
-        "examples/ssg/ssg_async.ruff",
-        "examples/ssg/test_parse_perf.ruff",
-        "examples/ssg/test_trim.ruff",
-        "examples/stdlib_crypto.ruff",
-        "examples/struct_self_methods.ruff",
-        "examples/testing_demo.ruff",
-        "examples/toml_demo.ruff",
-        "examples/unary_operators.ruff",
-        "examples/yaml_demo.ruff",
-    ])
+    expected_fail_examples_with_reason()
+        .iter()
+        .map(|(path, _reason)| *path)
+        .collect()
 }
 
 fn classify_example(path: &str) -> SmokeMode {
@@ -137,22 +204,7 @@ fn classify_example(path: &str) -> SmokeMode {
 }
 
 fn expected_fail_doc_blocks() -> HashSet<&'static str> {
-    HashSet::from([
-        "docs/ARCHITECTURE.md#2",
-        "docs/CONCURRENCY.md#10",
-        "docs/CONCURRENCY.md#12",
-        "docs/CONCURRENCY.md#14",
-        "docs/CONCURRENCY.md#15",
-        "docs/CONCURRENCY.md#19",
-        "docs/MEMORY.md#4",
-        "docs/MEMORY.md#8",
-        "docs/MEMORY.md#10",
-        "docs/MEMORY.md#22",
-        "docs/OPTIONAL_TYPING_DESIGN.md#1",
-        "docs/OPTIONAL_TYPING_DESIGN.md#2",
-        "docs/PERFORMANCE.md#3",
-        "docs/PERFORMANCE.md#5",
-    ])
+    HashSet::new()
 }
 
 fn classify_doc_block(doc_block_id: &str) -> SmokeMode {
@@ -318,4 +370,36 @@ fn docs_ruff_snippets_parse_or_expected_fail() {
     }
 
     assert!(failures.is_empty(), "docs snippet smoke mismatches:\n{}", failures.join("\n"));
+}
+
+#[test]
+fn expected_fail_examples_have_reasons_and_exist() {
+    let root = repo_root();
+    let expected_fails = expected_fail_examples_with_reason();
+    assert!(
+        !expected_fails.is_empty(),
+        "expected-fail examples list should not be empty"
+    );
+
+    let mut seen = HashSet::new();
+    for (path, reason) in expected_fails {
+        assert!(!reason.trim().is_empty(), "missing reason for {path}");
+        assert!(seen.insert(path), "duplicate expected-fail entry: {path}");
+        assert!(
+            root.join(path).exists(),
+            "expected-fail example does not exist on disk: {path}"
+        );
+    }
+}
+
+#[test]
+fn run_and_expected_fail_example_sets_do_not_overlap() {
+    let run_set = run_examples();
+    let expected_fail_set = expected_fail_examples();
+    for run_example in run_set {
+        assert!(
+            !expected_fail_set.contains(run_example),
+            "example cannot be both run and expected-fail: {run_example}"
+        );
+    }
 }
