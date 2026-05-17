@@ -1938,7 +1938,7 @@ They are intentionally split into:
 ### 15.2 Post-v1 Expansion Tracks
 
 ```text
-[ ] V2-SEC-001: Unsafe code reduction and safety-invariant hardening track
+[x] V2-SEC-001: Unsafe code reduction and safety-invariant hardening track
     Priority: P2
     Severity: High
     Area: VM/JIT/Safety
@@ -1946,6 +1946,7 @@ They are intentionally split into:
     Problem: `unsafe` usage is concentrated (57 real callsites) in JIT/VM boundaries and should be reduced or tightly documented over time.
     Recommendation: Establish a staged unsafe-reduction plan: annotate invariants, centralize wrappers, then remove unnecessary unsafe usage where possible.
     Tests required: Existing VM/JIT tests + targeted regression tests per refactor.
+    Notes: Completed on 2026-05-16 as the first staged hardening slice for this track. Added centralized JIT invocation wrappers in `src/jit.rs` (`invoke_compiled_fn`, `invoke_compiled_fn_with_arg`) with explicit safety invariants, replaced scattered VM-side inline unsafe JIT invocation callsites in `src/vm.rs` with wrapper calls, and added dedicated wrapper regression tests in `src/jit.rs` (`invoke_compiled_fn_wrapper_calls_function_pointer`, `invoke_compiled_fn_with_arg_wrapper_forwards_argument`). Updated security posture docs in `docs/NATIVE_API_SECURITY_POSTURE.md` with a VM/JIT unsafe-boundary policy section. Verification: `cargo test --lib invoke_compiled_fn_wrapper_calls_function_pointer`, `cargo test --lib invoke_compiled_fn_with_arg_wrapper_forwards_argument`, `cargo test --lib test_execute_compiled_code`, `cargo test --lib test_execute_with_variables`, and `cargo test --test vm_interpreter_parity_surfaces` passed.
 ```
 
 ```text

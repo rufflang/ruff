@@ -9,7 +9,10 @@ use crate::interpreter::{
     BindingKind, CallableArity, DenseIntDict, DenseIntDictInt, DictMap, Environment, IntDictMap,
     Interpreter, NativeCapability, RuntimeCapabilityPolicy, Value,
 };
-use crate::jit::{CompiledFn, CompiledFnInfo, JitCompiler, UnsupportedJitSurface};
+use crate::jit::{
+    invoke_compiled_fn, invoke_compiled_fn_with_arg, CompiledFn, CompiledFnInfo, JitCompiler,
+    UnsupportedJitSurface,
+};
 use crate::runtime_limits;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1208,7 +1211,7 @@ impl VM {
 
                         drop(globals_guard); // Release lock before calling compiled code
 
-                        let status_code = unsafe { compiled_fn(&mut vm_context) };
+                        let status_code = invoke_compiled_fn(compiled_fn, &mut vm_context);
 
                         if status_code < 0 {
                             if std::env::var("DEBUG_JIT").is_ok() {
@@ -1516,7 +1519,8 @@ impl VM {
                                         vm_context.var_names_ptr = var_names_ptr;
 
                                         // Execute the compiled function
-                                        let result_code = unsafe { (compiled_fn)(&mut vm_context) };
+                                        let result_code =
+                                            invoke_compiled_fn(compiled_fn, &mut vm_context);
 
                                         // Drop the globals lock
                                         drop(globals_guard);
@@ -2593,7 +2597,7 @@ impl VM {
                                             };
 
                                             let result_code =
-                                                unsafe { compiled_fn(&mut vm_context) };
+                                                invoke_compiled_fn(compiled_fn, &mut vm_context);
 
                                             if result_code != 0 {
                                                 return Err(format!(
@@ -2675,8 +2679,11 @@ impl VM {
                                                 };
 
                                                 // Execute direct-arg function - result is returned directly!
-                                                let result =
-                                                    unsafe { direct_fn(&mut vm_context, arg_val) };
+                                                let result = invoke_compiled_fn_with_arg(
+                                                    direct_fn,
+                                                    &mut vm_context,
+                                                    arg_val,
+                                                );
 
                                                 if std::env::var("DEBUG_JIT").is_ok() {
                                                     eprintln!("JIT: Interpreter direct-arg call to '{}' with arg {} returned {}", 
@@ -2847,7 +2854,8 @@ impl VM {
 
                                     // Execute the compiled function!
                                     // Lock is NOT held during execution to allow recursive calls
-                                    let result_code = unsafe { (*compiled_fn)(&mut vm_context) };
+                                    let result_code =
+                                        invoke_compiled_fn(*compiled_fn, &mut vm_context);
 
                                     if result_code != 0 {
                                         return Err(format!(
@@ -6129,7 +6137,11 @@ impl VM {
 
                                     // Execute the direct-arg variant!
                                     // The function returns the actual result (not a status code)
-                                    let result = unsafe { direct_fn(&mut vm_context, arg_val) };
+                                    let result = invoke_compiled_fn_with_arg(
+                                        direct_fn,
+                                        &mut vm_context,
+                                        arg_val,
+                                    );
 
                                     if std::env::var("DEBUG_JIT").is_ok() {
                                         eprintln!(
@@ -6300,7 +6312,7 @@ impl VM {
 
                         // Execute the compiled function!
                         // Lock is NOT held during execution to allow recursive calls
-                        let result_code = unsafe { compiled_fn(&mut vm_context) };
+                        let result_code = invoke_compiled_fn(compiled_fn, &mut vm_context);
 
                         if result_code != 0 {
                             return Err(format!("JIT execution failed with code: {}", result_code));

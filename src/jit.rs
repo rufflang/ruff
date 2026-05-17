@@ -179,6 +179,38 @@ pub type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
 /// Used for single-argument integer functions (like fib(n)) for maximum performance
 pub type CompiledFnWithArg = unsafe extern "C" fn(*mut VMContext, i64) -> i64;
 
+/// Invoke a compiled JIT function through one audited unsafe boundary.
+///
+/// # Safety contract
+///
+/// - `compiled_fn` must be a valid function pointer produced by this JIT.
+/// - `ctx` must point to a live `VMContext` whose internal raw pointers are valid
+///   for the full duration of the call.
+/// - The called function must not outlive or stash pointers derived from `ctx`.
+#[inline]
+pub fn invoke_compiled_fn(compiled_fn: CompiledFn, ctx: &mut VMContext) -> i64 {
+    // SAFETY: All callsites construct `VMContext` immediately before invocation
+    // from live VM-owned storage and only pass function pointers produced by this JIT.
+    unsafe { compiled_fn(ctx as *mut VMContext) }
+}
+
+/// Invoke a single-argument compiled JIT function through one audited unsafe boundary.
+///
+/// # Safety contract
+///
+/// - `compiled_fn` must be a valid direct-arg JIT function pointer.
+/// - `ctx` must satisfy the same pointer validity/lifetime rules as
+///   [`invoke_compiled_fn`].
+#[inline]
+pub fn invoke_compiled_fn_with_arg(
+    compiled_fn: CompiledFnWithArg,
+    ctx: &mut VMContext,
+    arg: i64,
+) -> i64 {
+    // SAFETY: Same invariants as `invoke_compiled_fn`, with a plain integer argument.
+    unsafe { compiled_fn(ctx as *mut VMContext, arg) }
+}
+
 /// Details about a bytecode surface that current JIT cannot compile.
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnsupportedJitSurface {
@@ -7886,6 +7918,27 @@ mod tests {
         0
     }
 
+    unsafe extern "C" fn dummy_compiled_fn_with_arg(_ctx: *mut VMContext, arg: i64) -> i64 {
+        arg + 7
+    }
+
+    #[test]
+    fn invoke_compiled_fn_wrapper_calls_function_pointer() {
+        let mut ctx =
+            VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
+        let result = invoke_compiled_fn(dummy_compiled_fn as CompiledFn, &mut ctx);
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn invoke_compiled_fn_with_arg_wrapper_forwards_argument() {
+        let mut ctx =
+            VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
+        let result =
+            invoke_compiled_fn_with_arg(dummy_compiled_fn_with_arg as CompiledFnWithArg, &mut ctx, 35);
+        assert_eq!(result, 42);
+    }
+
     #[test]
     fn test_jit_compiler_creation() {
         let compiler = JitCompiler::new();
@@ -8095,7 +8148,7 @@ mod tests {
         // For now, pass a null pointer since we don't need context for pure arithmetic
         let mut ctx =
             VMContext::new(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
-        let result = unsafe { compiled_fn(&mut ctx as *mut VMContext) };
+        let result = invoke_compiled_fn(compiled_fn, &mut ctx);
 
         // Result should be 0 (success code)
         assert_eq!(result, 0, "Compiled function should return success code");
@@ -8175,7 +8228,7 @@ mod tests {
         );
 
         // Execute compiled code
-        let result = unsafe { compiled_fn(&mut ctx as *mut VMContext) };
+        let result = invoke_compiled_fn(compiled_fn, &mut ctx);
 
         assert_eq!(result, 0, "Should return success");
 

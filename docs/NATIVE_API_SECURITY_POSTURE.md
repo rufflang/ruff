@@ -222,7 +222,23 @@ For high-risk or shared environments, apply host/container controls in addition 
 - Use dedicated low-privilege service accounts.
 - Isolate secrets from environment variables when possible.
 
-## 8. Verification And Regression Expectations
+## 8. VM/JIT Unsafe Boundary Policy
+
+Ruff's JIT/VM internals still require `unsafe` for FFI pointer boundaries and generated function-pointer execution. For v1 hardening work, the policy is:
+
+- concentrate function-pointer `unsafe` invocation behind shared wrapper helpers
+- document pointer lifetime and ownership invariants at wrapper boundaries
+- avoid ad hoc `unsafe` callsites in `src/vm.rs` execution paths
+- require targeted regression tests whenever `unsafe` boundaries are moved
+
+Current hardening status:
+
+- VM JIT function-pointer invocation is centralized through `src/jit.rs` wrappers:
+  - `invoke_compiled_fn(...)`
+  - `invoke_compiled_fn_with_arg(...)`
+- VM callsites no longer invoke compiled JIT pointers through scattered inline `unsafe` blocks.
+
+## 9. Verification And Regression Expectations
 
 Security boundary changes must include test updates and document updates in this file.
 
