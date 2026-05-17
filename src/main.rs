@@ -346,6 +346,14 @@ enum Commands {
         /// Path to ruff.toml (defaults to ./ruff.toml)
         #[arg(long)]
         manifest: Option<PathBuf>,
+
+        /// Path to ruff.lock (defaults to sibling lockfile next to manifest)
+        #[arg(long)]
+        lockfile: Option<PathBuf>,
+
+        /// Verify lockfile is up to date without writing changes
+        #[arg(long, default_value_t = false)]
+        frozen: bool,
     },
 
     /// Preview package publish metadata from ruff.toml
@@ -1418,7 +1426,7 @@ async fn main() {
             println!("added dependency {} {}", name, version);
         }
 
-        Commands::PackageInstall { manifest } => {
+        Commands::PackageInstall { manifest, lockfile, frozen } => {
             let manifest_path = manifest.unwrap_or_else(|| PathBuf::from("ruff.toml"));
             let content = match fs::read_to_string(&manifest_path) {
                 Ok(content) => content,
@@ -1434,6 +1442,52 @@ async fn main() {
                     std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
+
+            let lockfile_path =
+                lockfile.unwrap_or_else(|| package_workflow::default_lockfile_path(&manifest_path));
+            let expected_lockfile = package_workflow::lockfile_from_manifest(&parsed);
+
+            if frozen {
+                let lockfile_content = match fs::read_to_string(&lockfile_path) {
+                    Ok(content) => content,
+                    Err(err) => {
+                        eprintln!("Failed to read '{}': {}", lockfile_path.display(), err);
+                        std::process::exit(CliExitCode::IoError.code());
+                    }
+                };
+
+                let lockfile_data = match package_workflow::parse_lockfile(&lockfile_content) {
+                    Ok(lockfile_data) => lockfile_data,
+                    Err(message) => {
+                        eprintln!("{}", message);
+                        std::process::exit(CliExitCode::RuntimeError.code());
+                    }
+                };
+
+                if let Err(message) =
+                    package_workflow::verify_lockfile_matches_manifest(&parsed, &lockfile_data)
+                {
+                    eprintln!("{}", message);
+                    std::process::exit(CliExitCode::RuntimeError.code());
+                }
+
+                println!("lockfile verified\t{}", lockfile_path.display());
+            } else {
+                let lockfile_text = match package_workflow::serialize_lockfile(&expected_lockfile) {
+                    Ok(lockfile_text) => lockfile_text,
+                    Err(message) => {
+                        eprintln!("{}", message);
+                        std::process::exit(CliExitCode::RuntimeError.code());
+                    }
+                };
+
+                if let Err(err) = fs::write(&lockfile_path, lockfile_text) {
+                    eprintln!("Failed to write '{}': {}", lockfile_path.display(), err);
+                    std::process::exit(CliExitCode::IoError.code());
+                }
+
+                println!("lockfile written\t{}", lockfile_path.display());
+            }
 
             if parsed.dependencies.is_empty() {
                 println!("no dependencies declared");

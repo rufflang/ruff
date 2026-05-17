@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+pub const LOCKFILE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct PackageMetadata {
@@ -9,6 +12,14 @@ pub struct PackageMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct RuffManifest {
+    pub package: PackageMetadata,
+    #[serde(default)]
+    pub dependencies: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct RuffLockfile {
+    pub schema_version: u32,
     pub package: PackageMetadata,
     #[serde(default)]
     pub dependencies: BTreeMap<String, String>,
@@ -25,6 +36,55 @@ pub fn default_manifest(package_name: &str) -> String {
 
 pub fn parse_manifest(content: &str) -> Result<RuffManifest, String> {
     toml::from_str::<RuffManifest>(content).map_err(|error| format!("Invalid ruff.toml: {}", error))
+}
+
+pub fn parse_lockfile(content: &str) -> Result<RuffLockfile, String> {
+    toml::from_str::<RuffLockfile>(content)
+        .map_err(|error| format!("Invalid ruff.lock: {}", error))
+}
+
+pub fn lockfile_from_manifest(manifest: &RuffManifest) -> RuffLockfile {
+    RuffLockfile {
+        schema_version: LOCKFILE_SCHEMA_VERSION,
+        package: manifest.package.clone(),
+        dependencies: manifest.dependencies.clone(),
+    }
+}
+
+pub fn serialize_lockfile(lockfile: &RuffLockfile) -> Result<String, String> {
+    toml::to_string_pretty(lockfile).map_err(|error| format!("Failed to serialize ruff.lock: {}", error))
+}
+
+pub fn verify_lockfile_matches_manifest(
+    manifest: &RuffManifest,
+    lockfile: &RuffLockfile,
+) -> Result<(), String> {
+    if lockfile.schema_version != LOCKFILE_SCHEMA_VERSION {
+        return Err(format!(
+            "ruff.lock schema_version {} is unsupported; expected {}",
+            lockfile.schema_version, LOCKFILE_SCHEMA_VERSION
+        ));
+    }
+
+    if lockfile.package != manifest.package {
+        return Err(format!(
+            "ruff.lock package metadata is out of date (lockfile={} {}, manifest={} {})",
+            lockfile.package.name,
+            lockfile.package.version,
+            manifest.package.name,
+            manifest.package.version
+        ));
+    }
+
+    if lockfile.dependencies != manifest.dependencies {
+        return Err("ruff.lock dependencies are out of date; run `ruff package-install` to regenerate lockfile".to_string());
+    }
+
+    Ok(())
+}
+
+pub fn default_lockfile_path(manifest_path: &Path) -> PathBuf {
+    manifest_path.parent().unwrap_or_else(|| Path::new(".")).join("ruff.lock")
 }
 
 pub fn add_dependency(content: &str, name: &str, version: &str) -> Result<String, String> {
@@ -44,7 +104,11 @@ pub fn add_dependency(content: &str, name: &str, version: &str) -> Result<String
 
 #[cfg(test)]
 mod tests {
-    use super::{add_dependency, default_manifest, parse_manifest};
+    use super::{
+        add_dependency, default_lockfile_path, default_manifest, lockfile_from_manifest,
+        parse_lockfile, parse_manifest, serialize_lockfile, verify_lockfile_matches_manifest,
+    };
+    use std::path::Path;
 
     #[test]
     fn default_manifest_contains_package_section() {
@@ -69,5 +133,33 @@ mod tests {
         let content = default_manifest("demo");
         assert!(add_dependency(&content, "", "1.0.0").is_err());
         assert!(add_dependency(&content, "http", "").is_err());
+    }
+
+    #[test]
+    fn lockfile_round_trip_is_deterministic() {
+        let manifest = parse_manifest(&default_manifest("demo")).expect("manifest should parse");
+        let lockfile = lockfile_from_manifest(&manifest);
+        let serialized = serialize_lockfile(&lockfile).expect("lockfile should serialize");
+        let reparsed = parse_lockfile(&serialized).expect("lockfile should parse");
+        assert_eq!(lockfile, reparsed);
+    }
+
+    #[test]
+    fn verify_lockfile_reports_manifest_drift() {
+        let manifest_content = add_dependency(&default_manifest("demo"), "http", "1.2.3")
+            .expect("dependency add should succeed");
+        let manifest = parse_manifest(&manifest_content).expect("manifest should parse");
+        let mut lockfile = lockfile_from_manifest(&manifest);
+        lockfile.dependencies.insert("http".to_string(), "9.9.9".to_string());
+
+        let error = verify_lockfile_matches_manifest(&manifest, &lockfile)
+            .expect_err("lockfile mismatch should fail");
+        assert!(error.contains("dependencies are out of date"));
+    }
+
+    #[test]
+    fn default_lockfile_path_follows_manifest_directory() {
+        let lockfile = default_lockfile_path(Path::new("/tmp/project/ruff.toml"));
+        assert_eq!(lockfile, Path::new("/tmp/project/ruff.lock"));
     }
 }

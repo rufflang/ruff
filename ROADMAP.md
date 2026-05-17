@@ -1962,7 +1962,7 @@ They are intentionally split into:
 ```
 
 ```text
-[ ] V2-PKG-001: Deterministic dependency and lockfile workflow
+[x] V2-PKG-001: Deterministic dependency and lockfile workflow
     Priority: P2
     Severity: Enhancement
     Area: Packaging/Release/DX
@@ -1970,6 +1970,7 @@ They are intentionally split into:
     Problem: AI-assisted projects benefit heavily from deterministic dependency resolution and reproducible environment bootstrap.
     Recommendation: Introduce lockfile semantics and deterministic install/verify flow.
     Tests required: package workflow integration tests + release docs contract updates.
+    Notes: Completed on 2026-05-16. Added first-class deterministic lockfile semantics in `src/package_workflow.rs` (`RuffLockfile`, schema versioning, deterministic serialization, manifest-lock verification, and default sibling lockfile path resolution). `ruff package-install` now writes deterministic `ruff.lock` output by default and supports explicit verify mode via `--frozen` (plus `--lockfile` override) in `src/main.rs`, returning deterministic errors when lockfiles are missing or stale. Expanded package integration coverage in `tests/package_module_workflow_integration.rs` to lock deterministic repeated-install lockfile content and frozen-mode drift detection/regeneration behavior; expanded release-process docs contract coverage in `tests/release_process_docs_contract.rs`; and updated user/release docs in `README.md`, `docs/RELEASE_PROCESS.md`, and `CHANGELOG.md`.
 ```
 
 ```text

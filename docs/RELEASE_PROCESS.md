@@ -50,6 +50,13 @@ Exit code classes are contract-stable for automation:
 - `5`: IO failure
 - `6`: internal/tooling failure
 
+### 2.5 Dependency lockfile determinism
+
+- Ruff package workflows treat `ruff.lock` as the deterministic dependency snapshot derived from `ruff.toml`.
+- `ruff package-install` regenerates lockfile state deterministically (stable ordering and schema metadata).
+- `ruff package-install --frozen` is the verify mode and must fail when `ruff.lock` is missing or out of date relative to `ruff.toml`.
+- Release candidates should include a lockfile verification pass for package workflow fixtures and examples that use manifests.
+
 ## 3. Required CI And Local Gates
 
 The release gate is enforced by `scripts/release_gate.sh` and CI workflows.

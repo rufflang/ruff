@@ -54,7 +54,9 @@ fn package_module_workflow_end_to_end_contract() {
     );
 
     let manifest_path = project_root.join("ruff.toml");
+    let lockfile_path = project_root.join("ruff.lock");
     let manifest_path_str = manifest_path.to_str().expect("path should be utf-8");
+    let lockfile_path_str = lockfile_path.to_str().expect("path should be utf-8");
     assert!(manifest_path.exists(), "expected init to create ruff.toml");
     assert!(project_root.join("src/main.ruff").exists(), "expected init to create src/main.ruff");
 
@@ -69,18 +71,58 @@ fn package_module_workflow_end_to_end_contract() {
         stderr_text(&package_add)
     );
 
-    let package_install =
-        run_ruff(&["package-install", "--manifest", manifest_path_str], &project_root);
+    let package_install = run_ruff(
+        &[
+            "package-install",
+            "--manifest",
+            manifest_path_str,
+            "--lockfile",
+            lockfile_path_str,
+        ],
+        &project_root,
+    );
     assert!(
         package_install.status.success(),
         "ruff package-install failed: stdout={} stderr={}",
         stdout_text(&package_install),
         stderr_text(&package_install)
     );
+    assert!(lockfile_path.exists(), "expected package-install to create lockfile");
+
+    let lockfile_contents_first =
+        fs::read_to_string(&lockfile_path).expect("lockfile contents should be readable");
+    assert!(
+        stdout_text(&package_install).contains("lockfile written"),
+        "expected package-install output to include lockfile write marker, got: {}",
+        stdout_text(&package_install)
+    );
     assert!(
         stdout_text(&package_install).contains("install\texample_dep\t1.2.3"),
         "expected package-install output to include declared dependency, got: {}",
         stdout_text(&package_install)
+    );
+
+    let package_install_second = run_ruff(
+        &[
+            "package-install",
+            "--manifest",
+            manifest_path_str,
+            "--lockfile",
+            lockfile_path_str,
+        ],
+        &project_root,
+    );
+    assert!(
+        package_install_second.status.success(),
+        "second package-install failed: stdout={} stderr={}",
+        stdout_text(&package_install_second),
+        stderr_text(&package_install_second)
+    );
+    let lockfile_contents_second =
+        fs::read_to_string(&lockfile_path).expect("second lockfile read should succeed");
+    assert_eq!(
+        lockfile_contents_first, lockfile_contents_second,
+        "lockfile content should be deterministic across repeated installs"
     );
 
     let module_path = project_root.join("math_helper.ruff");
@@ -157,6 +199,125 @@ fn package_module_workflow_end_to_end_contract() {
     let docgen_json = parse_stdout_json(&docgen_output);
     assert_eq!(docgen_json["command"], "docgen");
     assert!(docgen_json["item_count"].as_u64().unwrap_or(0) >= 1);
+}
+
+#[test]
+fn package_install_frozen_detects_lockfile_drift_and_verifies_after_regeneration() {
+    let project_root = unique_temp_dir("package_install_frozen_lockfile");
+    let project_root_str = project_root.to_str().expect("path should be utf-8");
+    let init =
+        run_ruff(&["init", "--dir", project_root_str, "--name", "lock_demo"], &project_root);
+    assert!(
+        init.status.success(),
+        "ruff init failed: stdout={} stderr={}",
+        stdout_text(&init),
+        stderr_text(&init)
+    );
+
+    let manifest_path = project_root.join("ruff.toml");
+    let lockfile_path = project_root.join("ruff.lock");
+    let manifest_path_str = manifest_path.to_str().expect("manifest path should be utf-8");
+    let lockfile_path_str = lockfile_path.to_str().expect("lockfile path should be utf-8");
+
+    let add_first_dep = run_ruff(
+        &["package-add", "alpha", "--version", "1.0.0", "--manifest", manifest_path_str],
+        &project_root,
+    );
+    assert!(
+        add_first_dep.status.success(),
+        "first package-add failed: stdout={} stderr={}",
+        stdout_text(&add_first_dep),
+        stderr_text(&add_first_dep)
+    );
+
+    let install = run_ruff(
+        &[
+            "package-install",
+            "--manifest",
+            manifest_path_str,
+            "--lockfile",
+            lockfile_path_str,
+        ],
+        &project_root,
+    );
+    assert!(
+        install.status.success(),
+        "package-install failed: stdout={} stderr={}",
+        stdout_text(&install),
+        stderr_text(&install)
+    );
+
+    let add_second_dep = run_ruff(
+        &["package-add", "beta", "--version", "2.0.0", "--manifest", manifest_path_str],
+        &project_root,
+    );
+    assert!(
+        add_second_dep.status.success(),
+        "second package-add failed: stdout={} stderr={}",
+        stdout_text(&add_second_dep),
+        stderr_text(&add_second_dep)
+    );
+
+    let frozen_fail = run_ruff(
+        &[
+            "package-install",
+            "--manifest",
+            manifest_path_str,
+            "--lockfile",
+            lockfile_path_str,
+            "--frozen",
+        ],
+        &project_root,
+    );
+    assert!(
+        !frozen_fail.status.success(),
+        "expected frozen lockfile verification to fail after manifest drift"
+    );
+    assert!(
+        stderr_text(&frozen_fail).contains("dependencies are out of date"),
+        "expected deterministic lockfile drift message, got stderr={}",
+        stderr_text(&frozen_fail)
+    );
+
+    let regenerate = run_ruff(
+        &[
+            "package-install",
+            "--manifest",
+            manifest_path_str,
+            "--lockfile",
+            lockfile_path_str,
+        ],
+        &project_root,
+    );
+    assert!(
+        regenerate.status.success(),
+        "lockfile regeneration failed: stdout={} stderr={}",
+        stdout_text(&regenerate),
+        stderr_text(&regenerate)
+    );
+
+    let frozen_pass = run_ruff(
+        &[
+            "package-install",
+            "--manifest",
+            manifest_path_str,
+            "--lockfile",
+            lockfile_path_str,
+            "--frozen",
+        ],
+        &project_root,
+    );
+    assert!(
+        frozen_pass.status.success(),
+        "expected frozen verification to pass after regeneration: stdout={} stderr={}",
+        stdout_text(&frozen_pass),
+        stderr_text(&frozen_pass)
+    );
+    assert!(
+        stdout_text(&frozen_pass).contains("lockfile verified"),
+        "expected frozen verification marker, got stdout={}",
+        stdout_text(&frozen_pass)
+    );
 }
 
 #[test]

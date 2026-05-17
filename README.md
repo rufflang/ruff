@@ -124,7 +124,7 @@ The current CLI exposes these subcommands:
 | `ruff lint <file>` | Lint Ruff source files for common issues (`--fix` for safe autofixes, `--json` for structured output). |
 | `ruff init` | Initialize a Ruff project with `ruff.toml` and `src/main.ruff`. |
 | `ruff package-add <name>` | Add a dependency to `ruff.toml` (`--version`, `--manifest`). |
-| `ruff package-install` | Validate and enumerate dependencies declared in `ruff.toml`. |
+| `ruff package-install` | Generate deterministic `ruff.lock` output from `ruff.toml` and enumerate dependencies (`--manifest`, `--lockfile`, `--frozen` verify mode). |
 | `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
 | `ruff docgen <file>` | Generate HTML docs from `///` comments (`--out-dir`, `--no-builtins`, `--json`). |
 | `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing). |
