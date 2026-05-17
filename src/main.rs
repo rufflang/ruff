@@ -138,6 +138,10 @@ enum Commands {
         #[arg(long)]
         scheduler_timeout_ms: Option<u64>,
 
+        /// Emit runtime failures for `ruff run` as machine-readable JSON on stdout.
+        #[arg(long, default_value_t = false)]
+        json_runtime_diagnostics: bool,
+
         #[command(flatten)]
         capabilities: CapabilityArgs,
 
@@ -707,6 +711,61 @@ fn report_cli_error_and_exit(message: impl Into<String>, code: CliExitCode) -> !
     report_diagnostics_and_exit(&[diagnostic], code);
 }
 
+fn report_json_internal_error_and_exit(error_message: String, code: CliExitCode) -> ! {
+    let diagnostic = errors::Diagnostic::new(
+        errors::DIAGNOSTIC_CODE_CLI,
+        errors::DiagnosticSeverity::Error,
+        errors::DiagnosticSubsystem::Cli,
+        error_message,
+    );
+    report_diagnostics_and_exit(&[diagnostic], code);
+}
+
+fn emit_json_payload_and_exit(payload: &serde_json::Value, code: CliExitCode) -> ! {
+    match serde_json::to_string_pretty(payload) {
+        Ok(serialized) => {
+            println!("{}", serialized);
+            std::process::exit(code.code());
+        }
+        Err(error) => report_json_internal_error_and_exit(
+            format!("Failed to serialize runtime diagnostics JSON: {}", error),
+            CliExitCode::InternalError,
+        ),
+    }
+}
+
+fn report_run_runtime_diagnostic_and_exit(
+    diagnostic: &errors::Diagnostic,
+    code: CliExitCode,
+    json_runtime_diagnostics: bool,
+) -> ! {
+    if json_runtime_diagnostics {
+        let payload = errors::run_runtime_diagnostic_envelope_json(diagnostic, code.code());
+        emit_json_payload_and_exit(&payload, code);
+    }
+
+    report_diagnostics_and_exit(std::slice::from_ref(diagnostic), code);
+}
+
+fn report_run_runtime_error_and_exit(
+    error: &errors::RuffError,
+    code: CliExitCode,
+    json_runtime_diagnostics: bool,
+) -> ! {
+    if json_runtime_diagnostics {
+        let diagnostic = error.as_diagnostic();
+        let mut payload = errors::run_runtime_diagnostic_envelope_json(&diagnostic, code.code());
+        if let Some(object) = payload.as_object_mut() {
+            object.insert("runtime_kind".to_string(), serde_json::json!(format!("{}", error.kind)));
+            object.insert("call_stack".to_string(), serde_json::json!(error.call_stack));
+        }
+        emit_json_payload_and_exit(&payload, code);
+    }
+
+    eprintln!("{}", error);
+    std::process::exit(code.code());
+}
+
 fn read_ruff_source_for_parse(file: &Path) -> String {
     let max_source_bytes = parser::DEFAULT_MAX_SOURCE_BYTES;
     let file_label = file.to_string_lossy().to_string();
@@ -761,6 +820,7 @@ async fn main() {
             interpreter,
             jit,
             scheduler_timeout_ms,
+            json_runtime_diagnostics,
             capabilities,
             script_args,
         } => {
@@ -878,9 +938,11 @@ async fn main() {
                                     .with_diagnostic_code(DIAGNOSTIC_CODE_VM)
                                     .with_subsystem(DiagnosticSubsystem::Vm)
                                     .with_call_stack(call_stack);
-
-                                eprintln!("{}", error);
-                                std::process::exit(CliExitCode::RuntimeError.code());
+                                report_run_runtime_error_and_exit(
+                                    &error,
+                                    CliExitCode::RuntimeError,
+                                    json_runtime_diagnostics,
+                                );
                             }
                             Err(e) => {
                                 let diagnostic = errors::Diagnostic::new(
@@ -889,9 +951,10 @@ async fn main() {
                                     errors::DiagnosticSubsystem::Vm,
                                     format!("VM execution panicked: {}", e),
                                 );
-                                report_diagnostics_and_exit(
-                                    &[diagnostic],
+                                report_run_runtime_diagnostic_and_exit(
+                                    &diagnostic,
                                     CliExitCode::InternalError,
+                                    json_runtime_diagnostics,
                                 );
                             }
                         }
@@ -903,7 +966,11 @@ async fn main() {
                             errors::DiagnosticSubsystem::Vm,
                             format!("Compilation error: {}", e),
                         );
-                        report_diagnostics_and_exit(&[diagnostic], CliExitCode::RuntimeError);
+                        report_run_runtime_diagnostic_and_exit(
+                            &diagnostic,
+                            CliExitCode::RuntimeError,
+                            json_runtime_diagnostics,
+                        );
                     }
                 }
             } else {
@@ -935,8 +1002,11 @@ async fn main() {
                                 crate::errors::SourceLocation::unknown(),
                             )
                             .with_call_stack(interpreter.get_call_stack());
-                            eprintln!("{}", err);
-                            std::process::exit(CliExitCode::RuntimeError.code());
+                            report_run_runtime_error_and_exit(
+                                &err,
+                                CliExitCode::RuntimeError,
+                                json_runtime_diagnostics,
+                            );
                         }
                         interpreter::Value::ErrorObject { message, .. } => {
                             let err = RuffError::runtime_error(
@@ -944,8 +1014,11 @@ async fn main() {
                                 crate::errors::SourceLocation::unknown(),
                             )
                             .with_call_stack(interpreter.get_call_stack());
-                            eprintln!("{}", err);
-                            std::process::exit(CliExitCode::RuntimeError.code());
+                            report_run_runtime_error_and_exit(
+                                &err,
+                                CliExitCode::RuntimeError,
+                                json_runtime_diagnostics,
+                            );
                         }
                         _ => {}
                     }

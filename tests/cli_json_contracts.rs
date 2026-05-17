@@ -233,3 +233,36 @@ fn cli_json_negative_paths_have_stable_failure_signals() {
         String::from_utf8(unknown_symbol.stderr).expect("stderr should be valid utf-8");
     assert!(unknown_symbol_stderr.contains("No identifier found at cursor location"));
 }
+
+#[test]
+fn run_runtime_json_diagnostic_contract_is_stable() {
+    let dir = unique_temp_dir("run_runtime_json_diagnostic");
+    let file = dir.join("runtime_error.ruff");
+    write_fixture(&file, "denom := 0\nprint(1 / denom)\n");
+
+    let output = run_ruff(&[
+        "run",
+        file.to_str().expect("path should be utf-8"),
+        "--json-runtime-diagnostics",
+    ]);
+
+    assert_eq!(output.status.code(), Some(4));
+    assert!(
+        output.stderr.is_empty(),
+        "run --json-runtime-diagnostics should emit failure payload on stdout only"
+    );
+
+    let body = parse_stdout_json(&output);
+    assert_eq!(body["command"], "run");
+    assert_eq!(body["status"], "error");
+    assert_eq!(body["kind"], "runtime_diagnostic");
+    assert_eq!(body["contract_version"], "1.0.0-draft");
+    assert_eq!(body["exit_code"], 4);
+    assert!(body["call_stack"].is_array());
+
+    let diagnostic = &body["diagnostic"];
+    assert_eq!(diagnostic["code"], "RUFVM001");
+    assert_eq!(diagnostic["subsystem"], "vm");
+    assert_eq!(diagnostic["severity"], "error");
+    assert!(diagnostic["message"].as_str().is_some());
+}

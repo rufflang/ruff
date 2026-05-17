@@ -99,6 +99,30 @@ fn cli_run_runtime_error_exits_with_runtime_code() {
 }
 
 #[test]
+fn cli_run_runtime_error_json_mode_emits_stdout_payload() {
+    let dir = unique_temp_dir("cli_run_runtime_json_error");
+    let file = dir.join("runtime_error_json.ruff");
+    write_fixture(&file, "denom := 0\nprint(1 / denom)\n");
+
+    let output = run_ruff(&[
+        "run",
+        file.to_str().expect("path should be utf-8"),
+        "--json-runtime-diagnostics",
+    ]);
+    assert_eq!(output.status.code(), Some(EXIT_RUNTIME_ERROR));
+    assert!(output.stderr.is_empty(), "json runtime diagnostics should suppress stderr");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    let parsed: Value =
+        serde_json::from_str(&stdout).expect("run --json-runtime-diagnostics should emit JSON");
+    assert_eq!(parsed["command"], "run");
+    assert_eq!(parsed["status"], "error");
+    assert_eq!(parsed["kind"], "runtime_diagnostic");
+    assert_eq!(parsed["exit_code"], EXIT_RUNTIME_ERROR);
+    assert!(parsed["diagnostic"].is_object());
+}
+
+#[test]
 fn cli_usage_errors_use_usage_exit_code() {
     let output = run_ruff(&["run"]);
     assert_eq!(output.status.code(), Some(EXIT_USAGE_ERROR));

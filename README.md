@@ -115,7 +115,7 @@ The current CLI exposes these subcommands:
 
 | Command | Purpose |
 | --- | --- |
-| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. Experimental JIT is opt-in via `--jit`; if the program contains unsupported JIT surfaces Ruff reports a deterministic warning and falls back to non-JIT VM execution. Native host-effect capability policy can be scoped with `--untrusted` plus `--allow-*` flags (`--allow-fs-read`, `--allow-fs-write`, `--allow-fs-delete`, `--allow-process-exec`, `--allow-shell-exec`, `--allow-env-read`, `--allow-env-write`, `--allow-net-client`, `--allow-net-server`, `--allow-net`, `--allow-database`, `--allow-clock`, `--allow-random`, or `--allow-all`). |
+| `ruff run <file>` | Run a `.ruff` script with the default VM (`--scheduler-timeout-ms` can override cooperative scheduler timeout); parse diagnostics (including source-size/depth limits) exit non-zero before execution. Experimental JIT is opt-in via `--jit`; if the program contains unsupported JIT surfaces Ruff reports a deterministic warning and falls back to non-JIT VM execution. Runtime failures can be emitted as machine-readable JSON with `--json-runtime-diagnostics`. Native host-effect capability policy can be scoped with `--untrusted` plus `--allow-*` flags (`--allow-fs-read`, `--allow-fs-write`, `--allow-fs-delete`, `--allow-process-exec`, `--allow-shell-exec`, `--allow-env-read`, `--allow-env-write`, `--allow-net-client`, `--allow-net-server`, `--allow-net`, `--allow-database`, `--allow-clock`, `--allow-random`, or `--allow-all`). |
 | `ruff run --interpreter <file>` | Run a `.ruff` script with the tree-walking interpreter. |
 | `ruff check <file>` | Validate Ruff source without executing it (lex/parse/compile only). `--quiet` suppresses success output, `--verbose` prints statement/bytecode counts, and `--json` emits a machine-readable success payload. |
 | `ruff serve [dir]` | Serve a directory over HTTP/HTTPS for local preview/testing (`--host`, `--port`, `--index`, `--hardened`, `--cache-max-age`, `--access-log`, `--tls-cert`, `--tls-key`, `--max-request-line-bytes`, `--max-header-bytes`, `--max-header-count`, `--max-request-body-bytes`, `--read-timeout-ms`, `--write-timeout-ms`, `--max-connections`). |
@@ -247,7 +247,7 @@ The v0.13.0 release delivered the cross-IDE tooling baseline and made Ruff's LSP
 
 - `ruff lsp` official JSON-RPC server entrypoint with lifecycle handling, deterministic logging, and shared analyzer wiring.
 - Full required LSP method parity for `v0.13.0` including diagnostics, completion, hover, definition, references, rename, code actions, formatting/range-formatting, document symbols, and workspace symbols.
-- Deterministic machine-readable CLI contracts with `--json` coverage for format/lint/docgen and LSP helper commands.
+- Deterministic machine-readable CLI contracts with `--json` coverage for format/lint/docgen and LSP helper commands, plus `ruff run --json-runtime-diagnostics` for runtime failure envelopes.
 - Fixture-driven LSP conformance harness and external client smoke coverage.
 - Baseline tree-sitter grammar assets and editor-adapter setup guidance for VS Code/Cursor, Neovim, and JetBrains.
 

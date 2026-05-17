@@ -1919,7 +1919,7 @@ They are intentionally split into:
 ```
 
 ```text
-[ ] V1-ERR-002: Add machine-readable runtime diagnostics mode for `ruff run`
+[x] V1-ERR-002: Add machine-readable runtime diagnostics mode for `ruff run`
     Priority: P1
     Severity: Medium
     Area: CLI/Diagnostics/Automation
@@ -1932,6 +1932,7 @@ They are intentionally split into:
         3. Add fixture/golden coverage for runtime JSON diagnostics.
     Tests required: JSON contract tests + diagnostics golden tests + `cargo test`.
     Acceptance criteria: Runtime failures can be consumed deterministically by tooling/agents.
+    Notes: Completed on 2026-05-16. Added `ruff run --json-runtime-diagnostics` in `src/main.rs` with a centralized JSON envelope builder in `src/errors.rs` (`run_runtime_diagnostic_envelope_json`) and stable contract version metadata. Runtime/VM execution failures now optionally emit deterministic JSON payloads on `stdout` (including shared diagnostic fields plus optional runtime kind/call stack) while preserving existing human-readable stderr behavior when the flag is not used. Added contract coverage in `tests/cli_json_contracts.rs` and `tests/cli_contracts.rs`, plus diagnostics-golden snapshot coverage in `tests/diagnostics_golden.rs` and `tests/fixtures/diagnostics/runtime_undefined_identifier_run_envelope.json.golden`. Updated machine-readable CLI contract docs in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`.
 ```
 
 ### 15.2 Post-v1 Expansion Tracks

@@ -32,6 +32,12 @@ Current v1.0.0 baseline draft for CLI `--json` mode:
 - `stderr` carries human-readable error text for failures.
 - A non-zero exit code indicates failure.
 
+Exception for `ruff run --json-runtime-diagnostics`:
+
+- runtime/VM execution failures emit a machine-readable JSON error payload on `stdout`
+- `stderr` is suppressed for those JSON-mode runtime failures
+- non-zero exit code remains authoritative (`4` for runtime failures, `6` for internal failures in JSON serialization/panic paths)
+
 Automation recommendation:
 
 - Read JSON only from `stdout` on zero exit.
@@ -89,6 +95,21 @@ Top-level object fields:
 - `module_doc_path` (string)
 - `builtin_doc_path` (string or null)
 - `item_count` (number)
+
+### `ruff run --json-runtime-diagnostics`
+
+Top-level object fields:
+
+- `command` (string, constant `"run"`)
+- `status` (string, constant `"error"`)
+- `kind` (string, constant `"runtime_diagnostic"`)
+- `contract_version` (string, currently `"1.0.0-draft"`)
+- `exit_code` (number, usually `4` for runtime/VM execution failures)
+- `diagnostic` (object)
+  - shape matches the shared diagnostic JSON contract fields:
+    - `code`, `severity`, `subsystem`, `message`, `help`, `file`, `line`, `column`
+- `runtime_kind` (string, optional; present when runtime error kind metadata is available)
+- `call_stack` (array of strings, optional; present for runtime errors surfaced with stack context)
 
 ### LSP CLI helper surfaces (`--json`)
 

@@ -104,6 +104,14 @@ fn diagnostics_golden_lexer_parse_semantic_runtime_cli_and_server_contracts() {
     .as_diagnostic();
     assert_eq!(runtime.code, DIAGNOSTIC_CODE_RUNTIME);
     assert_golden_pair("runtime_undefined_identifier", &runtime);
+    let runtime_run_envelope = ruff::errors::run_runtime_diagnostic_envelope_json(&runtime, 4);
+    let runtime_run_envelope_json = serde_json::to_string_pretty(&runtime_run_envelope)
+        .expect("runtime run envelope should serialize");
+    assert_or_update_golden(
+        "runtime_undefined_identifier_run_envelope",
+        "json",
+        &runtime_run_envelope_json,
+    );
 
     let cli = Diagnostic::new(
         DIAGNOSTIC_CODE_CLI,

@@ -142,9 +142,24 @@ pub const DIAGNOSTIC_CODE_RUNTIME: &str = "RUFRUN001";
 pub const DIAGNOSTIC_CODE_VM: &str = "RUFVM001";
 pub const DIAGNOSTIC_CODE_CLI: &str = "RUFCLI001";
 pub const DIAGNOSTIC_CODE_LSP: &str = "RUFLSP001";
+pub const RUN_RUNTIME_DIAGNOSTIC_CONTRACT_VERSION: &str = "1.0.0-draft";
 
 pub fn unsupported_struct_generator_method_message(struct_name: &str, method_name: &str) -> String {
     format!("Generator methods are not supported for structs: {}.{}", struct_name, method_name)
+}
+
+pub fn run_runtime_diagnostic_envelope_json(
+    diagnostic: &Diagnostic,
+    exit_code: i32,
+) -> serde_json::Value {
+    json!({
+        "command": "run",
+        "status": "error",
+        "kind": "runtime_diagnostic",
+        "contract_version": RUN_RUNTIME_DIAGNOSTIC_CONTRACT_VERSION,
+        "exit_code": exit_code,
+        "diagnostic": diagnostic.to_json_value(),
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
