@@ -97,10 +97,17 @@ check_p0_p1_roadmap_readiness() {
 }
 
 check_release_checklist_section_exists() {
-  if ! rg -q "Final v1.0 Release Checklist" ROADMAP.md; then
-    echo "ROADMAP.md is missing final release checklist section" >&2
-    return 1
+  local pattern="Final v1.0 Release Checklist"
+  if command -v rg >/dev/null 2>&1; then
+    if rg -q "$pattern" ROADMAP.md; then
+      return 0
+    fi
+  elif grep -q "$pattern" ROADMAP.md; then
+    return 0
   fi
+
+  echo "ROADMAP.md is missing final release checklist section" >&2
+  return 1
 }
 
 run_roadmap_checks() {
