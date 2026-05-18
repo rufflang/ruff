@@ -155,6 +155,7 @@ Ruff doc attachment keeps stable proximity rules: blank-line spacing is allowed,
 DocGen now emits explicit discovery-limit warnings in JSON output when files are skipped for size/depth/file-count limits (`DOCGEN_DISCOVERY_MAX_FILE_SIZE`, `DOCGEN_DISCOVERY_MAX_DEPTH`, `DOCGEN_DISCOVERY_MAX_FILES`).
 DocGen CLI JSON output (`ruff docgen ... --json`) also includes deterministic per-reason discovery skip counters in `discovery_skip_counts` (`max_file_size`, `max_depth`, `max_files`).
 DocGen diagnostics are emitted in deterministic sorted order to keep repeated JSON outputs stable for CI diffing.
+DocGen JSON summary now separates discovered symbol volume into `project_symbol_count` and `builtin_symbol_count` (while preserving `item_count` as total count).
 DocGen default link validation remains local-file existence checking (fragments/query suffixes are ignored for local paths, while `http(s)` and `mailto` links are not validated by default).
 DocGen optional local-anchor validation can be enabled with `--validate-local-anchors` when strict anchor checks are needed for local docs.
 DocGen optional external-link validation can be enabled with `--validate-external-links`, scoped to allowlisted hosts via `--external-link-allowlist`, and bounded by `--external-link-timeout-ms`.

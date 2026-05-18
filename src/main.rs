@@ -1667,6 +1667,8 @@ async fn main() {
                     "module_doc_path": summary.module_doc_path.display().to_string(),
                     "builtin_doc_path": summary.builtin_doc_path.as_ref().map(|path| path.display().to_string()),
                     "item_count": summary.item_count,
+                    "project_symbol_count": summary.project_symbol_count,
+                    "builtin_symbol_count": summary.builtin_symbol_count,
                     "languages": summary.languages,
                     "project_json_path": summary.project_json_path.display().to_string(),
                     "gaps_json_path": summary.gaps_json_path.display().to_string(),
@@ -1697,6 +1699,8 @@ async fn main() {
                 println!("builtin docs: {}", builtin_path.display());
             }
             println!("documented items: {}", summary.item_count);
+            println!("project symbols: {}", summary.project_symbol_count);
+            println!("builtin symbols: {}", summary.builtin_symbol_count);
             if !summary.gate_failures.is_empty() {
                 for failure in &summary.gate_failures {
                     eprintln!("docgen gate failed: {}", failure);

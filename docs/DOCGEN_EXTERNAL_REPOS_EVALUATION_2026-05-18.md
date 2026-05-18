@@ -292,6 +292,18 @@ After adding explicit link-validation mode diagnostics and gate-failure breakdow
 
 Interpretation: task 4 improves mode-behavior clarity through explicit diagnostics and stable contract coverage, while preserving strict external gate stability on the validation set.
 
+### Workstream F Task 1 follow-up (2026-05-18)
+
+After adding separate summary counts for project symbols and builtin symbols (`project_symbol_count`, `builtin_symbol_count`) in DocGen run summary and CLI JSON output, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 1 improves summary signal quality for CI/dashboards without changing strict gate outcomes on the external validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

@@ -50,6 +50,8 @@ pub struct DocgenRunSummary {
     pub module_doc_path: PathBuf,
     pub builtin_doc_path: Option<PathBuf>,
     pub item_count: usize,
+    pub project_symbol_count: usize,
+    pub builtin_symbol_count: usize,
     pub project_json_path: PathBuf,
     pub gaps_json_path: PathBuf,
     pub capabilities_json_path: PathBuf,
@@ -312,6 +314,12 @@ pub fn run_with_link_validation(
     let project_json_path = output_dir.join("docgen.json");
 
     let item_count = project.symbols.len();
+    let builtin_symbol_count = project
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.kind == DocSymbolKind::Builtin)
+        .count();
+    let project_symbol_count = item_count.saturating_sub(builtin_symbol_count);
     let languages = project.languages.clone();
     let diagnostics_count = project.diagnostics.len();
     let broken_link_count = broken_links.len();
@@ -328,6 +336,8 @@ pub fn run_with_link_validation(
             module_doc_path,
             builtin_doc_path,
             item_count,
+            project_symbol_count,
+            builtin_symbol_count,
             project_json_path,
             gaps_json_path,
             capabilities_json_path,

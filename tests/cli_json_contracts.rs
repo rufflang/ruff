@@ -99,6 +99,13 @@ fn docgen_json_contract_is_stable() {
     assert!(body["module_doc_path"].is_string());
     assert!(body.get("builtin_doc_path").is_some());
     assert!(body["item_count"].is_number());
+    assert!(body["project_symbol_count"].is_number());
+    assert!(body["builtin_symbol_count"].is_number());
+    assert_eq!(
+        body["item_count"].as_u64().expect("item_count should be u64"),
+        body["project_symbol_count"].as_u64().expect("project_symbol_count should be u64")
+            + body["builtin_symbol_count"].as_u64().expect("builtin_symbol_count should be u64")
+    );
     assert!(body["discovery_skip_counts"].is_object());
     assert!(body["discovery_skip_counts"]["max_file_size"].is_number());
     assert!(body["discovery_skip_counts"]["max_depth"].is_number());

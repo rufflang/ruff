@@ -128,7 +128,7 @@ Make outputs easier to consume in automation and release gates.
 
 ### Tasks
 
-1. Add separate counts for project symbols vs builtin symbols.
+1. [x] Add separate counts for project symbols vs builtin symbols. (Completed 2026-05-18)
 2. Add per-kind counts (function, method, struct, enum, etc.).
 3. Add stable machine-readable summary block for dashboards.
 

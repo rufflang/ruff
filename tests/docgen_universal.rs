@@ -853,6 +853,17 @@ fn docgen_cli_json_contract_preserves_legacy_fields() {
     assert!(json["output_dir"].is_string());
     assert!(json["module_doc_path"].is_string());
     assert!(json["item_count"].is_number());
+    assert!(json["project_symbol_count"].is_number());
+    assert!(json["builtin_symbol_count"].is_number());
+    assert_eq!(
+        json["item_count"].as_u64().expect("item_count should be u64"),
+        json["project_symbol_count"]
+            .as_u64()
+            .expect("project_symbol_count should be u64")
+            + json["builtin_symbol_count"]
+                .as_u64()
+                .expect("builtin_symbol_count should be u64")
+    );
     assert!(json["project_json_path"].is_string());
     assert!(json["gaps_json_path"].is_string());
 }
@@ -1495,6 +1506,41 @@ fn docgen_large_repo_smoke_completes_with_deterministic_counts() {
     .expect("large repo docgen should succeed");
 
     assert_eq!(summary.item_count, 250);
+    assert_eq!(summary.project_symbol_count, 250);
+    assert_eq!(summary.builtin_symbol_count, 0);
+}
+
+#[test]
+fn docgen_summary_splits_project_and_builtin_counts() {
+    let dir = unique_temp_dir("summary_split_project_builtin");
+    let out = dir.join("docs");
+    let input = dir.join("counts.ruff");
+    write_file(&input, "pub func alpha() {\n    return 1\n}\n");
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: true,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    assert!(summary.builtin_symbol_count > 0);
+    assert_eq!(
+        summary.item_count,
+        summary.project_symbol_count + summary.builtin_symbol_count
+    );
+    assert_eq!(summary.project_symbol_count, 1);
 }
 
 #[test]

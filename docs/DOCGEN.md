@@ -109,6 +109,10 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
 1. `max_file_size`
 2. `max_depth`
 3. `max_files`
+4. Symbol volume counters:
+   - `item_count` (total symbols in output scope)
+   - `project_symbol_count` (non-builtin symbols)
+   - `builtin_symbol_count` (builtin symbols)
 
 Discovery and project diagnostics are emitted in deterministic sorted order for CI-stable JSON comparisons.
 
