@@ -1097,6 +1097,85 @@ fn docgen_strict_gates_fail_as_expected() {
 }
 
 #[test]
+fn docgen_default_link_check_allows_existing_local_anchor_links_and_external_links() {
+    let dir = unique_temp_dir("default_link_check_success");
+    let out = dir.join("docs");
+    let input = dir.join("links_ok.ruff");
+    let local_target = dir.join("guide.md");
+    write_file(&local_target, "# Guide\n\n## intro\n");
+    write_file(
+        &input,
+        "/// Local anchor: [Guide](guide.md#intro)\n/// External link: [Example](https://example.com/docs)\n/// Mail link: [Mail](mailto:team@example.com)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, 0);
+    assert_eq!(summary.broken_link_count, 0);
+    assert_eq!(summary.warning_count, 0);
+    assert!(
+        summary.gate_failures.is_empty(),
+        "default link checking should only enforce local file existence and ignore anchor/external validation"
+    );
+}
+
+#[test]
+fn docgen_default_link_check_reports_missing_local_links() {
+    let dir = unique_temp_dir("default_link_check_missing_local");
+    let out = dir.join("docs");
+    let input = dir.join("links_missing.ruff");
+    write_file(
+        &input,
+        "/// Missing local doc: [Missing](missing.md)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, 0);
+    assert_eq!(summary.broken_link_count, 1);
+    assert_eq!(summary.warning_count, 1);
+    assert!(
+        summary
+            .gate_failures
+            .iter()
+            .any(|entry| entry == "1 broken links detected"),
+        "missing local links should fail default link validation"
+    );
+}
+
+#[test]
 fn docgen_large_repo_smoke_completes_with_deterministic_counts() {
     let dir = unique_temp_dir("large_repo");
     let out = dir.join("docs");

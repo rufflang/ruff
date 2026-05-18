@@ -155,6 +155,7 @@ Ruff doc attachment keeps stable proximity rules: blank-line spacing is allowed,
 DocGen now emits explicit discovery-limit warnings in JSON output when files are skipped for size/depth/file-count limits (`DOCGEN_DISCOVERY_MAX_FILE_SIZE`, `DOCGEN_DISCOVERY_MAX_DEPTH`, `DOCGEN_DISCOVERY_MAX_FILES`).
 DocGen CLI JSON output (`ruff docgen ... --json`) also includes deterministic per-reason discovery skip counters in `discovery_skip_counts` (`max_file_size`, `max_depth`, `max_files`).
 DocGen diagnostics are emitted in deterministic sorted order to keep repeated JSON outputs stable for CI diffing.
+DocGen default link validation remains local-file existence checking (fragments/query suffixes are ignored for local paths, while `http(s)` and `mailto` links are not validated by default).
 
 ### CLI Exit Codes
 

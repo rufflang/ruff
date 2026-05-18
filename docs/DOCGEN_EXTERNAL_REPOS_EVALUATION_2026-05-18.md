@@ -244,6 +244,18 @@ After enforcing deterministic diagnostic sorting for discovery and project diagn
 
 Interpretation: task 3 is deterministic-ordering hardening; strict external gate counts remain stable while diagnostics ordering is now explicitly regression-locked for repeatable CI diffs.
 
+### Workstream E Task 1 follow-up (2026-05-18)
+
+After locking default link validation to local-file existence checks (with local anchor/query suffixes ignored and external/mailto links skipped by default), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 1 preserves strict gate stability while making default link-check behavior explicit and regression-locked.
+
 ### Test results
 
 - `docgen_universal`: passed

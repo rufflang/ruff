@@ -148,7 +148,14 @@ pub fn detect_broken_doc_links(root: &Path, project: &DocProject) -> Vec<(String
                 {
                     continue;
                 }
-                let target = root.join(link);
+
+                let link_without_fragment = link.split('#').next().unwrap_or_default();
+                let link_without_query = link_without_fragment.split('?').next().unwrap_or_default();
+                if link_without_query.is_empty() {
+                    continue;
+                }
+
+                let target = root.join(link_without_query);
                 if !target.exists() {
                     broken.push((
                         symbol.qualified_name.clone(),

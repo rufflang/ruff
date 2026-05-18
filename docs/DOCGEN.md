@@ -173,3 +173,10 @@ Missing docs are rendered as:
 - Mark uncertainty
 - Keep docs concise
 - Add examples only when source supports them
+
+## Link Validation Default Mode
+
+Default DocGen link validation is local-file existence only:
+1. Local links are checked by filesystem existence.
+2. Local link fragments (`#anchor`) and query segments (`?query`) are ignored in default mode.
+3. External links (`http://`, `https://`, `mailto:`) are not validated in default mode.
