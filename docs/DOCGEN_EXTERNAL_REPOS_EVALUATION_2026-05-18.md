@@ -208,6 +208,18 @@ After adding spacing/proximity regression tests for Ruff doc attachment edge cas
 
 Interpretation: task 3 is coverage hardening; strict external gate metrics remain stable while spacing/proximity behavior is now explicitly regression-locked.
 
+### Workstream D Task 1 follow-up (2026-05-18)
+
+After adding explicit discovery skip diagnostics for max file size, max depth, and max file count limits, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 1 improves discovery transparency without changing strict gate counts on the external validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

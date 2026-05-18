@@ -248,6 +248,53 @@ fn docgen_ruff_handles_spacing_and_proximity_edge_cases() {
 }
 
 #[test]
+fn docgen_emits_discovery_diagnostics_for_oversized_files() {
+    let dir = unique_temp_dir("docgen_discovery_max_file_size");
+    let oversized = dir.join("oversized.ruff");
+    let small = dir.join("small.ruff");
+    let out = dir.join("docs");
+
+    write_file(&oversized, &"a".repeat((2 * 1024 * 1024) + 1));
+    write_file(&small, "pub func kept_api() {\n    return 1\n}\n");
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input: dir.clone(),
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    assert!(summary.diagnostics_count > 0, "expected discovery warning diagnostics");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+    let diagnostics = project["diagnostics"]
+        .as_array()
+        .expect("diagnostics should be an array");
+
+    assert!(has_symbol(symbols, "kept_api"));
+    assert!(diagnostics.iter().any(|diag| {
+        diag["code"] == "DOCGEN_DISCOVERY_MAX_FILE_SIZE"
+            && diag["severity"] == "Warning"
+            && diag["path"].as_str().unwrap_or_default().ends_with("oversized.ruff")
+    }));
+}
+
+#[test]
 fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
     let dir = unique_temp_dir("ruff_visibility_matrix");
     let input = dir.join("visibility.ruff");

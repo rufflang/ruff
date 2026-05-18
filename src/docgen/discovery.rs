@@ -26,6 +26,14 @@ pub struct DiscoveryResult {
     pub root: PathBuf,
     pub files: Vec<DiscoveredFile>,
     pub detected_languages: Vec<String>,
+    pub diagnostics: Vec<DiscoveryDiagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveryDiagnostic {
+    pub code: &'static str,
+    pub message: String,
+    pub path: Option<PathBuf>,
 }
 
 pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryResult, DocgenError> {
@@ -54,19 +62,25 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
         canonicalize_root(&root_candidate, "docgen project root").map_err(DocgenError::new)?;
 
     let mut paths = Vec::new();
+    let mut diagnostics = Vec::new();
     if metadata.is_file() {
         paths.push(input_abs);
     } else {
-        walk_dir(&root, &root, 0, options, &mut paths)?;
+        walk_dir(&root, &root, 0, options, &mut paths, &mut diagnostics)?;
     }
 
     paths.sort();
     if paths.len() > options.max_files {
-        return Err(DocgenError::new(format!(
-            "file discovery exceeded limit ({} > {})",
-            paths.len(),
-            options.max_files
-        )));
+        let skipped = paths.len() - options.max_files;
+        paths.truncate(options.max_files);
+        diagnostics.push(DiscoveryDiagnostic {
+            code: "DOCGEN_DISCOVERY_MAX_FILES",
+            message: format!(
+                "skipped {} files because max file discovery limit ({}) was reached",
+                skipped, options.max_files
+            ),
+            path: None,
+        });
     }
 
     let selected: Option<BTreeSet<String>> = options
@@ -101,6 +115,20 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
             DocgenError::new(format!("failed to stat source path '{}': {}", canonical.display(), e))
         })?;
         if file_meta.len() > options.max_file_size_bytes {
+            let relative = canonical
+                .strip_prefix(&root)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|_| canonical.clone());
+            diagnostics.push(DiscoveryDiagnostic {
+                code: "DOCGEN_DISCOVERY_MAX_FILE_SIZE",
+                message: format!(
+                    "skipped file '{}' because size {} bytes exceeds max {} bytes",
+                    relative.display(),
+                    file_meta.len(),
+                    options.max_file_size_bytes
+                ),
+                path: Some(relative),
+            });
             continue;
         }
 
@@ -119,7 +147,12 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
 
     files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path).then(a.language.cmp(&b.language)));
 
-    Ok(DiscoveryResult { root, files, detected_languages: languages.into_iter().collect() })
+    Ok(DiscoveryResult {
+        root,
+        files,
+        detected_languages: languages.into_iter().collect(),
+        diagnostics,
+    })
 }
 
 fn walk_dir(
@@ -128,8 +161,19 @@ fn walk_dir(
     depth: usize,
     options: &DiscoveryOptions,
     out: &mut Vec<PathBuf>,
+    diagnostics: &mut Vec<DiscoveryDiagnostic>,
 ) -> Result<(), DocgenError> {
     if depth > options.max_depth {
+        let relative = current.strip_prefix(root).unwrap_or(current).to_path_buf();
+        diagnostics.push(DiscoveryDiagnostic {
+            code: "DOCGEN_DISCOVERY_MAX_DEPTH",
+            message: format!(
+                "skipped directory '{}' because max discovery depth ({}) was exceeded",
+                relative.display(),
+                options.max_depth
+            ),
+            path: Some(relative),
+        });
         return Ok(());
     }
 
@@ -161,13 +205,107 @@ fn walk_dir(
             .map_err(DocgenError::new)?;
 
         if symlink_meta.is_dir() {
-            walk_dir(root, &canonical, depth + 1, options, out)?;
+            walk_dir(root, &canonical, depth + 1, options, out, diagnostics)?;
         } else if symlink_meta.is_file() {
             out.push(canonical);
         }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_dir(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be valid")
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("ruff_docgen_discovery_{}_{}", prefix, nanos));
+        fs::create_dir_all(&dir).expect("failed to create temp dir");
+        dir
+    }
+
+    #[test]
+    fn discover_emits_max_file_size_diagnostic() {
+        let root = temp_dir("max_file_size");
+        let source = root.join("oversized.ruff");
+        fs::write(&source, "a".repeat(32)).expect("failed to write source");
+
+        let result = discover(
+            &root,
+            &DiscoveryOptions {
+                selected_languages: Some(vec!["ruff".to_string()]),
+                max_file_size_bytes: 8,
+                max_files: 10,
+                max_depth: 4,
+            },
+        )
+        .expect("discovery should succeed");
+
+        assert!(result.files.is_empty(), "oversized file should be skipped");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_FILE_SIZE"),
+            "expected max-file-size discovery diagnostic"
+        );
+    }
+
+    #[test]
+    fn discover_emits_max_depth_diagnostic() {
+        let root = temp_dir("max_depth");
+        let nested = root.join("a").join("b");
+        fs::create_dir_all(&nested).expect("failed to create nested dirs");
+        fs::write(nested.join("deep.ruff"), "func deep() { return 1 }").expect("failed to write");
+
+        let result = discover(
+            &root,
+            &DiscoveryOptions {
+                selected_languages: Some(vec!["ruff".to_string()]),
+                max_file_size_bytes: 1024,
+                max_files: 10,
+                max_depth: 0,
+            },
+        )
+        .expect("discovery should succeed");
+
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_DEPTH"),
+            "expected max-depth discovery diagnostic"
+        );
+    }
+
+    #[test]
+    fn discover_emits_max_files_diagnostic_and_truncates() {
+        let root = temp_dir("max_files");
+        fs::write(root.join("one.ruff"), "func one() { return 1 }").expect("failed to write");
+        fs::write(root.join("two.ruff"), "func two() { return 2 }").expect("failed to write");
+
+        let result = discover(
+            &root,
+            &DiscoveryOptions {
+                selected_languages: Some(vec!["ruff".to_string()]),
+                max_file_size_bytes: 1024,
+                max_files: 1,
+                max_depth: 4,
+            },
+        )
+        .expect("discovery should succeed");
+
+        assert_eq!(result.files.len(), 1, "discovery should truncate to max_files");
+        assert!(
+            result.diagnostics.iter().any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_FILES"),
+            "expected max-files discovery diagnostic"
+        );
+    }
 }
 
 pub fn parse_language_filter(

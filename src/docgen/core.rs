@@ -79,7 +79,17 @@ pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), Docg
 
     let mut modules = Vec::new();
     let mut symbols = Vec::new();
-    let mut diagnostics = Vec::new();
+    let mut diagnostics: Vec<DocDiagnostic> = discovery
+        .diagnostics
+        .iter()
+        .map(|diag| DocDiagnostic {
+            severity: DocDiagnosticSeverity::Warning,
+            code: diag.code.to_string(),
+            message: diag.message.clone(),
+            path: diag.path.clone(),
+            line: None,
+        })
+        .collect();
     let mut source_map: BTreeMap<String, String> = BTreeMap::new();
 
     for file in &discovery.files {

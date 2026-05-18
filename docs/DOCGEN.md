@@ -97,6 +97,14 @@ DocGen is scan-only.
 - Deterministic ordering for CI stability
 - HTML output escapes documentation content by default
 
+## Discovery Skip Diagnostics
+
+When discovery limits skip input, DocGen emits warning diagnostics in `docgen.json`:
+
+1. `DOCGEN_DISCOVERY_MAX_FILE_SIZE`
+2. `DOCGEN_DISCOVERY_MAX_DEPTH`
+3. `DOCGEN_DISCOVERY_MAX_FILES`
+
 ## CLI
 
 ### Basic Ruff docs

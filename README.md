@@ -152,6 +152,7 @@ Ruff DocGen extraction remains hybrid for now (regex-first with fixture-backed e
 Ruff DocGen inline docs support `///`, `//!`, and `/** ... */` comment styles; plain `/* ... */` comments are ignored for API docs attachment.
 Ruff DocGen doc attachment is decorator-aware and skips intermediate `@...` / `#[...]` lines when mapping a doc block to its symbol target.
 Ruff doc attachment keeps stable proximity rules: blank-line spacing is allowed, regular non-doc comment lines break attachment, and the nearest eligible doc block wins.
+DocGen now emits explicit discovery-limit warnings in JSON output when files are skipped for size/depth/file-count limits (`DOCGEN_DISCOVERY_MAX_FILE_SIZE`, `DOCGEN_DISCOVERY_MAX_DEPTH`, `DOCGEN_DISCOVERY_MAX_FILES`).
 
 ### CLI Exit Codes
 
