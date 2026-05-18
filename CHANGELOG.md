@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen Workstream A task 2 (`docgen(A-2)`) Ruff visibility classification for top-level functions in `src/docgen/adapters/ruff.rs`: top-level `func` symbols now require explicit `pub` to be marked `Public`, matching struct method visibility behavior and reducing strict-mode undocumented false positives from internal helpers.
 - Fixed release-checklist gate drift by normalizing formatter output across contract/security/doc-smoke tests and addressing `clippy::collapsible-str-replace` in `tests/docs_examples.rs`, so `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass again alongside `cargo test`.
 - Fixed `HttpServer` method dispatch in the legacy interpreter (`src/interpreter/legacy_full.rs`): `Expr::MethodCall` nodes were routed through `call_method()`, which only handled iterator methods and returned "Unknown method: route" for all `HttpServer` calls. Added `HttpServer` handling to `call_method()` so that `server.route(method, path, handler)` appends a route and returns a new `HttpServer` value, and `server.listen()` starts the server, matching the existing `Expr::Call`/`FieldAccess` code path behavior.
 

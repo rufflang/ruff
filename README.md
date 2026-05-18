@@ -145,6 +145,8 @@ The current CLI exposes these subcommands:
 
 Ruff currently requires explicit subcommands; `ruff <file>` is not treated as an implicit alias for `ruff run <file>`.
 
+For Ruff adapter visibility in `ruff docgen`, top-level functions are treated as public only when declared with `pub func`; non-`pub` top-level helpers remain private.
+
 ### CLI Exit Codes
 
 Ruff uses stable exit-code categories for automation:
