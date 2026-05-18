@@ -1207,7 +1207,10 @@ fn docgen_optional_local_anchor_validation_passes_for_existing_anchor() {
             public_only: true,
             include_private: false,
         },
-        LinkValidationOptions { validate_local_anchors: true },
+        LinkValidationOptions {
+            validate_local_anchors: true,
+            ..LinkValidationOptions::default()
+        },
     )
     .expect("docgen run should complete");
 
@@ -1243,7 +1246,10 @@ fn docgen_optional_local_anchor_validation_fails_for_missing_anchor() {
             public_only: true,
             include_private: false,
         },
-        LinkValidationOptions { validate_local_anchors: true },
+        LinkValidationOptions {
+            validate_local_anchors: true,
+            ..LinkValidationOptions::default()
+        },
     )
     .expect("docgen run should complete");
 
@@ -1286,6 +1292,103 @@ fn docgen_cli_optional_local_anchor_validation_flag_enforces_anchor_checks() {
     assert!(!output.status.success(), "missing anchors should fail when anchor mode is enabled");
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("docgen gate failed: 1 broken links detected"));
+}
+
+#[test]
+fn docgen_optional_external_validation_skips_non_allowlisted_hosts() {
+    let dir = unique_temp_dir("external_validation_allowlist_skip");
+    let out = dir.join("docs");
+    let input = dir.join("external_skip.ruff");
+    write_file(
+        &input,
+        "/// External link: [Docs](https://example.com/missing)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (_project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_local_anchors: false,
+            validate_external_links: true,
+            external_link_timeout_ms: 100,
+            external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert!(summary.gate_failures.is_empty());
+}
+
+#[test]
+fn docgen_optional_external_validation_fails_allowlisted_unreachable_hosts() {
+    let dir = unique_temp_dir("external_validation_unreachable");
+    let out = dir.join("docs");
+    let input = dir.join("external_fail.ruff");
+    write_file(
+        &input,
+        "/// Localhost link: [Docs](http://127.0.0.1:9/docs)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (_project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_local_anchors: false,
+            validate_external_links: true,
+            external_link_timeout_ms: 100,
+            external_link_allowlist: BTreeSet::from(["127.0.0.1".to_string()]),
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 1);
+    assert!(
+        summary
+            .gate_failures
+            .iter()
+            .any(|entry| entry == "1 broken links detected")
+    );
+}
+
+#[test]
+fn docgen_cli_exposes_external_link_validation_flags() {
+    let dir = unique_temp_dir("docgen_cli_external_flag_help");
+    let output = run_ruff(&["docgen", "--help"], &dir);
+    assert!(output.status.success(), "docgen --help should succeed");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(stdout.contains("--validate-external-links"));
+    assert!(stdout.contains("--external-link-timeout-ms"));
+    assert!(stdout.contains("--external-link-allowlist"));
 }
 
 #[test]

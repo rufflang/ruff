@@ -40,6 +40,7 @@ mod vm;
 
 use crate::interpreter::RuntimeCapabilityPolicy;
 use clap::{Args, Parser as ClapParser, Subcommand};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -424,6 +425,18 @@ enum Commands {
         /// Validate local markdown/html anchors for local links
         #[arg(long, default_value_t = false)]
         validate_local_anchors: bool,
+
+        /// Validate external http/https links for allowlisted hosts
+        #[arg(long, default_value_t = false)]
+        validate_external_links: bool,
+
+        /// External-link validation timeout in milliseconds
+        #[arg(long, default_value_t = 1500)]
+        external_link_timeout_ms: u64,
+
+        /// Comma-separated host allowlist for external-link validation
+        #[arg(long)]
+        external_link_allowlist: Option<String>,
 
         /// Fail when any warnings are emitted
         #[arg(long, default_value_t = false)]
@@ -1591,6 +1604,9 @@ async fn main() {
             fail_on_undocumented,
             fail_on_broken_links,
             validate_local_anchors,
+            validate_external_links,
+            external_link_timeout_ms,
+            external_link_allowlist,
             fail_on_warnings,
             json,
         } => {
@@ -1602,6 +1618,16 @@ async fn main() {
                     std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
+            let external_link_allowlist: BTreeSet<String> = external_link_allowlist
+                .as_deref()
+                .map(|csv| {
+                    csv.split(',')
+                        .map(|entry| entry.trim().to_ascii_lowercase())
+                        .filter(|entry| !entry.is_empty())
+                        .collect()
+                })
+                .unwrap_or_default();
+
             let (_project, summary) = match docgen::core::run_with_link_validation(
                 &docgen::core::DocgenConfig {
                     input: path.clone(),
@@ -1619,7 +1645,12 @@ async fn main() {
                     public_only,
                     include_private,
                 },
-                docgen::gaps::LinkValidationOptions { validate_local_anchors },
+                docgen::gaps::LinkValidationOptions {
+                    validate_local_anchors,
+                    validate_external_links,
+                    external_link_timeout_ms,
+                    external_link_allowlist,
+                },
             ) {
                 Ok(result) => result,
                 Err(message) => {

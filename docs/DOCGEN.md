@@ -184,3 +184,8 @@ Default DocGen link validation is local-file existence only:
 Optional local-anchor validation mode is available with `--validate-local-anchors`:
 1. Local links that include a fragment (`#...`) require the target anchor to exist in the referenced local file.
 2. Markdown heading slugs and basic HTML `id="..."`/`name="..."` anchors are supported.
+
+Optional external-link validation mode is available with `--validate-external-links`:
+1. Validation only runs for hosts in `--external-link-allowlist`.
+2. Validation requests use `--external-link-timeout-ms`.
+3. Links that fail allowlisted external validation are reported as broken links.

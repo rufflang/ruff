@@ -1,10 +1,25 @@
 use crate::docgen::model::{DocGap, DocGapKind, DocProject, DocSymbol, DocVisibility};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+use std::time::Duration;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkValidationOptions {
     pub validate_local_anchors: bool,
+    pub validate_external_links: bool,
+    pub external_link_timeout_ms: u64,
+    pub external_link_allowlist: BTreeSet<String>,
+}
+
+impl Default for LinkValidationOptions {
+    fn default() -> Self {
+        Self {
+            validate_local_anchors: false,
+            validate_external_links: false,
+            external_link_timeout_ms: 1500,
+            external_link_allowlist: BTreeSet::new(),
+        }
+    }
 }
 
 pub fn build_gaps(project: &mut DocProject, source_map: &BTreeMap<String, String>) {
@@ -151,10 +166,22 @@ pub fn detect_broken_doc_links(
     for symbol in &project.symbols {
         for (idx, line) in symbol.docs.lines.iter().enumerate() {
             for link in extract_markdown_links(line) {
-                if link.starts_with("http://")
-                    || link.starts_with("https://")
-                    || link.starts_with("mailto:")
-                {
+                if link.starts_with("mailto:") {
+                    continue;
+                }
+                if link.starts_with("http://") || link.starts_with("https://") {
+                    if !options.validate_external_links || options.external_link_allowlist.is_empty()
+                    {
+                        continue;
+                    }
+
+                    if !external_link_in_allowlist(&link, &options.external_link_allowlist) {
+                        continue;
+                    }
+
+                    if !external_link_is_reachable(&link, options.external_link_timeout_ms) {
+                        broken.push((symbol.qualified_name.clone(), link.clone(), idx + 1));
+                    }
                     continue;
                 }
 
@@ -244,6 +271,31 @@ fn markdown_anchor_slug(heading: &str) -> String {
     }
 
     out.trim_matches('-').to_string()
+}
+
+fn external_link_in_allowlist(link: &str, allowlist: &BTreeSet<String>) -> bool {
+    let Ok(url) = reqwest::Url::parse(link) else {
+        return false;
+    };
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    allowlist.contains(&host.to_ascii_lowercase())
+}
+
+fn external_link_is_reachable(link: &str, timeout_ms: u64) -> bool {
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(Duration::from_millis(timeout_ms.max(1)))
+        .build()
+    {
+        Ok(client) => client,
+        Err(_) => return false,
+    };
+
+    match client.get(link).send() {
+        Ok(response) => response.status().is_success() || response.status().is_redirection(),
+        Err(_) => false,
+    }
 }
 
 fn extract_markdown_links(text: &str) -> Vec<String> {

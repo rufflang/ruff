@@ -268,6 +268,18 @@ After adding optional local-anchor validation mode (`--validate-local-anchors`) 
 
 Interpretation: task 2 introduces an opt-in stricter local-anchor check mode without affecting default strict-gate results on the external validation set.
 
+### Workstream E Task 3 follow-up (2026-05-18)
+
+After adding optional external-link validation mode with allowlist and timeout controls (`--validate-external-links`, `--external-link-allowlist`, `--external-link-timeout-ms`), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 3 adds opt-in external validation controls while preserving default strict-gate stability on the external validation set.
+
 ### Test results
 
 - `docgen_universal`: passed
