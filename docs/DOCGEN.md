@@ -180,3 +180,7 @@ Default DocGen link validation is local-file existence only:
 1. Local links are checked by filesystem existence.
 2. Local link fragments (`#anchor`) and query segments (`?query`) are ignored in default mode.
 3. External links (`http://`, `https://`, `mailto:`) are not validated in default mode.
+
+Optional local-anchor validation mode is available with `--validate-local-anchors`:
+1. Local links that include a fragment (`#...`) require the target anchor to exist in the referenced local file.
+2. Markdown heading slugs and basic HTML `id="..."`/`name="..."` anchors are supported.

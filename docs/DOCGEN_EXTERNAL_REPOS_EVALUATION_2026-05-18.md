@@ -256,6 +256,18 @@ After locking default link validation to local-file existence checks (with local
 
 Interpretation: task 1 preserves strict gate stability while making default link-check behavior explicit and regression-locked.
 
+### Workstream E Task 2 follow-up (2026-05-18)
+
+After adding optional local-anchor validation mode (`--validate-local-anchors`) while preserving default link-validation behavior, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 2 introduces an opt-in stricter local-anchor check mode without affecting default strict-gate results on the external validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

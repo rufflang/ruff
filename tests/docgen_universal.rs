@@ -1,4 +1,8 @@
-use ruff::docgen::core::{run as run_docgen, DocOutputFormat, DocgenConfig};
+use ruff::docgen::core::{
+    run as run_docgen, run_with_link_validation as run_docgen_with_link_validation, DocOutputFormat,
+    DocgenConfig,
+};
+use ruff::docgen::gaps::LinkValidationOptions;
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fs;
@@ -1173,6 +1177,115 @@ fn docgen_default_link_check_reports_missing_local_links() {
             .any(|entry| entry == "1 broken links detected"),
         "missing local links should fail default link validation"
     );
+}
+
+#[test]
+fn docgen_optional_local_anchor_validation_passes_for_existing_anchor() {
+    let dir = unique_temp_dir("local_anchor_validation_pass");
+    let out = dir.join("docs");
+    let input = dir.join("anchors_ok.ruff");
+    write_file(&dir.join("guide.md"), "# Guide\n\n## intro section\n");
+    write_file(
+        &input,
+        "/// Anchor link: [Guide](guide.md#intro-section)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (_project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions { validate_local_anchors: true },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert!(summary.gate_failures.is_empty());
+}
+
+#[test]
+fn docgen_optional_local_anchor_validation_fails_for_missing_anchor() {
+    let dir = unique_temp_dir("local_anchor_validation_fail");
+    let out = dir.join("docs");
+    let input = dir.join("anchors_missing.ruff");
+    write_file(&dir.join("guide.md"), "# Guide\n\n## intro section\n");
+    write_file(
+        &input,
+        "/// Missing anchor: [Guide](guide.md#does-not-exist)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (_project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions { validate_local_anchors: true },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 1);
+    assert!(
+        summary
+            .gate_failures
+            .iter()
+            .any(|entry| entry == "1 broken links detected"),
+        "missing anchors should fail when local anchor validation mode is enabled"
+    );
+}
+
+#[test]
+fn docgen_cli_optional_local_anchor_validation_flag_enforces_anchor_checks() {
+    let dir = unique_temp_dir("local_anchor_validation_cli_flag");
+    let out = dir.join("docs");
+    let input = dir.join("anchors_cli.ruff");
+    write_file(&dir.join("guide.md"), "# Guide\n\n## intro section\n");
+    write_file(
+        &input,
+        "/// Missing anchor: [Guide](guide.md#does-not-exist)\npub func linked_api() { return 1 }\n",
+    );
+
+    let output = run_ruff(
+        &[
+            "docgen",
+            dir.to_str().expect("dir path utf-8"),
+            "--language",
+            "ruff",
+            "--out-dir",
+            out.to_str().expect("out path utf-8"),
+            "--public-only",
+            "--fail-on-broken-links",
+            "--validate-local-anchors",
+        ],
+        &dir,
+    );
+
+    assert!(!output.status.success(), "missing anchors should fail when anchor mode is enabled");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("docgen gate failed: 1 broken links detected"));
 }
 
 #[test]

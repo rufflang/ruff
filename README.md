@@ -127,7 +127,7 @@ The current CLI exposes these subcommands:
 | `ruff package-add <name>` | Add a dependency to `ruff.toml` (`--version`, `--manifest`). |
 | `ruff package-install` | Generate deterministic `ruff.lock` output from `ruff.toml` and enumerate dependencies (`--manifest`, `--lockfile`, `--frozen` verify mode). |
 | `ruff package-publish` | Preview or execute package publish metadata flow from `ruff.toml`. |
-| `ruff docgen <path>` | Generate universal docs from Ruff/PHP/Python/TypeScript/JavaScript/Ruby/Go/Haskell/Zig codebases (`--language`, `--languages`, `--format`, `--emit-ai-tasks`, `--public-only`, `--fail-on-undocumented`, `--fail-on-broken-links`, `--fail-on-warnings`, `--search-index`, `--source-links`, `--out-dir`, `--no-builtins`, `--json`). |
+| `ruff docgen <path>` | Generate universal docs from Ruff/PHP/Python/TypeScript/JavaScript/Ruby/Go/Haskell/Zig codebases (`--language`, `--languages`, `--format`, `--emit-ai-tasks`, `--public-only`, `--fail-on-undocumented`, `--fail-on-broken-links`, `--fail-on-warnings`, `--validate-local-anchors`, `--search-index`, `--source-links`, `--out-dir`, `--no-builtins`, `--json`). |
 | `ruff lsp` | Run the official Ruff LSP server over stdio JSON-RPC (`--deterministic-logs` for reproducible stderr tracing), including advanced editor metadata surfaces (`textDocument/semanticTokens/full`, `textDocument/inlayHint`, `textDocument/codeLens`). |
 | `ruff test` | Discover `.ruff` fixtures under `tests/`, execute each fixture via `ruff run --interpreter`, and compare output against sibling `.out` snapshots; `--update` regenerates expected-output snapshots. |
 | `ruff test-run <file>` | Run tests declared with Ruff's `test "name" { ... }` syntax; parse diagnostics exit non-zero before test collection. Supports the same `--untrusted` / `--allow-*` native capability policy flags as `ruff run`. |
@@ -156,6 +156,7 @@ DocGen now emits explicit discovery-limit warnings in JSON output when files are
 DocGen CLI JSON output (`ruff docgen ... --json`) also includes deterministic per-reason discovery skip counters in `discovery_skip_counts` (`max_file_size`, `max_depth`, `max_files`).
 DocGen diagnostics are emitted in deterministic sorted order to keep repeated JSON outputs stable for CI diffing.
 DocGen default link validation remains local-file existence checking (fragments/query suffixes are ignored for local paths, while `http(s)` and `mailto` links are not validated by default).
+DocGen optional local-anchor validation can be enabled with `--validate-local-anchors` when strict anchor checks are needed for local docs.
 
 ### CLI Exit Codes
 

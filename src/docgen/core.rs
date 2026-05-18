@@ -2,7 +2,7 @@ use crate::docgen::adapters::{adapter_for_language, capability_index, language_i
 use crate::docgen::discovery::{
     discover, parse_language_filter, validate_languages, DiscoveryOptions,
 };
-use crate::docgen::gaps::{build_gaps, detect_broken_doc_links};
+use crate::docgen::gaps::{build_gaps, detect_broken_doc_links, LinkValidationOptions};
 use crate::docgen::model::{
     DocComment, DocDiagnostic, DocDiagnosticSeverity, DocModule, DocProject, DocSymbol,
     DocSymbolKind, DocVisibility,
@@ -62,6 +62,13 @@ pub struct DocgenRunSummary {
 }
 
 pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
+    run_with_link_validation(config, LinkValidationOptions::default())
+}
+
+pub fn run_with_link_validation(
+    config: &DocgenConfig,
+    link_validation: LinkValidationOptions,
+) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
     let selected_languages =
         parse_language_filter(config.language.as_deref(), config.languages.as_deref())?;
     if let Some(ref languages) = selected_languages {
@@ -163,7 +170,7 @@ pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), Docg
 
     build_gaps(&mut project, &source_map);
 
-    let broken_links = detect_broken_doc_links(&project.root, &project);
+    let broken_links = detect_broken_doc_links(&project.root, &project, link_validation);
     for (symbol, target, line) in &broken_links {
         project.diagnostics.push(DocDiagnostic {
             severity: DocDiagnosticSeverity::Warning,

@@ -421,6 +421,10 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         fail_on_broken_links: bool,
 
+        /// Validate local markdown/html anchors for local links
+        #[arg(long, default_value_t = false)]
+        validate_local_anchors: bool,
+
         /// Fail when any warnings are emitted
         #[arg(long, default_value_t = false)]
         fail_on_warnings: bool,
@@ -1586,6 +1590,7 @@ async fn main() {
             include_private,
             fail_on_undocumented,
             fail_on_broken_links,
+            validate_local_anchors,
             fail_on_warnings,
             json,
         } => {
@@ -1597,22 +1602,25 @@ async fn main() {
                     std::process::exit(CliExitCode::RuntimeError.code());
                 }
             };
-            let (_project, summary) = match docgen::core::run(&docgen::core::DocgenConfig {
-                input: path.clone(),
-                out_dir: output_dir,
-                format: doc_format,
-                include_builtins: !no_builtins,
-                language,
-                languages,
-                emit_ai_tasks,
-                search_index,
-                source_links,
-                fail_on_undocumented,
-                fail_on_broken_links,
-                fail_on_warnings,
-                public_only,
-                include_private,
-            }) {
+            let (_project, summary) = match docgen::core::run_with_link_validation(
+                &docgen::core::DocgenConfig {
+                    input: path.clone(),
+                    out_dir: output_dir,
+                    format: doc_format,
+                    include_builtins: !no_builtins,
+                    language,
+                    languages,
+                    emit_ai_tasks,
+                    search_index,
+                    source_links,
+                    fail_on_undocumented,
+                    fail_on_broken_links,
+                    fail_on_warnings,
+                    public_only,
+                    include_private,
+                },
+                docgen::gaps::LinkValidationOptions { validate_local_anchors },
+            ) {
                 Ok(result) => result,
                 Err(message) => {
                     eprintln!("{}", message);

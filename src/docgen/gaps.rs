@@ -2,6 +2,11 @@ use crate::docgen::model::{DocGap, DocGapKind, DocProject, DocSymbol, DocVisibil
 use std::collections::BTreeMap;
 use std::path::Path;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LinkValidationOptions {
+    pub validate_local_anchors: bool,
+}
+
 pub fn build_gaps(project: &mut DocProject, source_map: &BTreeMap<String, String>) {
     let mut gaps = Vec::new();
 
@@ -137,7 +142,11 @@ fn kind_name(kind: &crate::docgen::model::DocSymbolKind) -> &'static str {
     }
 }
 
-pub fn detect_broken_doc_links(root: &Path, project: &DocProject) -> Vec<(String, String, usize)> {
+pub fn detect_broken_doc_links(
+    root: &Path,
+    project: &DocProject,
+    options: LinkValidationOptions,
+) -> Vec<(String, String, usize)> {
     let mut broken = Vec::new();
     for symbol in &project.symbols {
         for (idx, line) in symbol.docs.lines.iter().enumerate() {
@@ -149,6 +158,7 @@ pub fn detect_broken_doc_links(root: &Path, project: &DocProject) -> Vec<(String
                     continue;
                 }
 
+                let fragment = link.split_once('#').map(|(_, anchor)| anchor).unwrap_or_default();
                 let link_without_fragment = link.split('#').next().unwrap_or_default();
                 let link_without_query = link_without_fragment.split('?').next().unwrap_or_default();
                 if link_without_query.is_empty() {
@@ -162,11 +172,78 @@ pub fn detect_broken_doc_links(root: &Path, project: &DocProject) -> Vec<(String
                         target.display().to_string(),
                         idx + 1,
                     ));
+                    continue;
+                }
+
+                if options.validate_local_anchors
+                    && !fragment.is_empty()
+                    && !local_anchor_exists(&target, fragment)
+                {
+                    broken.push((
+                        symbol.qualified_name.clone(),
+                        format!("{}#{}", target.display(), fragment),
+                        idx + 1,
+                    ));
                 }
             }
         }
     }
     broken
+}
+
+fn local_anchor_exists(target: &Path, fragment: &str) -> bool {
+    let anchor = normalize_anchor(fragment);
+    if anchor.is_empty() {
+        return true;
+    }
+
+    let Ok(content) = std::fs::read_to_string(target) else {
+        return false;
+    };
+
+    if content.contains(&format!("id=\"{}\"", anchor))
+        || content.contains(&format!("name=\"{}\"", anchor))
+    {
+        return true;
+    }
+
+    for line in content.lines() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with('#') {
+            continue;
+        }
+        let heading = trimmed.trim_start_matches('#').trim();
+        if markdown_anchor_slug(heading) == anchor {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn normalize_anchor(anchor: &str) -> String {
+    anchor
+        .trim()
+        .trim_start_matches('#')
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn markdown_anchor_slug(heading: &str) -> String {
+    let mut out = String::new();
+    let mut last_was_dash = false;
+
+    for ch in heading.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+            last_was_dash = false;
+        } else if !last_was_dash {
+            out.push('-');
+            last_was_dash = true;
+        }
+    }
+
+    out.trim_matches('-').to_string()
 }
 
 fn extract_markdown_links(text: &str) -> Vec<String> {
