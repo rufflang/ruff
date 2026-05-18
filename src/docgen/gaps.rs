@@ -22,6 +22,21 @@ impl Default for LinkValidationOptions {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BrokenLinkKind {
+    LocalFileMissing,
+    LocalAnchorMissing,
+    ExternalUnreachable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrokenLinkFinding {
+    pub symbol: String,
+    pub target: String,
+    pub line: usize,
+    pub kind: BrokenLinkKind,
+}
+
 pub fn build_gaps(project: &mut DocProject, source_map: &BTreeMap<String, String>) {
     let mut gaps = Vec::new();
 
@@ -161,7 +176,7 @@ pub fn detect_broken_doc_links(
     root: &Path,
     project: &DocProject,
     options: LinkValidationOptions,
-) -> Vec<(String, String, usize)> {
+) -> Vec<BrokenLinkFinding> {
     let mut broken = Vec::new();
     for symbol in &project.symbols {
         for (idx, line) in symbol.docs.lines.iter().enumerate() {
@@ -170,7 +185,8 @@ pub fn detect_broken_doc_links(
                     continue;
                 }
                 if link.starts_with("http://") || link.starts_with("https://") {
-                    if !options.validate_external_links || options.external_link_allowlist.is_empty()
+                    if !options.validate_external_links
+                        || options.external_link_allowlist.is_empty()
                     {
                         continue;
                     }
@@ -180,25 +196,32 @@ pub fn detect_broken_doc_links(
                     }
 
                     if !external_link_is_reachable(&link, options.external_link_timeout_ms) {
-                        broken.push((symbol.qualified_name.clone(), link.clone(), idx + 1));
+                        broken.push(BrokenLinkFinding {
+                            symbol: symbol.qualified_name.clone(),
+                            target: link.clone(),
+                            line: idx + 1,
+                            kind: BrokenLinkKind::ExternalUnreachable,
+                        });
                     }
                     continue;
                 }
 
                 let fragment = link.split_once('#').map(|(_, anchor)| anchor).unwrap_or_default();
                 let link_without_fragment = link.split('#').next().unwrap_or_default();
-                let link_without_query = link_without_fragment.split('?').next().unwrap_or_default();
+                let link_without_query =
+                    link_without_fragment.split('?').next().unwrap_or_default();
                 if link_without_query.is_empty() {
                     continue;
                 }
 
                 let target = root.join(link_without_query);
                 if !target.exists() {
-                    broken.push((
-                        symbol.qualified_name.clone(),
-                        target.display().to_string(),
-                        idx + 1,
-                    ));
+                    broken.push(BrokenLinkFinding {
+                        symbol: symbol.qualified_name.clone(),
+                        target: target.display().to_string(),
+                        line: idx + 1,
+                        kind: BrokenLinkKind::LocalFileMissing,
+                    });
                     continue;
                 }
 
@@ -206,11 +229,12 @@ pub fn detect_broken_doc_links(
                     && !fragment.is_empty()
                     && !local_anchor_exists(&target, fragment)
                 {
-                    broken.push((
-                        symbol.qualified_name.clone(),
-                        format!("{}#{}", target.display(), fragment),
-                        idx + 1,
-                    ));
+                    broken.push(BrokenLinkFinding {
+                        symbol: symbol.qualified_name.clone(),
+                        target: format!("{}#{}", target.display(), fragment),
+                        line: idx + 1,
+                        kind: BrokenLinkKind::LocalAnchorMissing,
+                    });
                 }
             }
         }
@@ -249,11 +273,7 @@ fn local_anchor_exists(target: &Path, fragment: &str) -> bool {
 }
 
 fn normalize_anchor(anchor: &str) -> String {
-    anchor
-        .trim()
-        .trim_start_matches('#')
-        .trim()
-        .to_ascii_lowercase()
+    anchor.trim().trim_start_matches('#').trim().to_ascii_lowercase()
 }
 
 fn markdown_anchor_slug(heading: &str) -> String {

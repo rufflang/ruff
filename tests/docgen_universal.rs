@@ -1,6 +1,6 @@
 use ruff::docgen::core::{
-    run as run_docgen, run_with_link_validation as run_docgen_with_link_validation, DocOutputFormat,
-    DocgenConfig,
+    run as run_docgen, run_with_link_validation as run_docgen_with_link_validation,
+    DocOutputFormat, DocgenConfig,
 };
 use ruff::docgen::gaps::LinkValidationOptions;
 use serde_json::Value;
@@ -356,25 +356,21 @@ fn docgen_diagnostics_order_is_deterministic_across_sources() {
     )
     .expect("second project json should be valid");
 
-    let diagnostics_a = project_a["diagnostics"]
-        .as_array()
-        .expect("diagnostics should be an array");
-    let diagnostics_b = project_b["diagnostics"]
-        .as_array()
-        .expect("diagnostics should be an array");
+    let diagnostics_a =
+        project_a["diagnostics"].as_array().expect("diagnostics should be an array");
+    let diagnostics_b =
+        project_b["diagnostics"].as_array().expect("diagnostics should be an array");
 
     assert_eq!(
         diagnostics_a, diagnostics_b,
         "diagnostic ordering should remain stable across repeated runs"
     );
 
-    let codes: Vec<&str> = diagnostics_a
-        .iter()
-        .map(|diag| diag["code"].as_str().unwrap_or_default())
-        .collect();
+    let codes: Vec<&str> =
+        diagnostics_a.iter().map(|diag| diag["code"].as_str().unwrap_or_default()).collect();
     assert_eq!(
         codes,
-        vec!["DOCGEN_DISCOVERY_MAX_FILE_SIZE", "DOCGEN_LINK_BROKEN"],
+        vec!["DOCGEN_DISCOVERY_MAX_FILE_SIZE", "DOCGEN_LINK_BROKEN_LOCAL_FILE"],
         "diagnostics should be deterministically ordered by severity/code/path/line/message"
     );
 }
@@ -1171,10 +1167,7 @@ fn docgen_default_link_check_reports_missing_local_links() {
     assert_eq!(summary.broken_link_count, 1);
     assert_eq!(summary.warning_count, 1);
     assert!(
-        summary
-            .gate_failures
-            .iter()
-            .any(|entry| entry == "1 broken links detected"),
+        summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")),
         "missing local links should fail default link validation"
     );
 }
@@ -1207,10 +1200,7 @@ fn docgen_optional_local_anchor_validation_passes_for_existing_anchor() {
             public_only: true,
             include_private: false,
         },
-        LinkValidationOptions {
-            validate_local_anchors: true,
-            ..LinkValidationOptions::default()
-        },
+        LinkValidationOptions { validate_local_anchors: true, ..LinkValidationOptions::default() },
     )
     .expect("docgen run should complete");
 
@@ -1246,19 +1236,13 @@ fn docgen_optional_local_anchor_validation_fails_for_missing_anchor() {
             public_only: true,
             include_private: false,
         },
-        LinkValidationOptions {
-            validate_local_anchors: true,
-            ..LinkValidationOptions::default()
-        },
+        LinkValidationOptions { validate_local_anchors: true, ..LinkValidationOptions::default() },
     )
     .expect("docgen run should complete");
 
     assert_eq!(summary.broken_link_count, 1);
     assert!(
-        summary
-            .gate_failures
-            .iter()
-            .any(|entry| entry == "1 broken links detected"),
+        summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")),
         "missing anchors should fail when local anchor validation mode is enabled"
     );
 }
@@ -1371,11 +1355,100 @@ fn docgen_optional_external_validation_fails_allowlisted_unreachable_hosts() {
     .expect("docgen run should complete");
 
     assert_eq!(summary.broken_link_count, 1);
+    assert!(summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")));
+}
+
+#[test]
+fn docgen_external_validation_warns_when_allowlist_is_empty() {
+    let dir = unique_temp_dir("external_validation_empty_allowlist_warning");
+    let out = dir.join("docs");
+    let input = dir.join("external_warning.ruff");
+    write_file(
+        &input,
+        "/// External link: [Docs](https://example.com/reference)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: false,
+            fail_on_broken_links: false,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_external_links: true,
+            external_link_allowlist: BTreeSet::new(),
+            ..LinkValidationOptions::default()
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert_eq!(summary.warning_count, 1);
+    assert!(summary.gate_failures.iter().any(|entry| entry == "1 warnings detected"));
     assert!(
-        summary
-            .gate_failures
-            .iter()
-            .any(|entry| entry == "1 broken links detected")
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY"
+                && diag.message.contains("external link validation is enabled")
+        }),
+        "external mode should emit an explicit warning when allowlist is empty"
+    );
+}
+
+#[test]
+fn docgen_external_allowlist_warns_when_external_validation_is_disabled() {
+    let dir = unique_temp_dir("external_allowlist_ignored_warning");
+    let out = dir.join("docs");
+    let input = dir.join("external_ignored_warning.ruff");
+    write_file(
+        &input,
+        "/// External link: [Docs](https://example.com/reference)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: false,
+            fail_on_broken_links: false,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_external_links: false,
+            external_link_allowlist: BTreeSet::from(["example.com".to_string()]),
+            ..LinkValidationOptions::default()
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert_eq!(summary.warning_count, 1);
+    assert!(summary.gate_failures.iter().any(|entry| entry == "1 warnings detected"));
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED"
+                && diag.message.contains("without --validate-external-links")
+        }),
+        "allowlist without external validation should emit a warning"
     );
 }
 

@@ -2,7 +2,9 @@ use crate::docgen::adapters::{adapter_for_language, capability_index, language_i
 use crate::docgen::discovery::{
     discover, parse_language_filter, validate_languages, DiscoveryOptions,
 };
-use crate::docgen::gaps::{build_gaps, detect_broken_doc_links, LinkValidationOptions};
+use crate::docgen::gaps::{
+    build_gaps, detect_broken_doc_links, BrokenLinkKind, LinkValidationOptions,
+};
 use crate::docgen::model::{
     DocComment, DocDiagnostic, DocDiagnosticSeverity, DocModule, DocProject, DocSymbol,
     DocSymbolKind, DocVisibility,
@@ -170,14 +172,46 @@ pub fn run_with_link_validation(
 
     build_gaps(&mut project, &source_map);
 
-    let broken_links = detect_broken_doc_links(&project.root, &project, link_validation);
-    for (symbol, target, line) in &broken_links {
+    if link_validation.validate_external_links && link_validation.external_link_allowlist.is_empty()
+    {
         project.diagnostics.push(DocDiagnostic {
             severity: DocDiagnosticSeverity::Warning,
-            code: "DOCGEN_LINK_BROKEN".to_string(),
-            message: format!("broken doc link '{}' in symbol '{}'", target, symbol),
+            code: "DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY".to_string(),
+            message: "external link validation is enabled, but no allowlisted hosts were provided; external links were skipped".to_string(),
             path: None,
-            line: Some(*line),
+            line: None,
+        });
+    }
+    if !link_validation.validate_external_links
+        && !link_validation.external_link_allowlist.is_empty()
+    {
+        project.diagnostics.push(DocDiagnostic {
+            severity: DocDiagnosticSeverity::Warning,
+            code: "DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED".to_string(),
+            message: "external link allowlist was provided without --validate-external-links; external links were not validated".to_string(),
+            path: None,
+            line: None,
+        });
+    }
+
+    let broken_links = detect_broken_doc_links(&project.root, &project, link_validation.clone());
+    for broken_link in &broken_links {
+        let (code, mode_label) = match broken_link.kind {
+            BrokenLinkKind::LocalFileMissing => ("DOCGEN_LINK_BROKEN_LOCAL_FILE", "local-file"),
+            BrokenLinkKind::LocalAnchorMissing => {
+                ("DOCGEN_LINK_BROKEN_LOCAL_ANCHOR", "local-anchor")
+            }
+            BrokenLinkKind::ExternalUnreachable => ("DOCGEN_LINK_BROKEN_EXTERNAL", "external"),
+        };
+        project.diagnostics.push(DocDiagnostic {
+            severity: DocDiagnosticSeverity::Warning,
+            code: code.to_string(),
+            message: format!(
+                "broken {} doc link '{}' in symbol '{}'",
+                mode_label, broken_link.target, broken_link.symbol
+            ),
+            path: None,
+            line: Some(broken_link.line),
         });
     }
     project.diagnostics.sort_by(|a, b| {
@@ -253,7 +287,23 @@ pub fn run_with_link_validation(
         gate_failures.push(format!("{} undocumented public symbols detected", undocumented_count));
     }
     if config.fail_on_broken_links && !broken_links.is_empty() {
-        gate_failures.push(format!("{} broken links detected", broken_links.len()));
+        let mut local_file_missing = 0usize;
+        let mut local_anchor_missing = 0usize;
+        let mut external_unreachable = 0usize;
+        for broken_link in &broken_links {
+            match broken_link.kind {
+                BrokenLinkKind::LocalFileMissing => local_file_missing += 1,
+                BrokenLinkKind::LocalAnchorMissing => local_anchor_missing += 1,
+                BrokenLinkKind::ExternalUnreachable => external_unreachable += 1,
+            }
+        }
+        gate_failures.push(format!(
+            "{} broken links detected (local_file={}, local_anchor={}, external={})",
+            broken_links.len(),
+            local_file_missing,
+            local_anchor_missing,
+            external_unreachable
+        ));
     }
     if config.fail_on_warnings && warning_count > 0 {
         gate_failures.push(format!("{} warnings detected", warning_count));

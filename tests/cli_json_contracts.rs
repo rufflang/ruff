@@ -106,6 +106,72 @@ fn docgen_json_contract_is_stable() {
 }
 
 #[test]
+fn docgen_json_link_mode_failure_breakdown_is_stable() {
+    let dir = unique_temp_dir("docgen_json_link_mode_breakdown");
+    let file = dir.join("docgen_links_input.ruff");
+    let out_dir = dir.join("docs_out");
+    write_fixture(
+        &file,
+        "/// Missing local doc: [Missing](missing.md)\npub func linked_api() { return 1 }\n",
+    );
+
+    let output = run_ruff(&[
+        "docgen",
+        file.to_str().expect("path should be utf-8"),
+        "--out-dir",
+        out_dir.to_str().expect("path should be utf-8"),
+        "--public-only",
+        "--fail-on-broken-links",
+        "--json",
+    ]);
+
+    assert!(output.status.success(), "docgen --json should emit payload even with gate failures");
+    let body = parse_stdout_json(&output);
+    let failures = body["gate_failures"].as_array().expect("gate_failures should be an array");
+    assert!(
+        failures.iter().any(|entry| {
+            entry.as_str().is_some_and(|message| {
+                message.starts_with("1 broken links detected")
+                    && message.contains("local_file=1")
+                    && message.contains("local_anchor=0")
+                    && message.contains("external=0")
+            })
+        }),
+        "broken link gate failures should include per-mode counts"
+    );
+}
+
+#[test]
+fn docgen_json_warns_for_external_mode_without_allowlist() {
+    let dir = unique_temp_dir("docgen_json_external_allowlist_warning");
+    let file = dir.join("docgen_external_input.ruff");
+    let out_dir = dir.join("docs_out");
+    write_fixture(
+        &file,
+        "/// External link: [Docs](https://example.com/reference)\npub func linked_api() { return 1 }\n",
+    );
+
+    let output = run_ruff(&[
+        "docgen",
+        file.to_str().expect("path should be utf-8"),
+        "--out-dir",
+        out_dir.to_str().expect("path should be utf-8"),
+        "--public-only",
+        "--validate-external-links",
+        "--fail-on-warnings",
+        "--json",
+    ]);
+
+    assert!(output.status.success(), "docgen --json should succeed and report warnings in payload");
+    let body = parse_stdout_json(&output);
+    assert_eq!(body["warning_count"], 1);
+    let failures = body["gate_failures"].as_array().expect("gate_failures should be an array");
+    assert!(failures
+        .iter()
+        .any(|entry| entry.as_str().is_some_and(|message| message == "1 warnings detected")));
+}
+
+#[test]
 fn lsp_cli_json_contracts_are_stable() {
     let dir = unique_temp_dir("lsp_json_contract");
     let file = dir.join("lsp_input.ruff");

@@ -189,3 +189,6 @@ Optional external-link validation mode is available with `--validate-external-li
 1. Validation only runs for hosts in `--external-link-allowlist`.
 2. Validation requests use `--external-link-timeout-ms`.
 3. Links that fail allowlisted external validation are reported as broken links.
+4. If external validation is enabled with an empty allowlist, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY`.
+5. If an allowlist is provided without `--validate-external-links`, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED`.
+6. Broken-link diagnostics and gate failures include mode-specific categories (`local_file`, `local_anchor`, `external`) for clearer CI triage.

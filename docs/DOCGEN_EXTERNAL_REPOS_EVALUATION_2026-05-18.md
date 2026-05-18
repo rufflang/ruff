@@ -280,6 +280,18 @@ After adding optional external-link validation mode with allowlist and timeout c
 
 Interpretation: task 3 adds opt-in external validation controls while preserving default strict-gate stability on the external validation set.
 
+### Workstream E Task 4 follow-up (2026-05-18)
+
+After adding explicit link-validation mode diagnostics and gate-failure breakdowns (including warnings for external-mode misconfiguration and per-mode broken-link counts), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 4 improves mode-behavior clarity through explicit diagnostics and stable contract coverage, while preserving strict external gate stability on the validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

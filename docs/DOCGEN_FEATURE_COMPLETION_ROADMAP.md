@@ -113,7 +113,7 @@ Provide stronger optional link validation while keeping default runs fast.
 1. [x] Keep local existence check as default. (Completed 2026-05-18)
 2. [x] Add optional anchor validation mode for local docs. (Completed 2026-05-18)
 3. [x] Add optional external link validation mode with timeouts and allowlist. (Completed 2026-05-18)
-4. Add clear warnings/errors and contract tests for mode behavior.
+4. [x] Add clear warnings/errors and contract tests for mode behavior. (Completed 2026-05-18)
 
 ### Acceptance Criteria
 
