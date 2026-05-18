@@ -147,6 +147,7 @@ Ruff currently requires explicit subcommands; `ruff <file>` is not treated as an
 
 For Ruff adapter visibility in `ruff docgen`, top-level functions are treated as public only when declared with `pub func`; non-`pub` top-level helpers remain private, and symbols nested under private containers (for example `pub` methods inside private structs or variants inside private enums) remain private for `--public-only` gating.
 The full Ruff visibility policy used by DocGen is documented in [docs/DOCGEN.md](docs/DOCGEN.md).
+Ruff DocGen extraction also supports `async func` declarations (including `pub async func`) for top-level functions and struct methods.
 
 ### CLI Exit Codes
 

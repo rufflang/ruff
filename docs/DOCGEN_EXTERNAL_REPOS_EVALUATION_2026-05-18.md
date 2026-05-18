@@ -136,6 +136,18 @@ After documenting the Ruff DocGen visibility policy in `docs/DOCGEN.md` (top-lev
 
 Interpretation: task 1 is policy-definition/documentation hardening and does not change external strict gate counts.
 
+### Workstream B Task 1 follow-up (2026-05-18)
+
+After expanding Ruff extraction coverage to include `async func` / `pub async func` declarations in the Ruff adapter, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: the new async-declaration extraction support did not change strict external counts for these repos, but it closes a real Ruff syntax extraction gap and is covered by new async visibility and strict-gate regressions.
+
 ### Test results
 
 - `docgen_universal`: passed

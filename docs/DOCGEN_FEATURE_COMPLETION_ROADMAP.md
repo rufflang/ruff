@@ -58,7 +58,7 @@ Reduce regex-related misses and misclassification in Ruff symbol extraction.
 
 ### Tasks
 
-1. Expand extraction coverage for real-world Ruff syntax edge cases.
+1. [x] Expand extraction coverage for real-world Ruff syntax edge cases. (Completed 2026-05-18)
 2. Add fixture-driven tests for edge patterns currently prone to miss.
 3. Evaluate parser-backed extraction path (or hybrid fallback) and document decision.
 
