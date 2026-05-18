@@ -54,6 +54,16 @@ For Ruff symbols, DocGen visibility is explicit and gate-oriented:
    - variants under non-`pub enum` are `Private`
 5. `--public-only` with `--include-private` disabled filters to `Public` symbols only and is the intended strict CI gate surface.
 
+## Ruff Doc Comment Styles
+
+Ruff DocGen currently attaches inline documentation from these Ruff comment forms:
+
+1. `///` line doc comments
+2. `//!` line doc comments
+3. `/** ... */` block doc comments
+
+Non-doc block comments (`/* ... */`) are not treated as API documentation.
+
 ## Ruff Extraction Decision (Workstream B-3)
 
 Decision: keep a hybrid Ruff extraction strategy for now, with regex-based symbol discovery as the production path and fixture-driven edge-case hardening as the reliability guard.

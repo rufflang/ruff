@@ -149,6 +149,7 @@ For Ruff adapter visibility in `ruff docgen`, top-level functions are treated as
 The full Ruff visibility policy used by DocGen is documented in [docs/DOCGEN.md](docs/DOCGEN.md).
 Ruff DocGen extraction also supports `async func` declarations (including `pub async func`) for top-level functions and struct methods.
 Ruff DocGen extraction remains hybrid for now (regex-first with fixture-backed edge coverage); parser-assisted extraction is explicitly documented as a future bounded fallback path in [docs/DOCGEN.md](docs/DOCGEN.md).
+Ruff DocGen inline docs support `///`, `//!`, and `/** ... */` comment styles; plain `/* ... */` comments are ignored for API docs attachment.
 
 ### CLI Exit Codes
 

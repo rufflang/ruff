@@ -103,6 +103,52 @@ fn docgen_captures_documented_and_undocumented_ruff_symbols() {
 }
 
 #[test]
+fn docgen_ruff_supports_additional_doc_comment_styles() {
+    let dir = unique_temp_dir("ruff_doc_comment_styles");
+    let input = dir.join("doc_styles.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "//! Public API docs from bang style\npub func bang_doc_api() {\n    return 1\n}\n\n/**\n * Public API docs from block style\n */\npub func block_doc_api() {\n    return 2\n}\n\n/* Regular block comment should not be treated as docs */\npub func no_doc_api() {\n    return 3\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "bang_doc_api" && symbol["docs"]["placeholder"] == false
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "block_doc_api" && symbol["docs"]["placeholder"] == false
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "no_doc_api" && symbol["docs"]["placeholder"] == true
+    }));
+}
+
+#[test]
 fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
     let dir = unique_temp_dir("ruff_visibility_matrix");
     let input = dir.join("visibility.ruff");

@@ -230,42 +230,76 @@ impl DocLanguageAdapter for RuffDocAdapter {
         _path: &Path,
     ) -> Result<Vec<DocCommentBlock>, DocgenError> {
         let mut blocks = Vec::new();
-        let mut current_lines = Vec::new();
-        let mut start_line = 0;
-        let mut end_line = 0;
+        let lines: Vec<&str> = source.lines().collect();
+        let mut idx = 0usize;
 
-        for (idx, line) in source.lines().enumerate() {
-            let line_no = idx + 1;
-            let trimmed = line.trim();
+        while idx < lines.len() {
+            let trimmed = lines[idx].trim();
 
-            if trimmed.starts_with("///") {
-                if current_lines.is_empty() {
-                    start_line = line_no;
+            if trimmed.starts_with("///") || trimmed.starts_with("//!") {
+                let start_line = idx + 1;
+                let mut content = Vec::new();
+                let mut end_line = start_line;
+
+                while idx < lines.len() {
+                    let candidate = lines[idx].trim();
+                    if !(candidate.starts_with("///") || candidate.starts_with("//!")) {
+                        break;
+                    }
+                    content.push(
+                        candidate
+                            .trim_start_matches("///")
+                            .trim_start_matches("//!")
+                            .trim_start()
+                            .to_string(),
+                    );
+                    end_line = idx + 1;
+                    idx += 1;
                 }
-                end_line = line_no;
-                current_lines.push(trimmed.trim_start_matches("///").trim_start().to_string());
-                continue;
-            }
 
-            if !current_lines.is_empty() {
-                let hint = next_nonempty_line(source, end_line);
                 blocks.push(DocCommentBlock {
                     start_line,
                     end_line,
-                    target_line_hint: hint,
-                    lines: current_lines.clone(),
+                    target_line_hint: next_nonempty_line(source, end_line),
+                    lines: content,
                 });
-                current_lines.clear();
+                continue;
             }
-        }
 
-        if !current_lines.is_empty() {
-            blocks.push(DocCommentBlock {
-                start_line,
-                end_line,
-                target_line_hint: next_nonempty_line(source, end_line),
-                lines: current_lines,
-            });
+            if trimmed.starts_with("/**") {
+                let start_line = idx + 1;
+                let mut content = Vec::new();
+                let mut end_line = start_line;
+
+                while idx < lines.len() {
+                    let candidate = lines[idx].trim();
+                    let cleaned = candidate
+                        .trim_start_matches("/**")
+                        .trim_start_matches("*/")
+                        .trim_start_matches('*')
+                        .trim()
+                        .to_string();
+                    if !cleaned.is_empty() {
+                        content.push(cleaned);
+                    }
+                    end_line = idx + 1;
+                    if candidate.contains("*/") {
+                        idx += 1;
+                        break;
+                    }
+                    idx += 1;
+                }
+
+                blocks.push(DocCommentBlock {
+                    start_line,
+                    end_line: end_line.max(start_line),
+                    target_line_hint: next_nonempty_line(source, end_line.max(start_line)),
+                    lines: content,
+                });
+                continue;
+            }
+
+            idx += 1;
         }
 
         Ok(blocks)

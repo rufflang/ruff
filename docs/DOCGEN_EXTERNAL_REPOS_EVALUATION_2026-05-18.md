@@ -172,6 +172,18 @@ After evaluating parser-backed extraction versus the current regex-first hybrid 
 
 Interpretation: task 3 is architecture-decision documentation only; strict external gate counts remain stable while the hybrid extraction strategy and parser-assisted fallback criteria are now explicit.
 
+### Workstream C Task 1 follow-up (2026-05-18)
+
+After adding Ruff inline doc extraction support for additional comment styles (`//!` and `/** ... */`) while keeping plain `/* ... */` excluded, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 1 improves Ruff documentation attachment coverage for supported comment styles without changing strict gate counts on these repositories.
+
 ### Test results
 
 - `docgen_universal`: passed
