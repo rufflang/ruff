@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen QA roadmap task `DG-QA-001` by hardening external link validation to re-check the host allowlist on every redirect hop (not just the initial URL), adding deterministic redirect-allowlist broken-link diagnostics, and expanding regression coverage for same-host redirects, cross-host allowlisted redirects, and blocked non-allowlisted redirects.
 - Fixed DocGen Workstream D task 2 (`docgen(D-2)`) by adding deterministic discovery skip counters by reason to the docgen run summary/CLI JSON contract (`discovery_skip_counts` with `max_file_size`, `max_depth`, and `max_files`), plus regression coverage in discovery, docgen integration, and CLI JSON contract tests.
 - Fixed DocGen Workstream D task 3 (`docgen(D-3)`) by enforcing deterministic sorting of discovery and project diagnostics, and adding regression coverage that verifies stable diagnostics ordering across repeated runs and mixed warning sources.
 - Fixed DocGen Workstream E task 1 (`docgen(E-1)`) by preserving local-file-existence link checking as the default mode, ignoring local anchor/query suffixes in default local checks, and keeping external/mailto links out of default validation; added focused strict-gate link regressions.

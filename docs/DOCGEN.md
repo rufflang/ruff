@@ -196,8 +196,105 @@ Optional local-anchor validation mode is available with `--validate-local-anchor
 
 Optional external-link validation mode is available with `--validate-external-links`:
 1. Validation only runs for hosts in `--external-link-allowlist`.
-2. Validation requests use `--external-link-timeout-ms`.
-3. Links that fail allowlisted external validation are reported as broken links.
-4. If external validation is enabled with an empty allowlist, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY`.
-5. If an allowlist is provided without `--validate-external-links`, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED`.
-6. Broken-link diagnostics and gate failures include mode-specific categories (`local_file`, `local_anchor`, `external`) for clearer CI triage.
+2. Allowlist confinement is enforced on every redirect hop; if a redirect leaves the allowlist, the link is reported as broken with mode `external-redirect-allowlist`.
+3. Validation requests use `--external-link-timeout-ms`.
+4. Links that fail allowlisted external validation are reported as broken links.
+5. If external validation is enabled with an empty allowlist, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY`.
+6. If an allowlist is provided without `--validate-external-links`, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED`.
+7. Broken-link diagnostics and gate failures include mode-specific categories (`local_file`, `local_anchor`, `external`, `external_redirect_allowlist`) for clearer CI triage.
+
+## QA Hardening Roadmap (Post-Feature Completion)
+
+The following roadmap is a focused QA/pass-two backlog for tightening DocGen implementation quality after the initial feature-completion tracks.
+
+### P0 Security And Reliability
+
+1. [x] `DG-QA-001` External link redirect confinement and allowlist re-validation. (Completed 2026-05-18)
+   Acceptance criteria:
+   - Re-validate host allowlist on every redirect hop, not only on the initial URL.
+   - Emit deterministic diagnostics when redirects leave the allowlist.
+   - Add regression tests for same-host redirect, cross-host allowed redirect, and blocked redirect.
+2. `DG-QA-002` SSRF guardrails for external link mode.
+   Acceptance criteria:
+   - Resolve and block private/loopback/link-local/multicast IP targets by default in external-link mode.
+   - Add explicit opt-in for private network validation where needed.
+   - Add tests for DNS names resolving to blocked ranges and direct-IP URLs.
+3. `DG-QA-003` Link validation resource budgets.
+   Acceptance criteria:
+   - Add max link checks, max external checks, and total validation time budget controls.
+   - Surface budget truncation in diagnostics and JSON summary counts.
+   - Keep deterministic behavior under budget exhaustion.
+4. `DG-QA-004` Encoding-safe file ingestion.
+   Acceptance criteria:
+   - Replace hard failure on non-UTF-8 source reads with deterministic skip diagnostics.
+   - Preserve strict-gate stability while reporting skipped file count by encoding reason.
+   - Add fixtures for invalid UTF-8 and mixed-encoding repositories.
+
+### P1 Performance
+
+1. `DG-QA-005` Static adapter registry/lookups.
+   Acceptance criteria:
+   - Replace per-call boxed adapter registry construction with static/lazy lookup maps.
+   - Preserve adapter ordering determinism and capability-index output stability.
+   - Benchmark and document adapter lookup overhead reduction.
+2. `DG-QA-006` Regex compilation caching across adapters.
+   Acceptance criteria:
+   - Move regex compilation from per-file extraction paths to static/lazy compiled regexes.
+   - Ensure no behavior drift in existing adapter extraction fixtures.
+   - Add micro-benchmark evidence for extraction throughput improvement.
+3. `DG-QA-007` Link/anchor validation caching.
+   Acceptance criteria:
+   - Reuse one HTTP client per run and cache parsed local anchors per file path.
+   - Avoid repeated file reads for multiple anchors targeting the same file.
+   - Add regression tests covering repeated-anchor checks and repeated external hosts.
+4. `DG-QA-008` Gap call-site indexing optimization.
+   Acceptance criteria:
+   - Replace per-symbol full-source scans with a one-pass call-site index.
+   - Preserve deterministic known-call-site ordering and limit semantics.
+   - Add large-repo performance regression coverage.
+
+### P1 DRY And Maintainability
+
+1. `DG-QA-009` Shared extraction helpers for C-style languages.
+   Acceptance criteria:
+   - Extract shared symbol/doc-block parsing utilities for TypeScript/JavaScript (and optionally Go/Zig where applicable).
+   - Reduce duplicated regex/loop logic without changing symbol contracts.
+   - Add adapter conformance tests to prove no language-specific regression.
+2. `DG-QA-010` Shared visibility-policy helper layer.
+   Acceptance criteria:
+   - Centralize effective visibility calculation patterns used by adapters (top-level, container/member inheritance, explicit modifiers).
+   - Keep Ruff/TypeScript visibility semantics unchanged unless explicitly versioned.
+   - Add matrix tests for adapter-specific visibility edge cases.
+3. `DG-QA-011` Single-source docgen JSON contract serialization.
+   Acceptance criteria:
+   - Move CLI JSON contract assembly from ad hoc `main.rs` maps into a typed summary payload builder.
+   - Ensure backward compatibility for existing top-level keys.
+   - Lock output contract with dedicated snapshot tests.
+4. `DG-QA-012` Renderer deduplication cleanup.
+   Acceptance criteria:
+   - Remove no-op duplicated branches (for example source-link conditionals that currently emit identical output).
+   - Centralize shared symbol card rendering helpers across HTML/Markdown renderers where safe.
+   - Preserve deterministic render output ordering.
+
+### P2 Universal Usefulness
+
+1. `DG-QA-013` Configurable discovery limits from CLI.
+   Acceptance criteria:
+   - Add CLI/env overrides for max file size, max depth, and max files.
+   - Emit effective limits in JSON summary for reproducible CI runs.
+   - Add contract tests for default and overridden values.
+2. `DG-QA-014` Adapter health and extraction-confidence diagnostics.
+   Acceptance criteria:
+   - Emit per-language extraction counters (files scanned, symbols extracted, doc blocks attached, placeholders emitted).
+   - Add warnings when extraction yield is suspiciously low for a language.
+   - Expose these counters in the machine-readable summary block.
+3. `DG-QA-015` Incremental/cached docgen mode for CI.
+   Acceptance criteria:
+   - Add optional cache keyed by file content hash and adapter version.
+   - Recompute only changed modules while preserving deterministic aggregate output.
+   - Provide cache-hit/miss counters in JSON summary.
+4. `DG-QA-016` Source-link provider abstraction.
+   Acceptance criteria:
+   - Add pluggable source-link templates (local path, GitHub/GitLab URL patterns).
+   - Keep default behavior unchanged when no provider is configured.
+   - Add tests for URL rendering and path normalization safety.

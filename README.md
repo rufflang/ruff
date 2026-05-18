@@ -161,6 +161,7 @@ DocGen JSON now includes a stable versioned dashboard block at `summary` (`schem
 DocGen default link validation remains local-file existence checking (fragments/query suffixes are ignored for local paths, while `http(s)` and `mailto` links are not validated by default).
 DocGen optional local-anchor validation can be enabled with `--validate-local-anchors` when strict anchor checks are needed for local docs.
 DocGen optional external-link validation can be enabled with `--validate-external-links`, scoped to allowlisted hosts via `--external-link-allowlist`, and bounded by `--external-link-timeout-ms`.
+When external-link validation follows redirects, DocGen now re-validates the allowlist on every redirect hop and reports deterministic `external-redirect-allowlist` broken-link diagnostics if a hop leaves the allowlisted host set.
 DocGen link-mode diagnostics and gate failures are now mode-specific for CI triage: local-file, local-anchor, and external link failures are reported separately, and external-mode misconfiguration (`--validate-external-links` without allowlist, or allowlist without external validation) emits explicit warnings.
 
 ### CLI Exit Codes

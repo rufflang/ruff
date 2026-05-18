@@ -328,6 +328,18 @@ After adding a stable machine-readable dashboard summary block in `ruff docgen -
 
 Interpretation: task 3 establishes a versioned dashboard summary contract for automation consumers without changing strict gate outcomes on the external validation set.
 
+### QA Hardening Task DG-QA-001 follow-up (2026-05-18)
+
+After hardening external-link redirect handling to re-validate the host allowlist on every redirect hop (with deterministic `external-redirect-allowlist` diagnostics when redirects leave the allowlist), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-001` is a security/reliability hardening change in optional external-link mode; strict external validation metrics on this repository set remain stable.
+
 ### Test results
 
 - `docgen_universal`: passed
