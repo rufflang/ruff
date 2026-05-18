@@ -60,7 +60,7 @@ Reduce regex-related misses and misclassification in Ruff symbol extraction.
 
 1. [x] Expand extraction coverage for real-world Ruff syntax edge cases. (Completed 2026-05-18)
 2. [x] Add fixture-driven tests for edge patterns currently prone to miss. (Completed 2026-05-18)
-3. Evaluate parser-backed extraction path (or hybrid fallback) and document decision.
+3. [x] Evaluate parser-backed extraction path (or hybrid fallback) and document decision. (Completed 2026-05-18)
 
 ### Acceptance Criteria
 

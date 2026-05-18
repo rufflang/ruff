@@ -160,6 +160,18 @@ After adding fixture-driven Ruff extraction edge-case regressions (async visibil
 
 Interpretation: task 2 is test-hardening; external strict gate metrics remain stable while extraction edge coverage is now fixture-locked.
 
+### Workstream B Task 3 follow-up (2026-05-18)
+
+After evaluating parser-backed extraction versus the current regex-first hybrid path and documenting the decision, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 3 is architecture-decision documentation only; strict external gate counts remain stable while the hybrid extraction strategy and parser-assisted fallback criteria are now explicit.
+
 ### Test results
 
 - `docgen_universal`: passed

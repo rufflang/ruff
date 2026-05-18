@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen Workstream B task 3 (`docgen(B-3)`) by documenting the Ruff extraction strategy decision in `docs/DOCGEN.md`: keep regex-first hybrid extraction with fixture-backed hardening as the production path, defer parser-assisted extraction to a bounded fallback rollout, and preserve deterministic strict-gate behavior as the migration constraint.
 - Fixed DocGen Workstream B task 2 (`docgen(B-2)`) by adding fixture-driven Ruff extraction edge-case regressions under `tests/fixtures/docgen/` and new fixture-backed tests in `tests/docgen_universal.rs` for async declaration visibility contracts and strict public-gate detection.
 - Fixed DocGen Workstream B task 1 (`docgen(B-1)`) Ruff extraction coverage by adding `async func` / `pub async func` support in `src/docgen/adapters/ruff.rs`, including visibility-preserving extraction for async top-level functions and struct methods.
 - Fixed DocGen Workstream A task 1 (`docgen(A-1)`) by documenting the canonical Ruff DocGen visibility policy in `docs/DOCGEN.md`, including explicit `pub` requirements for top-level symbols, container-aware method/variant visibility rules, and `--public-only` strict-gate behavior.

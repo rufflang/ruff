@@ -54,6 +54,22 @@ For Ruff symbols, DocGen visibility is explicit and gate-oriented:
    - variants under non-`pub enum` are `Private`
 5. `--public-only` with `--include-private` disabled filters to `Public` symbols only and is the intended strict CI gate surface.
 
+## Ruff Extraction Decision (Workstream B-3)
+
+Decision: keep a hybrid Ruff extraction strategy for now, with regex-based symbol discovery as the production path and fixture-driven edge-case hardening as the reliability guard.
+
+Rationale:
+
+1. `ruff docgen` is expected to be best-effort and resilient even when repositories contain partially invalid Ruff sources; a hard parser-only path would reject symbol extraction for files that fail full parse.
+2. Current parser surfaces are optimized for program execution semantics and require broader AST/lowering context than doc extraction needs, increasing migration risk for CI gate stability.
+3. Recent Workstream B improvements plus fixture-backed regressions (`tests/fixtures/docgen/*`) close concrete extraction misses (for example `async func`) without introducing parser-coupled failure modes.
+
+Follow-through policy:
+
+1. Continue expanding fixture-backed Ruff extraction edge cases as they are discovered.
+2. Revisit parser-assisted extraction when a bounded adapter can consume parser output with graceful fallback behavior on parse diagnostics.
+3. Preserve deterministic output and strict-gate stability as non-negotiable acceptance criteria for any parser-assisted rollout.
+
 ## Security Model
 
 DocGen is scan-only.
