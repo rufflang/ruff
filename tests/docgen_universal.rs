@@ -361,6 +361,87 @@ fn docgen_public_only_excludes_variants_of_private_enums() {
 }
 
 #[test]
+fn docgen_extracts_async_ruff_functions_and_methods_with_visibility() {
+    let dir = unique_temp_dir("ruff_async_visibility_matrix");
+    let input = dir.join("async_visibility.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "async func internal_async() {\n    return 1\n}\n\npub async func exported_async() {\n    return 2\n}\n\nstruct PrivateWorker {\n    pub async func visible_but_private(self) {\n        return 3\n    }\n}\n\npub struct PublicWorker {\n    async func hidden_async(self) {\n        return 4\n    }\n\n    pub async func visible_async(self) {\n        return 5\n    }\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert_eq!(symbol_visibility(symbols, "internal_async"), "Private");
+    assert_eq!(symbol_visibility(symbols, "exported_async"), "Public");
+    assert_eq!(symbol_visibility(symbols, "PrivateWorker::visible_but_private"), "Private");
+    assert_eq!(symbol_visibility(symbols, "PublicWorker::hidden_async"), "Private");
+    assert_eq!(symbol_visibility(symbols, "PublicWorker::visible_async"), "Public");
+}
+
+#[test]
+fn docgen_strict_public_gate_handles_async_ruff_functions() {
+    let dir = unique_temp_dir("ruff_async_visibility_strict_gate");
+    let input = dir.join("async_strict_public.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "async func private_async_helper() {\n    return 1\n}\n\npub async func public_async_missing_docs() {\n    return 2\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("strict docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, 1);
+    assert!(
+        summary
+            .gate_failures
+            .iter()
+            .any(|failure| failure == "1 undocumented public symbols detected"),
+        "strict gate should fail on undocumented explicit public async symbols"
+    );
+}
+
+#[test]
 fn docgen_cli_json_contract_preserves_legacy_fields() {
     let dir = unique_temp_dir("cli_contract");
     let input = dir.join("file.ruff");

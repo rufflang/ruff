@@ -32,7 +32,8 @@ impl DocLanguageAdapter for RuffDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_func = Regex::new(r"^\s*(pub\s+)?func\*?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
+        let re_func =
+            Regex::new(r"^\s*(pub\s+)?(async\s+)?func\*?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
             .expect("valid ruff function regex");
         let re_struct = Regex::new(r"^\s*(pub\s+)?struct\s+([A-Za-z_][A-Za-z0-9_]*)")
             .expect("valid ruff struct regex");
@@ -116,11 +117,12 @@ impl DocLanguageAdapter for RuffDocAdapter {
                     active_enum = Some((name, brace_depth + 1, is_public));
                 }
             } else if let Some(caps) = re_func.captures(trimmed) {
-                let name = caps.get(2).map(|m| m.as_str()).unwrap_or("unknown").to_string();
-                let args = caps.get(3).map(|m| m.as_str()).unwrap_or("");
+                let name = caps.get(3).map(|m| m.as_str()).unwrap_or("unknown").to_string();
+                let args = caps.get(4).map(|m| m.as_str()).unwrap_or("");
                 let is_method = active_struct.is_some();
                 let kind = if is_method { DocSymbolKind::Method } else { DocSymbolKind::Function };
                 let parent = active_struct.as_ref().map(|(name, _, _)| name.clone());
+                let is_async = caps.get(2).is_some();
                 let explicit_public = caps.get(1).is_some();
                 let visibility = if explicit_public {
                     DocVisibility::Public
@@ -147,7 +149,11 @@ impl DocLanguageAdapter for RuffDocAdapter {
                     kind,
                     name,
                     qualified_name,
-                    signature: Some(format!("func({})", args)),
+                    signature: Some(if is_async {
+                        format!("async func({})", args)
+                    } else {
+                        format!("func({})", args)
+                    }),
                     visibility,
                     source_path: path.to_path_buf(),
                     line: line_no,
