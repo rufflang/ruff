@@ -5,6 +5,7 @@
 
 High-signal session notes:
 
+- `2026-05-18_13-10_docgen-workstreams-a-and-b-followthrough.md` — Completed five sequential DocGen roadmap tasks (`A-3`, `A-4`, `A-1`, `B-1`, `B-2`) with container-aware visibility hardening, async declaration extraction support, fixture-driven edge-pattern regressions, strict external repo validation deltas, and updated policy/roadmap docs.
 - `2026-05-18_12-32_docgen-a2-ruff-visibility.md` — Completed DocGen Workstream A task 2 by requiring explicit `pub` for Ruff top-level function public visibility, added strict/public-only visibility regressions, and captured strict external repo undocumented-count deltas.
 - `2026-05-17_21-57_universal-docgen-architecture-and-gates.md` — Replaced Ruff-only docgen internals with a universal adapter-based pipeline (Ruff + PHP/Python/TypeScript/JavaScript/Ruby/Go/Haskell/Zig), added secure deterministic discovery and gap/AI-task outputs, expanded CLI strict-gate/output options while preserving legacy JSON contract keys, and added comprehensive docgen integration coverage.
 - `2026-05-16_17-40_v1-doc-release-gate-followthrough.md` — Completed `V1-DOC-001` through `V1-REL-001` with new docs contract suites and an executable `scripts/release_candidate_gate.sh` workflow, plus explicit release-checklist blocker documentation for local full-suite socket/timing instability and formatting-gate drift.
