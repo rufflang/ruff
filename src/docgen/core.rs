@@ -52,6 +52,7 @@ pub struct DocgenRunSummary {
     pub item_count: usize,
     pub project_symbol_count: usize,
     pub builtin_symbol_count: usize,
+    pub symbol_kind_counts: BTreeMap<String, usize>,
     pub project_json_path: PathBuf,
     pub gaps_json_path: PathBuf,
     pub capabilities_json_path: PathBuf,
@@ -320,6 +321,11 @@ pub fn run_with_link_validation(
         .filter(|symbol| symbol.kind == DocSymbolKind::Builtin)
         .count();
     let project_symbol_count = item_count.saturating_sub(builtin_symbol_count);
+    let mut symbol_kind_counts: BTreeMap<String, usize> = BTreeMap::new();
+    for symbol in &project.symbols {
+        let key = doc_symbol_kind_key(&symbol.kind).to_string();
+        *symbol_kind_counts.entry(key).or_insert(0) += 1;
+    }
     let languages = project.languages.clone();
     let diagnostics_count = project.diagnostics.len();
     let broken_link_count = broken_links.len();
@@ -338,6 +344,7 @@ pub fn run_with_link_validation(
             item_count,
             project_symbol_count,
             builtin_symbol_count,
+            symbol_kind_counts,
             project_json_path,
             gaps_json_path,
             capabilities_json_path,
@@ -358,6 +365,26 @@ fn diagnostic_severity_rank(severity: &DocDiagnosticSeverity) -> u8 {
         DocDiagnosticSeverity::Info => 0,
         DocDiagnosticSeverity::Warning => 1,
         DocDiagnosticSeverity::Error => 2,
+    }
+}
+
+fn doc_symbol_kind_key(kind: &DocSymbolKind) -> &'static str {
+    match kind {
+        DocSymbolKind::Module => "module",
+        DocSymbolKind::Function => "function",
+        DocSymbolKind::Method => "method",
+        DocSymbolKind::Class => "class",
+        DocSymbolKind::Struct => "struct",
+        DocSymbolKind::Enum => "enum",
+        DocSymbolKind::EnumVariant => "enum_variant",
+        DocSymbolKind::Interface => "interface",
+        DocSymbolKind::Trait => "trait",
+        DocSymbolKind::TypeAlias => "type_alias",
+        DocSymbolKind::Constant => "constant",
+        DocSymbolKind::Variable => "variable",
+        DocSymbolKind::Property => "property",
+        DocSymbolKind::Builtin => "builtin",
+        DocSymbolKind::Unknown => "unknown",
     }
 }
 

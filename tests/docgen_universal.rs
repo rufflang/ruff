@@ -864,6 +864,7 @@ fn docgen_cli_json_contract_preserves_legacy_fields() {
                 .as_u64()
                 .expect("builtin_symbol_count should be u64")
     );
+    assert!(json["symbol_kind_counts"].is_object());
     assert!(json["project_json_path"].is_string());
     assert!(json["gaps_json_path"].is_string());
 }
@@ -1508,6 +1509,7 @@ fn docgen_large_repo_smoke_completes_with_deterministic_counts() {
     assert_eq!(summary.item_count, 250);
     assert_eq!(summary.project_symbol_count, 250);
     assert_eq!(summary.builtin_symbol_count, 0);
+    assert_eq!(summary.symbol_kind_counts.get("function").copied().unwrap_or_default(), 250);
 }
 
 #[test]
@@ -1541,6 +1543,11 @@ fn docgen_summary_splits_project_and_builtin_counts() {
         summary.project_symbol_count + summary.builtin_symbol_count
     );
     assert_eq!(summary.project_symbol_count, 1);
+    assert_eq!(summary.symbol_kind_counts.get("function").copied().unwrap_or_default(), 1);
+    assert_eq!(
+        summary.symbol_kind_counts.get("builtin").copied().unwrap_or_default(),
+        summary.builtin_symbol_count
+    );
 }
 
 #[test]

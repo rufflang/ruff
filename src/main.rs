@@ -1669,6 +1669,7 @@ async fn main() {
                     "item_count": summary.item_count,
                     "project_symbol_count": summary.project_symbol_count,
                     "builtin_symbol_count": summary.builtin_symbol_count,
+                    "symbol_kind_counts": summary.symbol_kind_counts,
                     "languages": summary.languages,
                     "project_json_path": summary.project_json_path.display().to_string(),
                     "gaps_json_path": summary.gaps_json_path.display().to_string(),

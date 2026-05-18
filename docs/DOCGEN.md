@@ -113,6 +113,8 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
    - `item_count` (total symbols in output scope)
    - `project_symbol_count` (non-builtin symbols)
    - `builtin_symbol_count` (builtin symbols)
+5. Per-kind symbol counters:
+   - `symbol_kind_counts` with deterministic keys such as `function`, `method`, `struct`, `enum`, `enum_variant`, and `builtin`
 
 Discovery and project diagnostics are emitted in deterministic sorted order for CI-stable JSON comparisons.
 
