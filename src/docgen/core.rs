@@ -223,6 +223,9 @@ pub fn run_with_link_validation(
                 ("DOCGEN_LINK_BROKEN_LOCAL_ANCHOR", "local-anchor")
             }
             BrokenLinkKind::ExternalUnreachable => ("DOCGEN_LINK_BROKEN_EXTERNAL", "external"),
+            BrokenLinkKind::ExternalRedirectDisallowed => {
+                ("DOCGEN_LINK_BROKEN_EXTERNAL_REDIRECT_ALLOWLIST", "external-redirect-allowlist")
+            }
         };
         project.diagnostics.push(DocDiagnostic {
             severity: DocDiagnosticSeverity::Warning,
@@ -311,19 +314,22 @@ pub fn run_with_link_validation(
         let mut local_file_missing = 0usize;
         let mut local_anchor_missing = 0usize;
         let mut external_unreachable = 0usize;
+        let mut external_redirect_allowlist = 0usize;
         for broken_link in &broken_links {
             match broken_link.kind {
                 BrokenLinkKind::LocalFileMissing => local_file_missing += 1,
                 BrokenLinkKind::LocalAnchorMissing => local_anchor_missing += 1,
                 BrokenLinkKind::ExternalUnreachable => external_unreachable += 1,
+                BrokenLinkKind::ExternalRedirectDisallowed => external_redirect_allowlist += 1,
             }
         }
         gate_failures.push(format!(
-            "{} broken links detected (local_file={}, local_anchor={}, external={})",
+            "{} broken links detected (local_file={}, local_anchor={}, external={}, external_redirect_allowlist={})",
             broken_links.len(),
             local_file_missing,
             local_anchor_missing,
-            external_unreachable
+            external_unreachable,
+            external_redirect_allowlist
         ));
     }
     if config.fail_on_warnings && warning_count > 0 {

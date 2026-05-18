@@ -27,6 +27,7 @@ pub enum BrokenLinkKind {
     LocalFileMissing,
     LocalAnchorMissing,
     ExternalUnreachable,
+    ExternalRedirectDisallowed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,13 +196,31 @@ pub fn detect_broken_doc_links(
                         continue;
                     }
 
-                    if !external_link_is_reachable(&link, options.external_link_timeout_ms) {
-                        broken.push(BrokenLinkFinding {
-                            symbol: symbol.qualified_name.clone(),
-                            target: link.clone(),
-                            line: idx + 1,
-                            kind: BrokenLinkKind::ExternalUnreachable,
-                        });
+                    match external_link_check(
+                        &link,
+                        &options.external_link_allowlist,
+                        options.external_link_timeout_ms,
+                    ) {
+                        ExternalLinkCheck::Reachable => {}
+                        ExternalLinkCheck::Unreachable => {
+                            broken.push(BrokenLinkFinding {
+                                symbol: symbol.qualified_name.clone(),
+                                target: link.clone(),
+                                line: idx + 1,
+                                kind: BrokenLinkKind::ExternalUnreachable,
+                            });
+                        }
+                        ExternalLinkCheck::RedirectDisallowed { next_url, blocked_host } => {
+                            broken.push(BrokenLinkFinding {
+                                symbol: symbol.qualified_name.clone(),
+                                target: format!(
+                                    "{} (redirected to non-allowlisted host '{}' via '{}')",
+                                    link, blocked_host, next_url
+                                ),
+                                line: idx + 1,
+                                kind: BrokenLinkKind::ExternalRedirectDisallowed,
+                            });
+                        }
                     }
                     continue;
                 }
@@ -303,19 +322,68 @@ fn external_link_in_allowlist(link: &str, allowlist: &BTreeSet<String>) -> bool 
     allowlist.contains(&host.to_ascii_lowercase())
 }
 
-fn external_link_is_reachable(link: &str, timeout_ms: u64) -> bool {
+enum ExternalLinkCheck {
+    Reachable,
+    Unreachable,
+    RedirectDisallowed { next_url: String, blocked_host: String },
+}
+
+fn external_link_check(
+    link: &str,
+    allowlist: &BTreeSet<String>,
+    timeout_ms: u64,
+) -> ExternalLinkCheck {
     let client = match reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_millis(timeout_ms.max(1)))
         .build()
     {
         Ok(client) => client,
-        Err(_) => return false,
+        Err(_) => return ExternalLinkCheck::Unreachable,
     };
 
-    match client.get(link).send() {
-        Ok(response) => response.status().is_success() || response.status().is_redirection(),
-        Err(_) => false,
+    let mut current_url = match reqwest::Url::parse(link) {
+        Ok(url) => url,
+        Err(_) => return ExternalLinkCheck::Unreachable,
+    };
+
+    for _ in 0..10usize {
+        let response = match client.get(current_url.clone()).send() {
+            Ok(response) => response,
+            Err(_) => return ExternalLinkCheck::Unreachable,
+        };
+        let status = response.status();
+        if status.is_success() {
+            return ExternalLinkCheck::Reachable;
+        }
+        if !status.is_redirection() {
+            return ExternalLinkCheck::Unreachable;
+        }
+
+        let Some(location) = response.headers().get(reqwest::header::LOCATION) else {
+            return ExternalLinkCheck::Unreachable;
+        };
+        let Ok(location) = location.to_str() else {
+            return ExternalLinkCheck::Unreachable;
+        };
+        let next_url = match current_url.join(location) {
+            Ok(url) => url,
+            Err(_) => return ExternalLinkCheck::Unreachable,
+        };
+        let Some(host) = next_url.host_str() else {
+            return ExternalLinkCheck::Unreachable;
+        };
+        let blocked_host = host.to_ascii_lowercase();
+        if !allowlist.contains(&blocked_host) {
+            return ExternalLinkCheck::RedirectDisallowed {
+                next_url: next_url.to_string(),
+                blocked_host,
+            };
+        }
+        current_url = next_url;
     }
+
+    ExternalLinkCheck::Unreachable
 }
 
 fn extract_markdown_links(text: &str) -> Vec<String> {

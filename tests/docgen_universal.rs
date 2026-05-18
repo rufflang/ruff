@@ -6,8 +6,12 @@ use ruff::docgen::gaps::LinkValidationOptions;
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn symbol_visibility<'a>(symbols: &'a [Value], qualified_name: &str) -> &'a str {
@@ -54,6 +58,64 @@ fn run_ruff(args: &[&str], cwd: &Path) -> std::process::Output {
         .current_dir(cwd)
         .output()
         .expect("failed to execute ruff binary")
+}
+
+struct TestHttpServer {
+    addr: SocketAddr,
+}
+
+impl TestHttpServer {
+    fn url_with_host(&self, host: &str, path: &str) -> String {
+        format!("http://{}:{}{}", host, self.addr.port(), path)
+    }
+}
+
+fn spawn_http_server<F>(expected_requests: usize, responder: F) -> TestHttpServer
+where
+    F: Fn(&str) -> String + Send + 'static,
+{
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind test http server");
+    listener.set_nonblocking(true).expect("set nonblocking listener");
+    let addr = listener.local_addr().expect("local addr for test server");
+    thread::spawn(move || {
+        let mut served = 0usize;
+        let mut idle_ticks = 0usize;
+        while served < expected_requests && idle_ticks < 800 {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    let mut buf = [0u8; 4096];
+                    let read = stream.read(&mut buf).unwrap_or(0);
+                    let request = String::from_utf8_lossy(&buf[..read]);
+                    let path = request
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .unwrap_or("/");
+                    let response = responder(path);
+                    stream.write_all(response.as_bytes()).expect("write test response");
+                    served += 1;
+                    idle_ticks = 0;
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                    idle_ticks += 1;
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(_) => break,
+            }
+        }
+    });
+    TestHttpServer { addr }
+}
+
+fn http_200_response() -> String {
+    "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".to_string()
+}
+
+fn http_302_response(location: &str) -> String {
+    format!(
+        "HTTP/1.1 302 Found\r\nLocation: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        location
+    )
 }
 
 #[test]
@@ -1370,6 +1432,161 @@ fn docgen_optional_external_validation_fails_allowlisted_unreachable_hosts() {
 
     assert_eq!(summary.broken_link_count, 1);
     assert!(summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")));
+}
+
+#[test]
+fn docgen_external_validation_allows_same_host_redirect_hops() {
+    let redirect_server = spawn_http_server(2, |path| {
+        if path == "/start" {
+            return http_302_response("/final");
+        }
+        http_200_response()
+    });
+    let dir = unique_temp_dir("external_validation_same_host_redirect");
+    let out = dir.join("docs");
+    let input = dir.join("external_same_host_redirect.ruff");
+    write_file(
+        &input,
+        &format!(
+            "/// Redirect link: [Docs]({})\npub func linked_api() {{ return 1 }}\n",
+            redirect_server.url_with_host("localhost", "/start")
+        ),
+    );
+
+    let (_project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_local_anchors: false,
+            validate_external_links: true,
+            external_link_timeout_ms: 500,
+            external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert!(summary.gate_failures.is_empty());
+}
+
+#[test]
+fn docgen_external_validation_allows_cross_host_redirect_when_hosts_are_allowlisted() {
+    let destination_server = spawn_http_server(1, |_path| http_200_response());
+    let destination_url = destination_server.url_with_host("127.0.0.1", "/final");
+    let redirect_server = spawn_http_server(1, move |_path| http_302_response(&destination_url));
+
+    let dir = unique_temp_dir("external_validation_cross_host_allowlisted_redirect");
+    let out = dir.join("docs");
+    let input = dir.join("external_cross_host_redirect.ruff");
+    write_file(
+        &input,
+        &format!(
+            "/// Redirect link: [Docs]({})\npub func linked_api() {{ return 1 }}\n",
+            redirect_server.url_with_host("localhost", "/start")
+        ),
+    );
+
+    let (_project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_local_anchors: false,
+            validate_external_links: true,
+            external_link_timeout_ms: 500,
+            external_link_allowlist: BTreeSet::from([
+                "localhost".to_string(),
+                "127.0.0.1".to_string(),
+            ]),
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert!(summary.gate_failures.is_empty());
+}
+
+#[test]
+fn docgen_external_validation_blocks_redirects_to_non_allowlisted_hosts() {
+    let destination_server = spawn_http_server(1, |_path| http_200_response());
+    let blocked_target = destination_server.url_with_host("127.0.0.1", "/blocked");
+    let redirect_server = spawn_http_server(1, move |_path| http_302_response(&blocked_target));
+
+    let dir = unique_temp_dir("external_validation_blocked_redirect_host");
+    let out = dir.join("docs");
+    let input = dir.join("external_blocked_redirect.ruff");
+    write_file(
+        &input,
+        &format!(
+            "/// Redirect link: [Docs]({})\npub func linked_api() {{ return 1 }}\n",
+            redirect_server.url_with_host("localhost", "/start")
+        ),
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_local_anchors: false,
+            validate_external_links: true,
+            external_link_timeout_ms: 500,
+            external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 1);
+    assert!(summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")));
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_BROKEN_EXTERNAL_REDIRECT_ALLOWLIST"
+                && diag.message.contains("127.0.0.1")
+                && diag.message.contains("non-allowlisted host")
+                && diag.message.contains("linked_api")
+        }),
+        "blocked redirect host should produce deterministic external broken-link diagnostics"
+    );
 }
 
 #[test]
