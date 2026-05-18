@@ -15,6 +15,12 @@ fn symbol_visibility<'a>(symbols: &'a [Value], qualified_name: &str) -> &'a str 
         .unwrap_or_else(|| panic!("symbol '{}' visibility should be string", qualified_name))
 }
 
+fn has_symbol(symbols: &[Value], qualified_name: &str) -> bool {
+    symbols
+        .iter()
+        .any(|symbol| symbol["qualified_name"] == qualified_name)
+}
+
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -96,7 +102,7 @@ fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
 
     write_file(
         &input,
-        "func internal_helper() {\n    return 1\n}\n\npub func exported_api() {\n    return 2\n}\n\nstruct Worker {\n    func hidden_method(self) {\n        return 3\n    }\n\n    pub func visible_method(self) {\n        return 4\n    }\n}\n",
+        "func internal_helper() {\n    return 1\n}\n\npub func exported_api() {\n    return 2\n}\n\nstruct Worker {\n    func hidden_method(self) {\n        return 3\n    }\n\n    pub func visible_method(self) {\n        return 4\n    }\n}\n\npub struct PublicWorker {\n    pub func visible_method(self) {\n        return 5\n    }\n}\n",
     );
 
     let (_project, summary) = run_docgen(&DocgenConfig {
@@ -126,7 +132,8 @@ fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
     assert_eq!(symbol_visibility(symbols, "internal_helper"), "Private");
     assert_eq!(symbol_visibility(symbols, "exported_api"), "Public");
     assert_eq!(symbol_visibility(symbols, "Worker::hidden_method"), "Private");
-    assert_eq!(symbol_visibility(symbols, "Worker::visible_method"), "Public");
+    assert_eq!(symbol_visibility(symbols, "Worker::visible_method"), "Private");
+    assert_eq!(symbol_visibility(symbols, "PublicWorker::visible_method"), "Public");
 }
 
 #[test]
@@ -200,6 +207,107 @@ fn docgen_strict_public_gate_still_fails_on_undocumented_explicit_public_ruff_fu
             .iter()
             .any(|failure| failure == "1 undocumented public symbols detected"),
         "strict gate should fail on undocumented explicit public symbols"
+    );
+}
+
+#[test]
+fn docgen_public_only_excludes_methods_on_private_structs() {
+    let dir = unique_temp_dir("ruff_private_struct_methods_gate");
+    let input = dir.join("private_struct_methods.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "struct InternalWorker {\n    pub func internal_api(self) {\n        return 1\n    }\n}\n\n/// Public worker docs\npub struct PublicWorker {\n    /// Public worker API\n    pub func exposed_api(self) {\n        return 2\n    }\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("strict docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, 0);
+    assert!(summary.gate_failures.is_empty(), "strict gate should pass");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert!(
+        !has_symbol(symbols, "InternalWorker::internal_api"),
+        "public-only output should not include methods on private structs"
+    );
+    assert!(
+        has_symbol(symbols, "PublicWorker::exposed_api"),
+        "public-only output should include methods on public structs"
+    );
+}
+
+#[test]
+fn docgen_public_only_excludes_variants_of_private_enums() {
+    let dir = unique_temp_dir("ruff_private_enum_variants_gate");
+    let input = dir.join("private_enum_variants.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "enum InternalState {\n    Idle,\n    Busy,\n}\n\npub enum ApiState {\n    /// Public variant docs\n    Ready,\n    Running,\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("public-only docgen run should complete");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert!(
+        !has_symbol(symbols, "InternalState::Idle"),
+        "public-only output should not include variants from private enums"
+    );
+    assert!(
+        !has_symbol(symbols, "InternalState::Busy"),
+        "public-only output should not include variants from private enums"
+    );
+    assert!(
+        has_symbol(symbols, "ApiState"),
+        "public enum should be included in public-only output"
+    );
+    assert!(
+        has_symbol(symbols, "ApiState::Ready"),
+        "public enum variants should be included in public-only output"
     );
 }
 

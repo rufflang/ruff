@@ -45,19 +45,19 @@ impl DocLanguageAdapter for RuffDocAdapter {
 
         let mut symbols = Vec::new();
         let mut brace_depth: i32 = 0;
-        let mut active_struct: Option<(String, i32)> = None;
-        let mut active_enum: Option<(String, i32)> = None;
+        let mut active_struct: Option<(String, i32, bool)> = None;
+        let mut active_enum: Option<(String, i32, bool)> = None;
 
         for (idx, line) in source.lines().enumerate() {
             let line_no = idx + 1;
             let trimmed = line.trim();
 
-            if let Some((_, end_depth)) = active_struct.clone() {
+            if let Some((_, end_depth, _)) = active_struct.clone() {
                 if brace_depth < end_depth {
                     active_struct = None;
                 }
             }
-            if let Some((_, end_depth)) = active_enum.clone() {
+            if let Some((_, end_depth, _)) = active_enum.clone() {
                 if brace_depth < end_depth {
                     active_enum = None;
                 }
@@ -70,6 +70,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 } else {
                     DocVisibility::Private
                 };
+                let is_public = visibility == DocVisibility::Public;
                 symbols.push(DocSymbol {
                     id: Self::symbol_id(path, line_no, &name, &DocSymbolKind::Struct),
                     language: "ruff".to_string(),
@@ -86,7 +87,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                     parent: None,
                 });
                 if line.contains('{') {
-                    active_struct = Some((name, brace_depth + 1));
+                    active_struct = Some((name, brace_depth + 1, is_public));
                 }
             } else if let Some(caps) = re_enum.captures(trimmed) {
                 let name = caps.get(2).map(|m| m.as_str()).unwrap_or("unknown").to_string();
@@ -95,6 +96,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 } else {
                     DocVisibility::Private
                 };
+                let is_public = visibility == DocVisibility::Public;
                 symbols.push(DocSymbol {
                     id: Self::symbol_id(path, line_no, &name, &DocSymbolKind::Enum),
                     language: "ruff".to_string(),
@@ -111,18 +113,28 @@ impl DocLanguageAdapter for RuffDocAdapter {
                     parent: None,
                 });
                 if line.contains('{') {
-                    active_enum = Some((name, brace_depth + 1));
+                    active_enum = Some((name, brace_depth + 1, is_public));
                 }
             } else if let Some(caps) = re_func.captures(trimmed) {
                 let name = caps.get(2).map(|m| m.as_str()).unwrap_or("unknown").to_string();
                 let args = caps.get(3).map(|m| m.as_str()).unwrap_or("");
                 let is_method = active_struct.is_some();
                 let kind = if is_method { DocSymbolKind::Method } else { DocSymbolKind::Function };
-                let parent = active_struct.as_ref().map(|(name, _)| name.clone());
-                let visibility = if caps.get(1).is_some() {
+                let parent = active_struct.as_ref().map(|(name, _, _)| name.clone());
+                let explicit_public = caps.get(1).is_some();
+                let visibility = if explicit_public {
                     DocVisibility::Public
                 } else {
                     DocVisibility::Private
+                };
+                let visibility = if let Some((_, _, parent_public)) = &active_struct {
+                    if explicit_public && *parent_public {
+                        DocVisibility::Public
+                    } else {
+                        DocVisibility::Private
+                    }
+                } else {
+                    visibility
                 };
                 let qualified_name = if let Some(parent_name) = &parent {
                     format!("{}::{}", parent_name, name)
@@ -166,7 +178,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                     gaps: Vec::new(),
                     parent: None,
                 });
-            } else if let Some((enum_name, _)) = active_enum.clone() {
+            } else if let Some((enum_name, _, enum_public)) = active_enum.clone() {
                 if re_variant.is_match(trimmed)
                     && !trimmed.starts_with('#')
                     && !trimmed.starts_with("//")
@@ -182,7 +194,11 @@ impl DocLanguageAdapter for RuffDocAdapter {
                         name: variant_name,
                         qualified_name: qualified,
                         signature: Some(trimmed.to_string()),
-                        visibility: DocVisibility::Public,
+                        visibility: if enum_public {
+                            DocVisibility::Public
+                        } else {
+                            DocVisibility::Private
+                        },
                         source_path: path.to_path_buf(),
                         line: line_no,
                         docs: DocComment::default(),
