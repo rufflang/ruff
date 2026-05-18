@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen Workstream B task 2 (`docgen(B-2)`) by adding fixture-driven Ruff extraction edge-case regressions under `tests/fixtures/docgen/` and new fixture-backed tests in `tests/docgen_universal.rs` for async declaration visibility contracts and strict public-gate detection.
 - Fixed DocGen Workstream B task 1 (`docgen(B-1)`) Ruff extraction coverage by adding `async func` / `pub async func` support in `src/docgen/adapters/ruff.rs`, including visibility-preserving extraction for async top-level functions and struct methods.
 - Fixed DocGen Workstream A task 1 (`docgen(A-1)`) by documenting the canonical Ruff DocGen visibility policy in `docs/DOCGEN.md`, including explicit `pub` requirements for top-level symbols, container-aware method/variant visibility rules, and `--public-only` strict-gate behavior.
 - Fixed DocGen Workstream A task 4 (`docgen(A-4)`) visibility regression coverage in `tests/docgen_universal.rs` by adding a `public_only` visibility-matrix contract that verifies top-level private helpers are excluded, explicit public symbols are retained, and struct method visibility respects container visibility in strict gating mode.

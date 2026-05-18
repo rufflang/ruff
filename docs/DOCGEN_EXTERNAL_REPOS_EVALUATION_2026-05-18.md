@@ -148,6 +148,18 @@ After expanding Ruff extraction coverage to include `async func` / `pub async fu
 
 Interpretation: the new async-declaration extraction support did not change strict external counts for these repos, but it closes a real Ruff syntax extraction gap and is covered by new async visibility and strict-gate regressions.
 
+### Workstream B Task 2 follow-up (2026-05-18)
+
+After adding fixture-driven Ruff extraction edge-case regressions (async visibility + strict-gate fixtures under `tests/fixtures/docgen/`), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 2 is test-hardening; external strict gate metrics remain stable while extraction edge coverage is now fixture-locked.
+
 ### Test results
 
 - `docgen_universal`: passed
