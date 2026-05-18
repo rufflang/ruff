@@ -115,6 +115,9 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
    - `builtin_symbol_count` (builtin symbols)
 5. Per-kind symbol counters:
    - `symbol_kind_counts` with deterministic keys such as `function`, `method`, `struct`, `enum`, `enum_variant`, and `builtin`
+6. Stable dashboard summary block:
+   - `summary.schema_version` (`docgen-summary/v1`)
+   - `summary` mirrors key totals/gate counters for machine consumers while preserving existing top-level contract fields
 
 Discovery and project diagnostics are emitted in deterministic sorted order for CI-stable JSON comparisons.
 

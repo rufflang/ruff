@@ -114,6 +114,24 @@ fn docgen_json_contract_is_stable() {
         .map(|value| value.as_u64().expect("kind count should be u64"))
         .sum();
     assert_eq!(kind_total, body["item_count"].as_u64().expect("item_count should be u64"));
+    assert!(body["summary"].is_object());
+    assert_eq!(body["summary"]["schema_version"], "docgen-summary/v1");
+    assert_eq!(
+        body["summary"]["item_count"].as_u64().expect("summary item_count should be u64"),
+        body["item_count"].as_u64().expect("item_count should be u64")
+    );
+    assert_eq!(
+        body["summary"]["project_symbol_count"]
+            .as_u64()
+            .expect("summary project_symbol_count should be u64"),
+        body["project_symbol_count"].as_u64().expect("project_symbol_count should be u64")
+    );
+    assert_eq!(
+        body["summary"]["builtin_symbol_count"]
+            .as_u64()
+            .expect("summary builtin_symbol_count should be u64"),
+        body["builtin_symbol_count"].as_u64().expect("builtin_symbol_count should be u64")
+    );
     assert!(body["discovery_skip_counts"].is_object());
     assert!(body["discovery_skip_counts"]["max_file_size"].is_number());
     assert!(body["discovery_skip_counts"]["max_depth"].is_number());

@@ -45,6 +45,23 @@ pub struct DocgenConfig {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct DocgenDashboardSummary {
+    pub schema_version: String,
+    pub item_count: usize,
+    pub project_symbol_count: usize,
+    pub builtin_symbol_count: usize,
+    pub symbol_kind_counts: BTreeMap<String, usize>,
+    pub diagnostics_count: usize,
+    pub undocumented_count: usize,
+    pub broken_link_count: usize,
+    pub warning_count: usize,
+    pub discovery_skip_counts: BTreeMap<String, usize>,
+    pub gate_failures_count: usize,
+    pub gate_failed: bool,
+    pub languages: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DocgenRunSummary {
     pub output_dir: PathBuf,
     pub module_doc_path: PathBuf,
@@ -64,6 +81,7 @@ pub struct DocgenRunSummary {
     pub warning_count: usize,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub gate_failures: Vec<String>,
+    pub dashboard_summary: DocgenDashboardSummary,
 }
 
 pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
@@ -315,11 +333,8 @@ pub fn run_with_link_validation(
     let project_json_path = output_dir.join("docgen.json");
 
     let item_count = project.symbols.len();
-    let builtin_symbol_count = project
-        .symbols
-        .iter()
-        .filter(|symbol| symbol.kind == DocSymbolKind::Builtin)
-        .count();
+    let builtin_symbol_count =
+        project.symbols.iter().filter(|symbol| symbol.kind == DocSymbolKind::Builtin).count();
     let project_symbol_count = item_count.saturating_sub(builtin_symbol_count);
     let mut symbol_kind_counts: BTreeMap<String, usize> = BTreeMap::new();
     for symbol in &project.symbols {
@@ -334,6 +349,21 @@ pub fn run_with_link_validation(
         ("max_file_size".to_string(), discovery.skip_counts.max_file_size),
         ("max_files".to_string(), discovery.skip_counts.max_files),
     ]);
+    let dashboard_summary = DocgenDashboardSummary {
+        schema_version: "docgen-summary/v1".to_string(),
+        item_count,
+        project_symbol_count,
+        builtin_symbol_count,
+        symbol_kind_counts: symbol_kind_counts.clone(),
+        diagnostics_count,
+        undocumented_count,
+        broken_link_count,
+        warning_count,
+        discovery_skip_counts: discovery_skip_counts.clone(),
+        gate_failures_count: gate_failures.len(),
+        gate_failed: !gate_failures.is_empty(),
+        languages: languages.clone(),
+    };
 
     Ok((
         project,
@@ -356,6 +386,7 @@ pub fn run_with_link_validation(
             warning_count,
             discovery_skip_counts,
             gate_failures,
+            dashboard_summary,
         },
     ))
 }

@@ -1681,6 +1681,7 @@ async fn main() {
                     "warning_count": summary.warning_count,
                     "discovery_skip_counts": summary.discovery_skip_counts,
                     "gate_failures": summary.gate_failures,
+                    "summary": summary.dashboard_summary,
                 });
 
                 match serde_json::to_string_pretty(&output) {

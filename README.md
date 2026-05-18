@@ -157,6 +157,7 @@ DocGen CLI JSON output (`ruff docgen ... --json`) also includes deterministic pe
 DocGen diagnostics are emitted in deterministic sorted order to keep repeated JSON outputs stable for CI diffing.
 DocGen JSON summary now separates discovered symbol volume into `project_symbol_count` and `builtin_symbol_count` (while preserving `item_count` as total count).
 DocGen JSON summary also includes deterministic `symbol_kind_counts` (for example `function`, `method`, `struct`, `enum`, `builtin`) to support CI dashboards and trend tracking.
+DocGen JSON now includes a stable versioned dashboard block at `summary` (`schema_version = docgen-summary/v1`) that mirrors key totals and gate-state fields for automation consumers.
 DocGen default link validation remains local-file existence checking (fragments/query suffixes are ignored for local paths, while `http(s)` and `mailto` links are not validated by default).
 DocGen optional local-anchor validation can be enabled with `--validate-local-anchors` when strict anchor checks are needed for local docs.
 DocGen optional external-link validation can be enabled with `--validate-external-links`, scoped to allowlisted hosts via `--external-link-allowlist`, and bounded by `--external-link-timeout-ms`.

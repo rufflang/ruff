@@ -316,6 +316,18 @@ After adding deterministic per-kind symbol counts in DocGen summary output (`sym
 
 Interpretation: task 2 improves symbol-shape observability for quality dashboards while preserving strict gate stability on the external validation set.
 
+### Workstream F Task 3 follow-up (2026-05-18)
+
+After adding a stable machine-readable dashboard summary block in `ruff docgen --json` (`summary` with `schema_version=docgen-summary/v1` plus synchronized core counters), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 3 establishes a versioned dashboard summary contract for automation consumers without changing strict gate outcomes on the external validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

@@ -857,14 +857,16 @@ fn docgen_cli_json_contract_preserves_legacy_fields() {
     assert!(json["builtin_symbol_count"].is_number());
     assert_eq!(
         json["item_count"].as_u64().expect("item_count should be u64"),
-        json["project_symbol_count"]
-            .as_u64()
-            .expect("project_symbol_count should be u64")
-            + json["builtin_symbol_count"]
-                .as_u64()
-                .expect("builtin_symbol_count should be u64")
+        json["project_symbol_count"].as_u64().expect("project_symbol_count should be u64")
+            + json["builtin_symbol_count"].as_u64().expect("builtin_symbol_count should be u64")
     );
     assert!(json["symbol_kind_counts"].is_object());
+    assert!(json["summary"].is_object());
+    assert_eq!(json["summary"]["schema_version"], "docgen-summary/v1");
+    assert_eq!(
+        json["summary"]["item_count"].as_u64().expect("summary item_count should be u64"),
+        json["item_count"].as_u64().expect("item_count should be u64")
+    );
     assert!(json["project_json_path"].is_string());
     assert!(json["gaps_json_path"].is_string());
 }
@@ -1538,16 +1540,17 @@ fn docgen_summary_splits_project_and_builtin_counts() {
     .expect("docgen should succeed");
 
     assert!(summary.builtin_symbol_count > 0);
-    assert_eq!(
-        summary.item_count,
-        summary.project_symbol_count + summary.builtin_symbol_count
-    );
+    assert_eq!(summary.item_count, summary.project_symbol_count + summary.builtin_symbol_count);
     assert_eq!(summary.project_symbol_count, 1);
     assert_eq!(summary.symbol_kind_counts.get("function").copied().unwrap_or_default(), 1);
     assert_eq!(
         summary.symbol_kind_counts.get("builtin").copied().unwrap_or_default(),
         summary.builtin_symbol_count
     );
+    assert_eq!(summary.dashboard_summary.schema_version, "docgen-summary/v1");
+    assert_eq!(summary.dashboard_summary.item_count, summary.item_count);
+    assert_eq!(summary.dashboard_summary.project_symbol_count, summary.project_symbol_count);
+    assert_eq!(summary.dashboard_summary.builtin_symbol_count, summary.builtin_symbol_count);
 }
 
 #[test]
