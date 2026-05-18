@@ -95,7 +95,7 @@ Expose skipped/discarded files in diagnostics and JSON summary.
 
 1. [x] Emit diagnostics for max size, max depth, and max file count skips. (Completed 2026-05-18)
 2. [x] Add summary counters for skipped files by reason. (Completed 2026-05-18)
-3. Preserve deterministic ordering of diagnostics.
+3. [x] Preserve deterministic ordering of diagnostics. (Completed 2026-05-18)
 
 ### Acceptance Criteria
 

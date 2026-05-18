@@ -110,6 +110,8 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
 2. `max_depth`
 3. `max_files`
 
+Discovery and project diagnostics are emitted in deterministic sorted order for CI-stable JSON comparisons.
+
 ## CLI
 
 ### Basic Ruff docs

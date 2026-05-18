@@ -157,6 +157,12 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
     }
 
     files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path).then(a.language.cmp(&b.language)));
+    diagnostics.sort_by(|a, b| {
+        a.code
+            .cmp(b.code)
+            .then(a.path.cmp(&b.path))
+            .then(a.message.cmp(&b.message))
+    });
 
     Ok(DiscoveryResult {
         root,
@@ -343,6 +349,42 @@ mod tests {
         assert_eq!(result.skip_counts.max_file_size, 0);
         assert_eq!(result.skip_counts.max_depth, 0);
         assert_eq!(result.skip_counts.max_files, 0);
+    }
+
+    #[test]
+    fn discover_diagnostics_have_deterministic_sorted_order() {
+        let root = temp_dir("diagnostic_order");
+        fs::write(root.join("a_oversized.ruff"), "x".repeat(128)).expect("write oversized");
+        fs::write(root.join("b_small.ruff"), "pub func b() { return 1 }").expect("write small");
+        fs::write(root.join("c_small.ruff"), "pub func c() { return 2 }").expect("write small");
+        fs::create_dir_all(root.join("z_nested").join("deep")).expect("create nested dirs");
+        fs::write(root.join("z_nested").join("deep").join("hidden.ruff"), "pub func d() {}")
+            .expect("write nested");
+
+        let options = DiscoveryOptions {
+            selected_languages: Some(vec!["ruff".to_string()]),
+            max_file_size_bytes: 16,
+            max_files: 2,
+            max_depth: 0,
+        };
+
+        let result_a = discover(&root, &options).expect("first discovery should succeed");
+        let result_b = discover(&root, &options).expect("second discovery should succeed");
+
+        let codes_a: Vec<&str> = result_a.diagnostics.iter().map(|diag| diag.code).collect();
+        let codes_b: Vec<&str> = result_b.diagnostics.iter().map(|diag| diag.code).collect();
+
+        assert_eq!(codes_a, codes_b, "diagnostic ordering should be stable across runs");
+        assert_eq!(
+            codes_a,
+            vec![
+                "DOCGEN_DISCOVERY_MAX_DEPTH",
+                "DOCGEN_DISCOVERY_MAX_FILES",
+                "DOCGEN_DISCOVERY_MAX_FILE_SIZE",
+                "DOCGEN_DISCOVERY_MAX_FILE_SIZE"
+            ],
+            "diagnostic ordering should follow deterministic code/path/message sorting"
+        );
     }
 }
 

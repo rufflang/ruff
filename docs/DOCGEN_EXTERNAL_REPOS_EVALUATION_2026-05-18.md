@@ -232,6 +232,18 @@ After adding discovery skip summary counters by reason to the docgen CLI JSON co
 
 Interpretation: task 2 is summary-contract transparency hardening; strict external gate counts remain stable while per-reason discovery skip counters are now available for CI/reporting.
 
+### Workstream D Task 3 follow-up (2026-05-18)
+
+After enforcing deterministic diagnostic sorting for discovery and project diagnostics, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 3 is deterministic-ordering hardening; strict external gate counts remain stable while diagnostics ordering is now explicitly regression-locked for repeatable CI diffs.
+
 ### Test results
 
 - `docgen_universal`: passed

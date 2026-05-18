@@ -173,6 +173,14 @@ pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), Docg
             line: Some(*line),
         });
     }
+    project.diagnostics.sort_by(|a, b| {
+        diagnostic_severity_rank(&a.severity)
+            .cmp(&diagnostic_severity_rank(&b.severity))
+            .then(a.code.cmp(&b.code))
+            .then(a.path.cmp(&b.path))
+            .then(a.line.cmp(&b.line))
+            .then(a.message.cmp(&b.message))
+    });
 
     let output_dir = prepare_output_dir(&config.out_dir)?;
     fs::create_dir_all(&output_dir).map_err(|e| {
@@ -276,6 +284,14 @@ pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), Docg
             gate_failures,
         },
     ))
+}
+
+fn diagnostic_severity_rank(severity: &DocDiagnosticSeverity) -> u8 {
+    match severity {
+        DocDiagnosticSeverity::Info => 0,
+        DocDiagnosticSeverity::Warning => 1,
+        DocDiagnosticSeverity::Error => 2,
+    }
 }
 
 fn write_outputs(

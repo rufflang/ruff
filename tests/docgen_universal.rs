@@ -294,6 +294,88 @@ fn docgen_emits_discovery_diagnostics_for_oversized_files() {
 }
 
 #[test]
+fn docgen_diagnostics_order_is_deterministic_across_sources() {
+    let dir = unique_temp_dir("docgen_diagnostic_ordering");
+    let input = dir.join("module.ruff");
+    let oversized = dir.join("oversized.ruff");
+    let out_a = dir.join("docs_a");
+    let out_b = dir.join("docs_b");
+
+    write_file(
+        &input,
+        "/// Uses a broken doc link: [missing](./does-not-exist.md)\npub func public_api() {\n    return 1\n}\n",
+    );
+    write_file(&oversized, &"z".repeat((2 * 1024 * 1024) + 1));
+
+    let (_project_a, summary_a) = run_docgen(&DocgenConfig {
+        input: dir.clone(),
+        out_dir: out_a,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("first docgen run should succeed");
+
+    let (_project_b, summary_b) = run_docgen(&DocgenConfig {
+        input: dir,
+        out_dir: out_b,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("second docgen run should succeed");
+
+    let project_a: Value = serde_json::from_str(
+        &fs::read_to_string(summary_a.project_json_path).expect("read first project json"),
+    )
+    .expect("first project json should be valid");
+    let project_b: Value = serde_json::from_str(
+        &fs::read_to_string(summary_b.project_json_path).expect("read second project json"),
+    )
+    .expect("second project json should be valid");
+
+    let diagnostics_a = project_a["diagnostics"]
+        .as_array()
+        .expect("diagnostics should be an array");
+    let diagnostics_b = project_b["diagnostics"]
+        .as_array()
+        .expect("diagnostics should be an array");
+
+    assert_eq!(
+        diagnostics_a, diagnostics_b,
+        "diagnostic ordering should remain stable across repeated runs"
+    );
+
+    let codes: Vec<&str> = diagnostics_a
+        .iter()
+        .map(|diag| diag["code"].as_str().unwrap_or_default())
+        .collect();
+    assert_eq!(
+        codes,
+        vec!["DOCGEN_DISCOVERY_MAX_FILE_SIZE", "DOCGEN_LINK_BROKEN"],
+        "diagnostics should be deterministically ordered by severity/code/path/line/message"
+    );
+}
+
+#[test]
 fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
     let dir = unique_temp_dir("ruff_visibility_matrix");
     let input = dir.join("visibility.ruff");
