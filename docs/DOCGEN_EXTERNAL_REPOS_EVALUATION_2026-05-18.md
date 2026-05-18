@@ -124,6 +124,18 @@ After adding explicit `public_only` visibility-matrix regression coverage in `te
 
 Interpretation: task 4 is test-coverage hardening; external strict gate counts remain stable while regression protection for visibility classification increased.
 
+### Workstream A Task 1 follow-up (2026-05-18)
+
+After documenting the Ruff DocGen visibility policy in `docs/DOCGEN.md` (top-level `pub` requirement plus container-aware member visibility rules), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 1 is policy-definition/documentation hardening and does not change external strict gate counts.
+
 ### Test results
 
 - `docgen_universal`: passed

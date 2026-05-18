@@ -36,7 +36,7 @@ Make undocumented-symbol gate failures represent true exported/public API docs g
 
 ### Tasks
 
-1. Define Ruff visibility policy for docgen symbols.
+1. [x] Define Ruff visibility policy for docgen symbols. (Completed 2026-05-18)
 2. [x] Update Ruff adapter visibility assignment for top-level functions. (Completed 2026-05-18)
 3. [x] Ensure private/internal helpers are not classified as public by default. (Completed 2026-05-18)
 4. [x] Add tests for: (Completed 2026-05-18)

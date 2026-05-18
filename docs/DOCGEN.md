@@ -35,6 +35,25 @@ The core lives under `src/docgen/` and is language-agnostic.
 - `render/*`: HTML/Markdown/JSON rendering
 - `adapters/*`: language-specific symbol/doc extraction
 
+## Ruff Visibility Policy
+
+For Ruff symbols, DocGen visibility is explicit and gate-oriented:
+
+1. Top-level symbols are `Public` only when declared with `pub`:
+   - `pub func ...`
+   - `pub struct ...`
+   - `pub enum ...`
+   - `pub const ...` / `pub let ...`
+2. Non-`pub` top-level symbols are `Private`.
+3. Struct method visibility requires both:
+   - method declaration is `pub`
+   - containing struct is `Public`
+   Methods under private structs remain `Private` even if the method itself is declared `pub`.
+4. Enum variants inherit visibility from the containing enum:
+   - variants under `pub enum` are `Public`
+   - variants under non-`pub enum` are `Private`
+5. `--public-only` with `--include-private` disabled filters to `Public` symbols only and is the intended strict CI gate surface.
+
 ## Security Model
 
 DocGen is scan-only.
