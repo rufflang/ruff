@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen Workstream A task 4 (`docgen(A-4)`) visibility regression coverage in `tests/docgen_universal.rs` by adding a `public_only` visibility-matrix contract that verifies top-level private helpers are excluded, explicit public symbols are retained, and struct method visibility respects container visibility in strict gating mode.
 - Fixed DocGen Workstream A task 3 (`docgen(A-3)`) Ruff member visibility classification for container-scoped symbols in `src/docgen/adapters/ruff.rs`: methods declared `pub` inside private structs and variants inside private enums are now classified as `Private`, preventing `--public-only` strict gates from surfacing internal symbols as undocumented public API.
 - Fixed DocGen Workstream A task 2 (`docgen(A-2)`) Ruff visibility classification for top-level functions in `src/docgen/adapters/ruff.rs`: top-level `func` symbols now require explicit `pub` to be marked `Public`, matching struct method visibility behavior and reducing strict-mode undocumented false positives from internal helpers.
 - Fixed release-checklist gate drift by normalizing formatter output across contract/security/doc-smoke tests and addressing `clippy::collapsible-str-replace` in `tests/docs_examples.rs`, so `cargo fmt --check` and `cargo clippy --all-targets --all-features -- -D warnings` pass again alongside `cargo test`.

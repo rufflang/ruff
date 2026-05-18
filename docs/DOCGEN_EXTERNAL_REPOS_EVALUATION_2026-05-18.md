@@ -112,6 +112,18 @@ After updating Ruff container-member visibility to keep symbols under private co
 
 Interpretation: the Workstream A task 3 visibility hardening did not change strict gate counts on these three repositories (their current symbol sets do not rely on private-container member edge cases), while preserving zero broken links and zero warnings.
 
+### Workstream A Task 4 follow-up (2026-05-18)
+
+After adding explicit `public_only` visibility-matrix regression coverage in `tests/docgen_universal.rs`, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 4 is test-coverage hardening; external strict gate counts remain stable while regression protection for visibility classification increased.
+
 ### Test results
 
 - `docgen_universal`: passed
