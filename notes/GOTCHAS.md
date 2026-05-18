@@ -265,6 +265,13 @@ If you are new to the project, read this first.
 
 ## CLI & Tooling
 
+### `ruff docgen --json` is an additive contract surface
+- **Problem:** Refactoring docgen internals or expanding payload fields can silently break automation if legacy JSON keys are removed/renamed.
+- **Rule:** Keep existing docgen JSON fields stable (`command`, `file`, `output_dir`, `module_doc_path`, `builtin_doc_path`, `item_count`) and only add new fields.
+- **Implication:** After any docgen JSON change, run `cargo test docgen_json_contract_is_stable --test cli_json_contracts` before marking work complete.
+
+(Discovered during: 2026-05-17_21-57_NO-ROADMAP_universal-docgen-architecture-and-gates.md)
+
 ### `cargo test` only accepts one positional test filter
 - **Problem:** Supplying multiple positional filters leads to command misuse and misleading failures.
 - **Rule:** Use one positional filter; pass additional selection logic via module path or `-- --nocapture`/other flags.
