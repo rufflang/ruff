@@ -38,6 +38,14 @@ fn write_file(path: &Path, content: &str) {
     fs::write(path, content).expect("failed to write fixture file");
 }
 
+fn docgen_fixture_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("docgen")
+        .join(name)
+}
+
 fn run_ruff(args: &[&str], cwd: &Path) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_ruff"))
         .args(args)
@@ -438,6 +446,114 @@ fn docgen_strict_public_gate_handles_async_ruff_functions() {
             .iter()
             .any(|failure| failure == "1 undocumented public symbols detected"),
         "strict gate should fail on undocumented explicit public async symbols"
+    );
+}
+
+#[test]
+fn docgen_ruff_extraction_edge_fixture_async_visibility_contract() {
+    let dir = unique_temp_dir("ruff_async_fixture_visibility");
+    let input = dir.join("fixture_async_visibility.ruff");
+    let out = dir.join("docs");
+
+    let source = fs::read_to_string(docgen_fixture_path("ruff_async_visibility.ruff"))
+        .expect("failed to read async visibility fixture");
+    write_file(&input, &source);
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    let expected_json =
+        fs::read_to_string(docgen_fixture_path("ruff_async_visibility.expected.json"))
+            .expect("failed to read expected async visibility fixture");
+    let expected: Value =
+        serde_json::from_str(&expected_json).expect("expected visibility fixture should be json");
+    let expected_map = expected
+        .as_object()
+        .expect("expected visibility fixture should be an object map");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    for (qualified_name, visibility) in expected_map {
+        let expected_visibility = visibility
+            .as_str()
+            .unwrap_or_else(|| panic!("visibility fixture for '{}' should be string", qualified_name));
+        assert_eq!(
+            symbol_visibility(symbols, qualified_name),
+            expected_visibility,
+            "unexpected visibility for fixture symbol '{}'",
+            qualified_name
+        );
+    }
+}
+
+#[test]
+fn docgen_ruff_extraction_edge_fixture_async_strict_gate_contract() {
+    let dir = unique_temp_dir("ruff_async_fixture_strict_gate");
+    let input = dir.join("fixture_async_strict.ruff");
+    let out = dir.join("docs");
+
+    let source = fs::read_to_string(docgen_fixture_path("ruff_async_strict_public.ruff"))
+        .expect("failed to read async strict fixture");
+    write_file(&input, &source);
+
+    let expected_json =
+        fs::read_to_string(docgen_fixture_path("ruff_async_strict_public.expected.json"))
+            .expect("failed to read expected async strict fixture");
+    let expected: Value =
+        serde_json::from_str(&expected_json).expect("expected strict fixture should be json");
+    let expected_undocumented = expected["undocumented_count"]
+        .as_u64()
+        .expect("expected undocumented_count should be u64")
+        as usize;
+    let expected_gate_failure = expected["gate_failure_contains"]
+        .as_str()
+        .expect("expected gate_failure_contains should be string");
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("strict docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, expected_undocumented);
+    assert!(
+        summary
+            .gate_failures
+            .iter()
+            .any(|failure| failure.contains(expected_gate_failure)),
+        "strict gate failures should contain '{}'",
+        expected_gate_failure
     );
 }
 
