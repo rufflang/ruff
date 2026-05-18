@@ -1,4 +1,4 @@
-use super::common::{attach_docs_by_proximity, next_nonempty_line};
+use super::common::attach_docs_by_proximity;
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
 use crate::docgen::DocgenError;
@@ -10,6 +10,20 @@ pub struct RuffDocAdapter;
 impl RuffDocAdapter {
     fn symbol_id(path: &Path, line: usize, name: &str, kind: &DocSymbolKind) -> String {
         format!("ruff:{}:{}:{}:{:?}", path.display(), line, name, kind)
+    }
+
+    fn next_doc_target_line(source: &str, from_line: usize) -> Option<usize> {
+        for (idx, line) in source.lines().enumerate().skip(from_line) {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if trimmed.starts_with('@') || trimmed.starts_with("#[") {
+                continue;
+            }
+            return Some(idx + 1);
+        }
+        None
     }
 }
 
@@ -260,7 +274,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 blocks.push(DocCommentBlock {
                     start_line,
                     end_line,
-                    target_line_hint: next_nonempty_line(source, end_line),
+                    target_line_hint: Self::next_doc_target_line(source, end_line),
                     lines: content,
                 });
                 continue;
@@ -293,7 +307,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 blocks.push(DocCommentBlock {
                     start_line,
                     end_line: end_line.max(start_line),
-                    target_line_hint: next_nonempty_line(source, end_line.max(start_line)),
+                    target_line_hint: Self::next_doc_target_line(source, end_line.max(start_line)),
                     lines: content,
                 });
                 continue;

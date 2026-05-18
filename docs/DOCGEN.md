@@ -63,6 +63,7 @@ Ruff DocGen currently attaches inline documentation from these Ruff comment form
 3. `/** ... */` block doc comments
 
 Non-doc block comments (`/* ... */`) are not treated as API documentation.
+Attachment matching is decorator-aware: DocGen will skip Ruff decorator/attribute lines (for example `@...` and `#[...]`) between a doc block and its symbol target.
 
 ## Ruff Extraction Decision (Workstream B-3)
 

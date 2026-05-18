@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen Workstream C task 2 (`docgen(C-2)`) by strengthening Ruff comment-to-symbol attachment heuristics to skip decorator/attribute lines (`@...`, `#[...]`) between a doc block and its symbol target, and added regression coverage in `tests/docgen_universal.rs` to prevent overreaching attachment.
 - Fixed DocGen Workstream C task 1 (`docgen(C-1)`) by expanding Ruff inline doc extraction to support `//!` line docs and `/** ... */` block docs in addition to `///`, while keeping plain `/* ... */` comments excluded from docs attachment; added regression coverage in `tests/docgen_universal.rs`.
 - Fixed DocGen Workstream B task 3 (`docgen(B-3)`) by documenting the Ruff extraction strategy decision in `docs/DOCGEN.md`: keep regex-first hybrid extraction with fixture-backed hardening as the production path, defer parser-assisted extraction to a bounded fallback rollout, and preserve deterministic strict-gate behavior as the migration constraint.
 - Fixed DocGen Workstream B task 2 (`docgen(B-2)`) by adding fixture-driven Ruff extraction edge-case regressions under `tests/fixtures/docgen/` and new fixture-backed tests in `tests/docgen_universal.rs` for async declaration visibility contracts and strict public-gate detection.

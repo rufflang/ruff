@@ -184,6 +184,18 @@ After adding Ruff inline doc extraction support for additional comment styles (`
 
 Interpretation: task 1 improves Ruff documentation attachment coverage for supported comment styles without changing strict gate counts on these repositories.
 
+### Workstream C Task 2 follow-up (2026-05-18)
+
+After strengthening Ruff comment-to-symbol attachment heuristics to skip decorator/attribute lines between docs and symbols, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 2 improves attachment reliability in decorator-adjacent Ruff code paths while preserving strict gate stability on the external validation set.
+
 ### Test results
 
 - `docgen_universal`: passed
