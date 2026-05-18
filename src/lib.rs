@@ -10,6 +10,7 @@ pub mod builtins;
 pub mod bytecode;
 pub mod compiler;
 pub mod doc_generator;
+pub mod docgen;
 pub mod errors;
 pub mod formatter;
 pub mod interpreter;

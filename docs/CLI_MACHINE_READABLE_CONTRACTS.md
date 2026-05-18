@@ -95,6 +95,16 @@ Top-level object fields:
 - `module_doc_path` (string)
 - `builtin_doc_path` (string or null)
 - `item_count` (number)
+- `languages` (array of strings)
+- `project_json_path` (string)
+- `gaps_json_path` (string)
+- `capabilities_json_path` (string)
+- `ai_tasks_path` (string or null)
+- `diagnostics_count` (number)
+- `undocumented_count` (number)
+- `broken_link_count` (number)
+- `warning_count` (number)
+- `gate_failures` (array of strings)
 
 ### `ruff run --json-runtime-diagnostics`
 

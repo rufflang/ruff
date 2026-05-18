@@ -1,0 +1,110 @@
+# DOCGEN
+
+`ruff docgen` is Ruff's universal documentation generator.
+
+It is model-driven and adapter-based:
+
+- Universal core pipeline
+- Language adapters
+- Shared symbol model
+- Gap analyzer
+- Renderers (HTML, Markdown, JSON)
+- CI quality gates
+- Optional AI task emission
+
+## Supported Languages
+
+- Ruff (`.ruff`)
+- PHP (`.php`)
+- Python (`.py`)
+- TypeScript (`.ts`, `.tsx`)
+- JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`)
+- Ruby (`.rb`)
+- Go (`.go`)
+- Haskell (`.hs`, `.lhs`)
+- Zig (`.zig`)
+
+## Core Design
+
+The core lives under `src/docgen/` and is language-agnostic.
+
+- `core.rs`: orchestration + output + gates
+- `discovery.rs`: safe deterministic file discovery
+- `model.rs`: shared project/module/symbol/gap model
+- `gaps.rs`: missing-doc and link-gap analysis
+- `render/*`: HTML/Markdown/JSON rendering
+- `adapters/*`: language-specific symbol/doc extraction
+
+## Security Model
+
+DocGen is scan-only.
+
+- No source code execution
+- No imports/build steps
+- No external AI calls by default
+- Symlink traversal is skipped during discovery
+- File size, depth, and file count limits are enforced
+- Deterministic ordering for CI stability
+- HTML output escapes documentation content by default
+
+## CLI
+
+### Basic Ruff docs
+
+```bash
+ruff docgen src/ --language ruff --out-dir docs/generated
+```
+
+### Auto-detect languages
+
+```bash
+ruff docgen . --out-dir docs/generated
+```
+
+### Explicit multi-language run
+
+```bash
+ruff docgen . --languages ruff,php,python,typescript,javascript,ruby,go,haskell,zig --out-dir docs/generated
+```
+
+### Strict CI gates
+
+```bash
+ruff docgen . --public-only --fail-on-undocumented --fail-on-broken-links
+```
+
+### AI-ready gap files
+
+```bash
+ruff docgen . --emit-ai-tasks --out-dir docs/generated
+```
+
+## Output Files
+
+The output directory includes:
+
+- `index.html`
+- `docgen.md` (when format includes markdown)
+- `docgen.json`
+- `docgen-gaps.json`
+- `docgen-capabilities.json`
+- `docgen-ai-tasks.md` (with `--emit-ai-tasks`)
+- `builtins.html` (unless `--no-builtins`)
+- `search-index.json` + `symbol-index.json` (with `--search-index`)
+
+## Gaps and Placeholders
+
+Public symbols are documented even when no inline docs exist.
+
+Missing docs are rendered as:
+
+- `Documentation needed.`
+- `This symbol was discovered from the source code, but no human-authored documentation was found.`
+
+`docgen-gaps.json` and `docgen-ai-tasks.md` include bounded source context and constrained prompts:
+
+- Use only provided context
+- Do not invent behavior
+- Mark uncertainty
+- Keep docs concise
+- Add examples only when source supports them

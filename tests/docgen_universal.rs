@@ -1,0 +1,420 @@
+use ruff::docgen::core::{run as run_docgen, DocOutputFormat, DocgenConfig};
+use serde_json::Value;
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn unique_temp_dir(prefix: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be valid")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("ruff_docgen_universal_{}_{}", prefix, nanos));
+    fs::create_dir_all(&path).expect("failed to create temp directory");
+    path
+}
+
+fn write_file(path: &Path, content: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("failed to create parent directory");
+    }
+    fs::write(path, content).expect("failed to write fixture file");
+}
+
+fn run_ruff(args: &[&str], cwd: &Path) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_ruff"))
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .expect("failed to execute ruff binary")
+}
+
+#[test]
+fn docgen_captures_documented_and_undocumented_ruff_symbols() {
+    let dir = unique_temp_dir("ruff_symbols");
+    let input = dir.join("mod.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "/// Adds one\nfunc add_one(value) {\n    return value + 1\n}\n\nfunc sub_one(value) {\n    return value - 1\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input: input.clone(),
+        out_dir: out.clone(),
+        format: DocOutputFormat::All,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: true,
+        search_index: true,
+        source_links: true,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    assert!(summary.item_count >= 2);
+    assert!(summary.project_json_path.exists());
+    assert!(summary.gaps_json_path.exists());
+    assert!(summary.ai_tasks_path.as_ref().expect("ai tasks path").exists());
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "add_one" && symbol["docs"]["placeholder"] == false
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "sub_one" && symbol["docs"]["placeholder"] == true
+    }));
+}
+
+#[test]
+fn docgen_cli_json_contract_preserves_legacy_fields() {
+    let dir = unique_temp_dir("cli_contract");
+    let input = dir.join("file.ruff");
+    let out = dir.join("docs");
+
+    write_file(&input, "func hello() {\n    return 1\n}\n");
+
+    let output = run_ruff(
+        &[
+            "docgen",
+            input.to_str().expect("path utf-8"),
+            "--out-dir",
+            out.to_str().expect("path utf-8"),
+            "--json",
+        ],
+        &dir,
+    );
+
+    assert!(output.status.success(), "docgen cli should succeed");
+    let stdout = String::from_utf8(output.stdout).expect("stdout utf-8");
+    let json: Value = serde_json::from_str(&stdout).expect("stdout should be json");
+
+    assert_eq!(json["command"], "docgen");
+    assert!(json["file"].is_string());
+    assert!(json["output_dir"].is_string());
+    assert!(json["module_doc_path"].is_string());
+    assert!(json["item_count"].is_number());
+    assert!(json["project_json_path"].is_string());
+    assert!(json["gaps_json_path"].is_string());
+}
+
+#[test]
+fn docgen_supports_mixed_language_projects_deterministically() {
+    let dir = unique_temp_dir("mixed");
+    let out_a = dir.join("docs_a");
+    let out_b = dir.join("docs_b");
+
+    write_file(&dir.join("main.ruff"), "func ruff_fn() { return 1 }\n");
+    write_file(&dir.join("a.py"), "def py_fn(x):\n    return x\n");
+    write_file(&dir.join("b.php"), "<?php\nfunction php_fn($x) { return $x; }\n");
+    write_file(&dir.join("c.ts"), "export function tsFn(x: number): number { return x; }\n");
+    write_file(&dir.join("d.js"), "export function jsFn(x) { return x; }\n");
+    write_file(&dir.join("e.rb"), "def rb_fn(x)\n  x\nend\n");
+    write_file(&dir.join("f.go"), "package main\nfunc GoFn(x int) int { return x }\n");
+    write_file(&dir.join("g.hs"), "-- | doc\nhFn :: Int -> Int\nhFn x = x\n");
+    write_file(&dir.join("h.zig"), "pub fn zigFn(x: i32) i32 { return x; }\n");
+
+    let run_config = |out_dir: PathBuf| DocgenConfig {
+        input: dir.clone(),
+        out_dir,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: None,
+        languages: Some("ruff,php,python,typescript,javascript,ruby,go,haskell,zig".to_string()),
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    };
+
+    let (_, summary_a) =
+        run_docgen(&run_config(out_a.clone())).expect("first docgen run should succeed");
+    let (_, summary_b) =
+        run_docgen(&run_config(out_b.clone())).expect("second docgen run should succeed");
+
+    let json_a = fs::read_to_string(summary_a.project_json_path).expect("read first project json");
+    let json_b = fs::read_to_string(summary_b.project_json_path).expect("read second project json");
+    assert_eq!(json_a, json_b, "docgen output should be deterministic");
+
+    let parsed: Value = serde_json::from_str(&json_a).expect("valid json");
+    let langs: BTreeSet<String> = parsed["languages"]
+        .as_array()
+        .expect("languages should be array")
+        .iter()
+        .filter_map(|entry| entry.as_str().map(ToOwned::to_owned))
+        .collect();
+
+    for expected in
+        ["ruff", "php", "python", "typescript", "javascript", "ruby", "go", "haskell", "zig"]
+    {
+        assert!(langs.contains(expected), "missing language {}", expected);
+    }
+}
+
+#[test]
+fn docgen_does_not_follow_symlink_escape() {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs as unix_fs;
+
+        let root = unique_temp_dir("symlink_root");
+        let outside = unique_temp_dir("symlink_outside");
+        let out_dir = root.join("docs");
+        let outside_file = outside.join("escape.py");
+        write_file(&outside_file, "def stolen():\n    return 1\n");
+        let symlink = root.join("linked_escape.py");
+        unix_fs::symlink(&outside_file, &symlink).expect("failed to create symlink");
+
+        let (_project, summary) = run_docgen(&DocgenConfig {
+            input: root.clone(),
+            out_dir,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: None,
+            languages: Some("python".to_string()),
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: false,
+            fail_on_broken_links: false,
+            fail_on_warnings: false,
+            public_only: false,
+            include_private: true,
+        })
+        .expect("docgen should succeed");
+
+        let json = fs::read_to_string(summary.project_json_path).expect("read json");
+        assert!(!json.contains("stolen"), "symlink escape file should not be discovered");
+    }
+}
+
+#[test]
+fn docgen_never_executes_source_code() {
+    let dir = unique_temp_dir("no_exec");
+    let out = dir.join("docs");
+    let marker = dir.join("should_not_exist.txt");
+
+    write_file(
+        &dir.join("danger.ruff"),
+        &format!("write_file(\"{}\", \"owned\")\nfunc safe() {{ return 1 }}\n", marker.display()),
+    );
+
+    let output = run_ruff(
+        &[
+            "docgen",
+            dir.to_str().expect("dir utf-8"),
+            "--language",
+            "ruff",
+            "--out-dir",
+            out.to_str().expect("out utf-8"),
+        ],
+        &dir,
+    );
+
+    assert!(output.status.success(), "docgen should parse without executing code");
+    assert!(
+        !marker.exists(),
+        "marker file should not exist because docgen must not execute source"
+    );
+}
+
+#[test]
+fn docgen_html_escapes_untrusted_docs() {
+    let dir = unique_temp_dir("escape_html");
+    let out = dir.join("docs");
+    let input = dir.join("x.ruff");
+    write_file(&input, "/// <script>alert('xss')</script>\nfunc test() { return 1 }\n");
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Html,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    let html = fs::read_to_string(summary.module_doc_path).expect("read html");
+    assert!(html.contains("&lt;script&gt;alert"), "html output should be escaped");
+    assert!(!html.contains("<script>alert"), "raw script should not be present");
+}
+
+#[test]
+fn docgen_adapter_conformance_smoke_extracts_symbols_for_all_languages() {
+    let dir = unique_temp_dir("adapter_conformance");
+    let out = dir.join("docs");
+
+    write_file(&dir.join("sample.ruff"), "func ruff_fn() { return 1 }\n");
+    write_file(&dir.join("sample.php"), "<?php\nfunction php_fn($x) { return $x; }\n");
+    write_file(&dir.join("sample.py"), "def py_fn(x):\n    return x\n");
+    write_file(&dir.join("sample.ts"), "export function tsFn(x: number): number { return x; }\n");
+    write_file(&dir.join("sample.js"), "export function jsFn(x) { return x; }\n");
+    write_file(&dir.join("sample.rb"), "def rb_fn(x)\n  x\nend\n");
+    write_file(&dir.join("sample.go"), "package main\nfunc GoFn(x int) int { return x }\n");
+    write_file(&dir.join("sample.hs"), "hFn :: Int -> Int\nhFn x = x\n");
+    write_file(&dir.join("sample.zig"), "pub fn zigFn(x: i32) i32 { return x; }\n");
+
+    let (project, _summary) = run_docgen(&DocgenConfig {
+        input: dir.clone(),
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: None,
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    let present: BTreeSet<String> =
+        project.symbols.iter().map(|symbol| symbol.language.clone()).collect();
+    for language in
+        ["ruff", "php", "python", "typescript", "javascript", "ruby", "go", "haskell", "zig"]
+    {
+        assert!(
+            present.contains(language),
+            "expected at least one extracted symbol for language {}",
+            language
+        );
+    }
+}
+
+#[test]
+fn docgen_strict_gates_fail_as_expected() {
+    let dir = unique_temp_dir("strict_gates");
+    let out = dir.join("docs");
+    let input = dir.join("gate.ruff");
+    write_file(
+        &input,
+        "/// See [Missing](missing.md)\nfunc documented() { return 1 }\nfunc undocumented() { return 2 }\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("docgen run itself should complete and report gate failures");
+
+    assert!(!summary.gate_failures.is_empty(), "strict gates should report failure messages");
+    assert!(
+        summary.gate_failures.iter().any(|entry| entry.contains("undocumented")),
+        "expected undocumented gate failure"
+    );
+    assert!(
+        summary.gate_failures.iter().any(|entry| entry.contains("broken links")),
+        "expected broken-link gate failure"
+    );
+}
+
+#[test]
+fn docgen_large_repo_smoke_completes_with_deterministic_counts() {
+    let dir = unique_temp_dir("large_repo");
+    let out = dir.join("docs");
+
+    for idx in 0..250usize {
+        write_file(
+            &dir.join(format!("pkg/mod_{}.py", idx)),
+            &format!("def fn_{}(x):\n    return x\n", idx),
+        );
+    }
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input: dir.clone(),
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("python".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("large repo docgen should succeed");
+
+    assert_eq!(summary.item_count, 250);
+}
+
+#[test]
+fn docgen_snapshot_stable_core_outputs() {
+    let dir = unique_temp_dir("snapshot");
+    let out = dir.join("docs");
+    let input = dir.join("snap.ruff");
+    write_file(&input, "/// Add\nfunc add(a, b) { return a + b }\nconst VALUE := 1\n");
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::All,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: true,
+        search_index: true,
+        source_links: true,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("snapshot docgen should succeed");
+
+    let json = fs::read_to_string(summary.project_json_path).expect("read project json");
+    assert!(json.contains("\"qualified_name\": \"add\""));
+    assert!(json.contains("\"qualified_name\": \"VALUE\""));
+
+    let html = fs::read_to_string(summary.module_doc_path).expect("read html");
+    assert!(html.contains("Universal Ruff DocGen"));
+
+    let markdown = fs::read_to_string(summary.output_dir.join("docgen.md")).expect("read markdown");
+    assert!(markdown.contains("# Ruff DocGen"));
+}

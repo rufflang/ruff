@@ -11,6 +11,7 @@ mod builtins;
 mod bytecode;
 mod compiler;
 mod doc_generator;
+mod docgen;
 mod errors;
 mod formatter;
 mod interpreter;
@@ -367,18 +368,62 @@ enum Commands {
         publish: bool,
     },
 
-    /// Generate HTML documentation from Ruff /// comments
+    /// Generate universal documentation from source code
     Docgen {
-        /// Path to the .ruff file
-        file: PathBuf,
+        /// Path to a file or directory to document
+        path: PathBuf,
 
         /// Output directory for generated docs (defaults to docs/generated)
         #[arg(long)]
         out_dir: Option<PathBuf>,
 
+        /// Output format: html, markdown, json, or all
+        #[arg(long)]
+        format: Option<String>,
+
+        /// Restrict processing to a single language adapter
+        #[arg(long)]
+        language: Option<String>,
+
+        /// Comma-separated language adapter list
+        #[arg(long)]
+        languages: Option<String>,
+
         /// Disable builtin/native API reference generation
         #[arg(long, default_value_t = false)]
         no_builtins: bool,
+
+        /// Emit AI task files for documentation gaps
+        #[arg(long, default_value_t = false)]
+        emit_ai_tasks: bool,
+
+        /// Generate search and symbol index JSON outputs
+        #[arg(long, default_value_t = false)]
+        search_index: bool,
+
+        /// Include source links in rendered docs
+        #[arg(long, default_value_t = false)]
+        source_links: bool,
+
+        /// Include only public/exported symbols
+        #[arg(long, default_value_t = false)]
+        public_only: bool,
+
+        /// Explicitly include private/internal symbols
+        #[arg(long, default_value_t = false)]
+        include_private: bool,
+
+        /// Fail when undocumented symbols are detected
+        #[arg(long, default_value_t = false)]
+        fail_on_undocumented: bool,
+
+        /// Fail when broken links are detected in docs
+        #[arg(long, default_value_t = false)]
+        fail_on_broken_links: bool,
+
+        /// Fail when any warnings are emitted
+        #[arg(long, default_value_t = false)]
+        fail_on_warnings: bool,
 
         /// Print documentation generation result as JSON
         #[arg(long, default_value_t = false)]
@@ -1527,25 +1572,72 @@ async fn main() {
             }
         }
 
-        Commands::Docgen { file, out_dir, no_builtins, json } => {
+        Commands::Docgen {
+            path,
+            out_dir,
+            format,
+            language,
+            languages,
+            no_builtins,
+            emit_ai_tasks,
+            search_index,
+            source_links,
+            public_only,
+            include_private,
+            fail_on_undocumented,
+            fail_on_broken_links,
+            fail_on_warnings,
+            json,
+        } => {
             let output_dir = out_dir.unwrap_or_else(|| PathBuf::from("docs/generated"));
-            let summary =
-                match doc_generator::generate_docs_for_file(&file, &output_dir, !no_builtins) {
-                    Ok(result) => result,
-                    Err(message) => {
-                        eprintln!("{}", message);
-                        std::process::exit(CliExitCode::RuntimeError.code());
-                    }
-                };
+            let doc_format = match docgen::core::parse_output_format(format.as_deref()) {
+                Ok(value) => value,
+                Err(message) => {
+                    eprintln!("{}", message);
+                    std::process::exit(CliExitCode::RuntimeError.code());
+                }
+            };
+            let (_project, summary) = match docgen::core::run(&docgen::core::DocgenConfig {
+                input: path.clone(),
+                out_dir: output_dir,
+                format: doc_format,
+                include_builtins: !no_builtins,
+                language,
+                languages,
+                emit_ai_tasks,
+                search_index,
+                source_links,
+                fail_on_undocumented,
+                fail_on_broken_links,
+                fail_on_warnings,
+                public_only,
+                include_private,
+            }) {
+                Ok(result) => result,
+                Err(message) => {
+                    eprintln!("{}", message);
+                    std::process::exit(CliExitCode::RuntimeError.code());
+                }
+            };
 
             if json {
                 let output = serde_json::json!({
                     "command": "docgen",
-                    "file": file.display().to_string(),
+                    "file": path.display().to_string(),
                     "output_dir": summary.output_dir.display().to_string(),
                     "module_doc_path": summary.module_doc_path.display().to_string(),
                     "builtin_doc_path": summary.builtin_doc_path.as_ref().map(|path| path.display().to_string()),
                     "item_count": summary.item_count,
+                    "languages": summary.languages,
+                    "project_json_path": summary.project_json_path.display().to_string(),
+                    "gaps_json_path": summary.gaps_json_path.display().to_string(),
+                    "capabilities_json_path": summary.capabilities_json_path.display().to_string(),
+                    "ai_tasks_path": summary.ai_tasks_path.as_ref().map(|path| path.display().to_string()),
+                    "diagnostics_count": summary.diagnostics_count,
+                    "undocumented_count": summary.undocumented_count,
+                    "broken_link_count": summary.broken_link_count,
+                    "warning_count": summary.warning_count,
+                    "gate_failures": summary.gate_failures,
                 });
 
                 match serde_json::to_string_pretty(&output) {
@@ -1565,6 +1657,12 @@ async fn main() {
                 println!("builtin docs: {}", builtin_path.display());
             }
             println!("documented items: {}", summary.item_count);
+            if !summary.gate_failures.is_empty() {
+                for failure in &summary.gate_failures {
+                    eprintln!("docgen gate failed: {}", failure);
+                }
+                std::process::exit(1);
+            }
         }
 
         Commands::BenchCross { ruff_script, python_script, python } => {
