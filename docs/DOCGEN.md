@@ -105,6 +105,11 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
 2. `DOCGEN_DISCOVERY_MAX_DEPTH`
 3. `DOCGEN_DISCOVERY_MAX_FILES`
 
+`ruff docgen --json` also reports per-reason skip counters under `discovery_skip_counts`:
+1. `max_file_size`
+2. `max_depth`
+3. `max_files`
+
 ## CLI
 
 ### Basic Ruff docs

@@ -1637,6 +1637,7 @@ async fn main() {
                     "undocumented_count": summary.undocumented_count,
                     "broken_link_count": summary.broken_link_count,
                     "warning_count": summary.warning_count,
+                    "discovery_skip_counts": summary.discovery_skip_counts,
                     "gate_failures": summary.gate_failures,
                 });
 

@@ -99,6 +99,10 @@ fn docgen_json_contract_is_stable() {
     assert!(body["module_doc_path"].is_string());
     assert!(body.get("builtin_doc_path").is_some());
     assert!(body["item_count"].is_number());
+    assert!(body["discovery_skip_counts"].is_object());
+    assert!(body["discovery_skip_counts"]["max_file_size"].is_number());
+    assert!(body["discovery_skip_counts"]["max_depth"].is_number());
+    assert!(body["discovery_skip_counts"]["max_files"].is_number());
 }
 
 #[test]

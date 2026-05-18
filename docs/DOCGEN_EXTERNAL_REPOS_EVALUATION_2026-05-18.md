@@ -220,6 +220,18 @@ After adding explicit discovery skip diagnostics for max file size, max depth, a
 
 Interpretation: task 1 improves discovery transparency without changing strict gate counts on the external validation set.
 
+### Workstream D Task 2 follow-up (2026-05-18)
+
+After adding discovery skip summary counters by reason to the docgen CLI JSON contract (`discovery_skip_counts` with `max_file_size`, `max_depth`, `max_files`), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 2 is summary-contract transparency hardening; strict external gate counts remain stable while per-reason discovery skip counters are now available for CI/reporting.
+
 ### Test results
 
 - `docgen_universal`: passed

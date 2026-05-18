@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen Workstream D task 2 (`docgen(D-2)`) by adding deterministic discovery skip counters by reason to the docgen run summary/CLI JSON contract (`discovery_skip_counts` with `max_file_size`, `max_depth`, and `max_files`), plus regression coverage in discovery, docgen integration, and CLI JSON contract tests.
 - Fixed DocGen Workstream D task 1 (`docgen(D-1)`) by emitting deterministic discovery skip diagnostics for file-size, depth, and file-count limits (`DOCGEN_DISCOVERY_MAX_FILE_SIZE`, `DOCGEN_DISCOVERY_MAX_DEPTH`, `DOCGEN_DISCOVERY_MAX_FILES`) and adding discovery/docgen regression tests.
 - Fixed DocGen Workstream C task 3 (`docgen(C-3)`) by adding spacing/proximity edge-case regression coverage in `tests/docgen_universal.rs` for Ruff doc attachment behavior: blank-line tolerance, regular-comment attachment breaks, non-overreach across intermediate symbols, and nearest-block precedence.
 - Fixed DocGen Workstream C task 2 (`docgen(C-2)`) by strengthening Ruff comment-to-symbol attachment heuristics to skip decorator/attribute lines (`@...`, `#[...]`) between a doc block and its symbol target, and added regression coverage in `tests/docgen_universal.rs` to prevent overreaching attachment.

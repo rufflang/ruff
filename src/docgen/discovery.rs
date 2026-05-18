@@ -27,6 +27,7 @@ pub struct DiscoveryResult {
     pub files: Vec<DiscoveredFile>,
     pub detected_languages: Vec<String>,
     pub diagnostics: Vec<DiscoveryDiagnostic>,
+    pub skip_counts: DiscoverySkipCounts,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +35,13 @@ pub struct DiscoveryDiagnostic {
     pub code: &'static str,
     pub message: String,
     pub path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DiscoverySkipCounts {
+    pub max_file_size: usize,
+    pub max_depth: usize,
+    pub max_files: usize,
 }
 
 pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryResult, DocgenError> {
@@ -63,16 +71,18 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
 
     let mut paths = Vec::new();
     let mut diagnostics = Vec::new();
+    let mut skip_counts = DiscoverySkipCounts::default();
     if metadata.is_file() {
         paths.push(input_abs);
     } else {
-        walk_dir(&root, &root, 0, options, &mut paths, &mut diagnostics)?;
+        walk_dir(&root, &root, 0, options, &mut paths, &mut diagnostics, &mut skip_counts)?;
     }
 
     paths.sort();
     if paths.len() > options.max_files {
         let skipped = paths.len() - options.max_files;
         paths.truncate(options.max_files);
+        skip_counts.max_files += skipped;
         diagnostics.push(DiscoveryDiagnostic {
             code: "DOCGEN_DISCOVERY_MAX_FILES",
             message: format!(
@@ -119,6 +129,7 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
                 .strip_prefix(&root)
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|_| canonical.clone());
+            skip_counts.max_file_size += 1;
             diagnostics.push(DiscoveryDiagnostic {
                 code: "DOCGEN_DISCOVERY_MAX_FILE_SIZE",
                 message: format!(
@@ -152,6 +163,7 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
         files,
         detected_languages: languages.into_iter().collect(),
         diagnostics,
+        skip_counts,
     })
 }
 
@@ -162,9 +174,11 @@ fn walk_dir(
     options: &DiscoveryOptions,
     out: &mut Vec<PathBuf>,
     diagnostics: &mut Vec<DiscoveryDiagnostic>,
+    skip_counts: &mut DiscoverySkipCounts,
 ) -> Result<(), DocgenError> {
     if depth > options.max_depth {
         let relative = current.strip_prefix(root).unwrap_or(current).to_path_buf();
+        skip_counts.max_depth += 1;
         diagnostics.push(DiscoveryDiagnostic {
             code: "DOCGEN_DISCOVERY_MAX_DEPTH",
             message: format!(
@@ -205,7 +219,7 @@ fn walk_dir(
             .map_err(DocgenError::new)?;
 
         if symlink_meta.is_dir() {
-            walk_dir(root, &canonical, depth + 1, options, out, diagnostics)?;
+            walk_dir(root, &canonical, depth + 1, options, out, diagnostics, skip_counts)?;
         } else if symlink_meta.is_file() {
             out.push(canonical);
         }
@@ -248,12 +262,12 @@ mod tests {
 
         assert!(result.files.is_empty(), "oversized file should be skipped");
         assert!(
-            result
-                .diagnostics
-                .iter()
-                .any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_FILE_SIZE"),
+            result.diagnostics.iter().any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_FILE_SIZE"),
             "expected max-file-size discovery diagnostic"
         );
+        assert_eq!(result.skip_counts.max_file_size, 1);
+        assert_eq!(result.skip_counts.max_depth, 0);
+        assert_eq!(result.skip_counts.max_files, 0);
     }
 
     #[test]
@@ -275,12 +289,12 @@ mod tests {
         .expect("discovery should succeed");
 
         assert!(
-            result
-                .diagnostics
-                .iter()
-                .any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_DEPTH"),
+            result.diagnostics.iter().any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_DEPTH"),
             "expected max-depth discovery diagnostic"
         );
+        assert_eq!(result.skip_counts.max_file_size, 0);
+        assert_eq!(result.skip_counts.max_depth, 1);
+        assert_eq!(result.skip_counts.max_files, 0);
     }
 
     #[test]
@@ -305,6 +319,30 @@ mod tests {
             result.diagnostics.iter().any(|diag| diag.code == "DOCGEN_DISCOVERY_MAX_FILES"),
             "expected max-files discovery diagnostic"
         );
+        assert_eq!(result.skip_counts.max_file_size, 0);
+        assert_eq!(result.skip_counts.max_depth, 0);
+        assert_eq!(result.skip_counts.max_files, 1);
+    }
+
+    #[test]
+    fn discover_skip_counts_are_zero_without_skips() {
+        let root = temp_dir("no_skips");
+        fs::write(root.join("ok.ruff"), "pub func ok_api() { return 1 }").expect("write fixture");
+
+        let result = discover(
+            &root,
+            &DiscoveryOptions {
+                selected_languages: Some(vec!["ruff".to_string()]),
+                max_file_size_bytes: 1024,
+                max_files: 10,
+                max_depth: 4,
+            },
+        )
+        .expect("discovery should succeed");
+
+        assert_eq!(result.skip_counts.max_file_size, 0);
+        assert_eq!(result.skip_counts.max_depth, 0);
+        assert_eq!(result.skip_counts.max_files, 0);
     }
 }
 

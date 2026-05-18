@@ -57,6 +57,7 @@ pub struct DocgenRunSummary {
     pub undocumented_count: usize,
     pub broken_link_count: usize,
     pub warning_count: usize,
+    pub discovery_skip_counts: BTreeMap<String, usize>,
     pub gate_failures: Vec<String>,
 }
 
@@ -249,6 +250,11 @@ pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), Docg
     let languages = project.languages.clone();
     let diagnostics_count = project.diagnostics.len();
     let broken_link_count = broken_links.len();
+    let discovery_skip_counts = BTreeMap::from([
+        ("max_depth".to_string(), discovery.skip_counts.max_depth),
+        ("max_file_size".to_string(), discovery.skip_counts.max_file_size),
+        ("max_files".to_string(), discovery.skip_counts.max_files),
+    ]);
 
     Ok((
         project,
@@ -266,6 +272,7 @@ pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), Docg
             undocumented_count,
             broken_link_count,
             warning_count,
+            discovery_skip_counts,
             gate_failures,
         },
     ))

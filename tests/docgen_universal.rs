@@ -16,9 +16,7 @@ fn symbol_visibility<'a>(symbols: &'a [Value], qualified_name: &str) -> &'a str 
 }
 
 fn has_symbol(symbols: &[Value], qualified_name: &str) -> bool {
-    symbols
-        .iter()
-        .any(|symbol| symbol["qualified_name"] == qualified_name)
+    symbols.iter().any(|symbol| symbol["qualified_name"] == qualified_name)
 }
 
 fn unique_temp_dir(prefix: &str) -> PathBuf {
@@ -276,15 +274,16 @@ fn docgen_emits_discovery_diagnostics_for_oversized_files() {
     .expect("docgen should succeed");
 
     assert!(summary.diagnostics_count > 0, "expected discovery warning diagnostics");
+    assert_eq!(summary.discovery_skip_counts.get("max_file_size").copied().unwrap_or_default(), 1);
+    assert_eq!(summary.discovery_skip_counts.get("max_depth").copied().unwrap_or_default(), 0);
+    assert_eq!(summary.discovery_skip_counts.get("max_files").copied().unwrap_or_default(), 0);
 
     let project_json =
         fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
     let project: Value =
         serde_json::from_str(&project_json).expect("docgen.json should be valid json");
     let symbols = project["symbols"].as_array().expect("symbols should be an array");
-    let diagnostics = project["diagnostics"]
-        .as_array()
-        .expect("diagnostics should be an array");
+    let diagnostics = project["diagnostics"].as_array().expect("diagnostics should be an array");
 
     assert!(has_symbol(symbols, "kept_api"));
     assert!(diagnostics.iter().any(|diag| {
@@ -674,9 +673,8 @@ fn docgen_ruff_extraction_edge_fixture_async_visibility_contract() {
             .expect("failed to read expected async visibility fixture");
     let expected: Value =
         serde_json::from_str(&expected_json).expect("expected visibility fixture should be json");
-    let expected_map = expected
-        .as_object()
-        .expect("expected visibility fixture should be an object map");
+    let expected_map =
+        expected.as_object().expect("expected visibility fixture should be an object map");
 
     let project_json =
         fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
@@ -685,9 +683,9 @@ fn docgen_ruff_extraction_edge_fixture_async_visibility_contract() {
     let symbols = project["symbols"].as_array().expect("symbols should be an array");
 
     for (qualified_name, visibility) in expected_map {
-        let expected_visibility = visibility
-            .as_str()
-            .unwrap_or_else(|| panic!("visibility fixture for '{}' should be string", qualified_name));
+        let expected_visibility = visibility.as_str().unwrap_or_else(|| {
+            panic!("visibility fixture for '{}' should be string", qualified_name)
+        });
         assert_eq!(
             symbol_visibility(symbols, qualified_name),
             expected_visibility,
@@ -712,10 +710,9 @@ fn docgen_ruff_extraction_edge_fixture_async_strict_gate_contract() {
             .expect("failed to read expected async strict fixture");
     let expected: Value =
         serde_json::from_str(&expected_json).expect("expected strict fixture should be json");
-    let expected_undocumented = expected["undocumented_count"]
-        .as_u64()
-        .expect("expected undocumented_count should be u64")
-        as usize;
+    let expected_undocumented =
+        expected["undocumented_count"].as_u64().expect("expected undocumented_count should be u64")
+            as usize;
     let expected_gate_failure = expected["gate_failure_contains"]
         .as_str()
         .expect("expected gate_failure_contains should be string");
@@ -740,10 +737,7 @@ fn docgen_ruff_extraction_edge_fixture_async_strict_gate_contract() {
 
     assert_eq!(summary.undocumented_count, expected_undocumented);
     assert!(
-        summary
-            .gate_failures
-            .iter()
-            .any(|failure| failure.contains(expected_gate_failure)),
+        summary.gate_failures.iter().any(|failure| failure.contains(expected_gate_failure)),
         "strict gate failures should contain '{}'",
         expected_gate_failure
     );

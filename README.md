@@ -153,6 +153,7 @@ Ruff DocGen inline docs support `///`, `//!`, and `/** ... */` comment styles; p
 Ruff DocGen doc attachment is decorator-aware and skips intermediate `@...` / `#[...]` lines when mapping a doc block to its symbol target.
 Ruff doc attachment keeps stable proximity rules: blank-line spacing is allowed, regular non-doc comment lines break attachment, and the nearest eligible doc block wins.
 DocGen now emits explicit discovery-limit warnings in JSON output when files are skipped for size/depth/file-count limits (`DOCGEN_DISCOVERY_MAX_FILE_SIZE`, `DOCGEN_DISCOVERY_MAX_DEPTH`, `DOCGEN_DISCOVERY_MAX_FILES`).
+DocGen CLI JSON output (`ruff docgen ... --json`) also includes deterministic per-reason discovery skip counters in `discovery_skip_counts` (`max_file_size`, `max_depth`, `max_files`).
 
 ### CLI Exit Codes
 
