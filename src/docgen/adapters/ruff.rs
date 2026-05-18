@@ -119,7 +119,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 let is_method = active_struct.is_some();
                 let kind = if is_method { DocSymbolKind::Method } else { DocSymbolKind::Function };
                 let parent = active_struct.as_ref().map(|(name, _)| name.clone());
-                let visibility = if caps.get(1).is_some() || !is_method {
+                let visibility = if caps.get(1).is_some() {
                     DocVisibility::Public
                 } else {
                     DocVisibility::Private

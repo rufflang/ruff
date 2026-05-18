@@ -6,6 +6,15 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+fn symbol_visibility<'a>(symbols: &'a [Value], qualified_name: &str) -> &'a str {
+    symbols
+        .iter()
+        .find(|symbol| symbol["qualified_name"] == qualified_name)
+        .unwrap_or_else(|| panic!("missing symbol '{}'", qualified_name))["visibility"]
+        .as_str()
+        .unwrap_or_else(|| panic!("symbol '{}' visibility should be string", qualified_name))
+}
+
 fn unique_temp_dir(prefix: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -77,6 +86,121 @@ fn docgen_captures_documented_and_undocumented_ruff_symbols() {
     assert!(symbols.iter().any(|symbol| {
         symbol["qualified_name"] == "sub_one" && symbol["docs"]["placeholder"] == true
     }));
+}
+
+#[test]
+fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
+    let dir = unique_temp_dir("ruff_visibility_matrix");
+    let input = dir.join("visibility.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "func internal_helper() {\n    return 1\n}\n\npub func exported_api() {\n    return 2\n}\n\nstruct Worker {\n    func hidden_method(self) {\n        return 3\n    }\n\n    pub func visible_method(self) {\n        return 4\n    }\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input: input.clone(),
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert_eq!(symbol_visibility(symbols, "internal_helper"), "Private");
+    assert_eq!(symbol_visibility(symbols, "exported_api"), "Public");
+    assert_eq!(symbol_visibility(symbols, "Worker::hidden_method"), "Private");
+    assert_eq!(symbol_visibility(symbols, "Worker::visible_method"), "Public");
+}
+
+#[test]
+fn docgen_strict_public_gate_ignores_private_undocumented_ruff_functions() {
+    let dir = unique_temp_dir("ruff_visibility_strict_gate_private");
+    let input = dir.join("strict_private.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "func private_helper() {\n    return 1\n}\n\n/// API docs\npub func public_api() {\n    return 2\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("strict docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, 0);
+    assert_eq!(summary.warning_count, 0);
+    assert_eq!(summary.broken_link_count, 0);
+    assert!(summary.gate_failures.is_empty(), "strict gate should pass");
+}
+
+#[test]
+fn docgen_strict_public_gate_still_fails_on_undocumented_explicit_public_ruff_function() {
+    let dir = unique_temp_dir("ruff_visibility_strict_gate_public");
+    let input = dir.join("strict_public.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "func private_helper() {\n    return 1\n}\n\npub func public_missing_docs() {\n    return 2\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("strict docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, 1);
+    assert!(
+        summary
+            .gate_failures
+            .iter()
+            .any(|failure| failure == "1 undocumented public symbols detected"),
+        "strict gate should fail on undocumented explicit public symbols"
+    );
 }
 
 #[test]
@@ -318,7 +442,7 @@ fn docgen_strict_gates_fail_as_expected() {
     let input = dir.join("gate.ruff");
     write_file(
         &input,
-        "/// See [Missing](missing.md)\nfunc documented() { return 1 }\nfunc undocumented() { return 2 }\n",
+        "/// See [Missing](missing.md)\npub func documented() { return 1 }\npub func undocumented() { return 2 }\n",
     );
 
     let (_project, summary) = run_docgen(&DocgenConfig {
