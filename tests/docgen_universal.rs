@@ -211,6 +211,55 @@ fn docgen_strict_public_gate_still_fails_on_undocumented_explicit_public_ruff_fu
 }
 
 #[test]
+fn docgen_public_only_visibility_matrix_keeps_internal_helpers_out_of_public_gate() {
+    let dir = unique_temp_dir("ruff_public_only_visibility_matrix");
+    let input = dir.join("visibility_matrix_public_only.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "func internal_helper() {\n    return 1\n}\n\n/// Exported API docs\npub func exported_api() {\n    return 2\n}\n\nstruct InternalWorker {\n    pub func visible_but_private(self) {\n        return 3\n    }\n\n    func hidden_method(self) {\n        return 4\n    }\n}\n\n/// Public worker docs\npub struct PublicWorker {\n    /// Public method docs\n    pub func documented_public_method(self) {\n        return 5\n    }\n\n    func private_method(self) {\n        return 6\n    }\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: true,
+        fail_on_broken_links: true,
+        fail_on_warnings: true,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("strict public-only docgen run should complete");
+
+    assert_eq!(summary.undocumented_count, 0);
+    assert!(summary.gate_failures.is_empty(), "strict gate should pass");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert!(has_symbol(symbols, "exported_api"));
+    assert!(has_symbol(symbols, "PublicWorker"));
+    assert!(has_symbol(symbols, "PublicWorker::documented_public_method"));
+
+    assert!(!has_symbol(symbols, "internal_helper"));
+    assert!(!has_symbol(symbols, "InternalWorker"));
+    assert!(!has_symbol(symbols, "InternalWorker::visible_but_private"));
+    assert!(!has_symbol(symbols, "InternalWorker::hidden_method"));
+    assert!(!has_symbol(symbols, "PublicWorker::private_method"));
+}
+
+#[test]
 fn docgen_public_only_excludes_methods_on_private_structs() {
     let dir = unique_temp_dir("ruff_private_struct_methods_gate");
     let input = dir.join("private_struct_methods.ruff");
