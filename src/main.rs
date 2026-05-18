@@ -438,6 +438,10 @@ enum Commands {
         #[arg(long)]
         external_link_allowlist: Option<String>,
 
+        /// Allow validating external links that resolve to private/loopback/link-local/multicast IPs
+        #[arg(long, default_value_t = false)]
+        allow_private_network_links: bool,
+
         /// Fail when any warnings are emitted
         #[arg(long, default_value_t = false)]
         fail_on_warnings: bool,
@@ -1607,6 +1611,7 @@ async fn main() {
             validate_external_links,
             external_link_timeout_ms,
             external_link_allowlist,
+            allow_private_network_links,
             fail_on_warnings,
             json,
         } => {
@@ -1650,6 +1655,7 @@ async fn main() {
                     validate_external_links,
                     external_link_timeout_ms,
                     external_link_allowlist,
+                    allow_private_network_links,
                 },
             ) {
                 Ok(result) => result,

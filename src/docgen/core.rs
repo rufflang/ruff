@@ -226,6 +226,9 @@ pub fn run_with_link_validation(
             BrokenLinkKind::ExternalRedirectDisallowed => {
                 ("DOCGEN_LINK_BROKEN_EXTERNAL_REDIRECT_ALLOWLIST", "external-redirect-allowlist")
             }
+            BrokenLinkKind::ExternalPrivateAddressBlocked => {
+                ("DOCGEN_LINK_BROKEN_EXTERNAL_PRIVATE_ADDRESS", "external-private-address")
+            }
         };
         project.diagnostics.push(DocDiagnostic {
             severity: DocDiagnosticSeverity::Warning,
@@ -315,21 +318,24 @@ pub fn run_with_link_validation(
         let mut local_anchor_missing = 0usize;
         let mut external_unreachable = 0usize;
         let mut external_redirect_allowlist = 0usize;
+        let mut external_private_address = 0usize;
         for broken_link in &broken_links {
             match broken_link.kind {
                 BrokenLinkKind::LocalFileMissing => local_file_missing += 1,
                 BrokenLinkKind::LocalAnchorMissing => local_anchor_missing += 1,
                 BrokenLinkKind::ExternalUnreachable => external_unreachable += 1,
                 BrokenLinkKind::ExternalRedirectDisallowed => external_redirect_allowlist += 1,
+                BrokenLinkKind::ExternalPrivateAddressBlocked => external_private_address += 1,
             }
         }
         gate_failures.push(format!(
-            "{} broken links detected (local_file={}, local_anchor={}, external={}, external_redirect_allowlist={})",
+            "{} broken links detected (local_file={}, local_anchor={}, external={}, external_redirect_allowlist={}, external_private_address={})",
             broken_links.len(),
             local_file_missing,
             local_anchor_missing,
             external_unreachable,
-            external_redirect_allowlist
+            external_redirect_allowlist,
+            external_private_address
         ));
     }
     if config.fail_on_warnings && warning_count > 0 {

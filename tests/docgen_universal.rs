@@ -1386,6 +1386,7 @@ fn docgen_optional_external_validation_skips_non_allowlisted_hosts() {
             validate_external_links: true,
             external_link_timeout_ms: 100,
             external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+            allow_private_network_links: false,
         },
     )
     .expect("docgen run should complete");
@@ -1426,12 +1427,111 @@ fn docgen_optional_external_validation_fails_allowlisted_unreachable_hosts() {
             validate_external_links: true,
             external_link_timeout_ms: 100,
             external_link_allowlist: BTreeSet::from(["127.0.0.1".to_string()]),
+            allow_private_network_links: true,
         },
     )
     .expect("docgen run should complete");
 
     assert_eq!(summary.broken_link_count, 1);
     assert!(summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")));
+}
+
+#[test]
+fn docgen_external_validation_blocks_direct_private_ip_by_default() {
+    let dir = unique_temp_dir("external_validation_blocks_direct_private_ip");
+    let out = dir.join("docs");
+    let input = dir.join("external_private_ip.ruff");
+    write_file(
+        &input,
+        "/// Private IP link: [Docs](http://127.0.0.1:9/docs)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_local_anchors: false,
+            validate_external_links: true,
+            external_link_timeout_ms: 100,
+            external_link_allowlist: BTreeSet::from(["127.0.0.1".to_string()]),
+            allow_private_network_links: false,
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 1);
+    assert!(summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")));
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_BROKEN_EXTERNAL_PRIVATE_ADDRESS"
+                && diag.message.contains("127.0.0.1")
+                && diag.message.contains("linked_api")
+        }),
+        "private-address rejection should emit deterministic diagnostics"
+    );
+}
+
+#[test]
+fn docgen_external_validation_blocks_dns_hosts_resolving_to_private_ranges_by_default() {
+    let dir = unique_temp_dir("external_validation_blocks_dns_private_range");
+    let out = dir.join("docs");
+    let input = dir.join("external_localhost.ruff");
+    write_file(
+        &input,
+        "/// Localhost link: [Docs](http://localhost:80/docs)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_local_anchors: false,
+            validate_external_links: true,
+            external_link_timeout_ms: 100,
+            external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+            allow_private_network_links: false,
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 1);
+    assert!(summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")));
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_BROKEN_EXTERNAL_PRIVATE_ADDRESS"
+                && diag.message.contains("localhost")
+                && (diag.message.contains("127.0.0.1") || diag.message.contains("::1"))
+        }),
+        "dns hostnames resolving to blocked private ranges should be rejected by default"
+    );
 }
 
 #[test]
@@ -1475,6 +1575,7 @@ fn docgen_external_validation_allows_same_host_redirect_hops() {
             validate_external_links: true,
             external_link_timeout_ms: 500,
             external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+            allow_private_network_links: true,
         },
     )
     .expect("docgen run should complete");
@@ -1525,6 +1626,7 @@ fn docgen_external_validation_allows_cross_host_redirect_when_hosts_are_allowlis
                 "localhost".to_string(),
                 "127.0.0.1".to_string(),
             ]),
+            allow_private_network_links: true,
         },
     )
     .expect("docgen run should complete");
@@ -1572,6 +1674,7 @@ fn docgen_external_validation_blocks_redirects_to_non_allowlisted_hosts() {
             validate_external_links: true,
             external_link_timeout_ms: 500,
             external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+            allow_private_network_links: true,
         },
     )
     .expect("docgen run should complete");
@@ -1693,6 +1796,7 @@ fn docgen_cli_exposes_external_link_validation_flags() {
     assert!(stdout.contains("--validate-external-links"));
     assert!(stdout.contains("--external-link-timeout-ms"));
     assert!(stdout.contains("--external-link-allowlist"));
+    assert!(stdout.contains("--allow-private-network-links"));
 }
 
 #[test]

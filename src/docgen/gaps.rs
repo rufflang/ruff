@@ -1,5 +1,6 @@
 use crate::docgen::model::{DocGap, DocGapKind, DocProject, DocSymbol, DocVisibility};
 use std::collections::{BTreeMap, BTreeSet};
+use std::net::{IpAddr, ToSocketAddrs};
 use std::path::Path;
 use std::time::Duration;
 
@@ -9,6 +10,7 @@ pub struct LinkValidationOptions {
     pub validate_external_links: bool,
     pub external_link_timeout_ms: u64,
     pub external_link_allowlist: BTreeSet<String>,
+    pub allow_private_network_links: bool,
 }
 
 impl Default for LinkValidationOptions {
@@ -18,6 +20,7 @@ impl Default for LinkValidationOptions {
             validate_external_links: false,
             external_link_timeout_ms: 1500,
             external_link_allowlist: BTreeSet::new(),
+            allow_private_network_links: false,
         }
     }
 }
@@ -28,6 +31,7 @@ pub enum BrokenLinkKind {
     LocalAnchorMissing,
     ExternalUnreachable,
     ExternalRedirectDisallowed,
+    ExternalPrivateAddressBlocked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,6 +203,7 @@ pub fn detect_broken_doc_links(
                     match external_link_check(
                         &link,
                         &options.external_link_allowlist,
+                        options.allow_private_network_links,
                         options.external_link_timeout_ms,
                     ) {
                         ExternalLinkCheck::Reachable => {}
@@ -219,6 +224,22 @@ pub fn detect_broken_doc_links(
                                 ),
                                 line: idx + 1,
                                 kind: BrokenLinkKind::ExternalRedirectDisallowed,
+                            });
+                        }
+                        ExternalLinkCheck::PrivateAddressBlocked {
+                            url,
+                            host,
+                            blocked_addresses,
+                        } => {
+                            let blocked = blocked_addresses.join(", ");
+                            broken.push(BrokenLinkFinding {
+                                symbol: symbol.qualified_name.clone(),
+                                target: format!(
+                                    "{} (host '{}' resolves to blocked address(es): {})",
+                                    url, host, blocked
+                                ),
+                                line: idx + 1,
+                                kind: BrokenLinkKind::ExternalPrivateAddressBlocked,
                             });
                         }
                     }
@@ -326,11 +347,13 @@ enum ExternalLinkCheck {
     Reachable,
     Unreachable,
     RedirectDisallowed { next_url: String, blocked_host: String },
+    PrivateAddressBlocked { url: String, host: String, blocked_addresses: Vec<String> },
 }
 
 fn external_link_check(
     link: &str,
     allowlist: &BTreeSet<String>,
+    allow_private_network_links: bool,
     timeout_ms: u64,
 ) -> ExternalLinkCheck {
     let client = match reqwest::blocking::Client::builder()
@@ -348,6 +371,20 @@ fn external_link_check(
     };
 
     for _ in 0..10usize {
+        if !allow_private_network_links {
+            match blocked_private_addresses_for_url(&current_url) {
+                Ok(blocked_addresses) if !blocked_addresses.is_empty() => {
+                    return ExternalLinkCheck::PrivateAddressBlocked {
+                        url: current_url.to_string(),
+                        host: current_url.host_str().unwrap_or_default().to_string(),
+                        blocked_addresses,
+                    };
+                }
+                Ok(_) => {}
+                Err(_) => return ExternalLinkCheck::Unreachable,
+            }
+        }
+
         let response = match client.get(current_url.clone()).send() {
             Ok(response) => response,
             Err(_) => return ExternalLinkCheck::Unreachable,
@@ -384,6 +421,44 @@ fn external_link_check(
     }
 
     ExternalLinkCheck::Unreachable
+}
+
+fn blocked_private_addresses_for_url(url: &reqwest::Url) -> Result<Vec<String>, ()> {
+    let Some(host) = url.host_str() else {
+        return Err(());
+    };
+
+    let mut blocked = BTreeSet::new();
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        if is_blocked_external_ip(ip) {
+            blocked.insert(ip.to_string());
+        }
+        return Ok(blocked.into_iter().collect());
+    }
+
+    let port = url.port_or_known_default().ok_or(())?;
+    let addrs = (host, port).to_socket_addrs().map_err(|_| ())?;
+    for addr in addrs {
+        if is_blocked_external_ip(addr.ip()) {
+            blocked.insert(addr.ip().to_string());
+        }
+    }
+
+    Ok(blocked.into_iter().collect())
+}
+
+fn is_blocked_external_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ipv4) => {
+            ipv4.is_private() || ipv4.is_loopback() || ipv4.is_link_local() || ipv4.is_multicast()
+        }
+        IpAddr::V6(ipv6) => {
+            ipv6.is_unique_local()
+                || ipv6.is_loopback()
+                || ipv6.is_unicast_link_local()
+                || ipv6.is_multicast()
+        }
+    }
 }
 
 fn extract_markdown_links(text: &str) -> Vec<String> {
