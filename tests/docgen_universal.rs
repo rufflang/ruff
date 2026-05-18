@@ -195,6 +195,59 @@ fn docgen_ruff_attaches_docs_across_decorator_lines_without_overreaching() {
 }
 
 #[test]
+fn docgen_ruff_handles_spacing_and_proximity_edge_cases() {
+    let dir = unique_temp_dir("ruff_doc_spacing_proximity");
+    let input = dir.join("spacing_proximity.ruff");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "/// Spaced docs\n\n\npub func spaced_api() {\n    return 1\n}\n\n/// Blocked by regular comment\n// informational comment\npub func blocked_api() {\n    return 2\n}\n\n/// Internal state docs\nlet internal_value := 3\n\npub func missing_docs_api() {\n    return internal_value\n}\n\n/// First block\n\n/// Second block\npub func nearest_block_api() {\n    return 4\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "spaced_api" && symbol["docs"]["placeholder"] == false
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "blocked_api" && symbol["docs"]["placeholder"] == true
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "internal_value" && symbol["docs"]["placeholder"] == false
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "missing_docs_api" && symbol["docs"]["placeholder"] == true
+    }));
+    assert!(symbols.iter().any(|symbol| {
+        symbol["qualified_name"] == "nearest_block_api"
+            && symbol["docs"]["summary"] == "Second block"
+    }));
+}
+
+#[test]
 fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
     let dir = unique_temp_dir("ruff_visibility_matrix");
     let input = dir.join("visibility.ruff");

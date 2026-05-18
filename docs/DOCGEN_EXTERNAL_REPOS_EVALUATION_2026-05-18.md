@@ -196,6 +196,18 @@ After strengthening Ruff comment-to-symbol attachment heuristics to skip decorat
 
 Interpretation: task 2 improves attachment reliability in decorator-adjacent Ruff code paths while preserving strict gate stability on the external validation set.
 
+### Workstream C Task 3 follow-up (2026-05-18)
+
+After adding spacing/proximity regression tests for Ruff doc attachment edge cases (blank-line spacing, regular-comment breaks, and nearest-block precedence), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: task 3 is coverage hardening; strict external gate metrics remain stable while spacing/proximity behavior is now explicitly regression-locked.
+
 ### Test results
 
 - `docgen_universal`: passed

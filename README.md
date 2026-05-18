@@ -151,6 +151,7 @@ Ruff DocGen extraction also supports `async func` declarations (including `pub a
 Ruff DocGen extraction remains hybrid for now (regex-first with fixture-backed edge coverage); parser-assisted extraction is explicitly documented as a future bounded fallback path in [docs/DOCGEN.md](docs/DOCGEN.md).
 Ruff DocGen inline docs support `///`, `//!`, and `/** ... */` comment styles; plain `/* ... */` comments are ignored for API docs attachment.
 Ruff DocGen doc attachment is decorator-aware and skips intermediate `@...` / `#[...]` lines when mapping a doc block to its symbol target.
+Ruff doc attachment keeps stable proximity rules: blank-line spacing is allowed, regular non-doc comment lines break attachment, and the nearest eligible doc block wins.
 
 ### CLI Exit Codes
 

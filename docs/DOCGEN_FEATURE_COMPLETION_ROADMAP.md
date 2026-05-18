@@ -78,7 +78,7 @@ Improve auto-attachment of inline docs and reduce placeholder-only output.
 
 1. [x] Add support for additional Ruff doc-comment styles if language supports them. (Completed 2026-05-18)
 2. [x] Strengthen comment-to-symbol attachment heuristics where safe. (Completed 2026-05-18)
-3. Add tests for spacing/proximity edge cases.
+3. [x] Add tests for spacing/proximity edge cases. (Completed 2026-05-18)
 
 ### Acceptance Criteria
 
