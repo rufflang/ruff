@@ -340,6 +340,18 @@ After hardening external-link redirect handling to re-validate the host allowlis
 
 Interpretation: `DG-QA-001` is a security/reliability hardening change in optional external-link mode; strict external validation metrics on this repository set remain stable.
 
+### QA Hardening Task DG-QA-002 follow-up (2026-05-18)
+
+After adding SSRF guardrails for optional external-link validation (default blocking for private/loopback/link-local/multicast direct-IP and DNS-resolved targets, with explicit `--allow-private-network-links` opt-in), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-002` hardens external-link validation security posture while preserving strict external gate counts on this validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

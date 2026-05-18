@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen QA roadmap task `DG-QA-002` by adding SSRF guardrails for optional external-link validation: allowlisted links are now blocked by default when the target host (or any DNS-resolved address) is private, loopback, link-local, or multicast, with explicit opt-in support via `--allow-private-network-links` and deterministic `DOCGEN_LINK_BROKEN_EXTERNAL_PRIVATE_ADDRESS` diagnostics.
 - Fixed DocGen QA roadmap task `DG-QA-001` by hardening external link validation to re-check the host allowlist on every redirect hop (not just the initial URL), adding deterministic redirect-allowlist broken-link diagnostics, and expanding regression coverage for same-host redirects, cross-host allowlisted redirects, and blocked non-allowlisted redirects.
 - Fixed DocGen Workstream D task 2 (`docgen(D-2)`) by adding deterministic discovery skip counters by reason to the docgen run summary/CLI JSON contract (`discovery_skip_counts` with `max_file_size`, `max_depth`, and `max_files`), plus regression coverage in discovery, docgen integration, and CLI JSON contract tests.
 - Fixed DocGen Workstream D task 3 (`docgen(D-3)`) by enforcing deterministic sorting of discovery and project diagnostics, and adding regression coverage that verifies stable diagnostics ordering across repeated runs and mixed warning sources.

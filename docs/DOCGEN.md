@@ -196,12 +196,14 @@ Optional local-anchor validation mode is available with `--validate-local-anchor
 
 Optional external-link validation mode is available with `--validate-external-links`:
 1. Validation only runs for hosts in `--external-link-allowlist`.
-2. Allowlist confinement is enforced on every redirect hop; if a redirect leaves the allowlist, the link is reported as broken with mode `external-redirect-allowlist`.
-3. Validation requests use `--external-link-timeout-ms`.
-4. Links that fail allowlisted external validation are reported as broken links.
-5. If external validation is enabled with an empty allowlist, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY`.
-6. If an allowlist is provided without `--validate-external-links`, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED`.
-7. Broken-link diagnostics and gate failures include mode-specific categories (`local_file`, `local_anchor`, `external`, `external_redirect_allowlist`) for clearer CI triage.
+2. Private/loopback/link-local/multicast targets are blocked by default (including DNS-resolved hostnames) to reduce SSRF risk.
+3. Use `--allow-private-network-links` to opt in when private-network link validation is intentionally required.
+4. Allowlist confinement is enforced on every redirect hop; if a redirect leaves the allowlist, the link is reported as broken with mode `external-redirect-allowlist`.
+5. Validation requests use `--external-link-timeout-ms`.
+6. Links that fail allowlisted external validation are reported as broken links.
+7. If external validation is enabled with an empty allowlist, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY`.
+8. If an allowlist is provided without `--validate-external-links`, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED`.
+9. Broken-link diagnostics and gate failures include mode-specific categories (`local_file`, `local_anchor`, `external`, `external_redirect_allowlist`, `external_private_address`) for clearer CI triage.
 
 ## QA Hardening Roadmap (Post-Feature Completion)
 
@@ -214,7 +216,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Re-validate host allowlist on every redirect hop, not only on the initial URL.
    - Emit deterministic diagnostics when redirects leave the allowlist.
    - Add regression tests for same-host redirect, cross-host allowed redirect, and blocked redirect.
-2. `DG-QA-002` SSRF guardrails for external link mode.
+2. [x] `DG-QA-002` SSRF guardrails for external link mode. (Completed 2026-05-18)
    Acceptance criteria:
    - Resolve and block private/loopback/link-local/multicast IP targets by default in external-link mode.
    - Add explicit opt-in for private network validation where needed.
