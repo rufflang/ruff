@@ -100,6 +100,18 @@ After updating Ruff top-level function visibility to require explicit `pub`, str
 
 Interpretation: strict failures previously attributed to undocumented public symbols were eliminated for these repos by removing top-level visibility false positives.
 
+### Workstream A Task 3 follow-up (2026-05-18)
+
+After updating Ruff container-member visibility to keep symbols under private containers private (for example `pub` methods on private structs and variants on private enums), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: the Workstream A task 3 visibility hardening did not change strict gate counts on these three repositories (their current symbol sets do not rely on private-container member edge cases), while preserving zero broken links and zero warnings.
+
 ### Test results
 
 - `docgen_universal`: passed
