@@ -408,6 +408,22 @@ Micro-benchmark evidence (`cargo test docgen::adapters::tests::regex_caching_mic
 
 Interpretation: `DG-QA-006` removes repeated regex compilation overhead in adapter extraction hot paths while preserving strict external gate stability on this validation set.
 
+### QA Hardening Task DG-QA-007 follow-up (2026-05-19)
+
+After adding link-validation caching (single external HTTP client reused per run plus parsed local-anchor cache by file path), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Regression-evidence tests:
+- `docgen::gaps::tests::repeated_local_anchor_checks_use_cached_file_index_per_path` verifies repeated anchor checks for one target file perform one file read/parse.
+- `docgen::gaps::tests::repeated_external_host_checks_reuse_single_http_client` verifies repeated external checks in one run build one HTTP client.
+
+Interpretation: `DG-QA-007` improves repeated link-check throughput and IO efficiency while preserving strict external gate outputs.
+
 ### Test results
 
 - `docgen_universal`: passed

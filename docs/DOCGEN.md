@@ -259,7 +259,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Move regex compilation from per-file extraction paths to static/lazy compiled regexes.
    - Ensure no behavior drift in existing adapter extraction fixtures.
    - Add micro-benchmark evidence for extraction throughput improvement.
-3. `DG-QA-007` Link/anchor validation caching.
+3. [x] `DG-QA-007` Link/anchor validation caching. (Completed 2026-05-19)
    Acceptance criteria:
    - Reuse one HTTP client per run and cache parsed local anchors per file path.
    - Avoid repeated file reads for multiple anchors targeting the same file.
