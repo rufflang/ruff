@@ -136,6 +136,7 @@ fn docgen_json_contract_is_stable() {
     assert!(body["discovery_skip_counts"]["max_file_size"].is_number());
     assert!(body["discovery_skip_counts"]["max_depth"].is_number());
     assert!(body["discovery_skip_counts"]["max_files"].is_number());
+    assert!(body["discovery_skip_counts"]["invalid_encoding"].is_number());
     assert!(body["link_validation_skip_counts"].is_object());
     assert!(body["link_validation_skip_counts"]["max_link_checks"].is_number());
     assert!(body["link_validation_skip_counts"]["max_external_checks"].is_number());

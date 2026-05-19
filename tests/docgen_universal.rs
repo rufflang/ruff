@@ -343,6 +343,14 @@ fn docgen_emits_discovery_diagnostics_for_oversized_files() {
     assert_eq!(summary.discovery_skip_counts.get("max_file_size").copied().unwrap_or_default(), 1);
     assert_eq!(summary.discovery_skip_counts.get("max_depth").copied().unwrap_or_default(), 0);
     assert_eq!(summary.discovery_skip_counts.get("max_files").copied().unwrap_or_default(), 0);
+    assert_eq!(
+        summary
+            .discovery_skip_counts
+            .get("invalid_encoding")
+            .copied()
+            .unwrap_or_default(),
+        0
+    );
 
     let project_json =
         fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
@@ -357,6 +365,64 @@ fn docgen_emits_discovery_diagnostics_for_oversized_files() {
             && diag["severity"] == "Warning"
             && diag["path"].as_str().unwrap_or_default().ends_with("oversized.ruff")
     }));
+}
+
+#[test]
+fn docgen_skips_non_utf8_sources_with_deterministic_discovery_diagnostics() {
+    let dir = unique_temp_dir("docgen_discovery_invalid_encoding");
+    let bad = dir.join("bad.ruff");
+    let good = dir.join("good.ruff");
+    let out = dir.join("docs");
+
+    fs::write(&bad, vec![0xff, 0xfe, 0xfd]).expect("write invalid utf8 source");
+    write_file(&good, "pub func kept_api() {\n    return 1\n}\n");
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input: dir.clone(),
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen should succeed");
+
+    assert_eq!(summary.discovery_skip_counts.get("max_file_size").copied().unwrap_or_default(), 0);
+    assert_eq!(summary.discovery_skip_counts.get("max_depth").copied().unwrap_or_default(), 0);
+    assert_eq!(summary.discovery_skip_counts.get("max_files").copied().unwrap_or_default(), 0);
+    assert_eq!(
+        summary
+            .discovery_skip_counts
+            .get("invalid_encoding")
+            .copied()
+            .unwrap_or_default(),
+        1
+    );
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+    let diagnostics = project["diagnostics"].as_array().expect("diagnostics should be an array");
+
+    assert!(has_symbol(symbols, "kept_api"));
+    assert!(
+        diagnostics.iter().any(|diag| {
+            diag["code"] == "DOCGEN_DISCOVERY_INVALID_ENCODING"
+                && diag["severity"] == "Warning"
+                && diag["path"].as_str().unwrap_or_default().ends_with("bad.ruff")
+        }),
+        "expected invalid-encoding discovery warning"
+    );
 }
 
 #[test]

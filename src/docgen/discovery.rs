@@ -42,6 +42,7 @@ pub struct DiscoverySkipCounts {
     pub max_file_size: usize,
     pub max_depth: usize,
     pub max_files: usize,
+    pub invalid_encoding: usize,
 }
 
 pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryResult, DocgenError> {
@@ -143,9 +144,28 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
             continue;
         }
 
-        let source = fs::read_to_string(&canonical).map_err(|e| {
+        let source_bytes = fs::read(&canonical).map_err(|e| {
             DocgenError::new(format!("failed to read source file '{}': {}", canonical.display(), e))
         })?;
+        let source = match String::from_utf8(source_bytes) {
+            Ok(source) => source,
+            Err(_) => {
+                let relative = canonical
+                    .strip_prefix(&root)
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|_| canonical.clone());
+                skip_counts.invalid_encoding += 1;
+                diagnostics.push(DiscoveryDiagnostic {
+                    code: "DOCGEN_DISCOVERY_INVALID_ENCODING",
+                    message: format!(
+                        "skipped file '{}' because it is not valid UTF-8 source text",
+                        relative.display()
+                    ),
+                    path: Some(relative),
+                });
+                continue;
+            }
+        };
 
         let relative_path = canonical
             .strip_prefix(&root)
@@ -237,6 +257,7 @@ fn walk_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_dir(prefix: &str) -> PathBuf {
@@ -274,6 +295,7 @@ mod tests {
         assert_eq!(result.skip_counts.max_file_size, 1);
         assert_eq!(result.skip_counts.max_depth, 0);
         assert_eq!(result.skip_counts.max_files, 0);
+        assert_eq!(result.skip_counts.invalid_encoding, 0);
     }
 
     #[test]
@@ -301,6 +323,7 @@ mod tests {
         assert_eq!(result.skip_counts.max_file_size, 0);
         assert_eq!(result.skip_counts.max_depth, 1);
         assert_eq!(result.skip_counts.max_files, 0);
+        assert_eq!(result.skip_counts.invalid_encoding, 0);
     }
 
     #[test]
@@ -328,6 +351,7 @@ mod tests {
         assert_eq!(result.skip_counts.max_file_size, 0);
         assert_eq!(result.skip_counts.max_depth, 0);
         assert_eq!(result.skip_counts.max_files, 1);
+        assert_eq!(result.skip_counts.invalid_encoding, 0);
     }
 
     #[test]
@@ -349,6 +373,7 @@ mod tests {
         assert_eq!(result.skip_counts.max_file_size, 0);
         assert_eq!(result.skip_counts.max_depth, 0);
         assert_eq!(result.skip_counts.max_files, 0);
+        assert_eq!(result.skip_counts.invalid_encoding, 0);
     }
 
     #[test]
@@ -384,6 +409,59 @@ mod tests {
                 "DOCGEN_DISCOVERY_MAX_FILE_SIZE"
             ],
             "diagnostic ordering should follow deterministic code/path/message sorting"
+        );
+    }
+
+    #[test]
+    fn discover_skips_non_utf8_source_with_deterministic_diagnostic() {
+        let root = temp_dir("invalid_encoding");
+        let source = root.join("invalid.ruff");
+        fs::write(&source, vec![0xff, 0xfe, 0xfd]).expect("failed to write invalid bytes");
+
+        let result = discover(
+            &root,
+            &DiscoveryOptions {
+                selected_languages: Some(vec!["ruff".to_string()]),
+                max_file_size_bytes: 1024,
+                max_files: 10,
+                max_depth: 4,
+            },
+        )
+        .expect("discovery should succeed");
+
+        assert!(result.files.is_empty(), "non-utf8 source should be skipped");
+        assert_eq!(result.skip_counts.invalid_encoding, 1);
+        assert!(
+            result.diagnostics.iter().any(|diag| {
+                diag.code == "DOCGEN_DISCOVERY_INVALID_ENCODING"
+                    && diag.path.as_ref().is_some_and(|path| path == Path::new("invalid.ruff"))
+            }),
+            "expected deterministic invalid-encoding diagnostic with relative path"
+        );
+    }
+
+    #[test]
+    fn discover_handles_mixed_utf8_and_non_utf8_sources() {
+        let root = temp_dir("mixed_encoding");
+        fs::write(root.join("ok.ruff"), "pub func ok() { return 1 }\n").expect("write utf8 source");
+        fs::write(root.join("bad.ruff"), vec![0xff, 0xfe, 0xfd]).expect("write invalid source");
+
+        let result = discover(
+            &root,
+            &DiscoveryOptions {
+                selected_languages: Some(vec!["ruff".to_string()]),
+                max_file_size_bytes: 1024,
+                max_files: 10,
+                max_depth: 4,
+            },
+        )
+        .expect("discovery should succeed");
+
+        assert_eq!(result.files.len(), 1, "utf8 source should still be discovered");
+        assert_eq!(result.files[0].relative_path, Path::new("ok.ruff"));
+        assert_eq!(result.skip_counts.invalid_encoding, 1);
+        assert!(
+            result.diagnostics.iter().any(|diag| diag.code == "DOCGEN_DISCOVERY_INVALID_ENCODING")
         );
     }
 }

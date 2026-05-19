@@ -399,6 +399,7 @@ pub fn run_with_link_validation(
         ("max_depth".to_string(), discovery.skip_counts.max_depth),
         ("max_file_size".to_string(), discovery.skip_counts.max_file_size),
         ("max_files".to_string(), discovery.skip_counts.max_files),
+        ("invalid_encoding".to_string(), discovery.skip_counts.invalid_encoding),
     ]);
     let link_validation_skip_counts = BTreeMap::from([
         ("max_link_checks".to_string(), link_validation_report.skip_counts.max_link_checks),
