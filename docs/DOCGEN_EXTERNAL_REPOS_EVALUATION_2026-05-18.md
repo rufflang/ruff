@@ -364,6 +364,18 @@ After adding deterministic link-validation resource budgets (`--max-link-checks`
 
 Interpretation: `DG-QA-003` improves bounded-run reliability and machine-readable budget visibility without changing strict external gate counts on this validation set.
 
+### QA Hardening Task DG-QA-004 follow-up (2026-05-19)
+
+After making discovery encoding-safe (skipping non-UTF-8 source files with deterministic `DOCGEN_DISCOVERY_INVALID_ENCODING` diagnostics and `discovery_skip_counts.invalid_encoding`), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-004` hardens ingestion resilience and keeps strict external gate metrics stable on this validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

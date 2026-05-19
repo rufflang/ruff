@@ -109,6 +109,7 @@ Top-level object fields:
   - `max_file_size` (number)
   - `max_depth` (number)
   - `max_files` (number)
+  - `invalid_encoding` (number)
 - `link_validation_skip_counts` (object)
   - `max_link_checks` (number)
   - `max_external_checks` (number)

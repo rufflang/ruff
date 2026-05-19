@@ -104,22 +104,24 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
 1. `DOCGEN_DISCOVERY_MAX_FILE_SIZE`
 2. `DOCGEN_DISCOVERY_MAX_DEPTH`
 3. `DOCGEN_DISCOVERY_MAX_FILES`
+4. `DOCGEN_DISCOVERY_INVALID_ENCODING`
 
 `ruff docgen --json` also reports per-reason skip counters under `discovery_skip_counts`:
 1. `max_file_size`
 2. `max_depth`
 3. `max_files`
-4. Link-validation budget truncation counters under `link_validation_skip_counts`:
+4. `invalid_encoding`
+5. Link-validation budget truncation counters under `link_validation_skip_counts`:
    - `max_link_checks`
    - `max_external_checks`
    - `max_total_time`
-5. Symbol volume counters:
+6. Symbol volume counters:
    - `item_count` (total symbols in output scope)
    - `project_symbol_count` (non-builtin symbols)
    - `builtin_symbol_count` (builtin symbols)
-6. Per-kind symbol counters:
+7. Per-kind symbol counters:
    - `symbol_kind_counts` with deterministic keys such as `function`, `method`, `struct`, `enum`, `enum_variant`, and `builtin`
-7. Stable dashboard summary block:
+8. Stable dashboard summary block:
    - `summary.schema_version` (`docgen-summary/v1`)
    - `summary` mirrors key totals/gate counters for machine consumers while preserving existing top-level contract fields
 
@@ -239,7 +241,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Add max link checks, max external checks, and total validation time budget controls.
    - Surface budget truncation in diagnostics and JSON summary counts.
    - Keep deterministic behavior under budget exhaustion.
-4. `DG-QA-004` Encoding-safe file ingestion.
+4. [x] `DG-QA-004` Encoding-safe file ingestion. (Completed 2026-05-19)
    Acceptance criteria:
    - Replace hard failure on non-UTF-8 source reads with deterministic skip diagnostics.
    - Preserve strict-gate stability while reporting skipped file count by encoding reason.

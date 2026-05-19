@@ -153,7 +153,7 @@ Ruff DocGen inline docs support `///`, `//!`, and `/** ... */` comment styles; p
 Ruff DocGen doc attachment is decorator-aware and skips intermediate `@...` / `#[...]` lines when mapping a doc block to its symbol target.
 Ruff doc attachment keeps stable proximity rules: blank-line spacing is allowed, regular non-doc comment lines break attachment, and the nearest eligible doc block wins.
 DocGen now emits explicit discovery-limit warnings in JSON output when files are skipped for size/depth/file-count limits (`DOCGEN_DISCOVERY_MAX_FILE_SIZE`, `DOCGEN_DISCOVERY_MAX_DEPTH`, `DOCGEN_DISCOVERY_MAX_FILES`).
-DocGen CLI JSON output (`ruff docgen ... --json`) also includes deterministic per-reason discovery skip counters in `discovery_skip_counts` (`max_file_size`, `max_depth`, `max_files`).
+DocGen CLI JSON output (`ruff docgen ... --json`) also includes deterministic per-reason discovery skip counters in `discovery_skip_counts` (`max_file_size`, `max_depth`, `max_files`, `invalid_encoding`).
 DocGen diagnostics are emitted in deterministic sorted order to keep repeated JSON outputs stable for CI diffing.
 DocGen JSON summary now separates discovered symbol volume into `project_symbol_count` and `builtin_symbol_count` (while preserving `item_count` as total count).
 DocGen JSON summary also includes deterministic `symbol_kind_counts` (for example `function`, `method`, `struct`, `enum`, `builtin`) to support CI dashboards and trend tracking.
