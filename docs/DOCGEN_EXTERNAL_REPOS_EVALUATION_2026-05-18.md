@@ -392,6 +392,22 @@ Micro-benchmark evidence (construction cost):
 
 Interpretation: `DG-QA-005` reduces lookup overhead while preserving deterministic strict-gate outputs.
 
+### QA Hardening Task DG-QA-006 follow-up (2026-05-19)
+
+After moving adapter extraction regexes from per-file compilation to static/lazy `OnceLock` caches across Ruff/PHP/Python/TypeScript/JavaScript/Ruby/Go/Haskell/Zig adapters, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Micro-benchmark evidence (`cargo test docgen::adapters::tests::regex_caching_micro_benchmark_evidence -- --nocapture`):
+- `src/lib.rs` test run: `cached=35.650514ms`, `legacy=5.420432455s`
+- `src/main.rs` test run: `cached=28.938084ms`, `legacy=4.699169071s`
+
+Interpretation: `DG-QA-006` removes repeated regex compilation overhead in adapter extraction hot paths while preserving strict external gate stability on this validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

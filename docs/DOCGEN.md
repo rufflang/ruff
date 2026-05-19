@@ -254,7 +254,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Replace per-call boxed adapter registry construction with static/lazy lookup maps.
    - Preserve adapter ordering determinism and capability-index output stability.
    - Benchmark and document adapter lookup overhead reduction.
-2. `DG-QA-006` Regex compilation caching across adapters.
+2. [x] `DG-QA-006` Regex compilation caching across adapters. (Completed 2026-05-19)
    Acceptance criteria:
    - Move regex compilation from per-file extraction paths to static/lazy compiled regexes.
    - Ensure no behavior drift in existing adapter extraction fixtures.
