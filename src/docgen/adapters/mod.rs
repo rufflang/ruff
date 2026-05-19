@@ -288,6 +288,81 @@ mod tests {
     }
 
     #[test]
+    fn c_style_adapter_conformance_preserves_typescript_and_javascript_contracts() {
+        let ts_adapter =
+            adapter_for_language("typescript").expect("typescript adapter should be registered");
+        let ts_source = r#"
+/** Service summary */
+export class Service {
+  /**
+   * Run summary
+   */
+  public run(input: string): string {
+    return input;
+  }
+}
+
+/** Utility summary */
+export function util(input: string) {
+  return input;
+}
+"#;
+        let ts_symbols = ts_adapter
+            .extract_symbols(ts_source, Path::new("service.ts"))
+            .expect("typescript symbol extraction should succeed");
+        let ts_docs = ts_adapter
+            .extract_inline_docs(ts_source, Path::new("service.ts"))
+            .expect("typescript inline doc extraction should succeed");
+        let ts_attached = ts_adapter.attach_docs(ts_symbols, ts_docs);
+        let ts_names: Vec<String> =
+            ts_attached.iter().map(|symbol| symbol.qualified_name.clone()).collect();
+        assert!(ts_names.contains(&"Service".to_string()));
+        assert!(ts_names.contains(&"Service.run".to_string()));
+        assert!(ts_names.contains(&"util".to_string()));
+        let ts_run = ts_attached
+            .iter()
+            .find(|symbol| symbol.qualified_name == "Service.run")
+            .expect("typescript method should be present");
+        assert_eq!(ts_run.docs.summary.as_deref(), Some("Run summary"));
+
+        let js_adapter =
+            adapter_for_language("javascript").expect("javascript adapter should be registered");
+        let js_source = r#"
+/** Service summary */
+export class Service {
+  /**
+   * Run summary
+   */
+  run(input) {
+    return input;
+  }
+}
+
+/** Utility summary */
+export function util(input) {
+  return input;
+}
+"#;
+        let js_symbols = js_adapter
+            .extract_symbols(js_source, Path::new("service.js"))
+            .expect("javascript symbol extraction should succeed");
+        let js_docs = js_adapter
+            .extract_inline_docs(js_source, Path::new("service.js"))
+            .expect("javascript inline doc extraction should succeed");
+        let js_attached = js_adapter.attach_docs(js_symbols, js_docs);
+        let js_names: Vec<String> =
+            js_attached.iter().map(|symbol| symbol.qualified_name.clone()).collect();
+        assert!(js_names.contains(&"Service".to_string()));
+        assert!(js_names.contains(&"Service.run".to_string()));
+        assert!(js_names.contains(&"util".to_string()));
+        let js_run = js_attached
+            .iter()
+            .find(|symbol| symbol.qualified_name == "Service.run")
+            .expect("javascript method should be present");
+        assert_eq!(js_run.docs.summary.as_deref(), Some("Run summary"));
+    }
+
+    #[test]
     fn regex_caching_micro_benchmark_evidence() {
         const PATTERNS: &[&str] = &[
             r"^\s*(pub\s+)?(async\s+)?func\*?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)",

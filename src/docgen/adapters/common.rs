@@ -112,3 +112,55 @@ pub fn next_nonempty_line(source: &str, from_line: usize) -> Option<usize> {
     }
     None
 }
+
+pub fn pop_class_stack_for_depth(class_stack: &mut Vec<(String, i32)>, depth: i32) {
+    while class_stack.last().is_some_and(|(_, level)| depth < *level) {
+        class_stack.pop();
+    }
+}
+
+pub fn update_brace_depth(depth: &mut i32, line: &str) {
+    *depth += line.chars().filter(|ch| *ch == '{').count() as i32;
+    *depth -= line.chars().filter(|ch| *ch == '}').count() as i32;
+}
+
+pub fn extract_jsdoc_comment_blocks(source: &str) -> Vec<DocCommentBlock> {
+    let mut blocks = Vec::new();
+    let lines: Vec<&str> = source.lines().collect();
+    let mut idx = 0usize;
+
+    while idx < lines.len() {
+        let trimmed = lines[idx].trim();
+        if trimmed.starts_with("/**") {
+            let start = idx + 1;
+            let mut content = Vec::new();
+            let mut end = start;
+            while idx < lines.len() {
+                let line = lines[idx].trim();
+                let cleaned = line
+                    .trim_start_matches("/**")
+                    .trim_start_matches("*/")
+                    .trim_start_matches('*')
+                    .trim()
+                    .to_string();
+                if !cleaned.is_empty() {
+                    content.push(cleaned);
+                }
+                if line.contains("*/") {
+                    end = idx + 1;
+                    break;
+                }
+                idx += 1;
+            }
+            blocks.push(DocCommentBlock {
+                start_line: start,
+                end_line: end,
+                target_line_hint: next_nonempty_line(source, end),
+                lines: content,
+            });
+        }
+        idx += 1;
+    }
+
+    blocks
+}

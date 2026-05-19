@@ -1,4 +1,7 @@
-use super::common::{attach_docs_by_proximity, next_nonempty_line};
+use super::common::{
+    attach_docs_by_proximity, extract_jsdoc_comment_blocks, pop_class_stack_for_depth,
+    update_brace_depth,
+};
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
 use crate::docgen::DocgenError;
@@ -55,9 +58,7 @@ impl DocLanguageAdapter for JavaScriptDocAdapter {
             let line_no = idx + 1;
             let trimmed = line.trim();
 
-            while class_stack.last().is_some_and(|(_, d)| depth < *d) {
-                class_stack.pop();
-            }
+            pop_class_stack_for_depth(&mut class_stack, depth);
 
             if let Some(caps) = re_class.captures(trimmed) {
                 let name = caps.get(2).map(|m| m.as_str()).unwrap_or("unknown").to_string();
@@ -128,8 +129,7 @@ impl DocLanguageAdapter for JavaScriptDocAdapter {
                 }
             }
 
-            depth += line.chars().filter(|ch| *ch == '{').count() as i32;
-            depth -= line.chars().filter(|ch| *ch == '}').count() as i32;
+            update_brace_depth(&mut depth, line);
         }
 
         Ok(symbols)
@@ -140,44 +140,7 @@ impl DocLanguageAdapter for JavaScriptDocAdapter {
         source: &str,
         _path: &Path,
     ) -> Result<Vec<DocCommentBlock>, DocgenError> {
-        let mut blocks = Vec::new();
-        let lines: Vec<&str> = source.lines().collect();
-        let mut idx = 0usize;
-
-        while idx < lines.len() {
-            let trimmed = lines[idx].trim();
-            if trimmed.starts_with("/**") {
-                let start = idx + 1;
-                let mut content = Vec::new();
-                let mut end = start;
-                while idx < lines.len() {
-                    let line = lines[idx].trim();
-                    let cleaned = line
-                        .trim_start_matches("/**")
-                        .trim_start_matches("*/")
-                        .trim_start_matches('*')
-                        .trim()
-                        .to_string();
-                    if !cleaned.is_empty() {
-                        content.push(cleaned);
-                    }
-                    if line.contains("*/") {
-                        end = idx + 1;
-                        break;
-                    }
-                    idx += 1;
-                }
-                blocks.push(DocCommentBlock {
-                    start_line: start,
-                    end_line: end,
-                    target_line_hint: next_nonempty_line(source, end),
-                    lines: content,
-                });
-            }
-            idx += 1;
-        }
-
-        Ok(blocks)
+        Ok(extract_jsdoc_comment_blocks(source))
     }
 
     fn attach_docs(&self, symbols: Vec<DocSymbol>, docs: Vec<DocCommentBlock>) -> Vec<DocSymbol> {
