@@ -424,6 +424,22 @@ Regression-evidence tests:
 
 Interpretation: `DG-QA-007` improves repeated link-check throughput and IO efficiency while preserving strict external gate outputs.
 
+### QA Hardening Task DG-QA-008 follow-up (2026-05-19)
+
+After replacing per-symbol full-source known-call-site scans with a one-pass indexed matcher in gap generation, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Regression-evidence tests:
+- `docgen::gaps::tests::gap_call_site_index_matches_legacy_order_and_limit_semantics` verifies indexed call-site output matches legacy ordering/limit behavior.
+- `docgen::gaps::tests::large_input_call_site_index_scans_each_source_line_once` verifies one-pass line-scan behavior on large multi-file input.
+
+Interpretation: `DG-QA-008` removes repeated full-source rescans from gap call-site discovery while preserving strict external gate outputs and known-call-site contract behavior.
+
 ### Test results
 
 - `docgen_universal`: passed

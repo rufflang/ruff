@@ -264,7 +264,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Reuse one HTTP client per run and cache parsed local anchors per file path.
    - Avoid repeated file reads for multiple anchors targeting the same file.
    - Add regression tests covering repeated-anchor checks and repeated external hosts.
-4. `DG-QA-008` Gap call-site indexing optimization.
+4. [x] `DG-QA-008` Gap call-site indexing optimization. (Completed 2026-05-19)
    Acceptance criteria:
    - Replace per-symbol full-source scans with a one-pass call-site index.
    - Preserve deterministic known-call-site ordering and limit semantics.

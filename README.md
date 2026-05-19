@@ -161,6 +161,7 @@ DocGen JSON summary also includes deterministic `symbol_kind_counts` (for exampl
 DocGen JSON now includes a stable versioned dashboard block at `summary` (`schema_version = docgen-summary/v1`) that mirrors key totals and gate-state fields for automation consumers.
 DocGen JSON includes deterministic link-validation budget truncation counts in `link_validation_skip_counts` (`max_link_checks`, `max_external_checks`, `max_total_time`) for CI-visible bounded runs.
 DocGen link validation now reuses one HTTP client per run in external-link mode and caches parsed local anchors per file path in local-anchor mode, avoiding repeated client construction and repeated file reads for repeated link targets.
+DocGen gap generation now builds known-call-site hints from a one-pass source index instead of per-symbol full-source rescans, preserving deterministic ordering and per-symbol call-site limits while reducing large-repo scan overhead.
 DocGen default link validation remains local-file existence checking (fragments/query suffixes are ignored for local paths, while `http(s)` and `mailto` links are not validated by default).
 DocGen optional local-anchor validation can be enabled with `--validate-local-anchors` when strict anchor checks are needed for local docs.
 DocGen optional external-link validation can be enabled with `--validate-external-links`, scoped to allowlisted hosts via `--external-link-allowlist`, and bounded by `--external-link-timeout-ms`.
