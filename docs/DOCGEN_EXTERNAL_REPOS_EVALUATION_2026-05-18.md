@@ -352,6 +352,18 @@ After adding SSRF guardrails for optional external-link validation (default bloc
 
 Interpretation: `DG-QA-002` hardens external-link validation security posture while preserving strict external gate counts on this validation set.
 
+### QA Hardening Task DG-QA-003 follow-up (2026-05-19)
+
+After adding deterministic link-validation resource budgets (`--max-link-checks`, `--max-external-link-checks`, `--max-total-validation-time-ms`) plus JSON-visible truncation counters (`link_validation_skip_counts`) and budget warning diagnostics, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-003` improves bounded-run reliability and machine-readable budget visibility without changing strict external gate counts on this validation set.
+
 ### Test results
 
 - `docgen_universal`: passed

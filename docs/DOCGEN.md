@@ -109,13 +109,17 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
 1. `max_file_size`
 2. `max_depth`
 3. `max_files`
-4. Symbol volume counters:
+4. Link-validation budget truncation counters under `link_validation_skip_counts`:
+   - `max_link_checks`
+   - `max_external_checks`
+   - `max_total_time`
+5. Symbol volume counters:
    - `item_count` (total symbols in output scope)
    - `project_symbol_count` (non-builtin symbols)
    - `builtin_symbol_count` (builtin symbols)
-5. Per-kind symbol counters:
+6. Per-kind symbol counters:
    - `symbol_kind_counts` with deterministic keys such as `function`, `method`, `struct`, `enum`, `enum_variant`, and `builtin`
-6. Stable dashboard summary block:
+7. Stable dashboard summary block:
    - `summary.schema_version` (`docgen-summary/v1`)
    - `summary` mirrors key totals/gate counters for machine consumers while preserving existing top-level contract fields
 
@@ -204,6 +208,15 @@ Optional external-link validation mode is available with `--validate-external-li
 7. If external validation is enabled with an empty allowlist, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_EMPTY`.
 8. If an allowlist is provided without `--validate-external-links`, DocGen emits `DOCGEN_LINK_EXTERNAL_ALLOWLIST_IGNORED`.
 9. Broken-link diagnostics and gate failures include mode-specific categories (`local_file`, `local_anchor`, `external`, `external_redirect_allowlist`, `external_private_address`) for clearer CI triage.
+10. Link validation resource budgets are available for bounded CI/runtime behavior:
+   - `--max-link-checks`
+   - `--max-external-link-checks`
+   - `--max-total-validation-time-ms`
+11. When a budget truncates checks, DocGen emits deterministic warnings:
+   - `DOCGEN_LINK_VALIDATION_BUDGET_MAX_LINK_CHECKS`
+   - `DOCGEN_LINK_VALIDATION_BUDGET_MAX_EXTERNAL_CHECKS`
+   - `DOCGEN_LINK_VALIDATION_BUDGET_TOTAL_TIME`
+   and reports skip counts in `link_validation_skip_counts`.
 
 ## QA Hardening Roadmap (Post-Feature Completion)
 
@@ -221,7 +234,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Resolve and block private/loopback/link-local/multicast IP targets by default in external-link mode.
    - Add explicit opt-in for private network validation where needed.
    - Add tests for DNS names resolving to blocked ranges and direct-IP URLs.
-3. `DG-QA-003` Link validation resource budgets.
+3. [x] `DG-QA-003` Link validation resource budgets. (Completed 2026-05-19)
    Acceptance criteria:
    - Add max link checks, max external checks, and total validation time budget controls.
    - Surface budget truncation in diagnostics and JSON summary counts.

@@ -105,6 +105,17 @@ Top-level object fields:
 - `broken_link_count` (number)
 - `warning_count` (number)
 - `gate_failures` (array of strings)
+- `discovery_skip_counts` (object)
+  - `max_file_size` (number)
+  - `max_depth` (number)
+  - `max_files` (number)
+- `link_validation_skip_counts` (object)
+  - `max_link_checks` (number)
+  - `max_external_checks` (number)
+  - `max_total_time` (number)
+- `summary` (object)
+  - `schema_version` (string, constant `"docgen-summary/v1"`)
+  - includes mirrored totals plus `discovery_skip_counts` and `link_validation_skip_counts`
 
 ### `ruff run --json-runtime-diagnostics`
 
