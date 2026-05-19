@@ -361,6 +361,9 @@ mod tests {
         }
         let cached_elapsed = cached_start.elapsed();
 
+        eprintln!(
+            "DG-QA-006 regex cache benchmark: cached={cached_elapsed:?}, legacy={legacy_elapsed:?}"
+        );
         assert_eq!(legacy_hits, cached_hits, "cached regex matching changed results");
         assert!(
             cached_elapsed < legacy_elapsed,
