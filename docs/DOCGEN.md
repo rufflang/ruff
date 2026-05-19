@@ -249,7 +249,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
 
 ### P1 Performance
 
-1. `DG-QA-005` Static adapter registry/lookups.
+1. [x] `DG-QA-005` Static adapter registry/lookups. (Completed 2026-05-19)
    Acceptance criteria:
    - Replace per-call boxed adapter registry construction with static/lazy lookup maps.
    - Preserve adapter ordering determinism and capability-index output stability.

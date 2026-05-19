@@ -376,6 +376,22 @@ After making discovery encoding-safe (skipping non-UTF-8 source files with deter
 
 Interpretation: `DG-QA-004` hardens ingestion resilience and keeps strict external gate metrics stable on this validation set.
 
+### QA Hardening Task DG-QA-005 follow-up (2026-05-19)
+
+After replacing per-call adapter-registry reconstruction with static/lazy adapter metadata + lookup maps, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Micro-benchmark evidence (construction cost):
+- Legacy language lookup path reconstructed adapters linearly and could instantiate all 9 adapters for a late match.
+- Static lookup path now resolves via lazy map and instantiates only the returned adapter (`1` instantiation), validated by `docgen::adapters::tests::static_lookup_avoids_legacy_full_registry_construction_cost`.
+
+Interpretation: `DG-QA-005` reduces lookup overhead while preserving deterministic strict-gate outputs.
+
 ### Test results
 
 - `docgen_universal`: passed
