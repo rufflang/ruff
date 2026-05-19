@@ -118,6 +118,9 @@ Top-level object fields:
   - `schema_version` (string, constant `"docgen-summary/v1"`)
   - includes mirrored totals plus `discovery_skip_counts` and `link_validation_skip_counts`
 
+Implementation note:
+- The `ruff docgen --json` payload is emitted from a typed single-source builder in `src/docgen/core.rs` (`build_cli_json_payload`) and guarded by both shape assertions and a fixture-backed snapshot test in `tests/cli_json_contracts.rs`.
+
 ### `ruff run --json-runtime-diagnostics`
 
 Top-level object fields:

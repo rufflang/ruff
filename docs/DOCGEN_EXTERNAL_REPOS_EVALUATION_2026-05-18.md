@@ -597,3 +597,15 @@ After implementing shared visibility-policy helpers across adapters (with Ruff a
 | `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
 
 Interpretation: `DG-QA-010` is a maintainability refactor with visibility-regression coverage hardening; strict external gate metrics remain unchanged while visibility-policy logic is now centralized.
+
+## QA Hardening Task DG-QA-011 follow-up (2026-05-19)
+
+After moving DocGen CLI JSON contract assembly to a typed single-source payload builder (with dedicated snapshot contract coverage), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-011` is contract-serialization and test-hardening work; strict external gate counts remain stable while JSON contract assembly is now centralized and snapshot-locked.

@@ -1684,30 +1684,7 @@ async fn main() {
             };
 
             if json {
-                let output = serde_json::json!({
-                    "command": "docgen",
-                    "file": path.display().to_string(),
-                    "output_dir": summary.output_dir.display().to_string(),
-                    "module_doc_path": summary.module_doc_path.display().to_string(),
-                    "builtin_doc_path": summary.builtin_doc_path.as_ref().map(|path| path.display().to_string()),
-                    "item_count": summary.item_count,
-                    "project_symbol_count": summary.project_symbol_count,
-                    "builtin_symbol_count": summary.builtin_symbol_count,
-                    "symbol_kind_counts": summary.symbol_kind_counts,
-                    "languages": summary.languages,
-                    "project_json_path": summary.project_json_path.display().to_string(),
-                    "gaps_json_path": summary.gaps_json_path.display().to_string(),
-                    "capabilities_json_path": summary.capabilities_json_path.display().to_string(),
-                    "ai_tasks_path": summary.ai_tasks_path.as_ref().map(|path| path.display().to_string()),
-                    "diagnostics_count": summary.diagnostics_count,
-                    "undocumented_count": summary.undocumented_count,
-                    "broken_link_count": summary.broken_link_count,
-                    "warning_count": summary.warning_count,
-                    "discovery_skip_counts": summary.discovery_skip_counts,
-                    "link_validation_skip_counts": summary.link_validation_skip_counts,
-                    "gate_failures": summary.gate_failures,
-                    "summary": summary.dashboard_summary,
-                });
+                let output = docgen::core::build_cli_json_payload(&path, &summary);
 
                 match serde_json::to_string_pretty(&output) {
                     Ok(serialized) => println!("{}", serialized),

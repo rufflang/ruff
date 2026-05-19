@@ -31,6 +31,41 @@ fn write_fixture(path: &Path, content: &str) {
     fs::write(path, content).expect("failed to write fixture file");
 }
 
+fn read_fixture(path: &Path) -> String {
+    fs::read_to_string(path).unwrap_or_else(|err| {
+        panic!(
+            "failed to read fixture '{}': {}",
+            path.display(),
+            err
+        )
+    })
+}
+
+fn docgen_fixture_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("docgen")
+        .join(name)
+}
+
+fn normalize_docgen_contract_paths(mut payload: Value) -> Value {
+    for key in [
+        "file",
+        "output_dir",
+        "module_doc_path",
+        "project_json_path",
+        "gaps_json_path",
+        "capabilities_json_path",
+    ] {
+        payload[key] = Value::String(format!("<{}>", key.to_ascii_uppercase()));
+    }
+
+    payload["builtin_doc_path"] = Value::Null;
+    payload["ai_tasks_path"] = Value::Null;
+    payload
+}
+
 #[test]
 fn format_json_contract_is_stable() {
     let dir = unique_temp_dir("format_json_contract");
@@ -145,6 +180,37 @@ fn docgen_json_contract_is_stable() {
     assert!(body["summary"]["link_validation_skip_counts"]["max_link_checks"].is_number());
     assert!(body["summary"]["link_validation_skip_counts"]["max_external_checks"].is_number());
     assert!(body["summary"]["link_validation_skip_counts"]["max_total_time"].is_number());
+}
+
+#[test]
+fn docgen_json_contract_snapshot_is_stable() {
+    let dir = unique_temp_dir("docgen_json_contract_snapshot");
+    let file = dir.join("docgen_snapshot_input.ruff");
+    let out_dir = dir.join("docs_out");
+    write_fixture(
+        &file,
+        "/// Adds one\npub func add_one(value) {\n    return value + 1\n}\n",
+    );
+
+    let output = run_ruff(&[
+        "docgen",
+        file.to_str().expect("path should be utf-8"),
+        "--out-dir",
+        out_dir.to_str().expect("path should be utf-8"),
+        "--language",
+        "ruff",
+        "--no-builtins",
+        "--json",
+    ]);
+
+    assert!(output.status.success(), "docgen --json should succeed");
+    let actual = normalize_docgen_contract_paths(parse_stdout_json(&output));
+    let expected: Value = serde_json::from_str(&read_fixture(&docgen_fixture_path(
+        "docgen_json_contract_snapshot.expected.json",
+    )))
+    .expect("snapshot fixture should be valid json");
+
+    assert_eq!(actual, expected, "docgen json contract snapshot drift");
 }
 
 #[test]

@@ -284,7 +284,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Centralize effective visibility calculation patterns used by adapters (top-level, container/member inheritance, explicit modifiers).
    - Keep Ruff/TypeScript visibility semantics unchanged unless explicitly versioned.
    - Add matrix tests for adapter-specific visibility edge cases.
-3. `DG-QA-011` Single-source docgen JSON contract serialization.
+3. [x] `DG-QA-011` Single-source docgen JSON contract serialization. (Completed 2026-05-19)
    Acceptance criteria:
    - Move CLI JSON contract assembly from ad hoc `main.rs` maps into a typed summary payload builder.
    - Ensure backward compatibility for existing top-level keys.

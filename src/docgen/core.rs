@@ -86,6 +86,62 @@ pub struct DocgenRunSummary {
     pub dashboard_summary: DocgenDashboardSummary,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct DocgenCliJsonPayload {
+    pub command: String,
+    pub file: String,
+    pub output_dir: String,
+    pub module_doc_path: String,
+    pub builtin_doc_path: Option<String>,
+    pub item_count: usize,
+    pub project_symbol_count: usize,
+    pub builtin_symbol_count: usize,
+    pub symbol_kind_counts: BTreeMap<String, usize>,
+    pub languages: Vec<String>,
+    pub project_json_path: String,
+    pub gaps_json_path: String,
+    pub capabilities_json_path: String,
+    pub ai_tasks_path: Option<String>,
+    pub diagnostics_count: usize,
+    pub undocumented_count: usize,
+    pub broken_link_count: usize,
+    pub warning_count: usize,
+    pub discovery_skip_counts: BTreeMap<String, usize>,
+    pub link_validation_skip_counts: BTreeMap<String, usize>,
+    pub gate_failures: Vec<String>,
+    pub summary: DocgenDashboardSummary,
+}
+
+pub fn build_cli_json_payload(input_path: &Path, summary: &DocgenRunSummary) -> DocgenCliJsonPayload {
+    DocgenCliJsonPayload {
+        command: "docgen".to_string(),
+        file: input_path.display().to_string(),
+        output_dir: summary.output_dir.display().to_string(),
+        module_doc_path: summary.module_doc_path.display().to_string(),
+        builtin_doc_path: summary
+            .builtin_doc_path
+            .as_ref()
+            .map(|path| path.display().to_string()),
+        item_count: summary.item_count,
+        project_symbol_count: summary.project_symbol_count,
+        builtin_symbol_count: summary.builtin_symbol_count,
+        symbol_kind_counts: summary.symbol_kind_counts.clone(),
+        languages: summary.languages.clone(),
+        project_json_path: summary.project_json_path.display().to_string(),
+        gaps_json_path: summary.gaps_json_path.display().to_string(),
+        capabilities_json_path: summary.capabilities_json_path.display().to_string(),
+        ai_tasks_path: summary.ai_tasks_path.as_ref().map(|path| path.display().to_string()),
+        diagnostics_count: summary.diagnostics_count,
+        undocumented_count: summary.undocumented_count,
+        broken_link_count: summary.broken_link_count,
+        warning_count: summary.warning_count,
+        discovery_skip_counts: summary.discovery_skip_counts.clone(),
+        link_validation_skip_counts: summary.link_validation_skip_counts.clone(),
+        gate_failures: summary.gate_failures.clone(),
+        summary: summary.dashboard_summary.clone(),
+    }
+}
+
 pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
     run_with_link_validation(config, LinkValidationOptions::default())
 }
