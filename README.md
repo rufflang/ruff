@@ -163,6 +163,7 @@ DocGen JSON includes deterministic link-validation budget truncation counts in `
 DocGen link validation now reuses one HTTP client per run in external-link mode and caches parsed local anchors per file path in local-anchor mode, avoiding repeated client construction and repeated file reads for repeated link targets.
 DocGen gap generation now builds known-call-site hints from a one-pass source index instead of per-symbol full-source rescans, preserving deterministic ordering and per-symbol call-site limits while reducing large-repo scan overhead.
 DocGen TypeScript/JavaScript adapters now share C-style extraction helpers for class-scope tracking, brace-depth updates, and JSDoc block parsing, reducing duplicated parsing logic while preserving adapter symbol/doc contracts.
+DocGen visibility classification now uses shared adapter helper rules (explicit modifier mapping, naming-convention mapping, and container-aware effective visibility) with regression-locked Ruff and TypeScript visibility semantics.
 DocGen default link validation remains local-file existence checking (fragments/query suffixes are ignored for local paths, while `http(s)` and `mailto` links are not validated by default).
 DocGen optional local-anchor validation can be enabled with `--validate-local-anchors` when strict anchor checks are needed for local docs.
 DocGen optional external-link validation can be enabled with `--validate-external-links`, scoped to allowlisted hosts via `--external-link-allowlist`, and bounded by `--external-link-timeout-ms`.

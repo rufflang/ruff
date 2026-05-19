@@ -1,4 +1,7 @@
-use super::common::attach_docs_by_proximity;
+use super::common::{
+    attach_docs_by_proximity, effective_member_visibility, visibility_from_explicit_public,
+    visibility_inherits_from_container,
+};
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
 use crate::docgen::DocgenError;
@@ -95,11 +98,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
 
             if let Some(caps) = re_struct.captures(trimmed) {
                 let name = caps.get(2).map(|m| m.as_str()).unwrap_or("unknown").to_string();
-                let visibility = if caps.get(1).is_some() {
-                    DocVisibility::Public
-                } else {
-                    DocVisibility::Private
-                };
+                let visibility = visibility_from_explicit_public(caps.get(1).is_some());
                 let is_public = visibility == DocVisibility::Public;
                 symbols.push(DocSymbol {
                     id: Self::symbol_id(path, line_no, &name, &DocSymbolKind::Struct),
@@ -121,11 +120,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 }
             } else if let Some(caps) = re_enum.captures(trimmed) {
                 let name = caps.get(2).map(|m| m.as_str()).unwrap_or("unknown").to_string();
-                let visibility = if caps.get(1).is_some() {
-                    DocVisibility::Public
-                } else {
-                    DocVisibility::Private
-                };
+                let visibility = visibility_from_explicit_public(caps.get(1).is_some());
                 let is_public = visibility == DocVisibility::Public;
                 symbols.push(DocSymbol {
                     id: Self::symbol_id(path, line_no, &name, &DocSymbolKind::Enum),
@@ -153,17 +148,12 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 let parent = active_struct.as_ref().map(|(name, _, _)| name.clone());
                 let is_async = caps.get(2).is_some();
                 let explicit_public = caps.get(1).is_some();
+                let declared_visibility = visibility_from_explicit_public(explicit_public);
+                let container_visibility = active_struct.as_ref().map(|(_, _, parent_public)| {
+                    visibility_from_explicit_public(*parent_public)
+                });
                 let visibility =
-                    if explicit_public { DocVisibility::Public } else { DocVisibility::Private };
-                let visibility = if let Some((_, _, parent_public)) = &active_struct {
-                    if explicit_public && *parent_public {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    }
-                } else {
-                    visibility
-                };
+                    effective_member_visibility(declared_visibility, container_visibility, true);
                 let qualified_name = if let Some(parent_name) = &parent {
                     format!("{}::{}", parent_name, name)
                 } else {
@@ -190,11 +180,7 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 });
             } else if let Some(caps) = re_const.captures(trimmed) {
                 let name = caps.get(3).map(|m| m.as_str()).unwrap_or("unknown").to_string();
-                let visibility = if caps.get(1).is_some() {
-                    DocVisibility::Public
-                } else {
-                    DocVisibility::Private
-                };
+                let visibility = visibility_from_explicit_public(caps.get(1).is_some());
                 symbols.push(DocSymbol {
                     id: Self::symbol_id(path, line_no, &name, &DocSymbolKind::Constant),
                     language: "ruff".to_string(),
@@ -226,11 +212,9 @@ impl DocLanguageAdapter for RuffDocAdapter {
                         name: variant_name,
                         qualified_name: qualified,
                         signature: Some(trimmed.to_string()),
-                        visibility: if enum_public {
-                            DocVisibility::Public
-                        } else {
-                            DocVisibility::Private
-                        },
+                        visibility: visibility_inherits_from_container(Some(
+                            visibility_from_explicit_public(enum_public),
+                        )),
                         source_path: path.to_path_buf(),
                         line: line_no,
                         docs: DocComment::default(),

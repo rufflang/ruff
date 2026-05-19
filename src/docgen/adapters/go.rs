@@ -1,4 +1,6 @@
-use super::common::{attach_docs_by_proximity, next_nonempty_line};
+use super::common::{
+    attach_docs_by_proximity, next_nonempty_line, visibility_from_leading_uppercase,
+};
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
 use crate::docgen::DocgenError;
@@ -62,6 +64,7 @@ impl DocLanguageAdapter for GoDocAdapter {
                 } else {
                     DocSymbolKind::Struct
                 };
+                let visibility = visibility_from_leading_uppercase(&name);
                 symbols.push(DocSymbol {
                     id: Self::id(path, line_no, &name, &kind),
                     language: "go".to_string(),
@@ -69,13 +72,7 @@ impl DocLanguageAdapter for GoDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(trimmed.to_string()),
-                    visibility: if trimmed.contains("type ")
-                        && trimmed.chars().nth(5).is_some_and(|ch| ch.is_ascii_uppercase())
-                    {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility,
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -113,11 +110,7 @@ impl DocLanguageAdapter for GoDocAdapter {
                     name: name.clone(),
                     qualified_name: name.clone(),
                     signature: Some(format!("func {}({})", name, args)),
-                    visibility: if name.chars().next().is_some_and(|ch| ch.is_ascii_uppercase()) {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_leading_uppercase(&name),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),

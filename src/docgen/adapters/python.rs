@@ -1,6 +1,8 @@
-use super::common::{attach_docs_by_proximity, next_nonempty_line};
+use super::common::{
+    attach_docs_by_proximity, next_nonempty_line, visibility_from_leading_underscore,
+};
 use super::{AdapterCapability, DocLanguageAdapter};
-use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
+use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind};
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
@@ -63,11 +65,7 @@ impl DocLanguageAdapter for PythonDocAdapter {
                     name: name.clone(),
                     qualified_name: name.clone(),
                     signature: Some(line.trim().to_string()),
-                    visibility: if name.starts_with('_') {
-                        DocVisibility::Private
-                    } else {
-                        DocVisibility::Public
-                    },
+                    visibility: visibility_from_leading_underscore(&name),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -94,11 +92,7 @@ impl DocLanguageAdapter for PythonDocAdapter {
                     name: name.clone(),
                     qualified_name,
                     signature: Some(format!("def {}({})", name, args)),
-                    visibility: if name.starts_with('_') {
-                        DocVisibility::Private
-                    } else {
-                        DocVisibility::Public
-                    },
+                    visibility: visibility_from_leading_underscore(&name),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),

@@ -1,6 +1,6 @@
 use super::common::{
     attach_docs_by_proximity, extract_jsdoc_comment_blocks, pop_class_stack_for_depth,
-    update_brace_depth,
+    update_brace_depth, visibility_from_explicit_public, visibility_from_member_modifier,
 };
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
@@ -92,11 +92,7 @@ impl DocLanguageAdapter for TypeScriptDocAdapter {
                     name: name.clone(),
                     qualified_name: name.clone(),
                     signature: Some(trimmed.to_string()),
-                    visibility: if trimmed.starts_with("export") {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(trimmed.starts_with("export")),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -121,11 +117,7 @@ impl DocLanguageAdapter for TypeScriptDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(trimmed.to_string()),
-                    visibility: if trimmed.starts_with("export") {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(trimmed.starts_with("export")),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -147,11 +139,7 @@ impl DocLanguageAdapter for TypeScriptDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(trimmed.to_string()),
-                    visibility: if trimmed.starts_with("export") {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(trimmed.starts_with("export")),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -169,11 +157,7 @@ impl DocLanguageAdapter for TypeScriptDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(format!("function({})", args)),
-                    visibility: if caps.get(1).is_some() {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(caps.get(1).is_some()),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -186,11 +170,10 @@ impl DocLanguageAdapter for TypeScriptDocAdapter {
                     let name = caps.get(3).map(|m| m.as_str()).unwrap_or("unknown").to_string();
                     let args = caps.get(4).map(|m| m.as_str()).unwrap_or("");
                     let qualified = format!("{}.{}", parent, name);
-                    let vis = match caps.get(1).map(|m| m.as_str().trim()) {
-                        Some("private") => DocVisibility::Private,
-                        Some("protected") => DocVisibility::Protected,
-                        _ => DocVisibility::Public,
-                    };
+                    let vis = visibility_from_member_modifier(
+                        caps.get(1).map(|m| m.as_str()),
+                        DocVisibility::Public,
+                    );
                     symbols.push(DocSymbol {
                         id: Self::id(path, line_no, &qualified, &DocSymbolKind::Method),
                         language: "typescript".to_string(),

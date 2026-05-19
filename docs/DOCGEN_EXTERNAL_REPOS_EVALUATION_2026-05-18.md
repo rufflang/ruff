@@ -585,3 +585,15 @@ ruff docgen . \
 `docsgen` works correctly for generation and contract stability across the three repos tested.
 Current limitations are mainly around extraction depth and visibility heuristics, not runtime reliability.
 Applying the P0/P1 steps above should significantly reduce false positives and make CI gating practical.
+
+## QA Hardening Task DG-QA-010 follow-up (2026-05-19)
+
+After implementing shared visibility-policy helpers across adapters (with Ruff and TypeScript visibility semantics regression-locked), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-010` is a maintainability refactor with visibility-regression coverage hardening; strict external gate metrics remain unchanged while visibility-policy logic is now centralized.

@@ -1,4 +1,4 @@
-use super::common::{attach_docs_by_proximity, next_nonempty_line};
+use super::common::{attach_docs_by_proximity, next_nonempty_line, visibility_from_member_modifier};
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
 use crate::docgen::DocgenError;
@@ -89,11 +89,10 @@ impl DocLanguageAdapter for PhpDocAdapter {
                 let parent = class_stack.last().map(|entry| entry.0.clone());
                 let kind =
                     if parent.is_some() { DocSymbolKind::Method } else { DocSymbolKind::Function };
-                let visibility = match caps.get(1).map(|m| m.as_str().trim()) {
-                    Some("private") => DocVisibility::Private,
-                    Some("protected") => DocVisibility::Protected,
-                    _ => DocVisibility::Public,
-                };
+                let visibility = visibility_from_member_modifier(
+                    caps.get(1).map(|m| m.as_str()),
+                    DocVisibility::Public,
+                );
                 let qualified_name = if let Some(class_name) = &parent {
                     format!("{}::{}", class_name, name)
                 } else {

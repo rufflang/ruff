@@ -54,6 +54,8 @@ For Ruff symbols, DocGen visibility is explicit and gate-oriented:
    - variants under non-`pub enum` are `Private`
 5. `--public-only` with `--include-private` disabled filters to `Public` symbols only and is the intended strict CI gate surface.
 
+Visibility classification is implemented through shared adapter helpers that centralize explicit modifier mapping, naming-convention mapping, and container/member effective visibility rules. Ruff and TypeScript adapter semantics are regression-locked and unchanged by this refactor.
+
 ## Ruff Doc Comment Styles
 
 Ruff DocGen currently attaches inline documentation from these Ruff comment forms:
@@ -277,7 +279,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Extract shared symbol/doc-block parsing utilities for TypeScript/JavaScript (and optionally Go/Zig where applicable).
    - Reduce duplicated regex/loop logic without changing symbol contracts.
    - Add adapter conformance tests to prove no language-specific regression.
-2. `DG-QA-010` Shared visibility-policy helper layer.
+2. [x] `DG-QA-010` Shared visibility-policy helper layer. (Completed 2026-05-19)
    Acceptance criteria:
    - Centralize effective visibility calculation patterns used by adapters (top-level, container/member inheritance, explicit modifiers).
    - Keep Ruff/TypeScript visibility semantics unchanged unless explicitly versioned.

@@ -1,6 +1,6 @@
 use super::common::{
     attach_docs_by_proximity, extract_jsdoc_comment_blocks, pop_class_stack_for_depth,
-    update_brace_depth,
+    update_brace_depth, visibility_from_explicit_public,
 };
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
@@ -69,11 +69,7 @@ impl DocLanguageAdapter for JavaScriptDocAdapter {
                     name: name.clone(),
                     qualified_name: name.clone(),
                     signature: Some(trimmed.to_string()),
-                    visibility: if caps.get(1).is_some() {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(caps.get(1).is_some()),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -92,11 +88,7 @@ impl DocLanguageAdapter for JavaScriptDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(format!("function({})", args)),
-                    visibility: if caps.get(1).is_some() {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(caps.get(1).is_some()),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),

@@ -954,6 +954,99 @@ fn docgen_ruff_extraction_edge_fixture_async_strict_gate_contract() {
 }
 
 #[test]
+fn docgen_typescript_visibility_matrix_preserves_modifier_and_export_semantics() {
+    let dir = unique_temp_dir("typescript_visibility_matrix");
+    let input = dir.join("visibility.ts");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "class InternalClass {\n  public explicitly_open(input: string): string {\n    return input;\n  }\n\n  protected partly_open(input: string): string {\n    return input;\n  }\n\n  private closed(input: string): string {\n    return input;\n  }\n}\n\nexport class PublicClass {\n  run(input: string): string {\n    return input;\n  }\n\n  protected gate(input: string): string {\n    return input;\n  }\n\n  private lock(input: string): string {\n    return input;\n  }\n}\n\nfunction internalHelper(input: string) {\n  return input;\n}\n\nexport function exportedApi(input: string) {\n  return input;\n}\n\ninterface InternalShape {\n  value: string;\n}\n\nexport interface PublicShape {\n  value: string;\n}\n\ntype InternalAlias = string;\nexport type PublicAlias = string;\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("typescript".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("typescript docgen should succeed");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert_eq!(symbol_visibility(symbols, "InternalClass"), "Private");
+    assert_eq!(symbol_visibility(symbols, "PublicClass"), "Public");
+    assert_eq!(symbol_visibility(symbols, "InternalClass.explicitly_open"), "Public");
+    assert_eq!(symbol_visibility(symbols, "InternalClass.partly_open"), "Protected");
+    assert_eq!(symbol_visibility(symbols, "InternalClass.closed"), "Private");
+    assert_eq!(symbol_visibility(symbols, "PublicClass.run"), "Public");
+    assert_eq!(symbol_visibility(symbols, "PublicClass.gate"), "Protected");
+    assert_eq!(symbol_visibility(symbols, "PublicClass.lock"), "Private");
+    assert_eq!(symbol_visibility(symbols, "internalHelper"), "Private");
+    assert_eq!(symbol_visibility(symbols, "exportedApi"), "Public");
+    assert_eq!(symbol_visibility(symbols, "InternalShape"), "Private");
+    assert_eq!(symbol_visibility(symbols, "PublicShape"), "Public");
+    assert_eq!(symbol_visibility(symbols, "InternalAlias"), "Private");
+    assert_eq!(symbol_visibility(symbols, "PublicAlias"), "Public");
+}
+
+#[test]
+fn docgen_typescript_public_only_keeps_public_methods_even_under_private_classes() {
+    let dir = unique_temp_dir("typescript_public_only_private_class_methods");
+    let input = dir.join("public_only.ts");
+    let out = dir.join("docs");
+
+    write_file(
+        &input,
+        "class InternalClass {\n  public documentedPublicMethod(input: string): string {\n    return input;\n  }\n\n  private hiddenMethod(input: string): string {\n    return input;\n  }\n}\n\nexport class PublicClass {\n  public exposedMethod(input: string): string {\n    return input;\n  }\n}\n",
+    );
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: Some("typescript".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: true,
+        include_private: false,
+    })
+    .expect("typescript public-only docgen should succeed");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    assert!(!has_symbol(symbols, "InternalClass"));
+    assert!(!has_symbol(symbols, "InternalClass.hiddenMethod"));
+    assert!(has_symbol(symbols, "InternalClass.documentedPublicMethod"));
+    assert!(has_symbol(symbols, "PublicClass"));
+    assert!(has_symbol(symbols, "PublicClass.exposedMethod"));
+}
+
+#[test]
 fn docgen_cli_json_contract_preserves_legacy_fields() {
     let dir = unique_temp_dir("cli_contract");
     let input = dir.join("file.ruff");

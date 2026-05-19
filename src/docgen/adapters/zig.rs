@@ -1,6 +1,8 @@
-use super::common::{attach_docs_by_proximity, next_nonempty_line};
+use super::common::{
+    attach_docs_by_proximity, next_nonempty_line, visibility_from_explicit_public,
+};
 use super::{AdapterCapability, DocLanguageAdapter};
-use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
+use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind};
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
@@ -70,11 +72,7 @@ impl DocLanguageAdapter for ZigDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(format!("fn({})", args)),
-                    visibility: if caps.get(1).is_some() {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(caps.get(1).is_some()),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -91,11 +89,7 @@ impl DocLanguageAdapter for ZigDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(trimmed.to_string()),
-                    visibility: if caps.get(1).is_some() {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(caps.get(1).is_some()),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -112,11 +106,7 @@ impl DocLanguageAdapter for ZigDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(trimmed.to_string()),
-                    visibility: if caps.get(1).is_some() {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(caps.get(1).is_some()),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),
@@ -133,11 +123,7 @@ impl DocLanguageAdapter for ZigDocAdapter {
                     name: name.clone(),
                     qualified_name: name,
                     signature: Some(trimmed.to_string()),
-                    visibility: if caps.get(1).is_some() {
-                        DocVisibility::Public
-                    } else {
-                        DocVisibility::Private
-                    },
+                    visibility: visibility_from_explicit_public(caps.get(1).is_some()),
                     source_path: path.to_path_buf(),
                     line: line_no,
                     docs: DocComment::default(),

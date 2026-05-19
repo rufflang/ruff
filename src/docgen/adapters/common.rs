@@ -1,4 +1,6 @@
-use crate::docgen::model::{DocComment, DocCommentBlock, DocExample, DocGapKind, DocSymbol};
+use crate::docgen::model::{
+    DocComment, DocCommentBlock, DocExample, DocGapKind, DocSymbol, DocVisibility,
+};
 
 pub fn doc_summary(lines: &[String]) -> Option<String> {
     lines.iter().find_map(|line| {
@@ -163,4 +165,134 @@ pub fn extract_jsdoc_comment_blocks(source: &str) -> Vec<DocCommentBlock> {
     }
 
     blocks
+}
+
+pub fn visibility_from_explicit_public(is_public: bool) -> DocVisibility {
+    if is_public {
+        DocVisibility::Public
+    } else {
+        DocVisibility::Private
+    }
+}
+
+pub fn visibility_from_member_modifier(
+    modifier: Option<&str>,
+    default_visibility: DocVisibility,
+) -> DocVisibility {
+    match modifier.map(str::trim) {
+        Some("private") => DocVisibility::Private,
+        Some("protected") => DocVisibility::Protected,
+        Some("public") => DocVisibility::Public,
+        _ => default_visibility,
+    }
+}
+
+pub fn visibility_from_leading_underscore(name: &str) -> DocVisibility {
+    if name.starts_with('_') {
+        DocVisibility::Private
+    } else {
+        DocVisibility::Public
+    }
+}
+
+pub fn visibility_from_leading_uppercase(name: &str) -> DocVisibility {
+    if name.chars().next().is_some_and(|ch| ch.is_ascii_uppercase()) {
+        DocVisibility::Public
+    } else {
+        DocVisibility::Private
+    }
+}
+
+pub fn effective_member_visibility(
+    declared_visibility: DocVisibility,
+    container_visibility: Option<DocVisibility>,
+    require_public_container: bool,
+) -> DocVisibility {
+    if require_public_container
+        && container_visibility.is_some()
+        && container_visibility != Some(DocVisibility::Public)
+    {
+        DocVisibility::Private
+    } else {
+        declared_visibility
+    }
+}
+
+pub fn visibility_inherits_from_container(container_visibility: Option<DocVisibility>) -> DocVisibility {
+    if container_visibility == Some(DocVisibility::Public) {
+        DocVisibility::Public
+    } else {
+        DocVisibility::Private
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visibility_helpers_cover_modifier_name_and_container_rules() {
+        assert_eq!(visibility_from_explicit_public(true), DocVisibility::Public);
+        assert_eq!(visibility_from_explicit_public(false), DocVisibility::Private);
+
+        assert_eq!(
+            visibility_from_member_modifier(Some("private"), DocVisibility::Public),
+            DocVisibility::Private
+        );
+        assert_eq!(
+            visibility_from_member_modifier(Some("protected"), DocVisibility::Public),
+            DocVisibility::Protected
+        );
+        assert_eq!(
+            visibility_from_member_modifier(Some("public"), DocVisibility::Private),
+            DocVisibility::Public
+        );
+        assert_eq!(
+            visibility_from_member_modifier(None, DocVisibility::Public),
+            DocVisibility::Public
+        );
+
+        assert_eq!(visibility_from_leading_underscore("_helper"), DocVisibility::Private);
+        assert_eq!(visibility_from_leading_underscore("api"), DocVisibility::Public);
+        assert_eq!(visibility_from_leading_uppercase("Serve"), DocVisibility::Public);
+        assert_eq!(visibility_from_leading_uppercase("serve"), DocVisibility::Private);
+
+        assert_eq!(
+            effective_member_visibility(
+                DocVisibility::Public,
+                Some(DocVisibility::Private),
+                true
+            ),
+            DocVisibility::Private
+        );
+        assert_eq!(
+            effective_member_visibility(
+                DocVisibility::Protected,
+                Some(DocVisibility::Public),
+                true
+            ),
+            DocVisibility::Protected
+        );
+        assert_eq!(
+            effective_member_visibility(
+                DocVisibility::Public,
+                Some(DocVisibility::Private),
+                false
+            ),
+            DocVisibility::Public
+        );
+
+        assert_eq!(
+            visibility_inherits_from_container(Some(DocVisibility::Public)),
+            DocVisibility::Public
+        );
+        assert_eq!(
+            visibility_inherits_from_container(Some(DocVisibility::Private)),
+            DocVisibility::Private
+        );
+        assert_eq!(
+            visibility_inherits_from_container(None),
+            DocVisibility::Private
+        );
+    }
 }
