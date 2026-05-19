@@ -67,6 +67,8 @@ pub struct BrokenLinkFinding {
 static LOCAL_ANCHOR_FILE_READ_COUNT: AtomicUsize = AtomicUsize::new(0);
 #[cfg(test)]
 static EXTERNAL_HTTP_CLIENT_BUILD_COUNT: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static CALL_SITE_INDEX_LINE_SCAN_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[cfg(test)]
 fn increment_local_anchor_file_read_count() {
@@ -85,6 +87,14 @@ fn increment_external_http_client_build_count() {
 fn increment_external_http_client_build_count() {}
 
 #[cfg(test)]
+fn increment_call_site_index_line_scan_count() {
+    CALL_SITE_INDEX_LINE_SCAN_COUNT.fetch_add(1, Ordering::Relaxed);
+}
+
+#[cfg(not(test))]
+fn increment_call_site_index_line_scan_count() {}
+
+#[cfg(test)]
 fn reset_link_validation_test_counters() {
     LOCAL_ANCHOR_FILE_READ_COUNT.store(0, Ordering::Relaxed);
     EXTERNAL_HTTP_CLIENT_BUILD_COUNT.store(0, Ordering::Relaxed);
@@ -96,6 +106,16 @@ fn link_validation_test_counters() -> (usize, usize) {
         LOCAL_ANCHOR_FILE_READ_COUNT.load(Ordering::Relaxed),
         EXTERNAL_HTTP_CLIENT_BUILD_COUNT.load(Ordering::Relaxed),
     )
+}
+
+#[cfg(test)]
+fn reset_call_site_index_test_counter() {
+    CALL_SITE_INDEX_LINE_SCAN_COUNT.store(0, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+fn call_site_index_test_counter() -> usize {
+    CALL_SITE_INDEX_LINE_SCAN_COUNT.load(Ordering::Relaxed)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -114,6 +134,11 @@ impl AnchorValidationIndex {
 }
 
 pub fn build_gaps(project: &mut DocProject, source_map: &BTreeMap<String, String>) {
+    let call_site_index = build_known_call_site_index(
+        source_map,
+        project.symbols.iter().map(|symbol| symbol.name.as_str()),
+        6,
+    );
     let mut gaps = Vec::new();
 
     for symbol in &project.symbols {
@@ -131,7 +156,7 @@ pub fn build_gaps(project: &mut DocProject, source_map: &BTreeMap<String, String
             .map(|source| bounded_context(source, symbol.line, 2))
             .unwrap_or_default();
 
-        let call_sites = known_call_sites(source_map, &symbol.name, 6);
+        let call_sites = call_site_index.get(&symbol.name).cloned().unwrap_or_default();
 
         gaps.push(DocGap {
             id: format!("gap:{}:{}:{}", symbol.language, symbol.qualified_name, symbol.line),
@@ -180,29 +205,55 @@ fn bounded_context(source: &str, line: usize, radius: usize) -> Vec<String> {
     out
 }
 
-fn known_call_sites(
+fn build_known_call_site_index<'a, I>(
     source_map: &BTreeMap<String, String>,
-    symbol_name: &str,
+    symbol_names: I,
     limit: usize,
-) -> Vec<String> {
-    if symbol_name.is_empty() {
-        return Vec::new();
+) -> BTreeMap<String, Vec<String>>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    if limit == 0 {
+        return BTreeMap::new();
     }
 
-    let mut calls = Vec::new();
-    let needle = format!("{}(", symbol_name);
+    let unique_names: Vec<String> = symbol_names
+        .into_iter()
+        .filter(|name| !name.is_empty())
+        .map(|name| name.to_string())
+        .collect::<BTreeSet<String>>()
+        .into_iter()
+        .collect();
+    if unique_names.is_empty() {
+        return BTreeMap::new();
+    }
+
+    let patterns = unique_names
+        .iter()
+        .map(|name| format!(r"{}\(", regex::escape(name)))
+        .collect::<Vec<String>>();
+    let Ok(regex_set) = regex::RegexSet::new(patterns) else {
+        return BTreeMap::new();
+    };
+
+    let mut calls_by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (path, source) in source_map {
         for (idx, line) in source.lines().enumerate() {
-            if line.contains(&needle) {
-                calls.push(format!("{}:{}: {}", path, idx + 1, line.trim()));
-                if calls.len() >= limit {
-                    return calls;
+            increment_call_site_index_line_scan_count();
+            let matches = regex_set.matches(line);
+            if matches.matched_any() {
+                for matched_idx in matches.iter() {
+                    let symbol_name = &unique_names[matched_idx];
+                    let calls = calls_by_name.entry(symbol_name.clone()).or_default();
+                    if calls.len() < limit {
+                        calls.push(format!("{}:{}: {}", path, idx + 1, line.trim()));
+                    }
                 }
             }
         }
     }
 
-    calls
+    calls_by_name
 }
 
 fn ai_prompt(symbol: &DocSymbol) -> String {
@@ -648,12 +699,16 @@ fn extract_markdown_links(text: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::docgen::model::{DocComment, DocProject, DocSymbol, DocSymbolKind, DocVisibility};
+    use crate::docgen::model::{
+        DocComment, DocGapKind, DocProject, DocSymbol, DocSymbolKind, DocVisibility,
+    };
     use std::fs;
+    use std::iter;
     use std::sync::Mutex;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     static LINK_VALIDATION_COUNTER_TEST_MUTEX: Mutex<()> = Mutex::new(());
+    static CALL_SITE_INDEX_COUNTER_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     fn unique_temp_dir(prefix: &str) -> PathBuf {
         let nanos = SystemTime::now()
@@ -689,6 +744,55 @@ mod tests {
             gaps: Vec::new(),
             diagnostics: Vec::new(),
         }
+    }
+
+    fn gap_symbol(
+        root: &Path,
+        id: &str,
+        name: &str,
+        source_rel_path: &str,
+        source_line: usize,
+        visibility: DocVisibility,
+    ) -> DocSymbol {
+        DocSymbol {
+            id: id.to_string(),
+            language: "ruff".to_string(),
+            kind: DocSymbolKind::Function,
+            name: name.to_string(),
+            qualified_name: name.to_string(),
+            signature: Some(format!("func {name}()")),
+            visibility,
+            source_path: root.join(source_rel_path),
+            line: source_line,
+            docs: DocComment { lines: Vec::new(), summary: None, placeholder: false },
+            examples: Vec::new(),
+            gaps: vec![DocGapKind::MissingDocs],
+            parent: None,
+        }
+    }
+
+    fn legacy_known_call_sites(
+        source_map: &BTreeMap<String, String>,
+        symbol_name: &str,
+        limit: usize,
+    ) -> Vec<String> {
+        if symbol_name.is_empty() {
+            return Vec::new();
+        }
+
+        let mut calls = Vec::new();
+        let needle = format!("{}(", symbol_name);
+        for (path, source) in source_map {
+            for (idx, line) in source.lines().enumerate() {
+                if line.contains(&needle) {
+                    calls.push(format!("{}:{}: {}", path, idx + 1, line.trim()));
+                    if calls.len() >= limit {
+                        return calls;
+                    }
+                }
+            }
+        }
+        calls
     }
 
     #[test]
@@ -762,6 +866,172 @@ mod tests {
         assert_eq!(
             external_client_builds, 1,
             "all external checks in a run should reuse one HTTP client"
+        );
+    }
+
+    #[test]
+    fn gap_call_site_index_matches_legacy_order_and_limit_semantics() {
+        let _guard = CALL_SITE_INDEX_COUNTER_TEST_MUTEX.lock().expect("test mutex lock");
+        reset_call_site_index_test_counter();
+
+        let source_map = BTreeMap::from([
+            (
+                "a.ruff".to_string(),
+                [
+                    "foo();",
+                    "prefixfoo();",
+                    "bar();",
+                    "foo();",
+                    "foo();",
+                    "foo();",
+                ]
+                .join("\n"),
+            ),
+            (
+                "b.ruff".to_string(),
+                ["bar();", "foo();", "foo();", "foo();", "foo();", "foo();"].join("\n"),
+            ),
+        ]);
+
+        let indexed = build_known_call_site_index(&source_map, ["foo", "bar", "missing"], 6);
+
+        for symbol in ["foo", "bar", "missing"] {
+            let expected = legacy_known_call_sites(&source_map, symbol, 6);
+            let actual = indexed.get(symbol).cloned().unwrap_or_default();
+            assert_eq!(actual, expected, "indexed and legacy call sites must match for {symbol}");
+        }
+    }
+
+    #[test]
+    fn build_gaps_uses_indexed_call_sites_and_preserves_known_call_sites_output() {
+        let _guard = CALL_SITE_INDEX_COUNTER_TEST_MUTEX.lock().expect("test mutex lock");
+        reset_call_site_index_test_counter();
+
+        let root = unique_temp_dir("gap_indexed_callsites");
+        let alpha_path = root.join("alpha.ruff");
+        let beta_path = root.join("beta.ruff");
+        fs::write(&alpha_path, "func alpha() {}\n").expect("write alpha source");
+        fs::write(&beta_path, "func beta() {}\n").expect("write beta source");
+
+        let mut project = DocProject {
+            name: Some("test".to_string()),
+            root: root.clone(),
+            languages: vec!["ruff".to_string()],
+            modules: Vec::new(),
+            symbols: vec![
+                gap_symbol(&root, "symbol:alpha", "foo", "alpha.ruff", 1, DocVisibility::Public),
+                gap_symbol(&root, "symbol:beta", "bar", "beta.ruff", 1, DocVisibility::Public),
+                gap_symbol(&root, "symbol:empty", "", "beta.ruff", 2, DocVisibility::Public),
+                gap_symbol(
+                    &root,
+                    "symbol:private",
+                    "hidden",
+                    "alpha.ruff",
+                    2,
+                    DocVisibility::Private,
+                ),
+            ],
+            gaps: Vec::new(),
+            diagnostics: Vec::new(),
+        };
+
+        let source_map = BTreeMap::from([
+            (
+                alpha_path.display().to_string(),
+                [
+                    "foo();",
+                    "bar();",
+                    "foo();",
+                    "prefixfoo();",
+                    "foo();",
+                    "foo();",
+                    "foo();",
+                ]
+                .join("\n"),
+            ),
+            (
+                beta_path.display().to_string(),
+                ["foo();", "bar();", "foo();", "foo();", "foo();"].join("\n"),
+            ),
+        ]);
+
+        build_gaps(&mut project, &source_map);
+
+        assert_eq!(project.gaps.len(), 3, "private symbols must not produce gaps");
+        let by_symbol_id = project
+            .gaps
+            .iter()
+            .map(|gap| (gap.symbol_id.as_str(), gap))
+            .collect::<BTreeMap<&str, &crate::docgen::model::DocGap>>();
+
+        let foo_gap = by_symbol_id
+            .get("symbol:alpha")
+            .expect("foo gap should exist");
+        let bar_gap = by_symbol_id.get("symbol:beta").expect("bar gap should exist");
+        let empty_gap = by_symbol_id
+            .get("symbol:empty")
+            .expect("empty-name gap should exist");
+
+        assert_eq!(foo_gap.known_call_sites.len(), 6, "foo call sites should be limited to 6");
+        assert_eq!(
+            foo_gap.known_call_sites,
+            legacy_known_call_sites(&source_map, "foo", 6),
+            "foo known call sites should preserve legacy deterministic ordering"
+        );
+        assert_eq!(
+            bar_gap.known_call_sites,
+            legacy_known_call_sites(&source_map, "bar", 6),
+            "bar known call sites should preserve legacy deterministic ordering"
+        );
+        assert!(
+            empty_gap.known_call_sites.is_empty(),
+            "empty symbol names should not produce known call sites"
+        );
+    }
+
+    #[test]
+    fn large_input_call_site_index_scans_each_source_line_once() {
+        let _guard = CALL_SITE_INDEX_COUNTER_TEST_MUTEX.lock().expect("test mutex lock");
+        reset_call_site_index_test_counter();
+
+        let root = unique_temp_dir("gap_index_large");
+        let file_count = 4usize;
+        let lines_per_file = 150usize;
+        let symbol_count = 48usize;
+        let mut source_map = BTreeMap::new();
+
+        for file_idx in 0..file_count {
+            let path = root.join(format!("file_{file_idx}.ruff"));
+            let mut lines = Vec::with_capacity(lines_per_file);
+            for line_idx in 0..lines_per_file {
+                if line_idx % 10 == 0 {
+                    lines.push(format!("sym{}();", line_idx % symbol_count));
+                } else {
+                    lines.push("let value = 1;".to_string());
+                }
+            }
+            let content = lines.join("\n");
+            fs::write(&path, &content).expect("write large input source");
+            source_map.insert(path.display().to_string(), content);
+        }
+
+        let symbols = (0..symbol_count)
+            .map(|idx| format!("sym{idx}"))
+            .chain(iter::once(String::new()))
+            .collect::<Vec<String>>();
+        let name_refs = symbols.iter().map(String::as_str).collect::<Vec<&str>>();
+
+        let indexed = build_known_call_site_index(&source_map, name_refs, 6);
+        assert!(
+            indexed.contains_key("sym0"),
+            "large-input index should record known call sites for matching symbols"
+        );
+
+        let scanned = call_site_index_test_counter();
+        assert_eq!(
+            scanned,
+            file_count * lines_per_file,
+            "call-site index should scan each source line once for the whole pass"
         );
     }
 }
