@@ -1,7 +1,9 @@
 use crate::docgen::model::{DocGap, DocGapKind, DocProject, DocSymbol, DocVisibility};
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::{IpAddr, ToSocketAddrs};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +61,56 @@ pub struct BrokenLinkFinding {
     pub target: String,
     pub line: usize,
     pub kind: BrokenLinkKind,
+}
+
+#[cfg(test)]
+static LOCAL_ANCHOR_FILE_READ_COUNT: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static EXTERNAL_HTTP_CLIENT_BUILD_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+#[cfg(test)]
+fn increment_local_anchor_file_read_count() {
+    LOCAL_ANCHOR_FILE_READ_COUNT.fetch_add(1, Ordering::Relaxed);
+}
+
+#[cfg(not(test))]
+fn increment_local_anchor_file_read_count() {}
+
+#[cfg(test)]
+fn increment_external_http_client_build_count() {
+    EXTERNAL_HTTP_CLIENT_BUILD_COUNT.fetch_add(1, Ordering::Relaxed);
+}
+
+#[cfg(not(test))]
+fn increment_external_http_client_build_count() {}
+
+#[cfg(test)]
+fn reset_link_validation_test_counters() {
+    LOCAL_ANCHOR_FILE_READ_COUNT.store(0, Ordering::Relaxed);
+    EXTERNAL_HTTP_CLIENT_BUILD_COUNT.store(0, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+fn link_validation_test_counters() -> (usize, usize) {
+    (
+        LOCAL_ANCHOR_FILE_READ_COUNT.load(Ordering::Relaxed),
+        EXTERNAL_HTTP_CLIENT_BUILD_COUNT.load(Ordering::Relaxed),
+    )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct AnchorValidationIndex {
+    html_id_values: BTreeSet<String>,
+    html_name_values: BTreeSet<String>,
+    markdown_heading_slugs: BTreeSet<String>,
+}
+
+impl AnchorValidationIndex {
+    fn contains_normalized_anchor(&self, anchor: &str) -> bool {
+        self.html_id_values.contains(anchor)
+            || self.html_name_values.contains(anchor)
+            || self.markdown_heading_slugs.contains(anchor)
+    }
 }
 
 pub fn build_gaps(project: &mut DocProject, source_map: &BTreeMap<String, String>) {
@@ -206,6 +258,13 @@ pub fn detect_broken_doc_links(
     let started_at = Instant::now();
     let mut checked_links = 0usize;
     let mut checked_external_links = 0usize;
+    let mut local_anchor_cache: BTreeMap<PathBuf, Option<AnchorValidationIndex>> = BTreeMap::new();
+    let external_client =
+        if options.validate_external_links && !options.external_link_allowlist.is_empty() {
+            build_external_link_client(options.external_link_timeout_ms)
+        } else {
+            None
+        };
 
     for symbol in &project.symbols {
         for (idx, line) in symbol.docs.lines.iter().enumerate() {
@@ -247,10 +306,10 @@ pub fn detect_broken_doc_links(
                     checked_external_links += 1;
 
                     match external_link_check(
+                        external_client.as_ref(),
                         &link,
                         &options.external_link_allowlist,
                         options.allow_private_network_links,
-                        options.external_link_timeout_ms,
                     ) {
                         ExternalLinkCheck::Reachable => {}
                         ExternalLinkCheck::Unreachable => {
@@ -328,7 +387,7 @@ pub fn detect_broken_doc_links(
 
                 if options.validate_local_anchors
                     && !fragment.is_empty()
-                    && !local_anchor_exists(&target, fragment)
+                    && !local_anchor_exists(&target, fragment, &mut local_anchor_cache)
                 {
                     broken.push(BrokenLinkFinding {
                         symbol: symbol.qualified_name.clone(),
@@ -353,34 +412,68 @@ fn link_validation_time_budget_exhausted(
     started_at.elapsed() >= Duration::from_millis(max_ms)
 }
 
-fn local_anchor_exists(target: &Path, fragment: &str) -> bool {
+fn local_anchor_exists(
+    target: &Path,
+    fragment: &str,
+    cache: &mut BTreeMap<PathBuf, Option<AnchorValidationIndex>>,
+) -> bool {
     let anchor = normalize_anchor(fragment);
     if anchor.is_empty() {
         return true;
     }
 
-    let Ok(content) = std::fs::read_to_string(target) else {
+    let key = target.to_path_buf();
+    if !cache.contains_key(&key) {
+        increment_local_anchor_file_read_count();
+        let parsed = match std::fs::read_to_string(target) {
+            Ok(content) => Some(parse_anchor_index(&content)),
+            Err(_) => None,
+        };
+        cache.insert(key.clone(), parsed);
+    }
+
+    let Some(index) = cache.get(&key).and_then(|entry| entry.as_ref()) else {
         return false;
     };
 
-    if content.contains(&format!("id=\"{}\"", anchor))
-        || content.contains(&format!("name=\"{}\"", anchor))
-    {
-        return true;
-    }
+    index.contains_normalized_anchor(&anchor)
+}
+
+fn parse_anchor_index(content: &str) -> AnchorValidationIndex {
+    let mut index = AnchorValidationIndex::default();
 
     for line in content.lines() {
+        extract_quoted_attr_values(line, "id", &mut index.html_id_values);
+        extract_quoted_attr_values(line, "name", &mut index.html_name_values);
+
         let trimmed = line.trim_start();
         if !trimmed.starts_with('#') {
             continue;
         }
         let heading = trimmed.trim_start_matches('#').trim();
-        if markdown_anchor_slug(heading) == anchor {
-            return true;
+        let slug = markdown_anchor_slug(heading);
+        if !slug.is_empty() {
+            index.markdown_heading_slugs.insert(slug);
         }
     }
 
-    false
+    index
+}
+
+fn extract_quoted_attr_values(line: &str, attr_name: &str, values: &mut BTreeSet<String>) {
+    let needle = format!(r#"{attr_name}=""#);
+    let mut rest = line;
+    while let Some(start) = rest.find(&needle) {
+        let after = &rest[start + needle.len()..];
+        let Some(end_quote) = after.find('"') else {
+            break;
+        };
+        let value = &after[..end_quote];
+        if !value.is_empty() {
+            values.insert(value.to_string());
+        }
+        rest = &after[end_quote + 1..];
+    }
 }
 
 fn normalize_anchor(anchor: &str) -> String {
@@ -421,19 +514,23 @@ enum ExternalLinkCheck {
     PrivateAddressBlocked { url: String, host: String, blocked_addresses: Vec<String> },
 }
 
-fn external_link_check(
-    link: &str,
-    allowlist: &BTreeSet<String>,
-    allow_private_network_links: bool,
-    timeout_ms: u64,
-) -> ExternalLinkCheck {
-    let client = match reqwest::blocking::Client::builder()
+fn build_external_link_client(timeout_ms: u64) -> Option<reqwest::blocking::Client> {
+    increment_external_http_client_build_count();
+    reqwest::blocking::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_millis(timeout_ms.max(1)))
         .build()
-    {
-        Ok(client) => client,
-        Err(_) => return ExternalLinkCheck::Unreachable,
+        .ok()
+}
+
+fn external_link_check(
+    client: Option<&reqwest::blocking::Client>,
+    link: &str,
+    allowlist: &BTreeSet<String>,
+    allow_private_network_links: bool,
+) -> ExternalLinkCheck {
+    let Some(client) = client else {
+        return ExternalLinkCheck::Unreachable;
     };
 
     let mut current_url = match reqwest::Url::parse(link) {
@@ -546,4 +643,125 @@ fn extract_markdown_links(text: &str) -> Vec<String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::docgen::model::{DocComment, DocProject, DocSymbol, DocSymbolKind, DocVisibility};
+    use std::fs;
+    use std::sync::Mutex;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static LINK_VALIDATION_COUNTER_TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be valid")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("ruff_docgen_gaps_{prefix}_{nanos}"));
+        fs::create_dir_all(&path).expect("failed to create temp directory");
+        path
+    }
+
+    fn doc_project_with_symbol(root: &Path, doc_lines: Vec<String>) -> DocProject {
+        DocProject {
+            name: Some("test".to_string()),
+            root: root.to_path_buf(),
+            languages: vec!["ruff".to_string()],
+            modules: Vec::new(),
+            symbols: vec![DocSymbol {
+                id: "symbol:test".to_string(),
+                language: "ruff".to_string(),
+                kind: DocSymbolKind::Function,
+                name: "test_symbol".to_string(),
+                qualified_name: "test_symbol".to_string(),
+                signature: Some("func test_symbol()".to_string()),
+                visibility: DocVisibility::Public,
+                source_path: root.join("module.ruff"),
+                line: 1,
+                docs: DocComment { lines: doc_lines, summary: None, placeholder: false },
+                examples: Vec::new(),
+                gaps: Vec::new(),
+                parent: None,
+            }],
+            gaps: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn repeated_local_anchor_checks_use_cached_file_index_per_path() {
+        let _guard = LINK_VALIDATION_COUNTER_TEST_MUTEX.lock().expect("test mutex lock");
+        reset_link_validation_test_counters();
+
+        let root = unique_temp_dir("anchor_cache");
+        let anchor_target = root.join("target.md");
+        fs::write(&anchor_target, "# API Reference\n\n## Usage\n")
+            .expect("failed to write anchor target");
+        let project = doc_project_with_symbol(
+            &root,
+            vec![
+                "[first](target.md#api-reference) [second](target.md#api-reference)".to_string(),
+                "[third](target.md#usage)".to_string(),
+            ],
+        );
+        let options = LinkValidationOptions { validate_local_anchors: true, ..Default::default() };
+
+        let report = detect_broken_doc_links(&root, &project, options);
+        assert!(report.broken_links.is_empty(), "expected no broken links");
+
+        let (local_anchor_reads, external_client_builds) = link_validation_test_counters();
+        assert_eq!(
+            local_anchor_reads, 1,
+            "repeated local-anchor checks should read/parse each target file once"
+        );
+        assert_eq!(
+            external_client_builds, 0,
+            "local-anchor validation should not build external HTTP clients"
+        );
+    }
+
+    #[test]
+    fn repeated_external_host_checks_reuse_single_http_client() {
+        let _guard = LINK_VALIDATION_COUNTER_TEST_MUTEX.lock().expect("test mutex lock");
+        reset_link_validation_test_counters();
+
+        let root = unique_temp_dir("external_client_cache");
+        let project = doc_project_with_symbol(
+            &root,
+            vec![
+                "[one](http://localhost:9/service-a)".to_string(),
+                "[two](http://localhost:9/service-b)".to_string(),
+            ],
+        );
+        let mut allowlist = BTreeSet::new();
+        allowlist.insert("localhost".to_string());
+        let options = LinkValidationOptions {
+            validate_external_links: true,
+            external_link_allowlist: allowlist,
+            allow_private_network_links: true,
+            external_link_timeout_ms: 200,
+            ..Default::default()
+        };
+
+        let report = detect_broken_doc_links(&root, &project, options);
+        assert_eq!(
+            report.broken_links.len(),
+            2,
+            "both unreachable links should be reported when host is allowlisted"
+        );
+        assert!(report
+            .broken_links
+            .iter()
+            .all(|finding| finding.kind == BrokenLinkKind::ExternalUnreachable));
+
+        let (local_anchor_reads, external_client_builds) = link_validation_test_counters();
+        assert_eq!(local_anchor_reads, 0);
+        assert_eq!(
+            external_client_builds, 1,
+            "all external checks in a run should reuse one HTTP client"
+        );
+    }
 }
