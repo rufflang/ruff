@@ -154,7 +154,8 @@ pub fn adapter_for_extension(ext: &str) -> Option<Box<dyn DocLanguageAdapter>> {
 
 #[allow(dead_code)]
 pub fn language_ids() -> Vec<&'static str> {
-    let mut ids: Vec<&'static str> = adapter_entries().iter().map(|entry| entry.language_id).collect();
+    let mut ids: Vec<&'static str> =
+        adapter_entries().iter().map(|entry| entry.language_id).collect();
     ids.sort_unstable();
     ids
 }
@@ -171,14 +172,15 @@ pub fn capability_index() -> Vec<(String, AdapterCapability)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use regex::Regex;
+    use std::path::Path;
+    use std::sync::OnceLock;
+    use std::time::Instant;
 
     #[test]
     fn adapter_lookup_handles_language_and_extension_normalization() {
         assert!(adapter_for_language("RUSTY_UNKNOWN").is_none());
-        assert_eq!(
-            adapter_for_language("RuFf").map(|adapter| adapter.language_id()),
-            Some("ruff")
-        );
+        assert_eq!(adapter_for_language("RuFf").map(|adapter| adapter.language_id()), Some("ruff"));
         assert_eq!(
             adapter_for_extension(".TSX").map(|adapter| adapter.language_id()),
             Some("typescript")
@@ -229,5 +231,140 @@ mod tests {
         // New lookup still constructs one adapter instance for the returned result, but avoids
         // constructing all intermediate adapters during lookup.
         assert!(legacy_constructions > 1);
+    }
+
+    #[test]
+    fn cached_regex_extractors_remain_stable_for_success_failure_and_edge_inputs() {
+        let cases: &[(&str, &str, &[&str])] = &[
+            ("ruff", "pub func api_call(value) {\n    return value\n}\n", &["api_call"]),
+            ("python", "def run_task(value):\n    return value\n", &["run_task"]),
+            ("php", "function doWork($value) {\n    return $value;\n}\n", &["doWork"]),
+            ("typescript", "export function ping(value: string) { return value; }\n", &["ping"]),
+            ("javascript", "export function pong(value) { return value; }\n", &["pong"]),
+            ("ruby", "def compute(value)\n  value\nend\n", &["compute"]),
+            ("go", "func Serve(value string) {}\n", &["Serve"]),
+            ("haskell", "result :: Int\nresult = 42\n", &["result"]),
+            ("zig", "pub fn run(value: i32) i32 { return value; }\n", &["run"]),
+        ];
+
+        for (language, valid_source, expected_symbols) in cases {
+            let adapter = adapter_for_language(language)
+                .unwrap_or_else(|| panic!("missing adapter for '{language}'"));
+            let sample_path = Path::new("sample");
+
+            // Regression guard for DG-QA-006: repeated extraction should stay stable now that
+            // regex compilation is cached via static lazy initialization.
+            let first = adapter
+                .extract_symbols(valid_source, sample_path)
+                .unwrap_or_else(|err| panic!("extract_symbols failed for {language}: {err}"));
+            let second = adapter.extract_symbols(valid_source, sample_path).unwrap_or_else(|err| {
+                panic!("second extract_symbols failed for {language}: {err}")
+            });
+            let first_names: Vec<String> =
+                first.iter().map(|symbol| symbol.qualified_name.clone()).collect();
+            let second_names: Vec<String> =
+                second.iter().map(|symbol| symbol.qualified_name.clone()).collect();
+            assert_eq!(first_names, second_names, "repeated extraction drifted for {language}");
+            for expected in *expected_symbols {
+                assert!(
+                    first_names.iter().any(|name| name.contains(expected)),
+                    "expected symbol '{expected}' missing for {language}: {first_names:?}"
+                );
+            }
+
+            let unmatched = adapter
+                .extract_symbols("%%% !!!", sample_path)
+                .unwrap_or_else(|err| panic!("unmatched extraction failed for {language}: {err}"));
+            assert!(
+                unmatched.is_empty(),
+                "unmatched input should not emit symbols for {language}: {unmatched:?}"
+            );
+
+            let empty = adapter
+                .extract_symbols("", sample_path)
+                .unwrap_or_else(|err| panic!("empty extraction failed for {language}: {err}"));
+            assert!(empty.is_empty(), "empty input should produce no symbols for {language}");
+        }
+    }
+
+    #[test]
+    fn regex_caching_micro_benchmark_evidence() {
+        const PATTERNS: &[&str] = &[
+            r"^\s*(pub\s+)?(async\s+)?func\*?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)",
+            r"^\s*(pub\s+)?struct\s+([A-Za-z_][A-Za-z0-9_]*)",
+            r"^\s*(pub\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)",
+            r"^\s*(pub\s+)?(const|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[:=]",
+            r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*,?\s*$",
+            r"^\s*(export\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)",
+            r"^\s*(export\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)",
+            r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*\{",
+            r"^\s*export\s+interface\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*interface\s+([A-Za-z_][A-Za-z0-9_]*)",
+            r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(struct|interface)",
+            r"^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)",
+            r"^\s*def\s+([A-Za-z_][A-Za-z0-9_!?=]*)\s*(\(([^)]*)\))?",
+            r"^\s*(public\s+|private\s+|protected\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)",
+        ];
+        const SAMPLE_LINES: &[&str] = &[
+            "pub async func worker(value) {}",
+            "export class Widget {}",
+            "export interface Named {}",
+            "func Serve(value string) {}",
+            "def compute(value)",
+            "public const VERSION = 1",
+            "unknown input line",
+        ];
+
+        fn run_legacy_match_pass() -> usize {
+            let mut hits = 0usize;
+            for pattern in PATTERNS {
+                let regex = Regex::new(pattern).expect("legacy compile should succeed");
+                for sample in SAMPLE_LINES {
+                    if regex.is_match(sample) {
+                        hits += 1;
+                    }
+                }
+            }
+            hits
+        }
+
+        fn run_cached_match_pass() -> usize {
+            static CACHED_REGEXES: OnceLock<Vec<Regex>> = OnceLock::new();
+            let cached = CACHED_REGEXES.get_or_init(|| {
+                PATTERNS
+                    .iter()
+                    .map(|pattern| Regex::new(pattern).expect("cached compile should succeed"))
+                    .collect()
+            });
+            let mut hits = 0usize;
+            for regex in cached {
+                for sample in SAMPLE_LINES {
+                    if regex.is_match(sample) {
+                        hits += 1;
+                    }
+                }
+            }
+            hits
+        }
+
+        let iterations = 200usize;
+        let legacy_start = Instant::now();
+        let mut legacy_hits = 0usize;
+        for _ in 0..iterations {
+            legacy_hits += run_legacy_match_pass();
+        }
+        let legacy_elapsed = legacy_start.elapsed();
+
+        let cached_start = Instant::now();
+        let mut cached_hits = 0usize;
+        for _ in 0..iterations {
+            cached_hits += run_cached_match_pass();
+        }
+        let cached_elapsed = cached_start.elapsed();
+
+        assert_eq!(legacy_hits, cached_hits, "cached regex matching changed results");
+        assert!(
+            cached_elapsed < legacy_elapsed,
+            "expected cached regex pass to be faster than legacy compile-per-pass path (cached={cached_elapsed:?}, legacy={legacy_elapsed:?})"
+        );
     }
 }

@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct GoDocAdapter;
 
@@ -32,13 +33,20 @@ impl DocLanguageAdapter for GoDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_type = Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(struct|interface)")
-            .expect("go type regex");
-        let re_func = Regex::new(r"^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-            .expect("go func regex");
-        let re_method =
+        static RE_TYPE: OnceLock<Regex> = OnceLock::new();
+        static RE_FUNC: OnceLock<Regex> = OnceLock::new();
+        static RE_METHOD: OnceLock<Regex> = OnceLock::new();
+        let re_type = RE_TYPE.get_or_init(|| {
+            Regex::new(r"^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(struct|interface)")
+                .expect("go type regex")
+        });
+        let re_func = RE_FUNC.get_or_init(|| {
+            Regex::new(r"^\s*func\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)").expect("go func regex")
+        });
+        let re_method = RE_METHOD.get_or_init(|| {
             Regex::new(r"^\s*func\s*\(([^)]*)\)\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-                .expect("go method regex");
+                .expect("go method regex")
+        });
 
         let mut symbols = Vec::new();
 

@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct JavaScriptDocAdapter;
 
@@ -32,13 +33,19 @@ impl DocLanguageAdapter for JavaScriptDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_class = Regex::new(r"^\s*(export\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)")
-            .expect("js class regex");
-        let re_function =
+        static RE_CLASS: OnceLock<Regex> = OnceLock::new();
+        static RE_FUNCTION: OnceLock<Regex> = OnceLock::new();
+        static RE_METHOD: OnceLock<Regex> = OnceLock::new();
+        let re_class = RE_CLASS.get_or_init(|| {
+            Regex::new(r"^\s*(export\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)").expect("js class regex")
+        });
+        let re_function = RE_FUNCTION.get_or_init(|| {
             Regex::new(r"^\s*(export\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-                .expect("js function regex");
-        let re_method = Regex::new(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*\{")
-            .expect("js method regex");
+                .expect("js function regex")
+        });
+        let re_method = RE_METHOD.get_or_init(|| {
+            Regex::new(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*\{").expect("js method regex")
+        });
 
         let mut symbols = Vec::new();
         let mut class_stack: Vec<(String, i32)> = Vec::new();

@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct ZigDocAdapter;
 
@@ -32,14 +33,26 @@ impl DocLanguageAdapter for ZigDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_fn = Regex::new(r"^\s*(pub\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-            .expect("zig fn regex");
-        let re_const = Regex::new(r"^\s*(pub\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=")
-            .expect("zig const regex");
-        let re_struct = Regex::new(r"^\s*(pub\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*struct")
-            .expect("zig struct regex");
-        let re_enum = Regex::new(r"^\s*(pub\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*enum")
-            .expect("zig enum regex");
+        static RE_FN: OnceLock<Regex> = OnceLock::new();
+        static RE_CONST: OnceLock<Regex> = OnceLock::new();
+        static RE_STRUCT: OnceLock<Regex> = OnceLock::new();
+        static RE_ENUM: OnceLock<Regex> = OnceLock::new();
+        let re_fn = RE_FN.get_or_init(|| {
+            Regex::new(r"^\s*(pub\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
+                .expect("zig fn regex")
+        });
+        let re_const = RE_CONST.get_or_init(|| {
+            Regex::new(r"^\s*(pub\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=")
+                .expect("zig const regex")
+        });
+        let re_struct = RE_STRUCT.get_or_init(|| {
+            Regex::new(r"^\s*(pub\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*struct")
+                .expect("zig struct regex")
+        });
+        let re_enum = RE_ENUM.get_or_init(|| {
+            Regex::new(r"^\s*(pub\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*enum")
+                .expect("zig enum regex")
+        });
 
         let mut symbols = Vec::new();
 

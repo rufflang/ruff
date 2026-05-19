@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct HaskellDocAdapter;
 
@@ -32,13 +33,22 @@ impl DocLanguageAdapter for HaskellDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_module = Regex::new(r"^\s*module\s+([A-Za-z0-9_.']+)").expect("hs module regex");
-        let re_data =
-            Regex::new(r"^\s*(data|newtype)\s+([A-Za-z_][A-Za-z0-9_']*)").expect("hs data regex");
-        let re_typeclass =
-            Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_']*)").expect("hs class regex");
-        let re_function =
-            Regex::new(r"^\s*([a-z_][A-Za-z0-9_']*)\s*::?").expect("hs function regex");
+        static RE_MODULE: OnceLock<Regex> = OnceLock::new();
+        static RE_DATA: OnceLock<Regex> = OnceLock::new();
+        static RE_TYPECLASS: OnceLock<Regex> = OnceLock::new();
+        static RE_FUNCTION: OnceLock<Regex> = OnceLock::new();
+        let re_module = RE_MODULE.get_or_init(|| {
+            Regex::new(r"^\s*module\s+([A-Za-z0-9_.']+)").expect("hs module regex")
+        });
+        let re_data = RE_DATA.get_or_init(|| {
+            Regex::new(r"^\s*(data|newtype)\s+([A-Za-z_][A-Za-z0-9_']*)").expect("hs data regex")
+        });
+        let re_typeclass = RE_TYPECLASS.get_or_init(|| {
+            Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_']*)").expect("hs class regex")
+        });
+        let re_function = RE_FUNCTION.get_or_init(|| {
+            Regex::new(r"^\s*([a-z_][A-Za-z0-9_']*)\s*::?").expect("hs function regex")
+        });
 
         let mut symbols = Vec::new();
 

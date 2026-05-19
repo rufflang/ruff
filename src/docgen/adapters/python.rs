@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct PythonDocAdapter;
 
@@ -32,10 +33,15 @@ impl DocLanguageAdapter for PythonDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_class =
-            Regex::new(r"^(\s*)class\s+([A-Za-z_][A-Za-z0-9_]*)").expect("python class regex");
-        let re_def = Regex::new(r"^(\s*)def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-            .expect("python def regex");
+        static RE_CLASS: OnceLock<Regex> = OnceLock::new();
+        static RE_DEF: OnceLock<Regex> = OnceLock::new();
+        let re_class = RE_CLASS.get_or_init(|| {
+            Regex::new(r"^(\s*)class\s+([A-Za-z_][A-Za-z0-9_]*)").expect("python class regex")
+        });
+        let re_def = RE_DEF.get_or_init(|| {
+            Regex::new(r"^(\s*)def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
+                .expect("python def regex")
+        });
 
         let mut symbols = Vec::new();
         let mut class_stack: Vec<(String, usize)> = Vec::new();

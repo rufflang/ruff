@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct PhpDocAdapter;
 
@@ -32,13 +33,23 @@ impl DocLanguageAdapter for PhpDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_class = Regex::new(r"^\s*(abstract\s+|final\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)")
-            .expect("valid php class regex");
-        let re_function = Regex::new(r"^\s*(public\s+|private\s+|protected\s+)?(static\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-            .expect("valid php function regex");
-        let re_const =
+        static RE_CLASS: OnceLock<Regex> = OnceLock::new();
+        static RE_FUNCTION: OnceLock<Regex> = OnceLock::new();
+        static RE_CONST: OnceLock<Regex> = OnceLock::new();
+        let re_class = RE_CLASS.get_or_init(|| {
+            Regex::new(r"^\s*(abstract\s+|final\s+)?class\s+([A-Za-z_][A-Za-z0-9_]*)")
+                .expect("valid php class regex")
+        });
+        let re_function = RE_FUNCTION.get_or_init(|| {
+            Regex::new(
+                r"^\s*(public\s+|private\s+|protected\s+)?(static\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)",
+            )
+            .expect("valid php function regex")
+        });
+        let re_const = RE_CONST.get_or_init(|| {
             Regex::new(r"^\s*(public\s+|private\s+|protected\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)")
-                .expect("valid php const regex");
+                .expect("valid php const regex")
+        });
 
         let mut symbols = Vec::new();
         let mut class_stack: Vec<(String, i32)> = Vec::new();

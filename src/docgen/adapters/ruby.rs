@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct RubyDocAdapter;
 
@@ -32,12 +33,19 @@ impl DocLanguageAdapter for RubyDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_class =
-            Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_:]*)").expect("ruby class regex");
-        let re_module =
-            Regex::new(r"^\s*module\s+([A-Za-z_][A-Za-z0-9_:]*)").expect("ruby module regex");
-        let re_def = Regex::new(r"^\s*def\s+([A-Za-z_][A-Za-z0-9_!?=]*)\s*(\(([^)]*)\))?")
-            .expect("ruby def regex");
+        static RE_CLASS: OnceLock<Regex> = OnceLock::new();
+        static RE_MODULE: OnceLock<Regex> = OnceLock::new();
+        static RE_DEF: OnceLock<Regex> = OnceLock::new();
+        let re_class = RE_CLASS.get_or_init(|| {
+            Regex::new(r"^\s*class\s+([A-Za-z_][A-Za-z0-9_:]*)").expect("ruby class regex")
+        });
+        let re_module = RE_MODULE.get_or_init(|| {
+            Regex::new(r"^\s*module\s+([A-Za-z_][A-Za-z0-9_:]*)").expect("ruby module regex")
+        });
+        let re_def = RE_DEF.get_or_init(|| {
+            Regex::new(r"^\s*def\s+([A-Za-z_][A-Za-z0-9_!?=]*)\s*(\(([^)]*)\))?")
+                .expect("ruby def regex")
+        });
 
         let mut symbols = Vec::new();
         let mut container_stack: Vec<String> = Vec::new();

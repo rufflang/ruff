@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct TypeScriptDocAdapter;
 
@@ -32,21 +33,37 @@ impl DocLanguageAdapter for TypeScriptDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_class = Regex::new(
-            r"^\s*export\s+class\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)",
-        )
-        .expect("ts class regex");
-        let re_interface = Regex::new(r"^\s*export\s+interface\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*interface\s+([A-Za-z_][A-Za-z0-9_]*)")
-            .expect("ts interface regex");
-        let re_type_alias = Regex::new(
-            r"^\s*export\s+type\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)",
-        )
-        .expect("ts alias regex");
-        let re_function =
+        static RE_CLASS: OnceLock<Regex> = OnceLock::new();
+        static RE_INTERFACE: OnceLock<Regex> = OnceLock::new();
+        static RE_TYPE_ALIAS: OnceLock<Regex> = OnceLock::new();
+        static RE_FUNCTION: OnceLock<Regex> = OnceLock::new();
+        static RE_METHOD: OnceLock<Regex> = OnceLock::new();
+        let re_class = RE_CLASS.get_or_init(|| {
+            Regex::new(
+                r"^\s*export\s+class\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)",
+            )
+            .expect("ts class regex")
+        });
+        let re_interface = RE_INTERFACE.get_or_init(|| {
+            Regex::new(r"^\s*export\s+interface\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*interface\s+([A-Za-z_][A-Za-z0-9_]*)")
+                .expect("ts interface regex")
+        });
+        let re_type_alias = RE_TYPE_ALIAS.get_or_init(|| {
+            Regex::new(
+                r"^\s*export\s+type\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)",
+            )
+            .expect("ts alias regex")
+        });
+        let re_function = RE_FUNCTION.get_or_init(|| {
             Regex::new(r"^\s*(export\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-                .expect("ts function regex");
-        let re_method = Regex::new(r"^\s*(public\s+|private\s+|protected\s+)?(static\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*[:{]")
-            .expect("ts method regex");
+                .expect("ts function regex")
+        });
+        let re_method = RE_METHOD.get_or_init(|| {
+            Regex::new(
+                r"^\s*(public\s+|private\s+|protected\s+)?(static\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*[:{]",
+            )
+            .expect("ts method regex")
+        });
 
         let mut symbols = Vec::new();
         let mut class_stack: Vec<(String, i32)> = Vec::new();

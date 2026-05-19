@@ -4,6 +4,7 @@ use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind
 use crate::docgen::DocgenError;
 use regex::Regex;
 use std::path::Path;
+use std::sync::OnceLock;
 
 pub struct RuffDocAdapter;
 
@@ -46,17 +47,31 @@ impl DocLanguageAdapter for RuffDocAdapter {
     }
 
     fn extract_symbols(&self, source: &str, path: &Path) -> Result<Vec<DocSymbol>, DocgenError> {
-        let re_func =
+        static RE_FUNC: OnceLock<Regex> = OnceLock::new();
+        static RE_STRUCT: OnceLock<Regex> = OnceLock::new();
+        static RE_ENUM: OnceLock<Regex> = OnceLock::new();
+        static RE_CONST: OnceLock<Regex> = OnceLock::new();
+        static RE_VARIANT: OnceLock<Regex> = OnceLock::new();
+        let re_func = RE_FUNC.get_or_init(|| {
             Regex::new(r"^\s*(pub\s+)?(async\s+)?func\*?\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)")
-            .expect("valid ruff function regex");
-        let re_struct = Regex::new(r"^\s*(pub\s+)?struct\s+([A-Za-z_][A-Za-z0-9_]*)")
-            .expect("valid ruff struct regex");
-        let re_enum = Regex::new(r"^\s*(pub\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)")
-            .expect("valid ruff enum regex");
-        let re_const = Regex::new(r"^\s*(pub\s+)?(const|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[:=]")
-            .expect("valid ruff const regex");
-        let re_variant = Regex::new(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*,?\s*$")
-            .expect("valid ruff enum variant regex");
+                .expect("valid ruff function regex")
+        });
+        let re_struct = RE_STRUCT.get_or_init(|| {
+            Regex::new(r"^\s*(pub\s+)?struct\s+([A-Za-z_][A-Za-z0-9_]*)")
+                .expect("valid ruff struct regex")
+        });
+        let re_enum = RE_ENUM.get_or_init(|| {
+            Regex::new(r"^\s*(pub\s+)?enum\s+([A-Za-z_][A-Za-z0-9_]*)")
+                .expect("valid ruff enum regex")
+        });
+        let re_const = RE_CONST.get_or_init(|| {
+            Regex::new(r"^\s*(pub\s+)?(const|let)\s+([A-Za-z_][A-Za-z0-9_]*)\s*[:=]")
+                .expect("valid ruff const regex")
+        });
+        let re_variant = RE_VARIANT.get_or_init(|| {
+            Regex::new(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*,?\s*$")
+                .expect("valid ruff enum variant regex")
+        });
 
         let mut symbols = Vec::new();
         let mut brace_depth: i32 = 0;
@@ -138,11 +153,8 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 let parent = active_struct.as_ref().map(|(name, _, _)| name.clone());
                 let is_async = caps.get(2).is_some();
                 let explicit_public = caps.get(1).is_some();
-                let visibility = if explicit_public {
-                    DocVisibility::Public
-                } else {
-                    DocVisibility::Private
-                };
+                let visibility =
+                    if explicit_public { DocVisibility::Public } else { DocVisibility::Private };
                 let visibility = if let Some((_, _, parent_public)) = &active_struct {
                     if explicit_public && *parent_public {
                         DocVisibility::Public
