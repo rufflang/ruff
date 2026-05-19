@@ -1387,6 +1387,7 @@ fn docgen_optional_external_validation_skips_non_allowlisted_hosts() {
             external_link_timeout_ms: 100,
             external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
             allow_private_network_links: false,
+            ..LinkValidationOptions::default()
         },
     )
     .expect("docgen run should complete");
@@ -1428,6 +1429,7 @@ fn docgen_optional_external_validation_fails_allowlisted_unreachable_hosts() {
             external_link_timeout_ms: 100,
             external_link_allowlist: BTreeSet::from(["127.0.0.1".to_string()]),
             allow_private_network_links: true,
+            ..LinkValidationOptions::default()
         },
     )
     .expect("docgen run should complete");
@@ -1469,6 +1471,7 @@ fn docgen_external_validation_blocks_direct_private_ip_by_default() {
             external_link_timeout_ms: 100,
             external_link_allowlist: BTreeSet::from(["127.0.0.1".to_string()]),
             allow_private_network_links: false,
+            ..LinkValidationOptions::default()
         },
     )
     .expect("docgen run should complete");
@@ -1518,6 +1521,7 @@ fn docgen_external_validation_blocks_dns_hosts_resolving_to_private_ranges_by_de
             external_link_timeout_ms: 100,
             external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
             allow_private_network_links: false,
+            ..LinkValidationOptions::default()
         },
     )
     .expect("docgen run should complete");
@@ -1576,6 +1580,7 @@ fn docgen_external_validation_allows_same_host_redirect_hops() {
             external_link_timeout_ms: 500,
             external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
             allow_private_network_links: true,
+            ..LinkValidationOptions::default()
         },
     )
     .expect("docgen run should complete");
@@ -1627,6 +1632,7 @@ fn docgen_external_validation_allows_cross_host_redirect_when_hosts_are_allowlis
                 "127.0.0.1".to_string(),
             ]),
             allow_private_network_links: true,
+            ..LinkValidationOptions::default()
         },
     )
     .expect("docgen run should complete");
@@ -1675,6 +1681,7 @@ fn docgen_external_validation_blocks_redirects_to_non_allowlisted_hosts() {
             external_link_timeout_ms: 500,
             external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
             allow_private_network_links: true,
+            ..LinkValidationOptions::default()
         },
     )
     .expect("docgen run should complete");
@@ -1797,6 +1804,159 @@ fn docgen_cli_exposes_external_link_validation_flags() {
     assert!(stdout.contains("--external-link-timeout-ms"));
     assert!(stdout.contains("--external-link-allowlist"));
     assert!(stdout.contains("--allow-private-network-links"));
+    assert!(stdout.contains("--max-link-checks"));
+    assert!(stdout.contains("--max-external-link-checks"));
+    assert!(stdout.contains("--max-total-validation-time-ms"));
+}
+
+#[test]
+fn docgen_link_validation_budget_max_link_checks_truncates_deterministically() {
+    let dir = unique_temp_dir("docgen_link_budget_max_link_checks");
+    let out = dir.join("docs");
+    let input = dir.join("budget_max_links.ruff");
+    write_file(
+        &input,
+        "/// Missing local A: [A](missing-a.md)\n/// Missing local B: [B](missing-b.md)\n/// Missing local C: [C](missing-c.md)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions { max_link_checks: Some(1), ..LinkValidationOptions::default() },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 1);
+    assert_eq!(summary.link_validation_skip_counts.get("max_link_checks"), Some(&2usize));
+    assert_eq!(summary.link_validation_skip_counts.get("max_external_checks"), Some(&0usize));
+    assert_eq!(summary.link_validation_skip_counts.get("max_total_time"), Some(&0usize));
+    assert!(summary.gate_failures.iter().any(|entry| entry.starts_with("1 broken links detected")));
+    assert!(summary.gate_failures.iter().any(|entry| entry == "2 warnings detected"));
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_VALIDATION_BUDGET_MAX_LINK_CHECKS"
+                && diag.message.contains("skipped 2 links")
+        }),
+        "budget-truncation diagnostics should be deterministic"
+    );
+}
+
+#[test]
+fn docgen_link_validation_budget_max_external_checks_truncates_deterministically() {
+    let server = spawn_http_server(1, |_path| http_200_response());
+    let dir = unique_temp_dir("docgen_link_budget_max_external_checks");
+    let out = dir.join("docs");
+    let input = dir.join("budget_max_external.ruff");
+    write_file(
+        &input,
+        &format!(
+            "/// External A: [A]({})\n/// External B: [B]({})\npub func linked_api() {{ return 1 }}\n",
+            server.url_with_host("localhost", "/one"),
+            server.url_with_host("localhost", "/two")
+        ),
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            validate_external_links: true,
+            external_link_allowlist: BTreeSet::from(["localhost".to_string()]),
+            allow_private_network_links: true,
+            max_external_link_checks: Some(1),
+            ..LinkValidationOptions::default()
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert_eq!(summary.link_validation_skip_counts.get("max_link_checks"), Some(&0usize));
+    assert_eq!(summary.link_validation_skip_counts.get("max_external_checks"), Some(&1usize));
+    assert_eq!(summary.link_validation_skip_counts.get("max_total_time"), Some(&0usize));
+    assert!(summary.gate_failures.iter().any(|entry| entry == "1 warnings detected"));
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_VALIDATION_BUDGET_MAX_EXTERNAL_CHECKS"
+                && diag.message.contains("skipped 1 external links")
+        }),
+        "external-budget truncation diagnostics should be deterministic"
+    );
+}
+
+#[test]
+fn docgen_link_validation_budget_total_time_truncates_deterministically() {
+    let dir = unique_temp_dir("docgen_link_budget_total_time");
+    let out = dir.join("docs");
+    let input = dir.join("budget_total_time.ruff");
+    write_file(
+        &input,
+        "/// Missing local A: [A](missing-a.md)\n/// Missing local B: [B](missing-b.md)\npub func linked_api() { return 1 }\n",
+    );
+
+    let (project, summary) = run_docgen_with_link_validation(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            fail_on_undocumented: true,
+            fail_on_broken_links: true,
+            fail_on_warnings: true,
+            public_only: true,
+            include_private: false,
+        },
+        LinkValidationOptions {
+            max_total_validation_time_ms: Some(0),
+            ..LinkValidationOptions::default()
+        },
+    )
+    .expect("docgen run should complete");
+
+    assert_eq!(summary.broken_link_count, 0);
+    assert_eq!(summary.link_validation_skip_counts.get("max_link_checks"), Some(&0usize));
+    assert_eq!(summary.link_validation_skip_counts.get("max_external_checks"), Some(&0usize));
+    assert_eq!(summary.link_validation_skip_counts.get("max_total_time"), Some(&2usize));
+    assert!(summary.gate_failures.iter().any(|entry| entry == "1 warnings detected"));
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_LINK_VALIDATION_BUDGET_TOTAL_TIME"
+                && diag.message.contains("skipped 2 links")
+        }),
+        "time-budget truncation diagnostics should be deterministic"
+    );
 }
 
 #[test]

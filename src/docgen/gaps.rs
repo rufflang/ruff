@@ -2,7 +2,7 @@ use crate::docgen::model::{DocGap, DocGapKind, DocProject, DocSymbol, DocVisibil
 use std::collections::{BTreeMap, BTreeSet};
 use std::net::{IpAddr, ToSocketAddrs};
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinkValidationOptions {
@@ -11,6 +11,9 @@ pub struct LinkValidationOptions {
     pub external_link_timeout_ms: u64,
     pub external_link_allowlist: BTreeSet<String>,
     pub allow_private_network_links: bool,
+    pub max_link_checks: Option<usize>,
+    pub max_external_link_checks: Option<usize>,
+    pub max_total_validation_time_ms: Option<u64>,
 }
 
 impl Default for LinkValidationOptions {
@@ -21,8 +24,24 @@ impl Default for LinkValidationOptions {
             external_link_timeout_ms: 1500,
             external_link_allowlist: BTreeSet::new(),
             allow_private_network_links: false,
+            max_link_checks: None,
+            max_external_link_checks: None,
+            max_total_validation_time_ms: None,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LinkValidationBudgetSkipCounts {
+    pub max_link_checks: usize,
+    pub max_external_checks: usize,
+    pub max_total_time: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LinkValidationReport {
+    pub broken_links: Vec<BrokenLinkFinding>,
+    pub skip_counts: LinkValidationBudgetSkipCounts,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,8 +200,13 @@ pub fn detect_broken_doc_links(
     root: &Path,
     project: &DocProject,
     options: LinkValidationOptions,
-) -> Vec<BrokenLinkFinding> {
+) -> LinkValidationReport {
     let mut broken = Vec::new();
+    let mut skip_counts = LinkValidationBudgetSkipCounts::default();
+    let started_at = Instant::now();
+    let mut checked_links = 0usize;
+    let mut checked_external_links = 0usize;
+
     for symbol in &project.symbols {
         for (idx, line) in symbol.docs.lines.iter().enumerate() {
             for link in extract_markdown_links(line) {
@@ -199,6 +223,28 @@ pub fn detect_broken_doc_links(
                     if !external_link_in_allowlist(&link, &options.external_link_allowlist) {
                         continue;
                     }
+
+                    if link_validation_time_budget_exhausted(
+                        started_at,
+                        options.max_total_validation_time_ms,
+                    ) {
+                        skip_counts.max_total_time += 1;
+                        continue;
+                    }
+                    if let Some(max_link_checks) = options.max_link_checks {
+                        if checked_links >= max_link_checks {
+                            skip_counts.max_link_checks += 1;
+                            continue;
+                        }
+                    }
+                    if let Some(max_external_link_checks) = options.max_external_link_checks {
+                        if checked_external_links >= max_external_link_checks {
+                            skip_counts.max_external_checks += 1;
+                            continue;
+                        }
+                    }
+                    checked_links += 1;
+                    checked_external_links += 1;
 
                     match external_link_check(
                         &link,
@@ -254,6 +300,21 @@ pub fn detect_broken_doc_links(
                     continue;
                 }
 
+                if link_validation_time_budget_exhausted(
+                    started_at,
+                    options.max_total_validation_time_ms,
+                ) {
+                    skip_counts.max_total_time += 1;
+                    continue;
+                }
+                if let Some(max_link_checks) = options.max_link_checks {
+                    if checked_links >= max_link_checks {
+                        skip_counts.max_link_checks += 1;
+                        continue;
+                    }
+                }
+                checked_links += 1;
+
                 let target = root.join(link_without_query);
                 if !target.exists() {
                     broken.push(BrokenLinkFinding {
@@ -279,7 +340,17 @@ pub fn detect_broken_doc_links(
             }
         }
     }
-    broken
+    LinkValidationReport { broken_links: broken, skip_counts }
+}
+
+fn link_validation_time_budget_exhausted(
+    started_at: Instant,
+    max_total_validation_time_ms: Option<u64>,
+) -> bool {
+    let Some(max_ms) = max_total_validation_time_ms else {
+        return false;
+    };
+    started_at.elapsed() >= Duration::from_millis(max_ms)
 }
 
 fn local_anchor_exists(target: &Path, fragment: &str) -> bool {

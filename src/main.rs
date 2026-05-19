@@ -442,6 +442,18 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         allow_private_network_links: bool,
 
+        /// Maximum total local/external links to validate before truncating checks
+        #[arg(long)]
+        max_link_checks: Option<usize>,
+
+        /// Maximum external links to validate before truncating external checks
+        #[arg(long)]
+        max_external_link_checks: Option<usize>,
+
+        /// Maximum total wall-clock time budget (ms) for link validation before truncating checks
+        #[arg(long)]
+        max_total_validation_time_ms: Option<u64>,
+
         /// Fail when any warnings are emitted
         #[arg(long, default_value_t = false)]
         fail_on_warnings: bool,
@@ -1612,6 +1624,9 @@ async fn main() {
             external_link_timeout_ms,
             external_link_allowlist,
             allow_private_network_links,
+            max_link_checks,
+            max_external_link_checks,
+            max_total_validation_time_ms,
             fail_on_warnings,
             json,
         } => {
@@ -1656,6 +1671,9 @@ async fn main() {
                     external_link_timeout_ms,
                     external_link_allowlist,
                     allow_private_network_links,
+                    max_link_checks,
+                    max_external_link_checks,
+                    max_total_validation_time_ms,
                 },
             ) {
                 Ok(result) => result,
@@ -1686,6 +1704,7 @@ async fn main() {
                     "broken_link_count": summary.broken_link_count,
                     "warning_count": summary.warning_count,
                     "discovery_skip_counts": summary.discovery_skip_counts,
+                    "link_validation_skip_counts": summary.link_validation_skip_counts,
                     "gate_failures": summary.gate_failures,
                     "summary": summary.dashboard_summary,
                 });

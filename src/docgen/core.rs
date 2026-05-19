@@ -56,6 +56,7 @@ pub struct DocgenDashboardSummary {
     pub broken_link_count: usize,
     pub warning_count: usize,
     pub discovery_skip_counts: BTreeMap<String, usize>,
+    pub link_validation_skip_counts: BTreeMap<String, usize>,
     pub gate_failures_count: usize,
     pub gate_failed: bool,
     pub languages: Vec<String>,
@@ -80,6 +81,7 @@ pub struct DocgenRunSummary {
     pub broken_link_count: usize,
     pub warning_count: usize,
     pub discovery_skip_counts: BTreeMap<String, usize>,
+    pub link_validation_skip_counts: BTreeMap<String, usize>,
     pub gate_failures: Vec<String>,
     pub dashboard_summary: DocgenDashboardSummary,
 }
@@ -215,8 +217,9 @@ pub fn run_with_link_validation(
         });
     }
 
-    let broken_links = detect_broken_doc_links(&project.root, &project, link_validation.clone());
-    for broken_link in &broken_links {
+    let link_validation_report =
+        detect_broken_doc_links(&project.root, &project, link_validation.clone());
+    for broken_link in &link_validation_report.broken_links {
         let (code, mode_label) = match broken_link.kind {
             BrokenLinkKind::LocalFileMissing => ("DOCGEN_LINK_BROKEN_LOCAL_FILE", "local-file"),
             BrokenLinkKind::LocalAnchorMissing => {
@@ -239,6 +242,42 @@ pub fn run_with_link_validation(
             ),
             path: None,
             line: Some(broken_link.line),
+        });
+    }
+    if link_validation_report.skip_counts.max_link_checks > 0 {
+        project.diagnostics.push(DocDiagnostic {
+            severity: DocDiagnosticSeverity::Warning,
+            code: "DOCGEN_LINK_VALIDATION_BUDGET_MAX_LINK_CHECKS".to_string(),
+            message: format!(
+                "link validation skipped {} links after reaching max_link_checks budget",
+                link_validation_report.skip_counts.max_link_checks
+            ),
+            path: None,
+            line: None,
+        });
+    }
+    if link_validation_report.skip_counts.max_external_checks > 0 {
+        project.diagnostics.push(DocDiagnostic {
+            severity: DocDiagnosticSeverity::Warning,
+            code: "DOCGEN_LINK_VALIDATION_BUDGET_MAX_EXTERNAL_CHECKS".to_string(),
+            message: format!(
+                "link validation skipped {} external links after reaching max_external_link_checks budget",
+                link_validation_report.skip_counts.max_external_checks
+            ),
+            path: None,
+            line: None,
+        });
+    }
+    if link_validation_report.skip_counts.max_total_time > 0 {
+        project.diagnostics.push(DocDiagnostic {
+            severity: DocDiagnosticSeverity::Warning,
+            code: "DOCGEN_LINK_VALIDATION_BUDGET_TOTAL_TIME".to_string(),
+            message: format!(
+                "link validation skipped {} links after reaching max_total_validation_time_ms budget",
+                link_validation_report.skip_counts.max_total_time
+            ),
+            path: None,
+            line: None,
         });
     }
     project.diagnostics.sort_by(|a, b| {
@@ -313,13 +352,13 @@ pub fn run_with_link_validation(
     if config.fail_on_undocumented && undocumented_count > 0 {
         gate_failures.push(format!("{} undocumented public symbols detected", undocumented_count));
     }
-    if config.fail_on_broken_links && !broken_links.is_empty() {
+    if config.fail_on_broken_links && !link_validation_report.broken_links.is_empty() {
         let mut local_file_missing = 0usize;
         let mut local_anchor_missing = 0usize;
         let mut external_unreachable = 0usize;
         let mut external_redirect_allowlist = 0usize;
         let mut external_private_address = 0usize;
-        for broken_link in &broken_links {
+        for broken_link in &link_validation_report.broken_links {
             match broken_link.kind {
                 BrokenLinkKind::LocalFileMissing => local_file_missing += 1,
                 BrokenLinkKind::LocalAnchorMissing => local_anchor_missing += 1,
@@ -330,7 +369,7 @@ pub fn run_with_link_validation(
         }
         gate_failures.push(format!(
             "{} broken links detected (local_file={}, local_anchor={}, external={}, external_redirect_allowlist={}, external_private_address={})",
-            broken_links.len(),
+            link_validation_report.broken_links.len(),
             local_file_missing,
             local_anchor_missing,
             external_unreachable,
@@ -355,11 +394,16 @@ pub fn run_with_link_validation(
     }
     let languages = project.languages.clone();
     let diagnostics_count = project.diagnostics.len();
-    let broken_link_count = broken_links.len();
+    let broken_link_count = link_validation_report.broken_links.len();
     let discovery_skip_counts = BTreeMap::from([
         ("max_depth".to_string(), discovery.skip_counts.max_depth),
         ("max_file_size".to_string(), discovery.skip_counts.max_file_size),
         ("max_files".to_string(), discovery.skip_counts.max_files),
+    ]);
+    let link_validation_skip_counts = BTreeMap::from([
+        ("max_link_checks".to_string(), link_validation_report.skip_counts.max_link_checks),
+        ("max_external_checks".to_string(), link_validation_report.skip_counts.max_external_checks),
+        ("max_total_time".to_string(), link_validation_report.skip_counts.max_total_time),
     ]);
     let dashboard_summary = DocgenDashboardSummary {
         schema_version: "docgen-summary/v1".to_string(),
@@ -372,6 +416,7 @@ pub fn run_with_link_validation(
         broken_link_count,
         warning_count,
         discovery_skip_counts: discovery_skip_counts.clone(),
+        link_validation_skip_counts: link_validation_skip_counts.clone(),
         gate_failures_count: gate_failures.len(),
         gate_failed: !gate_failures.is_empty(),
         languages: languages.clone(),
@@ -397,6 +442,7 @@ pub fn run_with_link_validation(
             broken_link_count,
             warning_count,
             discovery_skip_counts,
+            link_validation_skip_counts,
             gate_failures,
             dashboard_summary,
         },
