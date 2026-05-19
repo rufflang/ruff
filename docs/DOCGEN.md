@@ -272,7 +272,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
 
 ### P1 DRY And Maintainability
 
-1. `DG-QA-009` Shared extraction helpers for C-style languages.
+1. [x] `DG-QA-009` Shared extraction helpers for C-style languages. (Completed 2026-05-19)
    Acceptance criteria:
    - Extract shared symbol/doc-block parsing utilities for TypeScript/JavaScript (and optionally Go/Zig where applicable).
    - Reduce duplicated regex/loop logic without changing symbol contracts.

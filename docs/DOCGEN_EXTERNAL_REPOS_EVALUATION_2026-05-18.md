@@ -440,6 +440,21 @@ Regression-evidence tests:
 
 Interpretation: `DG-QA-008` removes repeated full-source rescans from gap call-site discovery while preserving strict external gate outputs and known-call-site contract behavior.
 
+### QA Hardening Task DG-QA-009 follow-up (2026-05-19)
+
+After extracting shared C-style parsing helpers for TypeScript/JavaScript adapter class-scope tracking, brace-depth updates, and JSDoc block parsing, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Regression-evidence tests:
+- `docgen::adapters::tests::c_style_adapter_conformance_preserves_typescript_and_javascript_contracts` verifies shared helper refactoring preserves TypeScript/JavaScript symbol and inline-doc attachment expectations.
+
+Interpretation: `DG-QA-009` reduces duplicated adapter parsing logic while preserving strict external gate outputs and language-specific extraction behavior.
+
 ### Test results
 
 - `docgen_universal`: passed
