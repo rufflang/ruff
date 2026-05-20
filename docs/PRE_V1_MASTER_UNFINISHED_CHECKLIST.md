@@ -123,6 +123,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` still lists unchecked release-phase items in `Final checklist before tagging v1.0.0` (`Cargo version is bumped intentionally`, `Release candidate is built from a clean working tree`).
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-003` loop; this remains a release-event closure item outside runtime-path implementation loops.
     Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` still contains unchecked tag-prep entries.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-004` loop; version-bump + clean-tree RC generation remains explicitly tag-prep work.
+    Evidence: `ROADMAP.md` still lists unchecked final-tag checklist entries.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -136,6 +138,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` section remains unchecked and requires post-publish artifact URLs/checksums/smoke results.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-003` loop; tag-time asset publication/sign-off remains blocked until the real release event.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still has all `Tag-Time Sign-Off` checkboxes unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-004` loop; artifact sign-off remains release-event dependent.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` items remain unchecked and require post-publish evidence.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -216,11 +220,15 @@ Each loop report must include exactly:
     - Added runtime-strategy contract coverage in `tests/cli_contracts.rs` for VM-only mismatch failures and dual-mode fallback success on a deterministic drift fixture.
     - Recorded implementation rationale, fallback boundaries, and validation results in `notes/2026-05-20_16-55_v1u-run-003-ruff-test-runtime-strategy.md`.
 
-- [ ] **V1U-RUN-004**: Close generator-surface ambiguity between docs/tests/runtime.
+- [x] **V1U-RUN-004**: Close generator-surface ambiguity between docs/tests/runtime.
   - Scope: remove the “VM generator support is partial” drift signal by either fixing VM support gaps or making boundary explicit in canonical docs.
   - Acceptance criteria:
     - generator behavior status is consistent across `README`, parity matrix, and generator tests.
     - no silent engine-specific behavior differences in covered generator scenarios.
+  - Evidence (2026-05-20):
+    - Added explicit generator divergence coverage in `tests/vm_interpreter_parity_surfaces.rs` (`generator_iteration_surface_is_intentionally_divergent_with_explicit_vm_error`) so interpreter success and VM deterministic error behavior are both contract-locked.
+    - Updated `README.md` known-boundary wording to explicitly state current top-level generator divergence (interpreter-supported, VM deterministic error) while preserving struct-generator unsupported policy clarity.
+    - Updated `docs/VM_INTERPRETER_PARITY_MATRIX.md` with a dedicated top-level generator iteration row marked `intentionally divergent`; implementation/validation summary recorded in `notes/2026-05-20_17-20_v1u-run-004-generator-parity-clarification.md`.
 
 - [ ] **V1U-RUN-005**: Expand parity evidence for any surface still commonly forced to interpreter mode.
   - Scope: for each dependency-map item tagged `parity-gap`, add targeted VM/interpreter parity tests or explicit documented divergence.

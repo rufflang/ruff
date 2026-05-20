@@ -682,6 +682,48 @@ fn vm_and_interpreter_error_on_generator_arity_too_many() {
 }
 
 #[test]
+fn generator_iteration_surface_is_intentionally_divergent_with_explicit_vm_error() {
+    let script = r#"
+        func* emit_numbers(start) {
+            yield start
+            yield start + 1
+            yield start + 2
+        }
+
+        sum := 0
+        count := 0
+        for item in emit_numbers(5) {
+            sum := sum + item
+            count := count + 1
+        }
+
+        generator_surface_ok := count == 3 && sum == 18
+    "#;
+
+    let interp = run_interpreter(script);
+    assert!(
+        interp.return_value.is_none(),
+        "interpreter should support top-level generator iteration: {:?}",
+        interp.return_value
+    );
+    assert!(
+        matches!(interp.env.get("generator_surface_ok"), Some(Value::Bool(true))),
+        "interpreter generator result should be true, got {:?}",
+        interp.env.get("generator_surface_ok")
+    );
+
+    let vm_env = vm_env_with_builtins();
+    let vm_error = run_vm(script, vm_env).expect_err(
+        "vm should currently reject top-level generator iteration until dedicated VM support lands",
+    );
+    assert!(
+        vm_error.contains("Yield can only be used inside generator functions"),
+        "expected explicit VM generator divergence error, got {:?}",
+        vm_error
+    );
+}
+
+#[test]
 fn vm_and_interpreter_error_on_native_function_arity_mismatch() {
     let script = r#"
         return len("ruff", "extra")

@@ -536,10 +536,11 @@ cargo run -- profile examples/benchmark.ruff
 These are intentional caveats for production readers rather than fine print:
 
 - Tagged releases publish standalone Linux/macOS artifacts with checksums; package-manager taps remain outside the current v1 release gate.
-- VM execution is the default, but the tree-walking interpreter still matters for some language surfaces and diagnostics.
+- VM execution is the default; the interpreter remains part of compatibility workflows (`ruff test --runtime dual|interpreter`) where legacy fixture snapshots and diagnostics still require explicit fallback handling.
 - Static typing is optional and not a VM-enforced compile-time contract in the current CLI path.
 - `import`/`export` syntax and module execution/export collection are implemented; module file resolution is constrained to configured search roots and rejects symlink-resolved escapes.
 - Struct fields and instance literals exist, and explicit `self` struct methods are parity-covered in VM/interpreter tests.
+- Top-level generator functions (`func*`) are currently intentionally divergent: interpreter iteration is covered, while VM currently returns a deterministic error (`Yield can only be used inside generator functions`) for top-level generator `yield` paths.
 - Struct generator methods (`func*` inside `struct`) are intentionally unsupported and fail with a deterministic error (`Generator methods are not supported for structs: <Struct>.<method>`).
 - Spread literals and destructuring syntax are parity-covered in VM/interpreter tests for the tracked matrix scenarios.
 - `spawn { ... }` is parsed and executed as fire-and-forget work; do not rely on spawned output or shared state without using the explicit concurrency/native async APIs.

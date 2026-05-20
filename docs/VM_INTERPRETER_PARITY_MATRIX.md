@@ -1,6 +1,6 @@
 # VM/Interpreter/Compiler Parity Matrix (v1.0.0)
 
-Last updated: 2026-05-08
+Last updated: 2026-05-20
 
 This matrix tracks parity for roadmap item `V1-COMP-001`.
 
@@ -17,6 +17,7 @@ This matrix tracks parity for roadmap item `V1-COMP-001`.
 | --- | --- | --- | --- | --- | --- |
 | Variable/identifier resolution (`let`/`mut`/`const`, undefined identifiers) | lowers locals/globals with mutability metadata | lexical scopes + undefined-variable runtime errors | matching load/store + undefined-variable runtime errors | supported | `vm_and_interpreter_resolve_defined_identifiers`, `vm_and_interpreter_error_on_undefined_top_level_identifier`, `vm_and_interpreter_error_on_undefined_identifier_inside_function`, `vm_and_interpreter_error_on_undefined_identifier_inside_closure` |
 | Function/closure/method/async/generator arity | emits callable metadata used by runtime arity checks | shared arity validation | matching callable arity checks | supported | `vm_and_interpreter_error_on_function_arity_too_few`, `vm_and_interpreter_error_on_function_arity_too_many`, `vm_and_interpreter_error_on_closure_arity_mismatch`, `vm_and_interpreter_error_on_method_arity_mismatch`, `vm_and_interpreter_error_on_async_function_arity_mismatch`, `vm_and_interpreter_error_on_generator_arity_mismatch`, `vm_and_interpreter_match_callable_arity_success_paths` |
+| Top-level generator iteration (`func*`, `yield`, `for ... in generator`) | lowers generator declarations and generator call sites | generator creation + iteration in interpreter runtime | currently emits deterministic VM runtime error for `yield` in top-level generators (`Yield can only be used inside generator functions`) | intentionally divergent | `generator_iteration_surface_is_intentionally_divergent_with_explicit_vm_error`, `vm_and_interpreter_error_on_generator_arity_mismatch`, `vm_and_interpreter_error_on_generator_arity_too_many` |
 | Struct methods (`obj.method(...)`) | lowers `MethodCall` to field-get + call | explicit `self` method dispatch | bytecode method dispatch | supported | `vm_and_interpreter_match_struct_method_behavior_contract` |
 | Struct generator methods (`func*` inside `struct`) | compile-time rejection with shared message helper | runtime rejection with same shared message helper | compile path returns same message | unsupported (explicit) | `vm_and_interpreter_error_on_unsupported_struct_generator_method` |
 | Collections/indexing/mutation | lowers array/dict/index ops and in-place updates | runtime checked index/map semantics | matching checked index/map semantics | supported | `vm_and_interpreter_match_valid_index_assignment_success_path`, `vm_and_interpreter_error_on_invalid_index_assignment_target`, `vm_and_interpreter_error_on_out_of_bounds_array_index`, `vm_and_interpreter_error_on_missing_string_map_key`, `vm_and_interpreter_match_successful_local_map_update` |
