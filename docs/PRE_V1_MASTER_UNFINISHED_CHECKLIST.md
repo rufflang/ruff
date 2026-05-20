@@ -119,6 +119,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` final checklist still carries release-phase unchecked items, and this loop is intentionally scoped to one non-tag checklist item at a time.
   - Blocker (2026-05-20): Revalidated after release gate stabilization loops; this remains a release-event task and is intentionally deferred until final tag-prep execution.
     Evidence: `ROADMAP.md` final checklist still includes release-phase items (`Cargo version is bumped intentionally`, `Release candidate is built from a clean working tree`).
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-002` loop; this remains tag-phase work and cannot be closed while pre-tag checklist execution is still in progress.
+    Evidence: `ROADMAP.md` still lists unchecked release-phase items in `Final checklist before tagging v1.0.0` (`Cargo version is bumped intentionally`, `Release candidate is built from a clean working tree`).
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -128,6 +130,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` Tag-Time Sign-Off section remains release-event dependent.
   - Blocker (2026-05-20): Revalidated after consecutive RC gate passes; artifact sign-off remains explicitly tag-time and cannot be completed pre-publish.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still requires published release URLs and post-publish smoke status.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-002` loop; artifact checklist sign-off still depends on an actual published `v1.0.0` release event.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` section remains unchecked and requires post-publish artifact URLs/checksums/smoke results.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -188,11 +192,15 @@ Each loop report must include exactly:
     - Added generator `scripts/generate_interpreter_flag_dependency_map.sh` and published `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md`.
     - Map inventories `--interpreter` usage across CLI harness source, integration tests, docs/examples, and historical notes with explicit reason tags.
 
-- [ ] **V1U-RUN-002**: Explain and justify `ruff test` interpreter hardcoding in `src/parser.rs::run_all_tests`.
+- [x] **V1U-RUN-002**: Explain and justify `ruff test` interpreter hardcoding in `src/parser.rs::run_all_tests`.
   - Scope: confirm whether this is still required, and if yes, define removal criteria.
   - Acceptance criteria:
     - documented root-cause analysis with concrete failing fixtures/surfaces if VM-first is not yet safe.
     - decision recorded: keep temporarily, switch to VM-first, or dual-mode with fixture metadata.
+  - Evidence (2026-05-20):
+    - Added dated root-cause analysis note `notes/2026-05-20_16-10_v1u-run-002_ruff-test-interpreter-hardcoding-analysis.md` with a concrete mismatch scan (`SCANNED=21 MISMATCHES=15`) and named divergent fixtures/surface classes.
+    - Extended generated dependency map output (`scripts/generate_interpreter_flag_dependency_map.sh` -> `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md`) with an explicit `V1U-RUN-002` decision section and removal criteria for `V1U-RUN-003`.
+    - Added/updated contract coverage in `tests/interpreter_flag_dependency_map_contract.rs` to lock the decision markers and `run_all_tests` interpreter pin.
 
 - [ ] **V1U-RUN-003**: Implement a VM-first or dual-engine `ruff test` execution strategy.
   - Scope: reduce reliance on blanket interpreter execution for fixture sweeps.

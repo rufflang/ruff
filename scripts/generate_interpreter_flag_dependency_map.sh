@@ -97,6 +97,26 @@ mkdir -p "$(dirname "$OUTPUT_PATH")"
     while IFS=$'\t' read -r path category tags count line_refs; do
         printf '| `%s` | %s | `%s` | %s | %s |\n' "$path" "$category" "$tags" "$count" "$line_refs"
     done <"$TMP_ROWS"
+    cat <<'EOF'
+
+## V1U-RUN-002: `ruff test` Interpreter Hardcoding Decision
+
+Current state (`src/parser.rs::run_all_tests`): each fixture is executed via `ruff run <fixture> --interpreter`.
+
+Root-cause evidence for keeping interpreter-pinned today:
+
+- Snapshot corpus compatibility: `ruff test` compares fixture stdout against existing `tests/*.out` snapshots created around interpreter-first behavior.
+- Runtime-path drift is still material: a local comparison sweep (`ruff run` vs `ruff run --interpreter`) found 15 mismatches in the first 21 fixtures scanned, including `tests/array_methods_test.ruff`, `tests/net_test.ruff`, `tests/error_call_stack_test.ruff`, and `tests/image_processing_test.ruff`.
+- Divergence is not one class of issue: differences include runtime diagnostic code/subsystem shape (`[RUFVM001]` vs `[RUFRUN001]`), optimizer banner output, and builtin availability/behavior differences in legacy fixtures.
+
+Decision (2026-05-20): keep `ruff test` interpreter-pinned for now, and close migration work under `V1U-RUN-003`.
+
+Removal criteria for this hardcoding:
+
+1. Add an explicit runtime-path strategy for `ruff test` (VM-first or dual-engine with deterministic fallback policy).
+2. Normalize or rebaseline fixture expectations so runtime-path-specific diagnostics/noise do not create accidental false failures.
+3. Add parity coverage for currently divergent fixture classes, then prove the selected strategy with focused command-level tests.
+EOF
 } >"$OUTPUT_PATH"
 
 echo "generated interpreter dependency map: ${OUTPUT_PATH#$ROOT/}"

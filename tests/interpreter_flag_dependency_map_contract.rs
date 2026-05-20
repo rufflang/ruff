@@ -48,6 +48,9 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
         "`security-test-choice`",
         "`docs-contract`",
         "| File | Category | Reason Tags | Usage Count | Line References |",
+        "## V1U-RUN-002: `ruff test` Interpreter Hardcoding Decision",
+        "Decision (2026-05-20): keep `ruff test` interpreter-pinned for now",
+        "Removal criteria for this hardcoding:",
     ] {
         assert!(
             map.contains(marker),
@@ -69,4 +72,20 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
             required_row
         );
     }
+}
+
+#[test]
+fn parser_test_harness_remains_explicitly_interpreter_pinned_until_v1u_run_003() {
+    let root = repo_root();
+    let parser_path = root.join("src").join("parser.rs");
+    let parser_source = fs::read_to_string(parser_path).expect("expected src/parser.rs source");
+
+    assert!(
+        parser_source.contains("pub fn run_all_tests"),
+        "parser source should define run_all_tests harness entrypoint"
+    );
+    assert!(
+        parser_source.contains(".arg(\"--interpreter\")"),
+        "run_all_tests should explicitly pin interpreter execution until runtime-path migration work lands"
+    );
 }
