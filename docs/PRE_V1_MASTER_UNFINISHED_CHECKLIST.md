@@ -129,6 +129,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` final tag checklist items are still unchecked.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-006` loop; still blocked pending final tag-prep phase execution.
     Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` remains incomplete.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-001` loop; remains blocked on final release-event sequencing.
+    Evidence: `ROADMAP.md` final checklist still includes unchecked tag-prep items.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -148,6 +150,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off checkboxes remain unchecked.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-006` loop; still release-event dependent.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` items remain unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-001` loop; still blocked until actual v1.0.0 publish/sign-off.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -260,11 +264,15 @@ Each loop report must include exactly:
 
 ## 4) Documentation Integrity And Staleness Cleanup
 
-- [ ] **V1U-DOC-001**: Replace or fully refresh stale `docs/ARCHITECTURE.md`.
+- [x] **V1U-DOC-001**: Replace or fully refresh stale `docs/ARCHITECTURE.md`.
   - Scope: resolve major drift (v0.8/v0.9 language, VM-default mismatch, outdated component status).
   - Acceptance criteria:
     - architecture doc reflects current execution defaults and release posture.
     - no contradictory “VM experimental/not default” claims against current README/CLI behavior.
+  - Evidence (2026-05-20):
+    - Replaced `docs/ARCHITECTURE.md` with a current architecture baseline aligned to VM-default execution, explicit interpreter fallback usage, and pre-v1 release posture.
+    - Added `tests/architecture_docs_contract.rs` to enforce required up-to-date runtime-path markers and reject stale v0.8/v0.9 wording.
+    - Recorded implementation summary and validation evidence in `notes/2026-05-20_18-30_v1u-doc-001-architecture-refresh.md`.
 
 - [ ] **V1U-DOC-002**: Align maturity/boundary wording across top-level docs.
   - Scope: sync `README.md`, `docs/V1_SCOPE.md`, `docs/LANGUAGE_SPEC.md`, `docs/RUFF_FEATURE_INVENTORY.md`, and `docs/UNFINISHED_AND_MVP_AUDIT.md`.
