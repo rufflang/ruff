@@ -504,6 +504,61 @@ fn docgen_diagnostics_order_is_deterministic_across_sources() {
 }
 
 #[test]
+fn docgen_html_renderer_source_link_toggle_preserves_current_output_shape() {
+    let dir = unique_temp_dir("docgen_html_source_link_toggle");
+    let input = dir.join("module.ruff");
+    write_file(&input, "/// API docs\npub func api() {\n    return 1\n}\n");
+
+    let out_false = dir.join("docs_false");
+    let (_project_false, summary_false) = run_docgen(&DocgenConfig {
+        input: input.clone(),
+        out_dir: out_false,
+        format: DocOutputFormat::Html,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen html run without source links should succeed");
+
+    let out_true = dir.join("docs_true");
+    let (_project_true, summary_true) = run_docgen(&DocgenConfig {
+        input,
+        out_dir: out_true,
+        format: DocOutputFormat::Html,
+        include_builtins: false,
+        language: Some("ruff".to_string()),
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: true,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+    })
+    .expect("docgen html run with source links should succeed");
+
+    let html_false =
+        fs::read_to_string(summary_false.module_doc_path).expect("failed to read html output");
+    let html_true =
+        fs::read_to_string(summary_true.module_doc_path).expect("failed to read html output");
+
+    assert_eq!(
+        html_false, html_true,
+        "source_links toggle should preserve current html output shape"
+    );
+}
+
+#[test]
 fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
     let dir = unique_temp_dir("ruff_visibility_matrix");
     let input = dir.join("visibility.ruff");

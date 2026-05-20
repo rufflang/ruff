@@ -289,7 +289,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Move CLI JSON contract assembly from ad hoc `main.rs` maps into a typed summary payload builder.
    - Ensure backward compatibility for existing top-level keys.
    - Lock output contract with dedicated snapshot tests.
-4. `DG-QA-012` Renderer deduplication cleanup.
+4. [x] `DG-QA-012` Renderer deduplication cleanup. (Completed 2026-05-19)
    Acceptance criteria:
    - Remove no-op duplicated branches (for example source-link conditionals that currently emit identical output).
    - Centralize shared symbol card rendering helpers across HTML/Markdown renderers where safe.

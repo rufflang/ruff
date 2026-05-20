@@ -1,6 +1,7 @@
 use crate::docgen::model::DocProject;
+use crate::docgen::render::symbol_source_location;
 
-pub fn render(project: &DocProject, source_links: bool) -> String {
+pub fn render(project: &DocProject, _source_links: bool) -> String {
     let mut html = String::new();
     html.push_str("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
     html.push_str("<title>Ruff DocGen</title>");
@@ -43,19 +44,10 @@ pub fn render(project: &DocProject, source_links: bool) -> String {
             html.push_str(&format!("<p class=\"sig\">{}</p>", escape_html(signature)));
         }
 
-        if source_links {
-            html.push_str(&format!(
-                "<p><strong>Source:</strong> <code>{}:{}</code></p>",
-                escape_html(&symbol.source_path.display().to_string()),
-                symbol.line
-            ));
-        } else {
-            html.push_str(&format!(
-                "<p><strong>Source:</strong> <code>{}:{}</code></p>",
-                escape_html(&symbol.source_path.display().to_string()),
-                symbol.line
-            ));
-        }
+        html.push_str(&format!(
+            "<p><strong>Source:</strong> <code>{}</code></p>",
+            escape_html(&symbol_source_location(symbol))
+        ));
 
         if symbol.docs.placeholder {
             html.push_str("<p class=\"placeholder\">Documentation needed. This symbol was discovered from the source code, but no human-authored documentation was found.</p>");

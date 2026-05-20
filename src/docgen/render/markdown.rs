@@ -1,4 +1,5 @@
 use crate::docgen::model::{DocProject, DocSymbol};
+use crate::docgen::render::symbol_source_location;
 
 pub fn render(project: &DocProject) -> String {
     let mut out = String::new();
@@ -14,11 +15,7 @@ pub fn render(project: &DocProject) -> String {
             out.push_str(&format!("### {}\n\n", symbol.qualified_name));
             out.push_str(&format!("- Kind: {:?}\n", symbol.kind));
             out.push_str(&format!("- Visibility: {:?}\n", symbol.visibility));
-            out.push_str(&format!(
-                "- Source: `{}`:{}\n",
-                symbol.source_path.display(),
-                symbol.line
-            ));
+            out.push_str(&format!("- Source: `{}`\n", symbol_source_location(symbol)));
             if let Some(signature) = &symbol.signature {
                 out.push_str(&format!("- Signature: `{}`\n", signature));
             }
