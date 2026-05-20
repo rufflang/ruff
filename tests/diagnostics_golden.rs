@@ -6,6 +6,7 @@ use ruff::lexer::tokenize_with_file;
 use ruff::parser::Parser;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/diagnostics")
@@ -49,6 +50,28 @@ fn assert_or_update_golden(base_name: &str, kind: &str, actual: &str) {
 
 fn read_fixture_source(name: &str) -> String {
     fs::read_to_string(fixtures_dir().join(name)).expect("failed to read diagnostic fixture")
+}
+
+fn run_runtime_json_diagnostic_fixture(fixture_file: &str) -> String {
+    let fixture_path = fixtures_dir().join(fixture_file);
+    let output = Command::new(env!("CARGO_BIN_EXE_ruff"))
+        .args([
+            "run",
+            "--interpreter",
+            fixture_path.to_str().expect("fixture path should be utf-8"),
+            "--json-runtime-diagnostics",
+        ])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("failed to run ruff runtime diagnostic fixture");
+
+    assert!(
+        !output.status.success(),
+        "runtime diagnostic fixture should fail: {}",
+        fixture_file
+    );
+
+    String::from_utf8(output.stdout).expect("runtime diagnostic stdout should be utf-8")
 }
 
 fn first_lexer_diagnostic_from_fixture(fixture_file: &str) -> Diagnostic {
@@ -111,6 +134,15 @@ fn diagnostics_golden_lexer_parse_semantic_runtime_cli_and_server_contracts() {
         "runtime_undefined_identifier_run_envelope",
         "json",
         &runtime_run_envelope_json,
+    );
+
+    let runtime_invalid_unary_envelope = run_runtime_json_diagnostic_fixture(
+        "runtime_invalid_unary.ruff",
+    );
+    assert_or_update_golden(
+        "runtime_invalid_unary_run_envelope",
+        "json",
+        &runtime_invalid_unary_envelope,
     );
 
     let cli = Diagnostic::new(

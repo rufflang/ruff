@@ -58,7 +58,7 @@ How to use with an AI agent:
 
 ## 3) Diagnostics / Contracts / Test Infrastructure
 
-- [ ] **PREV1-DIAG-001**: Expand diagnostics goldens for runtime JSON diagnostic surfaces as they evolve.
+- [x] **PREV1-DIAG-001**: Expand diagnostics goldens for runtime JSON diagnostic surfaces as they evolve.
   - Scope: add fixture + golden coverage when new machine-readable runtime diagnostics are added.
   - Acceptance criteria:
     - `tests/diagnostics_golden.rs` includes new fixture category coverage.
