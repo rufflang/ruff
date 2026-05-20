@@ -1624,6 +1624,226 @@ fn docgen_adapter_conformance_smoke_extracts_symbols_for_all_languages() {
 }
 
 #[test]
+fn docgen_adapter_conformance_edge_fixtures_preserve_shape_and_visibility_contracts() {
+    let dir = unique_temp_dir("adapter_conformance_edges");
+    let out = dir.join("docs");
+    let fixtures = [
+        ("conformance_edges.ruff", "sample.ruff"),
+        ("conformance_edges.php", "sample.php"),
+        ("conformance_edges.py", "sample.py"),
+        ("conformance_edges.ts", "sample.ts"),
+        ("conformance_edges.js", "sample.js"),
+        ("conformance_edges.rb", "sample.rb"),
+        ("conformance_edges.go", "sample.go"),
+        ("conformance_edges.hs", "sample.hs"),
+        ("conformance_edges.zig", "sample.zig"),
+    ];
+
+    for (fixture_name, output_name) in fixtures {
+        let source =
+            fs::read_to_string(docgen_fixture_path(fixture_name)).expect("failed to read fixture");
+        write_file(&dir.join(output_name), &source);
+    }
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input: dir.clone(),
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: None,
+        languages: Some("ruff,php,python,typescript,javascript,ruby,go,haskell,zig".to_string()),
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        source_link_template: None,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
+        cache_dir: None,
+    })
+    .expect("docgen should succeed");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read project json");
+    let project: Value = serde_json::from_str(&project_json).expect("project json should be valid");
+    let symbols = project["symbols"].as_array().expect("symbols should be array");
+
+    let present_languages: BTreeSet<String> = symbols
+        .iter()
+        .filter_map(|symbol| symbol["language"].as_str().map(ToOwned::to_owned))
+        .collect();
+    for language in
+        ["ruff", "php", "python", "typescript", "javascript", "ruby", "go", "haskell", "zig"]
+    {
+        assert!(
+            present_languages.contains(language),
+            "expected symbols for language {language}"
+        );
+    }
+
+    for symbol in symbols {
+        assert!(
+            symbol.get("id").is_some_and(Value::is_string),
+            "symbol is missing string id: {symbol:?}"
+        );
+        assert!(
+            symbol.get("language").is_some_and(Value::is_string),
+            "symbol is missing string language: {symbol:?}"
+        );
+        assert!(
+            symbol.get("kind").is_some_and(Value::is_string),
+            "symbol is missing string kind: {symbol:?}"
+        );
+        assert!(
+            symbol.get("name").is_some_and(Value::is_string),
+            "symbol is missing string name: {symbol:?}"
+        );
+        assert!(
+            symbol.get("qualified_name").is_some_and(Value::is_string),
+            "symbol is missing string qualified_name: {symbol:?}"
+        );
+        assert!(
+            symbol.get("visibility").is_some_and(Value::is_string),
+            "symbol is missing string visibility: {symbol:?}"
+        );
+        assert!(
+            symbol.get("source_path").is_some_and(Value::is_string),
+            "symbol is missing string source_path: {symbol:?}"
+        );
+        assert!(
+            symbol.get("line").is_some_and(Value::is_number),
+            "symbol is missing numeric line: {symbol:?}"
+        );
+        assert!(
+            symbol.get("docs").is_some_and(Value::is_object),
+            "symbol is missing docs object: {symbol:?}"
+        );
+        assert!(
+            symbol["docs"].get("placeholder").is_some_and(Value::is_boolean),
+            "symbol docs missing placeholder boolean: {symbol:?}"
+        );
+    }
+
+    for documented_symbol in [
+        "exported_async_task",
+        "HiddenWorker::promoted",
+        "JsClient.fetchData",
+        "public_helper",
+        "phpPublicHelper",
+        "Runner#run",
+        "PublicHelper",
+        "valueFn",
+        "zigPublic",
+    ] {
+        let symbol = symbols
+            .iter()
+            .find(|candidate| candidate["qualified_name"] == documented_symbol)
+            .unwrap_or_else(|| panic!("missing documented symbol '{documented_symbol}'"));
+        assert!(
+            !symbol["docs"]["placeholder"]
+                .as_bool()
+                .expect("docs.placeholder should be bool"),
+            "expected docs to attach for symbol {documented_symbol}"
+        );
+    }
+
+    for undocumented_symbol in [
+        "public_without_docs_ruff",
+        "tsPublicWithoutDocs",
+        "jsPublicWithoutDocs",
+        "public_without_docs_py",
+        "phpPublicWithoutDocs",
+        "ruby_without_docs",
+        "publicWithoutDocs",
+        "zigWithoutDocs",
+    ] {
+        let symbol = symbols
+            .iter()
+            .find(|candidate| candidate["qualified_name"] == undocumented_symbol)
+            .unwrap_or_else(|| panic!("missing undocumented symbol '{undocumented_symbol}'"));
+        assert!(
+            symbol["docs"]["placeholder"]
+                .as_bool()
+                .expect("docs.placeholder should be bool"),
+            "expected undocumented placeholder for symbol {undocumented_symbol}"
+        );
+    }
+
+    assert_eq!(symbol_visibility(symbols, "HiddenWorker::promoted"), "Private");
+    assert_eq!(symbol_visibility(symbols, "TsClient.cacheData"), "Private");
+    assert_eq!(symbol_visibility(symbols, "_private_helper"), "Private");
+    assert_eq!(symbol_visibility(symbols, "zigPrivate"), "Private");
+    assert!(
+        !has_symbol(symbols, "tsAsyncHelper"),
+        "TypeScript adapter currently does not extract `export async function` declarations"
+    );
+    assert!(
+        !has_symbol(symbols, "TsClient.fetchData"),
+        "TypeScript adapter currently does not extract `async` class methods"
+    );
+}
+
+#[test]
+fn docgen_adapter_conformance_edge_fixtures_strict_public_gate_reports_undocumented_symbols() {
+    let dir = unique_temp_dir("adapter_conformance_edges_strict");
+    let out = dir.join("docs");
+    let fixtures = [
+        ("conformance_edges.ruff", "sample.ruff"),
+        ("conformance_edges.php", "sample.php"),
+        ("conformance_edges.py", "sample.py"),
+        ("conformance_edges.ts", "sample.ts"),
+        ("conformance_edges.js", "sample.js"),
+        ("conformance_edges.rb", "sample.rb"),
+        ("conformance_edges.go", "sample.go"),
+        ("conformance_edges.hs", "sample.hs"),
+        ("conformance_edges.zig", "sample.zig"),
+    ];
+
+    for (fixture_name, output_name) in fixtures {
+        let source =
+            fs::read_to_string(docgen_fixture_path(fixture_name)).expect("failed to read fixture");
+        write_file(&dir.join(output_name), &source);
+    }
+
+    let (_project, summary) = run_docgen(&DocgenConfig {
+        input: dir,
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: None,
+        languages: Some("ruff,php,python,typescript,javascript,ruby,go,haskell,zig".to_string()),
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        source_link_template: None,
+        fail_on_undocumented: true,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: true,
+        include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
+        cache_dir: None,
+    })
+    .expect("strict docgen run should complete");
+
+    assert!(summary.undocumented_count > 0, "strict gate should detect undocumented symbols");
+    assert!(
+        summary
+            .gate_failures
+            .iter()
+            .any(|entry| entry.contains("undocumented")),
+        "strict gate should emit undocumented failure message"
+    );
+}
+
+#[test]
 fn docgen_strict_gates_fail_as_expected() {
     let dir = unique_temp_dir("strict_gates");
     let out = dir.join("docs");

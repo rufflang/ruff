@@ -373,7 +373,7 @@ The next universal DocGen maturation slice is tracked in `ROADMAP.md` under `V1-
    - Add an opt-in parser-assisted extraction path for Ruff symbols with graceful fallback to regex extraction when parser diagnostics occur.
    - Preserve deterministic output ordering and strict-gate stability.
    - Add fixture-backed coverage for both parser-success and parser-fallback paths.
-2. [ ] `DG-NEXT-002` Cross-language adapter conformance expansion.
+2. [x] `DG-NEXT-002` Cross-language adapter conformance expansion. (Completed 2026-05-20)
    Acceptance criteria:
    - Expand fixture coverage for multi-language edge patterns (nested containers, visibility inheritance, and async/doc-attachment variants).
    - Add contract checks that keep adapter output shape stable across all supported languages.
@@ -383,3 +383,30 @@ The next universal DocGen maturation slice is tracked in `ROADMAP.md` under `V1-
    - Define a repeatable external-repo validation cadence and evidence format in `notes/`.
    - Track strict/public-only undocumented-count deltas across representative repositories.
    - Document mitigation playbooks for regressions detected during baseline refresh runs.
+
+### Intentional Adapter Extraction Gaps (Current)
+
+These gaps are intentional in the current adapter contracts and must stay documented when conformance tests are expanded:
+
+- Ruff:
+  - Regex mode is declaration-focused (`func`/`struct`/`enum`/`const`/enum variants); parser-assisted mode remains opt-in and falls back to regex on diagnostics.
+  - Visibility inheritance is container-aware for Ruff structs/enums only; it is not a cross-language global rule.
+- TypeScript:
+  - Extraction currently targets classes, interfaces, type aliases, functions, and class methods; enum/namespace/re-export graphs are not fully modeled.
+  - Method visibility follows explicit modifiers (`public/private/protected`) without class-level visibility inheritance.
+  - `export async function ...` declarations and `async` class methods are currently outside the TypeScript adapter's declaration-pattern coverage.
+- JavaScript:
+  - Extraction targets `export class`, `function`, and class method declarations; dynamic patterns (for example object-literal methods and assigned arrow functions) are intentionally out of scope.
+  - `export async function ...` declarations are currently outside the JavaScript adapter's declaration-pattern coverage.
+- Python:
+  - Extraction focuses on `class`/`def` declarations and naming-convention visibility (`_private`); decorator semantics and runtime metaprogramming are not resolved.
+- PHP:
+  - Extraction targets `class`, `function`, and `const` declarations with method modifiers; traits/interfaces/namespaced alias graphs are not fully modeled.
+- Ruby:
+  - Extraction targets `module`, `class`, and `def`; dynamic method-definition patterns and metaprogrammed visibility rules are intentionally not inferred.
+- Go:
+  - Extraction targets `type ... struct|interface`, top-level functions, and receiver methods; embedded-interface composition and build-tag-aware symbol filtering are not modeled.
+- Haskell:
+  - Extraction targets module/data/newtype/typeclass/function signatures using declaration patterns; export lists and advanced type-level constructs are not fully resolved.
+- Zig:
+  - Extraction targets `fn`, `const`, `struct`, and `enum` declarations; container member traversal/inference is intentionally out of scope (`supports_methods = false`).
