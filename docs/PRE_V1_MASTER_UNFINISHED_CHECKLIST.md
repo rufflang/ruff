@@ -149,6 +149,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked entries.
   - Blocker (2026-05-20): Revalidated during `V1U-CODE-003` loop; final checklist rows for version bump + clean-tree RC build are still pending tag-phase execution.
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` continues to show unchecked rows.
+  - Blocker (2026-05-20): Revalidated during `V1U-FINAL-001` loop; roadmap final-tag rows for version bump + clean-tree RC build remain release-event work and are still unchecked.
+    Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked final-checklist entries.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -188,6 +190,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
   - Blocker (2026-05-20): Revalidated during `V1U-CODE-003` loop; tag-time artifact publication/sign-off remains blocked until the actual release event.
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked rows.
+  - Blocker (2026-05-20): Revalidated during `V1U-FINAL-001` loop; tag-time artifact publication/sign-off remains blocked pre-release.
+    Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -406,10 +410,14 @@ Each loop report must include exactly:
 
 ## 7) Final Pre-Tag Execution
 
-- [ ] **V1U-FINAL-001**: Run final full gate bundle and archive evidence.
+- [x] **V1U-FINAL-001**: Run final full gate bundle and archive evidence.
   - Scope: required release gates + targeted parity/security/contracts + artifact validation script.
   - Acceptance criteria:
     - dated evidence note with pass/fail per command and environment details.
+  - Evidence (2026-05-20):
+    - Executed final bundle commands and archived per-command logs under `/private/tmp/v1u_final_001_2026-05-20_18-20`.
+    - Recorded pass/fail outcomes and environment details in `notes/2026-05-20_18-20_v1u-final-001-gate-bundle-evidence.md`.
+    - Result summary: focused parity/security/contracts/artifact commands passed; `bash scripts/release_candidate_gate.sh --full` failed at `cargo fmt --check` with explicit follow-up recorded.
 
 - [ ] **V1U-FINAL-002**: Perform release dry run from a clean tree.
   - Scope: rehearse version bump, checklist closure, tag flow, and artifact workflow without publishing.
