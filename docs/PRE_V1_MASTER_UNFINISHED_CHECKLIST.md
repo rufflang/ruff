@@ -155,10 +155,13 @@ Each loop report must include exactly:
     - Adopted stable-only `rustfmt.toml` policy by removing unstable option keys that emitted warning spam on stable toolchains.
     - Verified warning-free formatting gate execution with `cargo fmt` and `cargo fmt --check`.
 
-- [ ] **V1U-GATE-003**: Re-run full RC gate in low-contention environment and record pass/fail evidence.
+- [x] **V1U-GATE-003**: Re-run full RC gate in low-contention environment and record pass/fail evidence.
   - Scope: repeat `bash scripts/release_candidate_gate.sh --full` after formatting and stability fixes.
   - Acceptance criteria:
     - dated `notes/` evidence with command log and explicit instability classification.
+  - Evidence (2026-05-20):
+    - Re-ran `bash scripts/release_candidate_gate.sh --full` and captured command-level outcomes in `notes/2026-05-20_14-12_v1u-gate-003-rc-gate-rerun.md`.
+    - Classified result as environment/runtime instability in docgen external-host validation stack (after fmt/clippy gates passed), with follow-through pointed to `V1U-GATE-004`.
 
 - [ ] **V1U-GATE-004**: Stabilize socket/timing-sensitive release suites if flake persists.
   - Scope: harden `serve` integration startup reliability and timing-fragile test expectations as needed.
