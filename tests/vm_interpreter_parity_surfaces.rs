@@ -892,6 +892,60 @@ fn vm_and_interpreter_match_named_nested_capture_mutation() {
 }
 
 #[test]
+fn vm_and_interpreter_match_async_named_nested_capture_mutation() {
+    let script = r#"
+        func make_counter() {
+            mut count := 0
+
+            async func bump() {
+                count := count + 1
+                return count
+            }
+
+            return bump
+        }
+
+        bump := make_counter()
+        first := await bump()
+        second := await bump()
+
+        async_capture_mutation_ok := first == 1 && second == 2
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "async_capture_mutation_ok");
+}
+
+#[test]
+fn vm_and_interpreter_match_async_named_nested_capture_isolation() {
+    let script = r#"
+        func make_counter(start) {
+            mut count := start
+
+            async func bump(delta) {
+                count := count + delta
+                return count
+            }
+
+            return bump
+        }
+
+        left := make_counter(0)
+        right := make_counter(10)
+        left_one := await left(1)
+        right_one := await right(5)
+        left_two := await left(2)
+        right_two := await right(1)
+
+        async_capture_isolation_ok := left_one == 1
+            && left_two == 3
+            && right_one == 15
+            && right_two == 16
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "async_capture_isolation_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_import_export_surface() {
     let module_name = unique_module_name();
     let module_filename = format!("{}.ruff", module_name);

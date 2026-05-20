@@ -4477,6 +4477,7 @@ impl Interpreter {
                         } else {
                             self.env.clone()
                         };
+                        let closure_env_for_update = captured_env.clone();
                         let capability_policy = self.capability_policy.clone();
 
                         // Create a tokio oneshot channel for the result
@@ -4502,6 +4503,7 @@ impl Interpreter {
                                     interp.eval_stmts(&body.get())
                                 })
                             {
+                                async_interpreter.env.pop_scope();
                                 let _ = tx.send(Ok(error));
                                 return Value::Null;
                             }
@@ -4513,6 +4515,11 @@ impl Interpreter {
                                 Some(value @ Value::ErrorObject { .. }) => value,
                                 _ => Value::Null,
                             };
+
+                            async_interpreter.env.pop_scope();
+                            if let Some(env_ref) = closure_env_for_update {
+                                *env_ref.lock().unwrap() = async_interpreter.env.clone();
+                            }
 
                             // Send the result back
                             let _ = tx.send(Ok(result));
