@@ -1,6 +1,10 @@
+use ruff::docgen::adapters::ruff::{
+    extract_symbols_with_parser_fallback, RuffParserAssistedStrategy,
+};
 use ruff::docgen::core::{
     run as run_docgen, run_with_link_validation as run_docgen_with_link_validation,
-    DocOutputFormat, DocgenConfig,
+    run_with_link_validation_and_options as run_docgen_with_options, DocOutputFormat, DocgenConfig,
+    DocgenExtractionOptions,
 };
 use ruff::docgen::gaps::LinkValidationOptions;
 use serde_json::Value;
@@ -1146,6 +1150,108 @@ fn docgen_ruff_extraction_edge_fixture_async_strict_gate_contract() {
         "strict gate failures should contain '{}'",
         expected_gate_failure
     );
+}
+
+#[test]
+fn docgen_ruff_parser_assisted_fixture_success_contract() {
+    let dir = unique_temp_dir("ruff_parser_assisted_fixture_success");
+    let input = dir.join("fixture_parser_assisted_success.ruff");
+    let out = dir.join("docs");
+
+    let source = fs::read_to_string(docgen_fixture_path("ruff_parser_assisted_success.ruff"))
+        .expect("failed to read parser-assisted success fixture");
+    write_file(&input, &source);
+
+    let (_project, summary) = run_docgen_with_options(
+        &DocgenConfig {
+            input,
+            out_dir: out,
+            format: DocOutputFormat::Json,
+            include_builtins: false,
+            language: Some("ruff".to_string()),
+            languages: None,
+            emit_ai_tasks: false,
+            search_index: false,
+            source_links: false,
+            source_link_template: None,
+            fail_on_undocumented: false,
+            fail_on_broken_links: false,
+            fail_on_warnings: false,
+            public_only: false,
+            include_private: true,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
+            cache_dir: None,
+        },
+        LinkValidationOptions::default(),
+        DocgenExtractionOptions { ruff_parser_assisted: true },
+    )
+    .expect("docgen should succeed with parser-assisted extraction");
+
+    let expected_json =
+        fs::read_to_string(docgen_fixture_path("ruff_parser_assisted_success.expected.json"))
+            .expect("failed to read expected parser-assisted fixture");
+    let expected: Value = serde_json::from_str(&expected_json)
+        .expect("expected parser-assisted fixture should be json");
+    let expected_map =
+        expected.as_object().expect("expected parser-assisted fixture should be an object map");
+
+    let project_json =
+        fs::read_to_string(summary.project_json_path).expect("failed to read docgen json");
+    let project: Value =
+        serde_json::from_str(&project_json).expect("docgen.json should be valid json");
+    let symbols = project["symbols"].as_array().expect("symbols should be an array");
+
+    for (qualified_name, visibility) in expected_map {
+        let expected_visibility = visibility.as_str().unwrap_or_else(|| {
+            panic!("parser-assisted fixture visibility for '{}' should be string", qualified_name)
+        });
+        assert_eq!(
+            symbol_visibility(symbols, qualified_name),
+            expected_visibility,
+            "unexpected visibility for parser-assisted fixture symbol '{}'",
+            qualified_name
+        );
+    }
+}
+
+#[test]
+fn docgen_ruff_parser_assisted_fixture_fallback_contract() {
+    let path = docgen_fixture_path("ruff_parser_assisted_fallback.ruff");
+    let source = fs::read_to_string(&path).expect("failed to read parser-fallback fixture");
+    let expected_json =
+        fs::read_to_string(docgen_fixture_path("ruff_parser_assisted_fallback.expected.json"))
+            .expect("failed to read expected parser-fallback fixture");
+    let expected: Value = serde_json::from_str(&expected_json)
+        .expect("expected parser-fallback fixture should be json");
+    let expected_map =
+        expected.as_object().expect("expected parser-fallback fixture should be an object map");
+
+    let extraction = extract_symbols_with_parser_fallback(&source, &path)
+        .expect("parser-assisted extraction should complete");
+    assert_eq!(
+        extraction.strategy,
+        RuffParserAssistedStrategy::RegexFallbackParserDiagnostics,
+        "fixture should trigger parser-diagnostic fallback"
+    );
+
+    for (qualified_name, visibility) in expected_map {
+        let expected_visibility = visibility.as_str().unwrap_or_else(|| {
+            panic!("fallback fixture visibility for '{}' should be string", qualified_name)
+        });
+        let actual = extraction
+            .symbols
+            .iter()
+            .find(|symbol| symbol.qualified_name == qualified_name.as_str())
+            .unwrap_or_else(|| panic!("missing fallback symbol '{}'", qualified_name));
+        assert_eq!(
+            format!("{:?}", actual.visibility),
+            expected_visibility,
+            "unexpected fallback visibility for symbol '{}'",
+            qualified_name
+        );
+    }
 }
 
 #[test]
@@ -2312,6 +2418,7 @@ fn docgen_cli_exposes_external_link_validation_flags() {
     assert!(stdout.contains("--external-link-timeout-ms"));
     assert!(stdout.contains("--external-link-allowlist"));
     assert!(stdout.contains("--allow-private-network-links"));
+    assert!(stdout.contains("--ruff-parser-assisted"));
     assert!(stdout.contains("--max-link-checks"));
     assert!(stdout.contains("--max-external-link-checks"));
     assert!(stdout.contains("--max-total-validation-time-ms"));

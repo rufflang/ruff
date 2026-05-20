@@ -73,18 +73,18 @@ Proximity behavior is stable and test-locked:
 
 ## Ruff Extraction Decision (Workstream B-3)
 
-Decision: keep a hybrid Ruff extraction strategy for now, with regex-based symbol discovery as the production path and fixture-driven edge-case hardening as the reliability guard.
+Decision: keep a hybrid Ruff extraction strategy, with regex-based symbol discovery as the default production path and an opt-in parser-assisted prototype (`--ruff-parser-assisted`) that gracefully falls back to regex on lexer/parser diagnostics.
 
 Rationale:
 
 1. `ruff docgen` is expected to be best-effort and resilient even when repositories contain partially invalid Ruff sources; a hard parser-only path would reject symbol extraction for files that fail full parse.
-2. Current parser surfaces are optimized for program execution semantics and require broader AST/lowering context than doc extraction needs, increasing migration risk for CI gate stability.
-3. Recent Workstream B improvements plus fixture-backed regressions (`tests/fixtures/docgen/*`) close concrete extraction misses (for example `async func`) without introducing parser-coupled failure modes.
+2. Current parser surfaces are optimized for program execution semantics, so parser-assisted extraction is bounded and guarded by deterministic fallback to avoid CI gate instability.
+3. Fixture-backed regressions (`tests/fixtures/docgen/*`) cover both parser-success and parser-fallback paths to keep ordering/strict-gate behavior stable.
 
 Follow-through policy:
 
 1. Continue expanding fixture-backed Ruff extraction edge cases as they are discovered.
-2. Revisit parser-assisted extraction when a bounded adapter can consume parser output with graceful fallback behavior on parse diagnostics.
+2. Keep parser-assisted extraction opt-in while broadening fixture coverage before any default-path promotion.
 3. Preserve deterministic output and strict-gate stability as non-negotiable acceptance criteria for any parser-assisted rollout.
 
 ## Security Model
@@ -368,7 +368,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
 
 The next universal DocGen maturation slice is tracked in `ROADMAP.md` under `V1-DOCGEN-001`.
 
-1. [ ] `DG-NEXT-001` Parser-assisted Ruff extraction fallback prototype.
+1. [x] `DG-NEXT-001` Parser-assisted Ruff extraction fallback prototype. (Completed 2026-05-20)
    Acceptance criteria:
    - Add an opt-in parser-assisted extraction path for Ruff symbols with graceful fallback to regex extraction when parser diagnostics occur.
    - Preserve deterministic output ordering and strict-gate stability.

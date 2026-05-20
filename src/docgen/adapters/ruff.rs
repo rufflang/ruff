@@ -3,13 +3,30 @@ use super::common::{
     visibility_inherits_from_container,
 };
 use super::{AdapterCapability, DocLanguageAdapter};
+use crate::ast::Stmt;
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
 use crate::docgen::DocgenError;
+use crate::{lexer, parser::Parser};
 use regex::Regex;
 use std::path::Path;
 use std::sync::OnceLock;
 
 pub struct RuffDocAdapter;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuffParserAssistedStrategy {
+    ParserAssisted,
+    RegexFallbackLexerDiagnostics,
+    RegexFallbackParserDiagnostics,
+}
+
+#[derive(Debug, Clone)]
+pub struct RuffParserAssistedExtraction {
+    pub symbols: Vec<DocSymbol>,
+    #[allow(dead_code)]
+    // Accessed by tests and optional diagnostics consumers; core run path currently reads symbols only.
+    pub strategy: RuffParserAssistedStrategy,
+}
 
 impl RuffDocAdapter {
     fn symbol_id(path: &Path, line: usize, name: &str, kind: &DocSymbolKind) -> String {
@@ -29,6 +46,308 @@ impl RuffDocAdapter {
         }
         None
     }
+
+    fn extract_symbols_regex_only(
+        source: &str,
+        path: &Path,
+    ) -> Result<Vec<DocSymbol>, DocgenError> {
+        RuffDocAdapter.extract_symbols(source, path)
+    }
+
+    fn extract_symbols_from_stmt(
+        stmt: &Stmt,
+        source_lines: &[&str],
+        cursor_line: &mut usize,
+        parent_struct: Option<(&str, bool)>,
+        inherited_public: bool,
+        path: &Path,
+        symbols: &mut Vec<DocSymbol>,
+    ) {
+        match stmt {
+            Stmt::Export { stmt } => {
+                Self::extract_symbols_from_stmt(
+                    stmt,
+                    source_lines,
+                    cursor_line,
+                    parent_struct,
+                    true,
+                    path,
+                    symbols,
+                );
+            }
+            Stmt::FuncDef { name, params, is_async, is_generator, .. } => {
+                let is_method = parent_struct.is_some();
+                let kind = if is_method { DocSymbolKind::Method } else { DocSymbolKind::Function };
+                let line = find_function_decl_line(source_lines, *cursor_line, name);
+                *cursor_line = line;
+                let visibility = if is_method {
+                    if let Some((_, struct_is_public)) = parent_struct {
+                        visibility_from_explicit_public(struct_is_public)
+                    } else {
+                        DocVisibility::Private
+                    }
+                } else {
+                    visibility_from_explicit_public(inherited_public)
+                };
+                let parent_name = parent_struct.map(|(name, _)| name.to_string());
+                let qualified_name = if let Some(parent_name) = &parent_name {
+                    format!("{}::{}", parent_name, name)
+                } else {
+                    name.clone()
+                };
+                let mut signature = String::new();
+                if *is_async {
+                    signature.push_str("async ");
+                }
+                signature.push_str(if *is_generator { "func*" } else { "func" });
+                signature.push('(');
+                signature.push_str(&params.join(", "));
+                signature.push(')');
+                symbols.push(DocSymbol {
+                    id: Self::symbol_id(path, line, &qualified_name, &kind),
+                    language: "ruff".to_string(),
+                    kind,
+                    name: name.clone(),
+                    qualified_name,
+                    signature: Some(signature),
+                    visibility,
+                    source_path: path.to_path_buf(),
+                    line,
+                    docs: DocComment::default(),
+                    examples: Vec::new(),
+                    gaps: Vec::new(),
+                    parent: parent_name,
+                });
+            }
+            Stmt::StructDef { name, methods, .. } => {
+                let line = find_keyword_decl_line(source_lines, *cursor_line, "struct", name);
+                *cursor_line = line;
+                let struct_is_public = inherited_public;
+                symbols.push(DocSymbol {
+                    id: Self::symbol_id(path, line, name, &DocSymbolKind::Struct),
+                    language: "ruff".to_string(),
+                    kind: DocSymbolKind::Struct,
+                    name: name.clone(),
+                    qualified_name: name.clone(),
+                    signature: Some(
+                        source_lines
+                            .get(line.saturating_sub(1))
+                            .map(|line| line.trim().to_string())
+                            .unwrap_or_else(|| format!("struct {}", name)),
+                    ),
+                    visibility: visibility_from_explicit_public(struct_is_public),
+                    source_path: path.to_path_buf(),
+                    line,
+                    docs: DocComment::default(),
+                    examples: Vec::new(),
+                    gaps: Vec::new(),
+                    parent: None,
+                });
+                let mut method_cursor = line;
+                for method in methods {
+                    Self::extract_symbols_from_stmt(
+                        method,
+                        source_lines,
+                        &mut method_cursor,
+                        Some((name, struct_is_public)),
+                        false,
+                        path,
+                        symbols,
+                    );
+                }
+                *cursor_line = (*cursor_line).max(method_cursor);
+            }
+            Stmt::EnumDef { name, variants } => {
+                let line = find_keyword_decl_line(source_lines, *cursor_line, "enum", name);
+                *cursor_line = line;
+                let enum_visibility = visibility_from_explicit_public(inherited_public);
+                symbols.push(DocSymbol {
+                    id: Self::symbol_id(path, line, name, &DocSymbolKind::Enum),
+                    language: "ruff".to_string(),
+                    kind: DocSymbolKind::Enum,
+                    name: name.clone(),
+                    qualified_name: name.clone(),
+                    signature: Some(
+                        source_lines
+                            .get(line.saturating_sub(1))
+                            .map(|line| line.trim().to_string())
+                            .unwrap_or_else(|| format!("enum {}", name)),
+                    ),
+                    visibility: enum_visibility.clone(),
+                    source_path: path.to_path_buf(),
+                    line,
+                    docs: DocComment::default(),
+                    examples: Vec::new(),
+                    gaps: Vec::new(),
+                    parent: None,
+                });
+                for variant in variants {
+                    let variant_line = find_enum_variant_line(source_lines, *cursor_line, variant);
+                    *cursor_line = (*cursor_line).max(variant_line);
+                    let qualified_name = format!("{}::{}", name, variant);
+                    symbols.push(DocSymbol {
+                        id: Self::symbol_id(
+                            path,
+                            variant_line,
+                            &qualified_name,
+                            &DocSymbolKind::EnumVariant,
+                        ),
+                        language: "ruff".to_string(),
+                        kind: DocSymbolKind::EnumVariant,
+                        name: variant.clone(),
+                        qualified_name,
+                        signature: Some(variant.clone()),
+                        visibility: visibility_inherits_from_container(Some(
+                            enum_visibility.clone(),
+                        )),
+                        source_path: path.to_path_buf(),
+                        line: variant_line,
+                        docs: DocComment::default(),
+                        examples: Vec::new(),
+                        gaps: Vec::new(),
+                        parent: Some(name.clone()),
+                    });
+                }
+            }
+            Stmt::Const { name, .. } => {
+                let line = find_binding_decl_line(source_lines, *cursor_line, name);
+                *cursor_line = line;
+                symbols.push(DocSymbol {
+                    id: Self::symbol_id(path, line, name, &DocSymbolKind::Constant),
+                    language: "ruff".to_string(),
+                    kind: DocSymbolKind::Constant,
+                    name: name.clone(),
+                    qualified_name: name.clone(),
+                    signature: Some(
+                        source_lines
+                            .get(line.saturating_sub(1))
+                            .map(|line| line.trim().to_string())
+                            .unwrap_or_else(|| format!("const {}", name)),
+                    ),
+                    visibility: visibility_from_explicit_public(inherited_public),
+                    source_path: path.to_path_buf(),
+                    line,
+                    docs: DocComment::default(),
+                    examples: Vec::new(),
+                    gaps: Vec::new(),
+                    parent: None,
+                });
+            }
+            _ => {}
+        }
+    }
+}
+
+fn keyword_decl_matches(trimmed: &str, keyword: &str, name: &str) -> bool {
+    let target = format!("{} {}", keyword, name);
+    let export_target = format!("export {} {}", keyword, name);
+    trimmed.starts_with(&target) || trimmed.starts_with(&export_target)
+}
+
+fn find_keyword_decl_line(
+    source_lines: &[&str],
+    start_line: usize,
+    keyword: &str,
+    name: &str,
+) -> usize {
+    for (idx, line) in source_lines.iter().enumerate().skip(start_line.saturating_sub(1)) {
+        if keyword_decl_matches(line.trim(), keyword, name) {
+            return idx + 1;
+        }
+    }
+    start_line.max(1)
+}
+
+fn is_function_declaration_line(trimmed: &str, name: &str) -> bool {
+    let func_target = format!("{}(", name);
+    let has_callable_head = [
+        "func ",
+        "func* ",
+        "async func ",
+        "async func* ",
+        "export func ",
+        "export func* ",
+        "export async func ",
+        "export async func* ",
+    ]
+    .iter()
+    .any(|prefix| trimmed.starts_with(prefix));
+    has_callable_head && trimmed.contains(&func_target)
+}
+
+fn find_function_decl_line(source_lines: &[&str], start_line: usize, name: &str) -> usize {
+    for (idx, line) in source_lines.iter().enumerate().skip(start_line.saturating_sub(1)) {
+        if is_function_declaration_line(line.trim(), name) {
+            return idx + 1;
+        }
+    }
+    start_line.max(1)
+}
+
+fn find_binding_decl_line(source_lines: &[&str], start_line: usize, name: &str) -> usize {
+    for (idx, line) in source_lines.iter().enumerate().skip(start_line.saturating_sub(1)) {
+        let trimmed = line.trim();
+        let base_matches = trimmed.starts_with(&format!("const {}", name))
+            || trimmed.starts_with(&format!("let {}", name))
+            || trimmed.starts_with(&format!("export const {}", name))
+            || trimmed.starts_with(&format!("export let {}", name));
+        if base_matches {
+            return idx + 1;
+        }
+    }
+    start_line.max(1)
+}
+
+fn find_enum_variant_line(source_lines: &[&str], start_line: usize, name: &str) -> usize {
+    for (idx, line) in source_lines.iter().enumerate().skip(start_line.saturating_sub(1)) {
+        let trimmed = line.trim().trim_end_matches(',');
+        if trimmed == name {
+            return idx + 1;
+        }
+    }
+    start_line.max(1)
+}
+
+pub fn extract_symbols_with_parser_fallback(
+    source: &str,
+    path: &Path,
+) -> Result<RuffParserAssistedExtraction, DocgenError> {
+    let lexed = lexer::tokenize_with_diagnostics(source);
+    if !lexed.diagnostics.is_empty() {
+        return Ok(RuffParserAssistedExtraction {
+            symbols: RuffDocAdapter::extract_symbols_regex_only(source, path)?,
+            strategy: RuffParserAssistedStrategy::RegexFallbackLexerDiagnostics,
+        });
+    }
+
+    let mut parser = Parser::new(lexed.tokens);
+    let parse_output = parser.parse_with_diagnostics();
+    if !parse_output.diagnostics.is_empty() {
+        return Ok(RuffParserAssistedExtraction {
+            symbols: RuffDocAdapter::extract_symbols_regex_only(source, path)?,
+            strategy: RuffParserAssistedStrategy::RegexFallbackParserDiagnostics,
+        });
+    }
+
+    let mut symbols = Vec::new();
+    let source_lines: Vec<&str> = source.lines().collect();
+    let mut cursor_line = 1usize;
+    for stmt in &parse_output.stmts {
+        RuffDocAdapter::extract_symbols_from_stmt(
+            stmt,
+            &source_lines,
+            &mut cursor_line,
+            None,
+            false,
+            path,
+            &mut symbols,
+        );
+    }
+
+    Ok(RuffParserAssistedExtraction {
+        symbols,
+        strategy: RuffParserAssistedStrategy::ParserAssisted,
+    })
 }
 
 impl DocLanguageAdapter for RuffDocAdapter {

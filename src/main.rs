@@ -492,6 +492,10 @@ enum Commands {
         #[arg(long)]
         cache_dir: Option<PathBuf>,
 
+        /// Opt in to Ruff parser-assisted symbol extraction with regex fallback on diagnostics
+        #[arg(long, default_value_t = false)]
+        ruff_parser_assisted: bool,
+
         /// Print documentation generation result as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
@@ -1672,6 +1676,7 @@ async fn main() {
             max_discovery_files,
             max_discovery_depth,
             cache_dir,
+            ruff_parser_assisted,
             json,
         } => {
             let output_dir = out_dir.unwrap_or_else(|| PathBuf::from("docs/generated"));
@@ -1692,7 +1697,7 @@ async fn main() {
                 })
                 .unwrap_or_default();
 
-            let (_project, summary) = match docgen::core::run_with_link_validation(
+            let (_project, summary) = match docgen::core::run_with_link_validation_and_options(
                 &docgen::core::DocgenConfig {
                     input: path.clone(),
                     out_dir: output_dir,
@@ -1724,6 +1729,7 @@ async fn main() {
                     max_external_link_checks,
                     max_total_validation_time_ms,
                 },
+                docgen::core::DocgenExtractionOptions { ruff_parser_assisted },
             ) {
                 Ok(result) => result,
                 Err(message) => {

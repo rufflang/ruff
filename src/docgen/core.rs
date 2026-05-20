@@ -1,4 +1,7 @@
-use crate::docgen::adapters::{adapter_for_language, capability_index, language_ids};
+use crate::docgen::adapters::{
+    adapter_for_language, capability_index, language_ids,
+    ruff::extract_symbols_with_parser_fallback,
+};
 use crate::docgen::discovery::{
     discover, parse_language_filter, validate_languages, DiscoveryOptions,
 };
@@ -24,6 +27,11 @@ pub const DOCGEN_DEFAULT_MAX_FILES: usize = 20_000;
 pub const DOCGEN_DEFAULT_MAX_DEPTH: usize = 64;
 pub const DOCGEN_CACHE_SCHEMA_VERSION: &str = "docgen-cache/v1";
 pub const DOCGEN_ADAPTER_CACHE_VERSION: &str = "2026-05-19";
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DocgenExtractionOptions {
+    pub ruff_parser_assisted: bool,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocOutputFormat {
@@ -190,12 +198,29 @@ pub fn build_cli_json_payload(
 }
 
 pub fn run(config: &DocgenConfig) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
-    run_with_link_validation(config, LinkValidationOptions::default())
+    run_with_link_validation_and_options(
+        config,
+        LinkValidationOptions::default(),
+        DocgenExtractionOptions::default(),
+    )
 }
 
+#[allow(dead_code)]
 pub fn run_with_link_validation(
     config: &DocgenConfig,
     link_validation: LinkValidationOptions,
+) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
+    run_with_link_validation_and_options(
+        config,
+        link_validation,
+        DocgenExtractionOptions::default(),
+    )
+}
+
+pub fn run_with_link_validation_and_options(
+    config: &DocgenConfig,
+    link_validation: LinkValidationOptions,
+    extraction_options: DocgenExtractionOptions,
 ) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
     let max_file_size_bytes = resolve_discovery_u64_limit(
         config.max_discovery_file_size_bytes,
@@ -259,7 +284,15 @@ pub fn run_with_link_validation(
 
         source_map.insert(file.relative_path.display().to_string(), file.source.clone());
 
-        let adapter_version = format!("{}:{}", file.language, DOCGEN_ADAPTER_CACHE_VERSION);
+        let ruff_extraction_mode = if file.language.eq_ignore_ascii_case("ruff")
+            && extraction_options.ruff_parser_assisted
+        {
+            "ruff-parser-assisted"
+        } else {
+            "regex-only"
+        };
+        let adapter_version =
+            format!("{}:{}:{}", file.language, DOCGEN_ADAPTER_CACHE_VERSION, ruff_extraction_mode);
         let attached = if let Some(cache_dir) = config.cache_dir.as_ref() {
             let cache_key = compute_docgen_cache_key(
                 &file.language,
@@ -281,7 +314,13 @@ pub fn run_with_link_validation(
                 cached_symbols
             } else {
                 cache_stats.misses += 1;
-                let raw_symbols = adapter.extract_symbols(&file.source, &file.absolute_path)?;
+                let raw_symbols = if file.language.eq_ignore_ascii_case("ruff")
+                    && extraction_options.ruff_parser_assisted
+                {
+                    extract_symbols_with_parser_fallback(&file.source, &file.absolute_path)?.symbols
+                } else {
+                    adapter.extract_symbols(&file.source, &file.absolute_path)?
+                };
                 let docs = adapter.extract_inline_docs(&file.source, &file.absolute_path)?;
                 let mut computed = adapter.attach_docs(raw_symbols, docs);
                 for symbol in &mut computed {
@@ -298,7 +337,13 @@ pub fn run_with_link_validation(
                 computed
             }
         } else {
-            let raw_symbols = adapter.extract_symbols(&file.source, &file.absolute_path)?;
+            let raw_symbols = if file.language.eq_ignore_ascii_case("ruff")
+                && extraction_options.ruff_parser_assisted
+            {
+                extract_symbols_with_parser_fallback(&file.source, &file.absolute_path)?.symbols
+            } else {
+                adapter.extract_symbols(&file.source, &file.absolute_path)?
+            };
             let docs = adapter.extract_inline_docs(&file.source, &file.absolute_path)?;
             let mut computed = adapter.attach_docs(raw_symbols, docs);
             for symbol in &mut computed {

@@ -137,6 +137,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` final tag checklist remains incomplete.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-004` loop; remains blocked pending tag-prep closure phase.
     Evidence: `ROADMAP.md` release-tag checklist items are still unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-DG-001` loop; version bump and clean-tree RC generation remain release-event tasks outside docgen milestone execution.
+    Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` still includes unchecked release-phase rows for intentional version bump and clean-tree release-candidate build.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -164,6 +166,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-004` loop; still blocked on actual release publish/sign-off.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-DG-001` loop; tag-time artifact publication evidence cannot be produced pre-tag.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` section still requires post-publish release URLs/checksum records/workflow status.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -317,11 +321,15 @@ Each loop report must include exactly:
 
 ## 5) Universal DocGen Next-Stage Milestones (From Open Roadmap/Doc Items)
 
-- [ ] **V1U-DG-001**: Execute `DG-NEXT-001` parser-assisted Ruff extraction fallback prototype.
+- [x] **V1U-DG-001**: Execute `DG-NEXT-001` parser-assisted Ruff extraction fallback prototype.
   - Scope: opt-in parser-assisted extraction with deterministic regex fallback on diagnostics.
   - Acceptance criteria:
     - parser-success and parser-fallback fixture coverage added.
     - strict-gate behavior remains deterministic.
+  - Evidence (2026-05-20):
+    - Added opt-in CLI/runtime support for parser-assisted Ruff extraction (`ruff docgen --ruff-parser-assisted`) by wiring `DocgenExtractionOptions` through `src/main.rs` and `src/docgen/core.rs`.
+    - Implemented parser-assisted Ruff symbol extraction with deterministic regex fallback on lexer/parser diagnostics in `src/docgen/adapters/ruff.rs`.
+    - Added fixture-backed success/fallback coverage (`tests/fixtures/docgen/ruff_parser_assisted_success.*`, `tests/fixtures/docgen/ruff_parser_assisted_fallback.*`) and matching integration tests in `tests/docgen_universal.rs`.
 
 - [ ] **V1U-DG-002**: Execute `DG-NEXT-002` cross-language adapter conformance expansion.
   - Scope: broaden multi-language edge-pattern fixture coverage and output-shape contracts.
