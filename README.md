@@ -418,15 +418,15 @@ To include socket-bound static-serve integration tests in local gate runs:
 RUFF_ENABLE_SOCKET_TESTS=1 bash scripts/release_gate.sh
 ```
 
-Run lexer/parser fuzz smoke locally (requires nightly + `cargo-fuzz`):
+Run lexer/parser fuzz smoke locally with prerequisite checks:
 
 ```bash
-cargo +stable install cargo-fuzz --locked
-cargo +nightly fuzz run lexer -- -max_total_time=20
-cargo +nightly fuzz run parser -- -max_total_time=20
+bash scripts/fuzz_smoke.sh --check-prereqs
+bash scripts/fuzz_smoke.sh --max-total-time 20
 ```
 
-Nightly CI runs the same bounded fuzz smoke in `.github/workflows/fuzz-smoke.yml`.
+If prerequisites are missing, `scripts/fuzz_smoke.sh --check-prereqs` prints exact install guidance (nightly toolchain, `cargo-fuzz`, and C++ headers/toolchain requirements for `libfuzzer-sys`).
+Nightly CI runs the same bounded fuzz smoke targets in `.github/workflows/fuzz-smoke.yml`.
 
 Run the runtime/native security regression suites directly:
 

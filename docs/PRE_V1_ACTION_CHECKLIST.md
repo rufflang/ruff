@@ -76,7 +76,7 @@ How to use with an AI agent:
 
 ## 4) Fuzzing Operational Hardening
 
-- [ ] **PREV1-FUZZ-001**: Add local fuzz-smoke helper script with prerequisite checks.
+- [x] **PREV1-FUZZ-001**: Add local fuzz-smoke helper script with prerequisite checks.
   - Scope: script for nightly/cargo-fuzz/toolchain checks and clear error guidance.
   - Acceptance criteria:
     - Script added under `scripts/` and documented in README/docs.
