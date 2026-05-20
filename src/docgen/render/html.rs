@@ -1,7 +1,12 @@
 use crate::docgen::model::DocProject;
-use crate::docgen::render::symbol_source_location;
+use crate::docgen::render::{source_link_provider, symbol_source_href, symbol_source_location};
 
-pub fn render(project: &DocProject, _source_links: bool) -> String {
+pub fn render(
+    project: &DocProject,
+    source_links: bool,
+    source_link_template: Option<&str>,
+) -> String {
+    let provider = source_link_provider(source_links, source_link_template);
     let mut html = String::new();
     html.push_str("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
     html.push_str("<title>Ruff DocGen</title>");
@@ -44,10 +49,19 @@ pub fn render(project: &DocProject, _source_links: bool) -> String {
             html.push_str(&format!("<p class=\"sig\">{}</p>", escape_html(signature)));
         }
 
-        html.push_str(&format!(
-            "<p><strong>Source:</strong> <code>{}</code></p>",
-            escape_html(&symbol_source_location(symbol))
-        ));
+        let source_location = symbol_source_location(symbol);
+        if let Some(href) = symbol_source_href(symbol, &provider) {
+            html.push_str(&format!(
+                "<p><strong>Source:</strong> <a href=\"{}\"><code>{}</code></a></p>",
+                escape_html(&href),
+                escape_html(&source_location)
+            ));
+        } else {
+            html.push_str(&format!(
+                "<p><strong>Source:</strong> <code>{}</code></p>",
+                escape_html(&source_location)
+            ));
+        }
 
         if symbol.docs.placeholder {
             html.push_str("<p class=\"placeholder\">Documentation needed. This symbol was discovered from the source code, but no human-authored documentation was found.</p>");

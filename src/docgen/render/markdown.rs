@@ -1,7 +1,12 @@
 use crate::docgen::model::{DocProject, DocSymbol};
-use crate::docgen::render::symbol_source_location;
+use crate::docgen::render::{source_link_provider, symbol_source_href, symbol_source_location};
 
-pub fn render(project: &DocProject) -> String {
+pub fn render(
+    project: &DocProject,
+    source_links: bool,
+    source_link_template: Option<&str>,
+) -> String {
+    let provider = source_link_provider(source_links, source_link_template);
     let mut out = String::new();
     out.push_str("# Ruff DocGen\n\n");
     out.push_str(&format!("- Root: `{}`\n", project.root.display()));
@@ -15,7 +20,12 @@ pub fn render(project: &DocProject) -> String {
             out.push_str(&format!("### {}\n\n", symbol.qualified_name));
             out.push_str(&format!("- Kind: {:?}\n", symbol.kind));
             out.push_str(&format!("- Visibility: {:?}\n", symbol.visibility));
-            out.push_str(&format!("- Source: `{}`\n", symbol_source_location(symbol)));
+            let source_location = symbol_source_location(symbol);
+            if let Some(href) = symbol_source_href(symbol, &provider) {
+                out.push_str(&format!("- Source: [`{}`]({})\n", source_location, href));
+            } else {
+                out.push_str(&format!("- Source: `{}`\n", source_location));
+            }
             if let Some(signature) = &symbol.signature {
                 out.push_str(&format!("- Signature: `{}`\n", signature));
             }

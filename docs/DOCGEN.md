@@ -255,6 +255,19 @@ Optional external-link validation mode is available with `--validate-external-li
    - `DOCGEN_LINK_VALIDATION_BUDGET_TOTAL_TIME`
    and reports skip counts in `link_validation_skip_counts`.
 
+## Source-Link Providers
+
+DocGen source-link rendering supports pluggable template providers:
+1. Default behavior (no template configured) keeps source rendering unchanged (plain source location text).
+2. `--source-link-template` enables URL template expansion when `--source-links` is enabled.
+3. Supported template placeholders:
+   - `{path}` (normalized, percent-encoded relative source path)
+   - `{line}` (1-based source line)
+4. Path normalization safety:
+   - absolute paths are rejected
+   - parent-traversal paths (`..`) are rejected
+   - rejected paths do not emit template links and fall back to plain source-location rendering
+
 ## QA Hardening Roadmap (Post-Feature Completion)
 
 The following roadmap is a focused QA/pass-two backlog for tightening DocGen implementation quality after the initial feature-completion tracks.
@@ -345,7 +358,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Add optional cache keyed by file content hash and adapter version.
    - Recompute only changed modules while preserving deterministic aggregate output.
    - Provide cache-hit/miss counters in JSON summary.
-4. `DG-QA-016` Source-link provider abstraction.
+4. [x] `DG-QA-016` Source-link provider abstraction. (Completed 2026-05-19)
    Acceptance criteria:
    - Add pluggable source-link templates (local path, GitHub/GitLab URL patterns).
    - Keep default behavior unchanged when no provider is configured.

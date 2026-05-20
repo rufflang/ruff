@@ -36,6 +36,7 @@ pub fn generate_docs_for_file(
         emit_ai_tasks: false,
         search_index: false,
         source_links: true,
+        source_link_template: None,
         fail_on_undocumented: false,
         fail_on_broken_links: false,
         fail_on_warnings: false,

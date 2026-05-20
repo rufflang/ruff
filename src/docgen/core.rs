@@ -44,6 +44,7 @@ pub struct DocgenConfig {
     pub emit_ai_tasks: bool,
     pub search_index: bool,
     pub source_links: bool,
+    pub source_link_template: Option<String>,
     pub fail_on_undocumented: bool,
     pub fail_on_broken_links: bool,
     pub fail_on_warnings: bool,
@@ -697,21 +698,63 @@ fn write_outputs(
 
     match config.format {
         DocOutputFormat::Html => {
-            write_file(&html_path, &render::html::render(project, config.source_links))?;
+            write_file(
+                &html_path,
+                &render::html::render(
+                    project,
+                    config.source_links,
+                    config.source_link_template.as_deref(),
+                ),
+            )?;
             write_file(&json_path, &render::json::render(project).map_err(DocgenError::new)?)?;
         }
         DocOutputFormat::Markdown => {
-            write_file(&markdown_path, &render::markdown::render(project))?;
+            write_file(
+                &markdown_path,
+                &render::markdown::render(
+                    project,
+                    config.source_links,
+                    config.source_link_template.as_deref(),
+                ),
+            )?;
             write_file(&json_path, &render::json::render(project).map_err(DocgenError::new)?)?;
-            write_file(&html_path, &render::html::render(project, config.source_links))?;
+            write_file(
+                &html_path,
+                &render::html::render(
+                    project,
+                    config.source_links,
+                    config.source_link_template.as_deref(),
+                ),
+            )?;
         }
         DocOutputFormat::Json => {
             write_file(&json_path, &render::json::render(project).map_err(DocgenError::new)?)?;
-            write_file(&html_path, &render::html::render(project, config.source_links))?;
+            write_file(
+                &html_path,
+                &render::html::render(
+                    project,
+                    config.source_links,
+                    config.source_link_template.as_deref(),
+                ),
+            )?;
         }
         DocOutputFormat::All => {
-            write_file(&html_path, &render::html::render(project, config.source_links))?;
-            write_file(&markdown_path, &render::markdown::render(project))?;
+            write_file(
+                &html_path,
+                &render::html::render(
+                    project,
+                    config.source_links,
+                    config.source_link_template.as_deref(),
+                ),
+            )?;
+            write_file(
+                &markdown_path,
+                &render::markdown::render(
+                    project,
+                    config.source_links,
+                    config.source_link_template.as_deref(),
+                ),
+            )?;
             write_file(&json_path, &render::json::render(project).map_err(DocgenError::new)?)?;
         }
     }

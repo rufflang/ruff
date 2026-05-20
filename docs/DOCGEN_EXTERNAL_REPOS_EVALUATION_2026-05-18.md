@@ -657,3 +657,15 @@ After adding optional incremental cache mode (`--cache-dir`) and JSON cache hit/
 | `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
 
 Interpretation: `DG-QA-015` adds CI-scale incremental reuse and machine-visible cache counters while preserving strict external gate stability.
+
+## QA Hardening Task DG-QA-016 follow-up (2026-05-19)
+
+After adding source-link provider abstraction and template-driven source URL rendering (with path-normalization safety guards), strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-016` is rendering/configuration hardening; strict external gate counts remain stable while source-link provider behavior is now configurable and safety-guarded.

@@ -406,6 +406,10 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         source_links: bool,
 
+        /// Source-link URL template (supports {path} and {line})
+        #[arg(long)]
+        source_link_template: Option<String>,
+
         /// Include only public/exported symbols
         #[arg(long, default_value_t = false)]
         public_only: bool,
@@ -1631,6 +1635,7 @@ async fn main() {
             emit_ai_tasks,
             search_index,
             source_links,
+            source_link_template,
             public_only,
             include_private,
             fail_on_undocumented,
@@ -1679,6 +1684,7 @@ async fn main() {
                     emit_ai_tasks,
                     search_index,
                     source_links,
+                    source_link_template,
                     fail_on_undocumented,
                     fail_on_broken_links,
                     fail_on_warnings,
