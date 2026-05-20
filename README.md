@@ -18,6 +18,7 @@ The project is currently at `0.14.0` in `Cargo.toml`, after completing the stabi
 - Ruff is not yet ready for a `1.0.0` release.
 - [ROADMAP.md](ROADMAP.md) is the single source of truth for release readiness and blocker tracking.
 - Ruff `1.0.0` must not be released until all P0/P1 roadmap items and the final release checklist are complete.
+- Deferred/non-goal boundaries are tracked in [docs/V1_SCOPE.md](docs/V1_SCOPE.md) and [docs/OPTIONAL_TYPING_DESIGN.md](docs/OPTIONAL_TYPING_DESIGN.md).
 
 ## Safety Model Snapshot
 

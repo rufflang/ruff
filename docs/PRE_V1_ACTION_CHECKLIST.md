@@ -124,12 +124,15 @@ How to use with an AI agent:
     - Executed `bash scripts/release_candidate_gate.sh --full` and recorded results in `notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md`.
     - Outcome classification: deterministic gate failure at `cargo fmt --check` (formatting drift), not socket/timing instability; follow-up re-run noted in evidence file.
 
-- [ ] **PREV1-REL-002**: Keep deferred/non-goal boundaries explicit and current.
+- [x] **PREV1-REL-002**: Keep deferred/non-goal boundaries explicit and current.
   - Scope: make sure docs consistently reflect what is intentionally deferred vs in-scope during ongoing pre-v1 work.
   - Acceptance criteria:
     - `README.md`, `docs/V1_SCOPE.md`, `docs/OPTIONAL_TYPING_DESIGN.md` stay aligned after each major feature/doc change.
     - No stale claims about readiness or enforcement guarantees.
   - Source context: `README.md`, `docs/V1_SCOPE.md`, `docs/OPTIONAL_TYPING_DESIGN.md`.
+  - Evidence (2026-05-20):
+    - Added explicit README linkage to deferred-boundary docs (`docs/V1_SCOPE.md` and `docs/OPTIONAL_TYPING_DESIGN.md`) in the `1.0 Readiness Status` section.
+    - Added alignment contract coverage in `tests/v1_scope_docs_alignment.rs` to lock readiness/deferred-boundary wording across all three docs.
 
 ---
 
