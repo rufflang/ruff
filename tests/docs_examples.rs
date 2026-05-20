@@ -88,9 +88,8 @@ fn run_examples() -> HashSet<&'static str> {
     ])
 }
 
-fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 32] {
+fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 30] {
     [
-        ("examples/await_test.ruff", "async/await syntax drift"),
         ("examples/benchmark_async.ruff", "legacy control-flow syntax drift"),
         (
             "examples/benchmarks/file_io.ruff",
@@ -117,7 +116,6 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 32] {
         ("examples/http_streaming.ruff", "legacy loop syntax drift"),
         ("examples/io_module_demo.ruff", "legacy IO module example drift"),
         ("examples/math_module.ruff", "legacy math module example drift"),
-        ("examples/minimal_async.ruff", "async/await syntax drift"),
         ("examples/pattern_matching.ruff", "pattern-matching syntax drift in legacy example"),
         (
             "examples/project_api_tester.ruff",

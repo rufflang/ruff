@@ -26,12 +26,14 @@ How to use with an AI agent:
     - Docs text aligned with current Ruff runtime behavior.
     - Linked note entry updated with what changed.
   - Source context: `notes/2026-05-12_23-23_NO-ROADMAP_named-nested-closure-capture-parity.md`.
+  - Blocker (2026-05-20): `ruff-mcp` docs are not present in this repository workspace, so there is no local docs target to edit for this item.
+    Evidence: `rg -n "ruff-mcp|mcp.ruff" README.md docs notes -g '*.md'` only returns references/notes, and `rg --files | rg "mcp|MCP|ruff-mcp|mcp.ruff"` returns no matching docs files.
 
 ---
 
 ## 2) Docs/Examples Quality Debt
 
-- [ ] **PREV1-DOC-001**: Burn down expected-fail example debt in smoke harness.
+- [x] **PREV1-DOC-001**: Burn down expected-fail example debt in smoke harness.
   - Scope: convert parse/runtime-drift examples to parse-clean (or run-clean where appropriate), then remove them from expected-fail classification.
   - Acceptance criteria:
     - Expected-fail examples list in `tests/docs_examples.rs` is reduced.
