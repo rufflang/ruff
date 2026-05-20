@@ -197,6 +197,67 @@ fn cli_test_discovers_and_runs_expected_fixtures() {
 }
 
 #[test]
+fn cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture() {
+    let workspace = unique_temp_dir("cli_test_runtime_vm_mode");
+    let tests_dir = workspace.join("tests");
+    fs::create_dir_all(&tests_dir).expect("failed to create tests directory");
+
+    let fixture = tests_dir.join("sample.ruff");
+    let snapshot = tests_dir.join("sample.out");
+    write_fixture(
+        &fixture,
+        "print(\"start\")\nresult := assert_equal(5, 5)\nprint(\"after first\")\ntry {\n    result := assert_equal(5, 10)\n    print(\"unexpected\")\n} except error {\n    print(\"caught\")\n}\nprint(\"end\")\n",
+    );
+    write_fixture(&snapshot, "start\nafter first\ncaught\nend\n");
+
+    let output = run_ruff_in_dir(&["test", "--runtime", "vm"], &workspace);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "test command should report results on stdout");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(stdout.contains("Passed 0/1 tests"), "vm mode should report failed snapshot match");
+    assert!(stdout.contains("[✗]"), "vm mode should mark mismatched fixture as failed");
+    assert!(
+        stdout.contains("Runtime strategy: vm"),
+        "vm mode should print runtime strategy summary"
+    );
+}
+
+#[test]
+fn cli_test_runtime_dual_mode_falls_back_to_interpreter_for_vm_drift_fixture() {
+    let workspace = unique_temp_dir("cli_test_runtime_dual_mode");
+    let tests_dir = workspace.join("tests");
+    fs::create_dir_all(&tests_dir).expect("failed to create tests directory");
+
+    let fixture = tests_dir.join("sample.ruff");
+    let snapshot = tests_dir.join("sample.out");
+    write_fixture(
+        &fixture,
+        "print(\"start\")\nresult := assert_equal(5, 5)\nprint(\"after first\")\ntry {\n    result := assert_equal(5, 10)\n    print(\"unexpected\")\n} except error {\n    print(\"caught\")\n}\nprint(\"end\")\n",
+    );
+    write_fixture(&snapshot, "start\nafter first\ncaught\nend\n");
+
+    let output = run_ruff_in_dir(&["test", "--runtime", "dual"], &workspace);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "test command should report results on stdout");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(
+        stdout.contains("Passed 1/1 tests"),
+        "dual mode should recover via interpreter fallback"
+    );
+    assert!(stdout.contains("[✓]"), "dual mode should report passing fixture");
+    assert!(
+        stdout.contains("Runtime strategy: dual"),
+        "dual mode should print runtime strategy summary"
+    );
+    assert!(
+        stdout.contains("interpreter_fallback=1"),
+        "dual mode should report fallback count for drift fixtures"
+    );
+}
+
+#[test]
 fn cli_check_verbose_and_quiet_output_are_deterministic() {
     let dir = unique_temp_dir("cli_check_verbosity");
     let file = dir.join("valid.ruff");

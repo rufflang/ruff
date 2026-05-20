@@ -52,11 +52,7 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
         "Decision (2026-05-20): keep `ruff test` interpreter-pinned for now",
         "Removal criteria for this hardcoding:",
     ] {
-        assert!(
-            map.contains(marker),
-            "dependency map should contain required marker {:?}",
-            marker
-        );
+        assert!(map.contains(marker), "dependency map should contain required marker {:?}", marker);
     }
 
     for required_row in [

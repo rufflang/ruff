@@ -139,6 +139,23 @@ pub struct Parser {
     ast_spans: Vec<AstNodeSpan>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestRuntimeStrategy {
+    Interpreter,
+    Vm,
+    Dual,
+}
+
+impl TestRuntimeStrategy {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Interpreter => "interpreter",
+            Self::Vm => "vm",
+            Self::Dual => "dual",
+        }
+    }
+}
+
 impl Parser {
     /// Creates a new parser from a vector of tokens
     pub fn new(tokens: Vec<Token>) -> Self {
@@ -2162,7 +2179,28 @@ impl Parser {
 
     // --- TEST RUNNER ---
 
-    pub fn run_all_tests(test_dir: &Path, update_snapshots: bool) {
+    fn run_test_fixture(
+        current_exe: &Path,
+        fixture_path: &Path,
+        use_interpreter: bool,
+    ) -> Result<String, String> {
+        let mut command = Command::new(current_exe);
+        command.arg("run").arg(fixture_path);
+        if use_interpreter {
+            command.arg("--interpreter");
+        }
+
+        match command.output() {
+            Ok(output) => Ok(String::from_utf8_lossy(&output.stdout).trim().to_string()),
+            Err(err) => Err(format!("Failed to execute test script: {err}")),
+        }
+    }
+
+    pub fn run_all_tests(
+        test_dir: &Path,
+        update_snapshots: bool,
+        runtime_strategy: TestRuntimeStrategy,
+    ) {
         let Ok(entries) = fs::read_dir(test_dir) else {
             eprintln!("[!] Failed to read test directory: {}", test_dir.display());
             return;
@@ -2170,6 +2208,9 @@ impl Parser {
 
         let mut passed = 0;
         let mut total = 0;
+        let mut vm_primary_passed = 0;
+        let mut interpreter_primary_passed = 0;
+        let mut dual_fallback_passed = 0;
 
         for entry in entries.flatten() {
             let path = entry.path();
@@ -2204,8 +2245,8 @@ impl Parser {
                     continue;
                 }
                 let start = Instant::now();
-                // Run each fixture in a child process so one interpreter crash (for example
-                // stack overflow in a specific script) does not abort the whole `ruff test` run.
+                // Run each fixture in a child process so one runtime crash (for example stack
+                // overflow in a specific script) does not abort the whole `ruff test` run.
                 let current_exe = match std::env::current_exe() {
                     Ok(path) => path,
                     Err(err) => {
@@ -2215,37 +2256,154 @@ impl Parser {
                     }
                 };
 
-                let actual = match Command::new(current_exe)
-                    .arg("run")
-                    .arg(&path)
-                    .arg("--interpreter")
-                    .output()
-                {
-                    Ok(output) => String::from_utf8_lossy(&output.stdout).trim().to_string(),
-                    Err(err) => {
-                        println!("[✗] {}", path.display());
-                        println!("Failed to execute test script: {err}");
-                        continue;
+                let expected_exists = expected_path.exists();
+                let expected = if expected_exists && !update_snapshots {
+                    fs::read_to_string(&expected_path).unwrap_or_default().trim().to_string()
+                } else {
+                    String::new()
+                };
+
+                if update_snapshots || !expected_exists {
+                    let snapshot_output = match runtime_strategy {
+                        TestRuntimeStrategy::Interpreter => {
+                            match Self::run_test_fixture(&current_exe, &path, true) {
+                                Ok(output) => output,
+                                Err(err) => {
+                                    println!("[✗] {}", path.display());
+                                    println!("{err}");
+                                    continue;
+                                }
+                            }
+                        }
+                        TestRuntimeStrategy::Vm => {
+                            match Self::run_test_fixture(&current_exe, &path, false) {
+                                Ok(output) => output,
+                                Err(err) => {
+                                    println!("[✗] {}", path.display());
+                                    println!("{err}");
+                                    continue;
+                                }
+                            }
+                        }
+                        TestRuntimeStrategy::Dual => {
+                            // In update/new-snapshot mode, preserve legacy interpreter snapshot
+                            // shape until a dedicated snapshot migration is completed.
+                            match Self::run_test_fixture(&current_exe, &path, true) {
+                                Ok(output) => output,
+                                Err(err) => {
+                                    println!("[✗] {}", path.display());
+                                    println!("{err}");
+                                    continue;
+                                }
+                            }
+                        }
+                    };
+                    fs::write(&expected_path, &snapshot_output).ok();
+                    println!("[✓] {} ({:.2?})", path.display(), start.elapsed());
+                    passed += 1;
+                    continue;
+                }
+
+                let mut actual_for_report: Option<String> = None;
+                let mut fallback_for_report: Option<String> = None;
+                let matched = match runtime_strategy {
+                    TestRuntimeStrategy::Interpreter => {
+                        let actual = match Self::run_test_fixture(&current_exe, &path, true) {
+                            Ok(output) => output,
+                            Err(err) => {
+                                println!("[✗] {}", path.display());
+                                println!("{err}");
+                                continue;
+                            }
+                        };
+                        let is_match = actual == expected;
+                        if is_match {
+                            interpreter_primary_passed += 1;
+                        } else {
+                            actual_for_report = Some(actual);
+                        }
+                        is_match
+                    }
+                    TestRuntimeStrategy::Vm => {
+                        let actual = match Self::run_test_fixture(&current_exe, &path, false) {
+                            Ok(output) => output,
+                            Err(err) => {
+                                println!("[✗] {}", path.display());
+                                println!("{err}");
+                                continue;
+                            }
+                        };
+                        let is_match = actual == expected;
+                        if is_match {
+                            vm_primary_passed += 1;
+                        } else {
+                            actual_for_report = Some(actual);
+                        }
+                        is_match
+                    }
+                    TestRuntimeStrategy::Dual => {
+                        let vm_actual = match Self::run_test_fixture(&current_exe, &path, false) {
+                            Ok(output) => output,
+                            Err(err) => {
+                                println!("[✗] {}", path.display());
+                                println!("{err}");
+                                continue;
+                            }
+                        };
+                        if vm_actual == expected {
+                            vm_primary_passed += 1;
+                            true
+                        } else {
+                            let interpreter_actual =
+                                match Self::run_test_fixture(&current_exe, &path, true) {
+                                    Ok(output) => output,
+                                    Err(err) => {
+                                        println!("[✗] {}", path.display());
+                                        println!("{err}");
+                                        continue;
+                                    }
+                                };
+                            if interpreter_actual == expected {
+                                dual_fallback_passed += 1;
+                                true
+                            } else {
+                                actual_for_report = Some(vm_actual);
+                                fallback_for_report = Some(interpreter_actual);
+                                false
+                            }
+                        }
                     }
                 };
 
-                let expected = if expected_path.exists() && !update_snapshots {
-                    fs::read_to_string(&expected_path).unwrap_or_default().trim().to_string()
-                } else {
-                    fs::write(&expected_path, &actual).ok();
-                    actual.clone()
-                };
-
-                if actual == expected {
+                if matched {
                     println!("[✓] {} ({:.2?})", path.display(), start.elapsed());
                     passed += 1;
                 } else {
                     println!("[✗] {}", path.display());
-                    println!("Expected:\n{}\nGot:\n{}\n", expected, actual);
+                    println!("Expected:\n{}", expected);
+                    if let Some(actual) = actual_for_report {
+                        println!("Got ({})\n{}\n", runtime_strategy.label(), actual);
+                    }
+                    if let Some(fallback_actual) = fallback_for_report {
+                        println!("Got (interpreter fallback)\n{}\n", fallback_actual);
+                    }
                 }
             }
         }
 
         println!("\n[✓] Passed {}/{} tests", passed, total);
+        if matches!(runtime_strategy, TestRuntimeStrategy::Dual) {
+            println!(
+                "[i] Runtime strategy: dual (vm_primary={}, interpreter_fallback={})",
+                vm_primary_passed, dual_fallback_passed
+            );
+        } else if matches!(runtime_strategy, TestRuntimeStrategy::Vm) {
+            println!("[i] Runtime strategy: vm (vm_primary={})", vm_primary_passed);
+        } else {
+            println!(
+                "[i] Runtime strategy: interpreter (interpreter_primary={})",
+                interpreter_primary_passed
+            );
+        }
     }
 }

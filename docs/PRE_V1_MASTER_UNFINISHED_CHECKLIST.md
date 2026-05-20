@@ -121,6 +121,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` final checklist still includes release-phase items (`Cargo version is bumped intentionally`, `Release candidate is built from a clean working tree`).
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-002` loop; this remains tag-phase work and cannot be closed while pre-tag checklist execution is still in progress.
     Evidence: `ROADMAP.md` still lists unchecked release-phase items in `Final checklist before tagging v1.0.0` (`Cargo version is bumped intentionally`, `Release candidate is built from a clean working tree`).
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-003` loop; this remains a release-event closure item outside runtime-path implementation loops.
+    Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` still contains unchecked tag-prep entries.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -132,6 +134,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still requires published release URLs and post-publish smoke status.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-002` loop; artifact checklist sign-off still depends on an actual published `v1.0.0` release event.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` section remains unchecked and requires post-publish artifact URLs/checksums/smoke results.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-003` loop; tag-time asset publication/sign-off remains blocked until the real release event.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still has all `Tag-Time Sign-Off` checkboxes unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -202,11 +206,15 @@ Each loop report must include exactly:
     - Extended generated dependency map output (`scripts/generate_interpreter_flag_dependency_map.sh` -> `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md`) with an explicit `V1U-RUN-002` decision section and removal criteria for `V1U-RUN-003`.
     - Added/updated contract coverage in `tests/interpreter_flag_dependency_map_contract.rs` to lock the decision markers and `run_all_tests` interpreter pin.
 
-- [ ] **V1U-RUN-003**: Implement a VM-first or dual-engine `ruff test` execution strategy.
+- [x] **V1U-RUN-003**: Implement a VM-first or dual-engine `ruff test` execution strategy.
   - Scope: reduce reliance on blanket interpreter execution for fixture sweeps.
   - Acceptance criteria:
     - `ruff test` can run VM for parity-safe fixtures.
     - fallback policy is explicit, bounded, and tested.
+  - Evidence (2026-05-20):
+    - Added `ruff test --runtime dual|vm|interpreter` (default `dual`) and wired `src/parser.rs::run_all_tests` to execute VM-primary with bounded interpreter fallback in dual mode.
+    - Added runtime-strategy contract coverage in `tests/cli_contracts.rs` for VM-only mismatch failures and dual-mode fallback success on a deterministic drift fixture.
+    - Recorded implementation rationale, fallback boundaries, and validation results in `notes/2026-05-20_16-55_v1u-run-003-ruff-test-runtime-strategy.md`.
 
 - [ ] **V1U-RUN-004**: Close generator-surface ambiguity between docs/tests/runtime.
   - Scope: remove the “VM generator support is partial” drift signal by either fixing VM support gaps or making boundary explicit in canonical docs.

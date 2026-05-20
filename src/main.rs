@@ -39,7 +39,7 @@ mod type_checker;
 mod vm;
 
 use crate::interpreter::RuntimeCapabilityPolicy;
-use clap::{Args, Parser as ClapParser, Subcommand};
+use clap::{Args, Parser as ClapParser, Subcommand, ValueEnum};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -118,6 +118,16 @@ struct CapabilityArgs {
     /// Allow random-number generation APIs.
     #[arg(long, default_value_t = false)]
     allow_random: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum TestRuntimeMode {
+    /// Execute test fixtures via `ruff run --interpreter`.
+    Interpreter,
+    /// Execute test fixtures via the default VM runtime.
+    Vm,
+    /// Run VM first and fall back to interpreter only when VM output does not match snapshot.
+    Dual,
 }
 
 #[derive(Subcommand)]
@@ -245,6 +255,10 @@ enum Commands {
         /// Regenerate all .out files based on actual output
         #[arg(long)]
         update: bool,
+
+        /// Runtime path strategy for fixture execution.
+        #[arg(long, value_enum, default_value_t = TestRuntimeMode::Dual)]
+        runtime: TestRuntimeMode,
     },
 
     /// Run tests defined with the test framework
@@ -1238,9 +1252,14 @@ async fn main() {
             }
         },
 
-        Commands::Test { update } => {
+        Commands::Test { update, runtime } => {
             use std::path::Path;
-            parser::Parser::run_all_tests(Path::new("tests"), update);
+            let runtime_strategy = match runtime {
+                TestRuntimeMode::Interpreter => parser::TestRuntimeStrategy::Interpreter,
+                TestRuntimeMode::Vm => parser::TestRuntimeStrategy::Vm,
+                TestRuntimeMode::Dual => parser::TestRuntimeStrategy::Dual,
+            };
+            parser::Parser::run_all_tests(Path::new("tests"), update, runtime_strategy);
         }
 
         Commands::TestRun { file, verbose, capabilities } => {

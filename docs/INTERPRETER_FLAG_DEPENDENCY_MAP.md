@@ -1,6 +1,6 @@
 # Interpreter Flag Dependency Map
 
-- Generated: 2026-05-20 13:41:14 EDT
+- Generated: 2026-05-20 14:01:13 EDT
 - Command: `rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github`
 
 Reason tags:
@@ -15,12 +15,12 @@ Reason tags:
 
 | File | Category | Reason Tags | Usage Count | Line References |
 | --- | --- | --- | --- | --- |
-| `README.md` | documentation | `docs-contract` | 3 | 11,121,133 |
+| `README.md` | documentation | `docs-contract` | 2 | 11,121 |
 | `ROADMAP.md` | documentation | `docs-contract` | 1 | 1334 |
 | `docs/IMAGE_CONVERSION_AGENT_HANDOFF.md` | documentation | `docs-contract` | 1 | 52 |
 | `docs/NATIVE_API_SECURITY_POSTURE.md` | documentation | `docs-contract` | 3 | 193,199,211 |
 | `docs/PERFORMANCE.md` | documentation | `docs-contract` | 3 | 46,495,500 |
-| `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 183,189 |
+| `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 191,197 |
 | `docs/RUFF_FEATURE_INVENTORY.md` | documentation | `docs-contract` | 2 | 28,34 |
 | `examples/benchmarks/README_REAL_WORLD.md` | example-doc | `benchmark-baseline` | 1 | 150 |
 | `notes/2026-01-27_20-54_phase5-tokio-async-runtime.md` | notes-history | `archive-note` | 2 | 78,83 |
@@ -31,10 +31,13 @@ Reason tags:
 | `notes/2026-05-16_16-59_v1-test-003-runtime-native-security-regressions.md` | notes-history | `archive-note` | 1 | 18 |
 | `notes/2026-05-16_17-10_v1-test-005-docs-examples-smoke-suite.md` | notes-history | `archive-note` | 1 | 20 |
 | `notes/2026-05-20_11-44_pre-v1-master-unfinished-checklist-audit.md` | notes-history | `archive-note` | 1 | 31 |
+| `notes/2026-05-20_16-10_v1u-run-002_ruff-test-interpreter-hardcoding-analysis.md` | notes-history | `archive-note` | 2 | 8,21 |
 | `notes/vm_performance.md` | notes-history | `archive-note` | 1 | 21 |
-| `src/parser.rs` | cli-harness | `harness-legacy` | 1 | 2221 |
+| `src/main.rs` | other | `manual-review` | 1 | 125 |
+| `src/parser.rs` | cli-harness | `harness-legacy` | 1 | 2190 |
 | `tests/diagnostics_golden.rs` | integration-test | `diagnostics-diff,harness-legacy` | 1 | 60 |
 | `tests/docs_examples.rs` | integration-test | `docs-smoke,harness-legacy` | 1 | 256 |
+| `tests/interpreter_flag_dependency_map_contract.rs` | integration-test | `harness-legacy` | 1 | 84 |
 | `tests/native_api_security_boundaries.rs` | integration-test | `security-test-choice` | 34 | 134,211,307,327,371,398,407,421,450,459,468,477,500,544,573,582,591,609,643,682,700,736,776,807,842,882,918,954,987,996,1029,1038,1074,1083 |
 | `tests/package_module_workflow_integration.rs` | integration-test | `harness-legacy,package-workflow` | 4 | 124,316,347,366 |
 | `tests/runtime_security.rs` | integration-test | `security-test-choice` | 5 | 128,146,175,206,261 |
