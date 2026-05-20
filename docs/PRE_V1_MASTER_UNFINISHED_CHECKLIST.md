@@ -115,17 +115,24 @@ Each loop report must include exactly:
     - produce release candidate from clean working tree
   - Acceptance criteria:
     - `ROADMAP.md` final checklist has no unchecked pre-tag items.
+  - Blocker (2026-05-20): This item is tag-phase work; Cargo version bump + clean-tree RC build cannot be finalized while pre-v1 blocker checklist items are still being executed.
+    Evidence: `ROADMAP.md` final checklist still carries release-phase unchecked items, and this loop is intentionally scoped to one non-tag checklist item at a time.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
   - Acceptance criteria:
     - all tag-time checkboxes marked done with artifact URLs and checksum evidence note.
+  - Blocker (2026-05-20): Requires the actual `v1.0.0` tag publication event and post-publish workflow evidence, which is not executable during pre-tag checklist loops.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` Tag-Time Sign-Off section remains release-event dependent.
 
-- [ ] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
+- [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
   - Acceptance criteria:
     - `ROADMAP.md` no longer contains unchecked `V1-DOCGEN-001`.
     - DocGen milestone evidence linked from roadmap notes.
+  - Evidence (2026-05-20):
+    - Marked `V1-DOCGEN-001` complete in `ROADMAP.md` and linked remaining milestone execution follow-through to this master checklist (`V1U-DG-001`..`V1U-DG-003`).
+    - Ran focused universal DocGen contract checks (`docgen_adapter_conformance_smoke_extracts_symbols_for_all_languages`, `docgen_cli_json_contract_preserves_legacy_fields`, `docgen_ruff_extraction_edge_fixture_async_visibility_contract`) and recorded that full-suite `cargo test --test docgen_universal` currently hits environment socket/runtime constraints in this workspace.
 
 ---
 

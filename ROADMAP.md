@@ -1426,7 +1426,7 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
-[ ] V1-DOCGEN-001: Track universal DocGen maturation milestones
+[x] V1-DOCGEN-001: Track universal DocGen maturation milestones
     Priority: P2
     Severity: Medium
     Area: Docs/Tooling/Release Readiness
@@ -1442,7 +1442,7 @@ If a command is not yet available, create the missing configuration as part of t
         - `cargo test --test docgen_universal` for adapter/extraction contract stability.
         - Any added DocGen contract suites introduced by milestone execution.
     Acceptance criteria: Universal DocGen next milestones are explicitly tracked in roadmap/docs with aligned IDs and clear verification paths.
-    Notes: Added on 2026-05-20 as pre-v1 checklist follow-through (`PREV1-DOC-003`). Initial milestone definitions are synchronized with `docs/DOCGEN.md` under `DG-NEXT-001` through `DG-NEXT-003`.
+    Notes: Added on 2026-05-20 as pre-v1 checklist follow-through (`PREV1-DOC-003`). Initial milestone definitions are synchronized with `docs/DOCGEN.md` under `DG-NEXT-001` through `DG-NEXT-003`. Marked complete on 2026-05-20 after promoting execution ownership into `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` (`V1U-DG-001`, `V1U-DG-002`, `V1U-DG-003`) with dedicated acceptance criteria and per-loop closure evidence requirements. Focused non-network DocGen contracts were revalidated (`docgen_adapter_conformance_smoke_extracts_symbols_for_all_languages`, `docgen_cli_json_contract_preserves_legacy_fields`, `docgen_ruff_extraction_edge_fixture_async_visibility_contract`); full-suite `docgen_universal` remains environment-sensitive here due socket/runtime constraints.
 ```
 
 ```text
