@@ -135,6 +135,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` tag checklist still has unchecked release-event items.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-003` loop; still blocked on release-event sequencing.
     Evidence: `ROADMAP.md` final tag checklist remains incomplete.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-004` loop; remains blocked pending tag-prep closure phase.
+    Evidence: `ROADMAP.md` release-tag checklist items are still unchecked.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -159,6 +161,8 @@ Each loop report must include exactly:
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-002` loop; still blocked on release publication.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` remains unchecked.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-003` loop; still blocked until publish/sign-off event.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-004` loop; still blocked on actual release publish/sign-off.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
@@ -300,10 +304,14 @@ Each loop report must include exactly:
     - Added canonical readiness/deferred-boundary references tying this policy to `ROADMAP.md`, `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md`, and `docs/V1_SCOPE.md`.
     - Added `tests/stdlib_reference_policy_contract.rs` and captured implementation details in `notes/2026-05-20_19-15_v1u-doc-003-stdlib-tier-policy.md`.
 
-- [ ] **V1U-DOC-004**: Add/refresh docs contract tests for high-risk consistency surfaces.
+- [x] **V1U-DOC-004**: Add/refresh docs contract tests for high-risk consistency surfaces.
   - Scope: prevent future drift in readiness, runtime-path expectations, and deferred-boundary claims.
   - Acceptance criteria:
     - contract tests fail when key policy text disappears or contradicts other canonical docs.
+  - Evidence (2026-05-20):
+    - Added `tests/docs_policy_consistency_contract.rs` to enforce cross-doc consistency for readiness boundary wording, generator divergence policy, stdlib tier guarantees, and architecture runtime posture.
+    - The new contract complements existing focused docs contracts by explicitly checking policy agreement across `README.md`, scope/spec/audit docs, parity matrix, standard-library reference, and architecture docs.
+    - Captured this contract refresh in `notes/2026-05-20_19-40_v1u-doc-004-docs-policy-contracts.md`.
 
 ---
 
