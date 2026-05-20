@@ -12,6 +12,7 @@ Canonical readiness boundary: Ruff remains pre-1.0 until `ROADMAP.md` and `docs/
 - Stable runtime behavior for currently documented core execution paths:
   - CLI script execution (`ruff run` VM default + interpreter fallback)
   - core control flow, function, collection, and error-flow semantics covered by tests
+  - optional typing boundary remains explicit: interpreter mode may emit non-fatal type-check warnings, while VM/default mode keeps dynamic execution without a static type gate
 - Stable machine-readable tooling surfaces for:
   - CLI JSON contracts documented in `docs/CLI_MACHINE_READABLE_CONTRACTS.md`
   - LSP protocol contracts documented in `docs/PROTOCOL_CONTRACTS.md`

@@ -147,6 +147,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` continues to show unchecked rows.
   - Blocker (2026-05-20): Revalidated during `V1U-CODE-002` loop; intentional version bump + clean-tree RC steps remain tag-phase work and are still unchecked in roadmap final checklist rows.
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked entries.
+  - Blocker (2026-05-20): Revalidated during `V1U-CODE-003` loop; final checklist rows for version bump + clean-tree RC build are still pending tag-phase execution.
+    Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` continues to show unchecked rows.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -184,6 +186,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
   - Blocker (2026-05-20): Revalidated during `V1U-CODE-002` loop; artifact publish/sign-off remains release-event dependent and cannot be closed pre-tag.
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
+  - Blocker (2026-05-20): Revalidated during `V1U-CODE-003` loop; tag-time artifact publication/sign-off remains blocked until the actual release event.
+    Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked rows.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -389,10 +393,14 @@ Each loop report must include exactly:
     - Regenerated strict triage artifacts with `bash scripts/generate_v1_code_todo_triage.sh --strict` (`docs/generated/V1_CODE_TODO_TRIAGE.md` + `.csv`); output now reports `0` high-severity TODO markers and `0` unclassified markers.
     - Captured loop rationale and regression note in `notes/2026-05-20_18-09_v1u-code-002-runtime-todo-deferrals.md`.
 
-- [ ] **V1U-CODE-003**: Verify optional typing non-enforcement boundaries remain intentional and well-isolated.
+- [x] **V1U-CODE-003**: Verify optional typing non-enforcement boundaries remain intentional and well-isolated.
   - Scope: ensure current type-checker TODOs do not leak as misleading “supported” guarantees.
   - Acceptance criteria:
     - v1 optional-typing docs match implementation boundaries and warning behavior.
+  - Evidence (2026-05-20):
+    - Added runtime-path boundary contract coverage in `tests/optional_typing_v1_contract.rs` (`v1_optional_typing_warnings_are_interpreter_only`) proving interpreter mode emits non-fatal type-check warnings while VM/default mode remains dynamic without a type-check gate.
+    - Updated `docs/OPTIONAL_TYPING_DESIGN.md` and `docs/V1_SCOPE.md` to explicitly document the interpreter-warning vs VM-no-gate boundary.
+    - Revalidated optional-typing contract behavior with focused tests (`cargo test --test optional_typing_v1_contract`, `cargo test --test v1_scope_docs_alignment`).
 
 ---
 

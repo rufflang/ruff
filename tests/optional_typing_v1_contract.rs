@@ -2,6 +2,20 @@ use ruff::ast::{Stmt, TypeAnnotation};
 use ruff::interpreter::{Interpreter, Value};
 use ruff::lexer::tokenize;
 use ruff::parser::Parser;
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn unique_temp_dir(prefix: &str) -> PathBuf {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be valid")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("ruff_optional_typing_contract_{}_{}", prefix, nanos));
+    fs::create_dir_all(&path).expect("failed to create temp directory");
+    path
+}
 
 fn parse_program(source: &str) -> Vec<Stmt> {
     let tokens = tokenize(source).expect("test source should tokenize");
@@ -73,4 +87,59 @@ fn v1_annotations_do_not_enforce_runtime_types_by_default() {
         interpreter.return_value
     );
     assert!(matches!(interpreter.env.get("observed"), Some(Value::Str(_))));
+}
+
+#[test]
+fn v1_optional_typing_warnings_are_interpreter_only() {
+    let dir = unique_temp_dir("warning_boundary");
+    let source_path = dir.join("typed_warning_boundary.ruff");
+    fs::write(
+        &source_path,
+        r#"
+            func typed_identity(value: int) -> int {
+                return value
+            }
+
+            observed := typed_identity("dynamic-string")
+            print(observed)
+        "#,
+    )
+    .expect("failed to write test source");
+
+    let interpreter_output = Command::new(env!("CARGO_BIN_EXE_ruff"))
+        .arg("run")
+        .arg("--interpreter")
+        .arg(&source_path)
+        .output()
+        .expect("failed to execute interpreter mode");
+
+    assert!(
+        interpreter_output.status.success(),
+        "interpreter mode should still execute dynamic code: stdout={} stderr={}",
+        String::from_utf8_lossy(&interpreter_output.stdout),
+        String::from_utf8_lossy(&interpreter_output.stderr)
+    );
+    let interpreter_stderr = String::from_utf8_lossy(&interpreter_output.stderr);
+    assert!(
+        interpreter_stderr.contains("Type checking warnings:"),
+        "interpreter mode should emit optional typing warnings; stderr={interpreter_stderr}"
+    );
+
+    let vm_output = Command::new(env!("CARGO_BIN_EXE_ruff"))
+        .arg("run")
+        .arg(&source_path)
+        .output()
+        .expect("failed to execute vm mode");
+
+    assert!(
+        vm_output.status.success(),
+        "vm mode should execute dynamic code: stdout={} stderr={}",
+        String::from_utf8_lossy(&vm_output.stdout),
+        String::from_utf8_lossy(&vm_output.stderr)
+    );
+    let vm_stderr = String::from_utf8_lossy(&vm_output.stderr);
+    assert!(
+        !vm_stderr.contains("Type checking warnings:"),
+        "vm mode should not emit interpreter-only type checker warnings; stderr={vm_stderr}"
+    );
 }

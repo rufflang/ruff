@@ -22,6 +22,9 @@ Compatibility contract for v1:
 - annotated code must remain runnable under current dynamic semantics
 - type annotations must not change runtime behavior by default
 - missing annotations keep current dynamic behavior
+- current execution-path boundary is explicit:
+    - `ruff run --interpreter` emits non-fatal type-checking warnings when mismatches are detected
+    - default VM execution (`ruff run`) does not run a static type-check gate before execution
 
 ## Goals
 
