@@ -372,3 +372,11 @@ fn run_and_expected_fail_example_sets_do_not_overlap() {
         );
     }
 }
+
+#[test]
+fn expected_fail_doc_blocks_remain_empty() {
+    assert!(
+        expected_fail_doc_blocks().is_empty(),
+        "doc snippet expected-fail set should stay empty; add explicit rationale before introducing new debt"
+    );
+}

@@ -40,7 +40,7 @@ How to use with an AI agent:
     - `cargo test --test docs_examples` passes.
   - Source context: `notes/2026-05-16_17-10_v1-test-005-docs-examples-smoke-suite.md`.
 
-- [ ] **PREV1-DOC-002**: Keep docs snippet smoke set parse-clean.
+- [x] **PREV1-DOC-002**: Keep docs snippet smoke set parse-clean.
   - Scope: maintain zero stale expected-fail doc snippets as docs evolve.
   - Acceptance criteria:
     - `expected_fail_doc_blocks()` stays empty (or trends toward empty if new temporary debt is introduced intentionally with reasons).
