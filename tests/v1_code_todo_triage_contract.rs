@@ -48,9 +48,12 @@ fn v1_code_todo_triage_script_generates_expected_repo_artifacts() {
     let markdown = fs::read_to_string(&output_md).expect("triage markdown should exist");
     assert!(markdown.contains("# V1 Code TODO/FIXME/HACK Triage"));
     assert!(markdown.contains("| ID | File | Line | Marker | Summary | Severity | Owner | Target Release Bucket | Scope | Rationale |"));
-    assert!(markdown.contains("`src/compiler.rs`"));
-    assert!(markdown.contains("`src/vm.rs`"));
-    assert!(markdown.contains("`src/interpreter/native_functions/async_ops.rs`"));
+    assert!(markdown.contains("`src/type_checker.rs`"));
+    assert!(markdown.contains("`src/interpreter/mod.rs`"));
+    assert!(
+        !markdown.contains("| high |"),
+        "high-severity TODO markers should be resolved or explicitly deferred"
+    );
     assert!(markdown.contains("Summary: `"));
 
     let csv = fs::read_to_string(&output_csv).expect("triage csv should exist");

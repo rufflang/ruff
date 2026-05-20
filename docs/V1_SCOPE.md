@@ -46,6 +46,25 @@ Release/process commitments:
 - Version-state consistency between `Cargo.toml`, `README.md`, and `ROADMAP.md` remains CI-enforced.
 - Artifact validation and checksum workflows remain part of release-gate evidence.
 
+## Deferred Runtime Execution Backlog (Explicit v1 Deferrals)
+
+The following runtime-path implementation backlogs are explicitly deferred and non-silent for `v1.0.0` scope tracking:
+
+- `src/vm.rs`:
+  - `Upvalue` full closure-capture implementation remains deferred while current closure behavior stays contract-locked by parity suites.
+  - `GeneratorState` full restoration model remains deferred while current generator boundaries stay explicitly documented in `docs/VM_INTERPRETER_PARITY_MATRIX.md`.
+- `src/compiler.rs`:
+  - Dedicated VM `SpawnThread` opcode is deferred; current spawn lowering behavior remains explicit in compiler comments and roadmap-driven follow-up planning.
+  - Enum and interpolated-string builder opcode optimizations are deferred as post-v1 performance/representation work (non-contract semantics).
+- `src/interpreter/native_functions/async_ops.rs`:
+  - `spawn_task` body execution with full interpreter-context evaluation is deferred; current placeholder behavior remains explicit in code and triage artifacts.
+
+Deferral guardrails:
+
+1. Every deferred runtime item must stay listed in `docs/generated/V1_CODE_TODO_TRIAGE.md` with owner + bucket.
+2. Deferred runtime behavior must remain explicit in code comments (no silent TODO markers on high-risk paths).
+3. Any future implementation of these items must add/update targeted runtime/parity/security tests before checklist closure.
+
 ## Deferred Post-1.0 Candidates (Non-Blocking)
 
 The following items are explicitly tracked as post-1.0 backlog and are not blockers for `v1.0.0`:

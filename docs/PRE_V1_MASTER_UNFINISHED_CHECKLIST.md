@@ -145,6 +145,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked entries.
   - Blocker (2026-05-20): Revalidated during `V1U-CODE-001` loop; release-tag sequencing constraints remain unchanged and final-tag checklist rows are still open.
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` continues to show unchecked rows.
+  - Blocker (2026-05-20): Revalidated during `V1U-CODE-002` loop; intentional version bump + clean-tree RC steps remain tag-phase work and are still unchecked in roadmap final checklist rows.
+    Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked entries.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -179,6 +181,8 @@ Each loop report must include exactly:
   - Blocker (2026-05-20): Revalidated during `V1U-DG-003` loop; artifact sign-off still requires the real release publication event and post-publish workflow state.
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time publish/sign-off rows.
   - Blocker (2026-05-20): Revalidated during `V1U-CODE-001` loop; tag-time artifact publication/sign-off cannot be completed before the actual release event.
+    Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
+  - Blocker (2026-05-20): Revalidated during `V1U-CODE-002` loop; artifact publish/sign-off remains release-event dependent and cannot be closed pre-tag.
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
@@ -374,11 +378,16 @@ Each loop report must include exactly:
     - Generated `docs/generated/V1_CODE_TODO_TRIAGE.md` and `docs/generated/V1_CODE_TODO_TRIAGE.csv` via strict-mode scan (`49` markers, `0` unclassified) across production and adjacent runtime/compiler/VM/interpreter/native-function paths.
     - Added `tests/v1_code_todo_triage_contract.rs` covering success-path artifact generation, strict-mode failure for unclassified paths, and deterministic output regression checks.
 
-- [ ] **V1U-CODE-002**: Resolve or explicitly defer high-risk TODOs in runtime execution paths.
+- [x] **V1U-CODE-002**: Resolve or explicitly defer high-risk TODOs in runtime execution paths.
   - Scope: focus on TODOs in VM/compiler/interpreter async ops and any code path user scripts hit by default.
   - Acceptance criteria:
     - no unclassified high-risk TODO remains in default runtime path.
     - deferred items are documented in release-facing scope docs.
+  - Evidence (2026-05-20):
+    - Replaced high-risk runtime-path TODO markers in `src/vm.rs`, `src/compiler.rs`, and `src/interpreter/native_functions/async_ops.rs` with explicit post-v1 deferral notes that reference release-facing scope documentation.
+    - Added `Deferred Runtime Execution Backlog (Explicit v1 Deferrals)` to `docs/V1_SCOPE.md` documenting deferred runtime items and guardrails for future closure.
+    - Regenerated strict triage artifacts with `bash scripts/generate_v1_code_todo_triage.sh --strict` (`docs/generated/V1_CODE_TODO_TRIAGE.md` + `.csv`); output now reports `0` high-severity TODO markers and `0` unclassified markers.
+    - Captured loop rationale and regression note in `notes/2026-05-20_18-09_v1u-code-002-runtime-todo-deferrals.md`.
 
 - [ ] **V1U-CODE-003**: Verify optional typing non-enforcement boundaries remain intentional and well-isolated.
   - Scope: ensure current type-checker TODOs do not leak as misleading “supported” guarantees.

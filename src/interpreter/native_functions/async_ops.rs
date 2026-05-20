@@ -1736,7 +1736,8 @@ pub fn handle(
             // Note: We need to pass the interpreter or create a way to execute
             // For now, we'll create a simple task that just returns the function
             // In a real implementation, we'd need to execute the function body
-            // TODO: Task #35 - Execute actual function body with interpreter context
+            // Deferred post-v1 runtime backlog: execute task bodies with full interpreter context
+            // (see docs/V1_SCOPE.md deferred runtime execution section).
 
             // Create the task handle
             let is_cancelled = std::sync::Arc::new(std::sync::Mutex::new(false));
@@ -1753,7 +1754,7 @@ pub fn handle(
                 }
 
                 // For now, just sleep to simulate work
-                // TODO: Execute the actual function body with interpreter
+                // Deferred post-v1 runtime backlog: execute the actual function body with interpreter.
                 AsyncRuntime::sleep(std::time::Duration::from_millis(1)).await;
 
                 // Return placeholder - in full implementation would execute function

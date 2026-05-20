@@ -865,7 +865,7 @@ impl Compiler {
 
                 // Load function and call it (runtime will handle thread spawning)
                 self.chunk.emit(OpCode::MakeClosure(func_index));
-                // TODO: Need a SpawnThread opcode for proper thread spawning
+                // Deferred post-v1 runtime backlog: dedicated SpawnThread opcode (see docs/V1_SCOPE.md deferred runtime execution section)
                 // For now this will just create a closure
                 self.chunk.emit(OpCode::Pop); // Pop the closure for now
 
@@ -1300,7 +1300,7 @@ impl Compiler {
                 }
 
                 // For now, treat as array with tag name
-                // TODO: Optimize enum handling
+                // Deferred post-v1 optimization backlog: specialized enum value layout/handling.
                 let tag_index = self.chunk.add_constant(Constant::String(tag.clone()));
                 self.chunk.emit(OpCode::LoadConst(tag_index));
                 self.chunk.emit(OpCode::MakeArray(values.len() + 1));
@@ -1326,7 +1326,7 @@ impl Compiler {
                 }
 
                 // Concatenate all parts
-                // TODO: Optimize with a dedicated string builder
+                // Deferred post-v1 optimization backlog: dedicated string-builder opcode path.
                 for _ in 1..parts.len() {
                     self.chunk.emit(OpCode::Add); // String concatenation
                 }

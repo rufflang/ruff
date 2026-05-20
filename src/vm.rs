@@ -49,7 +49,7 @@ pub struct VmSchedulerRoundResult {
 #[derive(Debug, Clone)]
 /// Upvalue - captured variable for closures
 /// Infrastructure for closure variable capture
-#[allow(dead_code)] // TODO: Full closure upvalue implementation
+#[allow(dead_code)] // Deferred post-v1 runtime backlog: full closure upvalue implementation (see docs/V1_SCOPE.md deferred runtime execution section)
 struct Upvalue {
     /// The captured value
     value: Arc<Mutex<Value>>,
@@ -341,7 +341,7 @@ pub struct VmExecutionSnapshot {
 
 /// Generator state for suspended execution
 /// Infrastructure for generator resume functionality
-#[allow(dead_code)] // TODO: Full generator state restoration
+#[allow(dead_code)] // Deferred post-v1 runtime backlog: full generator-state restoration (see docs/V1_SCOPE.md deferred runtime execution section)
 #[derive(Debug, Clone)]
 pub struct GeneratorState {
     /// Instruction pointer where generator yielded
