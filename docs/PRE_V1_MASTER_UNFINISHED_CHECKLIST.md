@@ -117,6 +117,8 @@ Each loop report must include exactly:
     - `ROADMAP.md` final checklist has no unchecked pre-tag items.
   - Blocker (2026-05-20): This item is tag-phase work; Cargo version bump + clean-tree RC build cannot be finalized while pre-v1 blocker checklist items are still being executed.
     Evidence: `ROADMAP.md` final checklist still carries release-phase unchecked items, and this loop is intentionally scoped to one non-tag checklist item at a time.
+  - Blocker (2026-05-20): Revalidated after release gate stabilization loops; this remains a release-event task and is intentionally deferred until final tag-prep execution.
+    Evidence: `ROADMAP.md` final checklist still includes release-phase items (`Cargo version is bumped intentionally`, `Release candidate is built from a clean working tree`).
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -124,6 +126,8 @@ Each loop report must include exactly:
     - all tag-time checkboxes marked done with artifact URLs and checksum evidence note.
   - Blocker (2026-05-20): Requires the actual `v1.0.0` tag publication event and post-publish workflow evidence, which is not executable during pre-tag checklist loops.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` Tag-Time Sign-Off section remains release-event dependent.
+  - Blocker (2026-05-20): Revalidated after consecutive RC gate passes; artifact sign-off remains explicitly tag-time and cannot be completed pre-publish.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still requires published release URLs and post-publish smoke status.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -175,11 +179,14 @@ Each loop report must include exactly:
 
 ## 3) Interpreter-Flag Dependency Burn-Down (Team-Lead Priority)
 
-- [ ] **V1U-RUN-001**: Produce a full interpreter-flag dependency map.
+- [x] **V1U-RUN-001**: Produce a full interpreter-flag dependency map.
   - Scope: inventory every `--interpreter` use in CLI paths, harnesses, tests, docs, and examples.
   - Acceptance criteria:
     - dependency map includes reason tags (`parity-gap`, `diagnostics-diff`, `harness-legacy`, `security-test-choice`, etc.).
     - map published in `docs/` and linked from this checklist.
+  - Evidence (2026-05-20):
+    - Added generator `scripts/generate_interpreter_flag_dependency_map.sh` and published `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md`.
+    - Map inventories `--interpreter` usage across CLI harness source, integration tests, docs/examples, and historical notes with explicit reason tags.
 
 - [ ] **V1U-RUN-002**: Explain and justify `ruff test` interpreter hardcoding in `src/parser.rs::run_all_tests`.
   - Scope: confirm whether this is still required, and if yes, define removal criteria.

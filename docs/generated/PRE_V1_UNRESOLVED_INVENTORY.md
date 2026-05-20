@@ -1,6 +1,6 @@
 # Pre-v1 Unresolved Item Inventory
 
-- Generated: 2026-05-20 13:07:43 EDT
+- Generated: 2026-05-20 13:10:41 EDT
 - Source checklist: docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md
 - Total tracked items: 30
 
@@ -17,7 +17,7 @@
 | `V1U-GATE-002` | checked | `archive` | Already completed in the master checklist; retained for audit traceability. | Decide rustfmt config policy (stable vs nightly-only options warnings). | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
 | `V1U-GATE-003` | checked | `archive` | Already completed in the master checklist; retained for audit traceability. | Re-run full RC gate in low-contention environment and record pass/fail evidence. | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
 | `V1U-GATE-004` | checked | `archive` | Already completed in the master checklist; retained for audit traceability. | Stabilize socket/timing-sensitive release suites if flake persists. | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
-| `V1U-RUN-001` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Produce a full interpreter-flag dependency map. | README.md, docs/VM_INTERPRETER_PARITY_MATRIX.md, src/main.rs, src/parser.rs, tests/vm_interpreter_parity_surfaces.rs | 2026-05-20 | runtime-parity |
+| `V1U-RUN-001` | checked | `archive` | Already completed in the master checklist; retained for audit traceability. | Produce a full interpreter-flag dependency map. | README.md, docs/VM_INTERPRETER_PARITY_MATRIX.md, src/main.rs, src/parser.rs, tests/vm_interpreter_parity_surfaces.rs | 2026-05-20 | runtime-parity |
 | `V1U-RUN-002` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Explain and justify `ruff test` interpreter hardcoding in `src/parser.rs::run_all_tests`. | README.md, docs/VM_INTERPRETER_PARITY_MATRIX.md, src/main.rs, src/parser.rs, tests/vm_interpreter_parity_surfaces.rs | 2026-05-20 | runtime-parity |
 | `V1U-RUN-003` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Implement a VM-first or dual-engine `ruff test` execution strategy. | README.md, docs/VM_INTERPRETER_PARITY_MATRIX.md, src/main.rs, src/parser.rs, tests/vm_interpreter_parity_surfaces.rs | 2026-05-20 | runtime-parity |
 | `V1U-RUN-004` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Close generator-surface ambiguity between docs/tests/runtime. | README.md, docs/VM_INTERPRETER_PARITY_MATRIX.md, src/main.rs, src/parser.rs, tests/vm_interpreter_parity_surfaces.rs | 2026-05-20 | runtime-parity |
