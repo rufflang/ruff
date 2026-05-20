@@ -178,10 +178,7 @@ pub fn discover(input: &Path, options: &DiscoveryOptions) -> Result<DiscoveryRes
 
     files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path).then(a.language.cmp(&b.language)));
     diagnostics.sort_by(|a, b| {
-        a.code
-            .cmp(b.code)
-            .then(a.path.cmp(&b.path))
-            .then(a.message.cmp(&b.message))
+        a.code.cmp(b.code).then(a.path.cmp(&b.path)).then(a.message.cmp(&b.message))
     });
 
     Ok(DiscoveryResult {
@@ -460,9 +457,10 @@ mod tests {
         assert_eq!(result.files.len(), 1, "utf8 source should still be discovered");
         assert_eq!(result.files[0].relative_path, Path::new("ok.ruff"));
         assert_eq!(result.skip_counts.invalid_encoding, 1);
-        assert!(
-            result.diagnostics.iter().any(|diag| diag.code == "DOCGEN_DISCOVERY_INVALID_ENCODING")
-        );
+        assert!(result
+            .diagnostics
+            .iter()
+            .any(|diag| diag.code == "DOCGEN_DISCOVERY_INVALID_ENCODING"));
     }
 }
 

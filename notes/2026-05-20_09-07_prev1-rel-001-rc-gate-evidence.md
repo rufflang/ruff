@@ -28,8 +28,14 @@
 - **Final diagnosis:** Gate failed at `cargo fmt --check` due formatting diffs; no flaky environment condition was required to reproduce.
 
 ## Follow-ups / TODO (For Future Agents)
-- [ ] Re-run `bash scripts/release_candidate_gate.sh --full` after formatting drift is resolved.
+- [x] Re-run formatting preflight and resolve drift (`cargo fmt` + `cargo fmt --check`). (Completed 2026-05-20, `V1U-GATE-001`)
 - [ ] Keep classifying future gate failures as deterministic vs environment instability for release sign-off clarity.
+
+## 2026-05-20 Follow-up Update (`V1U-GATE-001`)
+
+- Ran `cargo fmt` to apply repository formatting policy.
+- Re-ran `cargo fmt --check` and confirmed clean pass (no diff output).
+- Remaining `rustfmt` unstable-option warnings are now tracked separately under `V1U-GATE-002` policy resolution work.
 
 ## Links / References
 - Files touched:

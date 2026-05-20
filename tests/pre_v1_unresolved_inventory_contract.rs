@@ -56,7 +56,8 @@ fn unresolved_inventory_generator_produces_table_for_all_master_items() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let inventory = fs::read_to_string(&output_path).expect("expected generated inventory markdown");
+    let inventory =
+        fs::read_to_string(&output_path).expect("expected generated inventory markdown");
     let checklist = fs::read_to_string(&checklist_path).expect("expected master checklist");
     let checklist_ids = extract_checklist_ids(&checklist);
 
@@ -72,10 +73,7 @@ fn unresolved_inventory_generator_produces_table_for_all_master_items() {
         );
     }
 
-    let row_count = inventory
-        .lines()
-        .filter(|line| line.starts_with("| `V1U-"))
-        .count();
+    let row_count = inventory.lines().filter(|line| line.starts_with("| `V1U-")).count();
     assert_eq!(
         row_count,
         checklist_ids.len(),

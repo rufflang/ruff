@@ -1,5 +1,5 @@
-use ruff::runtime_limits;
 use ruff::module::ModuleLoader;
+use ruff::runtime_limits;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};

@@ -65,11 +65,7 @@ fn run_runtime_json_diagnostic_fixture(fixture_file: &str) -> String {
         .output()
         .expect("failed to run ruff runtime diagnostic fixture");
 
-    assert!(
-        !output.status.success(),
-        "runtime diagnostic fixture should fail: {}",
-        fixture_file
-    );
+    assert!(!output.status.success(), "runtime diagnostic fixture should fail: {}", fixture_file);
 
     String::from_utf8(output.stdout).expect("runtime diagnostic stdout should be utf-8")
 }
@@ -136,17 +132,15 @@ fn diagnostics_golden_lexer_parse_semantic_runtime_cli_and_server_contracts() {
         &runtime_run_envelope_json,
     );
 
-    let runtime_invalid_unary_envelope = run_runtime_json_diagnostic_fixture(
-        "runtime_invalid_unary.ruff",
-    );
+    let runtime_invalid_unary_envelope =
+        run_runtime_json_diagnostic_fixture("runtime_invalid_unary.ruff");
     assert_or_update_golden(
         "runtime_invalid_unary_run_envelope",
         "json",
         &runtime_invalid_unary_envelope,
     );
-    let runtime_break_outside_loop_envelope = run_runtime_json_diagnostic_fixture(
-        "runtime_break_outside_loop.ruff",
-    );
+    let runtime_break_outside_loop_envelope =
+        run_runtime_json_diagnostic_fixture("runtime_break_outside_loop.ruff");
     assert_or_update_golden(
         "runtime_break_outside_loop_run_envelope",
         "json",

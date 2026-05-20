@@ -7,9 +7,7 @@ fn repo_root() -> PathBuf {
 
 #[test]
 fn pre_v1_master_checklist_defines_closure_semantics_and_blocker_rules() {
-    let checklist_path = repo_root()
-        .join("docs")
-        .join("PRE_V1_MASTER_UNFINISHED_CHECKLIST.md");
+    let checklist_path = repo_root().join("docs").join("PRE_V1_MASTER_UNFINISHED_CHECKLIST.md");
     let content = fs::read_to_string(&checklist_path)
         .expect("failed to read docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md");
 

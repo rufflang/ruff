@@ -149,9 +149,9 @@ impl DocLanguageAdapter for RuffDocAdapter {
                 let is_async = caps.get(2).is_some();
                 let explicit_public = caps.get(1).is_some();
                 let declared_visibility = visibility_from_explicit_public(explicit_public);
-                let container_visibility = active_struct.as_ref().map(|(_, _, parent_public)| {
-                    visibility_from_explicit_public(*parent_public)
-                });
+                let container_visibility = active_struct
+                    .as_ref()
+                    .map(|(_, _, parent_public)| visibility_from_explicit_public(*parent_public));
                 let visibility =
                     effective_member_visibility(declared_visibility, container_visibility, true);
                 let qualified_name = if let Some(parent_name) = &parent {

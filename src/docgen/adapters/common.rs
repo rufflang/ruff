@@ -218,7 +218,9 @@ pub fn effective_member_visibility(
     }
 }
 
-pub fn visibility_inherits_from_container(container_visibility: Option<DocVisibility>) -> DocVisibility {
+pub fn visibility_inherits_from_container(
+    container_visibility: Option<DocVisibility>,
+) -> DocVisibility {
     if container_visibility == Some(DocVisibility::Public) {
         DocVisibility::Public
     } else {
@@ -258,11 +260,7 @@ mod tests {
         assert_eq!(visibility_from_leading_uppercase("serve"), DocVisibility::Private);
 
         assert_eq!(
-            effective_member_visibility(
-                DocVisibility::Public,
-                Some(DocVisibility::Private),
-                true
-            ),
+            effective_member_visibility(DocVisibility::Public, Some(DocVisibility::Private), true),
             DocVisibility::Private
         );
         assert_eq!(
@@ -274,11 +272,7 @@ mod tests {
             DocVisibility::Protected
         );
         assert_eq!(
-            effective_member_visibility(
-                DocVisibility::Public,
-                Some(DocVisibility::Private),
-                false
-            ),
+            effective_member_visibility(DocVisibility::Public, Some(DocVisibility::Private), false),
             DocVisibility::Public
         );
 
@@ -290,9 +284,6 @@ mod tests {
             visibility_inherits_from_container(Some(DocVisibility::Private)),
             DocVisibility::Private
         );
-        assert_eq!(
-            visibility_inherits_from_container(None),
-            DocVisibility::Private
-        );
+        assert_eq!(visibility_inherits_from_container(None), DocVisibility::Private);
     }
 }

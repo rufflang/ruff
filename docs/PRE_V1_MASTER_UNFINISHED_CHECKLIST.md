@@ -138,11 +138,14 @@ Each loop report must include exactly:
 
 ## 2) Release Gate Determinism And Evidence Closure
 
-- [ ] **V1U-GATE-001**: Fix repo formatting drift causing RC gate failure.
+- [x] **V1U-GATE-001**: Fix repo formatting drift causing RC gate failure.
   - Scope: resolve `cargo fmt --check` diffs currently failing `scripts/release_candidate_gate.sh --full`.
   - Acceptance criteria:
     - `cargo fmt --check` passes locally.
     - Follow-up evidence note updates `PREV1-REL-001` context.
+  - Evidence (2026-05-20):
+    - Applied formatting with `cargo fmt` and verified `cargo fmt --check` passes locally.
+    - Updated `notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md` follow-up section to record drift resolution and status transition.
 
 - [ ] **V1U-GATE-002**: Decide rustfmt config policy (stable vs nightly-only options warnings).
   - Scope: eliminate persistent `rustfmt` unstable-option warnings or document intentional policy.

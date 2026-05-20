@@ -30,11 +30,7 @@ fn v1_scope_docs_keep_deferred_boundaries_aligned() {
         "V1 scope doc must keep explicit deferred post-1.0 section"
     );
     for marker in ["Generics", "FFI (foreign function interface)", "WASM target", "Macro system"] {
-        assert!(
-            v1_scope.contains(marker),
-            "V1 scope doc missing deferred marker {:?}",
-            marker
-        );
+        assert!(v1_scope.contains(marker), "V1 scope doc missing deferred marker {:?}", marker);
     }
 
     assert!(

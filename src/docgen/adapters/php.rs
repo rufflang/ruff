@@ -1,4 +1,6 @@
-use super::common::{attach_docs_by_proximity, next_nonempty_line, visibility_from_member_modifier};
+use super::common::{
+    attach_docs_by_proximity, next_nonempty_line, visibility_from_member_modifier,
+};
 use super::{AdapterCapability, DocLanguageAdapter};
 use crate::docgen::model::{DocComment, DocCommentBlock, DocSymbol, DocSymbolKind, DocVisibility};
 use crate::docgen::DocgenError;

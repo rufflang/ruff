@@ -877,15 +877,7 @@ mod tests {
         let source_map = BTreeMap::from([
             (
                 "a.ruff".to_string(),
-                [
-                    "foo();",
-                    "prefixfoo();",
-                    "bar();",
-                    "foo();",
-                    "foo();",
-                    "foo();",
-                ]
-                .join("\n"),
+                ["foo();", "prefixfoo();", "bar();", "foo();", "foo();", "foo();"].join("\n"),
             ),
             (
                 "b.ruff".to_string(),
@@ -938,16 +930,8 @@ mod tests {
         let source_map = BTreeMap::from([
             (
                 alpha_path.display().to_string(),
-                [
-                    "foo();",
-                    "bar();",
-                    "foo();",
-                    "prefixfoo();",
-                    "foo();",
-                    "foo();",
-                    "foo();",
-                ]
-                .join("\n"),
+                ["foo();", "bar();", "foo();", "prefixfoo();", "foo();", "foo();", "foo();"]
+                    .join("\n"),
             ),
             (
                 beta_path.display().to_string(),
@@ -964,13 +948,9 @@ mod tests {
             .map(|gap| (gap.symbol_id.as_str(), gap))
             .collect::<BTreeMap<&str, &crate::docgen::model::DocGap>>();
 
-        let foo_gap = by_symbol_id
-            .get("symbol:alpha")
-            .expect("foo gap should exist");
+        let foo_gap = by_symbol_id.get("symbol:alpha").expect("foo gap should exist");
         let bar_gap = by_symbol_id.get("symbol:beta").expect("bar gap should exist");
-        let empty_gap = by_symbol_id
-            .get("symbol:empty")
-            .expect("empty-name gap should exist");
+        let empty_gap = by_symbol_id.get("symbol:empty").expect("empty-name gap should exist");
 
         assert_eq!(foo_gap.known_call_sites.len(), 6, "foo call sites should be limited to 6");
         assert_eq!(
