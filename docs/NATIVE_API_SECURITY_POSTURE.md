@@ -251,3 +251,9 @@ cargo test --test serve_command_integration
 ```
 
 These suites cover capability denial/allow behavior, archive and path safety boundaries, request-boundary handling, and deterministic failure contracts.
+
+Cross-platform module-escape coverage strategy:
+
+- Unix builds run a real symlink-escape integration regression in `tests/runtime_security.rs` (`runtime_security_rejects_module_symlink_escape`).
+- Non-Unix environments use deterministic module-name traversal hardening coverage via `runtime_security_module_loader_rejects_parent_traversal_import_name_cross_platform` (integration) plus module-loader unit contracts that reject unsafe import names before filesystem resolution.
+- This split avoids flaky Windows symlink privilege assumptions while preserving deterministic escape-boundary coverage for release gates.

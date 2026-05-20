@@ -100,12 +100,15 @@ How to use with an AI agent:
 
 ## 5) Cross-Platform Security Coverage
 
-- [ ] **PREV1-SEC-001**: Define non-Unix strategy for module-escape regression coverage.
+- [x] **PREV1-SEC-001**: Define non-Unix strategy for module-escape regression coverage.
   - Scope: add Windows-compatible equivalent for symlink/escape boundary testing, or document and gate an equivalent deterministic strategy.
   - Acceptance criteria:
     - Cross-platform policy documented.
     - Tests updated to reflect the chosen strategy without flaky behavior.
   - Source context: `notes/2026-05-16_16-59_v1-test-003-runtime-native-security-regressions.md`.
+  - Evidence (2026-05-20):
+    - Added deterministic cross-platform traversal guard regression: `runtime_security_module_loader_rejects_parent_traversal_import_name_cross_platform` in `tests/runtime_security.rs`.
+    - Documented Unix-vs-non-Unix module-escape coverage split in `docs/NATIVE_API_SECURITY_POSTURE.md`.
 
 ---
 

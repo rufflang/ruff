@@ -1,4 +1,5 @@
 use ruff::runtime_limits;
+use ruff::module::ModuleLoader;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -218,6 +219,23 @@ fn runtime_security_reports_module_cycle_import_chain() {
         "expected deterministic module-cycle chain, stdout={} stderr={}",
         stdout_text(&output),
         stderr_text(&output)
+    );
+}
+
+#[test]
+fn runtime_security_module_loader_rejects_parent_traversal_import_name_cross_platform() {
+    let project_root = unique_temp_dir("runtime_security_module_traversal_guard");
+    let mut loader = ModuleLoader::new();
+    loader.add_search_path(&project_root);
+
+    let err = loader
+        .get_all_exports("../outside")
+        .expect_err("expected module traversal import name to fail");
+
+    assert!(
+        err.message.contains("Unsafe module import '../outside'"),
+        "expected unsafe traversal error, got: {}",
+        err.message
     );
 }
 
