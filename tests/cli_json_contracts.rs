@@ -202,6 +202,10 @@ fn docgen_json_contract_is_stable() {
     assert!(body["summary"]["adapter_health"]["ruff"]["symbols_extracted"].is_number());
     assert!(body["summary"]["adapter_health"]["ruff"]["doc_blocks_attached"].is_number());
     assert!(body["summary"]["adapter_health"]["ruff"]["placeholders_emitted"].is_number());
+    assert_eq!(body["cache_stats"]["hits"], 0);
+    assert_eq!(body["cache_stats"]["misses"], 0);
+    assert_eq!(body["summary"]["cache_stats"]["hits"], 0);
+    assert_eq!(body["summary"]["cache_stats"]["misses"], 0);
 }
 
 #[test]
@@ -340,6 +344,49 @@ fn docgen_json_discovery_limits_fail_on_zero_cli_values() {
         "stderr did not include zero-limit diagnostic: {}",
         stderr
     );
+}
+
+#[test]
+fn docgen_json_cache_mode_reports_hit_miss_counters() {
+    let dir = unique_temp_dir("docgen_json_cache_hits_misses");
+    let file = dir.join("docgen_cache_input.ruff");
+    let out_dir_first = dir.join("docs_out_first");
+    let out_dir_second = dir.join("docs_out_second");
+    let cache_dir = dir.join(".docgen-cache");
+    write_fixture(&file, "pub func api() { return 1 }\n");
+
+    let file_str = file.to_str().expect("path should be utf-8");
+    let cache_dir_str = cache_dir.to_str().expect("path should be utf-8");
+
+    let first = run_ruff(&[
+        "docgen",
+        file_str,
+        "--out-dir",
+        out_dir_first.to_str().expect("path should be utf-8"),
+        "--cache-dir",
+        cache_dir_str,
+        "--json",
+    ]);
+    assert!(first.status.success(), "first cached docgen run should succeed");
+    let first_body = parse_stdout_json(&first);
+    assert_eq!(first_body["cache_stats"]["hits"], 0);
+    assert_eq!(first_body["cache_stats"]["misses"], 1);
+
+    let second = run_ruff(&[
+        "docgen",
+        file_str,
+        "--out-dir",
+        out_dir_second.to_str().expect("path should be utf-8"),
+        "--cache-dir",
+        cache_dir_str,
+        "--json",
+    ]);
+    assert!(second.status.success(), "second cached docgen run should succeed");
+    let second_body = parse_stdout_json(&second);
+    assert_eq!(second_body["cache_stats"]["hits"], 1);
+    assert_eq!(second_body["cache_stats"]["misses"], 0);
+    assert_eq!(second_body["summary"]["cache_stats"]["hits"], 1);
+    assert_eq!(second_body["summary"]["cache_stats"]["misses"], 0);
 }
 
 #[test]

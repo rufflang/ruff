@@ -14,6 +14,7 @@ use crate::docgen::DocgenError;
 use crate::interpreter::Interpreter;
 use crate::path_security::{canonicalize_root, ensure_path_within_root};
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,6 +22,8 @@ use std::path::{Path, PathBuf};
 pub const DOCGEN_DEFAULT_MAX_FILE_SIZE_BYTES: u64 = 2 * 1024 * 1024;
 pub const DOCGEN_DEFAULT_MAX_FILES: usize = 20_000;
 pub const DOCGEN_DEFAULT_MAX_DEPTH: usize = 64;
+pub const DOCGEN_CACHE_SCHEMA_VERSION: &str = "docgen-cache/v1";
+pub const DOCGEN_ADAPTER_CACHE_VERSION: &str = "2026-05-19";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocOutputFormat {
@@ -49,6 +52,7 @@ pub struct DocgenConfig {
     pub max_discovery_file_size_bytes: Option<u64>,
     pub max_discovery_files: Option<usize>,
     pub max_discovery_depth: Option<usize>,
+    pub cache_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -63,6 +67,7 @@ pub struct DocgenDashboardSummary {
     pub broken_link_count: usize,
     pub warning_count: usize,
     pub adapter_health: BTreeMap<String, DocgenAdapterHealth>,
+    pub cache_stats: DocgenCacheStats,
     pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
@@ -77,6 +82,12 @@ pub struct DocgenAdapterHealth {
     pub symbols_extracted: usize,
     pub doc_blocks_attached: usize,
     pub placeholders_emitted: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct DocgenCacheStats {
+    pub hits: usize,
+    pub misses: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -98,6 +109,7 @@ pub struct DocgenRunSummary {
     pub broken_link_count: usize,
     pub warning_count: usize,
     pub adapter_health: BTreeMap<String, DocgenAdapterHealth>,
+    pub cache_stats: DocgenCacheStats,
     pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
@@ -126,11 +138,21 @@ pub struct DocgenCliJsonPayload {
     pub broken_link_count: usize,
     pub warning_count: usize,
     pub adapter_health: BTreeMap<String, DocgenAdapterHealth>,
+    pub cache_stats: DocgenCacheStats,
     pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
     pub gate_failures: Vec<String>,
     pub summary: DocgenDashboardSummary,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+struct DocgenCacheEntry {
+    schema_version: String,
+    adapter_version: String,
+    language: String,
+    relative_path: String,
+    symbols: Vec<DocSymbol>,
 }
 
 pub fn build_cli_json_payload(
@@ -157,6 +179,7 @@ pub fn build_cli_json_payload(
         broken_link_count: summary.broken_link_count,
         warning_count: summary.warning_count,
         adapter_health: summary.adapter_health.clone(),
+        cache_stats: summary.cache_stats.clone(),
         discovery_limits: summary.discovery_limits.clone(),
         discovery_skip_counts: summary.discovery_skip_counts.clone(),
         link_validation_skip_counts: summary.link_validation_skip_counts.clone(),
@@ -218,6 +241,7 @@ pub fn run_with_link_validation(
         .collect();
     let mut source_map: BTreeMap<String, String> = BTreeMap::new();
     let mut adapter_health: BTreeMap<String, DocgenAdapterHealth> = BTreeMap::new();
+    let mut cache_stats = DocgenCacheStats::default();
 
     for file in &discovery.files {
         adapter_health.entry(file.language.clone()).or_default().files_scanned += 1;
@@ -234,17 +258,57 @@ pub fn run_with_link_validation(
 
         source_map.insert(file.relative_path.display().to_string(), file.source.clone());
 
-        let raw_symbols = adapter.extract_symbols(&file.source, &file.absolute_path)?;
-        let docs = adapter.extract_inline_docs(&file.source, &file.absolute_path)?;
-        let mut attached = adapter.attach_docs(raw_symbols, docs);
+        let adapter_version = format!("{}:{}", file.language, DOCGEN_ADAPTER_CACHE_VERSION);
+        let attached = if let Some(cache_dir) = config.cache_dir.as_ref() {
+            let cache_key = compute_docgen_cache_key(
+                &file.language,
+                &adapter_version,
+                &file.relative_path,
+                &file.source,
+            );
+            if let Some(mut cached_symbols) = load_docgen_cached_symbols(
+                cache_dir,
+                &cache_key,
+                &file.language,
+                &adapter_version,
+                &file.relative_path,
+            )? {
+                cache_stats.hits += 1;
+                for symbol in &mut cached_symbols {
+                    symbol.source_path = file.relative_path.clone();
+                }
+                cached_symbols
+            } else {
+                cache_stats.misses += 1;
+                let raw_symbols = adapter.extract_symbols(&file.source, &file.absolute_path)?;
+                let docs = adapter.extract_inline_docs(&file.source, &file.absolute_path)?;
+                let mut computed = adapter.attach_docs(raw_symbols, docs);
+                for symbol in &mut computed {
+                    symbol.source_path = file.relative_path.clone();
+                }
+                store_docgen_cached_symbols(
+                    cache_dir,
+                    &cache_key,
+                    &file.language,
+                    &adapter_version,
+                    &file.relative_path,
+                    &computed,
+                )?;
+                computed
+            }
+        } else {
+            let raw_symbols = adapter.extract_symbols(&file.source, &file.absolute_path)?;
+            let docs = adapter.extract_inline_docs(&file.source, &file.absolute_path)?;
+            let mut computed = adapter.attach_docs(raw_symbols, docs);
+            for symbol in &mut computed {
+                symbol.source_path = file.relative_path.clone();
+            }
+            computed
+        };
         if let Some(entry) = adapter_health.get_mut(&file.language) {
             entry.symbols_extracted += attached.len();
             entry.doc_blocks_attached +=
                 attached.iter().filter(|symbol| !symbol.docs.lines.is_empty()).count();
-        }
-
-        for symbol in &mut attached {
-            symbol.source_path = file.relative_path.clone();
         }
 
         modules.push(DocModule {
@@ -555,6 +619,7 @@ pub fn run_with_link_validation(
         broken_link_count,
         warning_count,
         adapter_health: adapter_health.clone(),
+        cache_stats: cache_stats.clone(),
         discovery_limits: discovery_limits.clone(),
         discovery_skip_counts: discovery_skip_counts.clone(),
         link_validation_skip_counts: link_validation_skip_counts.clone(),
@@ -583,6 +648,7 @@ pub fn run_with_link_validation(
             broken_link_count,
             warning_count,
             adapter_health,
+            cache_stats,
             discovery_limits,
             discovery_skip_counts,
             link_validation_skip_counts,
@@ -763,6 +829,101 @@ fn render_ai_tasks(project: &DocProject) -> String {
         out.push_str("\n\n");
     }
     out
+}
+
+fn compute_docgen_cache_key(
+    language: &str,
+    adapter_version: &str,
+    relative_path: &Path,
+    source: &str,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(DOCGEN_CACHE_SCHEMA_VERSION.as_bytes());
+    hasher.update([0u8]);
+    hasher.update(language.as_bytes());
+    hasher.update([0u8]);
+    hasher.update(adapter_version.as_bytes());
+    hasher.update([0u8]);
+    hasher.update(relative_path.to_string_lossy().as_bytes());
+    hasher.update([0u8]);
+    hasher.update(source.as_bytes());
+    let digest = hasher.finalize();
+    digest.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
+}
+
+fn docgen_cache_path(cache_dir: &Path, cache_key: &str) -> PathBuf {
+    cache_dir.join(format!("{}.json", cache_key))
+}
+
+fn load_docgen_cached_symbols(
+    cache_dir: &Path,
+    cache_key: &str,
+    language: &str,
+    adapter_version: &str,
+    relative_path: &Path,
+) -> Result<Option<Vec<DocSymbol>>, DocgenError> {
+    let cache_path = docgen_cache_path(cache_dir, cache_key);
+    if !cache_path.exists() {
+        return Ok(None);
+    }
+    let cache_text = fs::read_to_string(&cache_path).map_err(|e| {
+        DocgenError::new(format!(
+            "failed to read docgen cache entry '{}': {}",
+            cache_path.display(),
+            e
+        ))
+    })?;
+    let entry: DocgenCacheEntry = match serde_json::from_str(&cache_text) {
+        Ok(parsed) => parsed,
+        Err(_) => return Ok(None),
+    };
+    if entry.schema_version != DOCGEN_CACHE_SCHEMA_VERSION
+        || entry.language != language
+        || entry.adapter_version != adapter_version
+        || entry.relative_path != relative_path.to_string_lossy()
+    {
+        return Ok(None);
+    }
+    Ok(Some(entry.symbols))
+}
+
+fn store_docgen_cached_symbols(
+    cache_dir: &Path,
+    cache_key: &str,
+    language: &str,
+    adapter_version: &str,
+    relative_path: &Path,
+    symbols: &[DocSymbol],
+) -> Result<(), DocgenError> {
+    fs::create_dir_all(cache_dir).map_err(|e| {
+        DocgenError::new(format!(
+            "failed to create docgen cache directory '{}': {}",
+            cache_dir.display(),
+            e
+        ))
+    })?;
+    let cache_path = docgen_cache_path(cache_dir, cache_key);
+    let entry = DocgenCacheEntry {
+        schema_version: DOCGEN_CACHE_SCHEMA_VERSION.to_string(),
+        adapter_version: adapter_version.to_string(),
+        language: language.to_string(),
+        relative_path: relative_path.to_string_lossy().to_string(),
+        symbols: symbols.to_vec(),
+    };
+    let payload = serde_json::to_string(&entry).map_err(|e| {
+        DocgenError::new(format!(
+            "failed to serialize docgen cache entry '{}': {}",
+            cache_path.display(),
+            e
+        ))
+    })?;
+    fs::write(&cache_path, payload).map_err(|e| {
+        DocgenError::new(format!(
+            "failed to write docgen cache entry '{}': {}",
+            cache_path.display(),
+            e
+        ))
+    })
 }
 
 fn resolve_discovery_u64_limit(

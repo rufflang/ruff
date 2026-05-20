@@ -470,6 +470,10 @@ enum Commands {
         #[arg(long)]
         max_discovery_depth: Option<usize>,
 
+        /// Optional cache directory for incremental docgen extraction reuse
+        #[arg(long)]
+        cache_dir: Option<PathBuf>,
+
         /// Print documentation generation result as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
@@ -1643,6 +1647,7 @@ async fn main() {
             max_discovery_file_size_bytes,
             max_discovery_files,
             max_discovery_depth,
+            cache_dir,
             json,
         } => {
             let output_dir = out_dir.unwrap_or_else(|| PathBuf::from("docs/generated"));
@@ -1682,6 +1687,7 @@ async fn main() {
                     max_discovery_file_size_bytes,
                     max_discovery_files,
                     max_discovery_depth,
+                    cache_dir,
                 },
                 docgen::gaps::LinkValidationOptions {
                     validate_local_anchors,

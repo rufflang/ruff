@@ -149,6 +149,17 @@ DocGen emits `DOCGEN_ADAPTER_LOW_YIELD` warnings when extraction yield is suspic
 1. Three or more files scanned with zero extracted symbols.
 2. Ten or more files scanned with fewer than one extracted symbol per five files.
 
+## Incremental Cache Mode
+
+DocGen supports optional incremental extraction reuse for CI through `--cache-dir`:
+1. Per-file extraction artifacts are cached using a key that includes source content hash, language, and adapter cache version.
+2. Cache hits reuse extracted symbol payloads and still preserve deterministic module/symbol output ordering.
+3. Cache misses recompute extraction and refresh cache entries.
+
+Machine-readable JSON includes deterministic cache counters in both top-level and summary blocks:
+1. `cache_stats.hits`
+2. `cache_stats.misses`
+
 Discovery and project diagnostics are emitted in deterministic sorted order for CI-stable JSON comparisons.
 
 ## CLI
@@ -329,7 +340,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Emit per-language extraction counters (files scanned, symbols extracted, doc blocks attached, placeholders emitted).
    - Add warnings when extraction yield is suspiciously low for a language.
    - Expose these counters in the machine-readable summary block.
-3. `DG-QA-015` Incremental/cached docgen mode for CI.
+3. [x] `DG-QA-015` Incremental/cached docgen mode for CI. (Completed 2026-05-19)
    Acceptance criteria:
    - Add optional cache keyed by file content hash and adapter version.
    - Recompute only changed modules while preserving deterministic aggregate output.
