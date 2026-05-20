@@ -114,12 +114,15 @@ How to use with an AI agent:
 
 ## 6) Release-Readiness Prep (Pre-tag, non-version-bump)
 
-- [ ] **PREV1-REL-001**: Run and record full release-candidate gate evidence in a low-contention environment.
+- [x] **PREV1-REL-001**: Run and record full release-candidate gate evidence in a low-contention environment.
   - Scope: execute `scripts/release_candidate_gate.sh --full` in an environment suitable for stable socket/timing-sensitive tests; capture results in a dated note.
   - Acceptance criteria:
     - Command results logged with pass/fail details.
     - Any instability is explicitly categorized with mitigation or follow-up.
   - Source context: `docs/RELEASE_PROCESS.md`, `docs/UNFINISHED_AND_MVP_AUDIT.md`.
+  - Evidence (2026-05-20):
+    - Executed `bash scripts/release_candidate_gate.sh --full` and recorded results in `notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md`.
+    - Outcome classification: deterministic gate failure at `cargo fmt --check` (formatting drift), not socket/timing instability; follow-up re-run noted in evidence file.
 
 - [ ] **PREV1-REL-002**: Keep deferred/non-goal boundaries explicit and current.
   - Scope: make sure docs consistently reflect what is intentionally deferred vs in-scope during ongoing pre-v1 work.
