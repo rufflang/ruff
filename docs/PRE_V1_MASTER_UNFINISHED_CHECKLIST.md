@@ -143,6 +143,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` returned unchecked entries at lines 1844-1845.
   - Blocker (2026-05-20): Revalidated during `V1U-DG-003` loop; release-phase checklist rows for intentional version bump + clean-tree RC build remain pending and keep this item tag-sequenced.
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked entries.
+  - Blocker (2026-05-20): Revalidated during `V1U-CODE-001` loop; release-tag sequencing constraints remain unchanged and final-tag checklist rows are still open.
+    Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` continues to show unchecked rows.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -176,6 +178,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` shows `Tag-Time Sign-Off` items still unchecked (including publish + checksum attachment rows).
   - Blocker (2026-05-20): Revalidated during `V1U-DG-003` loop; artifact sign-off still requires the real release publication event and post-publish workflow state.
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time publish/sign-off rows.
+  - Blocker (2026-05-20): Revalidated during `V1U-CODE-001` loop; tag-time artifact publication/sign-off cannot be completed before the actual release event.
+    Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -361,10 +365,14 @@ Each loop report must include exactly:
 
 ## 6) Code-Level “Half-Fixed” Risk Audit (Pre-1.0 Triage)
 
-- [ ] **V1U-CODE-001**: Audit `TODO/FIXME/HACK` debt in production paths and classify risk.
+- [x] **V1U-CODE-001**: Audit `TODO/FIXME/HACK` debt in production paths and classify risk.
   - Scope: prioritize runtime/compiler/VM/interpreter/native-function TODOs that could affect v1 correctness/security predictability.
   - Acceptance criteria:
     - triage table with severity, owner, and target release bucket (`v1` vs `post-v1`).
+  - Evidence (2026-05-20):
+    - Added `scripts/generate_v1_code_todo_triage.sh` to produce machine-generated TODO/FIXME/HACK triage artifacts with severity, owner, release bucket, scope, and rationale columns.
+    - Generated `docs/generated/V1_CODE_TODO_TRIAGE.md` and `docs/generated/V1_CODE_TODO_TRIAGE.csv` via strict-mode scan (`49` markers, `0` unclassified) across production and adjacent runtime/compiler/VM/interpreter/native-function paths.
+    - Added `tests/v1_code_todo_triage_contract.rs` covering success-path artifact generation, strict-mode failure for unclassified paths, and deterministic output regression checks.
 
 - [ ] **V1U-CODE-002**: Resolve or explicitly defer high-risk TODOs in runtime execution paths.
   - Scope: focus on TODOs in VM/compiler/interpreter async ops and any code path user scripts hit by default.
