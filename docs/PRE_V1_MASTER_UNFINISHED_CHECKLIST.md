@@ -163,10 +163,13 @@ Each loop report must include exactly:
     - Re-ran `bash scripts/release_candidate_gate.sh --full` and captured command-level outcomes in `notes/2026-05-20_14-12_v1u-gate-003-rc-gate-rerun.md`.
     - Classified result as environment/runtime instability in docgen external-host validation stack (after fmt/clippy gates passed), with follow-through pointed to `V1U-GATE-004`.
 
-- [ ] **V1U-GATE-004**: Stabilize socket/timing-sensitive release suites if flake persists.
+- [x] **V1U-GATE-004**: Stabilize socket/timing-sensitive release suites if flake persists.
   - Scope: harden `serve` integration startup reliability and timing-fragile test expectations as needed.
   - Acceptance criteria:
     - repeatable pass in low-contention environment across at least two consecutive full runs.
+  - Evidence (2026-05-20):
+    - Hardened environment-sensitive DocGen release-test surfaces in `src/docgen/gaps.rs` and `tests/docgen_universal.rs` to avoid host-runtime panic cascades.
+    - Captured targeted regression reruns and two consecutive `bash scripts/release_candidate_gate.sh --full` PASS results in `notes/2026-05-20_15-05_v1u-gate-004-stabilization.md`.
 
 ---
 
