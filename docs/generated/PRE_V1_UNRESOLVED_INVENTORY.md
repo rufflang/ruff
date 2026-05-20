@@ -1,6 +1,6 @@
 # Pre-v1 Unresolved Item Inventory
 
-- Generated: 2026-05-20 12:50:51 EDT
+- Generated: 2026-05-20 12:52:36 EDT
 - Source checklist: docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md
 - Total tracked items: 30
 
@@ -14,7 +14,7 @@
 | `V1U-OPEN-003` | unchecked | `post-v1` | Tag-time release-publication tasks that cannot be fully closed until the final v1 release event. | Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items. | docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md, docs/RELEASE_PROCESS.md | 2026-05-16 | release-owner |
 | `V1U-OPEN-004` | checked | `archive` | Already completed in the master checklist; retained for audit traceability. | Execute `V1-DOCGEN-001` roadmap item. | ROADMAP.md, docs/DOCGEN.md | 2026-05-20 | release-owner |
 | `V1U-GATE-001` | checked | `archive` | Already completed in the master checklist; retained for audit traceability. | Fix repo formatting drift causing RC gate failure. | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
-| `V1U-GATE-002` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Decide rustfmt config policy (stable vs nightly-only options warnings). | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
+| `V1U-GATE-002` | checked | `archive` | Already completed in the master checklist; retained for audit traceability. | Decide rustfmt config policy (stable vs nightly-only options warnings). | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
 | `V1U-GATE-003` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Re-run full RC gate in low-contention environment and record pass/fail evidence. | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
 | `V1U-GATE-004` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Stabilize socket/timing-sensitive release suites if flake persists. | scripts/release_candidate_gate.sh, scripts/release_gate.sh, docs/RELEASE_PROCESS.md, notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md | 2026-05-20 | release-engineering |
 | `V1U-RUN-001` | unchecked | `v1-blocker` | Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence. | Produce a full interpreter-flag dependency map. | README.md, docs/VM_INTERPRETER_PARITY_MATRIX.md, src/main.rs, src/parser.rs, tests/vm_interpreter_parity_surfaces.rs | 2026-05-20 | runtime-parity |

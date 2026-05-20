@@ -37,6 +37,11 @@
 - Re-ran `cargo fmt --check` and confirmed clean pass (no diff output).
 - Remaining `rustfmt` unstable-option warnings are now tracked separately under `V1U-GATE-002` policy resolution work.
 
+## 2026-05-20 Follow-up Update (`V1U-GATE-002`)
+
+- Simplified `rustfmt.toml` to stable-only options (removed unstable `normalize_comments`, `wrap_comments`, and `group_imports` keys).
+- Re-ran `cargo fmt` and `cargo fmt --check`; formatting checks now run without unstable-option warning noise.
+
 ## Links / References
 - Files touched:
   - `notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md`

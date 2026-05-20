@@ -147,10 +147,13 @@ Each loop report must include exactly:
     - Applied formatting with `cargo fmt` and verified `cargo fmt --check` passes locally.
     - Updated `notes/2026-05-20_09-07_prev1-rel-001-rc-gate-evidence.md` follow-up section to record drift resolution and status transition.
 
-- [ ] **V1U-GATE-002**: Decide rustfmt config policy (stable vs nightly-only options warnings).
+- [x] **V1U-GATE-002**: Decide rustfmt config policy (stable vs nightly-only options warnings).
   - Scope: eliminate persistent `rustfmt` unstable-option warnings or document intentional policy.
   - Acceptance criteria:
     - either warnings removed, or policy doc explains expected warning behavior and gate implications.
+  - Evidence (2026-05-20):
+    - Adopted stable-only `rustfmt.toml` policy by removing unstable option keys that emitted warning spam on stable toolchains.
+    - Verified warning-free formatting gate execution with `cargo fmt` and `cargo fmt --check`.
 
 - [ ] **V1U-GATE-003**: Re-run full RC gate in low-contention environment and record pass/fail evidence.
   - Scope: repeat `bash scripts/release_candidate_gate.sh --full` after formatting and stability fixes.
