@@ -378,7 +378,7 @@ The next universal DocGen maturation slice is tracked in `ROADMAP.md` under `V1-
    - Expand fixture coverage for multi-language edge patterns (nested containers, visibility inheritance, and async/doc-attachment variants).
    - Add contract checks that keep adapter output shape stable across all supported languages.
    - Document any intentional extraction gaps per language.
-3. [ ] `DG-NEXT-003` External-repo strict-gate baseline refresh cadence.
+3. [x] `DG-NEXT-003` External-repo strict-gate baseline refresh cadence. (Completed 2026-05-20)
    Acceptance criteria:
    - Define a repeatable external-repo validation cadence and evidence format in `notes/`.
    - Track strict/public-only undocumented-count deltas across representative repositories.
@@ -410,3 +410,33 @@ These gaps are intentional in the current adapter contracts and must stay docume
   - Extraction targets module/data/newtype/typeclass/function signatures using declaration patterns; export lists and advanced type-level constructs are not fully resolved.
 - Zig:
   - Extraction targets `fn`, `const`, `struct`, and `enum` declarations; container member traversal/inference is intentionally out of scope (`supports_methods = false`).
+
+### External-Repo Strict Baseline Refresh Cadence
+
+Cadence:
+- Run baseline refreshes weekly during active DocGen feature work.
+- Run baseline refreshes before RC/final release gate passes.
+- Run an additional refresh after any adapter extraction/visibility/link-validation contract change.
+
+Validation set (current):
+- `/Users/robertdevore/2026/ruff-ai-sdk`
+- `/Users/robertdevore/2026/ruff-mcp`
+- `/Users/robertdevore/2026/ruff-scout`
+
+Required command modes per repo:
+- Strict include-private mode (`--include-private` + strict gate flags).
+- Strict public-only mode (`--public-only` + strict gate flags).
+
+Evidence format (required):
+- Capture one dated `notes/YYYY-MM-DD_HH-mm_*.md` entry with:
+  - exact command forms used
+  - strict/include-private and strict/public-only counts (`undocumented_count`, `broken_link_count`, `warning_count`, `gate_failures`)
+  - per-repo deltas versus the prior baseline note
+  - explicit pass/fail interpretation and follow-up owner if counts regress
+
+Mitigation playbook for regressions:
+1. Re-run the affected repo with `--format json --json` and inspect `gate_failures` + `diagnostics`.
+2. Isolate whether drift is extraction, visibility, docs attachment, or link-validation policy.
+3. Add/adjust fixture-backed coverage in `tests/docgen_universal.rs` before changing adapter logic.
+4. If regression is expected/intentional, document the boundary in this file and update the latest evidence note with rationale.
+5. Re-run `cargo test --test docgen_universal` before closing the refresh loop.

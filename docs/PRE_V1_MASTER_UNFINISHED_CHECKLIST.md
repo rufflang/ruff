@@ -141,6 +141,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` still includes unchecked release-phase rows for intentional version bump and clean-tree release-candidate build.
   - Blocker (2026-05-20): Revalidated during `V1U-DG-002` loop; final-tag checklist rows for intentional version bump and clean-tree RC build are still unchecked and cannot be closed inside non-tag implementation loops.
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` returned unchecked entries at lines 1844-1845.
+  - Blocker (2026-05-20): Revalidated during `V1U-DG-003` loop; release-phase checklist rows for intentional version bump + clean-tree RC build remain pending and keep this item tag-sequenced.
+    Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked entries.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -172,6 +174,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` section still requires post-publish release URLs/checksum records/workflow status.
   - Blocker (2026-05-20): Revalidated during `V1U-DG-002` loop; tag-time release publication/sign-off evidence remains unavailable before the actual `v1.0.0` release event.
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` shows `Tag-Time Sign-Off` items still unchecked (including publish + checksum attachment rows).
+  - Blocker (2026-05-20): Revalidated during `V1U-DG-003` loop; artifact sign-off still requires the real release publication event and post-publish workflow state.
+    Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time publish/sign-off rows.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -344,10 +348,14 @@ Each loop report must include exactly:
     - Expanded `tests/docgen_universal.rs` with fixture-backed conformance coverage for output-shape stability and visibility/doc-attachment contracts (`docgen_adapter_conformance_edge_fixtures_preserve_shape_and_visibility_contracts`) plus strict public-only failure-path coverage (`docgen_adapter_conformance_edge_fixtures_strict_public_gate_reports_undocumented_symbols`).
     - Documented intentional per-language extraction gaps under `docs/DOCGEN.md` (`Intentional Adapter Extraction Gaps (Current)`) so conformance expansion and known boundaries stay aligned.
 
-- [ ] **V1U-DG-003**: Execute `DG-NEXT-003` external-repo strict-gate baseline refresh cadence.
+- [x] **V1U-DG-003**: Execute `DG-NEXT-003` external-repo strict-gate baseline refresh cadence.
   - Scope: codify cadence and evidence format for strict/public-only drift checks on representative external repos.
   - Acceptance criteria:
     - repeatable cadence documented and at least one refreshed baseline note captured.
+  - Evidence (2026-05-20):
+    - Added `External-Repo Strict Baseline Refresh Cadence` to `docs/DOCGEN.md`, including refresh frequency, required strict mode variants (`--include-private` and `--public-only`), evidence format, and a mitigation playbook for regressions.
+    - Captured refreshed external baseline evidence in `notes/2026-05-20_17-59_v1u-dg-003-external-baseline-refresh-cadence.md` with command paths and per-repo strict/public-only counts.
+    - Re-ran strict baselines for `/Users/robertdevore/2026/ruff-ai-sdk`, `/Users/robertdevore/2026/ruff-mcp`, and `/Users/robertdevore/2026/ruff-scout` (all counts remained `undocumented=0`, `broken_links=0`, `warnings=0`, `gate_failures=0`).
 
 ---
 
