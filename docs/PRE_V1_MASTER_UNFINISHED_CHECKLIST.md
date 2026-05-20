@@ -23,6 +23,50 @@ Primary evidence sources:
 
 ---
 
+## Checklist Governance And Closure Semantics
+
+This checklist is executed in strict one-item loops.
+
+### Loop Selection Rule (Mandatory)
+
+1. Only pick items still marked `- [ ]`.
+2. Choose the first unchecked item in top-to-bottom file order.
+3. Do not skip ahead unless the current item is explicitly blocked.
+4. If blocked:
+   - Add a dated blocker note directly under the blocked item with reason + command/output evidence.
+   - Continue scanning to the next unchecked item in the same loop.
+5. Complete exactly one unblocked checklist item per loop.
+
+### Closure Evidence Rule (Mandatory)
+
+Do not mark an item complete until all of the following exist for that item:
+
+1. Implementation or decision artifact committed (code/script/doc/note as applicable).
+2. Tests or command validations run and recorded in loop evidence.
+3. Relevant docs/checklists updated and consistent with the new state.
+4. Checklist row switched from `- [ ]` to `- [x]` with a dated evidence bullet.
+5. Commit message references the checklist ID (for example: `prev1(V1U-RES-003): ...`).
+
+### Blocker Semantics
+
+- A blocked item remains unchecked.
+- Blocker notes must include:
+  - Date (`YYYY-MM-DD`)
+  - Root-cause summary
+  - Verifiable evidence (command path, file path, or link)
+- Re-check blocked items in later loops before skipping again.
+
+### Required Per-Loop Report Fields
+
+Each loop report must include exactly:
+
+1. Item completed.
+2. Files changed.
+3. Tests/commands run with results.
+4. Blockers or follow-ups.
+
+---
+
 ## 0) Research And Truth-Set (Do First)
 
 - [x] **V1U-RES-001**: Build a machine-generated unresolved-item inventory.
@@ -43,11 +87,14 @@ Primary evidence sources:
     - Extended `scripts/generate_pre_v1_unresolved_inventory.sh` to emit per-item `classification` + `rationale` columns and regenerated markdown/CSV outputs.
     - Replaced `docs/UNFINISHED_AND_MVP_AUDIT.md` with a classification-aligned snapshot that mirrors generated category counts and semantics.
 
-- [ ] **V1U-RES-003**: Define checklist governance and closure semantics.
+- [x] **V1U-RES-003**: Define checklist governance and closure semantics.
   - Scope: standardize what evidence is required before checking an item complete (test output, note link, command logs).
   - Acceptance criteria:
     - Closure policy section added to this file or a linked process doc.
     - Team can execute one-item-per-loop without ambiguity.
+  - Evidence (2026-05-20):
+    - Added `Checklist Governance And Closure Semantics` section with strict selection, blocker, closure-evidence, and reporting rules.
+    - Added `tests/pre_v1_master_checklist_contract.rs` to enforce required governance markers.
 
 ---
 
