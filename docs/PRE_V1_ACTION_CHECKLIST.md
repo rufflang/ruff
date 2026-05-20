@@ -30,6 +30,8 @@ How to use with an AI agent:
     Evidence: `rg -n "ruff-mcp|mcp.ruff" README.md docs notes -g '*.md'` only returns references/notes, and `rg --files | rg "mcp|MCP|ruff-mcp|mcp.ruff"` returns no matching docs files.
   - Blocker (2026-05-20): Revalidated in this session; only generated external doc outputs under `docs/generated/external/ruff-mcp*/` exist here, not the `ruff-mcp` source docs (`mcp.ruff`/README) this item requires editing.
     Evidence: `rg -n "ruff-mcp|mcp.ruff" README.md docs notes -g '*.md'` and `rg --files | rg "mcp|MCP|ruff-mcp|mcp.ruff"` (no source-doc target in this repo).
+  - Blocker (2026-05-20): Revalidated after completing all other checklist items; this repository still does not contain editable `ruff-mcp` source docs, so the closure-mutation wording cannot be updated here.
+    Evidence: `rg -n "ruff-mcp|mcp.ruff" README.md docs notes -g '*.md'` and `rg --files | rg "mcp|MCP|ruff-mcp|mcp.ruff"` only surface references/generated external outputs, not source doc targets.
 
 ---
 
