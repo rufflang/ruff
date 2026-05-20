@@ -144,6 +144,14 @@ fn diagnostics_golden_lexer_parse_semantic_runtime_cli_and_server_contracts() {
         "json",
         &runtime_invalid_unary_envelope,
     );
+    let runtime_break_outside_loop_envelope = run_runtime_json_diagnostic_fixture(
+        "runtime_break_outside_loop.ruff",
+    );
+    assert_or_update_golden(
+        "runtime_break_outside_loop_run_envelope",
+        "json",
+        &runtime_break_outside_loop_envelope,
+    );
 
     let cli = Diagnostic::new(
         DIAGNOSTIC_CODE_CLI,

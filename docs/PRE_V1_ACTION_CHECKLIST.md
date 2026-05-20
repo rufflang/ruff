@@ -65,7 +65,7 @@ How to use with an AI agent:
     - `cargo test --test diagnostics_golden` passes.
   - Source context: `notes/2026-05-16_17-03_v1-test-004-diagnostics-golden-snapshots.md`.
 
-- [ ] **PREV1-DIAG-002**: Keep runtime-security diagnostics represented in golden coverage where feasible.
+- [x] **PREV1-DIAG-002**: Keep runtime-security diagnostics represented in golden coverage where feasible.
   - Scope: add selected `tests/runtime_security.rs`-aligned diagnostics snapshot cases.
   - Acceptance criteria:
     - At least one runtime-security-oriented diagnostics fixture added (when output is stable enough).
