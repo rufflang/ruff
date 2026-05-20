@@ -133,6 +133,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` final checklist still includes unchecked tag-prep items.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-002` loop; remains blocked until tag-prep execution phase.
     Evidence: `ROADMAP.md` tag checklist still has unchecked release-event items.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-003` loop; still blocked on release-event sequencing.
+    Evidence: `ROADMAP.md` final tag checklist remains incomplete.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -156,6 +158,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-002` loop; still blocked on release publication.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` remains unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-003` loop; still blocked until publish/sign-off event.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -287,10 +291,14 @@ Each loop report must include exactly:
     - Added docs consistency contract `tests/v1_maturity_boundary_alignment_contract.rs` to enforce this wording across all five source-of-truth docs.
     - This aligns pre-1.0 readiness messaging without changing release gating authority (`ROADMAP.md` + master unfinished checklist remain canonical blockers).
 
-- [ ] **V1U-DOC-003**: Review `docs/STANDARD_LIBRARY_REFERENCE.md` experimental labels for v1 contract clarity.
+- [x] **V1U-DOC-003**: Review `docs/STANDARD_LIBRARY_REFERENCE.md` experimental labels for v1 contract clarity.
   - Scope: decide which experimental APIs are in v1 guarantee vs explicitly non-guaranteed.
   - Acceptance criteria:
     - experimental-label policy documented and consistent with `docs/V1_SCOPE.md` and release commitments.
+  - Evidence (2026-05-20):
+    - Added explicit tier policy mapping (`stable`, `preview`, `experimental`) in `docs/STANDARD_LIBRARY_REFERENCE.md` that defines v1 guarantee vs non-guaranteed status.
+    - Added canonical readiness/deferred-boundary references tying this policy to `ROADMAP.md`, `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md`, and `docs/V1_SCOPE.md`.
+    - Added `tests/stdlib_reference_policy_contract.rs` and captured implementation details in `notes/2026-05-20_19-15_v1u-doc-003-stdlib-tier-policy.md`.
 
 - [ ] **V1U-DOC-004**: Add/refresh docs contract tests for high-risk consistency surfaces.
   - Scope: prevent future drift in readiness, runtime-path expectations, and deferred-boundary claims.

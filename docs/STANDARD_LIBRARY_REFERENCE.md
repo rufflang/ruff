@@ -11,6 +11,15 @@ Tier definitions:
 - `preview`: available and documented, but may evolve with additional edge-case hardening
 - `experimental`: available for advanced workflows, with higher change risk before post-v1 hardening
 
+v1 contract policy for tiers:
+
+- `stable`: in-scope for v1 compatibility guarantees.
+- `preview`: in-scope for v1 usage, but not frozen; behavior may tighten during pre-v1 hardening and must be treated as non-guaranteed until promoted.
+- `experimental`: explicitly non-guaranteed for v1 compatibility commitments; available for advanced workflows only and may change or be restricted without stability guarantees.
+
+Canonical readiness boundary: Ruff remains pre-1.0 until `ROADMAP.md` and `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` release gates are closed.
+Deferred/non-goal policy source: `docs/V1_SCOPE.md`.
+
 Source of truth:
 
 - runtime registration and dispatch are implemented in `src/interpreter/mod.rs`
