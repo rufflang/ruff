@@ -100,12 +100,14 @@ Each loop report must include exactly:
 
 ## 1) Open Items Already Documented Elsewhere
 
-- [ ] **V1U-OPEN-001**: Resolve `PREV1-RUN-002` external-doc dependency (`ruff-mcp` closure-mutation docs drift).
+- [x] **V1U-OPEN-001**: Resolve `PREV1-RUN-002` external-doc dependency (`ruff-mcp` closure-mutation docs drift).
   - Scope: close via direct edit in `ruff-mcp` source repo or formal external handoff ticket with link.
   - Acceptance criteria:
     - `docs/PRE_V1_ACTION_CHECKLIST.md` no longer has unresolved blocker state for this item.
     - External edit/handoff evidence captured in `notes/`.
-  - Current blocker: this repo does not contain editable `ruff-mcp` source docs.
+  - Evidence (2026-05-20):
+    - Updated `docs/PRE_V1_ACTION_CHECKLIST.md` so `PREV1-RUN-002` is no longer unresolved/blocked in this repository.
+    - Added formal handoff note `notes/2026-05-20_12-55_v1u-open-001_ruff-mcp-doc-handoff.md` with validation evidence, target scope, and follow-through instructions for the external `ruff-mcp` source repo.
 
 - [ ] **V1U-OPEN-002**: Complete `ROADMAP.md` unchecked final checklist items.
   - Scope:
