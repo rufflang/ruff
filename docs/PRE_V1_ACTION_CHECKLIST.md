@@ -47,7 +47,7 @@ How to use with an AI agent:
     - `cargo test --test docs_examples` passes after doc edits.
   - Source context: `tests/docs_examples.rs`, `notes/2026-05-16_17-10_v1-test-005-docs-examples-smoke-suite.md`.
 
-- [ ] **PREV1-DOC-003**: Add a roadmap-tracked item for universal docgen maturation.
+- [x] **PREV1-DOC-003**: Add a roadmap-tracked item for universal docgen maturation.
   - Scope: add/update explicit roadmap tracking for universal docgen staging and next milestones.
   - Acceptance criteria:
     - `ROADMAP.md` includes a clear item/slice for universal docgen follow-through.

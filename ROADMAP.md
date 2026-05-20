@@ -1426,6 +1426,26 @@ If a command is not yet available, create the missing configuration as part of t
 ```
 
 ```text
+[ ] V1-DOCGEN-001: Track universal DocGen maturation milestones
+    Priority: P2
+    Severity: Medium
+    Area: Docs/Tooling/Release Readiness
+    Affected files: ROADMAP.md, docs/DOCGEN.md, tests/docgen_universal.rs, tests/fixtures/docgen/*
+    Problem: Universal DocGen QA hardening is complete, but the next-stage maturation milestones are not tracked in the main release roadmap.
+    Recommendation: Track the next universal DocGen slice in the roadmap and keep milestone IDs aligned with `docs/DOCGEN.md`.
+    Implementation steps:
+        1. Track `DG-NEXT-001`: parser-assisted Ruff extraction fallback prototype with deterministic fallback behavior.
+        2. Track `DG-NEXT-002`: cross-language adapter conformance expansion with fixture-backed edge coverage.
+        3. Track `DG-NEXT-003`: external-repo strict-gate baseline refresh cadence and evidence capture.
+        4. Keep milestone IDs and acceptance criteria synchronized between `ROADMAP.md` and `docs/DOCGEN.md`.
+    Tests required:
+        - `cargo test --test docgen_universal` for adapter/extraction contract stability.
+        - Any added DocGen contract suites introduced by milestone execution.
+    Acceptance criteria: Universal DocGen next milestones are explicitly tracked in roadmap/docs with aligned IDs and clear verification paths.
+    Notes: Added on 2026-05-20 as pre-v1 checklist follow-through (`PREV1-DOC-003`). Initial milestone definitions are synchronized with `docs/DOCGEN.md` under `DG-NEXT-001` through `DG-NEXT-003`.
+```
+
+```text
 [x] V1-REL-001: Prepare v1.0 release candidate gate
     Priority: P1
     Severity: High

@@ -363,3 +363,23 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Add pluggable source-link templates (local path, GitHub/GitLab URL patterns).
    - Keep default behavior unchanged when no provider is configured.
    - Add tests for URL rendering and path normalization safety.
+
+## Universal Maturation Milestones (Roadmap-Aligned)
+
+The next universal DocGen maturation slice is tracked in `ROADMAP.md` under `V1-DOCGEN-001`.
+
+1. [ ] `DG-NEXT-001` Parser-assisted Ruff extraction fallback prototype.
+   Acceptance criteria:
+   - Add an opt-in parser-assisted extraction path for Ruff symbols with graceful fallback to regex extraction when parser diagnostics occur.
+   - Preserve deterministic output ordering and strict-gate stability.
+   - Add fixture-backed coverage for both parser-success and parser-fallback paths.
+2. [ ] `DG-NEXT-002` Cross-language adapter conformance expansion.
+   Acceptance criteria:
+   - Expand fixture coverage for multi-language edge patterns (nested containers, visibility inheritance, and async/doc-attachment variants).
+   - Add contract checks that keep adapter output shape stable across all supported languages.
+   - Document any intentional extraction gaps per language.
+3. [ ] `DG-NEXT-003` External-repo strict-gate baseline refresh cadence.
+   Acceptance criteria:
+   - Define a repeatable external-repo validation cadence and evidence format in `notes/`.
+   - Track strict/public-only undocumented-count deltas across representative repositories.
+   - Document mitigation playbooks for regressions detected during baseline refresh runs.
