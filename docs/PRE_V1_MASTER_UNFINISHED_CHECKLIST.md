@@ -125,6 +125,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` still contains unchecked tag-prep entries.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-004` loop; version-bump + clean-tree RC generation remains explicitly tag-prep work.
     Evidence: `ROADMAP.md` still lists unchecked final-tag checklist entries.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-005` loop; remains blocked on tag-prep release-event sequencing.
+    Evidence: `ROADMAP.md` final tag checklist items are still unchecked.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -140,6 +142,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still has all `Tag-Time Sign-Off` checkboxes unchecked.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-004` loop; artifact sign-off remains release-event dependent.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` items remain unchecked and require post-publish evidence.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-005` loop; still blocked on actual v1.0.0 publication.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off checkboxes remain unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -230,10 +234,14 @@ Each loop report must include exactly:
     - Updated `README.md` known-boundary wording to explicitly state current top-level generator divergence (interpreter-supported, VM deterministic error) while preserving struct-generator unsupported policy clarity.
     - Updated `docs/VM_INTERPRETER_PARITY_MATRIX.md` with a dedicated top-level generator iteration row marked `intentionally divergent`; implementation/validation summary recorded in `notes/2026-05-20_17-20_v1u-run-004-generator-parity-clarification.md`.
 
-- [ ] **V1U-RUN-005**: Expand parity evidence for any surface still commonly forced to interpreter mode.
+- [x] **V1U-RUN-005**: Expand parity evidence for any surface still commonly forced to interpreter mode.
   - Scope: for each dependency-map item tagged `parity-gap`, add targeted VM/interpreter parity tests or explicit documented divergence.
   - Acceptance criteria:
     - either parity tests exist, or divergence is intentional and documented in release-facing docs.
+  - Evidence (2026-05-20):
+    - Extended `scripts/generate_interpreter_flag_dependency_map.sh` and regenerated `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md` to emit explicit `parity-gap` tagging and a dedicated `V1U-RUN-005` coverage status section.
+    - Tagged `src/parser.rs` as `harness-legacy,parity-gap` and mapped closure evidence to `tests/cli_contracts.rs` (runtime fallback contracts), `tests/vm_interpreter_parity_surfaces.rs` (generator divergence contract), plus canonical docs (`README.md`, `docs/VM_INTERPRETER_PARITY_MATRIX.md`).
+    - Added contract checks in `tests/interpreter_flag_dependency_map_contract.rs` and recorded the audit in `notes/2026-05-20_17-45_v1u-run-005-parity-gap-coverage.md`.
 
 - [ ] **V1U-RUN-006**: Add command-level runtime-path matrix.
   - Scope: complement `docs/VM_INTERPRETER_PARITY_MATRIX.md` with command-level coverage (`run`, `test`, `test-run`, security suites, diagnostics modes).

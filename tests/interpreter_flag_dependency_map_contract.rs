@@ -45,9 +45,12 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
         "# Interpreter Flag Dependency Map",
         "Reason tags:",
         "`harness-legacy`",
+        "`parity-gap`",
         "`security-test-choice`",
         "`docs-contract`",
         "| File | Category | Reason Tags | Usage Count | Line References |",
+        "## V1U-RUN-005: Parity-Gap Coverage Status",
+        "Current `parity-gap` tagged entries:",
         "## V1U-RUN-002: `ruff test` Interpreter Hardcoding Decision",
         "Decision (2026-05-20): keep `ruff test` interpreter-pinned for now",
         "Removal criteria for this hardcoding:",
@@ -56,7 +59,7 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
     }
 
     for required_row in [
-        "| `src/parser.rs` | cli-harness | `harness-legacy` |",
+        "| `src/parser.rs` | cli-harness | `harness-legacy,parity-gap` |",
         "| `tests/native_api_security_boundaries.rs` | integration-test | `security-test-choice` |",
         "| `tests/docs_examples.rs` | integration-test | `docs-smoke,harness-legacy` |",
         "| `README.md` | documentation | `docs-contract` |",
@@ -71,7 +74,7 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
 }
 
 #[test]
-fn parser_test_harness_remains_explicitly_interpreter_pinned_until_v1u_run_003() {
+fn parser_test_harness_keeps_explicit_interpreter_fallback_path() {
     let root = repo_root();
     let parser_path = root.join("src").join("parser.rs");
     let parser_source = fs::read_to_string(parser_path).expect("expected src/parser.rs source");
@@ -82,6 +85,6 @@ fn parser_test_harness_remains_explicitly_interpreter_pinned_until_v1u_run_003()
     );
     assert!(
         parser_source.contains(".arg(\"--interpreter\")"),
-        "run_all_tests should explicitly pin interpreter execution until runtime-path migration work lands"
+        "run_all_tests should keep an explicit interpreter execution path for bounded fallback coverage"
     );
 }

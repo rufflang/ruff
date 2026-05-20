@@ -1,10 +1,11 @@
 # Interpreter Flag Dependency Map
 
-- Generated: 2026-05-20 14:01:13 EDT
+- Generated: 2026-05-20 14:07:11 EDT
 - Command: `rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github`
 
 Reason tags:
 - `harness-legacy`: Existing harness behavior still forces interpreter mode.
+- `parity-gap`: Runtime path currently depends on an explicitly tracked interpreter/VM parity or output-contract gap.
 - `security-test-choice`: Security-boundary regression intentionally exercises interpreter path.
 - `diagnostics-diff`: Diagnostic contract coverage currently pins interpreter output shape.
 - `docs-smoke`: Docs/example smoke harness runs interpreter as canonical execution path.
@@ -20,7 +21,7 @@ Reason tags:
 | `docs/IMAGE_CONVERSION_AGENT_HANDOFF.md` | documentation | `docs-contract` | 1 | 52 |
 | `docs/NATIVE_API_SECURITY_POSTURE.md` | documentation | `docs-contract` | 3 | 193,199,211 |
 | `docs/PERFORMANCE.md` | documentation | `docs-contract` | 3 | 46,495,500 |
-| `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 191,197 |
+| `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 195,201 |
 | `docs/RUFF_FEATURE_INVENTORY.md` | documentation | `docs-contract` | 2 | 28,34 |
 | `examples/benchmarks/README_REAL_WORLD.md` | example-doc | `benchmark-baseline` | 1 | 150 |
 | `notes/2026-01-27_20-54_phase5-tokio-async-runtime.md` | notes-history | `archive-note` | 2 | 78,83 |
@@ -34,13 +35,24 @@ Reason tags:
 | `notes/2026-05-20_16-10_v1u-run-002_ruff-test-interpreter-hardcoding-analysis.md` | notes-history | `archive-note` | 2 | 8,21 |
 | `notes/vm_performance.md` | notes-history | `archive-note` | 1 | 21 |
 | `src/main.rs` | other | `manual-review` | 1 | 125 |
-| `src/parser.rs` | cli-harness | `harness-legacy` | 1 | 2190 |
+| `src/parser.rs` | cli-harness | `harness-legacy,parity-gap` | 1 | 2190 |
 | `tests/diagnostics_golden.rs` | integration-test | `diagnostics-diff,harness-legacy` | 1 | 60 |
 | `tests/docs_examples.rs` | integration-test | `docs-smoke,harness-legacy` | 1 | 256 |
-| `tests/interpreter_flag_dependency_map_contract.rs` | integration-test | `harness-legacy` | 1 | 84 |
+| `tests/interpreter_flag_dependency_map_contract.rs` | integration-test | `harness-legacy` | 1 | 87 |
 | `tests/native_api_security_boundaries.rs` | integration-test | `security-test-choice` | 34 | 134,211,307,327,371,398,407,421,450,459,468,477,500,544,573,582,591,609,643,682,700,736,776,807,842,882,918,954,987,996,1029,1038,1074,1083 |
 | `tests/package_module_workflow_integration.rs` | integration-test | `harness-legacy,package-workflow` | 4 | 124,316,347,366 |
 | `tests/runtime_security.rs` | integration-test | `security-test-choice` | 5 | 128,146,175,206,261 |
+
+## V1U-RUN-005: Parity-Gap Coverage Status
+
+- Current `parity-gap` tagged entries: 1
+- Tagged surfaces:
+- `src/parser.rs` (harness-legacy,parity-gap)
+- Coverage expectation: each tagged surface must have parity tests or explicit documented divergence.
+- Current closure evidence paths:
+  - `tests/cli_contracts.rs` (bounded runtime fallback contracts)
+  - `tests/vm_interpreter_parity_surfaces.rs` (generator divergence contract)
+  - `README.md` and `docs/VM_INTERPRETER_PARITY_MATRIX.md` (canonical divergence docs)
 
 ## V1U-RUN-002: `ruff test` Interpreter Hardcoding Decision
 

@@ -21,7 +21,7 @@ awk -F: '
 function classify(path,    category, tags) {
     if (path == "src/parser.rs") {
         category = "cli-harness"
-        tags = "harness-legacy"
+        tags = "harness-legacy,parity-gap"
     } else if (path == "tests/native_api_security_boundaries.rs" || path == "tests/runtime_security.rs") {
         category = "integration-test"
         tags = "security-test-choice"
@@ -74,6 +74,9 @@ END {
 }
 ' "$TMP_MATCHES" | LC_ALL=C sort -t$'\t' -k1,1 >"$TMP_ROWS"
 
+parity_gap_count="$(awk -F'\t' '$3 ~ /(^|,)parity-gap($|,)/ {count++} END {print count + 0}' "$TMP_ROWS")"
+parity_gap_rows="$(awk -F'\t' '$3 ~ /(^|,)parity-gap($|,)/ {printf "- `%s` (%s)\n", $1, $3}' "$TMP_ROWS")"
+
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
 {
@@ -84,6 +87,7 @@ mkdir -p "$(dirname "$OUTPUT_PATH")"
     echo
     echo "Reason tags:"
     echo "- \`harness-legacy\`: Existing harness behavior still forces interpreter mode."
+    echo "- \`parity-gap\`: Runtime path currently depends on an explicitly tracked interpreter/VM parity or output-contract gap."
     echo "- \`security-test-choice\`: Security-boundary regression intentionally exercises interpreter path."
     echo "- \`diagnostics-diff\`: Diagnostic contract coverage currently pins interpreter output shape."
     echo "- \`docs-smoke\`: Docs/example smoke harness runs interpreter as canonical execution path."
@@ -97,6 +101,21 @@ mkdir -p "$(dirname "$OUTPUT_PATH")"
     while IFS=$'\t' read -r path category tags count line_refs; do
         printf '| `%s` | %s | `%s` | %s | %s |\n' "$path" "$category" "$tags" "$count" "$line_refs"
     done <"$TMP_ROWS"
+    echo
+    echo "## V1U-RUN-005: Parity-Gap Coverage Status"
+    echo
+    echo "- Current \`parity-gap\` tagged entries: ${parity_gap_count}"
+    if [[ "$parity_gap_count" -gt 0 ]]; then
+        echo "- Tagged surfaces:"
+        printf "%s\n" "$parity_gap_rows"
+        echo "- Coverage expectation: each tagged surface must have parity tests or explicit documented divergence."
+        echo "- Current closure evidence paths:"
+        echo "  - \`tests/cli_contracts.rs\` (bounded runtime fallback contracts)"
+        echo "  - \`tests/vm_interpreter_parity_surfaces.rs\` (generator divergence contract)"
+        echo "  - \`README.md\` and \`docs/VM_INTERPRETER_PARITY_MATRIX.md\` (canonical divergence docs)"
+    else
+        echo "- No current \`parity-gap\` tags remain in tracked interpreter-flag surfaces."
+    fi
     cat <<'EOF'
 
 ## V1U-RUN-002: `ruff test` Interpreter Hardcoding Decision
