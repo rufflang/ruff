@@ -41,6 +41,9 @@ pub fn generate_docs_for_file(
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .map_err(|err| err.to_string())?;
 

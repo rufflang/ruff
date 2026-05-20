@@ -458,6 +458,18 @@ enum Commands {
         #[arg(long, default_value_t = false)]
         fail_on_warnings: bool,
 
+        /// Max file size (bytes) for discovery before files are skipped
+        #[arg(long)]
+        max_discovery_file_size_bytes: Option<u64>,
+
+        /// Max number of files discovery will scan
+        #[arg(long)]
+        max_discovery_files: Option<usize>,
+
+        /// Max directory traversal depth for discovery
+        #[arg(long)]
+        max_discovery_depth: Option<usize>,
+
         /// Print documentation generation result as JSON
         #[arg(long, default_value_t = false)]
         json: bool,
@@ -1628,6 +1640,9 @@ async fn main() {
             max_external_link_checks,
             max_total_validation_time_ms,
             fail_on_warnings,
+            max_discovery_file_size_bytes,
+            max_discovery_files,
+            max_discovery_depth,
             json,
         } => {
             let output_dir = out_dir.unwrap_or_else(|| PathBuf::from("docs/generated"));
@@ -1664,6 +1679,9 @@ async fn main() {
                     fail_on_warnings,
                     public_only,
                     include_private,
+                    max_discovery_file_size_bytes,
+                    max_discovery_files,
+                    max_discovery_depth,
                 },
                 docgen::gaps::LinkValidationOptions {
                     validate_local_anchors,

@@ -144,6 +144,9 @@ fn docgen_captures_documented_and_undocumented_ruff_symbols() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -192,6 +195,9 @@ fn docgen_ruff_supports_additional_doc_comment_styles() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -238,6 +244,9 @@ fn docgen_ruff_attaches_docs_across_decorator_lines_without_overreaching() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -284,6 +293,9 @@ fn docgen_ruff_handles_spacing_and_proximity_edge_cases() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -336,6 +348,9 @@ fn docgen_emits_discovery_diagnostics_for_oversized_files() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -344,11 +359,7 @@ fn docgen_emits_discovery_diagnostics_for_oversized_files() {
     assert_eq!(summary.discovery_skip_counts.get("max_depth").copied().unwrap_or_default(), 0);
     assert_eq!(summary.discovery_skip_counts.get("max_files").copied().unwrap_or_default(), 0);
     assert_eq!(
-        summary
-            .discovery_skip_counts
-            .get("invalid_encoding")
-            .copied()
-            .unwrap_or_default(),
+        summary.discovery_skip_counts.get("invalid_encoding").copied().unwrap_or_default(),
         0
     );
 
@@ -392,6 +403,9 @@ fn docgen_skips_non_utf8_sources_with_deterministic_discovery_diagnostics() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -399,11 +413,7 @@ fn docgen_skips_non_utf8_sources_with_deterministic_discovery_diagnostics() {
     assert_eq!(summary.discovery_skip_counts.get("max_depth").copied().unwrap_or_default(), 0);
     assert_eq!(summary.discovery_skip_counts.get("max_files").copied().unwrap_or_default(), 0);
     assert_eq!(
-        summary
-            .discovery_skip_counts
-            .get("invalid_encoding")
-            .copied()
-            .unwrap_or_default(),
+        summary.discovery_skip_counts.get("invalid_encoding").copied().unwrap_or_default(),
         1
     );
 
@@ -454,6 +464,9 @@ fn docgen_diagnostics_order_is_deterministic_across_sources() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("first docgen run should succeed");
 
@@ -472,6 +485,9 @@ fn docgen_diagnostics_order_is_deterministic_across_sources() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("second docgen run should succeed");
 
@@ -525,6 +541,9 @@ fn docgen_html_renderer_source_link_toggle_preserves_current_output_shape() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen html run without source links should succeed");
 
@@ -544,6 +563,9 @@ fn docgen_html_renderer_source_link_toggle_preserves_current_output_shape() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen html run with source links should succeed");
 
@@ -584,6 +606,9 @@ fn docgen_ruff_visibility_tracks_top_level_functions_and_struct_methods() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -626,6 +651,9 @@ fn docgen_strict_public_gate_ignores_private_undocumented_ruff_functions() {
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("strict docgen run should complete");
 
@@ -661,6 +689,9 @@ fn docgen_strict_public_gate_still_fails_on_undocumented_explicit_public_ruff_fu
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("strict docgen run should complete");
 
@@ -700,6 +731,9 @@ fn docgen_public_only_visibility_matrix_keeps_internal_helpers_out_of_public_gat
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("strict public-only docgen run should complete");
 
@@ -749,6 +783,9 @@ fn docgen_public_only_excludes_methods_on_private_structs() {
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("strict docgen run should complete");
 
@@ -797,6 +834,9 @@ fn docgen_public_only_excludes_variants_of_private_enums() {
         fail_on_warnings: false,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("public-only docgen run should complete");
 
@@ -850,6 +890,9 @@ fn docgen_extracts_async_ruff_functions_and_methods_with_visibility() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -892,6 +935,9 @@ fn docgen_strict_public_gate_handles_async_ruff_functions() {
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("strict docgen run should complete");
 
@@ -930,6 +976,9 @@ fn docgen_ruff_extraction_edge_fixture_async_visibility_contract() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -997,6 +1046,9 @@ fn docgen_ruff_extraction_edge_fixture_async_strict_gate_contract() {
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("strict docgen run should complete");
 
@@ -1034,6 +1086,9 @@ fn docgen_typescript_visibility_matrix_preserves_modifier_and_export_semantics()
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("typescript docgen should succeed");
 
@@ -1085,6 +1140,9 @@ fn docgen_typescript_public_only_keeps_public_methods_even_under_private_classes
         fail_on_warnings: false,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("typescript public-only docgen should succeed");
 
@@ -1178,6 +1236,9 @@ fn docgen_supports_mixed_language_projects_deterministically() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     };
 
     let (_, summary_a) =
@@ -1233,6 +1294,9 @@ fn docgen_does_not_follow_symlink_escape() {
             fail_on_warnings: false,
             public_only: false,
             include_private: true,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         })
         .expect("docgen should succeed");
 
@@ -1293,6 +1357,9 @@ fn docgen_html_escapes_untrusted_docs() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -1331,6 +1398,9 @@ fn docgen_adapter_conformance_smoke_extracts_symbols_for_all_languages() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -1372,6 +1442,9 @@ fn docgen_strict_gates_fail_as_expected() {
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen run itself should complete and report gate failures");
 
@@ -1413,6 +1486,9 @@ fn docgen_default_link_check_allows_existing_local_anchor_links_and_external_lin
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen run should complete");
 
@@ -1450,6 +1526,9 @@ fn docgen_default_link_check_reports_missing_local_links() {
         fail_on_warnings: true,
         public_only: true,
         include_private: false,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen run should complete");
 
@@ -1489,6 +1568,9 @@ fn docgen_optional_local_anchor_validation_passes_for_existing_anchor() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions { validate_local_anchors: true, ..LinkValidationOptions::default() },
     )
@@ -1525,6 +1607,9 @@ fn docgen_optional_local_anchor_validation_fails_for_missing_anchor() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions { validate_local_anchors: true, ..LinkValidationOptions::default() },
     )
@@ -1594,6 +1679,9 @@ fn docgen_optional_external_validation_skips_non_allowlisted_hosts() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_local_anchors: false,
@@ -1636,6 +1724,9 @@ fn docgen_optional_external_validation_fails_allowlisted_unreachable_hosts() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_local_anchors: false,
@@ -1678,6 +1769,9 @@ fn docgen_external_validation_blocks_direct_private_ip_by_default() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_local_anchors: false,
@@ -1728,6 +1822,9 @@ fn docgen_external_validation_blocks_dns_hosts_resolving_to_private_ranges_by_de
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_local_anchors: false,
@@ -1787,6 +1884,9 @@ fn docgen_external_validation_allows_same_host_redirect_hops() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_local_anchors: false,
@@ -1836,6 +1936,9 @@ fn docgen_external_validation_allows_cross_host_redirect_when_hosts_are_allowlis
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_local_anchors: false,
@@ -1888,6 +1991,9 @@ fn docgen_external_validation_blocks_redirects_to_non_allowlisted_hosts() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_local_anchors: false,
@@ -1939,6 +2045,9 @@ fn docgen_external_validation_warns_when_allowlist_is_empty() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_external_links: true,
@@ -1986,6 +2095,9 @@ fn docgen_external_allowlist_warns_when_external_validation_is_disabled() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_external_links: false,
@@ -2049,6 +2161,9 @@ fn docgen_link_validation_budget_max_link_checks_truncates_deterministically() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions { max_link_checks: Some(1), ..LinkValidationOptions::default() },
     )
@@ -2100,6 +2215,9 @@ fn docgen_link_validation_budget_max_external_checks_truncates_deterministically
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             validate_external_links: true,
@@ -2151,6 +2269,9 @@ fn docgen_link_validation_budget_total_time_truncates_deterministically() {
             fail_on_warnings: true,
             public_only: true,
             include_private: false,
+            max_discovery_file_size_bytes: None,
+            max_discovery_files: None,
+            max_discovery_depth: None,
         },
         LinkValidationOptions {
             max_total_validation_time_ms: Some(0),
@@ -2200,6 +2321,9 @@ fn docgen_large_repo_smoke_completes_with_deterministic_counts() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("large repo docgen should succeed");
 
@@ -2231,6 +2355,9 @@ fn docgen_summary_splits_project_and_builtin_counts() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("docgen should succeed");
 
@@ -2270,6 +2397,9 @@ fn docgen_snapshot_stable_core_outputs() {
         fail_on_warnings: false,
         public_only: false,
         include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
     })
     .expect("snapshot docgen should succeed");
 

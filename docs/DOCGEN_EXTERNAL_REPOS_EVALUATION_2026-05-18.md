@@ -621,3 +621,15 @@ After renderer deduplication cleanup (removing no-op duplicate branches and cent
 | `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
 
 Interpretation: `DG-QA-012` is renderer maintainability and regression-hardening work; strict external gate counts remain unchanged.
+
+## QA Hardening Task DG-QA-013 follow-up (2026-05-19)
+
+After adding configurable discovery-limit overrides from CLI/env and emitting effective limits in machine-readable DocGen summaries, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-013` is configuration/contract hardening; strict external gate counts remain unchanged while effective discovery budgets are now explicit (`discovery_limits`) for reproducible CI runs.

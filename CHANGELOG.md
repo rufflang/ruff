@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed DocGen QA roadmap task `DG-QA-013` by adding configurable discovery-limit overrides from CLI (`--max-discovery-file-size-bytes`, `--max-discovery-files`, `--max-discovery-depth`) and environment (`RUFF_DOCGEN_MAX_FILE_SIZE_BYTES`, `RUFF_DOCGEN_MAX_FILES`, `RUFF_DOCGEN_MAX_DEPTH`), emitting effective values in `discovery_limits` (top-level and `summary`) for `ruff docgen --json`, and adding contract coverage for defaults, CLI/env precedence, and invalid-value failures.
 - Fixed DocGen QA roadmap task `DG-QA-003` by adding deterministic link-validation resource budgets (`--max-link-checks`, `--max-external-link-checks`, `--max-total-validation-time-ms`), budget-truncation diagnostics (`DOCGEN_LINK_VALIDATION_BUDGET_*`), and machine-readable truncation counters in `link_validation_skip_counts` (top-level and `summary`) for `ruff docgen --json`.
 - Fixed DocGen QA roadmap task `DG-QA-012` by removing duplicated no-op renderer branches (including HTML source-link conditionals that emitted identical output), introducing shared renderer symbol-source formatting helpers, and adding regression coverage to lock output-shape stability.
 - Fixed DocGen QA roadmap task `DG-QA-011` by replacing ad hoc `ruff docgen --json` map assembly in `main.rs` with a typed single-source payload builder in `src/docgen/core.rs`, preserving existing top-level keys while adding dedicated snapshot regression coverage for contract drift.

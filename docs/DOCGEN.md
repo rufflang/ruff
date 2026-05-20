@@ -126,6 +126,16 @@ When discovery limits skip input, DocGen emits warning diagnostics in `docgen.js
 8. Stable dashboard summary block:
    - `summary.schema_version` (`docgen-summary/v1`)
    - `summary` mirrors key totals/gate counters for machine consumers while preserving existing top-level contract fields
+9. Effective discovery limits block:
+   - `discovery_limits.max_file_size_bytes`
+   - `discovery_limits.max_depth`
+   - `discovery_limits.max_files`
+   - mirrored under `summary.discovery_limits`
+
+Discovery limits can be overridden per run through:
+1. CLI flags (`--max-discovery-file-size-bytes`, `--max-discovery-files`, `--max-discovery-depth`)
+2. Environment (`RUFF_DOCGEN_MAX_FILE_SIZE_BYTES`, `RUFF_DOCGEN_MAX_FILES`, `RUFF_DOCGEN_MAX_DEPTH`)
+3. Built-in defaults when neither CLI nor env are set (CLI values take precedence over env values).
 
 Discovery and project diagnostics are emitted in deterministic sorted order for CI-stable JSON comparisons.
 
@@ -297,7 +307,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
 
 ### P2 Universal Usefulness
 
-1. `DG-QA-013` Configurable discovery limits from CLI.
+1. [x] `DG-QA-013` Configurable discovery limits from CLI. (Completed 2026-05-19)
    Acceptance criteria:
    - Add CLI/env overrides for max file size, max depth, and max files.
    - Emit effective limits in JSON summary for reproducible CI runs.

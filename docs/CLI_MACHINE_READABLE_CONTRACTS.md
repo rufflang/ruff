@@ -110,13 +110,17 @@ Top-level object fields:
   - `max_depth` (number)
   - `max_files` (number)
   - `invalid_encoding` (number)
+- `discovery_limits` (object)
+  - `max_file_size_bytes` (number)
+  - `max_depth` (number)
+  - `max_files` (number)
 - `link_validation_skip_counts` (object)
   - `max_link_checks` (number)
   - `max_external_checks` (number)
   - `max_total_time` (number)
 - `summary` (object)
   - `schema_version` (string, constant `"docgen-summary/v1"`)
-  - includes mirrored totals plus `discovery_skip_counts` and `link_validation_skip_counts`
+  - includes mirrored totals plus `discovery_limits`, `discovery_skip_counts`, and `link_validation_skip_counts`
 
 Implementation note:
 - The `ruff docgen --json` payload is emitted from a typed single-source builder in `src/docgen/core.rs` (`build_cli_json_payload`) and guarded by both shape assertions and a fixture-backed snapshot test in `tests/cli_json_contracts.rs`.

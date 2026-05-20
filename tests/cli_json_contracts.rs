@@ -22,6 +22,15 @@ fn run_ruff(args: &[&str]) -> std::process::Output {
     Command::new(ruff_binary()).args(args).output().expect("failed to execute ruff binary")
 }
 
+fn run_ruff_with_env(args: &[&str], envs: &[(&str, &str)]) -> std::process::Output {
+    let mut command = Command::new(ruff_binary());
+    command.args(args);
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+    command.output().expect("failed to execute ruff binary")
+}
+
 fn parse_stdout_json(output: &std::process::Output) -> Value {
     let stdout = String::from_utf8(output.stdout.clone()).expect("stdout should be utf-8");
     serde_json::from_str(&stdout).expect("stdout should be valid json")
@@ -32,13 +41,8 @@ fn write_fixture(path: &Path, content: &str) {
 }
 
 fn read_fixture(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|err| {
-        panic!(
-            "failed to read fixture '{}': {}",
-            path.display(),
-            err
-        )
-    })
+    fs::read_to_string(path)
+        .unwrap_or_else(|err| panic!("failed to read fixture '{}': {}", path.display(), err))
 }
 
 fn docgen_fixture_path(name: &str) -> PathBuf {
@@ -172,6 +176,9 @@ fn docgen_json_contract_is_stable() {
     assert!(body["discovery_skip_counts"]["max_depth"].is_number());
     assert!(body["discovery_skip_counts"]["max_files"].is_number());
     assert!(body["discovery_skip_counts"]["invalid_encoding"].is_number());
+    assert_eq!(body["discovery_limits"]["max_file_size_bytes"], 2 * 1024 * 1024);
+    assert_eq!(body["discovery_limits"]["max_depth"], 64);
+    assert_eq!(body["discovery_limits"]["max_files"], 20_000);
     assert!(body["link_validation_skip_counts"].is_object());
     assert!(body["link_validation_skip_counts"]["max_link_checks"].is_number());
     assert!(body["link_validation_skip_counts"]["max_external_checks"].is_number());
@@ -180,6 +187,9 @@ fn docgen_json_contract_is_stable() {
     assert!(body["summary"]["link_validation_skip_counts"]["max_link_checks"].is_number());
     assert!(body["summary"]["link_validation_skip_counts"]["max_external_checks"].is_number());
     assert!(body["summary"]["link_validation_skip_counts"]["max_total_time"].is_number());
+    assert_eq!(body["summary"]["discovery_limits"]["max_file_size_bytes"], 2 * 1024 * 1024);
+    assert_eq!(body["summary"]["discovery_limits"]["max_depth"], 64);
+    assert_eq!(body["summary"]["discovery_limits"]["max_files"], 20_000);
 }
 
 #[test]
@@ -187,10 +197,7 @@ fn docgen_json_contract_snapshot_is_stable() {
     let dir = unique_temp_dir("docgen_json_contract_snapshot");
     let file = dir.join("docgen_snapshot_input.ruff");
     let out_dir = dir.join("docs_out");
-    write_fixture(
-        &file,
-        "/// Adds one\npub func add_one(value) {\n    return value + 1\n}\n",
-    );
+    write_fixture(&file, "/// Adds one\npub func add_one(value) {\n    return value + 1\n}\n");
 
     let output = run_ruff(&[
         "docgen",
@@ -211,6 +218,116 @@ fn docgen_json_contract_snapshot_is_stable() {
     .expect("snapshot fixture should be valid json");
 
     assert_eq!(actual, expected, "docgen json contract snapshot drift");
+}
+
+#[test]
+fn docgen_json_discovery_limits_support_cli_and_env_overrides() {
+    let dir = unique_temp_dir("docgen_json_discovery_limits");
+    let file = dir.join("docgen_limits_input.ruff");
+    let out_dir = dir.join("docs_out");
+    write_fixture(&file, "pub func api() { return 1 }\n");
+
+    let file_str = file.to_str().expect("path should be utf-8");
+    let out_dir_str = out_dir.to_str().expect("path should be utf-8");
+
+    let env_overridden = run_ruff_with_env(
+        &["docgen", file_str, "--out-dir", out_dir_str, "--json"],
+        &[
+            ("RUFF_DOCGEN_MAX_FILE_SIZE_BYTES", "8192"),
+            ("RUFF_DOCGEN_MAX_FILES", "1234"),
+            ("RUFF_DOCGEN_MAX_DEPTH", "7"),
+        ],
+    );
+    assert!(env_overridden.status.success(), "docgen with env discovery overrides should succeed");
+    let env_body = parse_stdout_json(&env_overridden);
+    assert_eq!(env_body["discovery_limits"]["max_file_size_bytes"], 8192);
+    assert_eq!(env_body["discovery_limits"]["max_files"], 1234);
+    assert_eq!(env_body["discovery_limits"]["max_depth"], 7);
+    assert_eq!(env_body["summary"]["discovery_limits"]["max_file_size_bytes"], 8192);
+    assert_eq!(env_body["summary"]["discovery_limits"]["max_files"], 1234);
+    assert_eq!(env_body["summary"]["discovery_limits"]["max_depth"], 7);
+
+    let cli_overridden = run_ruff_with_env(
+        &[
+            "docgen",
+            file_str,
+            "--out-dir",
+            out_dir_str,
+            "--max-discovery-file-size-bytes",
+            "4096",
+            "--max-discovery-files",
+            "222",
+            "--max-discovery-depth",
+            "5",
+            "--json",
+        ],
+        &[
+            ("RUFF_DOCGEN_MAX_FILE_SIZE_BYTES", "8192"),
+            ("RUFF_DOCGEN_MAX_FILES", "1234"),
+            ("RUFF_DOCGEN_MAX_DEPTH", "7"),
+        ],
+    );
+    assert!(cli_overridden.status.success(), "docgen with cli discovery overrides should succeed");
+    let cli_body = parse_stdout_json(&cli_overridden);
+    assert_eq!(cli_body["discovery_limits"]["max_file_size_bytes"], 4096);
+    assert_eq!(cli_body["discovery_limits"]["max_files"], 222);
+    assert_eq!(cli_body["discovery_limits"]["max_depth"], 5);
+    assert_eq!(cli_body["summary"]["discovery_limits"]["max_file_size_bytes"], 4096);
+    assert_eq!(cli_body["summary"]["discovery_limits"]["max_files"], 222);
+    assert_eq!(cli_body["summary"]["discovery_limits"]["max_depth"], 5);
+}
+
+#[test]
+fn docgen_json_discovery_limits_fail_on_invalid_env_values() {
+    let dir = unique_temp_dir("docgen_json_discovery_limits_invalid_env");
+    let file = dir.join("docgen_invalid_env.ruff");
+    let out_dir = dir.join("docs_out");
+    write_fixture(&file, "pub func api() { return 1 }\n");
+
+    let output = run_ruff_with_env(
+        &[
+            "docgen",
+            file.to_str().expect("path should be utf-8"),
+            "--out-dir",
+            out_dir.to_str().expect("path should be utf-8"),
+            "--json",
+        ],
+        &[("RUFF_DOCGEN_MAX_DEPTH", "not-a-number")],
+    );
+    assert!(!output.status.success(), "docgen should fail for invalid env limit values");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(
+        stderr.contains(
+            "RUFF_DOCGEN_MAX_DEPTH environment value 'not-a-number' is not a valid integer"
+        ),
+        "stderr did not include invalid env limit diagnostic: {}",
+        stderr
+    );
+}
+
+#[test]
+fn docgen_json_discovery_limits_fail_on_zero_cli_values() {
+    let dir = unique_temp_dir("docgen_json_discovery_limits_zero_cli");
+    let file = dir.join("docgen_zero_cli.ruff");
+    let out_dir = dir.join("docs_out");
+    write_fixture(&file, "pub func api() { return 1 }\n");
+
+    let output = run_ruff(&[
+        "docgen",
+        file.to_str().expect("path should be utf-8"),
+        "--out-dir",
+        out_dir.to_str().expect("path should be utf-8"),
+        "--max-discovery-files",
+        "0",
+        "--json",
+    ]);
+    assert!(!output.status.success(), "docgen should fail for zero CLI discovery limits");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(
+        stderr.contains("max discovery files must be greater than 0"),
+        "stderr did not include zero-limit diagnostic: {}",
+        stderr
+    );
 }
 
 #[test]

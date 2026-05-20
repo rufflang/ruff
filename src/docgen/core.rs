@@ -18,6 +18,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub const DOCGEN_DEFAULT_MAX_FILE_SIZE_BYTES: u64 = 2 * 1024 * 1024;
+pub const DOCGEN_DEFAULT_MAX_FILES: usize = 20_000;
+pub const DOCGEN_DEFAULT_MAX_DEPTH: usize = 64;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocOutputFormat {
     Html,
@@ -42,6 +46,9 @@ pub struct DocgenConfig {
     pub fail_on_warnings: bool,
     pub public_only: bool,
     pub include_private: bool,
+    pub max_discovery_file_size_bytes: Option<u64>,
+    pub max_discovery_files: Option<usize>,
+    pub max_discovery_depth: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -55,6 +62,7 @@ pub struct DocgenDashboardSummary {
     pub undocumented_count: usize,
     pub broken_link_count: usize,
     pub warning_count: usize,
+    pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
     pub gate_failures_count: usize,
@@ -80,6 +88,7 @@ pub struct DocgenRunSummary {
     pub undocumented_count: usize,
     pub broken_link_count: usize,
     pub warning_count: usize,
+    pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
     pub gate_failures: Vec<String>,
@@ -106,22 +115,23 @@ pub struct DocgenCliJsonPayload {
     pub undocumented_count: usize,
     pub broken_link_count: usize,
     pub warning_count: usize,
+    pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
     pub gate_failures: Vec<String>,
     pub summary: DocgenDashboardSummary,
 }
 
-pub fn build_cli_json_payload(input_path: &Path, summary: &DocgenRunSummary) -> DocgenCliJsonPayload {
+pub fn build_cli_json_payload(
+    input_path: &Path,
+    summary: &DocgenRunSummary,
+) -> DocgenCliJsonPayload {
     DocgenCliJsonPayload {
         command: "docgen".to_string(),
         file: input_path.display().to_string(),
         output_dir: summary.output_dir.display().to_string(),
         module_doc_path: summary.module_doc_path.display().to_string(),
-        builtin_doc_path: summary
-            .builtin_doc_path
-            .as_ref()
-            .map(|path| path.display().to_string()),
+        builtin_doc_path: summary.builtin_doc_path.as_ref().map(|path| path.display().to_string()),
         item_count: summary.item_count,
         project_symbol_count: summary.project_symbol_count,
         builtin_symbol_count: summary.builtin_symbol_count,
@@ -135,6 +145,7 @@ pub fn build_cli_json_payload(input_path: &Path, summary: &DocgenRunSummary) -> 
         undocumented_count: summary.undocumented_count,
         broken_link_count: summary.broken_link_count,
         warning_count: summary.warning_count,
+        discovery_limits: summary.discovery_limits.clone(),
         discovery_skip_counts: summary.discovery_skip_counts.clone(),
         link_validation_skip_counts: summary.link_validation_skip_counts.clone(),
         gate_failures: summary.gate_failures.clone(),
@@ -150,6 +161,25 @@ pub fn run_with_link_validation(
     config: &DocgenConfig,
     link_validation: LinkValidationOptions,
 ) -> Result<(DocProject, DocgenRunSummary), DocgenError> {
+    let max_file_size_bytes = resolve_discovery_u64_limit(
+        config.max_discovery_file_size_bytes,
+        "RUFF_DOCGEN_MAX_FILE_SIZE_BYTES",
+        DOCGEN_DEFAULT_MAX_FILE_SIZE_BYTES,
+        "max discovery file size bytes",
+    )?;
+    let max_files = resolve_discovery_usize_limit(
+        config.max_discovery_files,
+        "RUFF_DOCGEN_MAX_FILES",
+        DOCGEN_DEFAULT_MAX_FILES,
+        "max discovery files",
+    )?;
+    let max_depth = resolve_discovery_usize_limit(
+        config.max_discovery_depth,
+        "RUFF_DOCGEN_MAX_DEPTH",
+        DOCGEN_DEFAULT_MAX_DEPTH,
+        "max discovery depth",
+    )?;
+
     let selected_languages =
         parse_language_filter(config.language.as_deref(), config.languages.as_deref())?;
     if let Some(ref languages) = selected_languages {
@@ -158,12 +188,7 @@ pub fn run_with_link_validation(
 
     let discovery = discover(
         &config.input,
-        &DiscoveryOptions {
-            selected_languages,
-            max_file_size_bytes: 2 * 1024 * 1024,
-            max_files: 20_000,
-            max_depth: 64,
-        },
+        &DiscoveryOptions { selected_languages, max_file_size_bytes, max_files, max_depth },
     )?;
 
     let mut modules = Vec::new();
@@ -451,6 +476,11 @@ pub fn run_with_link_validation(
     let languages = project.languages.clone();
     let diagnostics_count = project.diagnostics.len();
     let broken_link_count = link_validation_report.broken_links.len();
+    let discovery_limits = BTreeMap::from([
+        ("max_file_size_bytes".to_string(), max_file_size_bytes as usize),
+        ("max_depth".to_string(), max_depth),
+        ("max_files".to_string(), max_files),
+    ]);
     let discovery_skip_counts = BTreeMap::from([
         ("max_depth".to_string(), discovery.skip_counts.max_depth),
         ("max_file_size".to_string(), discovery.skip_counts.max_file_size),
@@ -472,6 +502,7 @@ pub fn run_with_link_validation(
         undocumented_count,
         broken_link_count,
         warning_count,
+        discovery_limits: discovery_limits.clone(),
         discovery_skip_counts: discovery_skip_counts.clone(),
         link_validation_skip_counts: link_validation_skip_counts.clone(),
         gate_failures_count: gate_failures.len(),
@@ -498,6 +529,7 @@ pub fn run_with_link_validation(
             undocumented_count,
             broken_link_count,
             warning_count,
+            discovery_limits,
             discovery_skip_counts,
             link_validation_skip_counts,
             gate_failures,
@@ -677,6 +709,64 @@ fn render_ai_tasks(project: &DocProject) -> String {
         out.push_str("\n\n");
     }
     out
+}
+
+fn resolve_discovery_u64_limit(
+    cli_value: Option<u64>,
+    env_key: &str,
+    default_value: u64,
+    label: &str,
+) -> Result<u64, DocgenError> {
+    if let Some(value) = cli_value {
+        if value == 0 {
+            return Err(DocgenError::new(format!("{} must be greater than 0", label)));
+        }
+        return Ok(value);
+    }
+
+    if let Ok(raw_value) = std::env::var(env_key) {
+        let parsed = raw_value.parse::<u64>().map_err(|_| {
+            DocgenError::new(format!(
+                "{} environment value '{}' is not a valid integer",
+                env_key, raw_value
+            ))
+        })?;
+        if parsed == 0 {
+            return Err(DocgenError::new(format!("{} must be greater than 0", env_key)));
+        }
+        return Ok(parsed);
+    }
+
+    Ok(default_value)
+}
+
+fn resolve_discovery_usize_limit(
+    cli_value: Option<usize>,
+    env_key: &str,
+    default_value: usize,
+    label: &str,
+) -> Result<usize, DocgenError> {
+    if let Some(value) = cli_value {
+        if value == 0 {
+            return Err(DocgenError::new(format!("{} must be greater than 0", label)));
+        }
+        return Ok(value);
+    }
+
+    if let Ok(raw_value) = std::env::var(env_key) {
+        let parsed = raw_value.parse::<usize>().map_err(|_| {
+            DocgenError::new(format!(
+                "{} environment value '{}' is not a valid integer",
+                env_key, raw_value
+            ))
+        })?;
+        if parsed == 0 {
+            return Err(DocgenError::new(format!("{} must be greater than 0", env_key)));
+        }
+        return Ok(parsed);
+    }
+
+    Ok(default_value)
 }
 
 fn render_search_index(project: &DocProject) -> Result<String, DocgenError> {
