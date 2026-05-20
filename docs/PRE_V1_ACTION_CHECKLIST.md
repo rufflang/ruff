@@ -28,6 +28,8 @@ How to use with an AI agent:
   - Source context: `notes/2026-05-12_23-23_NO-ROADMAP_named-nested-closure-capture-parity.md`.
   - Blocker (2026-05-20): `ruff-mcp` docs are not present in this repository workspace, so there is no local docs target to edit for this item.
     Evidence: `rg -n "ruff-mcp|mcp.ruff" README.md docs notes -g '*.md'` only returns references/notes, and `rg --files | rg "mcp|MCP|ruff-mcp|mcp.ruff"` returns no matching docs files.
+  - Blocker (2026-05-20): Revalidated in this session; only generated external doc outputs under `docs/generated/external/ruff-mcp*/` exist here, not the `ruff-mcp` source docs (`mcp.ruff`/README) this item requires editing.
+    Evidence: `rg -n "ruff-mcp|mcp.ruff" README.md docs notes -g '*.md'` and `rg --files | rg "mcp|MCP|ruff-mcp|mcp.ruff"` (no source-doc target in this repo).
 
 ---
 
@@ -83,12 +85,16 @@ How to use with an AI agent:
     - Smoke run command is reproducible on supported local environments.
   - Source context: `notes/2026-05-16_16-35_v1-test-002-lexer-parser-fuzzing.md`.
 
-- [ ] **PREV1-FUZZ-002**: Add parser/lexer fuzz crash reproduction automation path.
+- [x] **PREV1-FUZZ-002**: Add parser/lexer fuzz crash reproduction automation path.
   - Scope: standardized way to replay crash artifacts from fuzz CI.
   - Acceptance criteria:
     - Documented repro workflow and helper command/script.
     - Validated on at least one synthetic or real crash input.
   - Source context: `notes/2026-05-16_16-35_v1-test-002-lexer-parser-fuzzing.md`.
+  - Evidence (2026-05-20):
+    - Added `scripts/fuzz_repro.sh` with explicit-target and inferred-target replay paths plus `--dry-run`/prereq validation.
+    - Added script contract tests in `tests/fuzz_repro_contract.rs` and synthetic replay fixtures under `tests/fixtures/fuzz/`.
+    - Verified synthetic repro path with `bash scripts/fuzz_repro.sh --target parser --artifact tests/fixtures/fuzz/synthetic_crash_input.ruff --dry-run`.
 
 ---
 

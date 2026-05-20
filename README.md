@@ -428,6 +428,16 @@ bash scripts/fuzz_smoke.sh --max-total-time 20
 If prerequisites are missing, `scripts/fuzz_smoke.sh --check-prereqs` prints exact install guidance (nightly toolchain, `cargo-fuzz`, and C++ headers/toolchain requirements for `libfuzzer-sys`).
 Nightly CI runs the same bounded fuzz smoke targets in `.github/workflows/fuzz-smoke.yml`.
 
+Replay a fuzz crash artifact deterministically (from local or CI-downloaded artifacts):
+
+```bash
+bash scripts/fuzz_repro.sh --target lexer --artifact fuzz/artifacts/lexer/crash-123456
+bash scripts/fuzz_repro.sh --artifact fuzz/artifacts/parser/crash-abcdef
+bash scripts/fuzz_repro.sh --target parser --artifact tests/fixtures/fuzz/synthetic_crash_input.ruff --dry-run
+```
+
+`scripts/fuzz_repro.sh` supports explicit target mode (`--target`) and artifact-path inference mode (`.../artifacts/<target>/...`). Use `--dry-run` to validate command wiring before running `cargo-fuzz`.
+
 Run the runtime/native security regression suites directly:
 
 ```bash
