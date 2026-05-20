@@ -30,6 +30,22 @@ This matrix tracks parity for roadmap item `V1-COMP-001`.
 | Native function parity (VM-allowed natives) | native call opcodes | interpreter native dispatch | VM native dispatch + shared native impl | supported | `vm_and_interpreter_error_on_native_function_arity_mismatch`, `vm_and_interpreter_preserve_variadic_native_contracts` |
 | Spawn surface (`spawn { ... }`) | lowered closure-based spawn path | background-thread spawn support | matching tested spawn scenario | supported | `vm_and_interpreter_match_spawn_surface` |
 
+## Command-Level Runtime Path Matrix
+
+| Command/Test Surface | Runtime Path | Alternate Path(s) | Why This Path Exists | Evidence |
+| --- | --- | --- | --- | --- |
+| `ruff run <file>` | VM (default) | `ruff run --interpreter` | Production/default execution path is VM-first. | `README.md` CLI table, `tests/cli_contracts.rs` |
+| `ruff run --interpreter <file>` | Interpreter | VM via default `ruff run` | Explicit fallback/debug path for tree-walk runtime behavior. | `README.md` CLI table |
+| `ruff test --runtime dual` | VM-primary with bounded interpreter fallback | `--runtime vm`, `--runtime interpreter` | Legacy fixture snapshots still need deterministic fallback while VM-first coverage expands. | `src/parser.rs::run_all_tests`, `tests/cli_contracts.rs` |
+| `ruff test --runtime vm` | VM-only | `dual`, `interpreter` | Explicit strict mode for parity-safe fixture sweeps and drift discovery. | `tests/cli_contracts.rs` (`cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture`) |
+| `ruff test --runtime interpreter` | Interpreter-only | `dual`, `vm` | Explicit compatibility mode for legacy fixture baselines. | `src/main.rs` CLI arg wiring, `src/parser.rs::run_all_tests` |
+| `ruff test-run <file>` | Interpreter-hosted test framework execution | none (today) | Framework execution still uses interpreter `TestRunner` surfaces. | `src/main.rs` `Commands::TestRun`, `tests/generators_test.ruff`, `tests/iterators_test.ruff` |
+| `cargo test --test native_api_security_boundaries` | Interpreter-focused command execution (`run --interpreter`) | none (today) | Security boundary regressions intentionally pin interpreter host-effect pathways. | `tests/native_api_security_boundaries.rs` |
+| `cargo test --test runtime_security` | Interpreter-focused command execution (`run --interpreter`) | none (today) | Runtime security regressions currently target interpreter threat-model enforcement paths. | `tests/runtime_security.rs` |
+| `cargo test --test diagnostics_golden` | Interpreter diagnostics command coverage (`run --interpreter`) | parser/lexer diagnostics independent of runtime mode | Golden snapshots lock deterministic diagnostics shape for existing interpreter-bound fixtures. | `tests/diagnostics_golden.rs` |
+| `ruff lsp-diagnostics <file>` | Parse/diagnostic pipeline (runtime-agnostic) | n/a | Uses lexer/parser diagnostics without executing VM/interpreter runtime. | `tests/cli_contracts.rs` (`cli_lsp_diagnostics_json_is_valid_json`) |
+| `ruff check <file>` | Parse/compile validation (runtime-agnostic) | n/a | Validates source without runtime execution side effects. | `tests/cli_contracts.rs` (`cli_check_does_not_execute_script_side_effects`) |
+
 ## CI Gate
 
 - CI now includes a dedicated parity job that runs:

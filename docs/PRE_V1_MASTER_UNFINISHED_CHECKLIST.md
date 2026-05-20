@@ -127,6 +127,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` still lists unchecked final-tag checklist entries.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-005` loop; remains blocked on tag-prep release-event sequencing.
     Evidence: `ROADMAP.md` final tag checklist items are still unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-006` loop; still blocked pending final tag-prep phase execution.
+    Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` remains incomplete.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -144,6 +146,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` items remain unchecked and require post-publish evidence.
   - Blocker (2026-05-20): Revalidated during `V1U-RUN-005` loop; still blocked on actual v1.0.0 publication.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off checkboxes remain unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-RUN-006` loop; still release-event dependent.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` items remain unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -243,10 +247,14 @@ Each loop report must include exactly:
     - Tagged `src/parser.rs` as `harness-legacy,parity-gap` and mapped closure evidence to `tests/cli_contracts.rs` (runtime fallback contracts), `tests/vm_interpreter_parity_surfaces.rs` (generator divergence contract), plus canonical docs (`README.md`, `docs/VM_INTERPRETER_PARITY_MATRIX.md`).
     - Added contract checks in `tests/interpreter_flag_dependency_map_contract.rs` and recorded the audit in `notes/2026-05-20_17-45_v1u-run-005-parity-gap-coverage.md`.
 
-- [ ] **V1U-RUN-006**: Add command-level runtime-path matrix.
+- [x] **V1U-RUN-006**: Add command-level runtime-path matrix.
   - Scope: complement `docs/VM_INTERPRETER_PARITY_MATRIX.md` with command-level coverage (`run`, `test`, `test-run`, security suites, diagnostics modes).
   - Acceptance criteria:
     - maintainers can see exactly which runtime path each command/test surface depends on and why.
+  - Evidence (2026-05-20):
+    - Added `Command-Level Runtime Path Matrix` section to `docs/VM_INTERPRETER_PARITY_MATRIX.md` covering `run`, `test` runtime strategy modes, `test-run`, security suites, and diagnostics/parse-only command surfaces.
+    - Added `tests/runtime_path_matrix_contract.rs` to enforce required command/runtime-path markers and key rows.
+    - Recorded implementation summary and validation evidence in `notes/2026-05-20_18-05_v1u-run-006-command-runtime-path-matrix.md`.
 
 ---
 
