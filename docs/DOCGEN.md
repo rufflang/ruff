@@ -137,6 +137,18 @@ Discovery limits can be overridden per run through:
 2. Environment (`RUFF_DOCGEN_MAX_FILE_SIZE_BYTES`, `RUFF_DOCGEN_MAX_FILES`, `RUFF_DOCGEN_MAX_DEPTH`)
 3. Built-in defaults when neither CLI nor env are set (CLI values take precedence over env values).
 
+## Adapter Health Diagnostics
+
+`ruff docgen --json` emits per-language extraction counters under `adapter_health` (and mirrored under `summary.adapter_health`):
+1. `files_scanned`
+2. `symbols_extracted`
+3. `doc_blocks_attached`
+4. `placeholders_emitted`
+
+DocGen emits `DOCGEN_ADAPTER_LOW_YIELD` warnings when extraction yield is suspiciously low for scanned language inputs:
+1. Three or more files scanned with zero extracted symbols.
+2. Ten or more files scanned with fewer than one extracted symbol per five files.
+
 Discovery and project diagnostics are emitted in deterministic sorted order for CI-stable JSON comparisons.
 
 ## CLI
@@ -312,7 +324,7 @@ The following roadmap is a focused QA/pass-two backlog for tightening DocGen imp
    - Add CLI/env overrides for max file size, max depth, and max files.
    - Emit effective limits in JSON summary for reproducible CI runs.
    - Add contract tests for default and overridden values.
-2. `DG-QA-014` Adapter health and extraction-confidence diagnostics.
+2. [x] `DG-QA-014` Adapter health and extraction-confidence diagnostics. (Completed 2026-05-19)
    Acceptance criteria:
    - Emit per-language extraction counters (files scanned, symbols extracted, doc blocks attached, placeholders emitted).
    - Add warnings when extraction yield is suspiciously low for a language.

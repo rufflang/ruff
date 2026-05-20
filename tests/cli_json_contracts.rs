@@ -190,6 +190,18 @@ fn docgen_json_contract_is_stable() {
     assert_eq!(body["summary"]["discovery_limits"]["max_file_size_bytes"], 2 * 1024 * 1024);
     assert_eq!(body["summary"]["discovery_limits"]["max_depth"], 64);
     assert_eq!(body["summary"]["discovery_limits"]["max_files"], 20_000);
+    assert!(body["adapter_health"].is_object());
+    assert!(body["adapter_health"]["ruff"].is_object());
+    assert!(body["adapter_health"]["ruff"]["files_scanned"].is_number());
+    assert!(body["adapter_health"]["ruff"]["symbols_extracted"].is_number());
+    assert!(body["adapter_health"]["ruff"]["doc_blocks_attached"].is_number());
+    assert!(body["adapter_health"]["ruff"]["placeholders_emitted"].is_number());
+    assert!(body["summary"]["adapter_health"].is_object());
+    assert!(body["summary"]["adapter_health"]["ruff"].is_object());
+    assert!(body["summary"]["adapter_health"]["ruff"]["files_scanned"].is_number());
+    assert!(body["summary"]["adapter_health"]["ruff"]["symbols_extracted"].is_number());
+    assert!(body["summary"]["adapter_health"]["ruff"]["doc_blocks_attached"].is_number());
+    assert!(body["summary"]["adapter_health"]["ruff"]["placeholders_emitted"].is_number());
 }
 
 #[test]

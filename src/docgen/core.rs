@@ -62,12 +62,21 @@ pub struct DocgenDashboardSummary {
     pub undocumented_count: usize,
     pub broken_link_count: usize,
     pub warning_count: usize,
+    pub adapter_health: BTreeMap<String, DocgenAdapterHealth>,
     pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
     pub gate_failures_count: usize,
     pub gate_failed: bool,
     pub languages: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct DocgenAdapterHealth {
+    pub files_scanned: usize,
+    pub symbols_extracted: usize,
+    pub doc_blocks_attached: usize,
+    pub placeholders_emitted: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -88,6 +97,7 @@ pub struct DocgenRunSummary {
     pub undocumented_count: usize,
     pub broken_link_count: usize,
     pub warning_count: usize,
+    pub adapter_health: BTreeMap<String, DocgenAdapterHealth>,
     pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
@@ -115,6 +125,7 @@ pub struct DocgenCliJsonPayload {
     pub undocumented_count: usize,
     pub broken_link_count: usize,
     pub warning_count: usize,
+    pub adapter_health: BTreeMap<String, DocgenAdapterHealth>,
     pub discovery_limits: BTreeMap<String, usize>,
     pub discovery_skip_counts: BTreeMap<String, usize>,
     pub link_validation_skip_counts: BTreeMap<String, usize>,
@@ -145,6 +156,7 @@ pub fn build_cli_json_payload(
         undocumented_count: summary.undocumented_count,
         broken_link_count: summary.broken_link_count,
         warning_count: summary.warning_count,
+        adapter_health: summary.adapter_health.clone(),
         discovery_limits: summary.discovery_limits.clone(),
         discovery_skip_counts: summary.discovery_skip_counts.clone(),
         link_validation_skip_counts: summary.link_validation_skip_counts.clone(),
@@ -205,8 +217,10 @@ pub fn run_with_link_validation(
         })
         .collect();
     let mut source_map: BTreeMap<String, String> = BTreeMap::new();
+    let mut adapter_health: BTreeMap<String, DocgenAdapterHealth> = BTreeMap::new();
 
     for file in &discovery.files {
+        adapter_health.entry(file.language.clone()).or_default().files_scanned += 1;
         let Some(adapter) = adapter_for_language(&file.language) else {
             diagnostics.push(DocDiagnostic {
                 severity: DocDiagnosticSeverity::Warning,
@@ -223,6 +237,11 @@ pub fn run_with_link_validation(
         let raw_symbols = adapter.extract_symbols(&file.source, &file.absolute_path)?;
         let docs = adapter.extract_inline_docs(&file.source, &file.absolute_path)?;
         let mut attached = adapter.attach_docs(raw_symbols, docs);
+        if let Some(entry) = adapter_health.get_mut(&file.language) {
+            entry.symbols_extracted += attached.len();
+            entry.doc_blocks_attached +=
+                attached.iter().filter(|symbol| !symbol.docs.lines.is_empty()).count();
+        }
 
         for symbol in &mut attached {
             symbol.source_path = file.relative_path.clone();
@@ -275,6 +294,39 @@ pub fn run_with_link_validation(
     };
 
     build_gaps(&mut project, &source_map);
+
+    for symbol in project.symbols.iter().filter(|symbol| symbol.docs.lines.is_empty()) {
+        adapter_health.entry(symbol.language.clone()).or_default().placeholders_emitted += 1;
+    }
+
+    for (language, counters) in &adapter_health {
+        if counters.files_scanned >= 3 && counters.symbols_extracted == 0 {
+            project.diagnostics.push(DocDiagnostic {
+                severity: DocDiagnosticSeverity::Warning,
+                code: "DOCGEN_ADAPTER_LOW_YIELD".to_string(),
+                message: format!(
+                    "adapter extraction yield is suspiciously low for language '{}': files_scanned={}, symbols_extracted={}",
+                    language, counters.files_scanned, counters.symbols_extracted
+                ),
+                path: None,
+                line: None,
+            });
+            continue;
+        }
+        if counters.files_scanned >= 10 && (counters.symbols_extracted * 5) < counters.files_scanned
+        {
+            project.diagnostics.push(DocDiagnostic {
+                severity: DocDiagnosticSeverity::Warning,
+                code: "DOCGEN_ADAPTER_LOW_YIELD".to_string(),
+                message: format!(
+                    "adapter extraction yield is suspiciously low for language '{}': files_scanned={}, symbols_extracted={}",
+                    language, counters.files_scanned, counters.symbols_extracted
+                ),
+                path: None,
+                line: None,
+            });
+        }
+    }
 
     if link_validation.validate_external_links && link_validation.external_link_allowlist.is_empty()
     {
@@ -502,6 +554,7 @@ pub fn run_with_link_validation(
         undocumented_count,
         broken_link_count,
         warning_count,
+        adapter_health: adapter_health.clone(),
         discovery_limits: discovery_limits.clone(),
         discovery_skip_counts: discovery_skip_counts.clone(),
         link_validation_skip_counts: link_validation_skip_counts.clone(),
@@ -529,6 +582,7 @@ pub fn run_with_link_validation(
             undocumented_count,
             broken_link_count,
             warning_count,
+            adapter_health,
             discovery_limits,
             discovery_skip_counts,
             link_validation_skip_counts,

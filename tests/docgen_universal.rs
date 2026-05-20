@@ -2376,6 +2376,82 @@ fn docgen_summary_splits_project_and_builtin_counts() {
 }
 
 #[test]
+fn docgen_adapter_health_counters_and_low_yield_warnings_are_emitted() {
+    let dir = unique_temp_dir("adapter_health_low_yield");
+    let out = dir.join("docs");
+    let ruff_file = dir.join("api.ruff");
+    write_file(
+        &ruff_file,
+        "/// Primary API.\npub func documented_api() { return 1 }\n\n// Break doc attachment to the next symbol.\npub func undocumented_api() { return 2 }\n",
+    );
+    write_file(&dir.join("empty_a.js"), "// intentionally empty\n");
+    write_file(&dir.join("empty_b.js"), "// intentionally empty\n");
+    write_file(&dir.join("empty_c.js"), "// intentionally empty\n");
+
+    let (project, summary) = run_docgen(&DocgenConfig {
+        input: dir.clone(),
+        out_dir: out,
+        format: DocOutputFormat::Json,
+        include_builtins: false,
+        language: None,
+        languages: None,
+        emit_ai_tasks: false,
+        search_index: false,
+        source_links: false,
+        fail_on_undocumented: false,
+        fail_on_broken_links: false,
+        fail_on_warnings: false,
+        public_only: false,
+        include_private: true,
+        max_discovery_file_size_bytes: None,
+        max_discovery_files: None,
+        max_discovery_depth: None,
+    })
+    .expect("docgen should succeed");
+
+    let ruff_health = summary.adapter_health.get("ruff").expect("ruff adapter health should exist");
+    assert_eq!(ruff_health.files_scanned, 1);
+    assert_eq!(ruff_health.symbols_extracted, 2);
+    let documented_ruff_symbols = project
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.language == "ruff" && !symbol.docs.lines.is_empty())
+        .count();
+    let undocumented_ruff_symbols = project
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.language == "ruff" && symbol.docs.lines.is_empty())
+        .count();
+    assert_eq!(ruff_health.doc_blocks_attached, documented_ruff_symbols);
+    assert_eq!(ruff_health.placeholders_emitted, undocumented_ruff_symbols);
+
+    let js_health =
+        summary.adapter_health.get("javascript").expect("javascript adapter health should exist");
+    assert_eq!(js_health.files_scanned, 3);
+    assert_eq!(js_health.symbols_extracted, 0);
+    assert_eq!(js_health.doc_blocks_attached, 0);
+    assert_eq!(js_health.placeholders_emitted, 0);
+
+    assert!(
+        project.diagnostics.iter().any(|diag| {
+            diag.code == "DOCGEN_ADAPTER_LOW_YIELD"
+                && diag.message.contains("language 'javascript'")
+                && diag.message.contains("files_scanned=3")
+                && diag.message.contains("symbols_extracted=0")
+        }),
+        "expected deterministic low-yield diagnostic for javascript adapter"
+    );
+    assert_eq!(
+        summary
+            .dashboard_summary
+            .adapter_health
+            .get("ruff")
+            .map(|entry| entry.placeholders_emitted),
+        Some(undocumented_ruff_symbols)
+    );
+}
+
+#[test]
 fn docgen_snapshot_stable_core_outputs() {
     let dir = unique_temp_dir("snapshot");
     let out = dir.join("docs");

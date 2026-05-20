@@ -1,4 +1,12 @@
 {
+  "adapter_health": {
+    "ruff": {
+      "doc_blocks_attached": 1,
+      "files_scanned": 1,
+      "placeholders_emitted": 0,
+      "symbols_extracted": 1
+    }
+  },
   "ai_tasks_path": null,
   "broken_link_count": 0,
   "builtin_doc_path": null,
@@ -6,6 +14,11 @@
   "capabilities_json_path": "<CAPABILITIES_JSON_PATH>",
   "command": "docgen",
   "diagnostics_count": 0,
+  "discovery_limits": {
+    "max_depth": 64,
+    "max_file_size_bytes": 2097152,
+    "max_files": 20000
+  },
   "discovery_skip_counts": {
     "invalid_encoding": 0,
     "max_depth": 0,
@@ -29,9 +42,22 @@
   "project_json_path": "<PROJECT_JSON_PATH>",
   "project_symbol_count": 1,
   "summary": {
+    "adapter_health": {
+      "ruff": {
+        "doc_blocks_attached": 1,
+        "files_scanned": 1,
+        "placeholders_emitted": 0,
+        "symbols_extracted": 1
+      }
+    },
     "broken_link_count": 0,
     "builtin_symbol_count": 0,
     "diagnostics_count": 0,
+    "discovery_limits": {
+      "max_depth": 64,
+      "max_file_size_bytes": 2097152,
+      "max_files": 20000
+    },
     "discovery_skip_counts": {
       "invalid_encoding": 0,
       "max_depth": 0,

@@ -633,3 +633,15 @@ After adding configurable discovery-limit overrides from CLI/env and emitting ef
 | `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
 
 Interpretation: `DG-QA-013` is configuration/contract hardening; strict external gate counts remain unchanged while effective discovery budgets are now explicit (`discovery_limits`) for reproducible CI runs.
+
+## QA Hardening Task DG-QA-014 follow-up (2026-05-19)
+
+After adding per-language adapter health counters and low-yield extraction diagnostics, strict-mode metrics for the same repos are:
+
+| Repo | undocumented_count (before) | undocumented_count (after) | delta | broken_link_count delta | warning_count delta |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `ruff-ai-sdk` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-mcp` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+| `ruff-scout` | 0 | 0 | 0 | 0 -> 0 (0) | 0 -> 0 (0) |
+
+Interpretation: `DG-QA-014` is observability hardening; strict external gate counts remain unchanged while adapter extraction health is now machine-readable and low-yield cases emit deterministic diagnostics.
