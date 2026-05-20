@@ -34,11 +34,14 @@ Primary evidence sources:
     - Added `scripts/generate_pre_v1_unresolved_inventory.sh` and generated `docs/generated/PRE_V1_UNRESOLVED_INVENTORY.md` + `.csv`.
     - Added `tests/pre_v1_unresolved_inventory_contract.rs` covering success output, unmapped-ID failure, and duplicate-ID failure.
 
-- [ ] **V1U-RES-002**: Classify unresolved items into `v1-blocker`, `v1-should-fix`, `post-v1`, or `archive`.
+- [x] **V1U-RES-002**: Classify unresolved items into `v1-blocker`, `v1-should-fix`, `post-v1`, or `archive`.
   - Scope: prevent stale tasks and historical noise from being treated as active blockers.
   - Acceptance criteria:
     - Classification rationale documented per item.
     - `docs/UNFINISHED_AND_MVP_AUDIT.md` updated to match classifications.
+  - Evidence (2026-05-20):
+    - Extended `scripts/generate_pre_v1_unresolved_inventory.sh` to emit per-item `classification` + `rationale` columns and regenerated markdown/CSV outputs.
+    - Replaced `docs/UNFINISHED_AND_MVP_AUDIT.md` with a classification-aligned snapshot that mirrors generated category counts and semantics.
 
 - [ ] **V1U-RES-003**: Define checklist governance and closure semantics.
   - Scope: standardize what evidence is required before checking an item complete (test output, note link, command logs).

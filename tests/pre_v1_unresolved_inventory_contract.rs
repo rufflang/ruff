@@ -61,7 +61,7 @@ fn unresolved_inventory_generator_produces_table_for_all_master_items() {
     let checklist_ids = extract_checklist_ids(&checklist);
 
     assert!(
-        inventory.contains("| Item ID | Status | Summary | Source References | Last Touched | Current Owner |"),
+        inventory.contains("| Item ID | Status | Classification | Rationale | Summary | Source References | Last Touched | Current Owner |"),
         "inventory should include required table header"
     );
 
@@ -86,12 +86,31 @@ fn unresolved_inventory_generator_produces_table_for_all_master_items() {
         inventory.contains("docs/PRE_V1_ACTION_CHECKLIST.md"),
         "inventory should include auditable source references"
     );
+    for classification in ["`v1-blocker`", "`v1-should-fix`", "`post-v1`", "`archive`"] {
+        assert!(
+            inventory.contains(classification),
+            "inventory should include classification marker {classification}"
+        );
+    }
+    assert!(
+        inventory.contains("retained for audit traceability")
+            && inventory.contains("Tag-time release-publication tasks")
+            && inventory.contains("deterministic release behavior"),
+        "inventory should include per-item rationale text for classification"
+    );
 
     let csv_path = generated_dir.join("inventory.csv");
     assert!(
         csv_path.is_file(),
         "generator should write csv companion file at {}",
         csv_path.display()
+    );
+    let csv = fs::read_to_string(csv_path).expect("expected generated inventory csv");
+    assert!(
+        csv.starts_with(
+            "item_id,status,classification,rationale,summary,source_references,last_touched,current_owner"
+        ),
+        "inventory csv should include classification and rationale columns"
     );
 }
 

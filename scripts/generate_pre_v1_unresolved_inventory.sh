@@ -42,6 +42,40 @@ owner_for_item() {
     esac
 }
 
+classification_for_item() {
+    local item_id="$1"
+    local item_status="$2"
+    local classification=""
+    local rationale=""
+
+    if [[ "$item_status" == "checked" ]]; then
+        classification="archive"
+        rationale="Already completed in the master checklist; retained for audit traceability."
+        echo "${classification}|${rationale}"
+        return 0
+    fi
+
+    case "$item_id" in
+        V1U-RES-002|V1U-RES-003|V1U-GATE-001|V1U-GATE-002|V1U-GATE-003|V1U-GATE-004|V1U-RUN-001|V1U-RUN-002|V1U-RUN-003|V1U-RUN-004|V1U-RUN-005|V1U-RUN-006|V1U-CODE-002|V1U-FINAL-001|V1U-FINAL-002|V1U-FINAL-003)
+            classification="v1-blocker"
+            rationale="Directly required to produce deterministic release behavior, runtime parity confidence, or final v1 release evidence."
+            ;;
+        V1U-OPEN-001|V1U-OPEN-004|V1U-DOC-001|V1U-DOC-002|V1U-DOC-003|V1U-DOC-004|V1U-DG-001|V1U-DG-002|V1U-DG-003|V1U-CODE-001|V1U-CODE-003)
+            classification="v1-should-fix"
+            rationale="High-value pre-v1 clarity or quality item that should be completed before release unless explicitly deferred with rationale."
+            ;;
+        V1U-OPEN-002|V1U-OPEN-003)
+            classification="post-v1"
+            rationale="Tag-time release-publication tasks that cannot be fully closed until the final v1 release event."
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    echo "${classification}|${rationale}"
+}
+
 source_refs_for_item() {
     local item_id="$1"
     case "$item_id" in
@@ -167,11 +201,11 @@ mkdir -p "$(dirname "$OUTPUT_MD_PATH")"
     echo "- Source checklist: ${CHECKLIST_PATH#$ROOT/}"
     echo "- Total tracked items: ${item_count}"
     echo
-    echo "| Item ID | Status | Summary | Source References | Last Touched | Current Owner |"
-    echo "| --- | --- | --- | --- | --- | --- |"
+    echo "| Item ID | Status | Classification | Rationale | Summary | Source References | Last Touched | Current Owner |"
+    echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
 } > "$OUTPUT_MD_PATH"
 
-echo "item_id,status,summary,source_references,last_touched,current_owner" > "$OUTPUT_CSV_PATH"
+echo "item_id,status,classification,rationale,summary,source_references,last_touched,current_owner" > "$OUTPUT_CSV_PATH"
 
 for ((idx = 0; idx < item_count; idx++)); do
     item_id="${item_ids[$idx]}"
@@ -187,9 +221,18 @@ for ((idx = 0; idx < item_count; idx++)); do
     last_touched="$(latest_touched_date_for_refs "$source_refs")"
     source_refs_pretty="${source_refs//;/, }"
 
-    printf '| `%s` | %s | %s | %s | %s | %s |\n' \
+    if ! classification_payload="$(classification_for_item "$item_id" "$item_status")"; then
+        echo "error: no classification mapping configured for checklist item id: $item_id" >&2
+        exit 2
+    fi
+    classification="${classification_payload%%|*}"
+    rationale="${classification_payload#*|}"
+
+    printf '| `%s` | %s | `%s` | %s | %s | %s | %s | %s |\n' \
         "$item_id" \
         "$item_status" \
+        "$classification" \
+        "$rationale" \
         "$item_title" \
         "$source_refs_pretty" \
         "$last_touched" \
@@ -197,9 +240,12 @@ for ((idx = 0; idx < item_count; idx++)); do
 
     csv_summary="${item_title//\"/\"\"}"
     csv_sources="${source_refs_pretty//\"/\"\"}"
-    printf '"%s","%s","%s","%s","%s","%s"\n' \
+    csv_rationale="${rationale//\"/\"\"}"
+    printf '"%s","%s","%s","%s","%s","%s","%s","%s"\n' \
         "$item_id" \
         "$item_status" \
+        "$classification" \
+        "$csv_rationale" \
         "$csv_summary" \
         "$csv_sources" \
         "$last_touched" \
