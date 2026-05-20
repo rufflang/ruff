@@ -4,6 +4,8 @@ Status: v0.14.0 scope gate baseline
 
 This document defines what is in-scope for Ruff `v1.0.0`, what is explicitly out-of-scope, and what compatibility commitments apply.
 
+Canonical readiness boundary: Ruff remains pre-1.0 until `ROADMAP.md` and `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` release gates are closed.
+
 ## In-Scope For v1.0.0
 
 - Stable core language syntax already shipped in `v0.13.0`/`v0.14.0` baseline docs.

@@ -9,6 +9,7 @@ Last updated: 2026-05-16
 This document defines the Ruff language and tooling compatibility contract for the active v1.0.0 baseline draft.
 
 This draft status does not imply that Ruff is release-ready; see `ROADMAP.md` for the active 1.0 readiness gate and remaining blockers.
+Canonical readiness boundary: Ruff remains pre-1.0 until `ROADMAP.md` and `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` release gates are closed.
 
 It is normative for:
 

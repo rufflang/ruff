@@ -3,6 +3,8 @@
 Date: 2026-05-20  
 Primary source of truth: `docs/generated/PRE_V1_UNRESOLVED_INVENTORY.md`
 
+Canonical readiness boundary: Ruff remains pre-1.0 until `ROADMAP.md` and `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` release gates are closed.
+
 This audit now mirrors the machine-generated pre-v1 inventory classification for every
 `V1U-*` checklist item.
 

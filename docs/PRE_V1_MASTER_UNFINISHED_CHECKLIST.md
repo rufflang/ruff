@@ -131,6 +131,8 @@ Each loop report must include exactly:
     Evidence: `ROADMAP.md` `Final checklist before tagging v1.0.0` remains incomplete.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-001` loop; remains blocked on final release-event sequencing.
     Evidence: `ROADMAP.md` final checklist still includes unchecked tag-prep items.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-002` loop; remains blocked until tag-prep execution phase.
+    Evidence: `ROADMAP.md` tag checklist still has unchecked release-event items.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
@@ -152,6 +154,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` items remain unchecked.
   - Blocker (2026-05-20): Revalidated during `V1U-DOC-001` loop; still blocked until actual v1.0.0 publish/sign-off.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off remains unchecked.
+  - Blocker (2026-05-20): Revalidated during `V1U-DOC-002` loop; still blocked on release publication.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` remains unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -274,10 +278,14 @@ Each loop report must include exactly:
     - Added `tests/architecture_docs_contract.rs` to enforce required up-to-date runtime-path markers and reject stale v0.8/v0.9 wording.
     - Recorded implementation summary and validation evidence in `notes/2026-05-20_18-30_v1u-doc-001-architecture-refresh.md`.
 
-- [ ] **V1U-DOC-002**: Align maturity/boundary wording across top-level docs.
+- [x] **V1U-DOC-002**: Align maturity/boundary wording across top-level docs.
   - Scope: sync `README.md`, `docs/V1_SCOPE.md`, `docs/LANGUAGE_SPEC.md`, `docs/RUFF_FEATURE_INVENTORY.md`, and `docs/UNFINISHED_AND_MVP_AUDIT.md`.
   - Acceptance criteria:
     - one consistent story for pre-1.0 readiness, experimental surfaces, and deferred guarantees.
+  - Evidence (2026-05-20):
+    - Added a shared canonical readiness-boundary statement across `README.md`, `docs/V1_SCOPE.md`, `docs/LANGUAGE_SPEC.md`, `docs/RUFF_FEATURE_INVENTORY.md`, and `docs/UNFINISHED_AND_MVP_AUDIT.md`.
+    - Added docs consistency contract `tests/v1_maturity_boundary_alignment_contract.rs` to enforce this wording across all five source-of-truth docs.
+    - This aligns pre-1.0 readiness messaging without changing release gating authority (`ROADMAP.md` + master unfinished checklist remain canonical blockers).
 
 - [ ] **V1U-DOC-003**: Review `docs/STANDARD_LIBRARY_REFERENCE.md` experimental labels for v1 contract clarity.
   - Scope: decide which experimental APIs are in v1 guarantee vs explicitly non-guaranteed.
