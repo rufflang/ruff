@@ -2328,6 +2328,7 @@ impl Parser {
 
                 let mut actual_for_report: Option<String> = None;
                 let mut fallback_for_report: Option<String> = None;
+                let mut used_interpreter_fallback = false;
                 let matched = match runtime_strategy {
                     TestRuntimeStrategy::Interpreter => {
                         let actual = match Self::run_test_fixture(&current_exe, &path, true) {
@@ -2387,6 +2388,7 @@ impl Parser {
                                 };
                             if interpreter_actual == expected {
                                 dual_fallback_passed += 1;
+                                used_interpreter_fallback = true;
                                 true
                             } else {
                                 actual_for_report = Some(vm_actual);
@@ -2398,7 +2400,17 @@ impl Parser {
                 };
 
                 if matched {
-                    println!("[✓] {} ({:.2?})", path.display(), start.elapsed());
+                    if matches!(runtime_strategy, TestRuntimeStrategy::Dual)
+                        && used_interpreter_fallback
+                    {
+                        println!(
+                            "[✓] {} ({:.2?}) [dual fallback: interpreter]",
+                            path.display(),
+                            start.elapsed()
+                        );
+                    } else {
+                        println!("[✓] {} ({:.2?})", path.display(), start.elapsed());
+                    }
                     passed += 1;
                 } else {
                     println!("[✗] {}", path.display());

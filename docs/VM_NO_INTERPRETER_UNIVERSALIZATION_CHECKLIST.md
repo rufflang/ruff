@@ -225,14 +225,27 @@ Each loop report must include exactly:
   - Acceptance criteria:
     - `docs/VM_INTERPRETER_PARITY_MATRIX.md` updated with only intentional, test-backed divergences.
     - No unexplained mismatch categories remain.
+  - Blocker note (2026-05-21): deferred until parity burn-down removes unexplained mismatch buckets.
+    - Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports non-intentional categories (`runtime-parity-bug: 25`, `harness-debt: 16`), so intentional-only divergence documentation would be premature.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
-- [ ] **V1VM-HAR-001**: Tighten `ruff test --runtime dual` fallback determinism.
+- [x] **V1VM-HAR-001**: Tighten `ruff test --runtime dual` fallback determinism.
   - Scope: keep fallback bounded, explicit, and visible in output/contracts.
   - Acceptance criteria:
     - Fallback triggers are deterministic and covered by CLI contract tests.
     - No silent broad fallback behavior.
+  - Evidence (2026-05-21):
+    - Updated `src/parser.rs` dual-runtime harness output to emit explicit per-fixture marker when interpreter fallback is used on a passing case: `[dual fallback: interpreter]`.
+    - Added/updated CLI contract assertions in `tests/cli_contracts.rs`:
+      - `cli_test_runtime_dual_mode_falls_back_to_interpreter_for_vm_drift_fixture` now requires fallback marker presence.
+      - `cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture` asserts the dual fallback marker is absent in VM mode.
+    - Revalidated fallback visibility and bounded behavior with focused contract tests and runtime sweeps:
+      - `cargo test --test cli_contracts cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture`
+      - `cargo test --test cli_contracts cli_test_runtime_dual_mode_falls_back_to_interpreter_for_vm_drift_fixture`
+      - `cargo run -- test --runtime vm` -> `Passed 107/150`
+      - `cargo run -- test --runtime dual` -> `Passed 121/150` (`vm_primary=107`, `interpreter_fallback=14`)
+    - Captured execution notes in `notes/2026-05-21_19-46_v1vm-har-001-dual-fallback-determinism.md`.
 
 - [ ] **V1VM-HAR-002**: Increase VM-only fixture coverage percentage to target threshold.
   - Scope: migrate parity-safe fixtures from fallback dependency to VM-clean execution.

@@ -221,6 +221,10 @@ fn cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture() {
         stdout.contains("Runtime strategy: vm"),
         "vm mode should print runtime strategy summary"
     );
+    assert!(
+        !stdout.contains("[dual fallback: interpreter]"),
+        "vm mode should not emit dual fallback marker"
+    );
 }
 
 #[test]
@@ -254,6 +258,10 @@ fn cli_test_runtime_dual_mode_falls_back_to_interpreter_for_vm_drift_fixture() {
     assert!(
         stdout.contains("interpreter_fallback=1"),
         "dual mode should report fallback count for drift fixtures"
+    );
+    assert!(
+        stdout.contains("[dual fallback: interpreter]"),
+        "dual mode should emit per-fixture fallback marker when interpreter fallback is used"
     );
 }
 
