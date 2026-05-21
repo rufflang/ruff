@@ -1,7 +1,7 @@
 # Ruff v1.0 Completeness-Ready Roadmap
 
 Last audit date: 2026-05-06
-> Current crate version: `0.14.0` in [Cargo.toml](Cargo.toml)
+> Current crate version: `1.0.0` in [Cargo.toml](Cargo.toml)
 Target release: 1.0.0
 Roadmap status: active production-readiness backlog
 
@@ -1841,8 +1841,8 @@ Before tagging v1.0.0:
 [x] Security posture docs are accurate.
 [x] Release process docs are complete.
 [x] Changelog is updated.
-[ ] Cargo version is bumped intentionally.
-[ ] Release candidate is built from a clean working tree.
+[x] Cargo version is bumped intentionally.
+[x] Release candidate is built from a clean working tree.
 ```
 
 ## 14. Handoff Instructions For Implementation Agents

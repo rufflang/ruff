@@ -13,10 +13,10 @@ Ruff follows semantic versioning-oriented release classes:
 - `MINOR` (`x.Y.z`): additive language/runtime/tooling features and planned compatibility updates.
 - `PATCH` (`x.y.Z`): compatibility-preserving fixes, security fixes, performance improvements, and documentation/process corrections.
 
-Pre-1.0 policy note:
+Major-release policy note:
 
-- Ruff is currently pre-1.0 (`0.14.0`).
-- Even before `1.0.0`, maintainers should avoid unnecessary breakage and document any intentional contract changes.
+- Ruff is now at `1.0.0`.
+- Future major-version changes must include explicit compatibility and migration guidance.
 
 ## 2. Compatibility Policy
 

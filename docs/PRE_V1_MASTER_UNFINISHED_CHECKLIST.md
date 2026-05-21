@@ -109,7 +109,7 @@ Each loop report must include exactly:
     - Updated `docs/PRE_V1_ACTION_CHECKLIST.md` so `PREV1-RUN-002` is no longer unresolved/blocked in this repository.
     - Added formal handoff note `notes/2026-05-20_12-55_v1u-open-001_ruff-mcp-doc-handoff.md` with validation evidence, target scope, and follow-through instructions for the external `ruff-mcp` source repo.
 
-- [ ] **V1U-OPEN-002**: Complete `ROADMAP.md` unchecked final checklist items.
+- [x] **V1U-OPEN-002**: Complete `ROADMAP.md` unchecked final checklist items.
   - Scope:
     - intentionally bump Cargo version for release
     - produce release candidate from clean working tree
@@ -151,6 +151,10 @@ Each loop report must include exactly:
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` continues to show unchecked rows.
   - Blocker (2026-05-20): Revalidated during `V1U-FINAL-001` loop; roadmap final-tag rows for version bump + clean-tree RC build remain release-event work and are still unchecked.
     Evidence: `rg -n "Cargo version is bumped intentionally|Release candidate is built from a clean working tree" ROADMAP.md` still reports unchecked final-checklist entries.
+  - Evidence (2026-05-21):
+    - Bumped crate version to `1.0.0` in `Cargo.toml` and synchronized release-state doc headers in `README.md`, `ROADMAP.md`, and `docs/RELEASE_PROCESS.md`.
+    - Marked `ROADMAP.md` final checklist rows complete for intentional version bump and clean-tree release-candidate build.
+    - Captured clean-tree RC gate evidence in `notes/2026-05-21_09-15_v1u-open-002-roadmap-final-checklist-closure.md` from a temporary clean worktree run.
 
 - [ ] **V1U-OPEN-003**: Complete `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time sign-off items.
   - Scope: publish release, verify assets/checksums/smoke workflow, record evidence.
