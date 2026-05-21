@@ -1849,6 +1849,15 @@ pub unsafe extern "C" fn jit_set_return_int(ctx: *mut VMContext, value: i64) -> 
     0 // Success
 }
 
+/// Safe wrapper around `jit_set_return_int` for internal Rust callsites that
+/// already hold a valid mutable VM context reference.
+#[inline]
+#[allow(dead_code)]
+pub fn set_return_int(ctx: &mut VMContext, value: i64) -> i64 {
+    // SAFETY: `ctx` is a valid mutable reference that outlives this call.
+    unsafe { jit_set_return_int(ctx as *mut VMContext, value) }
+}
+
 /// Runtime helper: Get return value from VMContext after a JIT recursive call
 /// This retrieves the value stored by jit_set_return_int from a recursive call.
 /// Returns the return_value if has_return_value is true, otherwise 0.
@@ -8940,27 +8949,21 @@ mod tests {
         assert!(!vm_context.has_return_value, "has_return_value should be false initially");
 
         // Test 2: Verify jit_set_return_int works correctly
-        unsafe {
-            let result = jit_set_return_int(&mut vm_context, 42);
-            assert_eq!(result, 0, "jit_set_return_int should return 0 (success)");
-            assert_eq!(vm_context.return_value, 42, "return_value should be set to 42");
-            assert!(vm_context.has_return_value, "has_return_value should be true after set");
-        }
+        let result = set_return_int(&mut vm_context, 42);
+        assert_eq!(result, 0, "jit_set_return_int should return 0 (success)");
+        assert_eq!(vm_context.return_value, 42, "return_value should be set to 42");
+        assert!(vm_context.has_return_value, "has_return_value should be true after set");
 
         // Test 3: Verify negative values work
-        unsafe {
-            let result = jit_set_return_int(&mut vm_context, -123);
-            assert_eq!(result, 0, "jit_set_return_int should handle negative values");
-            assert_eq!(vm_context.return_value, -123, "return_value should be -123");
-        }
+        let result = set_return_int(&mut vm_context, -123);
+        assert_eq!(result, 0, "jit_set_return_int should handle negative values");
+        assert_eq!(vm_context.return_value, -123, "return_value should be -123");
 
         // Test 4: Verify large values work
-        unsafe {
-            let large_value = i64::MAX;
-            let result = jit_set_return_int(&mut vm_context, large_value);
-            assert_eq!(result, 0, "jit_set_return_int should handle large values");
-            assert_eq!(vm_context.return_value, large_value, "return_value should be i64::MAX");
-        }
+        let large_value = i64::MAX;
+        let result = set_return_int(&mut vm_context, large_value);
+        assert_eq!(result, 0, "jit_set_return_int should handle large values");
+        assert_eq!(vm_context.return_value, large_value, "return_value should be i64::MAX");
 
         // Test 5: Verify null context returns error
         unsafe {

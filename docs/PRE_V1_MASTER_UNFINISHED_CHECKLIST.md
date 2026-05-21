@@ -206,6 +206,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` rows are still unchecked and require real publish-event outputs disallowed by current session constraints.
   - Blocker (2026-05-21): Release-freeze revalidation for loop 3; no `UNBLOCK_V1_RELEASE` directive is present, so tag-time publication/sign-off remains blocked.
     Evidence: Session constraints still prohibit release/tag/publish/sign-off actions and `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time rows remain unchecked.
+  - Blocker (2026-05-21): Release-freeze revalidation for loop 4; no `UNBLOCK_V1_RELEASE` directive is present, so tag-time publication/sign-off remains blocked.
+    Evidence: Release publication/sign-off actions are still frozen in current session constraints and `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` rows remain unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -455,6 +457,8 @@ Each loop report must include exactly:
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still requires post-publish URLs/checksums/workflow evidence that cannot be produced under current freeze constraints.
   - Blocker (2026-05-21): Release-freeze revalidation for loop 3; no `UNBLOCK_V1_RELEASE` directive is present, so final tag-time artifact completion remains blocked.
     Evidence: Required post-publish artifact URLs/checksums/smoke evidence in `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` cannot be produced while release actions are frozen.
+  - Blocker (2026-05-21): Release-freeze revalidation for loop 4; no `UNBLOCK_V1_RELEASE` directive is present, so final tag-time artifact completion remains blocked.
+    Evidence: Post-publish artifact URL/checksum/smoke evidence required by `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` remains unavailable while release actions are frozen.
 
 ---
 

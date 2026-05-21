@@ -21,4 +21,9 @@ Use this checklist only when all remaining unchecked items in `docs/PRE_V1_MASTE
     - Added runtime regressions in `tests/interpreter_tests.rs` for chained filter/map semantics and generator-next filtered-yield progression.
     - Regenerated triage artifacts (`docs/generated/V1_CODE_TODO_TRIAGE.md`/`.csv`) and updated triage contract assertions for the new TODO state.
     - Validation: `cargo test --test interpreter_tests iterator_`, `cargo test --test vm_interpreter_parity_surfaces`, `cargo test --test v1_code_todo_triage_contract`, and `cargo test`.
-- [ ] **V1TUNSAFE-001**: Create/refresh machine-verifiable unsafe inventory and safety classification, then start reducing executable unsafe sites with tests (no broad rewrites).
+- [x] **V1TUNSAFE-001**: Create/refresh machine-verifiable unsafe inventory and safety classification, then start reducing executable unsafe sites with tests (no broad rewrites).
+  - Evidence (2026-05-21):
+    - Added reproducible unsafe inventory generator `scripts/generate_unsafe_inventory.sh` and contract tests in `tests/unsafe_inventory_contract.rs`.
+    - Generated `docs/generated/UNSAFE_INVENTORY.md` and `docs/generated/UNSAFE_INVENTORY.csv` with strict zero-unknown classification validation.
+    - Reduced executable unsafe callsites in `src/jit.rs` return-value optimization test flow by introducing the safe wrapper `set_return_int(&mut VMContext, i64)` and replacing repeated ad-hoc unsafe invocations.
+    - Validation: unsafe inventory generation command, `cargo test --test unsafe_inventory_contract`, `cargo test test_return_value_optimization`, and `cargo test --test vm_interpreter_parity_surfaces`.
