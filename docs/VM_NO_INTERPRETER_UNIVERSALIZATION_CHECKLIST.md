@@ -1,0 +1,251 @@
+# Ruff VM-First Universal Runtime & Module Import Reliability Checklist
+
+Status: active pre-release execution checklist for removing practical `--interpreter` dependency in day-to-day development.
+Created: 2026-05-21
+
+Purpose: drive Ruff to a VM-first state where developers do not need `--interpreter` for normal multi-module projects, while preserving backward compatibility and deterministic behavior.
+
+Primary evidence inputs:
+- `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md`
+- `docs/VM_INTERPRETER_PARITY_MATRIX.md`
+- `docs/V1_0_SENIOR_CODEBASE_AUDIT_2026-05-21.md`
+- `docs/generated/V1_CODE_TODO_TRIAGE.md`
+- `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md`
+- `tests/` fixture corpus and parity suites
+
+---
+
+## Non-Negotiable Guardrails
+
+1. Additive and backward-compatible only.
+2. No regressions in parser, resolver, runtime, diagnostics, or documented contracts.
+3. Deterministic runtime-path behavior (explicit precedence, explicit fallback rules).
+4. Path/security boundaries must remain enforced (no traversal/symlink escape regressions).
+5. No release/tag/publish/sign-off work unless explicitly unblocked by the owner.
+
+---
+
+## Loop Governance And Selection Rules
+
+### Loop Selection Rule (Mandatory)
+
+1. Pick exactly one unchecked (`- [ ]`) item per loop.
+2. Choose the first unchecked item in top-to-bottom order.
+3. Do not skip unless blocked.
+4. If blocked:
+   - Add a dated blocker note under that item with reason + command/file evidence.
+   - Continue scanning in order within the same loop.
+5. Complete one unblocked item per loop.
+
+### Closure Rule (Mandatory)
+
+Do not mark an item complete until all of the following are true:
+
+1. Implementation artifact exists (code/script/doc update).
+2. Relevant tests/commands were run and results captured.
+3. Docs/checklists directly affected by the item were updated.
+4. Checklist row changed to `- [x]` with dated evidence bullets.
+5. Commit message references the checklist item ID.
+
+### Required Per-Loop Report Fields
+
+Each loop report must include exactly:
+
+1. Item completed.
+2. Files changed.
+3. Tests/commands run with results.
+4. Blockers or follow-ups.
+
+---
+
+## Minimum Final Test Expectations By Item Type
+
+- `V1VM-BASE-*`:
+  - Run inventory/triage scripts and contract tests for generated artifacts.
+
+- `V1VM-IMP-*` (module import reliability):
+  - `cargo test --test vm_interpreter_parity_surfaces`
+  - plus focused parser/module/runtime tests touched by import changes.
+  - If runtime semantics changed, run `cargo test` unless blocked (document evidence).
+
+- `V1VM-PAR-*` / `V1VM-HAR-*`:
+  - `cargo run -- test --runtime vm`
+  - `cargo run -- test --runtime dual`
+  - targeted suites touched by the change.
+
+- `V1VM-PERF-*`:
+  - Run the targeted import/runtime benchmark command(s) before/after and capture evidence.
+
+- `V1VM-DOC-*`:
+  - Run impacted docs/checklist contract tests.
+
+- `V1VM-FINAL-*`:
+  - Run the full verification matrix for this checklist and capture the dated summary note.
+
+---
+
+## Execution Backlog
+
+### 0) Baseline, Inventory, And Mismatch Classification
+
+- [x] **V1VM-BASE-001**: Generate deterministic VM-vs-interpreter fixture mismatch inventory.
+  - Scope: produce machine-readable baseline from `ruff test` runtime modes and classify pass/fail deltas.
+  - Acceptance criteria:
+    - Generated artifact under `docs/generated/` with per-fixture runtime outcomes.
+    - Baseline command evidence captured in `notes/`.
+  - Evidence (2026-05-21):
+    - Added `scripts/generate_vm_runtime_mismatch_inventory.sh` and generated `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` + `.csv`.
+    - Added generator contract coverage in `tests/vm_runtime_mismatch_inventory_contract.rs` (success output + deterministic capped scan).
+    - Captured baseline command evidence and mismatch totals in `notes/2026-05-21_18-09_v1vm-base-001-runtime-mismatch-baseline.md`.
+
+- [ ] **V1VM-BASE-002**: Classify mismatch causes into actionable buckets.
+  - Scope: classify each mismatch as parser-invalid fixture, stale expectation, runtime parity bug, intentional divergence, or test-harness debt.
+  - Acceptance criteria:
+    - Every mismatching fixture mapped to one bucket with rationale.
+    - Priority order and owner tags documented.
+
+- [ ] **V1VM-BASE-003**: Add/refresh contract tests for baseline artifacts.
+  - Scope: prevent silent drift in mismatch inventory format and required buckets.
+  - Acceptance criteria:
+    - Contract test fails if required columns/buckets/evidence markers are missing.
+
+### 1) Module Import Reliability (Critical Path)
+
+- [ ] **V1VM-IMP-001**: Harden dotted `from ... import ...` parser acceptance and diagnostics.
+  - Scope: preserve existing import syntax while ensuring dotted-path acceptance and crisp malformed-path errors.
+  - Acceptance criteria:
+    - Positive parser tests for single-level and multi-level dotted from-import.
+    - Negative parser tests for malformed token order/punctuation/path segments.
+    - Existing flat import parser behavior unchanged by regression tests.
+
+- [ ] **V1VM-IMP-002**: Lock deterministic dotted module resolution precedence.
+  - Scope: define and enforce stable lookup order for nested module files/directories without changing legacy flat-module behavior.
+  - Acceptance criteria:
+    - Precedence rules documented and covered with resolver tests.
+    - Conflict scenarios (flat vs nested naming collisions) behave deterministically and are test-locked.
+
+- [ ] **V1VM-IMP-003**: Enforce import resolution boundaries for dotted paths.
+  - Scope: ensure out-of-root traversal and symlink-based escape attempts are rejected in dotted import flows.
+  - Acceptance criteria:
+    - Boundary/security tests cover parent traversal and symlink escape attempts.
+    - Errors are deterministic and actionable.
+
+- [ ] **V1VM-IMP-004**: Add integration fixtures for real nested project layouts.
+  - Scope: add end-to-end interpreter+VM fixtures representing downstream multi-module project structures.
+  - Acceptance criteria:
+    - At least one realistic nested fixture proving prior blocked pattern now works.
+    - Existing flat-module fixtures continue to pass unchanged.
+
+- [ ] **V1VM-IMP-005**: Align module-import docs with current reliability guarantees.
+  - Scope: remove stale blanket guidance that requires `--interpreter` specifically for module import reliability when no longer true.
+  - Acceptance criteria:
+    - Updated docs clearly state what is guaranteed now vs remaining VM caveats.
+    - Docs contract tests updated where applicable.
+
+### 2) VM Parity Burn-Down For `ruff test`/Runtime Surfaces
+
+- [ ] **V1VM-PAR-001**: Build a runtime-diff harness for fixture output normalization.
+  - Scope: make VM/interpreter comparison reproducible with normalized diagnostics/noise handling.
+  - Acceptance criteria:
+    - Tooling/script committed to compare runtime outputs deterministically.
+    - At least one targeted contract test for output normalization rules.
+
+- [ ] **V1VM-PAR-002**: Close highest-volume VM/runtime mismatch bucket from baseline.
+  - Scope: pick the largest mismatch class from `V1VM-BASE-002` and resolve it end-to-end.
+  - Acceptance criteria:
+    - Bucket count materially reduced with regression tests.
+    - No backward-compatibility regressions introduced.
+
+- [ ] **V1VM-PAR-003**: Close second highest-volume mismatch bucket.
+  - Scope: repeat `V1VM-PAR-002` for the next priority class.
+  - Acceptance criteria:
+    - Updated mismatch artifact shows monotonic reduction.
+    - Targeted parity and regression tests added.
+
+- [ ] **V1VM-PAR-004**: Revalidate and document intentional divergences only.
+  - Scope: ensure remaining runtime differences are explicit, intentional, and documented with evidence.
+  - Acceptance criteria:
+    - `docs/VM_INTERPRETER_PARITY_MATRIX.md` updated with only intentional, test-backed divergences.
+    - No unexplained mismatch categories remain.
+
+### 3) Harness And CLI Runtime Strategy Hardening
+
+- [ ] **V1VM-HAR-001**: Tighten `ruff test --runtime dual` fallback determinism.
+  - Scope: keep fallback bounded, explicit, and visible in output/contracts.
+  - Acceptance criteria:
+    - Fallback triggers are deterministic and covered by CLI contract tests.
+    - No silent broad fallback behavior.
+
+- [ ] **V1VM-HAR-002**: Increase VM-only fixture coverage percentage to target threshold.
+  - Scope: migrate parity-safe fixtures from fallback dependency to VM-clean execution.
+  - Acceptance criteria:
+    - Baseline report includes VM-only pass percentage and trend evidence.
+    - Threshold target documented and met for this milestone.
+
+- [ ] **V1VM-HAR-003**: Reassess default runtime strategy for `ruff test`.
+  - Scope: decide whether default remains `dual` or can safely move to stricter VM-first behavior.
+  - Acceptance criteria:
+    - Decision note includes explicit risk analysis and command evidence.
+    - CLI docs and contract tests align with decision.
+
+### 4) Security, Determinism, And Performance Guardrails
+
+- [ ] **V1VM-PERF-001**: Add import-heavy interpreter startup/perf benchmark for nested modules.
+  - Scope: benchmark module-resolution-heavy startup path to detect dotted import regressions.
+  - Acceptance criteria:
+    - Benchmark fixture and command documented.
+    - Baseline numbers captured.
+
+- [ ] **V1VM-PERF-002**: Demonstrate no unacceptable perf regression after reliability fixes.
+  - Scope: compare before/after metrics for import-heavy path and report variance.
+  - Acceptance criteria:
+    - Results recorded with tolerance threshold and pass/fail interpretation.
+
+- [ ] **V1VM-PERF-003**: Add cache/lookup validation for repeated nested imports.
+  - Scope: ensure repeated imports do not trigger avoidable repeated filesystem work.
+  - Acceptance criteria:
+    - Tests confirm stable behavior and no duplicate side-effect imports.
+    - Measurable lookup behavior documented.
+
+### 5) Docs, Downstream Guidance, And Final Readiness
+
+- [ ] **V1VM-DOC-001**: Update runtime guidance docs to VM-first practical recommendations.
+  - Scope: align `README.md`, parity docs, and dependency map language with current execution reality.
+  - Acceptance criteria:
+    - No stale blanket guidance that developers must use `--interpreter` for ordinary modular projects.
+
+- [ ] **V1VM-DOC-002**: Publish downstream migration guidance for teams currently pinned to `--interpreter`.
+  - Scope: provide deterministic migration playbook (runtime mode selection, known caveats, verification commands).
+  - Acceptance criteria:
+    - One canonical doc section or migration note with explicit command recipes.
+
+- [ ] **V1VM-FINAL-001**: Produce universal no-`--interpreter` readiness verdict for v1 track.
+  - Scope: summarize completed items, remaining intentional divergences, and go/no-go recommendation.
+  - Acceptance criteria:
+    - Dated readiness note in `notes/` with explicit evidence table.
+    - Checklist status and linked docs fully synchronized.
+
+---
+
+## Suggested Execution Order
+
+1. `V1VM-BASE-001`
+2. `V1VM-BASE-002`
+3. `V1VM-IMP-001`
+4. `V1VM-IMP-002`
+5. `V1VM-IMP-003`
+6. `V1VM-IMP-004`
+7. `V1VM-IMP-005`
+8. `V1VM-PAR-001`
+9. `V1VM-PAR-002`
+10. `V1VM-PAR-003`
+11. `V1VM-PAR-004`
+12. `V1VM-HAR-001`
+13. `V1VM-HAR-002`
+14. `V1VM-HAR-003`
+15. `V1VM-PERF-001`
+16. `V1VM-PERF-002`
+17. `V1VM-PERF-003`
+18. `V1VM-DOC-001`
+19. `V1VM-DOC-002`
+20. `V1VM-FINAL-001`
