@@ -2906,6 +2906,66 @@ fn test_channel_empty() {
 }
 
 #[test]
+fn test_channel_receive_blocks_until_value_is_sent() {
+    let mut interp = run_code("chan := channel()");
+    let channel = match interp.env.get("chan") {
+        Some(Value::Channel(channel)) => channel.clone(),
+        other => panic!("expected channel binding, got {other:?}"),
+    };
+
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        let chan_lock = channel.lock().expect("channel lock should succeed");
+        let (sender, _) = &*chan_lock;
+        sender.send(Value::Int(42)).expect("send should succeed");
+    });
+
+    let code = r#"
+        received := chan.receive()
+        ok := received == 42
+    "#;
+    let tokens = tokenize(code).expect("test source should tokenize");
+    let mut parser = Parser::new(tokens);
+    let program = parser.parse();
+    interp.eval_stmts(&program);
+
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_channel_receive_and_send_preserve_fifo_order() {
+    let code = r#"
+        chan := channel()
+        chan.send("first")
+        chan.send("second")
+
+        first := chan.receive()
+        second := chan.receive()
+        ok := first == "first" && second == "second"
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_channel_receive_arity_error_via_expression_method_call() {
+    let code = r#"
+        err := channel().receive(1)
+    "#;
+
+    let interp = run_code(code);
+    let message = match interp.env.get("err") {
+        Some(Value::Error(message)) => message,
+        other => panic!("expected error value, got {other:?}"),
+    };
+    assert!(
+        message.contains("Channel.receive expects 0 arguments, got 1"),
+        "unexpected error message: {message}"
+    );
+}
+
+#[test]
 fn test_shared_value_lifecycle_operations() {
     let shared_key = unique_shared_key("shared_value_lifecycle");
 

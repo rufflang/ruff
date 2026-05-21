@@ -3957,17 +3957,7 @@ impl Interpreter {
                                 }
 
                                 let value = self.eval_expr(&args[0]);
-                                let chan_lock = chan.lock().unwrap();
-                                let (sender, _) = &*chan_lock;
-
-                                match sender.send(value) {
-                                    Ok(_) => return Value::Bool(true),
-                                    Err(_) => {
-                                        return Value::Error(
-                                            "Failed to send to channel".to_string(),
-                                        )
-                                    }
-                                }
+                                return self.channel_send(chan, value);
                             }
                             "receive" => {
                                 if !args.is_empty() {
@@ -3976,21 +3966,7 @@ impl Interpreter {
                                         args.len()
                                     ));
                                 }
-                                // chan.receive() - receive value from channel (non-blocking for now)
-                                // TODO: Implement proper blocking receive
-                                let chan_lock = chan.lock().unwrap();
-                                let (_, receiver) = &*chan_lock;
-
-                                match receiver.try_recv() {
-                                    Ok(value) => return value,
-                                    Err(std::sync::mpsc::TryRecvError::Empty) => {
-                                        // Channel is empty - return null
-                                        return Value::Null;
-                                    }
-                                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                                        return Value::Error("Channel disconnected".to_string());
-                                    }
-                                }
+                                return self.channel_receive_blocking(chan);
                             }
                             _ => return Value::Error(format!("Channel has no method '{}'", field)),
                         }
@@ -5198,6 +5174,42 @@ impl Interpreter {
         Some(result)
     }
 
+    fn channel_send(
+        &self,
+        chan: &Arc<Mutex<(std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)>>,
+        value: Value,
+    ) -> Value {
+        let chan_lock = chan.lock().unwrap();
+        let (sender, _) = &*chan_lock;
+        match sender.send(value) {
+            Ok(_) => Value::Bool(true),
+            Err(_) => Value::Error("Failed to send to channel".to_string()),
+        }
+    }
+
+    fn channel_receive_blocking(
+        &self,
+        chan: &Arc<Mutex<(std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)>>,
+    ) -> Value {
+        loop {
+            let receive_result = {
+                let chan_lock = chan.lock().unwrap();
+                let (_, receiver) = &*chan_lock;
+                receiver.try_recv()
+            };
+
+            match receive_result {
+                Ok(value) => return value,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    return Value::Error("Channel disconnected".to_string());
+                }
+            }
+        }
+    }
+
     /// Call a method on a value (used for iterator chaining and other method calls)
     fn call_method(&mut self, obj: Value, method: &str, args: Vec<Value>) -> Value {
         if method == "save" {
@@ -5271,12 +5283,7 @@ impl Interpreter {
                         ));
                     }
 
-                    let chan_lock = chan.lock().unwrap();
-                    let (sender, _) = &*chan_lock;
-                    match sender.send(args[0].clone()) {
-                        Ok(_) => Value::Bool(true),
-                        Err(_) => Value::Error("Failed to send to channel".to_string()),
-                    }
+                    self.channel_send(chan, args[0].clone())
                 }
                 "receive" => {
                     if !args.is_empty() {
@@ -5286,15 +5293,7 @@ impl Interpreter {
                         ));
                     }
 
-                    let chan_lock = chan.lock().unwrap();
-                    let (_, receiver) = &*chan_lock;
-                    match receiver.try_recv() {
-                        Ok(value) => value,
-                        Err(std::sync::mpsc::TryRecvError::Empty) => Value::Null,
-                        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                            Value::Error("Channel disconnected".to_string())
-                        }
-                    }
+                    self.channel_receive_blocking(chan)
                 }
                 _ => Value::Error(format!("Channel has no method '{}'", method)),
             };
