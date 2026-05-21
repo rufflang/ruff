@@ -437,6 +437,8 @@ Each loop report must include exactly:
   - Scope: execute final release publication and post-publish smoke verification.
   - Acceptance criteria:
     - all items in `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` checked with linked evidence.
+  - Blocker (2026-05-21): This remains blocked until the actual `v1.0.0` publish event and post-publish artifact/smoke evidence exist.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` rows are still unchecked and require real release URLs + checksum/sign-off workflow outcomes.
 
 ---
 
