@@ -1,0 +1,12 @@
+Testing Database Transactions...
+
+=== Test 1: Basic Transaction Commit ===
+✓ Basic transaction commit works
+
+=== Test 2: Transaction Rollback ===
+✓ Transaction rollback works
+
+=== Test 3: Last Insert ID ===
+✓ Last insert ID works in transactions
+
+=== Test 4: Error Handling ===

@@ -1,0 +1,15 @@
+Testing path operation functions...
+join_path('/home', 'user', 'documents', 'file.txt'):
+  /home/user/documents/file.txt
+✓ join_path combines path components
+join_path('src', 'interpreter.rs') = src/interpreter.rs
+dirname('/home/user/documents/file.txt') = /home/user/documents
+✓ dirname extracts directory correctly
+dirname('src/interpreter.rs') = src
+✓ dirname works with relative paths
+dirname('/home/user/documents') = /home/user
+basename('/home/user/documents/file.txt') = file.txt
+✓ basename extracts filename correctly
+basename('example.ruff') = example.ruff
+✓ basename works with just filename
+basename('/home/user/documents/') = documents

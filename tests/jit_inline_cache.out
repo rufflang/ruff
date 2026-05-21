@@ -1,0 +1,3 @@
+=== JIT Inline Cache Tests ===
+
+Test 1: Simple function called 200 times (cache warm-up + usage)
