@@ -341,7 +341,8 @@ pub struct VmExecutionSnapshot {
 
 /// Generator state for suspended execution
 /// Infrastructure for generator resume functionality
-#[allow(dead_code)] // Deferred post-v1 runtime backlog: full generator-state restoration (see docs/V1_SCOPE.md deferred runtime execution section)
+#[allow(dead_code)]
+// Deferred post-v1 runtime backlog: full generator-state restoration (see docs/V1_SCOPE.md deferred runtime execution section)
 #[derive(Debug, Clone)]
 pub struct GeneratorState {
     /// Instruction pointer where generator yielded

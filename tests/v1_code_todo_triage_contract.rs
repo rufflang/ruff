@@ -57,7 +57,9 @@ fn v1_code_todo_triage_script_generates_expected_repo_artifacts() {
     assert!(markdown.contains("Summary: `"));
 
     let csv = fs::read_to_string(&output_csv).expect("triage csv should exist");
-    assert!(csv.contains("id,file,line,marker,summary,severity,owner,target_release_bucket,scope,rationale"));
+    assert!(csv.contains(
+        "id,file,line,marker,summary,severity,owner,target_release_bucket,scope,rationale"
+    ));
     assert!(csv.contains(",v1,"));
     assert!(csv.contains(",post-v1,"));
 }
@@ -88,15 +90,9 @@ fn v1_code_todo_triage_script_fails_strict_mode_for_unclassified_paths() {
         .output()
         .expect("failed to execute triage script");
 
-    assert!(
-        !output.status.success(),
-        "strict mode should fail for unclassified items"
-    );
+    assert!(!output.status.success(), "strict mode should fail for unclassified items");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("Unclassified TODO/FIXME/HACK"),
-        "unexpected stderr: {stderr}"
-    );
+    assert!(stderr.contains("Unclassified TODO/FIXME/HACK"), "unexpected stderr: {stderr}");
 }
 
 #[test]

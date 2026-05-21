@@ -1680,10 +1680,7 @@ fn docgen_adapter_conformance_edge_fixtures_preserve_shape_and_visibility_contra
     for language in
         ["ruff", "php", "python", "typescript", "javascript", "ruby", "go", "haskell", "zig"]
     {
-        assert!(
-            present_languages.contains(language),
-            "expected symbols for language {language}"
-        );
+        assert!(present_languages.contains(language), "expected symbols for language {language}");
     }
 
     for symbol in symbols {
@@ -1745,9 +1742,7 @@ fn docgen_adapter_conformance_edge_fixtures_preserve_shape_and_visibility_contra
             .find(|candidate| candidate["qualified_name"] == documented_symbol)
             .unwrap_or_else(|| panic!("missing documented symbol '{documented_symbol}'"));
         assert!(
-            !symbol["docs"]["placeholder"]
-                .as_bool()
-                .expect("docs.placeholder should be bool"),
+            !symbol["docs"]["placeholder"].as_bool().expect("docs.placeholder should be bool"),
             "expected docs to attach for symbol {documented_symbol}"
         );
     }
@@ -1767,9 +1762,7 @@ fn docgen_adapter_conformance_edge_fixtures_preserve_shape_and_visibility_contra
             .find(|candidate| candidate["qualified_name"] == undocumented_symbol)
             .unwrap_or_else(|| panic!("missing undocumented symbol '{undocumented_symbol}'"));
         assert!(
-            symbol["docs"]["placeholder"]
-                .as_bool()
-                .expect("docs.placeholder should be bool"),
+            symbol["docs"]["placeholder"].as_bool().expect("docs.placeholder should be bool"),
             "expected undocumented placeholder for symbol {undocumented_symbol}"
         );
     }
@@ -1835,10 +1828,7 @@ fn docgen_adapter_conformance_edge_fixtures_strict_public_gate_reports_undocumen
 
     assert!(summary.undocumented_count > 0, "strict gate should detect undocumented symbols");
     assert!(
-        summary
-            .gate_failures
-            .iter()
-            .any(|entry| entry.contains("undocumented")),
+        summary.gate_failures.iter().any(|entry| entry.contains("undocumented")),
         "strict gate should emit undocumented failure message"
     );
 }
