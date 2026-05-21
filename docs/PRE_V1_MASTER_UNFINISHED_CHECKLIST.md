@@ -198,6 +198,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
   - Blocker (2026-05-21): Revalidated in loop execution; this item still requires the real `v1.0.0` publish event and cannot be closed in a dry-run/local-only loop.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` rows remain unchecked and require post-publish artifact URLs/checksum attachments/workflow status.
+  - Blocker (2026-05-21): Revalidated in subsequent loop; no new publish-event evidence is available to close tag-time sign-off.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still has unchecked `Tag-Time Sign-Off` rows requiring actual release publication outputs.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -439,6 +441,8 @@ Each loop report must include exactly:
     - all items in `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` checked with linked evidence.
   - Blocker (2026-05-21): This remains blocked until the actual `v1.0.0` publish event and post-publish artifact/smoke evidence exist.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` rows are still unchecked and require real release URLs + checksum/sign-off workflow outcomes.
+  - Blocker (2026-05-21): Revalidated in subsequent loop; no tag-time publication/sign-off evidence exists yet.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still requires actual release URLs, checksum files, and post-publish smoke workflow results.
 
 ---
 
