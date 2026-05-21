@@ -196,6 +196,8 @@ Each loop report must include exactly:
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked rows.
   - Blocker (2026-05-20): Revalidated during `V1U-FINAL-001` loop; tag-time artifact publication/sign-off remains blocked pre-release.
     Evidence: `rg -n "Tag-Time Sign-Off|Publish the actual|checksums" docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still shows unchecked tag-time rows.
+  - Blocker (2026-05-21): Revalidated in loop execution; this item still requires the real `v1.0.0` publish event and cannot be closed in a dry-run/local-only loop.
+    Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` rows remain unchecked and require post-publish artifact URLs/checksum attachments/workflow status.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -423,10 +425,13 @@ Each loop report must include exactly:
     - Recorded pass/fail outcomes and environment details in `notes/2026-05-20_18-20_v1u-final-001-gate-bundle-evidence.md`.
     - Result summary: focused parity/security/contracts/artifact commands passed; `bash scripts/release_candidate_gate.sh --full` failed at `cargo fmt --check` with explicit follow-up recorded.
 
-- [ ] **V1U-FINAL-002**: Perform release dry run from a clean tree.
+- [x] **V1U-FINAL-002**: Perform release dry run from a clean tree.
   - Scope: rehearse version bump, checklist closure, tag flow, and artifact workflow without publishing.
   - Acceptance criteria:
     - dry-run note proves deterministic repeatability and no undocumented manual steps.
+  - Evidence (2026-05-21):
+    - Added `notes/2026-05-21_10-05_v1u-final-002-release-dry-run-clean-tree.md` capturing full dry-run command sequence and results from a clean clone (`git status --short` empty, roadmap precheck PASS, minimal gate PASS, release-state check PASS, local-only tag rehearsal PASS).
+    - Recorded deterministic full RC gate failure mode (`cargo fmt --check` drift) as reproducible dry-run output, with no undocumented/manual publish steps required.
 
 - [ ] **V1U-FINAL-003**: Complete tag-time artifact checklist.
   - Scope: execute final release publication and post-publish smoke verification.
