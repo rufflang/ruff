@@ -172,11 +172,18 @@ Each loop report must include exactly:
 
 ### 2) VM Parity Burn-Down For `ruff test`/Runtime Surfaces
 
-- [ ] **V1VM-PAR-001**: Build a runtime-diff harness for fixture output normalization.
+- [x] **V1VM-PAR-001**: Build a runtime-diff harness for fixture output normalization.
   - Scope: make VM/interpreter comparison reproducible with normalized diagnostics/noise handling.
   - Acceptance criteria:
     - Tooling/script committed to compare runtime outputs deterministically.
     - At least one targeted contract test for output normalization rules.
+  - Evidence (2026-05-21):
+    - Added deterministic harness script `scripts/generate_vm_runtime_diff_harness.sh` with explicit normalization rules, self-check mode (`--normalization-self-check-only`), and reproducible CSV/markdown artifact generation.
+    - Added contract coverage in `tests/vm_runtime_diff_harness_contract.rs` validating normalization self-check success and required output schema/classification columns (`raw_equal`, `normalized_noise_only`, `semantic_drift`).
+    - Generated baseline artifacts (`docs/generated/VM_RUNTIME_DIFF_HARNESS.md`, `docs/generated/VM_RUNTIME_DIFF_HARNESS.csv`) and ran required parity sweeps:
+      - `cargo run -- test --runtime vm` -> `Passed 59/150`
+      - `cargo run -- test --runtime dual` -> `Passed 78/150` (`vm_primary=59`, `interpreter_fallback=19`)
+    - Captured execution notes in `notes/2026-05-21_18-49_v1vm-par-001-runtime-diff-harness.md`.
 
 - [ ] **V1VM-PAR-002**: Close highest-volume VM/runtime mismatch bucket from baseline.
   - Scope: pick the largest mismatch class from `V1VM-BASE-002` and resolve it end-to-end.
