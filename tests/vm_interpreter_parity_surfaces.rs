@@ -229,6 +229,53 @@ fn vm_and_interpreter_match_enum_match_binding_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_match_custom_enum_constructor_calls_without_recursion() {
+    let script = r#"
+        enum Result {
+            Ok,
+            Err
+        }
+
+        func check(num) {
+            if num > 0 {
+                return Result::Ok("yes")
+            }
+            return Result::Err("no")
+        }
+
+        outcome := check(1)
+        match outcome {
+            case Result::Ok(msg): { constructor_ok := msg == "yes" }
+            case Result::Err(err): { constructor_ok := false }
+            default: { constructor_ok := false }
+        }
+    "#;
+
+    let interp = run_interpreter(script);
+    assert!(
+        interp.return_value.is_none(),
+        "interpreter should evaluate custom enum constructors without recursion errors: {:?}",
+        interp.return_value
+    );
+    assert!(
+        matches!(interp.env.get("constructor_ok"), Some(Value::Bool(true))),
+        "interpreter custom enum constructor result mismatch: constructor_ok={:?}",
+        interp.env.get("constructor_ok")
+    );
+
+    let vm_env = vm_env_with_builtins();
+    let vm_result = run_vm(script, vm_env.clone());
+    assert!(vm_result.is_ok(), "vm execution failed: {:?}", vm_result.err());
+
+    let vm_globals = vm_env.lock().expect("failed to lock vm globals");
+    assert!(
+        matches!(vm_globals.get("constructor_ok"), Some(Value::Bool(true))),
+        "vm custom enum constructor result mismatch: constructor_ok={:?}",
+        vm_globals.get("constructor_ok")
+    );
+}
+
+#[test]
 fn vm_and_interpreter_error_on_missing_string_map_key() {
     let script = r#"
         profile := {"name": "ruff"}

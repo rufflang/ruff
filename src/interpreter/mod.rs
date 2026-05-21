@@ -4552,6 +4552,21 @@ impl Interpreter {
                 call_result
             }
             Expr::Tag(name, args) => {
+                // Enum constructors like `Result::Ok(...)` are represented as tags.
+                // Treat namespaced tags as direct tagged-value construction to avoid
+                // recursively invoking the generated constructor function binding.
+                if name.contains("::") {
+                    let mut fields = HashMap::new();
+                    for (i, arg) in args.iter().enumerate() {
+                        let value = self.eval_expr(arg);
+                        if Self::is_error_value(&value) {
+                            return value;
+                        }
+                        fields.insert(format!("${}", i), value);
+                    }
+                    return Value::Tagged { tag: name.clone(), fields };
+                }
+
                 // First check if this is a native or user function
                 if let Some(func_val) = self.env.get(name) {
                     match func_val {

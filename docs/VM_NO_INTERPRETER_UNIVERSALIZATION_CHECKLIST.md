@@ -200,11 +200,25 @@ Each loop report must include exactly:
       - `cargo run -- test --runtime dual` -> `Passed 121/150` (`vm_primary=102`, `interpreter_fallback=19`; previous baseline: `78/150`)
     - Captured execution notes in `notes/2026-05-21_19-10_v1vm-par-002-highest-volume-bucket-burndown.md`.
 
-- [ ] **V1VM-PAR-003**: Close second highest-volume mismatch bucket.
+- [x] **V1VM-PAR-003**: Close second highest-volume mismatch bucket.
   - Scope: repeat `V1VM-PAR-002` for the next priority class.
   - Acceptance criteria:
     - Updated mismatch artifact shows monotonic reduction.
     - Targeted parity and regression tests added.
+  - Evidence (2026-05-21):
+    - Addressed a concrete `runtime-parity-bug` subclass by fixing interpreter recursion on custom enum constructors (`Result::Ok(...)`-style tags) in `src/interpreter/mod.rs` (`Expr::Tag` handling for namespaced tags now constructs tagged values directly instead of recursively re-entering generated constructor bindings).
+    - Added parity regression `vm_and_interpreter_match_custom_enum_constructor_calls_without_recursion` in `tests/vm_interpreter_parity_surfaces.rs`.
+    - Refreshed enum fixture snapshots touched by this fix (`tests/test_enum_{err,err_only,nested,none,ok}.out`) and regenerated mismatch inventory.
+    - Monotonic bucket reduction captured in `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`:
+      - `runtime-parity-bug`: `30 -> 25`
+      - `both match snapshot`: `117 -> 122`
+      - `vm_primary` progress in dual runtime: `102 -> 107` (`interpreter_fallback`: `19 -> 14`)
+    - Revalidated required suites/commands:
+      - `cargo test --test vm_interpreter_parity_surfaces` -> `86 passed`
+      - `cargo run -- test --runtime vm` -> `Passed 107/150`
+      - `cargo run -- test --runtime dual` -> `Passed 121/150` (`vm_primary=107`, `interpreter_fallback=14`)
+      - `cargo test --test vm_runtime_mismatch_inventory_contract` -> `2 passed`
+    - Captured execution notes in `notes/2026-05-21_19-28_v1vm-par-003-runtime-parity-bucket-reduction.md`.
 
 - [ ] **V1VM-PAR-004**: Revalidate and document intentional divergences only.
   - Scope: ensure remaining runtime differences are explicit, intentional, and documented with evidence.

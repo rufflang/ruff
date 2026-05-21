@@ -66,11 +66,11 @@ tests/test_display.ruff,4,0,no,no,both_mismatch_different_output,harness-debt,ha
 tests/test_doc_comments.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_dunder.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_enhanced_collections.ruff,4,0,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/test_enum_err.ruff,0,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/test_enum_err_only.ruff,0,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/test_enum_nested.ruff,0,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/test_enum_none.ruff,0,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/test_enum_ok.ruff,0,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
+tests/test_enum_err.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/test_enum_err_only.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/test_enum_nested.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/test_enum_none.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/test_enum_ok.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_exceptions_comprehensive.ruff,4,0,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
 tests/test_for_range.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_for_simple.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes

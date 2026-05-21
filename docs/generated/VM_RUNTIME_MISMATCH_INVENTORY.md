@@ -73,11 +73,11 @@ Fixture root: `tests`
 | `tests/test_doc_comments.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_dunder.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_enhanced_collections.ruff` | 4 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
-| `tests/test_enum_err.ruff` | 0 | 4 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
-| `tests/test_enum_err_only.ruff` | 0 | 4 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
-| `tests/test_enum_nested.ruff` | 0 | 4 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
-| `tests/test_enum_none.ruff` | 0 | 4 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
-| `tests/test_enum_ok.ruff` | 0 | 4 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
+| `tests/test_enum_err.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/test_enum_err_only.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/test_enum_nested.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/test_enum_none.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/test_enum_ok.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_exceptions_comprehensive.ruff` | 4 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
 | `tests/test_for_range.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_for_simple.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
@@ -171,13 +171,13 @@ Fixture root: `tests`
 | `tests/vm_native_functions_test.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 
 Summary: `163` fixtures scanned
-- both match snapshot: `117`
-- VM-only mismatch: `19`
+- both match snapshot: `122`
+- VM-only mismatch: `14`
 - interpreter-only mismatch: `11`
 - both mismatch: `16`
 
 Mismatch classification totals (priority order):
-- P0 runtime-parity-bug (`runtime-owner`): `30`
+- P0 runtime-parity-bug (`runtime-owner`): `25`
 - P1 stale-snapshot-expectation (`docs-owner`): `0`
 - P1 parser-invalid-fixture (`language-owner`): `0`
 - P2 harness-debt (`harness-owner`): `16`
