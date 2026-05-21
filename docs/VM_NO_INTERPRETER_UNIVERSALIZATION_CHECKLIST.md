@@ -98,11 +98,15 @@ Each loop report must include exactly:
     - Added generator contract coverage in `tests/vm_runtime_mismatch_inventory_contract.rs` (success output + deterministic capped scan).
     - Captured baseline command evidence and mismatch totals in `notes/2026-05-21_18-09_v1vm-base-001-runtime-mismatch-baseline.md`.
 
-- [ ] **V1VM-BASE-002**: Classify mismatch causes into actionable buckets.
+- [x] **V1VM-BASE-002**: Classify mismatch causes into actionable buckets.
   - Scope: classify each mismatch as parser-invalid fixture, stale expectation, runtime parity bug, intentional divergence, or test-harness debt.
   - Acceptance criteria:
     - Every mismatching fixture mapped to one bucket with rationale.
     - Priority order and owner tags documented.
+  - Evidence (2026-05-21):
+    - Extended `scripts/generate_vm_runtime_mismatch_inventory.sh` output with per-row `mismatch_bucket`, `bucket_owner`, `priority`, and `rationale` columns covering every mismatch row.
+    - Added ordered bucket totals section (`P0`/`P1`/`P2`) to `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`.
+    - Updated and passed `tests/vm_runtime_mismatch_inventory_contract.rs` contract coverage; captured command evidence in `notes/2026-05-21_18-15_v1vm-base-002-mismatch-classification.md`.
 
 - [ ] **V1VM-BASE-003**: Add/refresh contract tests for baseline artifacts.
   - Scope: prevent silent drift in mismatch inventory format and required buckets.

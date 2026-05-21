@@ -134,6 +134,40 @@ classify_delta() {
   fi
 }
 
+classify_mismatch_cause() {
+  local fixture="$1"
+  local delta_type="$2"
+  local vm_exit="$3"
+  local interpreter_exit="$4"
+
+  if [[ "$delta_type" == "both_match_snapshot" ]]; then
+    echo "none|n/a|P4|snapshot matches in both runtimes"
+    return
+  fi
+
+  if [[ "$delta_type" == "vm_only_mismatch" || "$delta_type" == "interpreter_only_mismatch" ]]; then
+    echo "runtime-parity-bug|runtime-owner|P0|runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift"
+    return
+  fi
+
+  if [[ "$delta_type" == "both_mismatch_same_output" ]]; then
+    echo "stale-snapshot-expectation|docs-owner|P1|both runtimes agree on output but snapshot expectation diverges"
+    return
+  fi
+
+  if [[ "$vm_exit" == "3" && "$interpreter_exit" == "3" ]]; then
+    echo "parser-invalid-fixture|language-owner|P1|both runtimes fail with parser diagnostics and fixture/snapshot contract should be refreshed"
+    return
+  fi
+
+  if [[ "$fixture" == *"generators_test.ruff"* ]]; then
+    echo "intentional-divergence|runtime-owner|P2|known generator-surface divergence should be documented and contract-locked"
+    return
+  fi
+
+  echo "harness-debt|harness-owner|P2|both runtimes diverge from snapshot with different output, indicating fixture-harness normalization debt"
+}
+
 fixtures=$(cd "$ROOT" && rg --files "$TESTS_DIR" -g '*.ruff' | sort)
 if [[ -n "$MAX_FIXTURES" ]]; then
   fixtures=$(printf '%s\n' "$fixtures" | head -n "$MAX_FIXTURES")
@@ -151,11 +185,11 @@ mkdir -p "$(dirname "$OUTPUT_CSV_PATH")"
   echo "Runner: \`$RUNNER\`"
   echo "Fixture root: \`$TESTS_DIR\`"
   echo
-  echo "| Fixture | VM Exit | Interpreter Exit | VM Matches Snapshot | Interpreter Matches Snapshot | Delta Type |"
-  echo "| --- | ---: | ---: | --- | --- | --- |"
+  echo "| Fixture | VM Exit | Interpreter Exit | VM Matches Snapshot | Interpreter Matches Snapshot | Delta Type | Mismatch Bucket | Owner | Priority | Rationale |"
+  echo "| --- | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |"
 } > "$OUTPUT_MD_PATH"
 
-echo "fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type" > "$OUTPUT_CSV_PATH"
+echo "fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type,mismatch_bucket,bucket_owner,priority,rationale" > "$OUTPUT_CSV_PATH"
 
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -165,6 +199,11 @@ vm_only_mismatch=0
 interpreter_only_mismatch=0
 both_mismatch=0
 both_match=0
+bucket_parser_invalid=0
+bucket_stale_snapshot=0
+bucket_runtime_parity=0
+bucket_intentional_divergence=0
+bucket_harness_debt=0
 
 while IFS= read -r fixture; do
   [[ -z "$fixture" ]] && continue
@@ -199,15 +238,40 @@ while IFS= read -r fixture; do
   fi
 
   delta_type="$(classify_delta "$vm_match" "$interpreter_match" "$vm_output" "$interpreter_output")"
+  cause_payload="$(classify_mismatch_cause "$fixture" "$delta_type" "$vm_exit" "$interpreter_exit")"
+  mismatch_bucket="${cause_payload%%|*}"
+  remaining="${cause_payload#*|}"
+  mismatch_owner="${remaining%%|*}"
+  remaining="${remaining#*|}"
+  mismatch_priority="${remaining%%|*}"
+  mismatch_rationale="${remaining#*|}"
+
   case "$delta_type" in
     both_match_snapshot) both_match=$((both_match + 1)) ;;
     vm_only_mismatch) vm_only_mismatch=$((vm_only_mismatch + 1)) ;;
     interpreter_only_mismatch) interpreter_only_mismatch=$((interpreter_only_mismatch + 1)) ;;
     *) both_mismatch=$((both_mismatch + 1)) ;;
   esac
+  case "$mismatch_bucket" in
+    parser-invalid-fixture) bucket_parser_invalid=$((bucket_parser_invalid + 1)) ;;
+    stale-snapshot-expectation) bucket_stale_snapshot=$((bucket_stale_snapshot + 1)) ;;
+    runtime-parity-bug) bucket_runtime_parity=$((bucket_runtime_parity + 1)) ;;
+    intentional-divergence) bucket_intentional_divergence=$((bucket_intentional_divergence + 1)) ;;
+    harness-debt) bucket_harness_debt=$((bucket_harness_debt + 1)) ;;
+  esac
 
-  echo "| \`$fixture\` | $vm_exit | $interpreter_exit | $vm_match | $interpreter_match | \`$delta_type\` |" >> "$OUTPUT_MD_PATH"
-  printf '%s,%s,%s,%s,%s,%s\n' "$fixture" "$vm_exit" "$interpreter_exit" "$vm_match" "$interpreter_match" "$delta_type" >> "$OUTPUT_CSV_PATH"
+  echo "| \`$fixture\` | $vm_exit | $interpreter_exit | $vm_match | $interpreter_match | \`$delta_type\` | \`$mismatch_bucket\` | $mismatch_owner | \`$mismatch_priority\` | $mismatch_rationale |" >> "$OUTPUT_MD_PATH"
+  printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    "$fixture" \
+    "$vm_exit" \
+    "$interpreter_exit" \
+    "$vm_match" \
+    "$interpreter_match" \
+    "$delta_type" \
+    "$mismatch_bucket" \
+    "$mismatch_owner" \
+    "$mismatch_priority" \
+    "$(printf '%s' "$mismatch_rationale" | sed 's/,/;/g')" >> "$OUTPUT_CSV_PATH"
 done <<< "$fixtures"
 
 {
@@ -217,6 +281,13 @@ done <<< "$fixtures"
   echo "- VM-only mismatch: \`$vm_only_mismatch\`"
   echo "- interpreter-only mismatch: \`$interpreter_only_mismatch\`"
   echo "- both mismatch: \`$both_mismatch\`"
+  echo
+  echo "Mismatch classification totals (priority order):"
+  echo "- P0 runtime-parity-bug (\`runtime-owner\`): \`$bucket_runtime_parity\`"
+  echo "- P1 stale-snapshot-expectation (\`docs-owner\`): \`$bucket_stale_snapshot\`"
+  echo "- P1 parser-invalid-fixture (\`language-owner\`): \`$bucket_parser_invalid\`"
+  echo "- P2 harness-debt (\`harness-owner\`): \`$bucket_harness_debt\`"
+  echo "- P2 intentional-divergence (\`runtime-owner\`): \`$bucket_intentional_divergence\`"
 } >> "$OUTPUT_MD_PATH"
 
 echo "generated inventory: $OUTPUT_MD"

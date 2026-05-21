@@ -51,11 +51,31 @@ fn vm_runtime_mismatch_inventory_script_generates_expected_outputs() {
 
     let markdown = fs::read_to_string(&output_md).expect("inventory markdown should exist");
     assert!(markdown.contains("# VM Runtime Mismatch Inventory"));
-    assert!(markdown.contains("| Fixture | VM Exit | Interpreter Exit | VM Matches Snapshot | Interpreter Matches Snapshot | Delta Type |"));
+    assert!(markdown.contains("| Fixture | VM Exit | Interpreter Exit | VM Matches Snapshot | Interpreter Matches Snapshot | Delta Type | Mismatch Bucket | Owner | Priority | Rationale |"));
     assert!(markdown.contains("Summary: `5` fixtures scanned"));
+    assert!(markdown.contains("Mismatch classification totals (priority order):"));
+    assert!(markdown.contains("runtime-parity-bug"));
 
     let csv = fs::read_to_string(&output_csv).expect("inventory csv should exist");
-    assert!(csv.contains("fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type"));
+    assert!(csv.contains("fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type,mismatch_bucket,bucket_owner,priority,rationale"));
+
+    let has_classified_mismatch = csv
+        .lines()
+        .skip(1)
+        .filter(|line| !line.trim().is_empty())
+        .any(|line| {
+            let parts: Vec<&str> = line.split(',').collect();
+            if parts.len() < 10 {
+                return false;
+            }
+            let delta_type = parts[5];
+            let mismatch_bucket = parts[6];
+            delta_type != "both_match_snapshot" && mismatch_bucket != "none"
+        });
+    assert!(
+        has_classified_mismatch,
+        "expected at least one mismatch row to have a non-none classification bucket"
+    );
 }
 
 #[test]
