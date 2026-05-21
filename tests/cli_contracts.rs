@@ -194,6 +194,14 @@ fn cli_test_discovers_and_runs_expected_fixtures() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
     assert!(stdout.contains("Passed 1/1 tests"), "test should discover and run fixture files");
     assert!(stdout.contains("[✓]"), "test should report passing fixture");
+    assert!(
+        stdout.contains("Runtime strategy: dual"),
+        "test command without explicit --runtime should default to dual strategy"
+    );
+    assert!(
+        stdout.contains("interpreter_fallback=0"),
+        "dual default should report zero fallback usage for VM-clean fixtures"
+    );
 }
 
 #[test]

@@ -539,7 +539,7 @@ cargo run -- profile examples/benchmark.ruff
 These are intentional caveats for production readers rather than fine print:
 
 - Tagged releases publish standalone Linux/macOS artifacts with checksums; package-manager taps remain outside the current v1 release gate.
-- VM execution is the default; the interpreter remains part of compatibility workflows (`ruff test --runtime dual|interpreter`) where legacy fixture snapshots and diagnostics still require explicit fallback handling.
+- `ruff run` defaults to VM execution, while `ruff test` defaults to `--runtime dual` (VM-primary with bounded interpreter fallback); `--runtime vm|interpreter` remains available for strict and compatibility workflows.
 - Static typing is optional and not a VM-enforced compile-time contract in the current CLI path.
 - `import`/`export` syntax and module execution/export collection are implemented; module file resolution is constrained to configured search roots and rejects symlink-resolved escapes.
 - Struct fields and instance literals exist, and explicit `self` struct methods are parity-covered in VM/interpreter tests.

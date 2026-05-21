@@ -227,6 +227,8 @@ Each loop report must include exactly:
     - No unexplained mismatch categories remain.
   - Blocker note (2026-05-21): deferred until parity burn-down removes unexplained mismatch buckets.
     - Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports non-intentional categories (`runtime-parity-bug: 25`, `harness-debt: 16`), so intentional-only divergence documentation would be premature.
+  - Blocker note (2026-05-21, loop retry): still blocked.
+    - Evidence: latest generated inventory remains above intentional-only threshold with unresolved non-intentional buckets (`runtime-parity-bug: 25`, `harness-debt: 16`), so `V1VM-PAR-004` acceptance criteria cannot be met yet.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
@@ -268,11 +270,27 @@ Each loop report must include exactly:
       - `cargo run -- test --runtime dual` -> `Passed 121/150` (`vm_primary=107`, `interpreter_fallback=14`)
     - Captured execution notes in `notes/2026-05-21_20-02_v1vm-har-002-vm-coverage-threshold.md`.
 
-- [ ] **V1VM-HAR-003**: Reassess default runtime strategy for `ruff test`.
+- [x] **V1VM-HAR-003**: Reassess default runtime strategy for `ruff test`.
   - Scope: decide whether default remains `dual` or can safely move to stricter VM-first behavior.
   - Acceptance criteria:
     - Decision note includes explicit risk analysis and command evidence.
     - CLI docs and contract tests align with decision.
+  - Evidence (2026-05-21):
+    - Decision recorded: keep default `ruff test` runtime as `dual` until parity burn-down removes unresolved mismatch categories.
+    - Added explicit decision/risk-analysis section to `docs/VM_INTERPRETER_PARITY_MATRIX.md` (`### \`ruff test\` Default Runtime Decision (2026-05-21)`), including command-backed evidence:
+      - `cargo run -- test --runtime vm` -> `Passed 107/150`
+      - `cargo run -- test --runtime dual` -> `Passed 121/150` (`vm_primary=107`, `interpreter_fallback=14`)
+    - Aligned CLI docs in `README.md` Known Boundaries:
+      - clarified `ruff run` default VM vs `ruff test` default `--runtime dual`.
+    - Tightened contract coverage:
+      - `tests/cli_contracts.rs::cli_test_discovers_and_runs_expected_fixtures` now asserts default runtime summary contains `Runtime strategy: dual` and `interpreter_fallback=0`.
+      - `tests/runtime_path_matrix_contract.rs` now asserts decision section markers remain present.
+    - Revalidated required HAR command matrix and focused suites:
+      - `cargo test --test cli_contracts cli_test_discovers_and_runs_expected_fixtures`
+      - `cargo test --test runtime_path_matrix_contract`
+      - `cargo run -- test --runtime vm`
+      - `cargo run -- test --runtime dual`
+    - Captured execution notes in `notes/2026-05-21_20-18_v1vm-har-003-default-runtime-strategy-decision.md`.
 
 ### 4) Security, Determinism, And Performance Guardrails
 

@@ -16,6 +16,8 @@ fn vm_parity_doc_includes_command_level_runtime_path_matrix() {
         "| Command/Test Surface | Runtime Path | Alternate Path(s) | Why This Path Exists | Evidence |",
         "| `ruff run <file>` | VM (default) |",
         "| `ruff test --runtime dual` | VM-primary with bounded interpreter fallback |",
+        "### `ruff test` Default Runtime Decision (2026-05-21)",
+        "- Decision: keep default `ruff test` runtime at `dual` for now.",
         "| `ruff test-run <file>` | Interpreter-hosted test framework execution |",
         "| `cargo test --test native_api_security_boundaries` | Interpreter-focused command execution (`run --interpreter`) |",
         "| `cargo test --test diagnostics_golden` | Interpreter diagnostics command coverage (`run --interpreter`) |",

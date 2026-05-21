@@ -1,6 +1,6 @@
 # VM/Interpreter/Compiler Parity Matrix (v1.0.0)
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 This matrix tracks parity for roadmap item `V1-COMP-001`.
 
@@ -45,6 +45,18 @@ This matrix tracks parity for roadmap item `V1-COMP-001`.
 | `cargo test --test diagnostics_golden` | Interpreter diagnostics command coverage (`run --interpreter`) | parser/lexer diagnostics independent of runtime mode | Golden snapshots lock deterministic diagnostics shape for existing interpreter-bound fixtures. | `tests/diagnostics_golden.rs` |
 | `ruff lsp-diagnostics <file>` | Parse/diagnostic pipeline (runtime-agnostic) | n/a | Uses lexer/parser diagnostics without executing VM/interpreter runtime. | `tests/cli_contracts.rs` (`cli_lsp_diagnostics_json_is_valid_json`) |
 | `ruff check <file>` | Parse/compile validation (runtime-agnostic) | n/a | Validates source without runtime execution side effects. | `tests/cli_contracts.rs` (`cli_check_does_not_execute_script_side_effects`) |
+
+### `ruff test` Default Runtime Decision (2026-05-21)
+
+- Decision: keep default `ruff test` runtime at `dual` for now.
+- Evidence:
+  - `cargo run -- test --runtime vm` currently reports `Passed 107/150`.
+  - `cargo run -- test --runtime dual` currently reports `Passed 121/150` with deterministic split metadata (`vm_primary=107`, `interpreter_fallback=14`).
+  - Remaining unexplained mismatch categories (`runtime-parity-bug`, `harness-debt`) are still tracked in `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`.
+- Risk analysis:
+  - Switching default to VM-only today would convert known fallback recoveries into default user-visible failures for fixtures still pending parity burn-down.
+  - Keeping `dual` preserves deterministic behavior via bounded fallback markers while parity closure continues.
+  - VM-only workflows remain explicitly available through `--runtime vm` for strict validation and migration gating.
 
 ## CI Gate
 
