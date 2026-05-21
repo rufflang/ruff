@@ -5304,28 +5304,14 @@ impl Interpreter {
             "filter" if args.len() == 1 => {
                 // Create an iterator with a filter function
                 match &obj {
-                    Value::Iterator {
-                        source,
-                        index,
-                        transformer,
-                        filter_fn: existing_filter,
-                        take_count,
-                    } => {
-                        // Chain filters if there's already one
-                        let new_filter = if existing_filter.is_some() {
-                            // TODO: Combine filters
-                            Some(Box::new(args[0].clone()))
-                        } else {
-                            Some(Box::new(args[0].clone()))
-                        };
-                        Value::Iterator {
-                            source: source.clone(),
-                            index: *index,
-                            transformer: transformer.clone(),
-                            filter_fn: new_filter,
-                            take_count: *take_count,
-                        }
-                    }
+                    Value::Iterator { .. } => Value::Iterator {
+                        // Preserve evaluation order by layering a new iterator stage.
+                        source: Box::new(obj.clone()),
+                        index: 0,
+                        transformer: None,
+                        filter_fn: Some(Box::new(args[0].clone())),
+                        take_count: None,
+                    },
                     Value::Array(_) => {
                         // Convert array to iterator with filter
                         Value::Iterator {
@@ -5344,28 +5330,14 @@ impl Interpreter {
             "map" if args.len() == 1 => {
                 // Create an iterator with a transformer function
                 match &obj {
-                    Value::Iterator {
-                        source,
-                        index,
-                        transformer: existing_transformer,
-                        filter_fn,
-                        take_count,
-                    } => {
-                        // Chain transformers if there's already one
-                        let new_transformer = if existing_transformer.is_some() {
-                            // TODO: Combine transformers
-                            Some(Box::new(args[0].clone()))
-                        } else {
-                            Some(Box::new(args[0].clone()))
-                        };
-                        Value::Iterator {
-                            source: source.clone(),
-                            index: *index,
-                            transformer: new_transformer,
-                            filter_fn: filter_fn.clone(),
-                            take_count: *take_count,
-                        }
-                    }
+                    Value::Iterator { .. } => Value::Iterator {
+                        // Preserve evaluation order by layering a new iterator stage.
+                        source: Box::new(obj.clone()),
+                        index: 0,
+                        transformer: Some(Box::new(args[0].clone())),
+                        filter_fn: None,
+                        take_count: None,
+                    },
                     Value::Array(_) => {
                         // Convert array to iterator with map
                         Value::Iterator {
@@ -5519,7 +5491,7 @@ impl Interpreter {
                     }
 
                     // Get next item from source
-                    match source.as_ref() {
+                    match source.as_mut() {
                         Value::Array(items) => {
                             // Find next item that passes filter
                             loop {
@@ -5616,6 +5588,23 @@ impl Interpreter {
                                 }
                             }
                         }
+                        Value::Iterator { .. } => {
+                            // Materialize nested iterator state once, then continue processing.
+                            let materialized = self.collect_iterator((**source).clone());
+                            match materialized {
+                                Value::Array(items) => {
+                                    *source = Box::new(Value::Array(items));
+                                    *index = 0;
+                                    continue;
+                                }
+                                Value::Error(msg) => return Value::Error(msg),
+                                _ => {
+                                    return Value::Error(
+                                        "Invalid nested iterator source".to_string(),
+                                    );
+                                }
+                            }
+                        }
                         _ => {
                             return Value::Error("Invalid iterator source".to_string());
                         }
@@ -5703,56 +5692,21 @@ impl Interpreter {
     fn iterator_next(&mut self, mut iterator: Value) -> Value {
         match &mut iterator {
             Value::Iterator { source, index, transformer, filter_fn, take_count } => {
-                // Check if we've reached the take limit
-                if let Some(limit) = take_count {
-                    if *index >= *limit {
-                        return Value::Option { is_some: false, value: Box::new(Value::Null) };
-                    }
-                }
-
-                // Get next item from source
-                match source.as_mut() {
-                    Value::Array(items) => {
-                        // Find next item that passes filter
-                        while *index < items.len() {
-                            let mut item = items[*index].clone();
-                            *index += 1;
-
-                            // Apply filter if present
-                            if let Some(filter) = filter_fn {
-                                let args_vec = vec![item.clone()];
-                                let filter_result =
-                                    self.call_user_function(filter.as_ref(), &args_vec);
-                                match filter_result {
-                                    Value::Bool(true) => {
-                                        // Item passes filter
-                                    }
-                                    _ => {
-                                        // Item filtered out, continue to next
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            // Apply transformer if present
-                            if let Some(trans) = transformer {
-                                let args_vec = vec![item];
-                                item = self.call_user_function(trans.as_ref(), &args_vec);
-                            }
-
-                            return Value::Option { is_some: true, value: Box::new(item) };
+                loop {
+                    // Check if we've reached the take limit
+                    if let Some(limit) = take_count {
+                        if *index >= *limit {
+                            return Value::Option { is_some: false, value: Box::new(Value::Null) };
                         }
-                        // No more items
-                        Value::Option { is_some: false, value: Box::new(Value::Null) }
                     }
-                    Value::Generator { .. } => {
-                        // Delegate to generator_next
-                        let result = self.generator_next(source);
 
-                        // Apply transformer if present and we got a value
-                        match result {
-                            Value::Option { is_some: true, value } => {
-                                let mut item = *value;
+                    // Get next item from source
+                    match source.as_mut() {
+                        Value::Array(items) => {
+                            // Find next item that passes filter
+                            while *index < items.len() {
+                                let mut item = items[*index].clone();
+                                *index += 1;
 
                                 // Apply filter if present
                                 if let Some(filter) = filter_fn {
@@ -5760,15 +5714,8 @@ impl Interpreter {
                                     let filter_result =
                                         self.call_user_function(filter.as_ref(), &args_vec);
                                     match filter_result {
-                                        Value::Bool(false) => {
-                                            // Item filtered out - need to get next one
-                                            // For now, just return None (TODO: could recursively call)
-                                            return Value::Option {
-                                                is_some: false,
-                                                value: Box::new(Value::Null),
-                                            };
-                                        }
-                                        _ => {}
+                                        Value::Bool(true) => {}
+                                        _ => continue,
                                     }
                                 }
 
@@ -5778,12 +5725,71 @@ impl Interpreter {
                                     item = self.call_user_function(trans.as_ref(), &args_vec);
                                 }
 
-                                Value::Option { is_some: true, value: Box::new(item) }
+                                return Value::Option { is_some: true, value: Box::new(item) };
                             }
-                            other => other,
+                            // No more items
+                            return Value::Option { is_some: false, value: Box::new(Value::Null) };
                         }
+                        Value::Generator { .. } => {
+                            // Delegate to generator_next
+                            let result = self.generator_next(source);
+
+                            // Apply transformer if present and we got a value
+                            match result {
+                                Value::Option { is_some: true, value } => {
+                                    let mut item = *value;
+
+                                    // Apply filter if present
+                                    if let Some(filter) = filter_fn {
+                                        let args_vec = vec![item.clone()];
+                                        let filter_result =
+                                            self.call_user_function(filter.as_ref(), &args_vec);
+                                        match filter_result {
+                                            Value::Bool(false) => {
+                                                // Filtered generator items should continue to the next yield.
+                                                continue;
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+
+                                    // Apply transformer if present
+                                    if let Some(trans) = transformer {
+                                        let args_vec = vec![item];
+                                        item = self.call_user_function(trans.as_ref(), &args_vec);
+                                    }
+
+                                    *index += 1;
+                                    return Value::Option { is_some: true, value: Box::new(item) };
+                                }
+                                Value::Option { is_some: false, .. } => {
+                                    return Value::Option {
+                                        is_some: false,
+                                        value: Box::new(Value::Null),
+                                    };
+                                }
+                                other => return other,
+                            }
+                        }
+                        Value::Iterator { .. } => {
+                            // Materialize nested iterator state once, then continue processing.
+                            let materialized = self.collect_iterator((**source).clone());
+                            match materialized {
+                                Value::Array(items) => {
+                                    *source = Box::new(Value::Array(items));
+                                    *index = 0;
+                                    continue;
+                                }
+                                Value::Error(msg) => return Value::Error(msg),
+                                _ => {
+                                    return Value::Error(
+                                        "Invalid nested iterator source".to_string(),
+                                    )
+                                }
+                            }
+                        }
+                        _ => return Value::Error("Invalid iterator source".to_string()),
                     }
-                    _ => Value::Error("Invalid iterator source".to_string()),
                 }
             }
             _ => Value::Error("next() can only be called on iterators".to_string()),

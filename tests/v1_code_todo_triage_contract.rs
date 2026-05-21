@@ -49,7 +49,6 @@ fn v1_code_todo_triage_script_generates_expected_repo_artifacts() {
     assert!(markdown.contains("# V1 Code TODO/FIXME/HACK Triage"));
     assert!(markdown.contains("| ID | File | Line | Marker | Summary | Severity | Owner | Target Release Bucket | Scope | Rationale |"));
     assert!(markdown.contains("`src/type_checker.rs`"));
-    assert!(markdown.contains("`src/interpreter/mod.rs`"));
     assert!(
         !markdown.contains("| high |"),
         "high-severity TODO markers should be resolved or explicitly deferred"
@@ -60,7 +59,7 @@ fn v1_code_todo_triage_script_generates_expected_repo_artifacts() {
     assert!(csv.contains(
         "id,file,line,marker,summary,severity,owner,target_release_bucket,scope,rationale"
     ));
-    assert!(csv.contains(",v1,"));
+    assert!(!csv.contains(",v1,"));
     assert!(csv.contains(",post-v1,"));
 }
 

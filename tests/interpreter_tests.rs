@@ -4874,6 +4874,96 @@ fn test_collection_predicates_use_shared_truthiness_semantics() {
 }
 
 #[test]
+fn test_iterator_filter_chain_preserves_both_predicates() {
+    let code = r#"
+        nums := [1, 2, 3, 4, 5, 6]
+        filtered := nums
+            .filter(func(x) { return x > 1 })
+            .filter(func(x) { return x % 2 == 0 })
+            .collect()
+        ok := len(filtered) == 3
+            && filtered[0] == 2
+            && filtered[1] == 4
+            && filtered[2] == 6
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_iterator_map_chain_applies_transformers_in_order() {
+    let code = r#"
+        nums := [1, 2, 3]
+        mapped := nums
+            .map(func(x) { return x + 1 })
+            .map(func(x) { return x * 2 })
+            .collect()
+        ok := len(mapped) == 3
+            && mapped[0] == 4
+            && mapped[1] == 6
+            && mapped[2] == 8
+    "#;
+
+    let interp = run_code(code);
+    assert!(matches!(interp.env.get("ok"), Some(Value::Bool(true))));
+}
+
+#[test]
+fn test_generator_iterator_next_skips_filtered_items_until_match() {
+    let mut interp = run_code(
+        r#"
+        func* seq() {
+            yield 1
+            yield 2
+            yield 3
+        }
+
+        func greater_than_one(x) {
+            return x > 1
+        }
+
+        gen := seq()
+    "#,
+    );
+
+    let generator_value = match interp.env.get("gen") {
+        Some(value @ Value::Generator { .. }) => value,
+        other => panic!("expected generator value, got {other:?}"),
+    };
+    let predicate = match interp.env.get("greater_than_one") {
+        Some(value @ Value::Function(..)) => value,
+        other => panic!("expected predicate function, got {other:?}"),
+    };
+
+    interp.env.define(
+        "iter".to_string(),
+        Value::Iterator {
+            source: Box::new(generator_value),
+            index: 0,
+            transformer: None,
+            filter_fn: Some(Box::new(predicate)),
+            take_count: None,
+        },
+    );
+
+    let code = r#"
+        next_value := iter.next()
+    "#;
+    let tokens = tokenize(code).expect("test source should tokenize");
+    let mut parser = Parser::new(tokens);
+    let program = parser.parse();
+    interp.eval_stmts(&program);
+
+    match interp.env.get("next_value") {
+        Some(Value::Option { is_some: true, value }) => {
+            assert!(matches!(value.as_ref(), Value::Int(2)));
+        }
+        other => panic!("expected Some(2), got {other:?}"),
+    }
+}
+
+#[test]
 fn test_array_utilities_chained() {
     let code = r#"
         nums := [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]

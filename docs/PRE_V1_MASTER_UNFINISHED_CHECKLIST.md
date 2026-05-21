@@ -204,6 +204,8 @@ Each loop report must include exactly:
     Evidence: Current session instructions prohibit release/tag/publish/sign-off actions without the exact `UNBLOCK_V1_RELEASE` directive, and `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time rows remain unchecked.
   - Blocker (2026-05-21): Release-freeze revalidation for loop 2; tag-time publish/sign-off remains blocked without explicit `UNBLOCK_V1_RELEASE`.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` rows are still unchecked and require real publish-event outputs disallowed by current session constraints.
+  - Blocker (2026-05-21): Release-freeze revalidation for loop 3; no `UNBLOCK_V1_RELEASE` directive is present, so tag-time publication/sign-off remains blocked.
+    Evidence: Session constraints still prohibit release/tag/publish/sign-off actions and `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` tag-time rows remain unchecked.
 
 - [x] **V1U-OPEN-004**: Execute `V1-DOCGEN-001` roadmap item.
   - Scope: complete the universal DocGen maturation slice currently open in `ROADMAP.md`.
@@ -451,6 +453,8 @@ Each loop report must include exactly:
     Evidence: Current session instructions block release publication/sign-off actions without `UNBLOCK_V1_RELEASE`, and `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` `Tag-Time Sign-Off` items are still unchecked.
   - Blocker (2026-05-21): Release-freeze revalidation for loop 2; final tag-time artifact completion remains blocked without explicit `UNBLOCK_V1_RELEASE`.
     Evidence: `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` still requires post-publish URLs/checksums/workflow evidence that cannot be produced under current freeze constraints.
+  - Blocker (2026-05-21): Release-freeze revalidation for loop 3; no `UNBLOCK_V1_RELEASE` directive is present, so final tag-time artifact completion remains blocked.
+    Evidence: Required post-publish artifact URLs/checksums/smoke evidence in `docs/RELEASE_ARTIFACT_CHECKLIST_V1_0_0.md` cannot be produced while release actions are frozen.
 
 ---
 
