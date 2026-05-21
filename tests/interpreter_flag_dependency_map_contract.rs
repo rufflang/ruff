@@ -51,9 +51,10 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
         "| File | Category | Reason Tags | Usage Count | Line References |",
         "## V1U-RUN-005: Parity-Gap Coverage Status",
         "Current `parity-gap` tagged entries:",
-        "## V1U-RUN-002: `ruff test` Interpreter Hardcoding Decision",
-        "Decision (2026-05-20): keep `ruff test` interpreter-pinned for now",
-        "Removal criteria for this hardcoding:",
+        "## V1U-RUN-002: `ruff test` Runtime Strategy Status",
+        "`ruff test` supports explicit runtime strategy selection via `--runtime dual|vm|interpreter`",
+        "Import-reliability clarification:",
+        "`--interpreter` is not required for ordinary multi-module import layouts",
     ] {
         assert!(map.contains(marker), "dependency map should contain required marker {:?}", marker);
     }

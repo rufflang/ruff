@@ -323,6 +323,7 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Arrays and dictionaries with indexing and standard library helpers.
 - Module imports support flat and dotted `from` paths (`import module`, `from module import symbol`, `from src.util import value`, `from src.core.math import add`).
 - Resolution order is deterministic and compatibility-preserving: Ruff checks `<module>.ruff` first (legacy behavior), then for dotted module names checks `<seg1>/<seg2>/.../<segN>.ruff`; both forms remain constrained to the importing package root before configured search paths.
+- Dotted module import workflows are supported on the default VM path; `--interpreter` is an optional compatibility/debug fallback, not a requirement for ordinary nested module layouts.
 - Module resolution rejects unsafe traversal-style module names and symlink escapes that resolve outside the active module search root.
 - Circular imports fail with an explicit import chain (`a -> b -> a`) to make cycle diagnosis deterministic.
 - Module cache entries are context-aware (package root + canonical module path) and are invalidated when module source metadata changes during the same run.

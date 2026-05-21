@@ -1,6 +1,6 @@
 # Interpreter Flag Dependency Map
 
-- Generated: 2026-05-20 14:07:11 EDT
+- Generated: 2026-05-21 18:39:48 EDT
 - Command: `rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github`
 
 Reason tags:
@@ -16,13 +16,17 @@ Reason tags:
 
 | File | Category | Reason Tags | Usage Count | Line References |
 | --- | --- | --- | --- | --- |
-| `README.md` | documentation | `docs-contract` | 2 | 11,121 |
+| `README.md` | documentation | `docs-contract` | 3 | 11,122,326 |
 | `ROADMAP.md` | documentation | `docs-contract` | 1 | 1334 |
+| `docs/ARCHITECTURE.md` | documentation | `docs-contract` | 2 | 29,42 |
 | `docs/IMAGE_CONVERSION_AGENT_HANDOFF.md` | documentation | `docs-contract` | 1 | 52 |
 | `docs/NATIVE_API_SECURITY_POSTURE.md` | documentation | `docs-contract` | 3 | 193,199,211 |
+| `docs/OPTIONAL_TYPING_DESIGN.md` | documentation | `docs-contract` | 1 | 26 |
 | `docs/PERFORMANCE.md` | documentation | `docs-contract` | 3 | 46,495,500 |
-| `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 195,201 |
-| `docs/RUFF_FEATURE_INVENTORY.md` | documentation | `docs-contract` | 2 | 28,34 |
+| `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 265,271 |
+| `docs/RUFF_FEATURE_INVENTORY.md` | documentation | `docs-contract` | 2 | 31,37 |
+| `docs/VM_INTERPRETER_PARITY_MATRIX.md` | documentation | `docs-contract` | 5 | 37,38,43,44,45 |
+| `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` | documentation | `docs-contract` | 7 | 3,6,149,164,239,241,246 |
 | `examples/benchmarks/README_REAL_WORLD.md` | example-doc | `benchmark-baseline` | 1 | 150 |
 | `notes/2026-01-27_20-54_phase5-tokio-async-runtime.md` | notes-history | `archive-note` | 2 | 78,83 |
 | `notes/2026-04-29_17-02_image-method-dispatch-parity.md` | notes-history | `archive-note` | 1 | 63 |
@@ -33,15 +37,22 @@ Reason tags:
 | `notes/2026-05-16_17-10_v1-test-005-docs-examples-smoke-suite.md` | notes-history | `archive-note` | 1 | 20 |
 | `notes/2026-05-20_11-44_pre-v1-master-unfinished-checklist-audit.md` | notes-history | `archive-note` | 1 | 31 |
 | `notes/2026-05-20_16-10_v1u-run-002_ruff-test-interpreter-hardcoding-analysis.md` | notes-history | `archive-note` | 2 | 8,21 |
+| `notes/2026-05-20_18-05_v1u-run-006-command-runtime-path-matrix.md` | notes-history | `archive-note` | 1 | 15 |
+| `notes/2026-05-20_18-13_v1u-code-003-optional-typing-boundary.md` | notes-history | `archive-note` | 1 | 20 |
+| `notes/2026-05-21_17-48_vm-universal-checklist-and-agent-prompt.md` | notes-history | `archive-note` | 2 | 6,17 |
+| `notes/2026-05-21_18-34_v1vm-imp-003-dotted-import-boundary-security.md` | notes-history | `archive-note` | 1 | 13 |
+| `notes/README.md` | notes-history | `archive-note` | 1 | 9 |
 | `notes/vm_performance.md` | notes-history | `archive-note` | 1 | 21 |
 | `src/main.rs` | other | `manual-review` | 1 | 125 |
-| `src/parser.rs` | cli-harness | `harness-legacy,parity-gap` | 1 | 2190 |
+| `src/parser.rs` | cli-harness | `harness-legacy,parity-gap` | 1 | 2212 |
 | `tests/diagnostics_golden.rs` | integration-test | `diagnostics-diff,harness-legacy` | 1 | 60 |
 | `tests/docs_examples.rs` | integration-test | `docs-smoke,harness-legacy` | 1 | 256 |
-| `tests/interpreter_flag_dependency_map_contract.rs` | integration-test | `harness-legacy` | 1 | 87 |
+| `tests/interpreter_flag_dependency_map_contract.rs` | integration-test | `harness-legacy` | 2 | 57,88 |
 | `tests/native_api_security_boundaries.rs` | integration-test | `security-test-choice` | 34 | 134,211,307,327,371,398,407,421,450,459,468,477,500,544,573,582,591,609,643,682,700,736,776,807,842,882,918,954,987,996,1029,1038,1074,1083 |
-| `tests/package_module_workflow_integration.rs` | integration-test | `harness-legacy,package-workflow` | 4 | 124,316,347,366 |
-| `tests/runtime_security.rs` | integration-test | `security-test-choice` | 5 | 128,146,175,206,261 |
+| `tests/optional_typing_v1_contract.rs` | integration-test | `harness-legacy` | 1 | 112 |
+| `tests/package_module_workflow_integration.rs` | integration-test | `harness-legacy,package-workflow` | 7 | 124,316,347,366,405,455,486 |
+| `tests/runtime_path_matrix_contract.rs` | integration-test | `harness-legacy` | 2 | 20,21 |
+| `tests/runtime_security.rs` | integration-test | `security-test-choice` | 6 | 128,146,175,206,261,307 |
 
 ## V1U-RUN-005: Parity-Gap Coverage Status
 
@@ -54,20 +65,17 @@ Reason tags:
   - `tests/vm_interpreter_parity_surfaces.rs` (generator divergence contract)
   - `README.md` and `docs/VM_INTERPRETER_PARITY_MATRIX.md` (canonical divergence docs)
 
-## V1U-RUN-002: `ruff test` Interpreter Hardcoding Decision
+## V1U-RUN-002: `ruff test` Runtime Strategy Status
 
-Current state (`src/parser.rs::run_all_tests`): each fixture is executed via `ruff run <fixture> --interpreter`.
+Current state (`src/parser.rs::run_all_tests`): `ruff test` supports explicit runtime strategy selection via `--runtime dual|vm|interpreter` (default `dual`), with VM-primary execution and bounded interpreter fallback in dual mode.
 
-Root-cause evidence for keeping interpreter-pinned today:
+Current rationale:
 
-- Snapshot corpus compatibility: `ruff test` compares fixture stdout against existing `tests/*.out` snapshots created around interpreter-first behavior.
-- Runtime-path drift is still material: a local comparison sweep (`ruff run` vs `ruff run --interpreter`) found 15 mismatches in the first 21 fixtures scanned, including `tests/array_methods_test.ruff`, `tests/net_test.ruff`, `tests/error_call_stack_test.ruff`, and `tests/image_processing_test.ruff`.
-- Divergence is not one class of issue: differences include runtime diagnostic code/subsystem shape (`[RUFVM001]` vs `[RUFRUN001]`), optimizer banner output, and builtin availability/behavior differences in legacy fixtures.
+- Snapshot corpus compatibility still matters because many `tests/*.out` files were created under interpreter-first historical behavior.
+- Runtime-path drift remains measurable for part of the legacy fixture corpus, but the harness is no longer blanket interpreter-pinned.
+- Command-level runtime strategy behavior is tracked in `docs/VM_INTERPRETER_PARITY_MATRIX.md`.
 
-Decision (2026-05-20): keep `ruff test` interpreter-pinned for now, and close migration work under `V1U-RUN-003`.
+Import-reliability clarification:
 
-Removal criteria for this hardcoding:
-
-1. Add an explicit runtime-path strategy for `ruff test` (VM-first or dual-engine with deterministic fallback policy).
-2. Normalize or rebaseline fixture expectations so runtime-path-specific diagnostics/noise do not create accidental false failures.
-3. Add parity coverage for currently divergent fixture classes, then prove the selected strategy with focused command-level tests.
+- Dotted and flat module imports are supported in both VM and interpreter runtime paths.
+- `--interpreter` is not required for ordinary multi-module import layouts; it remains an explicit fallback/debug mode while fixture parity burn-down continues.

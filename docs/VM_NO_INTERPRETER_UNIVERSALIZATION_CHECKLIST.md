@@ -160,11 +160,15 @@ Each loop report must include exactly:
     - Added explicit flat-module control flow in the same integration test to verify legacy flat import behavior remains unchanged across both runtime modes.
     - Revalidated integration and parity suites (`tests/package_module_workflow_integration.rs`, `tests/vm_interpreter_parity_surfaces.rs`) and captured command evidence in `notes/2026-05-21_18-37_v1vm-imp-004-nested-layout-integration-fixtures.md`.
 
-- [ ] **V1VM-IMP-005**: Align module-import docs with current reliability guarantees.
+- [x] **V1VM-IMP-005**: Align module-import docs with current reliability guarantees.
   - Scope: remove stale blanket guidance that requires `--interpreter` specifically for module import reliability when no longer true.
   - Acceptance criteria:
     - Updated docs clearly state what is guaranteed now vs remaining VM caveats.
     - Docs contract tests updated where applicable.
+  - Evidence (2026-05-21):
+    - Updated `README.md` to explicitly state dotted import workflows are supported on the default VM path and that `--interpreter` is optional fallback/debug mode.
+    - Updated generator-owned dependency-map guidance (`scripts/generate_interpreter_flag_dependency_map.sh` + regenerated `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md`) to reflect current `ruff test --runtime dual|vm|interpreter` strategy and remove stale interpreter-hardcoding language.
+    - Updated and passed docs contracts (`tests/readme_contracts.rs`, `tests/interpreter_flag_dependency_map_contract.rs`) and revalidated runtime parity suite; command evidence captured in `notes/2026-05-21_18-40_v1vm-imp-005-module-import-guidance-alignment.md`.
 
 ### 2) VM Parity Burn-Down For `ruff test`/Runtime Surfaces
 
