@@ -276,3 +276,53 @@ fn runtime_security_rejects_module_symlink_escape() {
         stderr_text(&output)
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn runtime_security_rejects_dotted_module_symlink_escape_in_vm_and_interpreter() {
+    let project_root = unique_temp_dir("runtime_security_dotted_symlink_root");
+    let outside_root = unique_temp_dir("runtime_security_dotted_symlink_outside");
+    let root_module = "src";
+    let outside_module_path = outside_root.join("math.ruff");
+    fs::write(&outside_module_path, "export answer := 99\n")
+        .expect("failed to write outside dotted module file");
+
+    let nested_dir = project_root.join(root_module).join("core");
+    fs::create_dir_all(&nested_dir).expect("failed to create nested module directory");
+    let symlink_path = nested_dir.join("math.ruff");
+    unix_fs::symlink(&outside_module_path, &symlink_path)
+        .expect("failed to create dotted module symlink escape");
+
+    let workflow = project_root.join("escape_dotted_main.ruff");
+    fs::write(
+        &workflow,
+        "from src.core.math import answer\nprint(answer)\n",
+    )
+    .expect("failed to write dotted symlink workflow");
+
+    for args in [
+        vec!["run", workflow.to_str().expect("path should be utf-8")],
+        vec![
+            "run",
+            "--interpreter",
+            workflow.to_str().expect("path should be utf-8"),
+        ],
+    ] {
+        let output = run_ruff(&args, &project_root);
+        assert_eq!(
+            output.status.code(),
+            Some(4),
+            "expected dotted symlink escape import to fail, args={:?} stdout={} stderr={}",
+            args,
+            stdout_text(&output),
+            stderr_text(&output)
+        );
+        assert!(
+            stderr_text(&output).contains("escapes module search root"),
+            "expected symlink-escape rejection for dotted import, args={:?} stdout={} stderr={}",
+            args,
+            stdout_text(&output),
+            stderr_text(&output)
+        );
+    }
+}

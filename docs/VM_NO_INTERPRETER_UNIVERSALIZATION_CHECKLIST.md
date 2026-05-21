@@ -140,11 +140,15 @@ Each loop report must include exactly:
     - Revalidated existing resolver precedence unit coverage (`load_module_dotted_name_resolution_prefers_legacy_flat_filename_before_nested_path`) and confirmed docs precedence wording in `docs/LANGUAGE_SPEC.md` remains aligned with runtime behavior.
     - Captured command evidence in `notes/2026-05-21_18-24_v1vm-imp-002-dotted-resolution-precedence.md`.
 
-- [ ] **V1VM-IMP-003**: Enforce import resolution boundaries for dotted paths.
+- [x] **V1VM-IMP-003**: Enforce import resolution boundaries for dotted paths.
   - Scope: ensure out-of-root traversal and symlink-based escape attempts are rejected in dotted import flows.
   - Acceptance criteria:
     - Boundary/security tests cover parent traversal and symlink escape attempts.
     - Errors are deterministic and actionable.
+  - Evidence (2026-05-21):
+    - Added dotted-path symlink escape regression `runtime_security_rejects_dotted_module_symlink_escape_in_vm_and_interpreter` in `tests/runtime_security.rs`, asserting deterministic rejection for both `ruff run` (VM default) and `ruff run --interpreter`.
+    - Revalidated module loader traversal/symlink boundary tests in `tests/runtime_security.rs` and runtime-path parity stability in `tests/vm_interpreter_parity_surfaces.rs`.
+    - Captured execution evidence in `notes/2026-05-21_18-34_v1vm-imp-003-dotted-import-boundary-security.md`.
 
 - [ ] **V1VM-IMP-004**: Add integration fixtures for real nested project layouts.
   - Scope: add end-to-end interpreter+VM fixtures representing downstream multi-module project structures.
