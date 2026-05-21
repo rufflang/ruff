@@ -8,6 +8,7 @@ OUTPUT_CSV="docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.csv"
 RUNNER=""
 MAX_FIXTURES=""
 STRICT_MODE=0
+VM_COVERAGE_TARGET_PERCENT="70.0"
 
 resolve_output_path() {
   local path="$1"
@@ -287,6 +288,10 @@ while IFS= read -r fixture; do
     "$(printf '%s' "$mismatch_rationale" | sed 's/,/;/g')" >> "$OUTPUT_CSV_PATH"
 done <<< "$fixtures"
 
+vm_matches_snapshot_total=$((both_match + interpreter_only_mismatch))
+vm_match_percent="$(awk -v matches="$vm_matches_snapshot_total" -v total="$count" 'BEGIN { if (total == 0) { printf "0.0" } else { printf "%.1f", (matches * 100.0) / total } }')"
+vm_target_met="$(awk -v pct="$vm_match_percent" -v target="$VM_COVERAGE_TARGET_PERCENT" 'BEGIN { if (pct + 0 >= target + 0) print "PASS"; else print "FAIL"; }')"
+
 {
   echo
   echo "Summary: \`$count\` fixtures scanned"
@@ -301,6 +306,12 @@ done <<< "$fixtures"
   echo "- P1 parser-invalid-fixture (\`language-owner\`): \`$bucket_parser_invalid\`"
   echo "- P2 harness-debt (\`harness-owner\`): \`$bucket_harness_debt\`"
   echo "- P2 intentional-divergence (\`runtime-owner\`): \`$bucket_intentional_divergence\`"
+  echo
+  echo "VM coverage gate:"
+  echo "- metric: \`vm_matches_snapshot / fixtures_scanned\`"
+  echo "- vm_matches_snapshot: \`$vm_matches_snapshot_total/$count\` (\`$vm_match_percent%\`)"
+  echo "- target threshold: \`$VM_COVERAGE_TARGET_PERCENT%\`"
+  echo "- gate status: \`$vm_target_met\`"
 } >> "$OUTPUT_MD_PATH"
 
 echo "generated inventory: $OUTPUT_MD"

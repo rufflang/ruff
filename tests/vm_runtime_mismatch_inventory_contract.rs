@@ -56,6 +56,10 @@ fn vm_runtime_mismatch_inventory_script_generates_expected_outputs() {
     assert!(markdown.contains("Summary: `5` fixtures scanned"));
     assert!(markdown.contains("Mismatch classification totals (priority order):"));
     assert!(markdown.contains("runtime-parity-bug"));
+    assert!(markdown.contains("VM coverage gate:"));
+    assert!(markdown.contains("metric: `vm_matches_snapshot / fixtures_scanned`"));
+    assert!(markdown.contains("target threshold: `70.0%`"));
+    assert!(markdown.contains("gate status: `"));
 
     let csv = fs::read_to_string(&output_csv).expect("inventory csv should exist");
     assert!(csv.contains("fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type,mismatch_bucket,bucket_owner,priority,rationale"));

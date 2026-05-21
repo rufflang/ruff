@@ -182,3 +182,9 @@ Mismatch classification totals (priority order):
 - P1 parser-invalid-fixture (`language-owner`): `0`
 - P2 harness-debt (`harness-owner`): `16`
 - P2 intentional-divergence (`runtime-owner`): `0`
+
+VM coverage gate:
+- metric: `vm_matches_snapshot / fixtures_scanned`
+- vm_matches_snapshot: `133/163` (`81.6%`)
+- target threshold: `70.0%`
+- gate status: `PASS`
