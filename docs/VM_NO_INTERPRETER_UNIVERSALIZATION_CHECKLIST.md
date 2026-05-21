@@ -119,12 +119,16 @@ Each loop report must include exactly:
 
 ### 1) Module Import Reliability (Critical Path)
 
-- [ ] **V1VM-IMP-001**: Harden dotted `from ... import ...` parser acceptance and diagnostics.
+- [x] **V1VM-IMP-001**: Harden dotted `from ... import ...` parser acceptance and diagnostics.
   - Scope: preserve existing import syntax while ensuring dotted-path acceptance and crisp malformed-path errors.
   - Acceptance criteria:
     - Positive parser tests for single-level and multi-level dotted from-import.
     - Negative parser tests for malformed token order/punctuation/path segments.
     - Existing flat import parser behavior unchanged by regression tests.
+  - Evidence (2026-05-21):
+    - Added parser negative coverage in `tests/parser_diagnostics_contract.rs` for trailing-dot module paths (`from src. import value`) and invalid token order (`from src util import value`).
+    - Revalidated dotted parser acceptance + legacy flat import regression coverage (`single-level`, `multi-level`, and existing flat import forms) in `tests/parser_diagnostics_contract.rs`.
+    - Ran runtime/module parity validation (`tests/interpreter_tests.rs`, `tests/package_module_workflow_integration.rs`, `tests/vm_interpreter_parity_surfaces.rs`) and captured command evidence in `notes/2026-05-21_18-21_v1vm-imp-001-parser-dotted-from-import-hardening.md`.
 
 - [ ] **V1VM-IMP-002**: Lock deterministic dotted module resolution precedence.
   - Scope: define and enforce stable lookup order for nested module files/directories without changing legacy flat-module behavior.

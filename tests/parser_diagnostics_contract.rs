@@ -127,6 +127,22 @@ fn parser_reports_diagnostic_for_malformed_dotted_from_import_path() {
 }
 
 #[test]
+fn parser_reports_diagnostic_for_trailing_dot_in_from_import_path() {
+    let output = parse_output("from src. import value\n");
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Expected module path segment after '.' in from-import statement")));
+}
+
+#[test]
+fn parser_reports_diagnostic_for_invalid_from_import_token_order() {
+    let output = parse_output("from src util import value\n");
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Expected 'import' after module name in from-import statement")));
+}
+
+#[test]
 fn parser_keeps_existing_flat_import_forms_unchanged() {
     let output = parse_output("import math_helper\nfrom utils import helper, formatter\n");
     assert!(
