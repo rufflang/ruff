@@ -1028,6 +1028,32 @@ fn vm_and_interpreter_match_dotted_from_import_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_dotted_import_resolution_prefers_flat_module_before_nested_path() {
+    let root_module = unique_module_name();
+    let nested_dir = format!("modules/{}/core", root_module);
+    fs::create_dir_all(&nested_dir).expect("failed to create nested parity module dir");
+
+    let dotted_name = format!("{}.core.math", root_module);
+    let flat_module_path = format!("modules/{}.ruff", dotted_name);
+    fs::write(&flat_module_path, "export source := \"flat\"\n")
+        .expect("failed to write flat dotted module file");
+    fs::write(format!("{}/math.ruff", nested_dir), "export source := \"nested\"\n")
+        .expect("failed to write nested dotted module file");
+
+    let script = format!(
+        r#"
+        from {} import source
+        dotted_precedence_ok := source == "flat"
+    "#,
+        dotted_name
+    );
+
+    assert_interpreter_and_vm_bool(&script, "dotted_precedence_ok");
+    let _ = fs::remove_file(flat_module_path);
+    let _ = fs::remove_dir_all(format!("modules/{}", root_module));
+}
+
+#[test]
 fn vm_and_interpreter_reject_integer_add_overflow() {
     let script = r#"
         return 9223372036854775807 + 1

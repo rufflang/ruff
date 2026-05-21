@@ -130,11 +130,15 @@ Each loop report must include exactly:
     - Revalidated dotted parser acceptance + legacy flat import regression coverage (`single-level`, `multi-level`, and existing flat import forms) in `tests/parser_diagnostics_contract.rs`.
     - Ran runtime/module parity validation (`tests/interpreter_tests.rs`, `tests/package_module_workflow_integration.rs`, `tests/vm_interpreter_parity_surfaces.rs`) and captured command evidence in `notes/2026-05-21_18-21_v1vm-imp-001-parser-dotted-from-import-hardening.md`.
 
-- [ ] **V1VM-IMP-002**: Lock deterministic dotted module resolution precedence.
+- [x] **V1VM-IMP-002**: Lock deterministic dotted module resolution precedence.
   - Scope: define and enforce stable lookup order for nested module files/directories without changing legacy flat-module behavior.
   - Acceptance criteria:
     - Precedence rules documented and covered with resolver tests.
     - Conflict scenarios (flat vs nested naming collisions) behave deterministically and are test-locked.
+  - Evidence (2026-05-21):
+    - Added VM/interpreter parity conflict coverage in `tests/vm_interpreter_parity_surfaces.rs` (`vm_and_interpreter_dotted_import_resolution_prefers_flat_module_before_nested_path`) to assert flat dotted filename precedence over nested directory-backed resolution when both candidates exist.
+    - Revalidated existing resolver precedence unit coverage (`load_module_dotted_name_resolution_prefers_legacy_flat_filename_before_nested_path`) and confirmed docs precedence wording in `docs/LANGUAGE_SPEC.md` remains aligned with runtime behavior.
+    - Captured command evidence in `notes/2026-05-21_18-24_v1vm-imp-002-dotted-resolution-precedence.md`.
 
 - [ ] **V1VM-IMP-003**: Enforce import resolution boundaries for dotted paths.
   - Scope: ensure out-of-root traversal and symlink-based escape attempts are rejected in dotted import flows.
