@@ -7,6 +7,7 @@ OUTPUT_MD="docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md"
 OUTPUT_CSV="docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.csv"
 RUNNER=""
 MAX_FIXTURES=""
+STRICT_MODE=0
 
 resolve_output_path() {
   local path="$1"
@@ -29,6 +30,7 @@ Options:
   --output-csv <path>     CSV output path (default: docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.csv)
   --runner <path>         Ruff binary path to use (default: auto-build target/debug/ruff)
   --max-fixtures <count>  Optional fixture cap for quick smoke runs
+  --strict                Exit non-zero if any mismatch row lacks required classification fields
   -h, --help              Show help
 USAGE
 }
@@ -54,6 +56,10 @@ while [[ $# -gt 0 ]]; do
     --max-fixtures)
       MAX_FIXTURES="${2:?missing value for --max-fixtures}"
       shift 2
+      ;;
+    --strict)
+      STRICT_MODE=1
+      shift
       ;;
     -h|--help)
       usage
@@ -204,6 +210,7 @@ bucket_stale_snapshot=0
 bucket_runtime_parity=0
 bucket_intentional_divergence=0
 bucket_harness_debt=0
+classification_errors=0
 
 while IFS= read -r fixture; do
   [[ -z "$fixture" ]] && continue
@@ -260,6 +267,12 @@ while IFS= read -r fixture; do
     harness-debt) bucket_harness_debt=$((bucket_harness_debt + 1)) ;;
   esac
 
+  if [[ "$delta_type" != "both_match_snapshot" ]]; then
+    if [[ "$mismatch_bucket" == "none" || "$mismatch_owner" == "n/a" || "$mismatch_priority" == "P4" ]]; then
+      classification_errors=$((classification_errors + 1))
+    fi
+  fi
+
   echo "| \`$fixture\` | $vm_exit | $interpreter_exit | $vm_match | $interpreter_match | \`$delta_type\` | \`$mismatch_bucket\` | $mismatch_owner | \`$mismatch_priority\` | $mismatch_rationale |" >> "$OUTPUT_MD_PATH"
   printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
     "$fixture" \
@@ -292,3 +305,8 @@ done <<< "$fixtures"
 
 echo "generated inventory: $OUTPUT_MD"
 echo "generated inventory csv: $OUTPUT_CSV"
+
+if [[ "$STRICT_MODE" -eq 1 && "$classification_errors" -gt 0 ]]; then
+  echo "error: $classification_errors mismatch rows were missing required classification fields" >&2
+  exit 1
+fi

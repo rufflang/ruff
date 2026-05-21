@@ -38,6 +38,7 @@ fn vm_runtime_mismatch_inventory_script_generates_expected_outputs() {
         .arg("target/debug/ruff")
         .arg("--max-fixtures")
         .arg("5")
+        .arg("--strict")
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .expect("failed to execute inventory script");
@@ -99,6 +100,7 @@ fn vm_runtime_mismatch_inventory_script_is_deterministic_for_capped_scan() {
             .arg("target/debug/ruff")
             .arg("--max-fixtures")
             .arg("4")
+            .arg("--strict")
             .current_dir(env!("CARGO_MANIFEST_DIR"))
             .output()
             .expect("failed to execute inventory script");

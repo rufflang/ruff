@@ -108,10 +108,14 @@ Each loop report must include exactly:
     - Added ordered bucket totals section (`P0`/`P1`/`P2`) to `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`.
     - Updated and passed `tests/vm_runtime_mismatch_inventory_contract.rs` contract coverage; captured command evidence in `notes/2026-05-21_18-15_v1vm-base-002-mismatch-classification.md`.
 
-- [ ] **V1VM-BASE-003**: Add/refresh contract tests for baseline artifacts.
+- [x] **V1VM-BASE-003**: Add/refresh contract tests for baseline artifacts.
   - Scope: prevent silent drift in mismatch inventory format and required buckets.
   - Acceptance criteria:
     - Contract test fails if required columns/buckets/evidence markers are missing.
+  - Evidence (2026-05-21):
+    - Added strict classification enforcement to `scripts/generate_vm_runtime_mismatch_inventory.sh` via `--strict` (fails if mismatch rows lack required bucket/owner/priority fields).
+    - Added `tests/vm_runtime_mismatch_baseline_contract.rs` to enforce baseline artifact schema + semantic mismatch-classification invariants.
+    - Updated and passed `tests/vm_runtime_mismatch_inventory_contract.rs` under strict mode; command evidence captured in `notes/2026-05-21_18-18_v1vm-base-003-baseline-contracts.md`.
 
 ### 1) Module Import Reliability (Critical Path)
 
