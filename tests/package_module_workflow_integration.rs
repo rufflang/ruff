@@ -418,3 +418,89 @@ fn package_module_workflow_supports_dotted_from_imports_for_nested_source_layout
         stderr_text(&run_output)
     );
 }
+
+#[test]
+fn package_module_workflow_nested_layout_is_runtime_mode_consistent_and_keeps_flat_imports() {
+    let project_root = unique_temp_dir("package_module_nested_runtime_consistency");
+
+    let src_core_dir = project_root.join("src").join("core");
+    let src_rag_dir = project_root.join("src").join("rag");
+    fs::create_dir_all(&src_core_dir).expect("failed to create src/core directory");
+    fs::create_dir_all(&src_rag_dir).expect("failed to create src/rag directory");
+
+    fs::write(
+        src_core_dir.join("math.ruff"),
+        "func add(left, right) {\n    return left + right\n}\nexport add := add\n",
+    )
+    .expect("failed to write src/core/math module");
+    fs::write(src_rag_dir.join("config.ruff"), "export base := 40\n")
+        .expect("failed to write src/rag/config module");
+    fs::write(
+        src_rag_dir.join("pipeline.ruff"),
+        "from src.core.math import add\nfrom src.rag.config import base\nexport answer := add(base, 2)\n",
+    )
+    .expect("failed to write src/rag/pipeline module");
+
+    let nested_workflow = project_root.join("nested_runtime_workflow.ruff");
+    fs::write(
+        &nested_workflow,
+        "from src.rag.pipeline import answer\nprint(answer)\n",
+    )
+    .expect("failed to write nested runtime workflow");
+
+    for args in [
+        vec!["run", nested_workflow.to_str().expect("path should be utf-8")],
+        vec![
+            "run",
+            "--interpreter",
+            nested_workflow.to_str().expect("path should be utf-8"),
+        ],
+    ] {
+        let output = run_ruff(&args, &project_root);
+        assert!(
+            output.status.success(),
+            "nested workflow failed: args={:?} stdout={} stderr={}",
+            args,
+            stdout_text(&output),
+            stderr_text(&output)
+        );
+        assert!(
+            stdout_text(&output).contains("42"),
+            "expected nested workflow to print 42: args={:?} stdout={} stderr={}",
+            args,
+            stdout_text(&output),
+            stderr_text(&output)
+        );
+    }
+
+    fs::write(project_root.join("math_helper.ruff"), "export answer := 7\n")
+        .expect("failed to write flat module");
+    let flat_workflow = project_root.join("flat_runtime_workflow.ruff");
+    fs::write(&flat_workflow, "from math_helper import answer\nprint(answer)\n")
+        .expect("failed to write flat workflow");
+
+    for args in [
+        vec!["run", flat_workflow.to_str().expect("path should be utf-8")],
+        vec![
+            "run",
+            "--interpreter",
+            flat_workflow.to_str().expect("path should be utf-8"),
+        ],
+    ] {
+        let output = run_ruff(&args, &project_root);
+        assert!(
+            output.status.success(),
+            "flat workflow failed: args={:?} stdout={} stderr={}",
+            args,
+            stdout_text(&output),
+            stderr_text(&output)
+        );
+        assert!(
+            stdout_text(&output).contains("7"),
+            "expected flat workflow to print 7: args={:?} stdout={} stderr={}",
+            args,
+            stdout_text(&output),
+            stderr_text(&output)
+        );
+    }
+}

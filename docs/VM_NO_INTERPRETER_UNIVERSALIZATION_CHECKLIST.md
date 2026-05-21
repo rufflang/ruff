@@ -150,11 +150,15 @@ Each loop report must include exactly:
     - Revalidated module loader traversal/symlink boundary tests in `tests/runtime_security.rs` and runtime-path parity stability in `tests/vm_interpreter_parity_surfaces.rs`.
     - Captured execution evidence in `notes/2026-05-21_18-34_v1vm-imp-003-dotted-import-boundary-security.md`.
 
-- [ ] **V1VM-IMP-004**: Add integration fixtures for real nested project layouts.
+- [x] **V1VM-IMP-004**: Add integration fixtures for real nested project layouts.
   - Scope: add end-to-end interpreter+VM fixtures representing downstream multi-module project structures.
   - Acceptance criteria:
     - At least one realistic nested fixture proving prior blocked pattern now works.
     - Existing flat-module fixtures continue to pass unchanged.
+  - Evidence (2026-05-21):
+    - Added `package_module_workflow_nested_layout_is_runtime_mode_consistent_and_keeps_flat_imports` in `tests/package_module_workflow_integration.rs` using a realistic nested layout (`src/core`, `src/rag`) with dotted imports executed in both VM and interpreter modes.
+    - Added explicit flat-module control flow in the same integration test to verify legacy flat import behavior remains unchanged across both runtime modes.
+    - Revalidated integration and parity suites (`tests/package_module_workflow_integration.rs`, `tests/vm_interpreter_parity_surfaces.rs`) and captured command evidence in `notes/2026-05-21_18-37_v1vm-imp-004-nested-layout-integration-fixtures.md`.
 
 - [ ] **V1VM-IMP-005**: Align module-import docs with current reliability guarantees.
   - Scope: remove stale blanket guidance that requires `--interpreter` specifically for module import reliability when no longer true.
