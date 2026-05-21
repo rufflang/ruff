@@ -81,6 +81,78 @@ fn parser_accepts_valid_program_without_diagnostics() {
 }
 
 #[test]
+fn parser_accepts_from_import_with_single_level_dotted_module_path() {
+    let output = parse_output("from src.util import value\n");
+    assert!(
+        output.diagnostics.is_empty(),
+        "expected dotted from-import to parse, got {:?}",
+        output.diagnostics
+    );
+    assert_eq!(output.stmts.len(), 1);
+    match &output.stmts[0] {
+        ruff::ast::Stmt::Import { module, symbols } => {
+            assert_eq!(module, "src.util");
+            let expected = vec!["value".to_string()];
+            assert_eq!(symbols.as_ref(), Some(&expected));
+        }
+        other => panic!("expected import statement, got {:?}", other),
+    }
+}
+
+#[test]
+fn parser_accepts_from_import_with_multi_level_dotted_module_path() {
+    let output = parse_output("from src.core.math import add, sub\n");
+    assert!(
+        output.diagnostics.is_empty(),
+        "expected multi-level dotted from-import to parse, got {:?}",
+        output.diagnostics
+    );
+    assert_eq!(output.stmts.len(), 1);
+    match &output.stmts[0] {
+        ruff::ast::Stmt::Import { module, symbols } => {
+            assert_eq!(module, "src.core.math");
+            let expected = vec!["add".to_string(), "sub".to_string()];
+            assert_eq!(symbols.as_ref(), Some(&expected));
+        }
+        other => panic!("expected import statement, got {:?}", other),
+    }
+}
+
+#[test]
+fn parser_reports_diagnostic_for_malformed_dotted_from_import_path() {
+    let output = parse_output("from src..util import value\n");
+    assert!(output.diagnostics.iter().any(|diagnostic| diagnostic
+        .message
+        .contains("Expected module path segment after '.' in from-import statement")));
+}
+
+#[test]
+fn parser_keeps_existing_flat_import_forms_unchanged() {
+    let output = parse_output("import math_helper\nfrom utils import helper, formatter\n");
+    assert!(
+        output.diagnostics.is_empty(),
+        "expected existing flat imports to keep parsing, got {:?}",
+        output.diagnostics
+    );
+    assert_eq!(output.stmts.len(), 2);
+    match &output.stmts[0] {
+        ruff::ast::Stmt::Import { module, symbols } => {
+            assert_eq!(module, "math_helper");
+            assert!(symbols.is_none());
+        }
+        other => panic!("expected import statement, got {:?}", other),
+    }
+    match &output.stmts[1] {
+        ruff::ast::Stmt::Import { module, symbols } => {
+            assert_eq!(module, "utils");
+            let expected = vec!["helper".to_string(), "formatter".to_string()];
+            assert_eq!(symbols.as_ref(), Some(&expected));
+        }
+        other => panic!("expected import statement, got {:?}", other),
+    }
+}
+
+#[test]
 fn parser_accepts_bare_return_before_closing_brace() {
     let output = parse_output("func noop() {\n    return\n}\n");
     assert!(

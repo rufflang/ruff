@@ -1291,13 +1291,7 @@ impl Parser {
 
         if is_from {
             // from module import ...
-            let module = match self.advance() {
-                TokenKind::Identifier(m) => m.clone(),
-                _ => {
-                    self.push_diagnostic("Expected module name after 'from'");
-                    return None;
-                }
-            };
+            let module = self.parse_from_import_module_path()?;
 
             // expect 'import' keyword
             if !self.expect_keyword("import", "after module name in from-import statement") {
@@ -1335,6 +1329,34 @@ impl Parser {
 
             Some(Stmt::Import { module, symbols: None })
         }
+    }
+
+    fn parse_from_import_module_path(&mut self) -> Option<String> {
+        let mut module = match self.advance() {
+            TokenKind::Identifier(m) => m.clone(),
+            _ => {
+                self.push_diagnostic("Expected module name after 'from'");
+                return None;
+            }
+        };
+
+        while matches!(self.peek(), TokenKind::Punctuation('.')) {
+            self.advance(); // .
+            match self.advance() {
+                TokenKind::Identifier(segment) => {
+                    module.push('.');
+                    module.push_str(segment);
+                }
+                _ => {
+                    self.push_diagnostic(
+                        "Expected module path segment after '.' in from-import statement",
+                    );
+                    return None;
+                }
+            }
+        }
+
+        Some(module)
     }
 
     fn parse_export(&mut self) -> Option<Stmt> {

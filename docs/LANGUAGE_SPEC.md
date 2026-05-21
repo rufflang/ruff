@@ -366,10 +366,14 @@ items[0] := 9
 
 ### 5.10 Module import resolution and caching semantics
 
-- Ruff supports `import module_name` and `from module_name import symbol1, symbol2`.
-- Import resolution searches for `<module_name>.ruff` in this order:
+- Ruff supports `import module_name`, `from module_name import symbol1, symbol2`, and dotted `from` module paths such as `from src.util import value` and `from src.core.math import add`.
+- Dotted `from` paths must use identifier segments separated by `.`; malformed paths (for example `from src..util import value`) are parse errors.
+- Import resolution searches for module files in deterministic order:
   - the importing module's package root (for nested imports),
   - then the loader's configured module search paths.
+- For each search root Ruff checks candidates in this exact precedence order:
+  - `<module_name>.ruff` (legacy flat behavior),
+  - for dotted module names only, `<seg1>/<seg2>/.../<segN>.ruff` (directory-backed dotted resolution).
 - Module names are normalized as relative paths and must not contain unsafe traversal components:
   - parent traversal (`..`) is rejected,
   - absolute/drive-prefixed paths are rejected,
@@ -385,6 +389,8 @@ Example:
 ```ruff
 import math_helpers
 from metrics import average, total
+from src.util import value
+from src.core.math import add
 ```
 
 ### 5.11 Diagnostics and CLI exit codes

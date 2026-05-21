@@ -379,3 +379,42 @@ fn package_module_run_refreshes_after_module_file_change() {
         stderr_text(&second_run)
     );
 }
+
+#[test]
+fn package_module_workflow_supports_dotted_from_imports_for_nested_source_layout() {
+    let project_root = unique_temp_dir("package_module_dotted_imports");
+    let nested_dir = project_root.join("src").join("core");
+    fs::create_dir_all(&nested_dir).expect("failed to create nested source layout");
+
+    fs::write(
+        nested_dir.join("math.ruff"),
+        "func add(left, right) {\n    return left + right\n}\nexport add := add\n",
+    )
+    .expect("failed to write nested math module");
+    fs::write(project_root.join("src").join("util.ruff"), "export value := 40\n")
+        .expect("failed to write util module");
+
+    let workflow_path = project_root.join("nested_workflow.ruff");
+    fs::write(
+        &workflow_path,
+        "from src.core.math import add\nfrom src.util import value\nprint(add(value, 2))\n",
+    )
+    .expect("failed to write dotted import workflow");
+
+    let run_output = run_ruff(
+        &["run", workflow_path.to_str().expect("path should be utf-8"), "--interpreter"],
+        &project_root,
+    );
+    assert!(
+        run_output.status.success(),
+        "dotted import workflow failed: stdout={} stderr={}",
+        stdout_text(&run_output),
+        stderr_text(&run_output)
+    );
+    assert!(
+        stdout_text(&run_output).contains("42"),
+        "expected dotted import workflow to print 42, got stdout={} stderr={}",
+        stdout_text(&run_output),
+        stderr_text(&run_output)
+    );
+}

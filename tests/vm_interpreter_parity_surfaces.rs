@@ -1007,6 +1007,27 @@ fn vm_and_interpreter_match_import_export_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_match_dotted_from_import_surface() {
+    let root_module = unique_module_name();
+    let nested_dir = format!("modules/{}/core", root_module);
+    fs::create_dir_all(&nested_dir).expect("failed to create nested parity module dir");
+    let module_filename = format!("{}/math.ruff", nested_dir);
+    let module_source = "export answer := 42\n";
+    fs::write(&module_filename, module_source).expect("failed to write nested parity module");
+
+    let script = format!(
+        r#"
+        from {}.core.math import answer
+        dotted_import_ok := answer == 42
+    "#,
+        root_module
+    );
+
+    assert_interpreter_and_vm_bool(&script, "dotted_import_ok");
+    let _ = fs::remove_dir_all(format!("modules/{}", root_module));
+}
+
+#[test]
 fn vm_and_interpreter_reject_integer_add_overflow() {
     let script = r#"
         return 9223372036854775807 + 1

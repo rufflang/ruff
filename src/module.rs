@@ -207,16 +207,57 @@ impl ModuleLoader {
         roots
     }
 
+    fn module_resolution_candidates(
+        &self,
+        module_name: &str,
+    ) -> Result<Vec<PathBuf>, Box<RuffError>> {
+        let mut candidates = Vec::new();
+        let mut seen = HashSet::new();
+
+        let flat_filename = format!("{}.ruff", module_name);
+        let normalized_flat = path_security::sanitize_relative_path(
+            &flat_filename,
+            "module import",
+        )
+        .map_err(|error| {
+            Self::runtime_error(format!("Unsafe module import '{}': {}", module_name, error))
+        })?;
+        if seen.insert(normalized_flat.clone()) {
+            candidates.push(normalized_flat);
+        }
+
+        if module_name.contains('.') {
+            let segments: Vec<&str> = module_name.split('.').collect();
+            if segments.iter().any(|segment| segment.is_empty()) {
+                return Err(Self::runtime_error(format!(
+                    "Unsafe module import '{}': dotted module path contains an empty segment",
+                    module_name
+                )));
+            }
+
+            let nested_filename = format!("{}.ruff", segments.join("/"));
+            let normalized_nested = path_security::sanitize_relative_path(
+                &nested_filename,
+                "module import",
+            )
+            .map_err(|error| {
+                Self::runtime_error(format!("Unsafe module import '{}': {}", module_name, error))
+            })?;
+
+            if seen.insert(normalized_nested.clone()) {
+                candidates.push(normalized_nested);
+            }
+        }
+
+        Ok(candidates)
+    }
+
     /// Resolves a module name to a file path.
     fn resolve_module_path(
         &self,
         module_name: &str,
     ) -> Result<Option<ResolvedModulePath>, Box<RuffError>> {
-        let filename = format!("{}.ruff", module_name);
-        let normalized_filename = path_security::sanitize_relative_path(&filename, "module import")
-            .map_err(|error| {
-                Self::runtime_error(format!("Unsafe module import '{}': {}", module_name, error))
-            })?;
+        let resolution_candidates = self.module_resolution_candidates(module_name)?;
 
         let mut visited_roots = HashSet::new();
 
@@ -231,39 +272,41 @@ impl ModuleLoader {
                 continue;
             }
 
-            let full_path = canonical_search_root.join(&normalized_filename);
-            if full_path.exists() {
-                let canonical_module_path = fs::canonicalize(&full_path).map_err(|error| {
-                    Self::runtime_error(format!(
-                        "Failed to resolve module '{}' path '{}': {}",
-                        module_name,
-                        full_path.display(),
-                        error
-                    ))
-                })?;
+            for normalized_filename in &resolution_candidates {
+                let full_path = canonical_search_root.join(normalized_filename);
+                if full_path.exists() {
+                    let canonical_module_path = fs::canonicalize(&full_path).map_err(|error| {
+                        Self::runtime_error(format!(
+                            "Failed to resolve module '{}' path '{}': {}",
+                            module_name,
+                            full_path.display(),
+                            error
+                        ))
+                    })?;
 
-                if path_security::ensure_path_within_root(
-                    &canonical_module_path,
-                    &canonical_search_root,
-                    "module import path",
-                )
-                .is_err()
-                {
-                    return Err(Self::runtime_error(format!(
-                        "Unsafe module import '{}': resolved path '{}' escapes module search root '{}'",
-                        module_name,
-                        canonical_module_path.display(),
-                        canonical_search_root.display()
-                    )));
+                    if path_security::ensure_path_within_root(
+                        &canonical_module_path,
+                        &canonical_search_root,
+                        "module import path",
+                    )
+                    .is_err()
+                    {
+                        return Err(Self::runtime_error(format!(
+                            "Unsafe module import '{}': resolved path '{}' escapes module search root '{}'",
+                            module_name,
+                            canonical_module_path.display(),
+                            canonical_search_root.display()
+                        )));
+                    }
+
+                    return Ok(Some(ResolvedModulePath {
+                        module_path: canonical_module_path.clone(),
+                        cache_key: ModuleCacheKey {
+                            package_root: canonical_search_root.clone(),
+                            module_path: canonical_module_path,
+                        },
+                    }));
                 }
-
-                return Ok(Some(ResolvedModulePath {
-                    module_path: canonical_module_path.clone(),
-                    cache_key: ModuleCacheKey {
-                        package_root: canonical_search_root,
-                        module_path: canonical_module_path,
-                    },
-                }));
             }
         }
 
@@ -698,6 +741,74 @@ mod tests {
         );
 
         fs::remove_file(&module_path).expect("failed to clean up module file");
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
+    fn load_module_resolves_dotted_from_import_name_to_nested_module_path() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_dotted_nested"));
+        let nested_dir = temp_root.join("src").join("core");
+        fs::create_dir_all(&nested_dir).expect("failed to create nested module dir");
+
+        let module_path = nested_dir.join("math.ruff");
+        fs::write(&module_path, "export answer := 42\n").expect("failed to write nested module");
+
+        loader.add_search_path(&temp_root);
+
+        let answer = loader
+            .get_symbol("src.core.math", "answer")
+            .expect("expected dotted module name to resolve to nested module");
+        assert!(matches!(answer, Value::Int(42)), "expected dotted import export value 42");
+
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
+    fn load_module_dotted_name_resolution_prefers_legacy_flat_filename_before_nested_path() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_dotted_precedence"));
+        let nested_dir = temp_root.join("src").join("core");
+        fs::create_dir_all(&nested_dir).expect("failed to create nested module dir");
+
+        let dotted_module_name = "src.core.math";
+        let flat_module_path = temp_root.join(format!("{}.ruff", dotted_module_name));
+        let nested_module_path = nested_dir.join("math.ruff");
+        fs::write(&flat_module_path, "export source := \"flat\"\n")
+            .expect("failed to write flat dotted module file");
+        fs::write(&nested_module_path, "export source := \"nested\"\n")
+            .expect("failed to write nested dotted module file");
+
+        loader.add_search_path(&temp_root);
+
+        let source = loader
+            .get_symbol(dotted_module_name, "source")
+            .expect("expected dotted module resolution to return a source marker");
+        assert!(
+            matches!(source, Value::Str(ref value) if value.as_ref() == "flat"),
+            "expected flat dotted module path to win precedence, got: {:?}",
+            source
+        );
+
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
+    fn load_module_rejects_dotted_module_names_with_empty_segments() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_dotted_invalid"));
+        fs::create_dir_all(&temp_root).expect("failed to create temp module dir");
+        loader.add_search_path(&temp_root);
+
+        let err = loader
+            .get_all_exports("src..core")
+            .expect_err("expected invalid dotted module name to fail");
+        assert!(
+            err.message.contains("dotted module path contains an empty segment"),
+            "expected invalid dotted module segment error, got: {}",
+            err.message
+        );
+
         fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
     }
 

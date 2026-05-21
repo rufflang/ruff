@@ -3439,6 +3439,43 @@ fn test_imported_function_can_call_module_local_helper() {
 }
 
 #[test]
+fn test_dotted_from_import_resolves_nested_module_file() {
+    let modules_dir = std::path::PathBuf::from("modules");
+    std::fs::create_dir_all(&modules_dir).expect("failed to create modules directory for test");
+
+    let root_module = unique_module_name("nested_module_root");
+    let nested_dir = modules_dir.join(&root_module).join("core");
+    std::fs::create_dir_all(&nested_dir).expect("failed to create nested module dir");
+
+    let module_path = nested_dir.join("math.ruff");
+    std::fs::write(
+        &module_path,
+        "func add(left, right) {\n\treturn left + right\n}\nexport add := add\n",
+    )
+    .expect("failed to write nested module");
+
+    let code = format!("from {}.core.math import add\nresult := add(40, 2)\n", root_module);
+    let interp = run_code(&code);
+
+    assert!(matches!(interp.env.get("result"), Some(Value::Int(42))));
+
+    std::fs::remove_dir_all(modules_dir.join(&root_module))
+        .expect("failed to remove temporary nested module tree");
+}
+
+#[test]
+fn test_dotted_from_import_missing_module_returns_runtime_error() {
+    let root_module = unique_module_name("missing_dotted_module");
+    let dotted_module_name = format!("{}.core.math", root_module);
+    let interp = run_code(&format!("from {} import answer", dotted_module_name));
+
+    assert!(matches!(
+        interp.return_value,
+        Some(Value::Error(message)) if message.contains(&format!("Module not found: {}", dotted_module_name))
+    ));
+}
+
+#[test]
 fn test_null_equality_and_inequality_semantics() {
     let code = r#"
         eq_null := null == null

@@ -321,7 +321,8 @@ Ruff source files use the `.ruff` extension. The implemented syntax includes:
 - Float division/modulo by zero returns deterministic runtime errors; NaN and infinity comparisons follow documented language-spec behavior.
 - Equality/comparison semantics are explicit across interpreter and VM: `1 == 1.0` is true, arrays/dictionaries compare deeply by value, callable equality is identity-based, and unsupported ordering pairs (for example `bool < bool`) return deterministic runtime errors.
 - Arrays and dictionaries with indexing and standard library helpers.
-- Module imports (`import module`, `from module import symbol`) resolve relative to the importing module's package root first, then configured search paths.
+- Module imports support flat and dotted `from` paths (`import module`, `from module import symbol`, `from src.util import value`, `from src.core.math import add`).
+- Resolution order is deterministic and compatibility-preserving: Ruff checks `<module>.ruff` first (legacy behavior), then for dotted module names checks `<seg1>/<seg2>/.../<segN>.ruff`; both forms remain constrained to the importing package root before configured search paths.
 - Module resolution rejects unsafe traversal-style module names and symlink escapes that resolve outside the active module search root.
 - Circular imports fail with an explicit import chain (`a -> b -> a`) to make cycle diagnosis deterministic.
 - Module cache entries are context-aware (package root + canonical module path) and are invalidated when module source metadata changes during the same run.
