@@ -329,11 +329,27 @@ Each loop report must include exactly:
       - `cargo test --test vm_import_heavy_perf_comparison_contract`
     - Captured execution notes in `notes/2026-05-22_09-12_v1vm-perf-002-import-heavy-regression-verification.md`.
 
-- [ ] **V1VM-PERF-003**: Add cache/lookup validation for repeated nested imports.
+- [x] **V1VM-PERF-003**: Add cache/lookup validation for repeated nested imports.
   - Scope: ensure repeated imports do not trigger avoidable repeated filesystem work.
   - Acceptance criteria:
     - Tests confirm stable behavior and no duplicate side-effect imports.
     - Measurable lookup behavior documented.
+  - Evidence (2026-05-22):
+    - Added module-loader cache reuse regression `load_module_reuses_cached_nested_dotted_module_without_duplicate_cache_entries` in `src/module.rs`:
+      - validates repeated nested dotted lookup (`src.core.math`) reuses the same cache entry (`loaded_modules.len()` remains `1`).
+    - Added warm-cache benchmark path in `benches/v1_perf_benchmarks.rs`:
+      - `module_resolution/import_heavy_nested_dotted_cached_lookup_warm_loader`
+      - paired with existing cold path `module_resolution/import_heavy_nested_dotted_startup_cold_loader`.
+    - Captured measurable cold-vs-warm lookup evidence in `docs/generated/VM_IMPORT_HEAVY_CACHE_LOOKUP.md`:
+      - cold median: `35.467 ms`
+      - warm median: `251.22 µs`
+      - relative improvement: `~141x` faster warm cached lookup.
+    - Added contract coverage in `tests/vm_import_heavy_cache_lookup_contract.rs`.
+    - Revalidated targeted commands:
+      - `cargo bench --bench v1_perf_benchmarks -- import_heavy_nested_dotted_ --noplot --sample-size 10 --warm-up-time 0.5 --measurement-time 1`
+      - `cargo test load_module_reuses_cached_nested_dotted_module_without_duplicate_cache_entries`
+      - `cargo test --test vm_import_heavy_cache_lookup_contract`
+    - Captured execution notes in `notes/2026-05-22_09-34_v1vm-perf-003-cache-lookup-validation.md`.
 
 ### 5) Docs, Downstream Guidance, And Final Readiness
 

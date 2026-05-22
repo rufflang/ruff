@@ -794,6 +794,41 @@ mod tests {
     }
 
     #[test]
+    fn load_module_reuses_cached_nested_dotted_module_without_duplicate_cache_entries() {
+        let mut loader = ModuleLoader::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_module_dotted_cache_reuse"));
+        let nested_dir = temp_root.join("src").join("core");
+        fs::create_dir_all(&nested_dir).expect("failed to create nested module dir");
+
+        let module_path = nested_dir.join("math.ruff");
+        fs::write(&module_path, "export answer := 42\n").expect("failed to write nested module");
+
+        loader.add_search_path(&temp_root);
+
+        let first = loader
+            .get_symbol("src.core.math", "answer")
+            .expect("expected first dotted lookup to succeed");
+        assert!(matches!(first, Value::Int(42)), "expected first lookup to return 42");
+        assert_eq!(
+            loader.loaded_modules.len(),
+            1,
+            "expected one cached module entry after first dotted lookup"
+        );
+
+        let second = loader
+            .get_symbol("src.core.math", "answer")
+            .expect("expected second dotted lookup to succeed");
+        assert!(matches!(second, Value::Int(42)), "expected second lookup to return 42");
+        assert_eq!(
+            loader.loaded_modules.len(),
+            1,
+            "expected repeated dotted lookups to reuse cache without duplicate module entries"
+        );
+
+        fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
+    }
+
+    #[test]
     fn load_module_rejects_dotted_module_names_with_empty_segments() {
         let mut loader = ModuleLoader::new();
         let temp_root = std::env::temp_dir().join(unique_name("ruff_module_dotted_invalid"));

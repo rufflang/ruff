@@ -428,6 +428,25 @@ fn bench_module_resolution(c: &mut Criterion) {
             BatchSize::SmallInput,
         );
     });
+    group.bench_function("import_heavy_nested_dotted_cached_lookup_warm_loader", |b| {
+        b.iter_batched(
+            || {
+                let mut loader = ModuleLoader::new();
+                loader.add_search_path(&import_heavy_startup_fixture.root_dir);
+                loader
+                    .load_module(&import_heavy_startup_fixture.entry_module)
+                    .expect("import-heavy nested startup warm workload should preload");
+                loader
+            },
+            |mut loader| {
+                let ready = loader
+                    .get_symbol(&import_heavy_startup_fixture.entry_module, "ready")
+                    .expect("import-heavy nested startup warm lookup should succeed");
+                black_box(ready);
+            },
+            BatchSize::SmallInput,
+        );
+    });
     group.finish();
 }
 
