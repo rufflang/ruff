@@ -294,11 +294,23 @@ Each loop report must include exactly:
 
 ### 4) Security, Determinism, And Performance Guardrails
 
-- [ ] **V1VM-PERF-001**: Add import-heavy interpreter startup/perf benchmark for nested modules.
+- [x] **V1VM-PERF-001**: Add import-heavy interpreter startup/perf benchmark for nested modules.
   - Scope: benchmark module-resolution-heavy startup path to detect dotted import regressions.
   - Acceptance criteria:
     - Benchmark fixture and command documented.
     - Baseline numbers captured.
+  - Evidence (2026-05-21):
+    - Added new Criterion workload in `benches/v1_perf_benchmarks.rs`:
+      - benchmark id: `module_resolution/import_heavy_nested_dotted_startup_cold_loader`
+      - fixture: generated nested `src/core/mod_*.ruff` modules (64 modules) imported through dotted `from src.core.mod_* import value_*` entry module.
+      - execution path: cold `ModuleLoader` per iteration with interpreter-backed module evaluation via `load_module`.
+    - Documented benchmark command in `README.md` Benchmarks section:
+      - `cargo bench --bench v1_perf_benchmarks -- import_heavy_nested_dotted_startup_cold_loader`
+    - Captured baseline command/result:
+      - `cargo bench --bench v1_perf_benchmarks -- import_heavy_nested_dotted_startup_cold_loader --noplot --sample-size 10 --warm-up-time 0.5 --measurement-time 1`
+      - `time: [278.40 ms 350.61 ms 420.40 ms]`
+      - Criterion warned sample window was short for 10 samples in 1.0s and estimated ~2.15s collection; this run is kept as the initial baseline for `V1VM-PERF-001`.
+    - Captured execution notes in `notes/2026-05-21_20-44_v1vm-perf-001-import-heavy-nested-startup-baseline.md`.
 
 - [ ] **V1VM-PERF-002**: Demonstrate no unacceptable perf regression after reliability fixes.
   - Scope: compare before/after metrics for import-heavy path and report variance.

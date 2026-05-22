@@ -223,6 +223,11 @@ struct DeepDottedModuleChainBenchmarkFixture {
     terminal_module: String,
 }
 
+struct ImportHeavyNestedStartupBenchmarkFixture {
+    root_dir: PathBuf,
+    entry_module: String,
+}
+
 fn module_benchmark_fixture() -> &'static ModuleBenchmarkFixture {
     static FIXTURE: OnceLock<ModuleBenchmarkFixture> = OnceLock::new();
     FIXTURE.get_or_init(|| {
@@ -324,10 +329,40 @@ fn deep_dotted_module_chain_benchmark_fixture() -> &'static DeepDottedModuleChai
     })
 }
 
+fn import_heavy_nested_startup_benchmark_fixture() -> &'static ImportHeavyNestedStartupBenchmarkFixture
+{
+    static FIXTURE: OnceLock<ImportHeavyNestedStartupBenchmarkFixture> = OnceLock::new();
+    FIXTURE.get_or_init(|| {
+        let root_dir = unique_temp_dir("v1_perf_import_heavy_nested_startup_bench");
+        let nested_root = root_dir.join("src").join("core");
+        fs::create_dir_all(&nested_root)
+            .expect("import-heavy nested startup benchmark root should be created");
+
+        let module_count = 64usize;
+        let mut entry_source = String::new();
+        for index in 0..module_count {
+            let symbol_name = format!("value_{index:03}");
+            let module_name = format!("src.core.mod_{index:03}");
+            let module_path = nested_root.join(format!("mod_{index:03}.ruff"));
+            fs::write(module_path, format!("export {symbol_name} := {index}\n"))
+                .expect("import-heavy nested module benchmark file should be written");
+            entry_source.push_str(&format!("from {module_name} import {symbol_name}\n"));
+        }
+        entry_source.push_str("export ready := 1\n");
+
+        let entry_module = "entry_nested_import_startup".to_string();
+        fs::write(root_dir.join(format!("{}.ruff", entry_module)), entry_source)
+            .expect("import-heavy nested startup benchmark entry file should be written");
+
+        ImportHeavyNestedStartupBenchmarkFixture { root_dir, entry_module }
+    })
+}
+
 fn bench_module_resolution(c: &mut Criterion) {
     let fixture = module_benchmark_fixture();
     let deep_chain_fixture = deep_module_chain_benchmark_fixture();
     let deep_dotted_chain_fixture = deep_dotted_module_chain_benchmark_fixture();
+    let import_heavy_startup_fixture = import_heavy_nested_startup_benchmark_fixture();
 
     let mut group = c.benchmark_group("module_resolution");
     group.bench_function("many_small_modules_cold_loader", |b| {
@@ -373,6 +408,22 @@ fn bench_module_resolution(c: &mut Criterion) {
                     .get_symbol(&deep_dotted_chain_fixture.terminal_module, "depth")
                     .expect("deep dotted import chain workload should load");
                 black_box(depth);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+    group.bench_function("import_heavy_nested_dotted_startup_cold_loader", |b| {
+        b.iter_batched(
+            || {
+                let mut loader = ModuleLoader::new();
+                loader.add_search_path(&import_heavy_startup_fixture.root_dir);
+                loader
+            },
+            |mut loader| {
+                let module = loader
+                    .load_module(&import_heavy_startup_fixture.entry_module)
+                    .expect("import-heavy nested startup workload should load");
+                black_box(module.exports.len());
             },
             BatchSize::SmallInput,
         );

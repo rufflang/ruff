@@ -523,6 +523,7 @@ Ruff includes benchmark tooling because performance work is a first-class part o
 
 ```bash
 cargo bench --bench v1_perf_benchmarks
+cargo bench --bench v1_perf_benchmarks -- import_heavy_nested_dotted_startup_cold_loader
 cargo run -- bench examples/benchmarks
 cargo run -- bench-cross
 cargo run -- bench-ssg --runs 5 --warmup-runs 1
@@ -531,6 +532,7 @@ cargo run -- profile examples/benchmark.ruff
 ```
 
 `cargo bench --bench v1_perf_benchmarks` runs the core Criterion baseline suite for lexer, parser, interpreter, VM, module-resolution, and static-server request workloads.
+`cargo bench --bench v1_perf_benchmarks -- import_heavy_nested_dotted_startup_cold_loader` runs the nested dotted-import cold-start workload that stresses interpreter-backed module startup for import-heavy projects.
 
 `bench-ssg` supports repeated runs, warmups, percentile reporting, measurement-quality warnings, optional Python comparison, optional stage profiling, and a throughput gate via `--throughput-gate-ms`.
 
