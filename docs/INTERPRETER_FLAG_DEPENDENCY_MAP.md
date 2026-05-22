@@ -1,6 +1,6 @@
 # Interpreter Flag Dependency Map
 
-- Generated: 2026-05-22 10:12:02 EDT
+- Generated: 2026-05-22 10:14:32 EDT
 - Command: `rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github`
 
 Reason tags:
@@ -25,8 +25,9 @@ Reason tags:
 | `docs/PERFORMANCE.md` | documentation | `docs-contract` | 3 | 46,495,500 |
 | `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 265,271 |
 | `docs/RUFF_FEATURE_INVENTORY.md` | documentation | `docs-contract` | 2 | 31,37 |
+| `docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md` | documentation | `docs-contract` | 4 | 1,16,20,21 |
 | `docs/VM_INTERPRETER_PARITY_MATRIX.md` | documentation | `docs-contract` | 6 | 37,38,43,44,45,66 |
-| `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` | documentation | `docs-contract` | 8 | 3,6,149,164,169,359,361,366 |
+| `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` | documentation | `docs-contract` | 9 | 3,6,149,164,169,359,361,374,379 |
 | `examples/benchmarks/README_REAL_WORLD.md` | example-doc | `benchmark-baseline` | 1 | 150 |
 | `notes/2026-01-27_20-54_phase5-tokio-async-runtime.md` | notes-history | `archive-note` | 2 | 78,83 |
 | `notes/2026-04-29_17-02_image-method-dispatch-parity.md` | notes-history | `archive-note` | 1 | 63 |
@@ -43,17 +44,19 @@ Reason tags:
 | `notes/2026-05-21_18-34_v1vm-imp-003-dotted-import-boundary-security.md` | notes-history | `archive-note` | 1 | 13 |
 | `notes/2026-05-21_18-40_v1vm-imp-005-module-import-guidance-alignment.md` | notes-history | `archive-note` | 1 | 11 |
 | `notes/2026-05-21_19-28_v1vm-par-003-runtime-parity-bucket-reduction.md` | notes-history | `archive-note` | 2 | 37,38 |
+| `notes/2026-05-22_09-52_v1vm-doc-001-vm-first-runtime-guidance-alignment.md` | notes-history | `archive-note` | 2 | 8,14 |
 | `notes/README.md` | notes-history | `archive-note` | 1 | 9 |
 | `notes/vm_performance.md` | notes-history | `archive-note` | 1 | 21 |
 | `src/main.rs` | other | `manual-review` | 1 | 125 |
 | `src/parser.rs` | cli-harness | `harness-legacy,parity-gap` | 1 | 2212 |
 | `tests/diagnostics_golden.rs` | integration-test | `diagnostics-diff,harness-legacy` | 1 | 60 |
 | `tests/docs_examples.rs` | integration-test | `docs-smoke,harness-legacy` | 1 | 256 |
-| `tests/interpreter_flag_dependency_map_contract.rs` | integration-test | `harness-legacy` | 2 | 57,88 |
+| `tests/interpreter_flag_dependency_map_contract.rs` | integration-test | `harness-legacy` | 2 | 57,90 |
 | `tests/native_api_security_boundaries.rs` | integration-test | `security-test-choice` | 34 | 134,211,307,327,371,398,407,421,450,459,468,477,500,544,573,582,591,609,643,682,700,736,776,807,842,882,918,954,987,996,1029,1038,1074,1083 |
 | `tests/optional_typing_v1_contract.rs` | integration-test | `harness-legacy` | 1 | 112 |
 | `tests/package_module_workflow_integration.rs` | integration-test | `harness-legacy,package-workflow` | 7 | 124,316,347,366,405,455,486 |
-| `tests/runtime_path_matrix_contract.rs` | integration-test | `harness-legacy` | 2 | 22,23 |
+| `tests/readme_contracts.rs` | integration-test | `harness-legacy` | 1 | 27 |
+| `tests/runtime_path_matrix_contract.rs` | integration-test | `harness-legacy` | 3 | 22,24,25 |
 | `tests/runtime_security.rs` | integration-test | `security-test-choice` | 6 | 128,146,175,206,261,307 |
 
 ## V1U-RUN-005: Parity-Gap Coverage Status

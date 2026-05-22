@@ -371,10 +371,26 @@ Each loop report must include exactly:
       - `cargo test --test interpreter_flag_dependency_map_contract`
     - Captured execution notes in `notes/2026-05-22_09-52_v1vm-doc-001-vm-first-runtime-guidance-alignment.md`.
 
-- [ ] **V1VM-DOC-002**: Publish downstream migration guidance for teams currently pinned to `--interpreter`.
+- [x] **V1VM-DOC-002**: Publish downstream migration guidance for teams currently pinned to `--interpreter`.
   - Scope: provide deterministic migration playbook (runtime mode selection, known caveats, verification commands).
   - Acceptance criteria:
     - One canonical doc section or migration note with explicit command recipes.
+  - Evidence (2026-05-22):
+    - Added canonical migration guide `docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md` with:
+      - command decision table (`ruff run`, `ruff test --runtime dual`, `ruff test --runtime vm`, `ruff run --interpreter`)
+      - explicit step-by-step migration workflow
+      - deterministic verification command block for VM/dual/parity/module workflow coverage.
+    - Added README linkage in runtime recommendations section:
+      - `docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md`
+    - Regenerated `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md` to include the new migration doc in current interpreter-flag dependency inventory.
+    - Added contract coverage:
+      - `tests/vm_interpreter_migration_playbook_contract.rs`
+      - updated `tests/readme_contracts.rs`
+    - Revalidated impacted docs/checklist contract suites:
+      - `cargo test --test vm_interpreter_migration_playbook_contract`
+      - `cargo test --test readme_contracts`
+      - `cargo test --test interpreter_flag_dependency_map_contract`
+    - Captured execution notes in `notes/2026-05-22_10-04_v1vm-doc-002-interpreter-migration-playbook.md`.
 
 - [ ] **V1VM-FINAL-001**: Produce universal no-`--interpreter` readiness verdict for v1 track.
   - Scope: summarize completed items, remaining intentional divergences, and go/no-go recommendation.

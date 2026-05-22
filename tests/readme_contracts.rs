@@ -25,6 +25,7 @@ fn readme_covers_v1_status_cli_security_and_core_reference_links() {
         "Dotted module import workflows are supported on the default VM path",
         "## Runtime Mode Recommendations",
         "Developers should not need `--interpreter` for ordinary modular project layouts.",
+        "[docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md](docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md)",
     ];
 
     for marker in required_markers {

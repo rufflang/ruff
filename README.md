@@ -560,6 +560,7 @@ These are intentional caveats for production readers rather than fine print:
 - Use `ruff test --runtime vm` for strict VM-only parity sweeps and migration gating.
 - Use `--interpreter` only as an explicit compatibility/debug mode when isolating known runtime-path divergences.
 - Developers should not need `--interpreter` for ordinary modular project layouts.
+- Migration recipes for interpreter-pinned teams are in [docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md](docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md).
 
 ## Documentation
 
