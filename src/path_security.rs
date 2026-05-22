@@ -176,8 +176,8 @@ pub fn reject_symlink_target_path(path: &Path, context: &str) -> Result<(), Stri
     Ok(())
 }
 
-#[allow(dead_code)]
-pub fn reject_url_encoded_parent_traversal(raw_path: &str, context: &str) -> Result<(), String> {
+#[cfg(test)]
+pub(crate) fn reject_url_encoded_parent_traversal(raw_path: &str, context: &str) -> Result<(), String> {
     let Some(decoded_path) = decode_percent_encoded(raw_path) else {
         return Ok(());
     };
@@ -194,6 +194,7 @@ pub fn reject_url_encoded_parent_traversal(raw_path: &str, context: &str) -> Res
     Ok(())
 }
 
+#[cfg(test)]
 fn decode_percent_encoded(raw_path: &str) -> Option<String> {
     let bytes = raw_path.as_bytes();
     let mut decoded = Vec::with_capacity(bytes.len());
@@ -219,6 +220,7 @@ fn decode_percent_encoded(raw_path: &str) -> Option<String> {
     String::from_utf8(decoded).ok()
 }
 
+#[cfg(test)]
 fn decode_hex_nibble(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),

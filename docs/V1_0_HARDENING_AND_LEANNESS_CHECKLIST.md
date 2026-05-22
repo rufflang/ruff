@@ -132,11 +132,19 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
       - `cargo test vm_http_handler_wrapper_executes_lambda_response_correctly`
       - `cargo test --test vm_interpreter_parity_surfaces` (86 passed)
 
-- [ ] **V1H-SIZE-004**: Audit `#[allow(dead_code)]` hotspots for removable production bloat.
+- [x] **V1H-SIZE-004**: Audit `#[allow(dead_code)]` hotspots for removable production bloat.
   - Scope: classify dead-code allowances into keep/remove/feature-gate buckets.
   - Acceptance criteria:
     - inventory note with rationale per major hotspot (`src/builtins.rs`, `src/jit.rs`, `src/vm.rs`, etc.).
     - remove low-risk dead paths or gate them behind features where practical.
+  - Evidence (2026-05-22):
+    - Added hotspot inventory and classification note: `docs/generated/DEAD_CODE_ALLOW_HOTSPOT_AUDIT.md`.
+    - Classified major hotspots (`src/builtins.rs`, `src/interpreter/value.rs`, `src/jit.rs`, `src/ast.rs`, `src/vm.rs`, `src/module.rs`) into keep/defer buckets with rationale, and identified `src/path_security.rs` as safe immediate reduction.
+    - Applied low-risk removal/gating by converting `reject_url_encoded_parent_traversal` in `src/path_security.rs` from runtime `#[allow(dead_code)]` to `#[cfg(test)] pub(crate)` since it is test-only call-path code.
+    - Validation:
+      - `cargo test reject_url_encoded_parent_traversal`
+      - `cargo test path_security`
+      - `cargo test --test vm_interpreter_parity_surfaces`
 
 - [ ] **V1H-SIZE-005**: Add release profile tuning for smaller binaries.
   - Scope: evaluate `lto`, `codegen-units`, `panic=abort`, and strip strategy.
