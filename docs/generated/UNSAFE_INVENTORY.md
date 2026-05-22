@@ -5,9 +5,9 @@ Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\buns
 
 ## Summary
 
-- Total matches: 53
+- Total matches: 56
 - Executable matches: 49
-- Non-executable matches: 4
+- Non-executable matches: 7
 - Unknown classifications: 0
 
 ## Rows
@@ -67,3 +67,6 @@ Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\buns
 | src/jit.rs | 8969 | executable | jit_executable |         unsafe { |
 | src/module.rs | 645 | non_executable | src_comment_or_string |             ""expected unsafe traversal error, got: {}"", |
 | tests/runtime_security.rs | 237 | non_executable | test_comment_or_string |         ""expected unsafe traversal error, got: {}"", |
+| tests/unsafe_safety_gate_contract.rs | 14 | non_executable | test_comment_or_string |         .expect(""failed to run unsafe safety gate help""); |
+| tests/unsafe_safety_gate_contract.rs | 29 | non_executable | test_comment_or_string |         .expect(""failed to run unsafe safety gate dry-run""); |
+| tests/unsafe_safety_gate_contract.rs | 56 | non_executable | test_comment_or_string |         .expect(""failed to run unsafe safety gate unknown-arg check""); |

@@ -53,6 +53,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - Invariants reference ownership/lifetime/ABI assumptions.
   - Validation:
     - focused JIT tests + `cargo test --test vm_interpreter_parity_surfaces`
+  - Blocker (2026-05-22): Current `src/jit.rs` has 51 `unsafe` markers and only 3 existing `SAFETY:` comments; a one-loop manual annotation sweep would be high-churn and error-prone without a preparatory enforcement/checker pass.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs` -> `3`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -62,12 +64,18 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Validation:
     - `bash scripts/generate_unsafe_inventory.sh`
     - focused JIT tests + `cargo test --test vm_interpreter_parity_surfaces`
+  - Blocker (2026-05-22): Wrapper-reduction pass is blocked this loop pending an explicit safety-gate/checker workflow so callsite reductions can be validated deterministically as invariants move.
+    Evidence: Unsafe boundary concentration remains high (`docs/generated/UNSAFE_INVENTORY.md`: 49 executable matches), and no optional nightly sanitizer/Miri gate existed before this loop.
 
-- [ ] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
+- [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
   - Scope: machine-verifiable unsafe regression signal beyond unit tests.
   - Acceptance criteria:
     - Repeatable command/script documented under `scripts/` or CI config.
     - Failure mode documented for triage.
+  - Evidence (2026-05-22):
+    - Added `scripts/unsafe_safety_gate.sh` with deterministic base gate commands plus optional `--with-miri` probe and explicit failure-mode exits (`2` for bad args, `3` for missing nightly/Miri prerequisites).
+    - Added contract coverage in `tests/unsafe_safety_gate_contract.rs` for help output, dry-run command emission (including Miri probe), and unknown-argument failure path.
+    - Validation: `cargo test --test unsafe_safety_gate_contract` (3 passed) and `bash scripts/unsafe_safety_gate.sh` (unsafe inventory generation + `unsafe_inventory_contract` + `vm_interpreter_parity_surfaces` all passed).
 
 ---
 
