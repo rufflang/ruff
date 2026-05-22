@@ -353,10 +353,23 @@ Each loop report must include exactly:
 
 ### 5) Docs, Downstream Guidance, And Final Readiness
 
-- [ ] **V1VM-DOC-001**: Update runtime guidance docs to VM-first practical recommendations.
+- [x] **V1VM-DOC-001**: Update runtime guidance docs to VM-first practical recommendations.
   - Scope: align `README.md`, parity docs, and dependency map language with current execution reality.
   - Acceptance criteria:
     - No stale blanket guidance that developers must use `--interpreter` for ordinary modular projects.
+  - Evidence (2026-05-22):
+    - Added canonical VM-first runtime guidance section to `README.md` (`## Runtime Mode Recommendations`) with explicit default/fallback usage guidance and a direct statement that ordinary modular projects should not require `--interpreter`.
+    - Added matching practical recommendations to `docs/VM_INTERPRETER_PARITY_MATRIX.md` (`## VM-First Practical Recommendations`) to align command-level parity matrix guidance with README runtime recommendations.
+    - Updated generator-owned dependency-map guidance in `scripts/generate_interpreter_flag_dependency_map.sh` and regenerated `docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md` to include VM-first practical recommendation bullets.
+    - Extended docs contract coverage:
+      - `tests/readme_contracts.rs`
+      - `tests/runtime_path_matrix_contract.rs`
+      - `tests/interpreter_flag_dependency_map_contract.rs`
+    - Revalidated impacted contract suites:
+      - `cargo test --test readme_contracts`
+      - `cargo test --test runtime_path_matrix_contract`
+      - `cargo test --test interpreter_flag_dependency_map_contract`
+    - Captured execution notes in `notes/2026-05-22_09-52_v1vm-doc-001-vm-first-runtime-guidance-alignment.md`.
 
 - [ ] **V1VM-DOC-002**: Publish downstream migration guidance for teams currently pinned to `--interpreter`.
   - Scope: provide deterministic migration playbook (runtime mode selection, known caveats, verification commands).

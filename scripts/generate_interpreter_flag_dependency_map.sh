@@ -132,6 +132,13 @@ Import-reliability clarification:
 
 - Dotted and flat module imports are supported in both VM and interpreter runtime paths.
 - `--interpreter` is not required for ordinary multi-module import layouts; it remains an explicit fallback/debug mode while fixture parity burn-down continues.
+
+VM-first practical recommendations:
+
+- Use `ruff run <file>` as the default VM-first path for ordinary modular projects.
+- Use `ruff test --runtime dual` for compatibility sweeps where fallback visibility matters.
+- Use `ruff test --runtime vm` for strict migration/parity gating.
+- Use `--interpreter` only for explicit compatibility/debug isolation.
 EOF
 } >"$OUTPUT_PATH"
 

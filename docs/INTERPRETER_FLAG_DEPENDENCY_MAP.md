@@ -1,6 +1,6 @@
 # Interpreter Flag Dependency Map
 
-- Generated: 2026-05-21 18:39:48 EDT
+- Generated: 2026-05-22 10:12:02 EDT
 - Command: `rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github`
 
 Reason tags:
@@ -16,7 +16,7 @@ Reason tags:
 
 | File | Category | Reason Tags | Usage Count | Line References |
 | --- | --- | --- | --- | --- |
-| `README.md` | documentation | `docs-contract` | 3 | 11,122,326 |
+| `README.md` | documentation | `docs-contract` | 5 | 11,122,326,561,562 |
 | `ROADMAP.md` | documentation | `docs-contract` | 1 | 1334 |
 | `docs/ARCHITECTURE.md` | documentation | `docs-contract` | 2 | 29,42 |
 | `docs/IMAGE_CONVERSION_AGENT_HANDOFF.md` | documentation | `docs-contract` | 1 | 52 |
@@ -25,8 +25,8 @@ Reason tags:
 | `docs/PERFORMANCE.md` | documentation | `docs-contract` | 3 | 46,495,500 |
 | `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md` | documentation | `docs-contract` | 2 | 265,271 |
 | `docs/RUFF_FEATURE_INVENTORY.md` | documentation | `docs-contract` | 2 | 31,37 |
-| `docs/VM_INTERPRETER_PARITY_MATRIX.md` | documentation | `docs-contract` | 5 | 37,38,43,44,45 |
-| `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` | documentation | `docs-contract` | 7 | 3,6,149,164,239,241,246 |
+| `docs/VM_INTERPRETER_PARITY_MATRIX.md` | documentation | `docs-contract` | 6 | 37,38,43,44,45,66 |
+| `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` | documentation | `docs-contract` | 8 | 3,6,149,164,169,359,361,366 |
 | `examples/benchmarks/README_REAL_WORLD.md` | example-doc | `benchmark-baseline` | 1 | 150 |
 | `notes/2026-01-27_20-54_phase5-tokio-async-runtime.md` | notes-history | `archive-note` | 2 | 78,83 |
 | `notes/2026-04-29_17-02_image-method-dispatch-parity.md` | notes-history | `archive-note` | 1 | 63 |
@@ -41,6 +41,8 @@ Reason tags:
 | `notes/2026-05-20_18-13_v1u-code-003-optional-typing-boundary.md` | notes-history | `archive-note` | 1 | 20 |
 | `notes/2026-05-21_17-48_vm-universal-checklist-and-agent-prompt.md` | notes-history | `archive-note` | 2 | 6,17 |
 | `notes/2026-05-21_18-34_v1vm-imp-003-dotted-import-boundary-security.md` | notes-history | `archive-note` | 1 | 13 |
+| `notes/2026-05-21_18-40_v1vm-imp-005-module-import-guidance-alignment.md` | notes-history | `archive-note` | 1 | 11 |
+| `notes/2026-05-21_19-28_v1vm-par-003-runtime-parity-bucket-reduction.md` | notes-history | `archive-note` | 2 | 37,38 |
 | `notes/README.md` | notes-history | `archive-note` | 1 | 9 |
 | `notes/vm_performance.md` | notes-history | `archive-note` | 1 | 21 |
 | `src/main.rs` | other | `manual-review` | 1 | 125 |
@@ -51,7 +53,7 @@ Reason tags:
 | `tests/native_api_security_boundaries.rs` | integration-test | `security-test-choice` | 34 | 134,211,307,327,371,398,407,421,450,459,468,477,500,544,573,582,591,609,643,682,700,736,776,807,842,882,918,954,987,996,1029,1038,1074,1083 |
 | `tests/optional_typing_v1_contract.rs` | integration-test | `harness-legacy` | 1 | 112 |
 | `tests/package_module_workflow_integration.rs` | integration-test | `harness-legacy,package-workflow` | 7 | 124,316,347,366,405,455,486 |
-| `tests/runtime_path_matrix_contract.rs` | integration-test | `harness-legacy` | 2 | 20,21 |
+| `tests/runtime_path_matrix_contract.rs` | integration-test | `harness-legacy` | 2 | 22,23 |
 | `tests/runtime_security.rs` | integration-test | `security-test-choice` | 6 | 128,146,175,206,261,307 |
 
 ## V1U-RUN-005: Parity-Gap Coverage Status
@@ -79,3 +81,10 @@ Import-reliability clarification:
 
 - Dotted and flat module imports are supported in both VM and interpreter runtime paths.
 - `--interpreter` is not required for ordinary multi-module import layouts; it remains an explicit fallback/debug mode while fixture parity burn-down continues.
+
+VM-first practical recommendations:
+
+- Use `ruff run <file>` as the default VM-first path for ordinary modular projects.
+- Use `ruff test --runtime dual` for compatibility sweeps where fallback visibility matters.
+- Use `ruff test --runtime vm` for strict migration/parity gating.
+- Use `--interpreter` only for explicit compatibility/debug isolation.

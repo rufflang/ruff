@@ -553,6 +553,14 @@ These are intentional caveats for production readers rather than fine print:
 - Benchmark numbers are environment-sensitive. Prefer `bench-ssg --runs <N> --warmup-runs <N>` and read the measurement warnings before drawing conclusions.
 - Runtime parity status is tracked in [docs/VM_INTERPRETER_PARITY_MATRIX.md](docs/VM_INTERPRETER_PARITY_MATRIX.md).
 
+## Runtime Mode Recommendations
+
+- Use `ruff run <file>` as the default execution path; it is VM-first and supports ordinary flat and dotted module imports.
+- Use `ruff test --runtime dual` when validating legacy fixture snapshots that may still need bounded interpreter fallback.
+- Use `ruff test --runtime vm` for strict VM-only parity sweeps and migration gating.
+- Use `--interpreter` only as an explicit compatibility/debug mode when isolating known runtime-path divergences.
+- Developers should not need `--interpreter` for ordinary modular project layouts.
+
 ## Documentation
 
 - [INSTALLATION.md](INSTALLATION.md): build and installation notes.

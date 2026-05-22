@@ -55,6 +55,8 @@ fn interpreter_flag_dependency_map_generator_covers_required_surfaces_and_tags()
         "`ruff test` supports explicit runtime strategy selection via `--runtime dual|vm|interpreter`",
         "Import-reliability clarification:",
         "`--interpreter` is not required for ordinary multi-module import layouts",
+        "VM-first practical recommendations:",
+        "Use `ruff run <file>` as the default VM-first path for ordinary modular projects.",
     ] {
         assert!(map.contains(marker), "dependency map should contain required marker {:?}", marker);
     }

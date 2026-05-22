@@ -56,7 +56,14 @@ This matrix tracks parity for roadmap item `V1-COMP-001`.
 - Risk analysis:
   - Switching default to VM-only today would convert known fallback recoveries into default user-visible failures for fixtures still pending parity burn-down.
   - Keeping `dual` preserves deterministic behavior via bounded fallback markers while parity closure continues.
-  - VM-only workflows remain explicitly available through `--runtime vm` for strict validation and migration gating.
+- VM-only workflows remain explicitly available through `--runtime vm` for strict validation and migration gating.
+
+## VM-First Practical Recommendations
+
+- Prefer `ruff run <file>` (VM default) for day-to-day script execution and modular project usage.
+- Prefer `ruff test --runtime dual` for fixture-compatibility regression checks while parity burn-down continues.
+- Prefer `ruff test --runtime vm` for strict VM-only gating in migration and parity workflows.
+- Treat `--interpreter` as an explicit compatibility/debug tool, not a default requirement for ordinary module-import workflows.
 
 ## CI Gate
 
