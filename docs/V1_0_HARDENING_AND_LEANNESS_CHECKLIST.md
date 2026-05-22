@@ -55,6 +55,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - focused JIT tests + `cargo test --test vm_interpreter_parity_surfaces`
   - Blocker (2026-05-22): Current `src/jit.rs` has 51 `unsafe` markers and only 3 existing `SAFETY:` comments; a one-loop manual annotation sweep would be high-churn and error-prone without a preparatory enforcement/checker pass.
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs` -> `3`.
+  - Blocker (2026-05-22): Revalidated this loop; `unsafe`/`SAFETY:` ratio remains unchanged, and a full annotation pass is still high-churn without automation-backed enforcement.
+    Evidence: repeated `rg` counts during loop setup remained `51` unsafe markers and `3` `SAFETY:` comments.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -66,6 +68,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - focused JIT tests + `cargo test --test vm_interpreter_parity_surfaces`
   - Blocker (2026-05-22): Wrapper-reduction pass is blocked this loop pending an explicit safety-gate/checker workflow so callsite reductions can be validated deterministically as invariants move.
     Evidence: Unsafe boundary concentration remains high (`docs/generated/UNSAFE_INVENTORY.md`: 49 executable matches), and no optional nightly sanitizer/Miri gate existed before this loop.
+  - Blocker (2026-05-22): Revalidated after adding `scripts/unsafe_safety_gate.sh`; wrapper reduction still deferred until `V1H-UNSAFE-002` documentation sweep is completed to avoid moving unsafe callsites without updated boundary invariants.
+    Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports `49` executable matches concentrated in `src/jit.rs`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
   - Scope: machine-verifiable unsafe regression signal beyond unit tests.
@@ -81,7 +85,7 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
 
 ## B) DRY/Modularity And Binary Size
 
-- [ ] **V1H-SIZE-001**: Establish reproducible binary size baseline matrix.
+- [x] **V1H-SIZE-001**: Establish reproducible binary size baseline matrix.
   - Scope: record size for `debug`, `release`, and stripped release artifacts; include host/target/toolchain metadata.
   - Acceptance criteria:
     - Dated artifact note in `notes/` with exact commands and byte sizes.
@@ -89,6 +93,13 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Validation:
     - `cargo build --release`
     - `ls -lh target/release/ruff` (plus stripped variant if used)
+  - Evidence (2026-05-22):
+    - Added reproducible measurement script `scripts/measure_binary_size.sh` with metadata output, dry-run support, and deterministic byte-count reporting for debug/release/stripped artifacts.
+    - Added contract tests in `tests/binary_size_baseline_contract.rs` (help, dry-run emission, unknown-arg failure path).
+    - Captured measured baseline evidence in `notes/2026-05-22_11-55_v1h-size-001-binary-size-baseline.md`:
+      - debug `91597784` bytes
+      - release `31006832` bytes
+      - release_stripped `26557120` bytes
 
 - [ ] **V1H-SIZE-002**: Add non-breaking feature gates for heavyweight optional subsystems.
   - Scope: make DB/image/archive/JIT-heavy stacks opt-out for smaller binaries while keeping current full behavior available.
