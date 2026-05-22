@@ -1,6 +1,6 @@
 # Unsafe Inventory
 
-Generated: 2026-05-21
+Generated: 2026-05-22
 Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\bunsafe\b' src tests benches fuzz
 
 ## Summary
@@ -65,5 +65,5 @@ Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\buns
 | src/jit.rs | 7926 | executable | jit_executable |     unsafe extern ""C"" fn dummy_compiled_fn(_ctx: *mut VMContext) -> i64 { |
 | src/jit.rs | 7930 | executable | jit_executable |     unsafe extern ""C"" fn dummy_compiled_fn_with_arg(_ctx: *mut VMContext, arg: i64) -> i64 { |
 | src/jit.rs | 8969 | executable | jit_executable |         unsafe { |
-| src/module.rs | 602 | non_executable | src_comment_or_string |             ""expected unsafe traversal error, got: {}"", |
+| src/module.rs | 645 | non_executable | src_comment_or_string |             ""expected unsafe traversal error, got: {}"", |
 | tests/runtime_security.rs | 237 | non_executable | test_comment_or_string |         ""expected unsafe traversal error, got: {}"", |
