@@ -229,6 +229,8 @@ Each loop report must include exactly:
     - Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports non-intentional categories (`runtime-parity-bug: 25`, `harness-debt: 16`), so intentional-only divergence documentation would be premature.
   - Blocker note (2026-05-21, loop retry): still blocked.
     - Evidence: latest generated inventory remains above intentional-only threshold with unresolved non-intentional buckets (`runtime-parity-bug: 25`, `harness-debt: 16`), so `V1VM-PAR-004` acceptance criteria cannot be met yet.
+  - Blocker note (2026-05-22): revalidated in current loop; still blocked pending parity-bucket burn-down.
+    - Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still contains unexplained non-intentional mismatch categories (`runtime-parity-bug: 25`, `harness-debt: 16`).
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
@@ -312,10 +314,20 @@ Each loop report must include exactly:
       - Criterion warned sample window was short for 10 samples in 1.0s and estimated ~2.15s collection; this run is kept as the initial baseline for `V1VM-PERF-001`.
     - Captured execution notes in `notes/2026-05-21_20-44_v1vm-perf-001-import-heavy-nested-startup-baseline.md`.
 
-- [ ] **V1VM-PERF-002**: Demonstrate no unacceptable perf regression after reliability fixes.
+- [x] **V1VM-PERF-002**: Demonstrate no unacceptable perf regression after reliability fixes.
   - Scope: compare before/after metrics for import-heavy path and report variance.
   - Acceptance criteria:
     - Results recorded with tolerance threshold and pass/fail interpretation.
+  - Evidence (2026-05-22):
+    - Added deterministic comparison artifact `docs/generated/VM_IMPORT_HEAVY_PERF_COMPARISON.md` with explicit baseline vs current benchmark windows for `module_resolution/import_heavy_nested_dotted_startup_cold_loader`.
+    - Baseline (`V1VM-PERF-001`) median: `350.61 ms`; current median: `40.763 ms`.
+    - Defined tolerance policy for this item: unacceptable regression if current median exceeds baseline median by more than `20.0%`.
+    - Computed result: `-88.37%` median delta (improvement), status `PASS` (no unacceptable regression).
+    - Added contract coverage in `tests/vm_import_heavy_perf_comparison_contract.rs`.
+    - Revalidated benchmark + contract:
+      - `cargo bench --bench v1_perf_benchmarks -- import_heavy_nested_dotted_startup_cold_loader --noplot --sample-size 10 --warm-up-time 0.5 --measurement-time 1`
+      - `cargo test --test vm_import_heavy_perf_comparison_contract`
+    - Captured execution notes in `notes/2026-05-22_09-12_v1vm-perf-002-import-heavy-regression-verification.md`.
 
 - [ ] **V1VM-PERF-003**: Add cache/lookup validation for repeated nested imports.
   - Scope: ensure repeated imports do not trigger avoidable repeated filesystem work.
