@@ -14,6 +14,7 @@ mod doc_generator;
 mod docgen;
 mod errors;
 mod formatter;
+mod http_request_utils;
 mod interpreter;
 mod jit;
 mod lexer;

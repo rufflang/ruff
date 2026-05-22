@@ -57,6 +57,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs` -> `3`.
   - Blocker (2026-05-22): Revalidated this loop; `unsafe`/`SAFETY:` ratio remains unchanged, and a full annotation pass is still high-churn without automation-backed enforcement.
     Evidence: repeated `rg` counts during loop setup remained `51` unsafe markers and `3` `SAFETY:` comments.
+  - Blocker (2026-05-22): Revalidated in loop 4; annotation scope is still broad (`src/jit.rs` executable boundaries span FFI functions plus inline unsafe blocks) and remains deferred behind a dedicated enforcement pass.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs` still reports 51 markers concentrated in one file.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -70,6 +72,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: Unsafe boundary concentration remains high (`docs/generated/UNSAFE_INVENTORY.md`: 49 executable matches), and no optional nightly sanitizer/Miri gate existed before this loop.
   - Blocker (2026-05-22): Revalidated after adding `scripts/unsafe_safety_gate.sh`; wrapper reduction still deferred until `V1H-UNSAFE-002` documentation sweep is completed to avoid moving unsafe callsites without updated boundary invariants.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports `49` executable matches concentrated in `src/jit.rs`.
+  - Blocker (2026-05-22): Revalidated in loop 4; callsite-reduction work remains coupled to unresolved unsafe-boundary invariant documentation.
+    Evidence: generated inventory still reports `49` executable unsafe matches in JIT pathways.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
   - Scope: machine-verifiable unsafe regression signal beyond unit tests.
@@ -108,8 +112,10 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - `--no-default-features`/targeted feature combinations build and test cleanly.
   - Validation:
     - feature-matrix `cargo check` / targeted tests
+  - Blocker (2026-05-22): This requires a crate-feature matrix design decision (default-vs-optional subsystem partitioning for DB/image/archive/JIT stacks) that risks broad behavior/build-surface churn beyond a single scoped loop.
+    Evidence: `Cargo.toml` currently declares heavyweight runtime dependencies directly in always-on `[dependencies]`, with no existing feature partition to extend incrementally.
 
-- [ ] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
+- [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
   - Scope: extract shared HTTP path/query parsing and similar duplicated helpers into shared module(s).
   - Acceptance criteria:
     - Duplicate helper implementations removed from one-off runtime copies.
@@ -117,6 +123,14 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Validation:
     - `cargo test --test vm_interpreter_parity_surfaces`
     - focused HTTP/runtime suites
+  - Evidence (2026-05-22):
+    - Added shared helper module `src/http_request_utils.rs` with lexical query parsing utilities and unit tests.
+    - Removed duplicated `split_http_path_and_query` / `parse_http_query_params` implementations from `src/interpreter/mod.rs` and `src/vm.rs`, wiring both runtimes to `http_request_utils::split_http_path_and_query`.
+    - Validation:
+      - `cargo test split_http_path_and_query` (new helper tests passed in lib+main test binaries)
+      - `cargo test vm_http_server_route_method_returns_updated_server`
+      - `cargo test vm_http_handler_wrapper_executes_lambda_response_correctly`
+      - `cargo test --test vm_interpreter_parity_surfaces` (86 passed)
 
 - [ ] **V1H-SIZE-004**: Audit `#[allow(dead_code)]` hotspots for removable production bloat.
   - Scope: classify dead-code allowances into keep/remove/feature-gate buckets.

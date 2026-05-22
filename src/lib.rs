@@ -13,6 +13,7 @@ pub mod doc_generator;
 pub mod docgen;
 pub mod errors;
 pub mod formatter;
+pub mod http_request_utils;
 pub mod interpreter;
 pub mod jit;
 pub mod lexer;
